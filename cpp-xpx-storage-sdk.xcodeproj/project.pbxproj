@@ -1,0 +1,955 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXAggregateTarget section */
+		9E4D8CBD71E746D8A7110CBC /* ALL_BUILD */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = B3DAD5D0B2244E05A8E64880 /* Build configuration list for PBXAggregateTarget "ALL_BUILD" */;
+			buildPhases = (
+				1CC70789A97088BDAB691ED6 /* Generate CMakeFiles/ALL_BUILD */,
+			);
+			dependencies = (
+				4816782A1F634249B956A1FE /* PBXTargetDependency */,
+				6ED5B0C770E2444699ADC28D /* PBXTargetDependency */,
+				D96CCC6E647E4CDBB296D3FA /* PBXTargetDependency */,
+			);
+			name = ALL_BUILD;
+			productName = ALL_BUILD;
+		};
+		E20880934BF74BE4A82E1622 /* ZERO_CHECK */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = 49661502F6DD49EFAD0136B9 /* Build configuration list for PBXAggregateTarget "ZERO_CHECK" */;
+			buildPhases = (
+				FA0F9C57BDF78956CB7E25B7 /* Generate CMakeFiles/ZERO_CHECK */,
+			);
+			dependencies = (
+			);
+			name = ZERO_CHECK;
+			productName = ZERO_CHECK;
+		};
+/* End PBXAggregateTarget section */
+
+/* Begin PBXBuildFile section */
+		6F40136B2D174D948C83F7B5 /* ActionList.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7E8820D7E9454CCAAF3D9971 /* ActionList.cpp */; };
+		A5D86580AFC14D89A9275BC3 /* testActionList.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 891961A0E1C74D66A7EE92AF /* testActionList.cpp */; };
+		DFB008660FA64CB7916AC74A /* ActionList.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 50779637D14F44B0B21745D4 /* ActionList.cpp */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0AFB8C7602834F22A7936020 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 970AA6F97D8C48DEA59C0E63 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E20880934BF74BE4A82E1622;
+			remoteInfo = ZERO_CHECK;
+		};
+		120E251E43BE40498D835E03 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 970AA6F97D8C48DEA59C0E63 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 334704F610294B73B89C266E;
+			remoteInfo = xpxstoragesdk;
+		};
+		6CC6D3C2B4A04AE08639A139 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 970AA6F97D8C48DEA59C0E63 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E20880934BF74BE4A82E1622;
+			remoteInfo = ZERO_CHECK;
+		};
+		DF0010CB406341DFA31863C5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 970AA6F97D8C48DEA59C0E63 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 184B9C1D301C4F7C925EEE43;
+			remoteInfo = testActionList;
+		};
+		E5E94B749A93491F9F8B931C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 970AA6F97D8C48DEA59C0E63 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E20880934BF74BE4A82E1622;
+			remoteInfo = ZERO_CHECK;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		19C9EA3EDDD84F85BA634A53 /* CMakeLists.txt */ = {isa = PBXFileReference; explicitFileType = sourcecode.text; fileEncoding = 4; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = SOURCE_ROOT; };
+		295D589B2F174DCFA0D2A4B5 /* testActionList */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; path = testActionList; sourceTree = BUILT_PRODUCTS_DIR; };
+		50779637D14F44B0B21745D4 /* ActionList.cpp */ = {isa = PBXFileReference; explicitFileType = sourcecode.cpp.cpp; fileEncoding = 4; name = ActionList.cpp; path = src/ActionList.cpp; sourceTree = SOURCE_ROOT; };
+		7E8820D7E9454CCAAF3D9971 /* ActionList.cpp */ = {isa = PBXFileReference; explicitFileType = sourcecode.cpp.cpp; fileEncoding = 4; name = ActionList.cpp; path = src/ActionList.cpp; sourceTree = SOURCE_ROOT; };
+		891961A0E1C74D66A7EE92AF /* testActionList.cpp */ = {isa = PBXFileReference; explicitFileType = sourcecode.cpp.cpp; fileEncoding = 4; name = testActionList.cpp; path = examples/testActionList.cpp; sourceTree = SOURCE_ROOT; };
+		CCBF210D03C94A17AD0F940D /* CMakeLists.txt */ = {isa = PBXFileReference; explicitFileType = sourcecode.text; fileEncoding = 4; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = SOURCE_ROOT; };
+		CF3EA30AC87D4ED6BD14548A /* libxpxstoragesdk.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; name = libxpxstoragesdk.dylib; path = libxpxstoragesdk.1.0.0.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
+		FAB40F2125F04E9000C83AC4 /* FileTransmitter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = FileTransmitter.h; path = include/FileTransmitter.h; sourceTree = "<group>"; };
+		FAB40F2225F04E9000C83AC4 /* types.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = types.h; path = include/types.h; sourceTree = "<group>"; };
+		FAB40F2325F04E9000C83AC4 /* ActionList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ActionList.h; path = include/ActionList.h; sourceTree = "<group>"; };
+		FD2010149C0D42F68E1D6263 /* CMakeLists.txt */ = {isa = PBXFileReference; explicitFileType = sourcecode.text; fileEncoding = 4; lastKnownFileType = text; name = CMakeLists.txt; path = examples/CMakeLists.txt; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		11321950FA74423991AC8423 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7AEC68473C9E469EB93C0144 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		56957169683A415284C2EC67 /* xpxstoragesdk */ = {
+			isa = PBXGroup;
+			children = (
+				AFA8E0487BF7469F901BB695 /* Source Files */,
+				CCBF210D03C94A17AD0F940D /* CMakeLists.txt */,
+			);
+			name = xpxstoragesdk;
+			sourceTree = "<group>";
+		};
+		92ADCC993E744954AC9B970A = {
+			isa = PBXGroup;
+			children = (
+				56957169683A415284C2EC67 /* xpxstoragesdk */,
+				FE33F5CA53C14345AB42FCD3 /* ALL_BUILD */,
+				BFCFE61210ED480497F85E50 /* testActionList */,
+				EA71BCA360EE46809658103D /* Products */,
+				96D783FB2376472495A9C44C /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		96D783FB2376472495A9C44C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		AFA8E0487BF7469F901BB695 /* Source Files */ = {
+			isa = PBXGroup;
+			children = (
+				FAB40F2325F04E9000C83AC4 /* ActionList.h */,
+				FAB40F2125F04E9000C83AC4 /* FileTransmitter.h */,
+				FAB40F2225F04E9000C83AC4 /* types.h */,
+				50779637D14F44B0B21745D4 /* ActionList.cpp */,
+			);
+			name = "Source Files";
+			sourceTree = "<group>";
+		};
+		BFCFE61210ED480497F85E50 /* testActionList */ = {
+			isa = PBXGroup;
+			children = (
+				C19477834FBD4447A6E9BFE2 /* Source Files */,
+				FD2010149C0D42F68E1D6263 /* CMakeLists.txt */,
+			);
+			name = testActionList;
+			sourceTree = "<group>";
+		};
+		C19477834FBD4447A6E9BFE2 /* Source Files */ = {
+			isa = PBXGroup;
+			children = (
+				891961A0E1C74D66A7EE92AF /* testActionList.cpp */,
+				7E8820D7E9454CCAAF3D9971 /* ActionList.cpp */,
+			);
+			name = "Source Files";
+			sourceTree = "<group>";
+		};
+		E8484487D6DC4DF998EF9700 /* CMake Rules */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = "CMake Rules";
+			sourceTree = "<group>";
+		};
+		EA71BCA360EE46809658103D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				295D589B2F174DCFA0D2A4B5 /* testActionList */,
+				CF3EA30AC87D4ED6BD14548A /* libxpxstoragesdk.dylib */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		FE33F5CA53C14345AB42FCD3 /* ALL_BUILD */ = {
+			isa = PBXGroup;
+			children = (
+				E8484487D6DC4DF998EF9700 /* CMake Rules */,
+				19C9EA3EDDD84F85BA634A53 /* CMakeLists.txt */,
+			);
+			name = ALL_BUILD;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		184B9C1D301C4F7C925EEE43 /* testActionList */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DE793DF0D8A24AEDA2D076CC /* Build configuration list for PBXNativeTarget "testActionList" */;
+			buildPhases = (
+				0BCA981F69574AF09541C0DD /* Sources */,
+				7AEC68473C9E469EB93C0144 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1BDC30E0DF16467E9681B8A9 /* PBXTargetDependency */,
+			);
+			name = testActionList;
+			productName = testActionList;
+			productReference = 295D589B2F174DCFA0D2A4B5 /* testActionList */;
+			productType = "com.apple.product-type.tool";
+		};
+		334704F610294B73B89C266E /* xpxstoragesdk */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3D38696B1AB0409696EE0C26 /* Build configuration list for PBXNativeTarget "xpxstoragesdk" */;
+			buildPhases = (
+				6AD7D81CED204A47B3F86BD7 /* Sources */,
+				11321950FA74423991AC8423 /* Frameworks */,
+				D91CDF5487814C124438F0A8 /* CMake PostBuild Rules */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5208E8DAA7264165A8D522ED /* PBXTargetDependency */,
+			);
+			name = xpxstoragesdk;
+			productName = xpxstoragesdk;
+			productReference = CF3EA30AC87D4ED6BD14548A /* libxpxstoragesdk.dylib */;
+			productType = "com.apple.product-type.library.dynamic";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		970AA6F97D8C48DEA59C0E63 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 1240;
+			};
+			buildConfigurationList = 66FB82E8EF3848CD9B190B84 /* Build configuration list for PBXProject "cpp-xpx-storage-sdk" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 92ADCC993E744954AC9B970A;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9E4D8CBD71E746D8A7110CBC /* ALL_BUILD */,
+				E20880934BF74BE4A82E1622 /* ZERO_CHECK */,
+				184B9C1D301C4F7C925EEE43 /* testActionList */,
+				334704F610294B73B89C266E /* xpxstoragesdk */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		1CC70789A97088BDAB691ED6 /* Generate CMakeFiles/ALL_BUILD */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Generate CMakeFiles/ALL_BUILD";
+			outputPaths = (
+				"/Users/alex/Proj/cpp-xpx-storage-sdk/CMakeFiles/ALL_BUILD",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nif test \"$CONFIGURATION\" = \"Debug\"; then :\n  cd /Users/alex/Proj/cpp-xpx-storage-sdk\n  echo Build\\ all\\ projects\nfi\nif test \"$CONFIGURATION\" = \"Release\"; then :\n  cd /Users/alex/Proj/cpp-xpx-storage-sdk\n  echo Build\\ all\\ projects\nfi\nif test \"$CONFIGURATION\" = \"MinSizeRel\"; then :\n  cd /Users/alex/Proj/cpp-xpx-storage-sdk\n  echo Build\\ all\\ projects\nfi\nif test \"$CONFIGURATION\" = \"RelWithDebInfo\"; then :\n  cd /Users/alex/Proj/cpp-xpx-storage-sdk\n  echo Build\\ all\\ projects\nfi\n";
+			showEnvVarsInLog = 0;
+		};
+		D91CDF5487814C124438F0A8 /* CMake PostBuild Rules */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			name = "CMake PostBuild Rules";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nif test \"$CONFIGURATION\" = \"Debug\"; then :\n  cd /Users/alex/Proj/cpp-xpx-storage-sdk\n  /usr/local/Cellar/cmake/3.19.4/bin/cmake -E cmake_symlink_library /Users/alex/Proj/cpp-xpx-storage-sdk/Debug/libxpxstoragesdk.1.0.0.dylib /Users/alex/Proj/cpp-xpx-storage-sdk/Debug/libxpxstoragesdk.1.dylib /Users/alex/Proj/cpp-xpx-storage-sdk/Debug/libxpxstoragesdk.dylib\nfi\nif test \"$CONFIGURATION\" = \"Release\"; then :\n  cd /Users/alex/Proj/cpp-xpx-storage-sdk\n  /usr/local/Cellar/cmake/3.19.4/bin/cmake -E cmake_symlink_library /Users/alex/Proj/cpp-xpx-storage-sdk/Release/libxpxstoragesdk.1.0.0.dylib /Users/alex/Proj/cpp-xpx-storage-sdk/Release/libxpxstoragesdk.1.dylib /Users/alex/Proj/cpp-xpx-storage-sdk/Release/libxpxstoragesdk.dylib\nfi\nif test \"$CONFIGURATION\" = \"MinSizeRel\"; then :\n  cd /Users/alex/Proj/cpp-xpx-storage-sdk\n  /usr/local/Cellar/cmake/3.19.4/bin/cmake -E cmake_symlink_library /Users/alex/Proj/cpp-xpx-storage-sdk/MinSizeRel/libxpxstoragesdk.1.0.0.dylib /Users/alex/Proj/cpp-xpx-storage-sdk/MinSizeRel/libxpxstoragesdk.1.dylib /Users/alex/Proj/cpp-xpx-storage-sdk/MinSizeRel/libxpxstoragesdk.dylib\nfi\nif test \"$CONFIGURATION\" = \"RelWithDebInfo\"; then :\n  cd /Users/alex/Proj/cpp-xpx-storage-sdk\n  /usr/local/Cellar/cmake/3.19.4/bin/cmake -E cmake_symlink_library /Users/alex/Proj/cpp-xpx-storage-sdk/RelWithDebInfo/libxpxstoragesdk.1.0.0.dylib /Users/alex/Proj/cpp-xpx-storage-sdk/RelWithDebInfo/libxpxstoragesdk.1.dylib /Users/alex/Proj/cpp-xpx-storage-sdk/RelWithDebInfo/libxpxstoragesdk.dylib\nfi\n";
+			showEnvVarsInLog = 0;
+		};
+		FA0F9C57BDF78956CB7E25B7 /* Generate CMakeFiles/ZERO_CHECK */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Generate CMakeFiles/ZERO_CHECK";
+			outputPaths = (
+				"/Users/alex/Proj/cpp-xpx-storage-sdk/CMakeFiles/ZERO_CHECK",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nif test \"$CONFIGURATION\" = \"Debug\"; then :\n  cd /Users/alex/Proj/cpp-xpx-storage-sdk\n  make -f /Users/alex/Proj/cpp-xpx-storage-sdk/CMakeScripts/ReRunCMake.make\nfi\nif test \"$CONFIGURATION\" = \"Release\"; then :\n  cd /Users/alex/Proj/cpp-xpx-storage-sdk\n  make -f /Users/alex/Proj/cpp-xpx-storage-sdk/CMakeScripts/ReRunCMake.make\nfi\nif test \"$CONFIGURATION\" = \"MinSizeRel\"; then :\n  cd /Users/alex/Proj/cpp-xpx-storage-sdk\n  make -f /Users/alex/Proj/cpp-xpx-storage-sdk/CMakeScripts/ReRunCMake.make\nfi\nif test \"$CONFIGURATION\" = \"RelWithDebInfo\"; then :\n  cd /Users/alex/Proj/cpp-xpx-storage-sdk\n  make -f /Users/alex/Proj/cpp-xpx-storage-sdk/CMakeScripts/ReRunCMake.make\nfi\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0BCA981F69574AF09541C0DD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A5D86580AFC14D89A9275BC3 /* testActionList.cpp in Sources */,
+				6F40136B2D174D948C83F7B5 /* ActionList.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6AD7D81CED204A47B3F86BD7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DFB008660FA64CB7916AC74A /* ActionList.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1BDC30E0DF16467E9681B8A9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E20880934BF74BE4A82E1622 /* ZERO_CHECK */;
+			targetProxy = E5E94B749A93491F9F8B931C /* PBXContainerItemProxy */;
+		};
+		4816782A1F634249B956A1FE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 334704F610294B73B89C266E /* xpxstoragesdk */;
+			targetProxy = 120E251E43BE40498D835E03 /* PBXContainerItemProxy */;
+		};
+		5208E8DAA7264165A8D522ED /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E20880934BF74BE4A82E1622 /* ZERO_CHECK */;
+			targetProxy = 6CC6D3C2B4A04AE08639A139 /* PBXContainerItemProxy */;
+		};
+		6ED5B0C770E2444699ADC28D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E20880934BF74BE4A82E1622 /* ZERO_CHECK */;
+			targetProxy = 0AFB8C7602834F22A7936020 /* PBXContainerItemProxy */;
+		};
+		D96CCC6E647E4CDBB296D3FA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 184B9C1D301C4F7C925EEE43 /* testActionList */;
+			targetProxy = DF0010CB406341DFA31863C5 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1CCCED26EA7B4C6BA56FC8AD /* RelWithDebInfo */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				EXECUTABLE_PREFIX = "";
+				EXECUTABLE_SUFFIX = "";
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 2;
+				GCC_PREPROCESSOR_DEFINITIONS = "'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'";
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				HEADER_SEARCH_PATHS = (
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/PRIVATE",
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/include",
+				);
+				INSTALL_PATH = "";
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				OTHER_CPLUSPLUSFLAGS = (
+					"-DNDEBUG",
+					"-Wall",
+					"'-std=c++17'",
+				);
+				OTHER_LDFLAGS = (
+					"-Wl,-search_paths_first",
+					"-Wl,-headerpad_max_install_names",
+				);
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = testActionList;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk/examples";
+				SYSTEM_HEADER_SEARCH_PATHS = "/Users/alex/Proj/cpp-xpx-storage-sdk/cereal/include";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = RelWithDebInfo;
+		};
+		35EEA16BA5874C08A8194874 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = "'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'";
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				INSTALL_PATH = "";
+				OTHER_LDFLAGS = "";
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = ZERO_CHECK;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = Debug;
+		};
+		637DF28B9E8D463CB3B309F0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = "'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'";
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				INSTALL_PATH = "";
+				OTHER_LDFLAGS = "";
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = ALL_BUILD;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = Debug;
+		};
+		6F0A832CB7EE43A7B84F9183 /* MinSizeRel */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = "'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'";
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				INSTALL_PATH = "";
+				OTHER_LDFLAGS = "";
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = ZERO_CHECK;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = MinSizeRel;
+		};
+		7BB29BCA32394E2F951A5FB7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
+				DYLIB_CURRENT_VERSION = 1.0.0;
+				EXECUTABLE_PREFIX = lib;
+				EXECUTABLE_SUFFIX = .dylib;
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'",
+					xpxstoragesdk_EXPORTS,
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				HEADER_SEARCH_PATHS = (
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/PRIVATE",
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/include",
+				);
+				INSTALL_PATH = "";
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				LIBRARY_STYLE = DYNAMIC;
+				OTHER_CPLUSPLUSFLAGS = (
+					"-fPIC",
+					"-Wall",
+					"'-std=c++17'",
+				);
+				OTHER_LDFLAGS = (
+					"-dynamiclib",
+					"-Wl,-headerpad_max_install_names",
+					"-install_name",
+					"@rpath/libxpxstoragesdk.1.dylib",
+				);
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = xpxstoragesdk.1.0.0;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk";
+				SYSTEM_HEADER_SEARCH_PATHS = "/Users/alex/Proj/cpp-xpx-storage-sdk/cereal/include";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = Debug;
+		};
+		9DE3E40B2F664A8483716F53 /* MinSizeRel */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = "'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'";
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				INSTALL_PATH = "";
+				OTHER_LDFLAGS = "";
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = ALL_BUILD;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = MinSizeRel;
+		};
+		A633E3B5558A449FA33D8F84 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(NATIVE_ARCH_ACTUAL)";
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.1.sdk;
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk/build";
+			};
+			name = Debug;
+		};
+		A8FD58C11B5845F88E34BBBE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(NATIVE_ARCH_ACTUAL)";
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.1.sdk;
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk/build";
+			};
+			name = Release;
+		};
+		A9C6279DC89A4709BEF077F0 /* MinSizeRel */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
+				DYLIB_CURRENT_VERSION = 1.0.0;
+				EXECUTABLE_PREFIX = lib;
+				EXECUTABLE_SUFFIX = .dylib;
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = s;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'",
+					xpxstoragesdk_EXPORTS,
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				HEADER_SEARCH_PATHS = (
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/PRIVATE",
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/include",
+				);
+				INSTALL_PATH = "";
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				LIBRARY_STYLE = DYNAMIC;
+				OTHER_CPLUSPLUSFLAGS = (
+					"-DNDEBUG",
+					"-fPIC",
+					"-Wall",
+					"'-std=c++17'",
+				);
+				OTHER_LDFLAGS = (
+					"-dynamiclib",
+					"-Wl,-headerpad_max_install_names",
+					"-install_name",
+					"@rpath/libxpxstoragesdk.1.dylib",
+				);
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = xpxstoragesdk.1.0.0;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk";
+				SYSTEM_HEADER_SEARCH_PATHS = "/Users/alex/Proj/cpp-xpx-storage-sdk/cereal/include";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = MinSizeRel;
+		};
+		B6B234CB97F54B39A172D814 /* RelWithDebInfo */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
+				DYLIB_CURRENT_VERSION = 1.0.0;
+				EXECUTABLE_PREFIX = lib;
+				EXECUTABLE_SUFFIX = .dylib;
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 2;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'",
+					xpxstoragesdk_EXPORTS,
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				HEADER_SEARCH_PATHS = (
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/PRIVATE",
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/include",
+				);
+				INSTALL_PATH = "";
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				LIBRARY_STYLE = DYNAMIC;
+				OTHER_CPLUSPLUSFLAGS = (
+					"-DNDEBUG",
+					"-fPIC",
+					"-Wall",
+					"'-std=c++17'",
+				);
+				OTHER_LDFLAGS = (
+					"-dynamiclib",
+					"-Wl,-headerpad_max_install_names",
+					"-install_name",
+					"@rpath/libxpxstoragesdk.1.dylib",
+				);
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = xpxstoragesdk.1.0.0;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk";
+				SYSTEM_HEADER_SEARCH_PATHS = "/Users/alex/Proj/cpp-xpx-storage-sdk/cereal/include";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = RelWithDebInfo;
+		};
+		B8C4F7386FDC44AB99252D4E /* MinSizeRel */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(NATIVE_ARCH_ACTUAL)";
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.1.sdk;
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk/build";
+			};
+			name = MinSizeRel;
+		};
+		B9AA060C70904F9DB33E379A /* MinSizeRel */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				EXECUTABLE_PREFIX = "";
+				EXECUTABLE_SUFFIX = "";
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = s;
+				GCC_PREPROCESSOR_DEFINITIONS = "'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'";
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				HEADER_SEARCH_PATHS = (
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/PRIVATE",
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/include",
+				);
+				INSTALL_PATH = "";
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				OTHER_CPLUSPLUSFLAGS = (
+					"-DNDEBUG",
+					"-Wall",
+					"'-std=c++17'",
+				);
+				OTHER_LDFLAGS = (
+					"-Wl,-search_paths_first",
+					"-Wl,-headerpad_max_install_names",
+				);
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = testActionList;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk/examples";
+				SYSTEM_HEADER_SEARCH_PATHS = "/Users/alex/Proj/cpp-xpx-storage-sdk/cereal/include";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = MinSizeRel;
+		};
+		BCE4C167B5D04664B47EC812 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
+				DYLIB_CURRENT_VERSION = 1.0.0;
+				EXECUTABLE_PREFIX = lib;
+				EXECUTABLE_SUFFIX = .dylib;
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 3;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'",
+					xpxstoragesdk_EXPORTS,
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				HEADER_SEARCH_PATHS = (
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/PRIVATE",
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/include",
+				);
+				INSTALL_PATH = "";
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				LIBRARY_STYLE = DYNAMIC;
+				OTHER_CPLUSPLUSFLAGS = (
+					"-DNDEBUG",
+					"-fPIC",
+					"-Wall",
+					"'-std=c++17'",
+				);
+				OTHER_LDFLAGS = (
+					"-dynamiclib",
+					"-Wl,-headerpad_max_install_names",
+					"-install_name",
+					"@rpath/libxpxstoragesdk.1.dylib",
+				);
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = xpxstoragesdk.1.0.0;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk";
+				SYSTEM_HEADER_SEARCH_PATHS = "/Users/alex/Proj/cpp-xpx-storage-sdk/cereal/include";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = Release;
+		};
+		C7A9A030E31348998794CCBD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				EXECUTABLE_PREFIX = "";
+				EXECUTABLE_SUFFIX = "";
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 3;
+				GCC_PREPROCESSOR_DEFINITIONS = "'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'";
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				HEADER_SEARCH_PATHS = (
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/PRIVATE",
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/include",
+				);
+				INSTALL_PATH = "";
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				OTHER_CPLUSPLUSFLAGS = (
+					"-DNDEBUG",
+					"-Wall",
+					"'-std=c++17'",
+				);
+				OTHER_LDFLAGS = (
+					"-Wl,-search_paths_first",
+					"-Wl,-headerpad_max_install_names",
+				);
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = testActionList;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk/examples";
+				SYSTEM_HEADER_SEARCH_PATHS = "/Users/alex/Proj/cpp-xpx-storage-sdk/cereal/include";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = Release;
+		};
+		D2F31BC2E9F14BD08C880F4A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				EXECUTABLE_PREFIX = "";
+				EXECUTABLE_SUFFIX = "";
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = "'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'";
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				HEADER_SEARCH_PATHS = (
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/PRIVATE",
+					"/Users/alex/Proj/cpp-xpx-storage-sdk/include",
+				);
+				INSTALL_PATH = "";
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				OTHER_CPLUSPLUSFLAGS = (
+					"-Wall",
+					"'-std=c++17'",
+				);
+				OTHER_LDFLAGS = (
+					"-Wl,-search_paths_first",
+					"-Wl,-headerpad_max_install_names",
+				);
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = testActionList;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk/examples";
+				SYSTEM_HEADER_SEARCH_PATHS = "/Users/alex/Proj/cpp-xpx-storage-sdk/cereal/include";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = Debug;
+		};
+		D65826B9256F4EE08CE746EE /* RelWithDebInfo */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(NATIVE_ARCH_ACTUAL)";
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.1.sdk;
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk/build";
+			};
+			name = RelWithDebInfo;
+		};
+		E6366E0A8ACC44E4AD0E2BD2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = "'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'";
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				INSTALL_PATH = "";
+				OTHER_LDFLAGS = "";
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = ALL_BUILD;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = Release;
+		};
+		EC40E86487DD479CA5E56F96 /* RelWithDebInfo */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = "'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'";
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				INSTALL_PATH = "";
+				OTHER_LDFLAGS = "";
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = ALL_BUILD;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = RelWithDebInfo;
+		};
+		F210C2D8141C457EB9B1E7FD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = "'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'";
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				INSTALL_PATH = "";
+				OTHER_LDFLAGS = "";
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = ZERO_CHECK;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = Release;
+		};
+		F64038B80C134851BB308E9B /* RelWithDebInfo */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = "'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'";
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				INSTALL_PATH = "";
+				OTHER_LDFLAGS = "";
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = ZERO_CHECK;
+				SECTORDER_FLAGS = "";
+				SYMROOT = "/Users/alex/Proj/cpp-xpx-storage-sdk";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = "$(inherited)";
+			};
+			name = RelWithDebInfo;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		3D38696B1AB0409696EE0C26 /* Build configuration list for PBXNativeTarget "xpxstoragesdk" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7BB29BCA32394E2F951A5FB7 /* Debug */,
+				BCE4C167B5D04664B47EC812 /* Release */,
+				A9C6279DC89A4709BEF077F0 /* MinSizeRel */,
+				B6B234CB97F54B39A172D814 /* RelWithDebInfo */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		49661502F6DD49EFAD0136B9 /* Build configuration list for PBXAggregateTarget "ZERO_CHECK" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				35EEA16BA5874C08A8194874 /* Debug */,
+				F210C2D8141C457EB9B1E7FD /* Release */,
+				6F0A832CB7EE43A7B84F9183 /* MinSizeRel */,
+				F64038B80C134851BB308E9B /* RelWithDebInfo */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		66FB82E8EF3848CD9B190B84 /* Build configuration list for PBXProject "cpp-xpx-storage-sdk" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A633E3B5558A449FA33D8F84 /* Debug */,
+				A8FD58C11B5845F88E34BBBE /* Release */,
+				B8C4F7386FDC44AB99252D4E /* MinSizeRel */,
+				D65826B9256F4EE08CE746EE /* RelWithDebInfo */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B3DAD5D0B2244E05A8E64880 /* Build configuration list for PBXAggregateTarget "ALL_BUILD" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				637DF28B9E8D463CB3B309F0 /* Debug */,
+				E6366E0A8ACC44E4AD0E2BD2 /* Release */,
+				9DE3E40B2F664A8483716F53 /* MinSizeRel */,
+				EC40E86487DD479CA5E56F96 /* RelWithDebInfo */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DE793DF0D8A24AEDA2D076CC /* Build configuration list for PBXNativeTarget "testActionList" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D2F31BC2E9F14BD08C880F4A /* Debug */,
+				C7A9A030E31348998794CCBD /* Release */,
+				B9AA060C70904F9DB33E379A /* MinSizeRel */,
+				1CCCED26EA7B4C6BA56FC8AD /* RelWithDebInfo */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 970AA6F97D8C48DEA59C0E63 /* Project object */;
+}
