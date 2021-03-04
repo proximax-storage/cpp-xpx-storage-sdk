@@ -12,10 +12,11 @@ namespace xpx_storage_sdk {
 
     // FileTransmitter
     class FileTransmitter {
+    public:
 
         virtual ~FileTransmitter() = default;
 
-        virtual FileHash prepareActionListToUpload( const ActionList&, std::string addr = "", int port = 0 );
+        virtual FileHash prepareActionListToUpload( const ActionList&, std::string addr = "", int port = 0 ) = 0;
 
         virtual void downloadFile( FileHash, std::string outputFolder, DownloadFileHandler, std::string addr = "", int port = 0 ) = 0;
 
