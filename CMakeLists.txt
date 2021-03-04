@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.18)
 project(cpp-xpx-storage-sdk VERSION 1.0.0)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 #-----------------------------------------------------------------------------
 # options and features
@@ -16,18 +19,15 @@ option(XPX_CHAIN_SDK_BUILD_EXAMPLES "Build examples." OFF)
 #		"Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 #endif()
 
-if (MSVC)
-	add_compile_options(/W3)
-else()
-	add_compile_options(-Wall)
-endif()
+#if (MSVC)
+#	add_compile_options(/W3)
+#else()
+#	add_compile_options(-Wall)
+#endif()
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
 
-include(cmake/CheckFeatures.cmake)
-check_string_literal_operator_template(HAVE_STRING_LITERAL_OPERATOR_TEMPLATE)
+#include(cmake/CheckFeatures.cmake)
+#check_string_literal_operator_template(HAVE_STRING_LITERAL_OPERATOR_TEMPLATE)
 
 #-----------------------------------------------------------------------------
 # sources
@@ -74,16 +74,16 @@ include_directories( PRIVATE "include" )
 #                OUTPUT_NAME "xpxstoragesdk-static")
 #else()
 
-        add_library(xpxstoragesdk SHARED "src/ActionList.cpp")
+    add_library(xpxstoragesdk SHARED "src/ActionList.cpp")
 
-        set_target_properties(xpxstoragesdk PROPERTIES
-		VERSION ${PROJECT_VERSION}
-		SOVERSION ${PROJECT_VERSION_MAJOR})
+#    set_target_properties(xpxstoragesdk PROPERTIES
+#            VERSION ${PROJECT_VERSION}
+#            SOVERSION ${PROJECT_VERSION_MAJOR})
 
-	if (MSVC)
-                set_target_properties(xpxstoragesdk PROPERTIES
-			WINDOWS_EXPORT_ALL_SYMBOLS ON)
-	endif()
+#    if (MSVC)
+#            set_target_properties(xpxstoragesdk PROPERTIES
+#                    WINDOWS_EXPORT_ALL_SYMBOLS ON)
+#    endif()
 #endif()
 
 #target_sources(xpxstoragesdk PRIVATE ${sources})

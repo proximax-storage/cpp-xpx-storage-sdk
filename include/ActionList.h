@@ -1,5 +1,5 @@
 /*
-*** Copyright 2019 ProximaX Limited. All rights reserved.
+*** Copyright 2021 ProximaX Limited. All rights reserved.
 *** Use of this source code is governed by the Apache 2.0
 *** license that can be found in the LICENSE file.
 */
@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 #include <fstream>
-//#include <cereal/types/vector.hpp>
+#include <cereal/types/vector.hpp>
 #include <cereal/types/memory.hpp>
 #include <cereal/archives/binary.hpp>
 
@@ -49,10 +49,13 @@ namespace xpx_storage_sdk {
             return Action( action_list_id::remove, remoteObjectNameWithPath );
         }
 
-        template <class Archive>
-        void serialize( Archive & ar )
-        {
-            ar( m_actionId, m_param1, m_param2 );
+        template <class Archive> void serialize( Archive & arch ) {
+
+            arch( m_actionId );
+            arch( m_param1 );
+            if ( m_actionId != action_list_id::new_folder && m_actionId != action_list_id::remove ) {
+                arch( m_param2 );
+            }
         }
 
         bool operator==( const Action& a ) const { return m_actionId==a.m_actionId && m_param1==a.m_param1 && m_param2 == a.m_param2; }
@@ -65,14 +68,19 @@ namespace xpx_storage_sdk {
     // ActionList
     struct ActionList : public std::vector<Action>
     {
+//        template <class Archive> void serialize( Archive & ar ) {
+//            ar( *this );
+//        }
+
         void serialize( std::string fileName )
         {
             std::ofstream os( fileName, std::ios::binary );
             cereal::BinaryOutputArchive archive( os );
-            archive( static_cast<uint16_t>( size() ));
-            for( uint i=0; i<size(); i++ ) {
-                archive( at(i) );
-            }
+//            archive( static_cast<uint16_t>( size() ));
+//            for( uint i=0; i<size(); i++ ) {
+//                archive( at(i) );
+//            }
+            archive( *this );
         }
 
         void deserialize( std::string fileName )
@@ -80,12 +88,13 @@ namespace xpx_storage_sdk {
             std::ifstream is( fileName, std::ios::binary );
             cereal::BinaryInputArchive iarchive(is);
 
-            uint16_t size;
-            iarchive( size );
-            for( uint i=0; i<size; i++ ) {
-                push_back( Action() );
-                iarchive( at(i) );
-            }
+//            uint16_t size;
+//            iarchive( size );
+//            for( uint i=0; i<size; i++ ) {
+//                push_back( Action() );
+//                iarchive( at(i) );
+//            }
+            iarchive( *this );
         }
     };
 

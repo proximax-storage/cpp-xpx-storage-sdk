@@ -1,5 +1,5 @@
 /*
-*** Copyright 2019 ProximaX Limited. All rights reserved.
+*** Copyright 2021 ProximaX Limited. All rights reserved.
 *** Use of this source code is governed by the Apache 2.0
 *** license that can be found in the LICENSE file.
 */
@@ -15,12 +15,16 @@ namespace xpx_storage_sdk {
 
         virtual ~FileTransmitter() = default;
 
-        virtual void connectToPeer( std::string addr, int port, ErrorHandler ) = 0;
-        virtual void downloadFile( Key drivePubKey, FileHash, DownloadFileHandler ) = 0;
+        virtual FileHash prepareActionListToUpload( const ActionList&, std::string addr = "", int port = 0 );
 
-        virtual FileHash prepareActionListToUpload( const ActionList& );
+        virtual void downloadFile( FileHash, std::string outputFolder, DownloadFileHandler, std::string addr = "", int port = 0 ) = 0;
 
-        virtual void monitorUploading( FileHash actionListHash, UploadHandler );
+        // Replicator functionality only
+        virtual void addAvailableFile( Key drivePubKey, FileHash, std::string fileNameWithPath, ErrorHandler ) = 0;
+        virtual void removeAvailableFile( Key drivePubKey, FileHash, std::string fileNameWithPath, ErrorHandler ) = 0;
+
+
+        //virtual void monitorUploadStatus( FileHash actionListHash, UploadHandler );
     };
 
     std::shared_ptr<FileTransmitter> createDefaultFileTransmitter();
