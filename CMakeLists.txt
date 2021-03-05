@@ -5,9 +5,20 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+
+#-----------------------------------------------------------------------------
+# required dependencies
+#-----------------------------------------------------------------------------
+
+
+find_package(Threads REQUIRED)
+find_package(Boost 1.71.0 REQUIRED)
+
+
 #-----------------------------------------------------------------------------
 # options and features
 #-----------------------------------------------------------------------------
+
 
 option(XPX_STORAGE_SDK_BUILD_STATIC "Build static version of library." OFF)
 option(XPX_STORAGE_SDK_BUILD_TESTS "Build tests." OFF)
@@ -35,7 +46,7 @@ add_library(xpxstoragesdk SHARED
 
 set_target_properties(xpxstoragesdk PROPERTIES LINKER_LANGUAGE CXX)
 
-target_link_libraries(xpxstoragesdk)
+target_link_libraries(xpxstoragesdk libtorrent-rasterbar.so Threads::Threads)
 
 #-----------------------------------------------------------------------------
 # tests

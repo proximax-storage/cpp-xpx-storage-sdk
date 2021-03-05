@@ -7,6 +7,7 @@
 
 #include <string>
 #include <array>
+#include <functional>
 
 namespace xpx_storage_sdk {
 
