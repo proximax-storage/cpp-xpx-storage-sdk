@@ -31,22 +31,44 @@ option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build examples." OFF)
 
 file(GLOB_RECURSE sources
     "include/*.h"
-    "include/FileTransmitter/*.h"
     "src/*.cpp")
 
 include_directories( SYSTEM "cereal/include" )
 include_directories( PRIVATE "include" )
 
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    include_directories( SYSTEM "/usr/local/include/" )
+endif()
 
-add_library(xpxstoragesdk SHARED
-    src/ActionList.cpp
-    src/FileTransmitter.cpp
-    )
-
+add_library(xpxstoragesdk SHARED ${sources})
 
 set_target_properties(xpxstoragesdk PROPERTIES LINKER_LANGUAGE CXX)
 
-target_link_libraries(xpxstoragesdk libtorrent-rasterbar.so Threads::Threads)
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+
+    #find_package(Boost REQUIRED)
+    find_package(openssl REQUIRED)
+
+#    if( OPENSSL_FOUND )
+#        include_directories(${OPENSSL_INCLUDE_DIRS})
+#        message(STATUS "Using OpenSSL ${OPENSSL_VERSION}")
+#        message( STATUS "${Boost_LIBRARIES}" )
+#    else()
+#        message( SEND_ERROR "OpenSSL not found" )
+#    endif()
+
+    link_directories(/usr/local/opt/openssl@1.1/lib)
+
+    target_link_libraries(xpxstoragesdk PRIVATE
+        #/usr/local/lib/libtorrent.a
+        /usr/local/lib/libtorrent-rasterbar.dylib.2.0
+        /usr/local/opt/openssl@1.1/lib/libssl.dylib
+        /usr/local/opt/openssl@1.1/lib/libcrypto.dylib
+        "-framework CoreFoundation" "-framework SystemConfiguration"
+        ${Boost_LIBRARIES} )#Threads::Threads)
+else()
+    target_link_libraries(xpxstoragesdk libtorrent-rasterbar.so Threads::Threads)
+endif()
 
 #-----------------------------------------------------------------------------
 # tests
