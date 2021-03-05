@@ -22,14 +22,14 @@ public:
         return FileHash();
     }
 
-    void downloadFile( FileHash, std::string outputFolder, DownloadFileHandler, std::string addr = "", int port = 0 )  override {
+    void download( FileHash, std::string outputFolder, DownloadFileHandler, std::string addr = "", int port = 0 )  override {
     }
 
-    void addAvailableFile( Key drivePubKey, FileHash, std::string fileNameWithPath, ErrorHandler )  override {
+    void addFile( Key drivePubKey, FileHash, std::string fileNameWithPath, ErrorHandler )  override {
 
     }
 
-    void removeAvailableFile( Key drivePubKey, FileHash, std::string fileNameWithPath, ErrorHandler )  override {
+    void removeFile( Key drivePubKey, FileHash, std::string fileNameWithPath, ErrorHandler )  override {
 
     }
 
