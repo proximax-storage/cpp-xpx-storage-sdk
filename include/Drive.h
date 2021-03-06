@@ -6,21 +6,31 @@
 #pragma once
 
 #include "types.h"
-#include "Drive.h"
+#include "DriveTree.h"
 
 namespace xpx_storage_sdk {
 
+    class FileTransmitter;
+
     // Drive
-    class DriveStorage {
+    class Drive {
+    public:
 
-        virtual ~DriveStorage() = default;
-        
-        virtual void init( std::string rootPath, size_t maxDriveSize ) = 0;
+        virtual ~Drive() = default;
 
-//        virtual void createDrive( Key drivePubKey, size_t size ) = 0;
-//        virtual void closeDrive( Key drivePubKey ) = 0;
-//        virtual DriveInfo getDriveInfo( Key drivePubKey ) = 0;
+
+        virtual void init( Key      drivePubKey,
+                           size_t   maxDriveSize,
+                           std::shared_ptr<FileTransmitter> ) = 0;
+
+        virtual void executeActionList( FileHash actionListHash ) = 0;
+
+
+        //todo
+        virtual bool createDriveStruct( DriveTree& node, const std::string& path, const std::string& logicalPath = "" ) = 0;
+
     };
 
-    std::shared_ptr<DriveStorage> createDefaultDriveStorage();
+    std::shared_ptr<Drive> createDefaultDrive( std::string rootPath );
 };
+
