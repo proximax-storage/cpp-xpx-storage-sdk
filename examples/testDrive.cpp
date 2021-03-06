@@ -12,7 +12,7 @@ int main() {
 
     auto drive = createDefaultDrive( "~/000" );
 
-    DriveTree driveStruct;
+    FsTree driveStruct;
 
     drive->createDriveStruct( driveStruct, "/Users/alex/111" );
 

@@ -11,7 +11,7 @@
 
 
 namespace xpx_storage_sdk {
-using namespace drive_tree;
+using namespace fs_tree;
 
 class DefaultDrive: public Drive {
     std::string m_rootPath;
@@ -44,31 +44,9 @@ public:
     }
 
 
-    bool createDriveStruct( DriveTree& node, const std::string& path, const std::string& logicalPath ) override try
+    bool createDriveStruct( FsTree& node, const std::string& path, const std::string& logicalPath )
     {
-        for (const auto& entry : std::filesystem::directory_iterator(path)) {
-
-            const auto entryName = entry.path().filename().string();
-
-            if ( entry.is_directory() ) {
-                //std::cout << "dir:  " << filenameStr << '\n';
-
-                node.m_childs.emplace_back( Folder{entryName,logicalPath} );
-
-                //TODO Windows path!
-                if ( !createDriveStruct( node.m_childs.back(), path+"/"+entryName, logicalPath+"/"+entryName ) )
-                    return false;
-            }
-            else if ( entry.is_regular_file() ) {
-                //std::cout << "file: " << filenameStr << '\n';
-
-                node.m_childs.emplace_back( File{entryName,logicalPath} );
-            }
-        }
         return true;
-    }
-    catch (...) {
-        return false;
     }
 
 };

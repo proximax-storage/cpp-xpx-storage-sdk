@@ -6,7 +6,7 @@
 #pragma once
 
 #include "types.h"
-#include "DriveTree.h"
+#include "FsTree.h"
 
 namespace xpx_storage_sdk {
 
@@ -27,7 +27,7 @@ namespace xpx_storage_sdk {
 
 
         //todo
-        virtual bool createDriveStruct( DriveTree& node, const std::string& path, const std::string& logicalPath = "" ) = 0;
+        virtual bool createDriveStruct( FsTree& node, const std::string& path, const std::string& logicalPath = "" ) = 0;
 
     };
 
