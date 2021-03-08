@@ -13,7 +13,7 @@ int main() {
     ActionList actList;
 
     actList.push_back( Action::newFolder( "/some_dir" ) );
-    actList.push_back( Action::uplaod( "/home/x/file1", "/some_dir/file1" ) );
+    actList.push_back( Action::upload( "/home/x/file1", "/some_dir/file1" ) );
     actList.push_back( Action::newFolder( "/some_another_dir" ) );
     actList.push_back( Action::rename( "/some_dir/file1", "/some_another_dir/file1" ) );
     actList.push_back( Action::remove( "/some_dir/file1" ) );

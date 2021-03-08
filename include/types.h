@@ -9,6 +9,9 @@
 #include <array>
 #include <functional>
 
+//TODO!
+#define DEBUG
+
 namespace xpx_storage_sdk {
 
     //constexpr size_t Signature_Size = 64;
@@ -25,6 +28,9 @@ namespace xpx_storage_sdk {
 
     // Public/Private Key
     using Key = std::array<uint8_t,Key_Size>;
+
+    // Public/Private Key String
+    using KeyString = char[Key_Size*2+1];
 
     // error::code
     namespace error {

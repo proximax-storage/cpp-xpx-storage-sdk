@@ -6,11 +6,14 @@
 
 #include "ActionList.h"
 
+#include <fstream>
+
 #include <cereal/types/vector.hpp>
+#include <cereal/types/array.hpp>
 #include <cereal/types/memory.hpp>
 #include <cereal/archives/binary.hpp>
 
-using namespace xpx_storage_sdk;
+namespace xpx_storage_sdk {
 
 void ActionList::serialize( std::string fileName )
 {
@@ -25,6 +28,7 @@ void ActionList::serialize( std::string fileName )
 
 void ActionList::deserialize( std::string fileName )
 {
+    clear();
     std::ifstream is( fileName, std::ios::binary );
     cereal::BinaryInputArchive iarchive(is);
 
@@ -35,4 +39,6 @@ void ActionList::deserialize( std::string fileName )
 //                iarchive( at(i) );
 //            }
     iarchive( *this );
+}
+
 }
