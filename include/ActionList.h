@@ -5,6 +5,8 @@
 */
 #pragma once
 
+#include "types.h"
+
 #include <string>
 #include <vector>
 #include <fstream>
@@ -30,7 +32,7 @@ namespace xpx_storage_sdk {
 
         Action( action_list_id::code code, std::string p1, std::string p2 = "" ) : m_actionId(code), m_param1(p1), m_param2(p2) {}
 
-        static Action uplaod( std::string pathToLocalFile, std::string remoteFileNameWithPath ) {
+        static Action upload( std::string pathToLocalFile, std::string remoteFileNameWithPath ) {
             return Action( action_list_id::upload, pathToLocalFile, remoteFileNameWithPath );
         }
 
@@ -50,8 +52,14 @@ namespace xpx_storage_sdk {
 
             arch( m_actionId );
             arch( m_param1 );
-            if ( m_actionId != action_list_id::new_folder && m_actionId != action_list_id::remove ) {
+
+            if ( m_actionId == action_list_id::rename ) {
                 arch( m_param2 );
+            }
+
+            if ( m_actionId == action_list_id::upload ) {
+                arch( m_param2 );
+                arch( m_hash );
             }
         }
 
@@ -60,6 +68,7 @@ namespace xpx_storage_sdk {
         action_list_id::code m_actionId = action_list_id::none;
         std::string          m_param1;
         std::string          m_param2;
+        FileHash             m_hash;
     };
 
     // ActionList

@@ -7,7 +7,10 @@
 
 #include "types.h"
 #include <vector>
+#include <set>
 #include <variant>
+
+#include <cereal/archives/binary.hpp>
 
 namespace xpx_storage_sdk {
 namespace fs_tree {
@@ -16,48 +19,79 @@ namespace fs_tree {
 
     // File
     struct File {
+
+        template <class Archive> void serialize( Archive & arch ) {
+            arch( m_name );
+            arch( cereal::binary_data( m_hash.data(), m_hash.size() ) );
+            //arch( m_hash );
+        }
+
+#ifdef DEBUG
+        bool operator==( const File& f ) const { return m_name==f.m_name && m_hash==f.m_hash; }
+#endif
+
         std::string m_name;
+        size_t      m_size;
         Path        m_relativePath;
         FileHash    m_hash;
     };
 
     // Folder
     struct Folder {
+
         using Child = std::variant<Folder,File>;
 
         bool initWithFolder( const std::string& pathToFolder );
 
+        template <class Archive> void serialize( Archive & arch ) {
+            arch( m_name );
+            arch( m_childs );
+        }
+
+#ifdef DEBUG
+        bool operator==( const Folder& f ) const { return m_name==f.m_name && m_childs==f.m_childs; }
+#endif
+
+//        FileHash doSerialize( std::string fileName );
+//        void     deserialize( std::string fileName );
+
         std::string         m_name;
         Path                m_relativePath;
-        std::vector<Child>  m_childs;
+        //std::vector<Child>  m_childs;
+        std::set<Child>  m_childs;
     };
 
-    // Node
-    struct Node {
+    inline bool isFolder( const Folder::Child& child ) { return child.index()==0; }
 
-        using NodeInfo = std::variant<Folder,File>;
+    inline bool operator<(const Folder::Child& a, const Folder::Child& b) {
+        if ( isFolder(a) ) {
+            if ( !isFolder(b) )
+                return true;
+            return std::get<0>(a).m_name < std::get<0>(b).m_name;
+        }
+        else {
+            if ( isFolder(b) )
+                return false;
+            return std::get<1>(a).m_name < std::get<1>(b).m_name;
+        }
+        return false;
+    }
 
-        Node() = default;
-        Node( NodeInfo&& nodeInfo ) : m_nodeInfo(nodeInfo) {}
-
-        std::variant<Folder,File>   m_nodeInfo;
-        std::vector<Node>           m_childs;
-    };
 }
 
 // FsTree
-struct FsTree: public fs_tree::Node {
+struct FsTree: public fs_tree::Folder {
 
-    FileHash serialize( std::string fileName );
+    FileHash doSerialize( std::string fileName );
     void     deserialize( std::string fileName );
 
-    void     addFile( const std::string& destinationPath, const std::string& filename, FileHash );
-    void     removeFile( const std::string& destinationPath, const std::string& filename );
+//    void     addFile( const std::string& destinationPath, const std::string& filename, FileHash );
 
-    void     addFolder( const std::string& folderPath );
-    void     removeFolder( const std::string& folderPath );
+//    void     addFolder( const std::string& folderPath );
 
-    void     move( const std::string& oldPathAndName, const std::string& newPathAndName );
+//    void     remove( const std::string& path );
+
+//    void     move( const std::string& oldPathAndName, const std::string& newPathAndName );
 };
 
 }

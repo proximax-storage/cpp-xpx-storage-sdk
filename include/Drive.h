@@ -33,5 +33,6 @@ namespace xpx_storage_sdk {
     };
 
     std::shared_ptr<Drive> createDefaultDrive( std::string rootPath );
-};
 
+    void keyToString( const Key& key, KeyString& keyStr );
+};
