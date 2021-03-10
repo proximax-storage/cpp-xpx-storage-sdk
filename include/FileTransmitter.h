@@ -19,9 +19,13 @@ namespace xpx_storage_sdk {
 
         handler createSession( const std::string& address = "0.0.0.0:6881" );
         void    deleteSession( handler );
-        bool    createTorrentFileFor( std::string pathToFilerOrFolder, std::string outputTorrentFilename );
+
+        // createTorrentFileFor - returns root hash
+        std::string    createTorrentFileFor( std::string pathToFilerOrFolder, std::string outputTorrentFilename );
+
         bool    addTorrentFileToSession( handler, std::string torrentFilename );
         bool    start(handler); //?????
+        bool    stop(handler); //?????
     };
 
     // FileTransmitter
