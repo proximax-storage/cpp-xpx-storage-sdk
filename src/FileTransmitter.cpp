@@ -67,7 +67,9 @@ private:
                     auto *pa = dynamic_cast<lt::torrent_finished_alert *>(alert);
                     if (pa) {
                         const lt::sha256_hash ltHash = pa->handle.info_hashes().v2;
-                        if (mTorrentHandlers.contains(ltHash)) {
+                        auto findResult = mTorrentHandlers.find(ltHash);
+                        if (findResult != mTorrentHandlers.end()) {
+//                        if (mTorrentHandlers.contains(ltHash)) {
 
                             const std::string fileName = pa->handle.torrent_file()->files().file_name(0).to_string();
                             mSession.remove_torrent(pa->handle);
