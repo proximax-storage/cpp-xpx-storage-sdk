@@ -114,7 +114,7 @@ public:
 
     virtual ~DefaultFileTransmitter() {}
 
-    virtual void init( const std::string& address ) {
+    virtual void init( const std::string& address ) override {
         lt::settings_pack settingsPack;
 
         settingsPack.set_int(lt::settings_pack::alert_mask, lt::alert_category::all);
