@@ -13,4 +13,9 @@ find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
 
 add_executable(upload ${SOURCES} main.cpp)
-target_link_libraries(upload libtorrent-rasterbar.so Threads::Threads)
+
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    target_link_libraries(upload /usr/local/lib/libtorrent-rasterbar.dylib.2.0)
+else()
+    target_link_libraries(upload libtorrent-rasterbar.so Threads::Threads)
+endif()
