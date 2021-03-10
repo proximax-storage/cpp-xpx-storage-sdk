@@ -11,6 +11,19 @@
 
 namespace xpx_storage_sdk {
 
+    // LibTorrentWrapper
+    class LibTorrentWrapper {
+    public:
+
+        typedef void* handler;
+
+        handler createSession( const std::string& address = "0.0.0.0:6881" );
+        void    deleteSession( handler );
+        bool    createTorrentFileFor( std::string pathToFilerOrFolder, std::string outputTorrentFilename );
+        bool    addTorrentFileToSession( handler, std::string torrentFilename );
+        bool    start(handler); //?????
+    };
+
     // FileTransmitter
     class FileTransmitter {
     public:
