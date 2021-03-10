@@ -23,7 +23,7 @@ namespace fs_tree {
         template <class Archive> void serialize( Archive & arch ) {
             arch( m_name );
             arch( cereal::binary_data( m_hash.data(), m_hash.size() ) );
-            //arch( m_hash );
+            arch( m_size );
         }
 
 #ifdef DEBUG
@@ -31,9 +31,10 @@ namespace fs_tree {
 #endif
 
         std::string m_name;
-        size_t      m_size;
-        Path        m_relativePath;
         FileHash    m_hash;
+        size_t      m_size;
+
+        //Path        m_relativePath;
     };
 
     // Folder
@@ -42,6 +43,9 @@ namespace fs_tree {
         using Child = std::variant<Folder,File>;
 
         bool initWithFolder( const std::string& pathToFolder );
+        void sort();
+        void dbgPrint( std::string leadingSpaces = "" ) const;
+
 
         template <class Archive> void serialize( Archive & arch ) {
             arch( m_name );
@@ -52,27 +56,31 @@ namespace fs_tree {
         bool operator==( const Folder& f ) const { return m_name==f.m_name && m_childs==f.m_childs; }
 #endif
 
-//        FileHash doSerialize( std::string fileName );
-//        void     deserialize( std::string fileName );
-
         std::string         m_name;
-        Path                m_relativePath;
-        //std::vector<Child>  m_childs;
-        std::set<Child>  m_childs;
+        std::vector<Child>  m_childs;
+        //std::set<Child>  m_childs;
+
+        //Path                m_relativePath;
     };
 
-    inline bool isFolder( const Folder::Child& child ) { return child.index()==0; }
+    // variant utilities
+    inline bool          isFolder( const Folder::Child& child )  { return child.index()==0; }
+    inline const Folder& getFolder( const Folder::Child& child ) { return std::get<0>(child); }
+    inline       Folder& getFolder( Folder::Child& child )       { return std::get<0>(child); }
+    inline const File&   getFile( const Folder::Child& child )   { return std::get<1>(child); }
+    inline       File&   getFile( Folder::Child& child )         { return std::get<1>(child); }
 
+    // operator< (used for sorting)
     inline bool operator<(const Folder::Child& a, const Folder::Child& b) {
         if ( isFolder(a) ) {
             if ( !isFolder(b) )
                 return true;
-            return std::get<0>(a).m_name < std::get<0>(b).m_name;
+            return getFolder(a).m_name < getFolder(b).m_name;
         }
         else {
             if ( isFolder(b) )
                 return false;
-            return std::get<1>(a).m_name < std::get<1>(b).m_name;
+            return getFile(a).m_name < getFile(b).m_name;
         }
         return false;
     }
@@ -85,13 +93,15 @@ struct FsTree: public fs_tree::Folder {
     FileHash doSerialize( std::string fileName );
     void     deserialize( std::string fileName );
 
-//    void     addFile( const std::string& destinationPath, const std::string& filename, FileHash );
+    Folder*  getFolderPtr( const std::string& path, bool createIfNotExist = false );
 
-//    void     addFolder( const std::string& folderPath );
+    bool     addFile( const std::string& destinationPath, const std::string& filename, const FileHash&, size_t size );
 
-//    void     remove( const std::string& path );
+    bool     addFolder( const std::string& folderPath );
 
-//    void     move( const std::string& oldPathAndName, const std::string& newPathAndName );
+    bool     remove( const std::string& path );
+
+    bool     move( const std::string& oldPathAndName, const std::string& newPathAndName );
 };
 
 }

@@ -32,5 +32,19 @@ int main() {
 
     assert( fsTree == fsTree2 );
 
+//    fsTree.dbgPrint();
+
+    FsTree fsTree3;
+    fsTree3.addFile("", "zzz", FileHash(), 0 );
+    fsTree3.addFile("1a/2a/3a", "f123", FileHash(), 0 );
+    fsTree3.addFolder("1a/2b/3b" );
+    fsTree3.addFolder("1c/2c/3c" );
+    fsTree3.remove("1c/2c" );
+    fsTree3.remove("1c" );
+    fsTree3.dbgPrint();
+    fsTree3.move("1a/2b", "1b/2b" );
+    fsTree3.dbgPrint();
+
+
     return 0;
 }
