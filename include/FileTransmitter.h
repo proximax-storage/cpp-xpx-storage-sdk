@@ -5,9 +5,9 @@
 */
 #pragma once
 
-#include <memory>
 #include "types.h"
 #include "ActionList.h"
+#include <memory>
 
 namespace xpx_storage_sdk {
 
@@ -17,14 +17,14 @@ namespace xpx_storage_sdk {
 
         virtual ~FileTransmitter() = default;
 
-        virtual void init(unsigned short port = 0) = 0;
+        virtual void init(const std::string& address = "0.0.0.0:6881") = 0;
 
         virtual FileHash prepareActionListToUpload( const ActionList&, std::string addr = "", int port = 0 ) = 0;
 
-        virtual void download( FileHash, const std::string& outputFolder, DownloadFileHandler, const std::string& addr = "", unsigned short port = 0 ) = 0;
+        virtual void download( FileHash, const std::string& outputFolder, DownloadFileHandler, const std::string& address = "", unsigned short port = 0 ) = 0;
 
         // Replicator functionality only
-        virtual void addFile( Key drivePubKey, FileHash, std::string fileNameWithPath, ErrorHandler ) = 0;
+        virtual void addFile( Key drivePubKey, std::string fileNameWithPath, ErrorHandler ) = 0;
         virtual void removeFile( Key drivePubKey, FileHash, std::string fileNameWithPath, ErrorHandler ) = 0;
 
 
