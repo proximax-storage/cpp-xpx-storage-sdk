@@ -63,45 +63,34 @@ private:
         // TODO: check errors, alerts
         for (auto &alert : alerts) {
             switch (alert->type()) {
-                case lt::torrent_finished_alert::alert_type: {
-                    auto *pa = dynamic_cast<lt::torrent_finished_alert *>(alert);
+                case lt::piece_finished_alert::alert_type: {
+                    auto *pa = dynamic_cast<lt::piece_finished_alert *>(alert);
                     if (pa) {
-                        const lt::sha256_hash ltHash = pa->handle.info_hashes().v2;
-                        auto findResult = mTorrentHandlers.find(ltHash);
-                        if (findResult != mTorrentHandlers.end()) {
-//                        if (mTorrentHandlers.contains(ltHash)) {
+                        const lt::sha256_hash ltHash = pa->handle.torrent_file()->info_hashes().v2;
 
-                            const std::string fileName = pa->handle.torrent_file()->files().file_name(0).to_string();
-                            mSession.remove_torrent(pa->handle);
+                        // TODO: better to use piece_granularity
+                        std::vector<int64_t> fp = pa->handle.file_progress();
+                        for(int i = 0; i < fp.size(); i++) {
+                            bool const complete = fp[i] == pa->handle.torrent_file()->files().file_size(i);
+                            if(complete && i == fp.size() - 1) {
+                                std::cout << "alert: files downloaded: " << fp[i] << std::endl;
 
-                            DownloadHandler handler = mTorrentHandlers[ltHash];
-                            handler(download_status::complete, toHash(ltHash), fileName);
+                                const std::string fileName = pa->handle.torrent_file()->files().file_name(0).to_string();
+                                mSession.remove_torrent(pa->handle);
 
-                            mTorrentHandlers.erase(ltHash);
+                                // TODO: need to fix situation with hash above
+                                // Possible solution: get handle from session by handle id and get correct hash
+                                DownloadFileHandler handler = mTorrentHandlers[ltHash];
+                                handler(download_status::complete, toHash(ltHash), fileName);
+
+                                mTorrentHandlers.erase(ltHash);
+                            }
+
+                            std::cout << "alert: progress: " << fp[i] << std::endl;
                         }
                     }
                     break;
                 }
-//                case lt::piece_finished_alert::alert_type: {
-//                    auto *pa = dynamic_cast<lt::piece_finished_alert *>(alert);
-//                    if (pa) {
-//                        const lt::sha256_hash ltHash = pa->handle.torrent_file()->info_hashes().v2;
-//                        std::cout << "alert: curr piece" << pa->piece_index << std::endl;
-//                        std::cout << "alert: num pieces" << pa->handle.torrent_file()->num_pieces() << std::endl;
-//                        std::vector<int64_t> fp;
-//                        pa->handle.file_progress(fp, lt::torrent_handle::piece_granularity);
-//                        std::cout << "alert: my progress: " << fp << std::endl;
-//                    }
-//
-//                    std::cout << "alert: my piece finished: " << alert->message() << std::endl;
-//                    break;
-//                }
-//                case lt::file_completed_alert::alert_type: {
-//                    //auto *pa = dynamic_cast<lt::file_completed_alert *>(alert);
-//
-//                    std::cout << "alert: file completed: " << alert->message() << std::endl;
-//                    break;
-//                }
                 default: {
                     std::cout << "alert: " << alert->message() << std::endl;
                 }

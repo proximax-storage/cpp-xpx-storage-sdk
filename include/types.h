@@ -17,7 +17,9 @@ namespace xpx_storage_sdk {
     //constexpr size_t Signature_Size = 64;
     constexpr size_t Key_Size = 32;
     //constexpr size_t Hash512_Size = 64;
-    constexpr size_t Hash256_Size = 32;
+
+	// TODO: use std::string
+    constexpr size_t Hash256_Size = 64;
     //constexpr size_t Hash160_Size = 20;
 
     // DriveHash
