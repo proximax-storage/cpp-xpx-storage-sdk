@@ -80,7 +80,7 @@ private:
 
                                 // TODO: need to fix situation with hash above
                                 // Possible solution: get handle from session by handle id and get correct hash
-                                DownloadFileHandler handler = mTorrentHandlers[ltHash];
+                                DownloadHandler handler = mTorrentHandlers[ltHash];
                                 handler(download_status::complete, toHash(ltHash), fileName);
 
                                 mTorrentHandlers.erase(ltHash);
