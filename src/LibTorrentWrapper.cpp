@@ -18,10 +18,10 @@ namespace xpx_storage_sdk {
         return "0000000000000000000000000000000000000000000000000000000000000000";
     }
 
-    bool LibTorrentWrapper::addTorrentFileToSession( std::string torrentFilename ) {
+    bool LibTorrentWrapper::addTorrentFileToSession( std::string torrentFilename, std::string peerAddrWithPort ) {
     }
 
-    void LibTorrentWrapper::downloadFile( std::string fileHash, std::string outputFolder, DownloadHandler ) {
+    void LibTorrentWrapper::downloadFile( std::string fileHash, std::string outputFolder, DownloadHandler, std::string peerAddrWithPort ) {
 
     };
 

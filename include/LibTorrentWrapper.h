@@ -23,11 +23,11 @@ namespace xpx_storage_sdk {
         // createTorrentFileFor - returns root hash
         std::string createTorrentFile( std::string pathToFilerOrFolder, std::string outputTorrentFilename );
 
-        bool    addTorrentFileToSession( std::string torrentFilename );
+        bool    addTorrentFileToSession( std::string torrentFilename, std::string peerAddrWithPort = "" );
         bool    pause(); //?????
         bool    resume(); //?????
 
-        void downloadFile( std::string fileHash, std::string outputFolder, DownloadHandler );
+        void downloadFile( std::string fileHash, std::string outputFolder, DownloadHandler, std::string peerAddrWithPort = "" );
     };
 
 };
