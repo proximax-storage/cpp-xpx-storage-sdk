@@ -32,7 +32,7 @@ private:
     lt::session mSession;
     lt::file_storage mFileStorage;
 
-    std::map<lt::sha256_hash, DownloadFileHandler> mTorrentHandlers;
+    std::map<lt::sha256_hash, DownloadHandler> mTorrentHandlers;
 
 private:
     static std::string makeMagnetURI(const FileHash& hash) {
@@ -74,7 +74,7 @@ private:
                             const std::string fileName = pa->handle.torrent_file()->files().file_name(0).to_string();
                             mSession.remove_torrent(pa->handle);
 
-                            DownloadFileHandler handler = mTorrentHandlers[ltHash];
+                            DownloadHandler handler = mTorrentHandlers[ltHash];
                             handler(download_status::complete, toHash(ltHash), fileName);
 
                             mTorrentHandlers.erase(ltHash);
@@ -137,7 +137,7 @@ public:
         return FileHash();
     }
 
-    void download( FileHash hash, const std::string& outputFolder, DownloadFileHandler handler, const std::string& address, unsigned short port ) override {
+    void download( FileHash hash, const std::string& outputFolder, DownloadHandler handler, const std::string& address, unsigned short port ) override {
         if (outputFolder.empty()) {
             handler(download_status::failed, hash, "");
             return;
@@ -166,7 +166,7 @@ public:
         }
 
         if (mSession.is_valid() && th.is_valid()) {
-            mTorrentHandlers.insert(std::pair<lt::sha256_hash, DownloadFileHandler>(toLtHash(hash), handler));
+            mTorrentHandlers.insert(std::pair<lt::sha256_hash, DownloadHandler>(toLtHash(hash), handler));
 
             lt::tcp::endpoint endpoint;
             endpoint.address(boost::asio::ip::make_address(address));

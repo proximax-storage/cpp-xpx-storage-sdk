@@ -11,23 +11,6 @@
 
 namespace xpx_storage_sdk {
 
-    // LibTorrentWrapper
-    class LibTorrentWrapper {
-    public:
-
-        typedef void* handler;
-
-        handler createSession( const std::string& address = "0.0.0.0:6881" );
-        void    deleteSession( handler );
-
-        // createTorrentFileFor - returns root hash
-        std::string    createTorrentFileFor( std::string pathToFilerOrFolder, std::string outputTorrentFilename );
-
-        bool    addTorrentFileToSession( handler, std::string torrentFilename );
-        bool    start(handler); //?????
-        bool    stop(handler); //?????
-    };
-
     // FileTransmitter
     class FileTransmitter {
     public:
@@ -38,7 +21,7 @@ namespace xpx_storage_sdk {
 
         virtual FileHash prepareActionListToUpload( const ActionList&, std::string addr = "", int port = 0 ) = 0;
 
-        virtual void download( FileHash, const std::string& outputFolder, DownloadFileHandler, const std::string& address = "", unsigned short port = 0 ) = 0;
+        virtual void download( FileHash, const std::string& outputFolder, DownloadHandler, const std::string& address = "", unsigned short port = 0 ) = 0;
 
         // Replicator functionality only
         virtual void addFile( Key drivePubKey, std::string fileNameWithPath, ErrorHandler ) = 0;

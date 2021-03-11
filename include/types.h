@@ -54,7 +54,7 @@ namespace xpx_storage_sdk {
     };
 
     // UploadHandler
-    using UploadHandler = std::function<void(upload_status::code code, const std::string& status )>;
+    using UploadHandler = std::function<void( upload_status::code code, const std::string& info )>;
 
     // download_status ::code
     namespace download_status {
@@ -65,7 +65,7 @@ namespace xpx_storage_sdk {
         };
     };
 
-    // DownloadFileHandler
-    using DownloadFileHandler = std::function<void(download_status::code code, FileHash, const std::string& fileName)>;
+    // DownloadHandler
+    using DownloadHandler = std::function<void( download_status::code code, FileHash, const std::string& info )>;
 }
 

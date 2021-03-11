@@ -47,7 +47,7 @@ set_target_properties(xpxstoragesdk PROPERTIES LINKER_LANGUAGE CXX)
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
     #find_package(Boost REQUIRED)
-    find_package(openssl REQUIRED)
+    #find_package(openssl REQUIRED)
 
 #    if( OPENSSL_FOUND )
 #        include_directories(${OPENSSL_INCLUDE_DIRS})
