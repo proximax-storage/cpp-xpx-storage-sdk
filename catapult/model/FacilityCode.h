@@ -23,49 +23,49 @@
 
 namespace catapult { namespace model {
 
-        /// Possible facility codes.
-        enum class FacilityCode : uint8_t {
-            /// Account link facility code.
-            AccountLink = 0x4C,
-            /// Aggregate facility code.
-            Aggregate = 0x41,
-            /// Network config facility code.
-            NetworkConfig = 0x59,
-            /// Contract facility code.
-            Contract = 0x57,
-            /// Core facility code.
-            Core = 0x43,
-            /// Lock hash facility code.
-            LockHash = 0x48,
-            /// Lock secret facility code.
-            LockSecret = 0x52,
-            /// Metadata facility code.
-            Metadata = 0x3D,
-            /// Mosaic facility code.
-            Mosaic = 0x4D,
-            /// Multisig facility code.
-            Multisig = 0x55,
-            /// Namespace facility code.
-            Namespace = 0x4E,
-            /// Reputation facility code.
-            Reputation = 0x56,
-            /// Property facility code.
-            Property = 0x50,
-            /// Transfer facility code.
-            Transfer = 0x54,
-            /// Blockchain upgrade facility code.
-            BlockchainUpgrade = 0x58,
-            /// Service facility code.
-            Service = 0x5A,
-            /// Drive facility code.
-            Drive = 0x5B,
-            /// Exchange facility code.
-            Exchange = 0x5D,
-            /// Download facility code.
-            Download = 0x5E,
-            /// Operation facility code.
-            Operation = 0x5F,
-            /// SuperContract facility code.
-            SuperContract = 0x60,
-        };
-    }}
+    /// Possible facility codes.
+    enum class FacilityCode : uint8_t {
+        /// Account link facility code.
+        AccountLink = 0x4C,
+        /// Aggregate facility code.
+        Aggregate = 0x41,
+        /// Network config facility code.
+        NetworkConfig = 0x59,
+        /// Contract facility code.
+        Contract = 0x57,
+        /// Core facility code.
+        Core = 0x43,
+        /// Lock hash facility code.
+        LockHash = 0x48,
+        /// Lock secret facility code.
+        LockSecret = 0x52,
+        /// Metadata facility code.
+        Metadata = 0x3D,
+        /// Mosaic facility code.
+        Mosaic = 0x4D,
+        /// Multisig facility code.
+        Multisig = 0x55,
+        /// Namespace facility code.
+        Namespace = 0x4E,
+        /// Reputation facility code.
+        Reputation = 0x56,
+        /// Property facility code.
+        Property = 0x50,
+        /// Transfer facility code.
+        Transfer = 0x54,
+        /// Blockchain upgrade facility code.
+        BlockchainUpgrade = 0x58,
+        /// Service facility code.
+        Service = 0x5A,
+        /// Drive facility code.
+        Drive = 0x5B,
+        /// Exchange facility code.
+        Exchange = 0x5D,
+        /// Download facility code.
+        Download = 0x5E,
+        /// Operation facility code.
+        Operation = 0x5F,
+        /// SuperContract facility code.
+        SuperContract = 0x60,
+    };
+}}

@@ -23,7 +23,7 @@
 #include "Hashes.h"
 #include "catapult/utils/RawBuffer.h"
 
-//#include "catapult/exceptions.h"
+#include "catapult/exceptions.h"
 #include <cstring>
 #include <ref10/crypto_verify_32.h>
 
@@ -73,7 +73,7 @@ namespace catapult { namespace crypto {
 
 		void CheckEncodedS(const uint8_t* encodedS) {
 			if (0 == (ValidateEncodedSPart(encodedS) & Is_Reduced))
-				throw("S part of signature invalid");
+            CATAPULT_THROW_OUT_OF_RANGE("S part of signature invalid");
 		}
 
 #ifdef SIGNATURE_SCHEME_NIS1

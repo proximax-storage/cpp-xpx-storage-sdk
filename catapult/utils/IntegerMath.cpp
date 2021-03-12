@@ -19,7 +19,7 @@
 **/
 
 #include "IntegerMath.h"
-//#include "catapult/exceptions.h"
+#include "catapult/exceptions.h"
 
 namespace catapult { namespace utils {
 
@@ -47,7 +47,7 @@ namespace catapult { namespace utils {
 	// with the observation (*) we can extract the coefficients y1, ..., yn
 	uint64_t Log2TimesPowerOfTwo(uint64_t value, uint64_t n) {
 		if (0 == value)
-			throw("log2(0) is not defined");
+            CATAPULT_THROW_INVALID_ARGUMENT("log2(0) is not defined");
 
 		constexpr uint64_t Precision = 31;
 		constexpr uint64_t Power_Of_Two = 1ull << Precision;

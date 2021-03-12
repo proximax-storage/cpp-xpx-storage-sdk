@@ -1,11 +1,23 @@
 #include "VerifyPeer.h"
-//#include "PacketAdapter.h"
 #include "catapult/net/Challenge.h"
+#include "catapult/utils/Logging.h"
 
 using namespace catapult::ionet;
 using namespace catapult::net;
 
 namespace catapult { namespace netio {
+
+#define DEFINE_ENUM VerifyResult
+#define ENUM_LIST VERIFY_RESULT_LIST
+#include "catapult/utils/MacroBasedEnum.h"
+#undef ENUM_LIST
+#undef DEFINE_ENUM
+
+        // VerifyClient: the server (verifies client connections)
+        // VerifyServer: the client (verifies server connections)
+        // SERVER -> ServerChallengeRequest  -> CLIENT
+        // SERVER <- ServerChallengeResponse <- CLIENT
+        // SERVER -> ClientChallengeResponse -> CLIENT
 
     class VerifyServerHandler : public std::enable_shared_from_this<VerifyServerHandler> {
     public:
@@ -62,7 +74,7 @@ namespace catapult { namespace netio {
 
     private:
         void invokeCallback(VerifyResult result) const {
-            //CATAPULT_LOG(debug) << "VerifyServer completed with " << result;
+            CATAPULT_LOG(debug) << "VerifyServer completed with " << result;
             m_callback(result, m_serverPeerInfo);
         }
 

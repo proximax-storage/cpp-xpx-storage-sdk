@@ -19,7 +19,7 @@
 **/
 
 #include "AppendContext.h"
-//#include "catapult/exceptions.h"
+#include "catapult/exceptions.h"
 
 namespace catapult { namespace ionet {
 
@@ -59,7 +59,7 @@ namespace catapult { namespace ionet {
         void AppendContext::commit(size_t size) {
             assertNotCommitted();
             if (size > m_appendSize)
-                throw("cannot commit more than reserved append size", size, m_appendSize);
+                CATAPULT_THROW_RUNTIME_ERROR_2("cannot commit more than reserved append size", size, m_appendSize);
 
             m_data.resize(m_originalSize + size);
             m_isCommitted = true;
@@ -67,6 +67,6 @@ namespace catapult { namespace ionet {
 
         void AppendContext::assertNotCommitted() const {
             if (m_isCommitted)
-                throw("append context was already committed");
+                CATAPULT_THROW_RUNTIME_ERROR("append context was already committed");
         }
     }}

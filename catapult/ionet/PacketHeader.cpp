@@ -18,30 +18,13 @@
 *** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#pragma once
-#include "PacketType.h"
-#include <iosfwd>
+#include "PacketHeader.h"
+#include <ostream>
 
 namespace catapult { namespace ionet {
 
-#pragma pack(push, 1)
-
-	/// A packet header that all transferable information is expected to have.
-	struct PacketHeader {
-		/// Size of the packet.
-		uint32_t Size;
-
-		/// Type of the packet.
-		PacketType Type;
-	};
-
-#pragma pack(pop)
-
-	/// Determines if \a header indicates a valid packet data size no greater than \a maxPacketDataSize.
-	constexpr bool IsPacketDataSizeValid(const PacketHeader& header, size_t maxPacketDataSize) {
-		return header.Size >= sizeof(PacketHeader) && (header.Size - sizeof(PacketHeader)) <= maxPacketDataSize;
+	std::ostream& operator<<(std::ostream& out, const PacketHeader& header) {
+	    out << "packet " << header.Type << " with size " << header.Size;
+		return out;
 	}
-
-	/// Insertion operator for outputting \a header to \a out.
-	std::ostream& operator<<(std::ostream& out, const PacketHeader& header);
 }}

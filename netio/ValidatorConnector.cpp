@@ -2,6 +2,7 @@
 #include "ValidatorConnector.h"
 #include "catapult/net/VerifyPeer.h"
 #include "catapult/ionet/SecurePacketSocketDecorator.h"
+//#include "catapult/utils/Logging.h"
 
 using namespace catapult::net;
 using namespace catapult::ionet;
@@ -52,7 +53,7 @@ namespace catapult { namespace netio {
                     auto verifyResult,
                     const auto& verifiedPeerInfo) {
                 if (VerifyResult::Success != verifyResult) {
-                    // CATAPULT_LOG(warning) << "VerifyServer failed with " << verifyResult;
+                  //  CATAPULT_LOG(warning) << "VerifyServer failed with " << verifyResult;
                     m_callback(PeerConnectCode::Verify_Error, nullptr);
                     return;
                 }

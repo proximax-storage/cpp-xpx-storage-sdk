@@ -24,7 +24,7 @@
 #include "WorkingBuffer.h"
 #include "catapult/thread/StrandOwnerLifetimeExtender.h"
 #include "catapult/utils/Casting.h"
-//#include "catapult/utils/Logging.h"
+#include "catapult/utils/Logging.h"
 #include <deque>
 #include <memory>
 
@@ -62,7 +62,7 @@ namespace catapult { namespace ionet {
 			if (!ec)
 				return SocketOperationCode::Success;
 
-			//CATAPULT_LOG(error) << "failed when writing to socket: " << ec.message();
+			CATAPULT_LOG(error) << "failed when writing to socket: " << ec.message();
 			return SocketOperationCode::Write_Error;
 		}
 
@@ -82,7 +82,7 @@ namespace catapult { namespace ionet {
 		public:
 			void write(const PacketPayload& payload, const PacketSocket::WriteCallback& callback) {
 				if (!IsPacketDataSizeValid(payload.header(), m_maxPacketDataSize)) {
-					//CATAPULT_LOG(warning) << "bypassing write of malformed " << payload.header();
+				//	CATAPULT_LOG(warning) << "bypassing write of malformed " << payload.header();
 					callback(SocketOperationCode::Malformed_Data);
 					return;
 				}
@@ -228,7 +228,7 @@ namespace catapult { namespace ionet {
 				}
 
 				// invoke the callback for errors
-				//CATAPULT_LOG(error) << "failed processing malformed packet: " << extractResult;
+				CATAPULT_LOG(error) << "failed processing malformed packet: " << extractResult;
 				callback(SocketOperationCode::Malformed_Data, nullptr);
 			}
 
@@ -351,7 +351,7 @@ namespace catapult { namespace ionet {
 		private:
 			void handleAccept(const boost::system::error_code& ec) {
 				if (ec) {
-					//CATAPULT_LOG(warning) << "async_accept returned an error: " << ec;
+					CATAPULT_LOG(warning) << "async_accept returned an error: " << ec;
 					return m_accept(AcceptedPacketSocketInfo());
 				}
 
@@ -359,11 +359,11 @@ namespace catapult { namespace ionet {
 				boost::system::error_code remoteEndpointEc;
 				const auto& asioEndpoint = m_pSocket->impl().remote_endpoint(remoteEndpointEc);
 				if (remoteEndpointEc) {
-				//	CATAPULT_LOG(warning) << "unable to determine remote endpoint: " << remoteEndpointEc;
+					CATAPULT_LOG(warning) << "unable to determine remote endpoint: " << remoteEndpointEc;
 					return m_accept(AcceptedPacketSocketInfo());
 				}
 
-				//CATAPULT_LOG(trace) << "invoking user callback after successful async_accept";
+				CATAPULT_LOG(trace) << "invoking user callback after successful async_accept";
 				return m_accept(AcceptedPacketSocketInfo(asioEndpoint.address().to_string(), m_pSocket));
 			}
 
@@ -448,7 +448,7 @@ namespace catapult { namespace ionet {
 				if (shouldAbort(ec, "connecting to"))
 					return invokeCallback(ConnectResult::Connect_Error);
 
-				//CATAPULT_LOG(info) << "connected to " << m_host << " [" << m_endpoint << "]";
+				CATAPULT_LOG(info) << "connected to " << m_host << " [" << m_endpoint << "]";
 				return invokeCallback(ConnectResult::Connected);
 			}
 
@@ -456,9 +456,9 @@ namespace catapult { namespace ionet {
 				if (!ec && !m_isCancelled)
 					return false;
 
-				//CATAPULT_LOG(error)
-				//		<< "failed when " << operation << " '" << m_host << "': " << ec.message()
-				//		<< " (cancelled? " << m_isCancelled << ")";
+				CATAPULT_LOG(error)
+						<< "failed when " << operation << " '" << m_host << "': " << ec.message()
+						<< " (cancelled? " << m_isCancelled << ")";
 				return true;
 			}
 

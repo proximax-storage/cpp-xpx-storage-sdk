@@ -20,7 +20,7 @@
 
 #include "BufferedPacketIo.h"
 #include "PacketIo.h"
-//#include "catapult/utils/Logging.h"
+#include "catapult/utils/Logging.h"
 #include <deque>
 
 namespace catapult { namespace ionet {
@@ -72,7 +72,7 @@ namespace catapult { namespace ionet {
 				m_requests.emplace_back(request, callback);
 
 				if (hasPendingWork) {
-					//CATAPULT_LOG(trace) << "queuing work because in progress operation detected";
+					CATAPULT_LOG(trace) << "queuing work because in progress operation detected";
 					return;
 				}
 

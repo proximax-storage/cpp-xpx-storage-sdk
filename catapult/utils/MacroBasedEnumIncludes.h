@@ -19,29 +19,6 @@
 **/
 
 #pragma once
-#include "PacketType.h"
-#include <iosfwd>
-
-namespace catapult { namespace ionet {
-
-#pragma pack(push, 1)
-
-	/// A packet header that all transferable information is expected to have.
-	struct PacketHeader {
-		/// Size of the packet.
-		uint32_t Size;
-
-		/// Type of the packet.
-		PacketType Type;
-	};
-
-#pragma pack(pop)
-
-	/// Determines if \a header indicates a valid packet data size no greater than \a maxPacketDataSize.
-	constexpr bool IsPacketDataSizeValid(const PacketHeader& header, size_t maxPacketDataSize) {
-		return header.Size >= sizeof(PacketHeader) && (header.Size - sizeof(PacketHeader)) <= maxPacketDataSize;
-	}
-
-	/// Insertion operator for outputting \a header to \a out.
-	std::ostream& operator<<(std::ostream& out, const PacketHeader& header);
-}}
+#include "Casting.h"
+#include "HexFormatter.h"
+#include <ostream>

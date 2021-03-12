@@ -19,7 +19,7 @@
 **/
 
 #pragma once
-//#include "catapult/exceptions.h"
+#include "catapult/exceptions.h"
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
@@ -50,7 +50,7 @@ namespace catapult { namespace utils {
 			"checked_cast can only be used when data truncation is possible");
 
 		if (value < dest_limits::min() || value > dest_limits::max())
-			throw("checked_cast detected data truncation", value);
+            CATAPULT_THROW_RUNTIME_ERROR_1("checked_cast detected data truncation", value);
 
 		return static_cast<TDest>(value);
 	}

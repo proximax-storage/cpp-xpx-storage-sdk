@@ -18,42 +18,32 @@
 *** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#include "HexParser.h"
-#include <string>
+#pragma once
+#include "ByteArray.h"
+#include <cstring>
+#include <tuple>
 
 namespace catapult { namespace utils {
 
-	namespace {
-		bool TryParseNibble(const char ch, int& nibble) {
-			if (ch >= 'A' && ch <= 'F')
-				nibble = ch - 'A' + 10;
-			else if (ch >= 'a' && ch <= 'f')
-				nibble = ch - 'a' + 10;
-			else if (ch >= '0' && ch <= '9')
-				nibble = ch - '0';
-			else
-				return false;
-
-			return true;
+	/// Hasher object for a ByteArray with a variable offset.
+	/// \note Offset defaults to 4 because because some arrays (e.g. Address) don't have a lot of entropy at the beginning.
+	/// \note Hash is composed of only sizeof(size_t) bytes starting at offset.
+	template<typename TArray, size_t Offset = 4>
+	struct ArrayHasher {
+		/// Hashes \a arrayData.
+		size_t operator()(const TArray& array) const {
+			size_t hash;
+			std::memcpy(static_cast<void*>(&hash), &array[Offset], sizeof(size_t));
+			return hash;
 		}
-	}
+	};
 
-	uint8_t ParseByte(char ch1, char ch2) {
-		uint8_t by;
-		if (!TryParseByte(ch1, ch2, by)) {
-			auto byteString = std::string{ ch1, ch2 };
-            CATAPULT_THROW_INVALID_ARGUMENT_1("unknown hex character in string", byteString);
+	/// Hasher object for a base value.
+	template<typename TValue>
+	struct BaseValueHasher {
+		/// Hashes \a value.
+		size_t operator()(TValue value) const {
+			return static_cast<size_t>(value.unwrap());
 		}
-
-		return by;
-	}
-
-	bool TryParseByte(char ch1, char ch2, uint8_t& by) {
-		int nibble1, nibble2;
-		if (!TryParseNibble(ch1, nibble1) || !TryParseNibble(ch2, nibble2))
-			return false;
-
-		by = static_cast<uint8_t>(nibble1 << 4 | nibble2);
-		return true;
-	}
+	};
 }}

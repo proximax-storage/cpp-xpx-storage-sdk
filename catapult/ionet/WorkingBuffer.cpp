@@ -19,6 +19,7 @@
 **/
 
 #include "WorkingBuffer.h"
+#include "catapult/utils/Logging.h"
 
 namespace catapult { namespace ionet {
 
@@ -56,7 +57,7 @@ namespace catapult { namespace ionet {
             if (m_data.capacity() - maxDataSize < m_options.WorkingBufferSize)
                 return;
 
-          //  CATAPULT_LOG(debug) << "reclaiming memory, decreasing buffer capacity from " << m_data.capacity() << " to " << maxDataSize;
+            CATAPULT_LOG(debug) << "reclaiming memory, decreasing buffer capacity from " << m_data.capacity() << " to " << maxDataSize;
 
             ByteBuffer dataCopy;
             dataCopy.reserve(maxDataSize);

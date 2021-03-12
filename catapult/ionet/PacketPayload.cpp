@@ -34,7 +34,7 @@ namespace catapult { namespace ionet {
 
 	PacketPayload::PacketPayload(const std::shared_ptr<const Packet>& pPacket) {
 		if (pPacket->Size < sizeof(PacketHeader))
-			throw("cannot create payload around packet with invalid size");
+            CATAPULT_THROW_INVALID_ARGUMENT("cannot create payload around packet with invalid size");
 
 		m_header = *pPacket;
 		if (pPacket->Size == sizeof(PacketHeader))

@@ -20,7 +20,7 @@
 
 #pragma once
 #include "ByteArray.h"
-//#include "catapult/exceptions.h"
+#include "catapult/exceptions.h"
 
 namespace catapult { namespace utils {
 
@@ -49,7 +49,7 @@ namespace catapult { namespace utils {
 	void ParseHexStringIntoContainer(const char* const pHexData, size_t dataSize, TContainer& outputContainer) {
 		// do not implement in terms of TryParseHexStringIntoContainer in order to provide better exception messages
 		if (2 * outputContainer.size() != dataSize)
-			throw("hex string has unexpected size", dataSize);
+            CATAPULT_THROW_INVALID_ARGUMENT_1("hex string has unexpected size", dataSize);
 
 		for (auto i = 0u; i < dataSize; i += 2)
 			outputContainer[i / 2] = ParseByte(pHexData[i], pHexData[i + 1]);
