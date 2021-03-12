@@ -3,7 +3,7 @@ project(cpp-xpx-storage-sdk VERSION 1.0.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_EXTENSIONS ON)
 
 
 #-----------------------------------------------------------------------------
@@ -33,39 +33,52 @@ file(GLOB_RECURSE sources
     "include/*.h"
     "src/*.cpp")
 
+include_directories(.)
+include_directories(external)
 include_directories( SYSTEM "cereal/include" )
 include_directories( PRIVATE "include" )
+
+# Boost
+set(Boost_USE_STATIC_LIBS ON)
+find_package(Boost COMPONENTS atomic system date_time regex
+        timer chrono log thread filesystem program_options random REQUIRED)
+
+include_directories(SYSTEM ${Boost_INCLUDE_DIR})
+LINK_DIRECTORIES( ${Boost_LIBRARY_DIR} )
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     include_directories( SYSTEM "/usr/local/include/" )
 endif()
 
-add_library(xpxstoragesdk SHARED ${sources})
+add_subdirectory(catapult)
+add_subdirectory(netio)
+add_subdirectory(external)
+
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    # boost from brew has an issue linking to -licudata
+    # https://stackoverflow.com/questions/65380307/os-x-library-not-found-for-licudata
+    # this needs to be defined before add_library
+    link_directories(/usr/local/opt/icu4c/lib/)
+endif()
+
+add_library(xpxstoragesdk SHARED ${sources} ${catapult} ${netio})
 
 set_target_properties(xpxstoragesdk PROPERTIES LINKER_LANGUAGE CXX)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
-    #find_package(Boost REQUIRED)
-    find_package(openssl REQUIRED)
-
-#    if( OPENSSL_FOUND )
-#        include_directories(${OPENSSL_INCLUDE_DIRS})
-#        message(STATUS "Using OpenSSL ${OPENSSL_VERSION}")
-#        message( STATUS "${Boost_LIBRARIES}" )
-#    else()
-#        message( SEND_ERROR "OpenSSL not found" )
-#    endif()
-
     link_directories(/usr/local/opt/openssl@1.1/lib)
 
     target_link_libraries(xpxstoragesdk PRIVATE
         #/usr/local/lib/libtorrent.a
-        /usr/local/lib/libtorrent-rasterbar.dylib.2.0
+        /usr/local/lib/libtorrent-rasterbar.dylib.2.0.0
         /usr/local/opt/openssl@1.1/lib/libssl.dylib
         /usr/local/opt/openssl@1.1/lib/libcrypto.dylib
         "-framework CoreFoundation" "-framework SystemConfiguration"
-        ${Boost_LIBRARIES} )#Threads::Threads)
+        ${Boost_LIBRARIES}
+        catapult
+        netio
+        external)#Threads::Threads)
 else()
     target_link_libraries(xpxstoragesdk libtorrent-rasterbar.so Threads::Threads)
 endif()
