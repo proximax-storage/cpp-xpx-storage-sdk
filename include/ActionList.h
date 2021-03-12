@@ -23,6 +23,7 @@ namespace xpx_storage_sdk {
             new_folder  = 2,
             rename      = 3,
             remove      = 4,
+            blob_hash   = 5
         };
     };
 
@@ -31,6 +32,7 @@ namespace xpx_storage_sdk {
         Action() = default;
 
         Action( action_list_id::code code, std::string p1, std::string p2 = "" ) : m_actionId(code), m_param1(p1), m_param2(p2) {}
+        Action( action_list_id::code code, FileHash hash ) : m_actionId(code), m_hash(hash) {}
 
         static Action upload( std::string pathToLocalFile, std::string remoteFileNameWithPath ) {
             return Action( action_list_id::upload, pathToLocalFile, remoteFileNameWithPath );
@@ -51,15 +53,21 @@ namespace xpx_storage_sdk {
         template <class Archive> void serialize( Archive & arch ) {
 
             arch( m_actionId );
-            arch( m_param1 );
 
-            if ( m_actionId == action_list_id::rename ) {
-                arch( m_param2 );
-            }
-
-            if ( m_actionId == action_list_id::upload ) {
-                arch( m_param2 );
+            if ( m_actionId == action_list_id::blob_hash ) {
                 arch( m_hash );
+            }
+            else {
+                arch( m_param1 );
+
+                if ( m_actionId == action_list_id::rename ) {
+                    arch( m_param2 );
+                }
+
+                if ( m_actionId == action_list_id::upload ) {
+                    arch( m_param2 );
+                    arch( m_hash );
+                }
             }
         }
 
@@ -74,7 +82,7 @@ namespace xpx_storage_sdk {
     // ActionList
     struct ActionList : public std::vector<Action>
     {
-        void serialize( std::string fileName );
+        void serialize( std::string fileName ) const;
         void deserialize( std::string fileName );
     };
 

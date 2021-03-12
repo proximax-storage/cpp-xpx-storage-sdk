@@ -6,6 +6,7 @@
 
 #include "LibTorrentWrapper.h"
 
+
 namespace xpx_storage_sdk {
 
     void LibTorrentWrapper::createSession( const std::string& address ) {
@@ -14,11 +15,11 @@ namespace xpx_storage_sdk {
     void LibTorrentWrapper::deleteSession() {
     }
 
-    std::string LibTorrentWrapper::createTorrentFile( std::string pathToFilerOrFolder, std::string outputTorrentFilename ) {
-        return "0000000000000000000000000000000000000000000000000000000000000000";
+    void LibTorrentWrapper::createTorrentFile( std::string pathToFileOrFolder, std::string outputTorrentFilename ) {
     }
 
     bool LibTorrentWrapper::addTorrentFileToSession( std::string torrentFilename, std::string peerAddrWithPort ) {
+
     }
 
     void LibTorrentWrapper::downloadFile( std::string fileHash, std::string outputFolder, DownloadHandler, std::string peerAddrWithPort ) {

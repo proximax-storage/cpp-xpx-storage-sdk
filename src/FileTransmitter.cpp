@@ -86,13 +86,13 @@ private:
                                 mTorrentHandlers.erase(ltHash);
                             }
 
-                            std::cout << "alert: progress: " << fp[i] << std::endl;
+                            //std::cout << "alert: progress: " << fp[i] << std::endl;
                         }
                     }
                     break;
                 }
                 default: {
-                    std::cout << "alert: " << alert->message() << std::endl;
+                    //std::cout << "alert: " << alert->message() << std::endl;
                 }
             }
         }
@@ -168,11 +168,11 @@ public:
     }
 
     void addFile( Key drivePubKey, std::string fileNameWithPath, ErrorHandler handler )  override {
-        lt::add_files(mFileStorage, fileNameWithPath);
+        lt::add_files(mFileStorage, "./files" );//fileNameWithPath);
 
         const int piece_size = 16;
         lt::create_torrent t(mFileStorage, piece_size, lt::create_torrent::v2_only);
-        lt::set_piece_hashes(t, "./files");
+        lt::set_piece_hashes(t, "./");//files");
 
         std::vector<char> buf;
         lt::bencode(std::back_inserter(buf), t.generate());

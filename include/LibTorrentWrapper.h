@@ -21,8 +21,9 @@ namespace xpx_storage_sdk {
         void deleteSession();
 
         // createTorrentFileFor - returns root hash
-        std::string createTorrentFile( std::string pathToFilerOrFolder, std::string outputTorrentFilename );
+        static void createTorrentFile( std::string pathToFileOrFolder, std::string outputTorrentFilename );
 
+        bool    addTorrentFileToSession( FileHash, std::string filename, std::string peerAddrWithPort = "" );
         bool    addTorrentFileToSession( std::string torrentFilename, std::string peerAddrWithPort = "" );
         bool    pause(); //?????
         bool    resume(); //?????
