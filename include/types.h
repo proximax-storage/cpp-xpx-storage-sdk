@@ -28,6 +28,9 @@ namespace xpx_storage_sdk {
     // FileHash
     using FileHash = std::array<uint8_t,Hash256_Size>;
 
+    // InfoHash
+    using InfoHash = std::array<uint8_t,32>;
+
     // Public/Private Key
     using Key = std::array<uint8_t,Key_Size>;
 

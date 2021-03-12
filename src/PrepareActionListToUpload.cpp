@@ -10,16 +10,34 @@
 
 namespace fs = std::filesystem;
 
-//{ 'creation date': 1615509047,
-//  'info': {
-//        'file tree': {
-//'bc.log': { '': { 'length': 341631592, 'pieces root': '1da5ee9b28e8fe3a02426621a52a4f59874e7d062fb922d5466cf544ab3d847d' } },
-//'xxx.txt': { '': { 'length': 70, 'pieces root': '1b4076e775071a3bcd3332ff6a0d8983f77dd737410cae9b056a0e7a1249fdec' } } },
+#include <libtorrent/create_torrent.hpp>
+#include <filesystem>
 
-//'meta version': 2, 'name': 'files', 'piece length': 16384 },
-//'piece layers': { '1da5ee9b28e8fe3a02426621a52a4f59874e7d062fb922d5466cf544ab3d847d': '123ffea83f54c09f35fd2102edb6fb8a7ea6c4a6ae8f757ea54ca3d677fe1da8d99a522e56c60cb0114b54324b907acdc0c67b5cb993b1cf6f5b6f12b562c4b4ccf90b0053d20ad2fc437f02af6159ae919a5094a4
+namespace fs = std::filesystem;
+
 
 namespace xpx_storage_sdk {
+
+FileHash createRootHash( std::string pathToFileOrFolder ) {
+
+    lt::file_storage fileStorage;
+    lt::add_files( fileStorage, pathToFileOrFolder );
+
+    const int piece_size = 16; //todoas parameter
+    lt::create_torrent cTorrent ( fileStorage, piece_size, lt::create_torrent::v2_only);
+    lt::set_piece_hashes( cTorrent, fs::path(pathToFileOrFolder).parent_path().string() );
+
+    std::vector<char> buf;
+    lt::entry entry_info = cTorrent.generate();
+
+    auto fileTree = entry_info["info"]["file tree"];
+    //TODO
+    auto hash = entry_info["info"]["file tree"][0][0]["pieces root"];
+
+    return FileHash();
+}
+
+
 
     FileHash prepareActionListToUpload( const ActionList& actionList, const std::string& tmpFolderPath ) {
 

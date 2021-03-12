@@ -176,6 +176,10 @@ public:
 
         std::vector<char> buf;
         lt::bencode(std::back_inserter(buf), t.generate());
+        lt::entry entry_info = t.generate();
+        auto entry = entry_info;
+        std::cout << entry["info"].to_string() << std::endl;
+
 
         lt::add_torrent_params tp;
         tp.flags &= ~lt::torrent_flags::paused;
@@ -183,6 +187,10 @@ public:
         tp.storage_mode = lt::storage_mode_sparse;
         tp.save_path = "./files";
         tp.ti = std::make_shared<lt::torrent_info>(buf, lt::from_span);
+        
+        auto tInfo = lt::torrent_info(buf, lt::from_span);
+        std::cout << tInfo.info_hashes().v2.to_string() << std::endl;
+        std::cout << tInfo.info_hashes().v2 << std::endl;
 
         lt::error_code ec;
         mSession.add_torrent(tp);
