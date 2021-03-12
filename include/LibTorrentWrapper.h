@@ -7,24 +7,41 @@
 
 #include "types.h"
 #include "ActionList.h"
-#include <memory>
+#include <vector>
+#include <boost/asio/ip/tcp.hpp>
 
 #include "types.h"
 
+using  tcp = boost::asio::ip::tcp;
+using  endpoint_list = std::vector<tcp::endpoint>;
+
 namespace xpx_storage_sdk {
 
-    // LibTorrentWrapper
-    class LibTorrentWrapper {
-    public:
+// LibTorrentWrapper
+class LibTorrentWrapper {
+public:
 
-        void createSession( const std::string& address = "0.0.0.0:6881" );
-        void deleteSession();
+    virtual ~LibTorrentWrapper() = default;
 
-        static InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string outputTorrentFilename = "" );
+    virtual void     createSession() = 0;
+    virtual void     deleteSession() = 0;
 
-        bool    addTorrentFileToSession( std::string torrentFilename, std::string peerAddrWithPort = "" );
+    virtual bool     addTorrentFileToSession( std::string torrentFilename,
+                                              std::string fileFolder,
+                                              endpoint_list = endpoint_list() ) = 0;
 
-        void downloadFile( std::string fileHash, std::string outputFolder, DownloadHandler, std::string peerAddrWithPort = "" );
-    };
+    virtual InfoHash addActionListToSession( const ActionList&,
+                                             const std::string& tmpFolderPath,
+                                             endpoint_list list = endpoint_list() ) = 0;
+
+    virtual void     downloadFile( InfoHash,
+                                   std::string outputFolder,
+                                   DownloadHandler,
+                                   endpoint_list list = endpoint_list() ) = 0;
+};
+
+InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string outputTorrentFilename = "" );
+
+std::shared_ptr<LibTorrentWrapper> createDefaultLibTorrentWrapper( std::string address = "0.0.0.0:6881" );
 
 };

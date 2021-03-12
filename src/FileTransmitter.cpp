@@ -191,6 +191,8 @@ public:
         auto tInfo = lt::torrent_info(buf, lt::from_span);
         std::cout << tInfo.info_hashes().v2.to_string() << std::endl;
         std::cout << tInfo.info_hashes().v2 << std::endl;
+        
+        std::cout << lt::make_magnet_uri(tInfo) << std::endl;
 
         lt::error_code ec;
         mSession.add_torrent(tp);

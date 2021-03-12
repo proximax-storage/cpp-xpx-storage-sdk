@@ -37,6 +37,9 @@ namespace xpx_storage_sdk {
     // Public/Private Key String
     using KeyString = char[Key_Size*2+1];
 
+    // Hash hex String
+    using HashHexString = char[32*2+1];
+
     // error::code
     namespace error {
         enum code {
