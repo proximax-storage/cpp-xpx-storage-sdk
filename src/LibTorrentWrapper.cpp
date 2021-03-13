@@ -185,12 +185,6 @@ public:
     }
 
 private:
-    // makeMagnetLink
-    static std::string makeMagnetLink( std::string hash ) {
-        std::string hashPart(std::begin(hash), std::end(hash));
-        return std::string("magnet:?xt=urn:btmh:1220") + hashPart;
-    }
-
 };
 
 // createTorrentFile

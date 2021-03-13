@@ -29,7 +29,9 @@ static char byteMap[256][2] = {
 };
 
 std::string magnetLink( const InfoHash& key ) {
+
     char hashStr[64+1];
+
     for( uint32_t i=0; i<32; i++ ) {
         hashStr[2*i]   = byteMap[key[i]][0];
         hashStr[2*i+1] = byteMap[key[i]][1];
