@@ -28,16 +28,16 @@ public:
 
     virtual bool     addTorrentFileToSession( std::string torrentFilename,
                                               std::string fileFolder,
-                                              endpoint_list = endpoint_list() ) = 0;
+                                              endpoint_list = {} ) = 0;
 
     virtual InfoHash addActionListToSession( const ActionList&,
                                              const std::string& tmpFolderPath,
-                                             endpoint_list list = endpoint_list() ) = 0;
+                                             endpoint_list list = {} ) = 0;
 
     virtual void     downloadFile( InfoHash,
                                    std::string outputFolder,
                                    DownloadHandler,
-                                   endpoint_list list = endpoint_list() ) = 0;
+                                   endpoint_list list = {} ) = 0;
 };
 
 InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string outputTorrentFilename = "" );
