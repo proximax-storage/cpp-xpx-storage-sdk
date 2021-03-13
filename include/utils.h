@@ -13,7 +13,7 @@
 
 namespace xpx_storage_sdk {
 
-void hashToHexString( const InfoHash& key, HashHexString& outHashHexString );
+std::string magnetLink( const InfoHash& key );
 
 }
 

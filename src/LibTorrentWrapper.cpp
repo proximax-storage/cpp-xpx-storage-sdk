@@ -154,14 +154,10 @@ public:
                                std::string outputFolder,
                                DownloadHandler,
                                endpoint_list list = endpoint_list() ) override {
-        // create magnet link
-        HashHexString hashString;
-        hashToHexString( infoHash, hashString );
-        const std::string magnetLink = makeMagnetLink( hashString );
 
         // create add_torrent_params
         lt::error_code ec;
-        lt::add_torrent_params tp = lt::parse_magnet_uri(magnetLink, ec);
+        lt::add_torrent_params tp = lt::parse_magnet_uri( magnetLink(infoHash), ec);
         if (ec.value() != 0) {
             //handler(download_status::failed, hash, "");
             return;

@@ -28,12 +28,23 @@ static char byteMap[256][2] = {
     {'f','0'}, {'f','1'}, {'f','2'}, {'f','3'}, {'f','4'}, {'f','5'}, {'f','6'}, {'f','7'}, {'f','8'}, {'f','9'}, {'f','a'}, {'f','b'}, {'f','c'}, {'f','d'}, {'f','e'}, {'f','f'},
 };
 
-void hashToHexString( const InfoHash& key, HashHexString& outHashHexString ) {
-    for( uint32_t i=0; i<key.size(); i++ ) {
-        outHashHexString[2*i]   = byteMap[key[i]][0];
-        outHashHexString[2*i+1] = byteMap[key[i]][1];
+std::string magnetLink( const InfoHash& key ) {
+    char hashStr[64+1];
+    for( uint32_t i=0; i<32; i++ ) {
+        hashStr[2*i]   = byteMap[key[i]][0];
+        hashStr[2*i+1] = byteMap[key[i]][1];
     }
-    outHashHexString[key.size()]=0;
+    hashStr[64] = 0;
+
+    return std::string("magnet:?xt=urn:btmh:1220") + hashStr;
 }
+
+//void hashToHexString( const InfoHash& key, HashHexString& outHashHexString ) {
+//    for( uint32_t i=0; i<key.size(); i++ ) {
+//        outHashHexString[2*i]   = byteMap[key[i]][0];
+//        outHashHexString[2*i+1] = byteMap[key[i]][1];
+//    }
+//    outHashHexString[key.size()]=0;
+//}
 
 }
