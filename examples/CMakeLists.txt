@@ -7,3 +7,5 @@ add_executable(testDrive testDrive.cpp ../src/Drive.cpp ../src/FsTree.cpp  ../sr
 
 add_subdirectory(download)
 add_subdirectory(upload)
+
+add_subdirectory(libtorrenttest)

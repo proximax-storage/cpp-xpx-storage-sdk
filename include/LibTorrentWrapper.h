@@ -27,7 +27,7 @@ public:
     virtual void     deleteSession() = 0;
 
     virtual bool     addTorrentFileToSession( std::string torrentFilename,
-                                              std::string fileFolder,
+                                              std::string rootFolder,
                                               endpoint_list = {} ) = 0;
 
     virtual InfoHash addActionListToSession( const ActionList&,
