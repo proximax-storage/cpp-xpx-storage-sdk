@@ -9,7 +9,6 @@ int main(int argc, char *argv[]) {
 
     //InfoHash infoHash = createTorrentFile( std::string pathToFolderOrFolder, std::string outputTorrentFilename = "" );
 
-
     auto ltWrapper = createDefaultLibTorrentWrapper();
 
     //ltWrapper->addTorrentFileToSession();
