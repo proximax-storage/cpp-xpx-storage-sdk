@@ -8,11 +8,12 @@ using namespace xpx_storage_sdk;
 
 int main(int argc, char *argv[]) {
     std::shared_ptr<FileTransmitter> ft = createDefaultFileTransmitter();
-    ft->init("10.0.0.14:6800");
+    ft->init("192.168.1.100:5550");
 
-    std::string hash = "fa63b7c86a9b6086d9640246fbf3a1dd127db8dc01065976a085bdde25f0f101";
-    //std::string hash = "0b62316438efa6d1970b5c150bbed3f57a010289f4dd4901c8c94bbbbf7aa601";
+    std::string hash = "7098b8d0f216ba7ac4dd7afc21fe5e486b0f1396faf205df8c7fe51363b10177";
     std::string path = "./downloads";
+
+    std::cout << hash << std::endl;
 
     FileHash finalHash;
 
@@ -23,7 +24,7 @@ int main(int argc, char *argv[]) {
         std::cout << "hash: " << h.data() << std::endl;
         std::cout << "fileName: " << fileName << std::endl;
         exit(0);
-    }, "10.0.0.14", 6881);
+    }, "127.0.0.1", 5551);
 
     // wait for the user to end
     char a;

@@ -76,17 +76,17 @@ private:
                                 std::cout << "alert: files downloaded: " << fp[i] << std::endl;
 
                                 const std::string fileName = pa->handle.torrent_file()->files().file_name(0).to_string();
-                                mSession.remove_torrent(pa->handle);
+                                //mSession.remove_torrent(pa->handle);
 
                                 // TODO: need to fix situation with hash above
                                 // Possible solution: get handle from session by handle id and get correct hash
-                                DownloadHandler handler = mTorrentHandlers[ltHash];
-                                handler(download_status::complete, toHash(ltHash), fileName);
+                                //DownloadHandler handler = mTorrentHandlers[ltHash];
+                                //handler(download_status::complete, toHash(ltHash), fileName);
 
                                 mTorrentHandlers.erase(ltHash);
                             }
 
-                            //std::cout << "alert: progress: " << fp[i] << std::endl;
+                            std::cout << "alert: progress: " << fp[i] << std::endl;
                         }
                     }
                     break;
@@ -155,7 +155,7 @@ public:
         }
 
         if (mSession.is_valid() && th.is_valid()) {
-            mTorrentHandlers.insert(std::pair<lt::sha256_hash, DownloadHandler>(toLtHash(hash), handler));
+            //mTorrentHandlers.insert(std::pair<lt::sha256_hash, DownloadHandler>(toLtHash(hash), handler));
 
             lt::tcp::endpoint endpoint;
             endpoint.address(boost::asio::ip::make_address(address));
@@ -168,18 +168,15 @@ public:
     }
 
     void addFile( Key drivePubKey, std::string fileNameWithPath, ErrorHandler handler )  override {
-        lt::add_files(mFileStorage, "./files" );//fileNameWithPath);
+        lt::add_files(mFileStorage, fileNameWithPath);
 
         const int piece_size = 16;
         lt::create_torrent t(mFileStorage, piece_size, lt::create_torrent::v2_only);
-        lt::set_piece_hashes(t, "./");//files");
+        lt::set_piece_hashes(t, "./files");
 
         std::vector<char> buf;
         lt::bencode(std::back_inserter(buf), t.generate());
         lt::entry entry_info = t.generate();
-        auto entry = entry_info;
-        std::cout << entry["info"].to_string() << std::endl;
-
 
         lt::add_torrent_params tp;
         tp.flags &= ~lt::torrent_flags::paused;
@@ -187,14 +184,9 @@ public:
         tp.storage_mode = lt::storage_mode_sparse;
         tp.save_path = "./files";
         tp.ti = std::make_shared<lt::torrent_info>(buf, lt::from_span);
-        
-        auto tInfo = lt::torrent_info(buf, lt::from_span);
-        //std::cout << tInfo.info_hashes().v2.to_string() << std::endl;
-        std::cout << tInfo.info_hashes().v2 << std::endl;
-        
-        std::cout << lt::make_magnet_uri(tInfo) << std::endl;
-        std::cout << entry.to_string() << std::endl;
 
+        std::cout << lt::make_magnet_uri(*tp.ti) << std::endl;
+        
         lt::error_code ec;
         mSession.add_torrent(tp);
         if (ec.value() != 0) {
