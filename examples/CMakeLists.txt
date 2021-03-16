@@ -13,7 +13,7 @@ add_executable(testActionList testActionList.cpp ../src/ActionList.cpp)
 
 target_link_libraries(testActionList
         ${Boost_LIBRARIES}
-        catapult
+        sirius
         netio
         external)
 
@@ -24,7 +24,7 @@ add_executable(testDrive testDrive.cpp ../src/Drive.cpp ../src/FsTree.cpp ../src
 
 target_link_libraries(testDrive
        ${Boost_LIBRARIES}
-       catapult
+        sirius
        netio
        external)
 
@@ -37,7 +37,7 @@ add_executable(testValidatorConnection testValidatorConnection.cpp)
 target_link_libraries(testValidatorConnection
         PRIVATE
         ${Boost_LIBRARIES}
-        catapult
+        sirius
         netio
         external
         )

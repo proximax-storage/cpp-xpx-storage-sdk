@@ -1,19 +1,19 @@
 #pragma once
 
-#include <catapult/ionet/PacketSocketOptions.h>
-#include <catapult/crypto/KeyPair.h>
 #include "INodeConnector.h"
-#include "catapult/ionet/PacketIo.h"
-#include "catapult/net/PeerConnectCode.h"
-#include "catapult/net/ConnectionSettings.h"
+#include "sirius/ionet/PacketSocketOptions.h"
+#include "sirius/crypto/KeyPair.h"
+#include "sirius/ionet/PacketIo.h"
+#include "sirius/net/PeerConnectCode.h"
+#include "sirius/net/ConnectionSettings.h"
 
-namespace catapult {
+namespace sirius {
     namespace ionet {
         class PacketSocket;
     }
 }
 
-namespace catapult { namespace netio {
+namespace sirius { namespace netio {
 
     using ConnectCallback = consumer<net::PeerConnectCode, const std::shared_ptr<ionet::PacketSocket>&>;
 

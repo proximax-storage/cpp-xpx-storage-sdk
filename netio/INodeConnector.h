@@ -1,8 +1,8 @@
 #pragma once
 #include <string>
-#include "catapult/ionet/Node.h"
+#include "sirius/ionet/Node.h"
 
-namespace catapult { namespace netio {
+namespace sirius { namespace netio {
     class INodeConnector {
     public:
         INodeConnector(){}
@@ -12,4 +12,4 @@ namespace catapult { namespace netio {
         virtual void shutdown() = 0;
     };
 
-}} // namespace catapult::net
+}} // namespace sirius::net

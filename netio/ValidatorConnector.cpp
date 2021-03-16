@@ -1,13 +1,13 @@
-#include <catapult/ionet/PacketSocket.h>
 #include "ValidatorConnector.h"
-#include "catapult/net/VerifyPeer.h"
-#include "catapult/ionet/SecurePacketSocketDecorator.h"
-//#include "catapult/utils/Logging.h"
+#include "sirius/net/VerifyPeer.h"
+#include "sirius/ionet/SecurePacketSocketDecorator.h"
+#include "sirius/utils/Logging.h"
+#include "sirius/ionet/PacketSocket.h"
 
-using namespace catapult::net;
-using namespace catapult::ionet;
+using namespace sirius::net;
+using namespace sirius::ionet;
 
-namespace catapult { namespace netio {
+namespace sirius { namespace netio {
 
     class ValidatorConnector : public INodeConnector {
     public:
@@ -42,18 +42,18 @@ namespace catapult { namespace netio {
         }
 
         virtual void shutdown() {
-
+            m_context.stop();
         }
 
     private:
         void verify(const Key& publicKey, const PacketSocketPointer& pConnectedSocket) {
-            VerifiedPeerInfo serverPeerInfo{ m_currentNode.identityKey(), m_settings.OutgoingSecurityMode };
+            VerifiedPeerInfo serverPeerInfo{ publicKey, m_settings.OutgoingSecurityMode };
 
             VerifyServer(pConnectedSocket, serverPeerInfo, m_keyPair, [=](
                     auto verifyResult,
                     const auto& verifiedPeerInfo) {
                 if (VerifyResult::Success != verifyResult) {
-                  //  CATAPULT_LOG(warning) << "VerifyServer failed with " << verifyResult;
+                    CATAPULT_LOG(warning) << "VerifyServer failed with " << verifyResult;
                     m_callback(PeerConnectCode::Verify_Error, nullptr);
                     return;
                 }
@@ -68,7 +68,6 @@ namespace catapult { namespace netio {
         }
 
     private:
-        ionet::Node                         m_currentNode;
         ionet::PacketSocketOptions          m_socketOptions;
         const crypto::KeyPair&              m_keyPair;
         ConnectCallback                     m_callback;
@@ -80,7 +79,6 @@ namespace catapult { namespace netio {
                                                               const net::ConnectionSettings& settings,
                                                               const crypto::KeyPair& keyPair,
                                                               const ConnectCallback& callback) {
-
         return std::make_shared<netio::ValidatorConnector>(options, settings, keyPair, callback);
     }
 }}

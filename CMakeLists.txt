@@ -50,7 +50,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     include_directories( SYSTEM "/usr/local/include/" )
 endif()
 
-add_subdirectory(catapult)
+add_subdirectory(sirius)
 add_subdirectory(netio)
 add_subdirectory(external)
 
@@ -76,7 +76,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         /usr/local/opt/openssl@1.1/lib/libcrypto.dylib
         "-framework CoreFoundation" "-framework SystemConfiguration"
         ${Boost_LIBRARIES}
-        catapult
+        sirius
         netio
         external)#Threads::Threads)
 else()
