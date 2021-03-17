@@ -35,7 +35,7 @@ int main() {
     settings.OutgoingSecurityMode = static_cast<ionet::ConnectionSecurityMode>(1);
     settings.IncomingSecurityModes = static_cast<ionet::ConnectionSecurityMode>(1);
 
-    auto connector = netio::createValidatorConnector(options, settings, kePair,[=](auto code, auto packet){
+    auto connector = netio::CreateValidatorConnector(options, settings, kePair,[=](auto code, auto packet){
         if(code == net::PeerConnectCode::Accepted)
             std::cout << "Node Connection Accepted" << std::endl;
         else
