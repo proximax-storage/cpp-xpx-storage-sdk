@@ -4,7 +4,7 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "LibTorrentWrapper.h"
+#include "LibTorrentSession.h"
 #include "utils.h"
 
 #include <iostream>
@@ -36,7 +36,7 @@ namespace fs = std::filesystem;
 
 namespace xpx_storage_sdk {
 
-class DefaultLibTorrentWrapper: public LibTorrentWrapper {
+class DefaultLibTorrentWrapper: public LibTorrentSession {
 
     std::string m_addressAndPort;
     lt::session m_session;
@@ -47,12 +47,14 @@ class DefaultLibTorrentWrapper: public LibTorrentWrapper {
 
 public:
 
-    DefaultLibTorrentWrapper( std::string address ) : m_addressAndPort(address), m_dbgLabel(address) {}
+    DefaultLibTorrentWrapper( std::string address ) : m_addressAndPort(address), m_dbgLabel(address) {
+        createSession();
+    }
 
     virtual ~DefaultLibTorrentWrapper() {}
 
     // createSession
-    void createSession() override {
+    void createSession() {
 
         lt::settings_pack settingsPack;
 
@@ -71,7 +73,7 @@ public:
         m_session.set_alert_notify( [this] { alertHandler(); } );
     }
 
-    virtual void deleteSession() override {
+    virtual void endSession() override {
         m_downloadHandlerMap.clear();
         //TODO abort?
         m_session.abort();
@@ -304,7 +306,7 @@ InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string output
 }
 
 // createDefaultLibTorrentWrapper
-std::shared_ptr<LibTorrentWrapper> createDefaultLibTorrentWrapper( std::string address ){
+std::shared_ptr<LibTorrentSession> createDefaultLibTorrentWrapper( std::string address ){
     return std::make_shared<DefaultLibTorrentWrapper>( address );
 }
 

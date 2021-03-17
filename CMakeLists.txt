@@ -10,7 +10,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # required dependencies
 #-----------------------------------------------------------------------------
 
-
 find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
 

@@ -1,4 +1,4 @@
-#include <LibTorrentWrapper.h>
+#include <LibTorrentSession.h>
 
 #include <memory>
 #include <string>
@@ -43,7 +43,6 @@ int main(int,char**) {
 
     // Run file provider
     auto ltWrapper = createDefaultLibTorrentWrapper("127.0.0.1:5550");
-    ltWrapper->createSession();
     ltWrapper->addTorrentFileToSession( tmpFolder.replace_extension("torrent").string(), tmpFolder.string() );
     
     downloader( infoHash );
@@ -65,7 +64,6 @@ void downloader( InfoHash infoHash ) {
     std::cout << "rcv: " << rcvFolder << std::endl;
 
     auto ltWrapper = createDefaultLibTorrentWrapper( IP_ADDR_2 ":5551" );
-    ltWrapper->createSession();
 
     endpoint_list eList;
     boost::asio::ip::address e = boost::asio::ip::address::from_string("127.0.0.1");
