@@ -32,7 +32,7 @@ private:
     lt::session mSession;
     lt::file_storage mFileStorage;
 
-    std::map<lt::sha256_hash, DownloadHandler> mTorrentHandlers;
+    std::map<lt::sha256_hash, DownloadHandlerOld> mTorrentHandlers;
 
 private:
     static std::string makeMagnetURI(const FileHash& hash) {
@@ -126,7 +126,7 @@ public:
         return FileHash();
     }
 
-    void download( FileHash hash, const std::string& outputFolder, DownloadHandler handler, const std::string& address, unsigned short port ) override {
+    void download( FileHash hash, const std::string& outputFolder, DownloadHandlerOld handler, const std::string& address, unsigned short port ) override {
         if (outputFolder.empty()) {
             handler(download_status::failed, hash, "");
             return;

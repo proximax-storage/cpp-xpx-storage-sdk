@@ -7,7 +7,7 @@ using namespace xpx_storage_sdk;
 
 int main(int argc, char *argv[]) {
     std::shared_ptr<FileTransmitter> ft = createDefaultFileTransmitter();
-    ft->init();
+    ft->init("0.0.0.0:5551");
 
     std::string path = "./files/bc.log";
 

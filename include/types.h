@@ -5,6 +5,8 @@
 */
 #pragma once
 
+#include "log.h"
+
 #include <string>
 #include <array>
 #include <functional>
@@ -74,6 +76,7 @@ namespace xpx_storage_sdk {
     };
 
     // DownloadHandler
-    using DownloadHandler = std::function<void( download_status::code code, FileHash, const std::string& info )>;
+    using DownloadHandler = std::function<void( download_status::code code, InfoHash, const std::string& info )>;
+    using DownloadHandlerOld = std::function<void( download_status::code code, FileHash, const std::string& info )>;
 }
 
