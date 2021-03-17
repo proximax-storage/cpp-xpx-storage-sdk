@@ -9,12 +9,12 @@ using namespace sirius::ionet;
 
 namespace sirius { namespace netio {
 
-    class ValidatorConnector : public INodeConnector {
+    class DefaultNodeConnector : public NodeConnector {
     public:
         using ConnectCallback = consumer<net::PeerConnectCode, const std::shared_ptr<ionet::PacketSocket>&>;
         using PacketSocketPointer = std::shared_ptr<ionet::PacketSocket>;
 
-        ValidatorConnector(const ionet::PacketSocketOptions& options,
+        DefaultNodeConnector(const ionet::PacketSocketOptions& options,
                            const net::ConnectionSettings& settings,
                            const crypto::KeyPair& keyPair,
                            const ConnectCallback& callback)
@@ -75,10 +75,10 @@ namespace sirius { namespace netio {
         net::ConnectionSettings             m_settings;
     };
 
-    std::shared_ptr<INodeConnector> createValidatorConnector(const ionet::PacketSocketOptions& options,
+    std::shared_ptr<NodeConnector> CreateValidatorConnector(const ionet::PacketSocketOptions& options,
                                                               const net::ConnectionSettings& settings,
                                                               const crypto::KeyPair& keyPair,
                                                               const ConnectCallback& callback) {
-        return std::make_shared<netio::ValidatorConnector>(options, settings, keyPair, callback);
+        return std::make_shared<netio::DefaultNodeConnector>(options, settings, keyPair, callback);
     }
 }}

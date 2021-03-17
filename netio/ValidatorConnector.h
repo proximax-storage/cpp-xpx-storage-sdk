@@ -1,6 +1,6 @@
 #pragma once
 
-#include "INodeConnector.h"
+#include "NodeConnector.h"
 #include "sirius/ionet/PacketSocketOptions.h"
 #include "sirius/crypto/KeyPair.h"
 #include "sirius/ionet/PacketIo.h"
@@ -17,8 +17,8 @@ namespace sirius { namespace netio {
 
     using ConnectCallback = consumer<net::PeerConnectCode, const std::shared_ptr<ionet::PacketSocket>&>;
 
-    std::shared_ptr<INodeConnector>
-            createValidatorConnector(const ionet::PacketSocketOptions& options,
+    std::shared_ptr<NodeConnector>
+            CreateValidatorConnector(const ionet::PacketSocketOptions& options,
                                     const net::ConnectionSettings& settings,
                                     const crypto::KeyPair& keyPair,
                                     const ConnectCallback& callback);
