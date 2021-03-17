@@ -15,7 +15,7 @@
 
 namespace xpx_storage_sdk {
 
-void ActionList::serialize( std::string fileName )
+void ActionList::serialize( std::string fileName ) const
 {
     std::ofstream os( fileName, std::ios::binary );
     cereal::BinaryOutputArchive archive( os );

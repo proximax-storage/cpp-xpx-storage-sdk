@@ -5,6 +5,11 @@ include_directories(external)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
+add_subdirectory(download)
+add_subdirectory(upload)
+
+add_subdirectory(libtorrenttest)
+
 #-----------------------------------------------------------------------------
 # test action list
 #-----------------------------------------------------------------------------
@@ -41,3 +46,4 @@ target_link_libraries(testValidatorConnection
         netio
         external
         )
+
