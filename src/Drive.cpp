@@ -4,8 +4,8 @@
 *** license that can be found in the LICENSE file.
 */
 
+#include "ActionList.h"
 #include "Drive.h"
-#include "FileTransmitter.h"
 #include <filesystem>
 #include <iostream>
 
@@ -105,8 +105,8 @@ public:
         m_newFsTree.deserialize( m_fsTreeFile );
 
         // start upload of the action list
-        m_fileTransmitter->download( actionListHash, m_tmpDrivePath.string(),
-                                     std::bind( &DefaultDrive::handleActionList, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3 ) );
+//        m_fileTransmitter->download( actionListHash, m_tmpDrivePath.string(),
+//                                     std::bind( &DefaultDrive::handleActionList, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3 ) );
     }
 
     void handleActionList( download_status::code code, FileHash, const std::string& fileName ) {

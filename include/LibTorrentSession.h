@@ -25,7 +25,7 @@ public:
 
     virtual void     endSession() = 0;
 
-    virtual bool     addTorrentFileToSession( std::string torrentFilename,
+    virtual void     addTorrentFileToSession( std::string torrentFilename,
                                               std::string rootFolder,
                                               endpoint_list = {} ) = 0;
 
@@ -41,6 +41,6 @@ public:
 
 InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string outputTorrentFilename = "" );
 
-std::shared_ptr<LibTorrentSession> createDefaultLibTorrentWrapper( std::string address = "0.0.0.0:6881" );
+std::shared_ptr<LibTorrentSession> createDefaultLibTorrentSession( std::string address = "0.0.0.0:6881" );
 
 };

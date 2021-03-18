@@ -10,6 +10,7 @@
 #include <string>
 #include <array>
 #include <functional>
+#include <stdexcept>
 
 //TODO!
 #define DEBUG

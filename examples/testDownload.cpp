@@ -1,4 +1,4 @@
-#include "LibTorrentSession.h"
+#include <LibTorrentSession.h>
 
 #include <memory>
 #include <string>
@@ -22,16 +22,16 @@ using namespace xpx_storage_sdk;
 void     downloader( InfoHash infoHash );
 fs::path createProviderFolderWithFiles();
 
-std::condition_variable finishCondVar;
-std::mutex              finishMutex;
-bool                    isFinished = false;
+std::condition_variable condVariable;
+std::mutex              cvMutex;
+bool                    downloadCompleted = false;
 
 // progressHandler
 void progressHandler( download_status::code code, InfoHash, const std::string& info ) {
     std::cout << "progressHandler" << std::endl;
     assert( code == download_status::complete );
-    isFinished = true;
-    finishCondVar.notify_all();
+    downloadCompleted = true;
+    condVariable.notify_all();
 }
 
 // main
@@ -43,13 +43,13 @@ int main(int,char**) {
     InfoHash infoHash = createTorrentFile( tmpFolder.string(), tmpFolder.replace_extension("torrent").string() );
 
     // Run file provider
-    auto ltWrapper = createDefaultLibTorrentSession("127.0.0.1:5550");
+    auto ltWrapper = createDefaultLibTorrentWrapper("127.0.0.1:5550");
     ltWrapper->addTorrentFileToSession( tmpFolder.replace_extension("torrent").string(), tmpFolder.string() );
     
     downloader( infoHash );
 
-    std::unique_lock<std::mutex> lock(finishMutex);
-    finishCondVar.wait( lock, []{return isFinished;} );
+    std::unique_lock<std::mutex> lock(cvMutex);
+    condVariable.wait( lock, []{return downloadCompleted;} );
 
     std::cout << "successfuly completed" << std::endl;
 
@@ -64,15 +64,15 @@ void downloader( InfoHash infoHash ) {
     fs::create_directories( rcvFolder );
     std::cout << "rcv: " << rcvFolder << std::endl;
 
-    auto ltWrapper = createDefaultLibTorrentSession( IP_ADDR_2 ":5551" );
+    auto ltWrapper = createDefaultLibTorrentWrapper( IP_ADDR_2 ":5551" );
 
     endpoint_list eList;
     boost::asio::ip::address e = boost::asio::ip::address::from_string("127.0.0.1");
     eList.emplace_back( e, 5550 );
     ltWrapper->downloadFile( infoHash, rcvFolder.string(), progressHandler, eList);
 
-    std::unique_lock<std::mutex> lock(finishMutex);
-    finishCondVar.wait( lock, []{return isFinished;} );
+    std::unique_lock<std::mutex> lock(cvMutex);
+    condVariable.wait( lock, []{return downloadCompleted;} );
 }
 
 // createProviderFolderWithFiles
