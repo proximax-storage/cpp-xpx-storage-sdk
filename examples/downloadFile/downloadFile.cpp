@@ -84,7 +84,7 @@ int main(int,char**)
 //
 // progressHandler
 //
-void progressHandler( download_status::code code, InfoHash, const std::string& info )
+void progressHandler( download_status::code code, InfoHash, std::string info )
 {
     if ( code == download_status::complete ) {
         isFinished = true;
@@ -104,11 +104,11 @@ void client( endpoint_list replicatorAddresses, InfoHash infoHashOfSomeFile, fs:
 {
     // Create libtorrent session
     //
-    auto ltWrapper = createDefaultLibTorrentSession( CLIENT_IP_ADDR ":5551" );
+    auto ltSession = createDefaultLibTorrentSession( CLIENT_IP_ADDR ":5551" );
 
     // Start file downloading
     //
-    ltWrapper->downloadFile( infoHashOfSomeFile,
+    ltSession->downloadFile( infoHashOfSomeFile,
                              destinationFolder,
                              progressHandler,
                              replicatorAddresses );
@@ -132,8 +132,8 @@ void replicator( InfoHash& outInfoHashOfSomeFile )
     outInfoHashOfSomeFile = createTorrentFile( file, torrentFile );
 
     // Emulate replicator side
-    auto ltWrapper = createDefaultLibTorrentSession("127.0.0.1:5550");
-    ltWrapper->addTorrentFileToSession( torrentFile, file );
+    auto ltSession = createDefaultLibTorrentSession("127.0.0.1:5550");
+    ltSession->addTorrentFileToSession( torrentFile, file );
 
     // Wait for the download to finish
     std::unique_lock<std::mutex> lock(finishMutex);

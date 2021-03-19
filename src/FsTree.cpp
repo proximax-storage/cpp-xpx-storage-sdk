@@ -47,6 +47,47 @@ void fs_tree::Folder::sort() {
     }
 }
 
+// getSubfolderOrCreate
+Folder& fs_tree::Folder::getSubfolderOrCreate( const std::string& subFolderName ) {
+
+    auto it = std::find_if( m_childs.begin(), m_childs.end(),
+                         [=](const Child& child) -> bool
+                         {
+                             if ( isFolder(child) )
+                                 return getFolder(child).m_name == subFolderName;
+                             return getFile(child).m_name == subFolderName;
+                         });
+
+    if ( it == m_childs.end() ) {
+        m_childs.emplace_back( Folder{subFolderName} );
+        return getFolder( m_childs.back() );
+    }
+
+    if ( !isFolder( *it ) ) {
+        throw std::runtime_error( std::string("attempt to create a folder with existing file name: ") + subFolderName );
+    }
+
+    return getFolder( *it );
+}
+
+// findChild
+fs_tree::Folder::Child* fs_tree::Folder::findChild( const std::string& childName ) {
+    auto it = std::find_if( m_childs.begin(), m_childs.end(),
+                         [=](const Child& child) -> bool
+                         {
+                             if ( isFolder(child) )
+                                 return getFolder(child).m_name == childName;
+                             return getFile(child).m_name == childName;
+                         });
+
+    if ( it == m_childs.end() ) {
+        return nullptr;
+    }
+
+    return &(*it);
+}
+
+
 // initWithFolder
 bool fs_tree::Folder::initWithFolder( const std::string& pathToFolder ) try {
 
@@ -66,8 +107,7 @@ bool fs_tree::Folder::initWithFolder( const std::string& pathToFolder ) try {
 
             Folder subfolder{entryName};
 
-            //TODO Windows path!
-            if ( !subfolder.initWithFolder( pathToFolder+"/"+entryName ) )
+            if ( !subfolder.initWithFolder( fs::path(pathToFolder) / entryName ) )
                 return false;
 
             m_childs.push_back( subfolder );
@@ -80,7 +120,7 @@ bool fs_tree::Folder::initWithFolder( const std::string& pathToFolder ) try {
             if ( entryName != ".DS_Store" )
             {
 #ifdef DEBUG
-                FileHash fileHash;
+                InfoHash fileHash;
                 std::generate( fileHash.begin(), fileHash.end(), std::rand );
                 //m_childs.insert(  );
                 m_childs.emplace_back( File{entryName,fileHash,entry.file_size()} );
@@ -101,7 +141,7 @@ catch(...)
 }
 
 // doSerialize
-FileHash FsTree::doSerialize( std::string fileName ) {
+InfoHash FsTree::doSerialize( std::string fileName ) {
     std::ofstream os( fileName, std::ios::binary );
     cereal::BinaryOutputArchive archive( os );
 
@@ -110,7 +150,7 @@ FileHash FsTree::doSerialize( std::string fileName ) {
     archive( *this );
 
     //TODO
-    return FileHash();
+    return InfoHash();
 }
 
 // deserialize
@@ -122,7 +162,7 @@ void FsTree::deserialize( std::string fileName ) {
 }
 
 // addFile
-bool FsTree::addFile( const std::string& destinationPath, const std::string& filename, const FileHash& fileHash, size_t size ) {
+bool FsTree::addFile( const std::string& destinationPath, const std::string& filename, const InfoHash& fileHash, size_t size ) {
 
     Folder* parentFolder = getFolderPtr( destinationPath, true );
 

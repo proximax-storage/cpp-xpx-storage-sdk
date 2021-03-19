@@ -11,7 +11,7 @@
 
 inline std::mutex gLogMutex;
 
-#define LOG(expr) ;//{ \
+#define LOG(expr) { \
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
         std::cerr << expr << std::endl << std::flush; \
     }

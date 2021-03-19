@@ -6,7 +6,6 @@ add_executable(testActionList testActionList.cpp
                               ../src/ActionList.cpp)
                               
 add_executable(testDrive      testDrive.cpp
-                              ../src/Drive.cpp
                               ../src/FsTree.cpp
                               ../src/ActionList.cpp)
 
@@ -14,4 +13,4 @@ add_subdirectory(downloadFile)
 add_subdirectory(modifyDrive)
 
 
-add_subdirectory(libtorrenttest)
+#add_subdirectory(libtorrenttest)

@@ -10,7 +10,8 @@ file(GLOB SOURCES "../../src/*.cpp")
 find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
 
-add_executable(modifyDrive ${SOURCES} modifyDrive.cpp)
+#
+add_executable(modifyDrive modifyDrive.cpp ${SOURCES})
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     target_link_libraries(modifyDrive /usr/local/lib/libtorrent-rasterbar.dylib.2.0)

@@ -11,37 +11,26 @@
 #include <array>
 #include <functional>
 #include <stdexcept>
+#include <boost/asio/ip/tcp.hpp>
 
 //TODO!
 #define DEBUG
 
 namespace xpx_storage_sdk {
 
-    //constexpr size_t Signature_Size = 64;
-    constexpr size_t Key_Size = 32;
-    //constexpr size_t Hash512_Size = 64;
-
-	// TODO: use std::string
-    constexpr size_t Hash256_Size = 64;
-    //constexpr size_t Hash160_Size = 20;
-
-    // DriveHash
-    //using DriveHash = std::array<uint8_t,Hash256_Size>;
-
-    // FileHash
-    using FileHash = std::array<uint8_t,Hash256_Size>;
+    using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
 
     // InfoHash
     using InfoHash = std::array<uint8_t,32>;
 
     // Public/Private Key
-    using Key = std::array<uint8_t,Key_Size>;
+    //using Key = std::array<uint8_t,Key_Size>;
 
     // Public/Private Key String
-    using KeyString = char[Key_Size*2+1];
+    //using KeyString = char[Key_Size*2+1];
 
     // Hash hex String
-    using HashHexString = char[32*2+1];
+    //using HashHexString = char[32*2+1];
 
     // error::code
     namespace error {
@@ -77,7 +66,6 @@ namespace xpx_storage_sdk {
     };
 
     // DownloadHandler
-    using DownloadHandler = std::function<void( download_status::code code, InfoHash, const std::string& info )>;
-    using DownloadHandlerOld = std::function<void( download_status::code code, FileHash, const std::string& info )>;
+    using DownloadHandler = std::function<void( download_status::code code, InfoHash, std::string info )>;
 }
 

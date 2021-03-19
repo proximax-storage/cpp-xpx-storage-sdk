@@ -35,8 +35,8 @@ int main() {
 //    fsTree.dbgPrint();
 
     FsTree fsTree3;
-    fsTree3.addFile("", "zzz", FileHash(), 0 );
-    fsTree3.addFile("1a/2a/3a", "f123", FileHash(), 0 );
+    fsTree3.addFile("", "zzz", InfoHash(), 0 );
+    fsTree3.addFile("1a/2a/3a", "f123", InfoHash(), 0 );
     fsTree3.addFolder("1a/2b/3b" );
     fsTree3.addFolder("1c/2c/3c" );
     fsTree3.remove("1c/2c" );

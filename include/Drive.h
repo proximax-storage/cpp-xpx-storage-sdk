@@ -11,7 +11,7 @@
 
 namespace xpx_storage_sdk {
 
-    class FileTransmitter;
+    using ModifyDriveResultHandler = std::function<void( bool success, InfoHash resultRootInfoHash, std::string error )>;
 
     // Drive
     class Drive {
@@ -19,20 +19,18 @@ namespace xpx_storage_sdk {
 
         virtual ~Drive() = default;
 
+        virtual void startModifyDrive( InfoHash modifyDataInfoHash, ModifyDriveResultHandler ) = 0;
 
-        virtual void init( Key      drivePubKey,
-                           size_t   maxDriveSize,
-                           std::shared_ptr<FileTransmitter> ) = 0;
-
-        virtual void executeActionList( FileHash actionListHash ) = 0;
+        //virtual void executeActionList( InfoHash actionListHash ) = 0;
 
 
         //todo
-        virtual bool createDriveStruct( FsTree& node, const std::string& path, const std::string& logicalPath = "" ) = 0;
-
+        //virtual bool createDriveStruct( FsTree& node, const std::string& path, const std::string& logicalPath = "" ) = 0;
     };
 
-    std::shared_ptr<Drive> createDefaultDrive( std::string rootPath );
-
-    void keyToString( const Key& key, KeyString& keyStr );
+    std::shared_ptr<Drive> createDefaultDrive( std::string listenInterface,
+                                               std::string rootPath,
+                                               size_t maxSize,
+                                               endpoint_list otherReplicators = {}
+                                               );
 };

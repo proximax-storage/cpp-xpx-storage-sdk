@@ -13,7 +13,6 @@
 #include "types.h"
 
 using  tcp = boost::asio::ip::tcp;
-using  endpoint_list = std::vector<tcp::endpoint>;
 
 namespace xpx_storage_sdk {
 
@@ -37,6 +36,8 @@ public:
                                    std::string outputFolder,
                                    DownloadHandler,
                                    endpoint_list list = {} ) = 0;
+
+    virtual void     connectPeers( endpoint_list list ) = 0;
 };
 
 InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string outputTorrentFilename = "" );

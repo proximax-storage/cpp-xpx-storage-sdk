@@ -15,10 +15,14 @@
 namespace xpx_storage_sdk {
 namespace fs_tree {
 
-    using Path = std::vector<std::string>;
+    //using Path = std::vector<std::string>;
 
     // File
     struct File {
+
+        std::string m_name;
+        InfoHash    m_hash;
+        size_t      m_size;
 
         template <class Archive> void serialize( Archive & arch ) {
             arch( m_name );
@@ -29,18 +33,15 @@ namespace fs_tree {
 #ifdef DEBUG
         bool operator==( const File& f ) const { return m_name==f.m_name && m_hash==f.m_hash; }
 #endif
-
-        std::string m_name;
-        FileHash    m_hash;
-        size_t      m_size;
-
-        //Path        m_relativePath;
     };
 
     // Folder
     struct Folder {
 
         using Child = std::variant<Folder,File>;
+
+        std::string         m_name;
+        std::vector<Child>  m_childs;
 
         bool initWithFolder( const std::string& pathToFolder );
         void sort();
@@ -52,15 +53,15 @@ namespace fs_tree {
             arch( m_childs );
         }
 
+        // getSubfolderOrCreate - creates subfolder if not exist
+        Folder& getSubfolderOrCreate( const std::string& subFolderName );
+
+        // findChild returns nullptr if child is absent
+        Child* findChild( const std::string& childName );
+
 #ifdef DEBUG
         bool operator==( const Folder& f ) const { return m_name==f.m_name && m_childs==f.m_childs; }
 #endif
-
-        std::string         m_name;
-        std::vector<Child>  m_childs;
-        //std::set<Child>  m_childs;
-
-        //Path                m_relativePath;
     };
 
     // variant utilities
@@ -90,12 +91,12 @@ namespace fs_tree {
 // FsTree
 struct FsTree: public fs_tree::Folder {
 
-    FileHash doSerialize( std::string fileName );
+    InfoHash doSerialize( std::string fileName );
     void     deserialize( std::string fileName );
 
     Folder*  getFolderPtr( const std::string& path, bool createIfNotExist = false );
 
-    bool     addFile( const std::string& destinationPath, const std::string& filename, const FileHash&, size_t size );
+    bool     addFile( const std::string& destinationPath, const std::string& filename, const InfoHash&, size_t size );
 
     bool     addFolder( const std::string& folderPath );
 

@@ -39,6 +39,9 @@ class DefaultLibTorrentWrapper: public LibTorrentSession {
 
     std::map<lt::torrent_handle,std::pair<DownloadHandler,InfoHash>> m_downloadHandlerMap;
 
+    //TODO if not
+    lt::torrent_handle m_lastTorrentFileHandle;
+
     std::string m_dbgLabel;
 
 public:
@@ -75,10 +78,21 @@ public:
         m_session.abort();
     }
 
+    virtual void connectPeers( endpoint_list list ) override {
+
+        if ( !m_session.is_valid() )
+            throw std::runtime_error("connectPeers: libtorrent session is not valid");
+
+        //TODO check if not set m_lastTorrentFileHandle
+        for( auto endpoint : list ) {
+            m_lastTorrentFileHandle.connect_peer(endpoint);
+        }
+    }
+
     // addTorrentFileToSession
     virtual void addTorrentFileToSession( std::string torrentFilename,
                                           std::string fileFolder,
-                                          endpoint_list = endpoint_list() ) override {
+                                          endpoint_list list ) override {
 
         // read torrent file
         std::ifstream torrentFile( torrentFilename );
@@ -94,24 +108,26 @@ public:
 
         //dbg///////////////////////////////////////////////////
         auto tInfo = lt::torrent_info(buffer, lt::from_span);
-//        std::cout << tInfo.info_hashes().v2.to_string() << std::endl;
-//        std::cout << tInfo.info_hashes().v2 << std::endl;
-        std::cout << "add torrent: torrent filename:" << torrentFilename << std::endl;
-        std::cout << "add torrent: fileFolder:" << fileFolder << std::endl;
-        std::cout << "add torrent: " << lt::make_magnet_uri(tInfo) << std::endl;
+//        LOG( tInfo.info_hashes().v2.to_string() ) );
+//        LOG( tInfo.info_hashes().v2 ) );
+        LOG( "add torrent: torrent filename:" << torrentFilename );
+        LOG( "add torrent: fileFolder:" << fileFolder );
+        LOG( "add torrent: " << lt::make_magnet_uri(tInfo) );
         //dbg///////////////////////////////////////////////////
 
-        m_session.add_torrent(params);
+        m_lastTorrentFileHandle = m_session.add_torrent(params);
+
+        connectPeers( list );
     }
 
     // addActionListToSession
     InfoHash addActionListToSession( const ActionList& actionList,
                                      const std::string& tmpFolderPath,
-                                     endpoint_list list = endpoint_list() ) override {
+                                     endpoint_list list ) override {
         // clear tmpFolder
         std::error_code ec;
         fs::remove_all( tmpFolderPath, ec );
-        fs::create_directory( tmpFolderPath );
+        fs::create_directories( tmpFolderPath );
 
         // path to root folder
         fs::path addFilesFolder = fs::path(tmpFolderPath).append( "root" );
@@ -121,7 +137,13 @@ public:
 
             switch ( action.m_actionId ) {
                 case action_list_id::upload: {
-                    fs::create_symlink( action.m_param1, addFilesFolder.string()+action.m_param2 );
+                    LOG( addFilesFolder );
+                    LOG( action.m_param2 );
+                    LOG( addFilesFolder/action.m_param2 );
+                    LOG( (addFilesFolder/action.m_param2).parent_path() );
+
+                    fs::create_directories( (addFilesFolder/action.m_param2).parent_path() );
+                    fs::create_symlink( action.m_param1, addFilesFolder/action.m_param2 );
                     break;
                 }
                 default:
@@ -136,7 +158,7 @@ public:
         InfoHash infoHash = createTorrentFile( fs::path(tmpFolderPath), fs::path(tmpFolderPath)/"root.torrent" );
 
         // add torrent file
-        addTorrentFileToSession( fs::path(tmpFolderPath)/"root.torrent", fs::path(tmpFolderPath) );
+        addTorrentFileToSession( fs::path(tmpFolderPath)/"root.torrent", fs::path(tmpFolderPath), list );
 
         return infoHash;
     }
@@ -145,7 +167,7 @@ public:
     virtual void downloadFile( InfoHash infoHash,
                                std::string outputFolder,
                                DownloadHandler downloadHandler,
-                               endpoint_list list = endpoint_list() ) override {
+                               endpoint_list list ) override {
 
         LOG( "downloadFile: " << toString(infoHash) );
 
@@ -210,12 +232,12 @@ private:
                             const std::string fileName = alertInfo->handle.torrent_file()->files().file_name(i).to_string();
                             const std::string filePath = alertInfo->handle.torrent_file()->files().file_path(i);
 
-                            std::cout << m_addressAndPort << ": " << filePath
-                                      << ": alert: progress: " << fp[i] << " of " << fsize << std::endl;
+                            LOG( m_addressAndPort << ": " << filePath
+                                      << ": alert: progress: " << fp[i] << " of " << fsize );
                             
                             //dbg/////////////////////////
                         }
-//                        std::cout << "-" << std::endl;
+//                        LOG( "-" );
 
                         // notify about the end of the download
                         if ( isAllComplete ) {
@@ -234,7 +256,7 @@ private:
                     break;
                 }
                 default: {
-                    //std::cout << "other alert: " << alert->message() << std::endl;
+                    //LOG( "other alert: " << alert->message() );
                 }
             }
         }
@@ -265,13 +287,10 @@ InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string output
 
     //dbg////////////////////////////////
     auto entry = entry_info;
-    std::cout << entry["info"].to_string() << std::endl;
-
+    LOG( entry["info"].to_string() );
+    //LOG( entry.to_string() );
     auto tInfo = lt::torrent_info(torrentFileBytes, lt::from_span);
-    std::cout << tInfo.info_hashes().v2 << std::endl;
-    
-    std::cout << lt::make_magnet_uri(tInfo) << std::endl;
-    //std::cout << entry.to_string() << std::endl;
+    LOG( lt::make_magnet_uri(tInfo) );
     //dbg////////////////////////////////
 
     // get infoHash

@@ -8,28 +8,28 @@
 #include "types.h"
 #include "Drive.h"
 
-namespace xpx_storage_sdk {
+//namespace xpx_storage_sdk {
 
-    // DriveInfo
-    struct DriveInfo {
-        Key     m_pubKey;
-        size_t  m_size;
-        size_t  m_freeSize;
-    };
+//    // DriveInfo
+//    struct DriveInfo {
+//        Key     m_pubKey;
+//        size_t  m_size;
+//        size_t  m_freeSize;
+//    };
 
-    // DriveStorage
-    class DriveStorage {
+//    // DriveStorage
+//    class DriveStorage {
 
-        virtual ~DriveStorage() = default;
+//        virtual ~DriveStorage() = default;
         
-        virtual void init( std::string rootPath, size_t maxStorageSize ) = 0;
+//        virtual void init( std::string rootPath, size_t maxStorageSize ) = 0;
 
-        virtual void createDrive( Key drivePubKey, size_t size ) = 0;
-        virtual void closeDrive( Key drivePubKey ) = 0;
-        virtual DriveInfo getDriveInfo( Key drivePubKey ) = 0;
+//        virtual void createDrive( Key drivePubKey, size_t size ) = 0;
+//        virtual void closeDrive( Key drivePubKey ) = 0;
+//        virtual DriveInfo getDriveInfo( Key drivePubKey ) = 0;
         
-        //virtual std::vector<Drive> getDrives() = 0;
-    };
+//        //virtual std::vector<Drive> getDrives() = 0;
+//    };
 
-    std::shared_ptr<DriveStorage> createDefaultDriveStorage();
-};
+//    std::shared_ptr<DriveStorage> createDefaultDriveStorage();
+//};

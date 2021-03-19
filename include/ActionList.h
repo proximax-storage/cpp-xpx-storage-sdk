@@ -23,7 +23,6 @@ namespace xpx_storage_sdk {
             new_folder  = 2,
             rename      = 3,
             remove      = 4,
-            blob_hash   = 5
         };
     };
 
@@ -32,7 +31,7 @@ namespace xpx_storage_sdk {
         Action() = default;
 
         Action( action_list_id::code code, std::string p1, std::string p2 = "" ) : m_actionId(code), m_param1(p1), m_param2(p2) {}
-        Action( action_list_id::code code, FileHash hash ) : m_actionId(code), m_hash(hash) {}
+        Action( action_list_id::code code, InfoHash hash ) : m_actionId(code), m_hash(hash) {}
 
         static Action upload( std::string pathToLocalFile, std::string remoteFileNameWithPath ) {
             return Action( action_list_id::upload, pathToLocalFile, remoteFileNameWithPath );
@@ -54,20 +53,15 @@ namespace xpx_storage_sdk {
 
             arch( m_actionId );
 
-            if ( m_actionId == action_list_id::blob_hash ) {
-                arch( m_hash );
+            arch( m_param1 );
+
+            if ( m_actionId == action_list_id::rename ) {
+                arch( m_param2 );
             }
-            else {
-                arch( m_param1 );
 
-                if ( m_actionId == action_list_id::rename ) {
-                    arch( m_param2 );
-                }
-
-                if ( m_actionId == action_list_id::upload ) {
-                    arch( m_param2 );
-                    arch( m_hash );
-                }
+            if ( m_actionId == action_list_id::upload ) {
+                arch( m_param2 );
+                arch( m_hash );
             }
         }
 
@@ -76,7 +70,7 @@ namespace xpx_storage_sdk {
         action_list_id::code m_actionId = action_list_id::none;
         std::string          m_param1;
         std::string          m_param2;
-        FileHash             m_hash;
+        InfoHash             m_hash;
     };
 
     // ActionList
