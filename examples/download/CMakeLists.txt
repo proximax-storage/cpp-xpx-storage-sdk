@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 file(GLOB SOURCES
         "../../include/*.h"
-        "../../src/*.cpp")
+        "../../src/drive/*.cpp")
 
 find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
