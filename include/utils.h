@@ -5,15 +5,15 @@
 */
 #pragma once
 
-#include <string>
-#include <array>
-#include <functional>
-
 #include "types.h"
 
 namespace xpx_storage_sdk {
 
+// magnetLink
 std::string magnetLink( const InfoHash& key );
+
+// toString
+std::string toString( const InfoHash& key );
 
 }
 

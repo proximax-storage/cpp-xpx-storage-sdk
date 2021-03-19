@@ -17,14 +17,13 @@ using  endpoint_list = std::vector<tcp::endpoint>;
 
 namespace xpx_storage_sdk {
 
-// LibTorrentWrapper
-class LibTorrentWrapper {
+// LibTorrentSession
+class LibTorrentSession {
 public:
 
-    virtual ~LibTorrentWrapper() = default;
+    virtual ~LibTorrentSession() = default;
 
-    virtual void     createSession() = 0;
-    virtual void     deleteSession() = 0;
+    virtual void     endSession() = 0;
 
     virtual bool     addTorrentFileToSession( std::string torrentFilename,
                                               std::string rootFolder,
@@ -42,6 +41,6 @@ public:
 
 InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string outputTorrentFilename = "" );
 
-std::shared_ptr<LibTorrentWrapper> createDefaultLibTorrentWrapper( std::string address = "0.0.0.0:6881" );
+std::shared_ptr<LibTorrentSession> createDefaultLibTorrentWrapper( std::string address = "0.0.0.0:6881" );
 
 };

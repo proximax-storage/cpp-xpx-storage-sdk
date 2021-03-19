@@ -1,4 +1,4 @@
-/*
+    /*
 *** Copyright 2021 ProximaX Limited. All rights reserved.
 *** Use of this source code is governed by the Apache 2.0
 *** license that can be found in the LICENSE file.
@@ -41,12 +41,17 @@ std::string magnetLink( const InfoHash& key ) {
     return std::string("magnet:?xt=urn:btmh:1220") + hashStr;
 }
 
-//void hashToHexString( const InfoHash& key, HashHexString& outHashHexString ) {
-//    for( uint32_t i=0; i<key.size(); i++ ) {
-//        outHashHexString[2*i]   = byteMap[key[i]][0];
-//        outHashHexString[2*i+1] = byteMap[key[i]][1];
-//    }
-//    outHashHexString[key.size()]=0;
-//}
+std::string toString( const InfoHash& key ) {
+
+    char hashStr[64+1];
+
+    for( uint32_t i=0; i<32; i++ ) {
+        hashStr[2*i]   = byteMap[key[i]][0];
+        hashStr[2*i+1] = byteMap[key[i]][1];
+    }
+    hashStr[64] = 0;
+
+    return hashStr;
+}
 
 }

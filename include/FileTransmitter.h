@@ -21,7 +21,7 @@ namespace xpx_storage_sdk {
 
         virtual FileHash prepareActionListToUpload( const ActionList&, std::string addr = "", int port = 0 ) = 0;
 
-        virtual void download( FileHash, const std::string& outputFolder, DownloadHandler, const std::string& address = "", unsigned short port = 0 ) = 0;
+        virtual void download( FileHash, const std::string& outputFolder, DownloadHandlerOld, const std::string& address = "", unsigned short port = 0 ) = 0;
 
         // Replicator functionality only
         virtual void addFile( Key drivePubKey, std::string fileNameWithPath, ErrorHandler ) = 0;
