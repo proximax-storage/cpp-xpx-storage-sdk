@@ -14,7 +14,7 @@ add_subdirectory(libtorrenttest)
 # test action list
 #-----------------------------------------------------------------------------
 
-add_executable(testActionList testActionList.cpp ../src/ActionList.cpp)
+add_executable(testActionList testActionList.cpp ../src/drive/ActionList.cpp)
 
 target_link_libraries(testActionList
         ${Boost_LIBRARIES}
@@ -25,7 +25,7 @@ target_link_libraries(testActionList
 #-----------------------------------------------------------------------------
 # test drive
 #-----------------------------------------------------------------------------
-add_executable(testDrive testDrive.cpp ../src/Drive.cpp ../src/FsTree.cpp ../src/ActionList.cpp)
+add_executable(testDrive testDrive.cpp ../src/drive/Drive.cpp ../src/drive/FsTree.cpp ../src/drive/ActionList.cpp)
 
 target_link_libraries(testDrive
        ${Boost_LIBRARIES}

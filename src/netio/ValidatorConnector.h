@@ -1,3 +1,9 @@
+/*
+*** Copyright 2021 ProximaX Limited. All rights reserved.
+*** Use of this source code is governed by the Apache 2.0
+*** license that can be found in the LICENSE file.
+*/
+
 #pragma once
 
 #include "NodeConnector.h"
@@ -15,11 +21,9 @@ namespace sirius {
 
 namespace sirius { namespace netio {
 
-    using ConnectCallback = consumer<net::PeerConnectCode, const std::shared_ptr<ionet::PacketSocket>&>;
-
     std::shared_ptr<NodeConnector>
-            CreateValidatorConnector(const ionet::PacketSocketOptions& options,
+            CreateDefaultNodeConnector(const ionet::PacketSocketOptions& options,
                                     const net::ConnectionSettings& settings,
                                     const crypto::KeyPair& keyPair,
-                                    const ConnectCallback& callback);
+                                    const NodeConnector::ConnectCallback& callback);
 }}

@@ -62,28 +62,6 @@ namespace sirius { namespace utils {
 	/// Tries to parse \a str into a double (\a parsedValue).
 	bool TryParseValue(const std::string& str, double& parsedValue);
 
-	/// Tries to parse \a str into an Amount (\a parsedValue).
-	bool TryParseValue(const std::string& str, Amount& parsedValue);
-
-	/// Tries to parse \a str into a BlockFeeMultiplier (\a parsedValue).
-	bool TryParseValue(const std::string& str, BlockFeeMultiplier& parsedValue);
-
-	/// Tries to parse \a str into a Height (\a parsedValue).
-	bool TryParseValue(const std::string& str, Height& parsedValue);
-
-	/// Tries to parse \a str into an Importance (\a parsedValue).
-	bool TryParseValue(const std::string& str, Importance& parsedValue);
-
-	/// Tries to parse \a str into a MosaicId (\a parsedValue).
-	bool TryParseValue(const std::string& str, MosaicId& parsedValue);
-
-	/// Tries to parse \a str into a set of MosaicIds (\a parsedValue).
-	/// \note \a str is expected to be comma separated
-	bool TryParseValue(const std::string& str, std::unordered_set<MosaicId, utils::BaseValueHasher<MosaicId>>& parsedValue);
-
-	/// Tries to parse \a str into a BlockDuration (\a parsedValue).
-	bool TryParseValue(const std::string& str, BlockDuration& parsedValue);
-
 	/// Tries to parse \a str into a TimeSpan (\a parsedValue).
 	bool TryParseValue(const std::string& str, TimeSpan& parsedValue);
 

@@ -8,37 +8,22 @@
 #include <string>
 #include <array>
 #include <functional>
+#include "sirius/types.h"
 
 //TODO!
 #define DEBUG
 
 namespace xpx_storage_sdk {
-
-    //constexpr size_t Signature_Size = 64;
-    constexpr size_t Key_Size = 32;
-    //constexpr size_t Hash512_Size = 64;
-
-	// TODO: use std::string
-    constexpr size_t Hash256_Size = 64;
-    //constexpr size_t Hash160_Size = 20;
-
-    // DriveHash
-    //using DriveHash = std::array<uint8_t,Hash256_Size>;
+    using namespace sirius;
 
     // FileHash
-    using FileHash = std::array<uint8_t,Hash256_Size>;
+    using FileHash = std::array<uint8_t, Hash256_Size>;
 
     // InfoHash
     using InfoHash = std::array<uint8_t,32>;
 
-    // Public/Private Key
-    using Key = std::array<uint8_t,Key_Size>;
-
     // Public/Private Key String
     using KeyString = char[Key_Size*2+1];
-
-    // Hash hex String
-    using HashHexString = char[32*2+1];
 
     // error::code
     namespace error {

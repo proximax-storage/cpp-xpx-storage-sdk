@@ -1,3 +1,9 @@
+/*
+*** Copyright 2021 ProximaX Limited. All rights reserved.
+*** Use of this source code is governed by the Apache 2.0
+*** license that can be found in the LICENSE file.
+*/
+
 #include <iostream>
 #include <boost/asio.hpp>
 #include "sirius/crypto/KeyPair.h"
@@ -35,7 +41,7 @@ int main() {
     settings.OutgoingSecurityMode = static_cast<ionet::ConnectionSecurityMode>(1);
     settings.IncomingSecurityModes = static_cast<ionet::ConnectionSecurityMode>(1);
 
-    auto connector = netio::CreateValidatorConnector(options, settings, kePair,[=](auto code, auto packet){
+    auto connector = netio::CreateDefaultNodeConnector(options, settings, kePair,[=](auto code, auto packet){
         if(code == net::PeerConnectCode::Accepted)
             std::cout << "Node Connection Accepted" << std::endl;
         else

@@ -33,8 +33,8 @@ file(GLOB_RECURSE sources
     "include/*.h"
     "src/*.cpp")
 
-include_directories(.)
-include_directories(external)
+include_directories(src)
+include_directories(src/external)
 include_directories( SYSTEM "cereal/include" )
 include_directories( PRIVATE "include" )
 
@@ -50,9 +50,9 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     include_directories( SYSTEM "/usr/local/include/" )
 endif()
 
-add_subdirectory(sirius)
-add_subdirectory(netio)
-add_subdirectory(external)
+add_subdirectory(src/sirius)
+add_subdirectory(src/netio)
+add_subdirectory(src/external)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # boost from brew has an issue linking to -licudata

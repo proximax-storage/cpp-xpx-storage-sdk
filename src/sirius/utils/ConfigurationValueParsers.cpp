@@ -19,7 +19,6 @@
 **/
 
 #include "ConfigurationValueParsers.h"
-#include "BlockSpan.h"
 #include "FileSize.h"
 #include "HexParser.h"
 #include "TimeSpan.h"
@@ -56,22 +55,6 @@ namespace sirius { namespace utils {
 			{ std::make_pair("true", true) },
 			{ std::make_pair("false", false) }
 		}};
-	}
-
-	bool TryParseValue(const std::string& str, LogLevel& parsedValue) {
-		return TryParseEnumValue(String_To_LogLevel_Pairs, str, parsedValue);
-	}
-
-	bool TryParseValue(const std::string& str, LogSinkType& parsedValue) {
-		return TryParseEnumValue(String_To_LogSinkType_Pairs, str, parsedValue);
-	}
-
-	bool TryParseValue(const std::string& str, LogColorMode& parsedValue) {
-		return TryParseEnumValue(String_To_LogColorMode_Pairs, str, parsedValue);
-	}
-
-	bool TryParseValue(const std::string& str, bool& parsedValue) {
-		return TryParseEnumValue(String_To_Boolean_Pairs, str, parsedValue);
 	}
 
 	// endregion
@@ -209,31 +192,6 @@ namespace sirius { namespace utils {
 		}
 	}
 
-	bool TryParseValue(const std::string& str, Amount& parsedValue) {
-		return TryParseCustomUnsignedIntDecimalValue<Amount::ValueType>([](auto raw) { return Amount(raw); }, str, parsedValue);
-	}
-
-	bool TryParseValue(const std::string& str, BlockFeeMultiplier& parsedValue) {
-		auto factory = [](auto raw) { return BlockFeeMultiplier(raw); };
-		return TryParseCustomUnsignedIntDecimalValue<BlockFeeMultiplier::ValueType>(factory, str, parsedValue);
-	}
-
-	bool TryParseValue(const std::string& str, Height& parsedValue) {
-		return TryParseCustomUnsignedIntDecimalValue<Height::ValueType>([](auto raw) { return Height(raw); }, str, parsedValue);
-	}
-
-	bool TryParseValue(const std::string& str, Importance& parsedValue) {
-		return TryParseCustomUnsignedIntDecimalValue<Importance::ValueType>([](auto raw) { return Importance(raw); }, str, parsedValue);
-	}
-
-	bool TryParseValue(const std::string& str, MosaicId& parsedValue) {
-		return TryParseCustomUnsignedIntHexValue<MosaicId::ValueType>([](auto raw) { return MosaicId(raw); }, str, parsedValue);
-	}
-
-	bool TryParseValue(const std::string& str, BlockDuration& parsedValue) {
-		return TryParseCustomUnsignedIntDecimalValue<BlockDuration::ValueType>([](auto raw) { return BlockDuration(raw); }, str, parsedValue);
-	}
-
 	bool TryParseValue(const std::string& str, TimeSpan& parsedValue) {
 		if (str.empty())
 			return false;
@@ -259,45 +217,6 @@ namespace sirius { namespace utils {
 		return false;
 	}
 
-	bool TryParseValue(const std::string& str, BlockSpan& parsedValue) {
-		if (str.size() < 2)
-			return false;
-
-		auto tryParse = [&str, &parsedValue](const auto& factory) {
-			return TryParseCustomUnsignedIntDecimalValue<uint64_t>(factory, str.substr(0, str.size() - 1), parsedValue);
-		};
-
-		switch (str[str.size() - 1]) {
-		case 'h':
-			return tryParse(BlockSpan::FromHours);
-
-		case 'd':
-			return tryParse(BlockSpan::FromDays);
-		}
-
-		return false;
-	}
-
-	bool TryParseValue(const std::string& str, FileSize& parsedValue) {
-		if (str.size() < 2 || 'B' != str.back())
-			return false;
-
-		auto tryParse = [&str, &parsedValue](const auto& factory, uint8_t postfixSize) {
-			return TryParseCustomUnsignedIntDecimalValue<uint64_t>(factory, str.substr(0, str.size() - postfixSize), parsedValue);
-		};
-
-		switch (str[str.size() - 2]) {
-		case 'K':
-			return tryParse(FileSize::FromKilobytes, 2);
-
-		case 'M':
-			return tryParse(FileSize::FromMegabytes, 2);
-
-		default:
-			return tryParse(FileSize::FromBytes, 1);
-		}
-	}
-
 	// endregion
 
 	// region byte array
@@ -312,27 +231,6 @@ namespace sirius { namespace utils {
 			parsedValue = array;
 			return true;
 		}
-	}
-
-	bool TryParseValue(const std::string& str, Key& parsedValue) {
-		return TryParseByteArray(str, parsedValue);
-	}
-
-	bool TryParseValue(const std::string& str, Hash256& parsedValue) {
-		return TryParseByteArray(str, parsedValue);
-	}
-
-	bool TryParseValue(const std::string& str, GenerationHash& parsedValue) {
-		return TryParseByteArray(str, parsedValue);
-	}
-
-	// endregion
-
-	// region string
-
-	bool TryParseValue(const std::string& str, std::string& parsedValue) {
-		parsedValue = str;
-		return true;
 	}
 
 	// endregion
@@ -389,12 +287,6 @@ namespace sirius { namespace utils {
 		return TryParseSetValue<std::string>(str, parsedSet, [](const std::string& value, std::string& parsedValue) {
 			parsedValue = value;
 			return !parsedValue.empty();
-		});
-	}
-
-	bool TryParseValue(const std::string& str, std::unordered_set<MosaicId, utils::BaseValueHasher<MosaicId>>& parsedSet) {
-		return TryParseSetValue<MosaicId>(str, parsedSet, [](const std::string& value, MosaicId& parsedValue) {
-			return TryParseValue(value, parsedValue);
 		});
 	}
 

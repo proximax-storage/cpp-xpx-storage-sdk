@@ -1,3 +1,9 @@
+/*
+*** Copyright 2021 ProximaX Limited. All rights reserved.
+*** Use of this source code is governed by the Apache 2.0
+*** license that can be found in the LICENSE file.
+*/
+
 #include "ValidatorConnector.h"
 #include "sirius/net/VerifyPeer.h"
 #include "sirius/ionet/SecurePacketSocketDecorator.h"
@@ -75,10 +81,10 @@ namespace sirius { namespace netio {
         net::ConnectionSettings             m_settings;
     };
 
-    std::shared_ptr<NodeConnector> CreateValidatorConnector(const ionet::PacketSocketOptions& options,
+    std::shared_ptr<NodeConnector> CreateDefaultNodeConnector(const ionet::PacketSocketOptions& options,
                                                               const net::ConnectionSettings& settings,
                                                               const crypto::KeyPair& keyPair,
-                                                              const ConnectCallback& callback) {
+                                                              const NodeConnector::ConnectCallback& callback) {
         return std::make_shared<netio::DefaultNodeConnector>(options, settings, keyPair, callback);
     }
 }}
