@@ -122,15 +122,18 @@ public:
 
     // addActionListToSession
     InfoHash addActionListToSession( const ActionList& actionList,
-                                     const std::string& tmpFolderPath,
+                                     const std::string& workFolder,
                                      endpoint_list list ) override {
+        // path to sandbox
+        fs::path sandboxFolder = fs::path(workFolder).append( "sandbox" );
+
         // clear tmpFolder
         std::error_code ec;
-        fs::remove_all( tmpFolderPath, ec );
-        fs::create_directories( tmpFolderPath );
+        fs::remove_all( sandboxFolder, ec );
+        fs::create_directories( sandboxFolder );
 
         // path to root folder
-        fs::path addFilesFolder = fs::path(tmpFolderPath).append( "root" );
+        fs::path addFilesFolder = fs::path(sandboxFolder).append( "drive" );
 
         // parse action list
         for( auto& action : actionList ) {
@@ -144,6 +147,7 @@ public:
 
                     fs::create_directories( (addFilesFolder/action.m_param2).parent_path() );
                     fs::create_symlink( action.m_param1, addFilesFolder/action.m_param2 );
+                    //fs::copy( action.m_param1, addFilesFolder/action.m_param2 );
                     break;
                 }
                 default:
@@ -152,13 +156,16 @@ public:
         }
 
         // save ActionList
-        actionList.serialize( fs::path(tmpFolderPath)/"actionList.bin" );
+        actionList.serialize( fs::path(sandboxFolder)/"actionList.bin" );
+        //LOG( "actList: " << fs::path(tmpFolderPath)/"actionList.bin"  );
 
         // create torrent file
-        InfoHash infoHash = createTorrentFile( fs::path(tmpFolderPath), fs::path(tmpFolderPath)/"root.torrent" );
+        InfoHash infoHash = createTorrentFile( fs::path(sandboxFolder), fs::path(sandboxFolder)/"root.torrent" );
+        //InfoHash infoHash = createTorrentFile( fs::path(tmpFolderPath)/"actionList.bin", fs::path(tmpFolderPath)/"root.torrent" );
 
         // add torrent file
-        addTorrentFileToSession( fs::path(tmpFolderPath)/"root.torrent", fs::path(tmpFolderPath), list );
+        addTorrentFileToSession( fs::path(sandboxFolder)/"root.torrent", fs::path(sandboxFolder), list );
+        //addTorrentFileToSession( fs::path(tmpFolderPath)/"root.torrent", fs::path(tmpFolderPath)/"actionList.bin", {} );
 
         return infoHash;
     }

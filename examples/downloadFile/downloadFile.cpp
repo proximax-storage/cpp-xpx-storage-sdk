@@ -6,6 +6,7 @@
 #include <iostream>
 #include <fstream>
 #include <thread>
+#include <future>
 #include <condition_variable>
 
 //
@@ -25,7 +26,7 @@ using namespace xpx_storage_sdk;
 // forward declarations
 //
 void client( endpoint_list replicatorAddresses, InfoHash infoHashOfSomeFile, fs::path destinationFolder );
-void replicator( InfoHash& outInfoHashOfSomeFile );
+void replicator( std::promise<InfoHash> );
 fs::path createReplicatorFile();
 
 
@@ -35,19 +36,19 @@ std::condition_variable finishCondVar;
 std::mutex              finishMutex;
 bool                    isFinished = false;
 
+
 //
 // main
 //
 int main(int,char**)
 {
-    // Start replicator and receive InfoHash of any file
-    //
-    InfoHash hashOfSomeFile;
-    std::thread replicatorThread( [&hashOfSomeFile] { replicator( hashOfSomeFile ); });
+    std::promise<InfoHash> infoHashPromise;
+    auto infoHashFuture = infoHashPromise.get_future();
 
-    // Wait replicator initializing
+    // Start replicator
     //
-    sleep(3);
+    std::thread replicatorThread( replicator,std::move(infoHashPromise) );
+
 
     // Prepare destination folder, where the file will be saved
     //
@@ -61,9 +62,12 @@ int main(int,char**)
     boost::asio::ip::address e = boost::asio::ip::address::from_string("127.0.0.1");
     addrList.emplace_back( e, 5550 );
 
+    // Receive InfoHash of file to be downloaded
+    InfoHash infoHash = infoHashFuture.get();
+
     // Run client
     //
-    client( addrList, hashOfSomeFile, dstFolder );
+    client( addrList, infoHash, dstFolder );
 
     // Print the result
     //
@@ -122,18 +126,21 @@ void client( endpoint_list replicatorAddresses, InfoHash infoHashOfSomeFile, fs:
 //
 // replicator
 //
-void replicator( InfoHash& outInfoHashOfSomeFile )
+void replicator( std::promise<InfoHash> infoHashPromise )
 {
     fs::path file = createReplicatorFile();
 
     // Create torrent file
     //
     fs::path torrentFile = file.parent_path() / "info.torrent";
-    outInfoHashOfSomeFile = createTorrentFile( file, torrentFile );
+    InfoHash infoHashOfFile = createTorrentFile( file, torrentFile );
 
     // Emulate replicator side
     auto ltSession = createDefaultLibTorrentSession("127.0.0.1:5550");
     ltSession->addTorrentFileToSession( torrentFile, file );
+
+    // Pass InfoHash
+    infoHashPromise.set_value( infoHashOfFile );
 
     // Wait for the download to finish
     std::unique_lock<std::mutex> lock(finishMutex);

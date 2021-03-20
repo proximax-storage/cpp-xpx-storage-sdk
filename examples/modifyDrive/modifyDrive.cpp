@@ -14,9 +14,8 @@
 // This example shows how 'client' downloads file from 'replicator'.
 //
 
-//!!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
-//!!!
+// !!!
 #define CLIENT_IP_ADDR "192.168.1.100"
 
 namespace fs = std::filesystem;
@@ -24,37 +23,51 @@ namespace fs = std::filesystem;
 using namespace xpx_storage_sdk;
 
 // forward declarations
-//void client( endpoint_list replicatorAddresses, InfoHash infoHashOfSomeFile, fs::path destinationFolder );
-void client( std::promise<InfoHash> );
-void replicator( std::future<InfoHash> );
-fs::path createReplicatorFile();
+//
+void client2( std::promise<InfoHash>, endpoint_list addrList );
+void replicator2( std::future<InfoHash> );
 
 // condition variable and auxiliary variables
-std::condition_variable finishCondVar;
-std::mutex              finishMutex;
-bool                    isFinished = false;
-
-std::mutex finishClientMutex;
-std::mutex finishExampleMutex;
+//
+std::mutex pauseMutex;
 
 
+//
 // main
+//
 int main(int,char**)
 {
-    finishClientMutex.lock();
+    pauseMutex.lock();
 
-    std::promise<InfoHash> modifyPromise;
+    std::promise<InfoHash> infoHashPromise;
+    auto infoHashFuture = infoHashPromise.get_future();
 
-    std::thread replicatorThread( replicator, modifyPromise.get_future() );
+    // Start replicator
+    //
+    std::thread replicatorThread2( replicator2, std::move(infoHashFuture) );
+    
+    // wait replicator started
+    //pauseMutex.lock();
 
-    client( std::move(modifyPromise) );
+    // Make the list of replicator addresses
+    //
+    endpoint_list addrList;
+    boost::asio::ip::address e = boost::asio::ip::address::from_string(CLIENT_IP_ADDR);
+    addrList.emplace_back( e, 5551 );
 
-    replicatorThread.join();
+    // Start client
+    //
+    client2( std::move(infoHashPromise), addrList );
+
+    replicatorThread2.join();
 
     return 0;
 }
 
-void client( std::promise<InfoHash> infoHashPromise )
+//
+// client2
+//
+void client2( std::promise<InfoHash> infoHashPromise, endpoint_list addrList )
 {
     std::cout << "Client started" << std::endl;
 
@@ -64,12 +77,6 @@ void client( std::promise<InfoHash> infoHashPromise )
     ActionList actionList;
     actionList.push_back( Action::upload( "/Users/alex/000/a.txt", "folder1/b.txt" ) );
 
-    // Make the list of replicator addresses
-    //
-//    endpoint_list addrList;
-//    boost::asio::ip::address e = boost::asio::ip::address::from_string("127.0.0.1");
-//    addrList.emplace_back( e, 5550 );
-
     // Create empty tmp folder for 'modifyDrive data'
     //
     auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
@@ -77,21 +84,29 @@ void client( std::promise<InfoHash> infoHashPromise )
     fs::create_directories( tmpFolder );
 
     // start file downloading
-    InfoHash hash = ltSession->addActionListToSession( actionList, tmpFolder );//, addrList );
+    InfoHash hash = ltSession->addActionListToSession( actionList, tmpFolder, addrList );
     infoHashPromise.set_value( hash );
 
-    //ltSession->connectPeers( addrList );
+//    for( int i=0; i<10; i++)
+//    {
+//        ltSession->connectPeers( addrList );
+//        sleep(1);
+//    }
 
-    std::cout << "Client is waiting finishClientMutex.unlock" << std::endl;
+    std::cout << "Client is waiting pauseMutex.unlock" << std::endl;
 
     // wait the end of replicator's work
-    finishClientMutex.lock();
+    pauseMutex.lock();
+
 
     fs::remove_all( tmpFolder );
 
     std::cout << "Client finished" << std::endl;
 }
 
+//
+// replicatorDownloadHandler
+//
 void replicatorDownloadHandler ( bool success, InfoHash resultRootInfoHash, std::string error )
 {
     if ( success ) {
@@ -101,30 +116,29 @@ void replicatorDownloadHandler ( bool success, InfoHash resultRootInfoHash, std:
         std::cout << "ERROR: " << error << std::endl;
     }
 
-    finishExampleMutex.unlock();
+    pauseMutex.unlock();
 }
 
-void replicator( std::future<InfoHash> infoHashFuture )
+//
+// replicator2
+//
+void replicator2( std::future<InfoHash> infoHashFuture )
 {
     std::cout << "Replicator started" << std::endl;
 
-//    //todo
-//    endpoint_list addrList;
-//    boost::asio::ip::address e = boost::asio::ip::address::from_string(CLIENT_IP_ADDR);
-//    addrList.emplace_back( e, 5551 );
-
-//    auto drive = createDefaultDrive( "1.0.0.127:5550", "/Users/alex/111/test_drive_root", 100*1024*1024, addrList );
-
-    //todo
-    endpoint_list addrList;
-    boost::asio::ip::address e = boost::asio::ip::address::from_string("1.0.0.127");
-    addrList.emplace_back( e, 5550 );
-
-    auto drive = createDefaultDrive( CLIENT_IP_ADDR":5551", "/Users/alex/111/test_drive_root", 100*1024*1024, addrList );
+    //auto drive = createDefaultDrive( "1.0.0.127:5550", "/Users/alex/111/test_drive_root", 100*1024*1024, {} );
+    auto drive = createDefaultDrive( CLIENT_IP_ADDR":5551", "/Users/alex/111/test_drive_root", 100*1024*1024, {} );
+    //auto ltSession = createDefaultLibTorrentSession( CLIENT_IP_ADDR ":5551" );
 
     std::cout << "Replicator is waiting of infoHash" << std::endl;
     InfoHash infoHash = infoHashFuture.get();
 
     std::cout << "Replicator received infoHash" << std::endl;
     drive->startModifyDrive( infoHash, replicatorDownloadHandler );
+
+    // Start file downloading
+    //
+    //ltSession->downloadFile( infoHash, "/Users/alex/222", replicatorDownloadHandler );
+    sleep(60);
 }
+

@@ -37,7 +37,8 @@ class DefaultDrive: public Drive {
     fs::path      m_fsTreeTorrentFile;
 
     fs::path      m_sandboxFolder;
-    fs::path      m_sandboxAddFilesFolder;
+    fs::path      m_sandboxDriveFolder;
+    fs::path      m_sandboxTorrentFolder;
     fs::path      m_sandboxFsTreeFile;
     fs::path      m_sandboxActionListFile;
 
@@ -69,10 +70,11 @@ public:
         m_fsTreeFile        = fs::path( m_rootPath ) / "FsTree.bin";
         m_fsTreeTorrentFile = fs::path( m_rootPath ) / "FsTree.torrent";
 
-        m_sandboxFolder         = fs::path( m_rootPath ) / "sandbox";
-        m_sandboxAddFilesFolder = fs::path( m_rootPath ) / "sandbox" / "AddFiles";
-        m_sandboxFsTreeFile     = fs::path( m_rootPath ) / "sandbox" / "FsTree.bin";
-        m_sandboxActionListFile = fs::path( m_rootPath ) / "sandbox" / "ActionList.bin";
+        m_sandboxFolder         = fs::path( m_rootPath ) / "tmp" / "sandbox";
+        m_sandboxDriveFolder    = fs::path( m_rootPath ) / "tmp" / "sandbox" / "drive";
+        m_sandboxTorrentFolder  = fs::path( m_rootPath ) / "tmp" / "sandbox" / "torrent";
+        m_sandboxFsTreeFile     = fs::path( m_rootPath ) / "tmp" / "sandbox" / "FsTree.bin";
+        m_sandboxActionListFile = fs::path( m_rootPath ) / "tmp" / "sandbox" / "ActionList.bin";
 
         if ( !fs::exists( m_fsTreeTorrentFile ) ) {
             updateFsTreeTorrent();
@@ -189,7 +191,7 @@ public:
         m_resultHandler      = resultHandler;
 
         m_distributionSession->downloadFile( modifyDataInfoHash,
-                                             m_sandboxFolder,
+                                             m_sandboxFolder.parent_path(),
                                              std::bind( &DefaultDrive::downloadHandler, this, _1, _2, _3 ),
                                              m_otherReplicators );
     }
@@ -218,6 +220,7 @@ public:
     {
         if ( !fs::exists( m_sandboxActionListFile ) )
         {
+            LOG( "m_sandboxActionListFile=" << m_sandboxActionListFile );
             m_resultHandler( false, InfoHash(), "modify drive: 'ActionList.bin' is absent: " );
             return;
         }
@@ -233,6 +236,22 @@ public:
             switch( action.m_actionId )
             {
             case action_list_id::upload: {
+                // calculate paths
+                fs::path file = m_sandboxDriveFolder / action.m_param2;
+                LOG( "upload file:   " << file );
+                fs::path torrentFile = m_sandboxTorrentFolder / action.m_param2;
+                LOG( "upload torrent:" << torrentFile );
+
+                // calculate torrent, hash, and size
+                InfoHash infoHash = createTorrentFile( file, torrentFile );
+                size_t fileSize = std::filesystem::file_size( file );
+                
+                // add file in resultFsTree
+                fs::create_directories( torrentFile.parent_path() );
+                m_resultFsTree.addFile( fs::path(action.m_param1).parent_path(),
+                                       file.filename(),
+                                       infoHash,
+                                       fileSize );
                 return;
             }
             case action_list_id::new_folder:

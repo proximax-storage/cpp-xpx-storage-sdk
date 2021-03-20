@@ -29,7 +29,7 @@ public:
                                               endpoint_list = {} ) = 0;
 
     virtual InfoHash addActionListToSession( const ActionList&,
-                                             const std::string& tmpFolderPath,
+                                             const std::string& workFolder,
                                              endpoint_list list = {} ) = 0;
 
     virtual void     downloadFile( InfoHash,
