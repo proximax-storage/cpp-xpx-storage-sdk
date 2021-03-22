@@ -262,6 +262,87 @@ private:
                     }
                     break;
                 }
+
+                case lt::listen_failed_alert::alert_type: {
+                    auto *alertInfo = dynamic_cast<lt::listen_failed_alert *>(alert);
+
+                    if ( alertInfo ) {
+                        LOG(  "listen error: " << alertInfo->message())
+                    }
+                    break;
+                }
+
+                case lt::portmap_error_alert::alert_type: {
+                    auto *alertInfo = dynamic_cast<lt::portmap_error_alert *>(alert);
+
+                    if ( alertInfo ) {
+                        LOG(  "portmap error: " << alertInfo->message())
+                    }
+                    break;
+                }
+
+                case lt::dht_error_alert::alert_type: {
+                    auto *alertInfo = dynamic_cast<lt::dht_error_alert *>(alert);
+
+                    if ( alertInfo ) {
+                        LOG(  "dht error: " << alertInfo->message())
+                    }
+                    break;
+                }
+
+                case lt::session_error_alert::alert_type: {
+                    auto *alertInfo = dynamic_cast<lt::session_error_alert *>(alert);
+
+                    if ( alertInfo ) {
+                        LOG(  "session error: " << alertInfo->message())
+                    }
+                    break;
+                }
+
+                case lt::udp_error_alert::alert_type: {
+                    auto *alertInfo = dynamic_cast<lt::udp_error_alert *>(alert);
+
+                    if ( alertInfo ) {
+                        LOG(  "udp error: " << alertInfo->message())
+                    }
+                    break;
+                }
+
+                case lt::torrent_error_alert::alert_type: {
+                    auto *alertInfo = dynamic_cast<lt::torrent_error_alert *>(alert);
+
+                    if ( alertInfo ) {
+                        LOG(  "torrent error: " << alertInfo->message())
+                    }
+                    break;
+                }
+
+                case lt::peer_error_alert::alert_type: {
+                    auto *alertInfo = dynamic_cast<lt::peer_error_alert *>(alert);
+
+                    if ( alertInfo ) {
+                        LOG(  "peer error: " << alertInfo->message())
+                    }
+                    break;
+                }
+
+                case lt::peer_disconnected_alert::alert_type: {
+                    auto *alertInfo = dynamic_cast<lt::peer_disconnected_alert *>(alert);
+
+                    if ( alertInfo ) {
+                        LOG(  "peer disconnected: " << alertInfo->message())
+                    }
+                    break;
+                }
+
+                case lt::file_error_alert::alert_type: {
+                    auto *alertInfo = dynamic_cast<lt::file_error_alert *>(alert);
+
+                    if ( alertInfo ) {
+                        LOG(  "file error: " << alertInfo->message())
+                    }
+                    break;
+                }
                 default: {
                     //LOG( "other alert: " << alert->message() );
                 }
