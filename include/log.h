@@ -6,8 +6,7 @@
 #pragma once
 
 #include <iostream>
-
-#include <iostream>
+#include <mutex>
 
 inline std::mutex gLogMutex;
 
