@@ -10,6 +10,9 @@
 #include <future>
 #include <condition_variable>
 
+#include <libtorrent/alert.hpp>
+#include <libtorrent/alert_types.hpp>
+
 //
 // This example shows how 'client' downloads file from 'replicator'.
 //
@@ -31,6 +34,15 @@ void replicator2( std::future<InfoHash> );
 //
 std::mutex pauseMutex;
 
+// alertHandler
+void alertHandler( LibTorrentSession*, libtorrent::alert* alert )
+{
+    if ( alert->type() == lt::listen_failed_alert::alert_type )
+    {
+        std::cerr << alert->message() << std::endl;
+        exit(-1);
+    }
+}
 
 //
 // main
@@ -72,7 +84,7 @@ void client2( std::promise<InfoHash> infoHashPromise, endpoint_list addrList )
     std::cout << "Client started" << std::endl;
 
 //    auto ltSession = createDefaultLibTorrentSession( CLIENT_IP_ADDR ":5551" );
-    auto ltSession = createDefaultLibTorrentSession( "127.0.0.1:5550" );
+    auto ltSession = createDefaultLibTorrentSession( "127.0.0.1:5550", alertHandler );
 
     ActionList actionList;
     actionList.push_back( Action::upload( "/Users/alex/000/a.txt", "folder1/b.txt" ) );

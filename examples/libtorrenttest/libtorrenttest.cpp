@@ -7,6 +7,9 @@
 #include <fstream>
 #include <condition_variable>
 
+#include <libtorrent/alert.hpp>
+#include <libtorrent/alert_types.hpp>
+
 //
 // This example shows how 'file-povider' and 'downloader' work.
 //
@@ -26,6 +29,17 @@ std::condition_variable finishCondVar;
 std::mutex              finishMutex;
 bool                    isFinished = false;
 
+// alertHandler
+void alertHandler( LibTorrentSession*, libtorrent::alert* alert )
+{
+    std::cout << "alert: " << alert->message() << std::endl;
+
+    if ( alert->type() == lt::listen_failed_alert::alert_type )
+    {
+        exit(-1);
+    }
+}
+
 // progressHandler
 void progressHandler( download_status::code code, InfoHash, const std::string& info ) {
     std::cout << "progressHandler" << std::endl;
@@ -43,7 +57,7 @@ int main(int,char**) {
     InfoHash infoHash = createTorrentFile( tmpFolder.string(), tmpFolder.replace_extension("torrent").string() );
 
     // Run file provider
-    auto ltWrapper = createDefaultLibTorrentSession("127.0.0.1:5550");
+    auto ltWrapper = createDefaultLibTorrentSession( "127.0.0.1:5550", alertHandler );
     ltWrapper->addTorrentFileToSession( tmpFolder.replace_extension("torrent").string(), tmpFolder.string() );
     
     downloader( infoHash );
@@ -64,7 +78,7 @@ void downloader( InfoHash infoHash ) {
     fs::create_directories( rcvFolder );
     std::cout << "rcv: " << rcvFolder << std::endl;
 
-    auto ltWrapper = createDefaultLibTorrentSession( IP_ADDR_2 ":5551" );
+    auto ltWrapper = createDefaultLibTorrentSession( IP_ADDR_2 ":5551", alertHandler );
 
     endpoint_list eList;
     boost::asio::ip::address e = boost::asio::ip::address::from_string("127.0.0.1");

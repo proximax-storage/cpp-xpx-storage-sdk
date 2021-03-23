@@ -32,25 +32,27 @@ namespace fs = std::filesystem;
 
 namespace xpx_storage_sdk {
 
-class DefaultLibTorrentWrapper: public LibTorrentSession {
+class DefaultLibTorrentSession: public LibTorrentSession {
 
-    std::string m_addressAndPort;
-    lt::session m_session;
+    std::string             m_addressAndPort;
+    LibTorrentAlertHandler  m_alertHandler;
+
+    lt::session             m_session;
 
     std::map<lt::torrent_handle,std::pair<DownloadHandler,InfoHash>> m_downloadHandlerMap;
 
     //TODO if not
     lt::torrent_handle m_lastTorrentFileHandle;
 
-    std::string m_dbgLabel;
-
 public:
 
-    DefaultLibTorrentWrapper( std::string address ) : m_addressAndPort(address), m_dbgLabel(address) {
+    DefaultLibTorrentSession( std::string address, LibTorrentAlertHandler alertHandler )
+        : m_addressAndPort(address), m_alertHandler(alertHandler)
+    {
         createSession();
     }
 
-    virtual ~DefaultLibTorrentWrapper() {}
+    virtual ~DefaultLibTorrentSession() {}
 
     // createSession
     void createSession() {
@@ -110,9 +112,9 @@ public:
         auto tInfo = lt::torrent_info(buffer, lt::from_span);
 //        LOG( tInfo.info_hashes().v2.to_string() ) );
 //        LOG( tInfo.info_hashes().v2 ) );
-        LOG( "add torrent: torrent filename:" << torrentFilename );
-        LOG( "add torrent: fileFolder:" << fileFolder );
-        LOG( "add torrent: " << lt::make_magnet_uri(tInfo) );
+//        LOG( "add torrent: torrent filename:" << torrentFilename );
+//        LOG( "add torrent: fileFolder:" << fileFolder );
+//        LOG( "add torrent: " << lt::make_magnet_uri(tInfo) );
         //dbg///////////////////////////////////////////////////
 
         m_lastTorrentFileHandle = m_session.add_torrent(params);
@@ -176,7 +178,7 @@ public:
                                DownloadHandler downloadHandler,
                                endpoint_list list ) override {
 
-        LOG( "downloadFile: " << toString(infoHash) );
+        //LOG( "downloadFile: " << toString(infoHash) );
 
         // create add_torrent_params
         lt::add_torrent_params params = lt::parse_magnet_uri( magnetLink(infoHash) );
@@ -212,7 +214,6 @@ private:
 
         // loop by alerts
         for (auto &alert : alerts) {
-            //LOG( m_dbgLabel << "(alert): " << alert->message() );
 
             switch (alert->type()) {
 
@@ -239,8 +240,8 @@ private:
                             const std::string fileName = alertInfo->handle.torrent_file()->files().file_name(i).to_string();
                             const std::string filePath = alertInfo->handle.torrent_file()->files().file_path(i);
 
-                            LOG( m_addressAndPort << ": " << filePath
-                                      << ": alert: progress: " << fp[i] << " of " << fsize );
+//                            LOG( m_addressAndPort << ": " << filePath
+//                                      << ": alert: progress: " << fp[i] << " of " << fsize );
                             
                             //dbg/////////////////////////
                         }
@@ -264,6 +265,8 @@ private:
                 }
 
                 case lt::listen_failed_alert::alert_type: {
+                    this->m_alertHandler( this, alert );
+
                     auto *alertInfo = dynamic_cast<lt::listen_failed_alert *>(alert);
 
                     if ( alertInfo ) {
@@ -327,11 +330,11 @@ private:
                 }
 
                 case lt::peer_disconnected_alert::alert_type: {
-                    auto *alertInfo = dynamic_cast<lt::peer_disconnected_alert *>(alert);
-
-                    if ( alertInfo ) {
-                        LOG(  "peer disconnected: " << alertInfo->message())
-                    }
+//                    auto *alertInfo = dynamic_cast<lt::peer_disconnected_alert *>(alert);
+//
+//                    if ( alertInfo ) {
+//                        LOG(  "peer disconnected: " << alertInfo->message())
+//                    }
                     break;
                 }
 
@@ -375,10 +378,10 @@ InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string output
 
     //dbg////////////////////////////////
     auto entry = entry_info;
-    LOG( entry["info"].to_string() );
+    //LOG( "entry["info"]:" << entry["info"].to_string() );
     //LOG( entry.to_string() );
     auto tInfo = lt::torrent_info(torrentFileBytes, lt::from_span);
-    LOG( lt::make_magnet_uri(tInfo) );
+    LOG( "make_magnet_uri:" << lt::make_magnet_uri(tInfo) );
     //dbg////////////////////////////////
 
     // get infoHash
@@ -402,8 +405,9 @@ InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string output
 }
 
 // createDefaultLibTorrentSession
-std::shared_ptr<LibTorrentSession> createDefaultLibTorrentSession( std::string address ){
-    return std::make_shared<DefaultLibTorrentWrapper>( address );
+std::shared_ptr<LibTorrentSession> createDefaultLibTorrentSession( std::string address, LibTorrentAlertHandler alertHandler )
+{
+    return std::make_shared<DefaultLibTorrentSession>( address, alertHandler );
 }
 
 };

@@ -14,6 +14,10 @@
 
 using  tcp = boost::asio::ip::tcp;
 
+namespace libtorrent {
+    struct alert;
+}
+
 namespace xpx_storage_sdk {
 
 // LibTorrentSession
@@ -40,8 +44,16 @@ public:
     virtual void     connectPeers( endpoint_list list ) = 0;
 };
 
+// createTorrentFile
 InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string outputTorrentFilename = "" );
 
-std::shared_ptr<LibTorrentSession> createDefaultLibTorrentSession( std::string address = "0.0.0.0:6881" );
+
+//
+// createDefaultLibTorrentSession
+//
+
+using LibTorrentAlertHandler = std::function<void( LibTorrentSession*, libtorrent::alert* )>;
+
+std::shared_ptr<LibTorrentSession> createDefaultLibTorrentSession( std::string address, LibTorrentAlertHandler );
 
 };

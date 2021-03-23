@@ -9,11 +9,13 @@
 #include <future>
 #include <condition_variable>
 
+#include <libtorrent/alert.hpp>
+#include <libtorrent/alert_types.hpp>
+
 //
 // This example shows how 'client' downloads file from 'replicator'.
 //
 
-//!!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 //!!!
 #define CLIENT_IP_ADDR "192.168.1.100"
@@ -36,12 +38,24 @@ std::condition_variable finishCondVar;
 std::mutex              finishMutex;
 bool                    isFinished = false;
 
+// alertHandler
+void alertHandler( LibTorrentSession*, libtorrent::alert* alert )
+{
+    if ( alert->type() == lt::listen_failed_alert::alert_type )
+    {
+        std::cerr << alert->message() << std::endl;
+        exit(-1);
+    }
+}
 
 //
 // main
 //
 int main(int,char**)
 {
+    //!!!!!!!!!!!!!!!
+    auto ltSession = createDefaultLibTorrentSession( "127.0.0.1:5550", alertHandler );
+
     std::promise<InfoHash> infoHashPromise;
     auto infoHashFuture = infoHashPromise.get_future();
 
@@ -61,6 +75,7 @@ int main(int,char**)
     endpoint_list addrList;
     boost::asio::ip::address e = boost::asio::ip::address::from_string("127.0.0.1");
     addrList.emplace_back( e, 5550 );
+    //addrList.emplace_back( e, 50002 );
 
     // Receive InfoHash of file to be downloaded
     InfoHash infoHash = infoHashFuture.get();
@@ -108,7 +123,7 @@ void client( endpoint_list replicatorAddresses, InfoHash infoHashOfSomeFile, fs:
 {
     // Create libtorrent session
     //
-    auto ltSession = createDefaultLibTorrentSession( CLIENT_IP_ADDR ":5551" );
+    auto ltSession = createDefaultLibTorrentSession( CLIENT_IP_ADDR ":5551", alertHandler );
 
     // Start file downloading
     //
@@ -136,7 +151,8 @@ void replicator( std::promise<InfoHash> infoHashPromise )
     InfoHash infoHashOfFile = createTorrentFile( file, torrentFile );
 
     // Emulate replicator side
-    auto ltSession = createDefaultLibTorrentSession("127.0.0.1:5550");
+    auto ltSession = createDefaultLibTorrentSession( "127.0.0.1:5550", alertHandler );
+//    auto ltSession = createDefaultLibTorrentSession( "127.0.0.1:50002", alertHandler );
     ltSession->addTorrentFileToSession( torrentFile, file );
 
     // Pass InfoHash

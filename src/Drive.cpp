@@ -10,6 +10,9 @@
 #include <filesystem>
 #include <iostream>
 
+#include <libtorrent/alert.hpp>
+#include <libtorrent/alert_types.hpp>
+
 namespace fs = std::filesystem;
 
 namespace xpx_storage_sdk {
@@ -41,6 +44,7 @@ class DefaultDrive: public Drive {
     fs::path      m_sandboxTorrentFolder;
     fs::path      m_sandboxFsTreeFile;
     fs::path      m_sandboxActionListFile;
+    InfoHash      m_sandboxRootDriveInfoHash;
 
     InfoHash      m_modifyDataInfoHash;
     ModifyDriveResultHandler m_resultHandler;
@@ -87,7 +91,9 @@ public:
     //
     void startDistributionSession()
     {
-        m_distributionSession = createDefaultLibTorrentSession( m_listenInterface );
+        using namespace std::placeholders;  // for _1, _2
+
+        m_distributionSession = createDefaultLibTorrentSession( m_listenInterface, std::bind( &DefaultDrive::alertHandler, this, _1, _2 ) );
 
         // Add fsTreeFile
         m_distributionSession->addTorrentFileToSession( m_fsTreeTorrentFile, m_rootPath, m_otherReplicators );
@@ -236,28 +242,36 @@ public:
             switch( action.m_actionId )
             {
             case action_list_id::upload: {
-                // calculate paths
+
+                // file path and torrentfile path
                 fs::path file = m_sandboxDriveFolder / action.m_param2;
-                LOG( "upload file:   " << file );
+                //LOG( "upload file:   " << file );
                 fs::path torrentFile = m_sandboxTorrentFolder / action.m_param2;
-                LOG( "upload torrent:" << torrentFile );
+                //LOG( "upload torrent:" << torrentFile );
 
                 // calculate torrent, hash, and size
-                InfoHash infoHash = createTorrentFile( file, torrentFile );
-                size_t fileSize = std::filesystem::file_size( file );
-                
-                // add file in resultFsTree
-                fs::create_directories( torrentFile.parent_path() );
-                m_resultFsTree.addFile( fs::path(action.m_param1).parent_path(),
-                                       file.filename(),
-                                       infoHash,
-                                       fileSize );
-                return;
+                if ( fs::exists(torrentFile) )
+                {
+                    // Skip duplicate add actions
+                }
+                else
+                {
+                    InfoHash infoHash = createTorrentFile( file, torrentFile );
+                    size_t fileSize = std::filesystem::file_size( file );
+
+                    // add file in resultFsTree
+                    fs::create_directories( torrentFile.parent_path() );
+                    m_resultFsTree.addFile( fs::path(action.m_param1).parent_path(),
+                                           file.filename(),
+                                           infoHash,
+                                           fileSize );
+                }
+                break;
             }
             case action_list_id::new_folder:
                 m_resultFsTree.addFolder( action.m_param1 );
                 break;
-            case action_list_id::rename:
+            case action_list_id::move:
                 m_resultFsTree.move( action.m_param1, action.m_param2 );
                 break;
             case action_list_id::remove:
@@ -267,67 +281,54 @@ public:
                 break;
             }
         }
+
+        // calculate new rootHash
+        m_resultFsTree.doSerialize( m_sandboxFsTreeFile );
+        m_sandboxRootDriveInfoHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxFsTreeFile );
+
+        // update drive
+        updateDrive();
     }
 
-    //    void executeActionList( InfoHash actionListHash ) override {
+    void updateDrive()
+    {
+        m_distributionSession->endSession();
+        m_distributionSession.reset();
 
-//        // clear sandbox
-////        fs::remove_all( m_sandboxFolder );
-////        fs::create_directories( m_sandboxFolder );
+        for( const Action& action : m_actionList )
+        {
+            switch( action.m_actionId )
+            {
+            case action_list_id::upload:
+                break;
+            case action_list_id::new_folder:
+                break;
+            case action_list_id::move:
+                //TODO
+                break;
+            case action_list_id::remove:
+                fs::remove_all( m_driveFolder / action.m_param1 );
+                fs::remove_all( m_torrentFolder / action.m_param1 );
+                break;
+            case action_list_id::none:
+                break;
+            }
+        }
 
-////        m_newFsTree.deserialize( m_fsTreeFile );
+        fs::rename( m_sandboxDriveFolder, m_driveFolder );
+        fs::rename( m_sandboxTorrentFolder, m_torrentFolder );
+        fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
 
-//        // start upload of the action list
-////        m_fileTransmitter->download( actionListHash, m_tmpDrivePath.string(),
-////                                     std::bind( &DefaultDrive::handleActionList, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3 ) );
-//    }
+        updateFsTreeTorrent();
 
-//    void handleActionList( download_status::code code, InfoHash, std::string fileName ) {
-
-//        if ( code == download_status::failed ) {
-//            //TODO cancel "modify drive"
-//            return;
-//        }
-
-//        if ( code == download_status::complete ) {
-//            //TODO check action list hash
-//            m_actionList.deserialize( "m_tmpActionListFile.string()" );
-//            m_currentActionIndex = 0;
-//            exectuteAction();
-//        }
-
-//    }
-
-    void exectuteAction() {
-
-//        for( ; m_currentActionIndex < m_actionList.size(); m_currentActionIndex++ )
-//        {
-//            //TODO const
-//            Action& action = m_actionList[m_currentActionIndex];
-//            switch( action.m_actionId )
-//            {
-//            case action_list_id::upload: {
-//                //fs::path filePath = action.m_param1;
-//                //TODO
-//                std::string outputFolder = "???";
-//                m_fileTransmitter->download( action.m_hash, outputFolder, std::bind( &DefaultDrive::handleUnploadFile, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3 ) );
-//                return;
-//            }
-//            case action_list_id::new_folder:
-//                m_newFsTree.addFolder( action.m_param1 );
-//                break;
-//            case action_list_id::rename:
-//                m_newFsTree.move( action.m_param1, action.m_param2 );
-//                break;
-//            case action_list_id::remove:
-//                m_newFsTree.remove( action.m_param1 );
-//                break;
-//            case action_list_id::none:
-//                break;
-//            }
-//        }
-        //TODO
+        startDistributionSession();
     }
+
+    void alertHandler( LibTorrentSession*, libtorrent::alert* )
+    {
+
+    }
+
 
 };
 

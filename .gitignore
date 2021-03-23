@@ -58,3 +58,6 @@ cpp-xpx-storage-sdk.build
 cpp-xpx-storage-sdk.xcodeproj/project.xcworkspace/xcuserdata/alex.xcuserdatad/UserInterfaceState.xcuserstate
 
 bin
+
+.idea
+

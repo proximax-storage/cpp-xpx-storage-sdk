@@ -21,7 +21,7 @@ namespace xpx_storage_sdk {
             none        = 0,
             upload      = 1,
             new_folder  = 2,
-            rename      = 3,
+            move      = 3,
             remove      = 4,
         };
     };
@@ -42,7 +42,7 @@ namespace xpx_storage_sdk {
         }
 
         static Action rename( std::string oldNameWithPath, std::string newNameWithPath ) {
-            return Action( action_list_id::rename, oldNameWithPath, newNameWithPath );
+            return Action( action_list_id::move, oldNameWithPath, newNameWithPath );
         }
 
         static Action remove( std::string remoteObjectNameWithPath ) {
@@ -55,7 +55,7 @@ namespace xpx_storage_sdk {
 
             arch( m_param1 );
 
-            if ( m_actionId == action_list_id::rename ) {
+            if ( m_actionId == action_list_id::move ) {
                 arch( m_param2 );
             }
 

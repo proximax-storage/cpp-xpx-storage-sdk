@@ -13,4 +13,4 @@ add_subdirectory(downloadFile)
 add_subdirectory(modifyDrive)
 
 
-#add_subdirectory(libtorrenttest)
+add_subdirectory(libtorrenttest)
