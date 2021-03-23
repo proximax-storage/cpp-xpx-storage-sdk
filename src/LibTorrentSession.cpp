@@ -330,11 +330,11 @@ private:
                 }
 
                 case lt::peer_disconnected_alert::alert_type: {
-//                    auto *alertInfo = dynamic_cast<lt::peer_disconnected_alert *>(alert);
-//
-//                    if ( alertInfo ) {
-//                        LOG(  "peer disconnected: " << alertInfo->message())
-//                    }
+                    auto *alertInfo = dynamic_cast<lt::peer_disconnected_alert *>(alert);
+
+                    if ( alertInfo ) {
+                        LOG(  "peer disconnected: " << alertInfo->message())
+                    }
                     break;
                 }
 
