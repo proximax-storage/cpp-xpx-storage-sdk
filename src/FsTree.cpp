@@ -14,6 +14,7 @@
 #include <cereal/types/variant.hpp>
 #include <cereal/types/memory.hpp>
 #include <cereal/archives/binary.hpp>
+#include <cereal/archives/json.hpp>
 
 namespace fs = std::filesystem;
 
@@ -144,6 +145,7 @@ catch(...)
 InfoHash FsTree::doSerialize( std::string fileName ) {
     std::ofstream os( fileName, std::ios::binary );
     cereal::BinaryOutputArchive archive( os );
+    //cereal::JSONOutputArchive archive( os );
 
     // sort tree before saving
     sort();
@@ -158,6 +160,7 @@ void FsTree::deserialize( std::string fileName ) {
     m_childs.clear();
     std::ifstream is( fileName, std::ios::binary );
     cereal::BinaryInputArchive iarchive(is);
+    //cereal::JSONInputArchive iarchive(is);
     iarchive( *this );
 }
 
@@ -206,7 +209,7 @@ bool FsTree::remove( const std::string& fullPath ) {
 }
 
 // move
-bool FsTree::move( const std::string& oldPathAndName, const std::string& newPathAndName )
+bool FsTree::move( const std::string& oldPathAndName, const std::string& newPathAndName, const InfoHash* newInfoHash )
 {
     if ( fs::path( newPathAndName ) == fs::path( oldPathAndName ) )
         return true;
@@ -241,6 +244,18 @@ bool FsTree::move( const std::string& oldPathAndName, const std::string& newPath
     // newPathAndName should not exist
     if ( newIt != newParentFolder->m_childs.end() )
         return false;
+
+    // set new InfoHash
+    if ( !isFolder(*it) ) {
+        if ( newInfoHash == nullptr ) {
+            return false;
+        }
+        getFile(*it).m_hash = *newInfoHash;
+    }
+    else if ( isFolder(*it) && newInfoHash != nullptr ) {
+        return false;
+    }
+
 
     newParentFolder->m_childs.emplace_back( *it );
     parentFolder->m_childs.erase( it );

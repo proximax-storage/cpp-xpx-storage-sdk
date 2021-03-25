@@ -59,7 +59,7 @@ public:
 
         lt::settings_pack settingsPack;
 
-        settingsPack.set_int( lt::settings_pack::alert_mask, lt::alert_category::all );
+        settingsPack.set_int( lt::settings_pack::alert_mask, ~0 );//lt::alert_category::all );
         settingsPack.set_str( lt::settings_pack::dht_bootstrap_nodes, "" );
 
         boost::uuids::uuid uuid = boost::uuids::random_generator()();
@@ -142,13 +142,19 @@ public:
 
             switch ( action.m_actionId ) {
                 case action_list_id::upload: {
-                    LOG( addFilesFolder );
-                    LOG( action.m_param2 );
-                    LOG( addFilesFolder/action.m_param2 );
-                    LOG( (addFilesFolder/action.m_param2).parent_path() );
+                    fs::path sandboxFilePath = addFilesFolder/action.m_param2;
+                    if ( !isPathInsideFolder( sandboxFolder, addFilesFolder ) )
+                    {
+                        LOG( action.m_param2 );
+                        LOG( sandboxFilePath );
+                        LOG( addFilesFolder );
+                        throw std::runtime_error( "invalid destination path in 'upload' action: " + action.m_param2 );
+                    }
 
-                    fs::create_directories( (addFilesFolder/action.m_param2).parent_path() );
-                    fs::create_symlink( action.m_param1, addFilesFolder/action.m_param2 );
+                    //LOG( action.m_param1 );
+
+                    fs::create_directories( sandboxFilePath.parent_path() );
+                    fs::create_symlink( action.m_param1, sandboxFilePath);
                     //fs::copy( action.m_param1, addFilesFolder/action.m_param2 );
                     break;
                 }
@@ -217,6 +223,14 @@ private:
 
             switch (alert->type()) {
 
+                case lt::torrent_deleted_alert::alert_type: {
+                    //auto *alertInfo = dynamic_cast<lt::piece_finished_alert *>(alert);
+                    LOG( "*** lt::torrent_deleted_alert:" );
+                    LOG( "*** get_torrents().size()=" << m_session.get_torrents().size() );
+
+                    break;
+                }
+
                 // piece_finished_alert
                 case lt::piece_finished_alert::alert_type: {
 
@@ -237,12 +251,10 @@ private:
                             isAllComplete = isAllComplete && complete;
 
                             //dbg/////////////////////////
-                            const std::string fileName = alertInfo->handle.torrent_file()->files().file_name(i).to_string();
-                            const std::string filePath = alertInfo->handle.torrent_file()->files().file_path(i);
-
+//                            const std::string fileName = alertInfo->handle.torrent_file()->files().file_name(i).to_string();
+//                            const std::string filePath = alertInfo->handle.torrent_file()->files().file_path(i);
 //                            LOG( m_addressAndPort << ": " << filePath
 //                                      << ": alert: progress: " << fp[i] << " of " << fsize );
-                            
                             //dbg/////////////////////////
                         }
 //                        LOG( "-" );
@@ -253,9 +265,18 @@ private:
                             auto it = m_downloadHandlerMap.find(alertInfo->handle);
                             
                             if ( it != m_downloadHandlerMap.end() ) {
+                                // remove torrent
+                                alertInfo->handle.stop_when_ready( true );
+                                alertInfo->handle.pause();
+                                alertInfo->handle.clear_peers();
+                                m_session.remove_torrent( alertInfo->handle, lt::session::delete_partfile );
+
+                                // call DownloadHandler
                                 DownloadHandler handler = it->second.first;
                                 InfoHash hash = it->second.second;
                                 handler( download_status::complete, hash, "" );
+
+                                // remove entry from m_downloadHandlerMap
                                 m_downloadHandlerMap.erase( it );
                             }
                         }
@@ -315,7 +336,7 @@ private:
                     auto *alertInfo = dynamic_cast<lt::torrent_error_alert *>(alert);
 
                     if ( alertInfo ) {
-                        LOG(  "torrent error: " << alertInfo->message())
+                        LOG(  m_addressAndPort << ": torrent error: " << alertInfo->message())
                     }
                     break;
                 }
@@ -333,7 +354,7 @@ private:
                     auto *alertInfo = dynamic_cast<lt::peer_disconnected_alert *>(alert);
 
                     if ( alertInfo ) {
-                        LOG(  "peer disconnected: " << alertInfo->message())
+                        LOG(  m_addressAndPort << ": peer disconnected: " << alertInfo->message())
                     }
                     break;
                 }
@@ -345,6 +366,15 @@ private:
                         LOG(  "file error: " << alertInfo->message())
                     }
                     break;
+                }
+
+                case lt::log_alert::alert_type: {
+                    auto *alertInfo = dynamic_cast<lt::file_error_alert *>(alert);
+
+                    if ( alertInfo ) {
+                        LOG(  "log_alert: " << alertInfo->message())
+                    }
+                break;
                 }
                 default: {
                     //LOG( "other alert: " << alert->message() );

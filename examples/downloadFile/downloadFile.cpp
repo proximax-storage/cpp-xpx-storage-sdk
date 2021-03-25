@@ -54,7 +54,7 @@ void alertHandler( LibTorrentSession*, libtorrent::alert* alert )
 int main(int,char**)
 {
     //!!!!!!!!!!!!!!!
-    auto ltSession = createDefaultLibTorrentSession( "127.0.0.1:5550", alertHandler );
+    //auto ltSession = createDefaultLibTorrentSession( "127.0.0.1:5550", alertHandler );
 
     std::promise<InfoHash> infoHashPromise;
     auto infoHashFuture = infoHashPromise.get_future();

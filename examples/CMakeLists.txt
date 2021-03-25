@@ -2,15 +2,15 @@ cmake_minimum_required(VERSION 3.2)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-add_executable(testActionList testActionList.cpp
-                              ../src/ActionList.cpp)
+#add_executable(testActionList testActionList.cpp
+#                              ../src/ActionList.cpp)
                               
-add_executable(testDrive      testDrive.cpp
-                              ../src/FsTree.cpp
-                              ../src/ActionList.cpp)
+#add_executable(testDrive      testDrive.cpp
+#                              ../src/FsTree.cpp
+#                              ../src/ActionList.cpp)
 
-add_subdirectory(downloadFile)
+#add_subdirectory(downloadFile)
 add_subdirectory(modifyDrive)
 
 
-add_subdirectory(libtorrenttest)
+#add_subdirectory(libtorrenttest)

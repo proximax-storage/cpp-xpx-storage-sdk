@@ -43,6 +43,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     include_directories( SYSTEM "/usr/local/include/" )
 endif()
 
+if (false)
 add_library(xpxstoragesdk SHARED ${sources})
 
 set_target_properties(xpxstoragesdk PROPERTIES LINKER_LANGUAGE CXX)
@@ -71,6 +72,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         ${Boost_LIBRARIES} )#Threads::Threads)
 else()
     target_link_libraries(xpxstoragesdk libtorrent-rasterbar.so Threads::Threads)
+endif()
 endif()
 
 #-----------------------------------------------------------------------------

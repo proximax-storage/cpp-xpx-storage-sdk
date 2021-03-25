@@ -54,4 +54,31 @@ std::string toString( const InfoHash& key ) {
     return hashStr;
 }
 
+bool isPathInsideFolder( fs::path path, fs::path folder )
+{
+    fs::path path0 = fs::absolute(path);
+    fs::path folder0 = fs::absolute(folder);
+
+    // if root paths are different, return false
+    if( path0.root_path() != folder0.root_path() )
+        return false;
+
+    // find out where the two paths diverge
+    fs::path::const_iterator pIt = path0.begin();
+    fs::path::const_iterator fIt = folder0.begin();
+    while( fIt != folder0.end()  )
+    {
+        if ( pIt == path0.end() )
+            return true;
+
+        if ( *pIt != *fIt )
+            return false;
+
+        pIt++;
+        fIt++;
+    }
+
+    return false;
+}
+
 }

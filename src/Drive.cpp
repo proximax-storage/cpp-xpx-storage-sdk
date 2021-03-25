@@ -9,6 +9,7 @@
 #include "ActionList.h"
 #include <filesystem>
 #include <iostream>
+#include <thread>
 
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
@@ -23,8 +24,7 @@ class DefaultDrive: public Drive {
 
     using LtSession = std::shared_ptr<LibTorrentSession>;
 
-    LtSession     m_distributionSession;
-    LtSession     m_modifyDriveSession;
+    LtSession     m_session;
 
     std::string   m_listenInterface;
     endpoint_list m_otherReplicators;
@@ -37,12 +37,13 @@ class DefaultDrive: public Drive {
     fs::path      m_driveFolder;
     fs::path      m_torrentFolder;
     fs::path      m_fsTreeFile;
-    fs::path      m_fsTreeTorrentFile;
+    fs::path      m_fsTreeTorrent;
 
     fs::path      m_sandboxFolder;
     fs::path      m_sandboxDriveFolder;
     fs::path      m_sandboxTorrentFolder;
     fs::path      m_sandboxFsTreeFile;
+    fs::path      m_sandboxFsTreeTorrent;
     fs::path      m_sandboxActionListFile;
     InfoHash      m_sandboxRootDriveInfoHash;
 
@@ -72,15 +73,16 @@ public:
         m_driveFolder       = fs::path( m_rootPath ) / "drive";
         m_torrentFolder     = fs::path( m_rootPath ) / "torrent";
         m_fsTreeFile        = fs::path( m_rootPath ) / "FsTree.bin";
-        m_fsTreeTorrentFile = fs::path( m_rootPath ) / "FsTree.torrent";
+        m_fsTreeTorrent = fs::path( m_rootPath ) / "FsTree.torrent";
 
         m_sandboxFolder         = fs::path( m_rootPath ) / "tmp" / "sandbox";
-        m_sandboxDriveFolder    = fs::path( m_rootPath ) / "tmp" / "sandbox" / "drive";
-        m_sandboxTorrentFolder  = fs::path( m_rootPath ) / "tmp" / "sandbox" / "torrent";
-        m_sandboxFsTreeFile     = fs::path( m_rootPath ) / "tmp" / "sandbox" / "FsTree.bin";
-        m_sandboxActionListFile = fs::path( m_rootPath ) / "tmp" / "sandbox" / "ActionList.bin";
+        m_sandboxDriveFolder    = m_sandboxFolder / "drive";
+        m_sandboxTorrentFolder  = m_sandboxFolder / "torrent";
+        m_sandboxFsTreeFile     = m_sandboxFolder / "FsTree.bin";
+        m_sandboxFsTreeTorrent  = m_sandboxFolder / "FsTree.torrent";
+        m_sandboxActionListFile = m_sandboxFolder / "ActionList.bin";
 
-        if ( !fs::exists( m_fsTreeTorrentFile ) ) {
+        if ( !fs::exists( m_fsTreeFile ) || !fs::exists( m_fsTreeTorrent ) ) {
             updateFsTreeTorrent();
         }
 
@@ -93,10 +95,10 @@ public:
     {
         using namespace std::placeholders;  // for _1, _2
 
-        m_distributionSession = createDefaultLibTorrentSession( m_listenInterface, std::bind( &DefaultDrive::alertHandler, this, _1, _2 ) );
+        m_session = createDefaultLibTorrentSession( m_listenInterface, std::bind( &DefaultDrive::alertHandler, this, _1, _2 ) );
 
         // Add fsTreeFile
-        m_distributionSession->addTorrentFileToSession( m_fsTreeTorrentFile, m_rootPath, m_otherReplicators );
+        m_session->addTorrentFileToSession( m_fsTreeTorrent, m_rootPath, m_otherReplicators );
 
         FsTree fsTree;
         fsTree.deserialize( m_fsTreeFile );
@@ -153,7 +155,7 @@ public:
                     fsTreeFolder.m_childs.emplace_back( fs_tree::File{name,fileHash,fileSize} );
                 }
 
-                m_distributionSession->addTorrentFileToSession( torrentFile, child.path() );
+                m_session->addTorrentFileToSession( torrentFile, child.path() );
             }
         }
     }
@@ -176,7 +178,7 @@ public:
         }
 
         // Calculate fsTree torrent file and root hash
-        m_rootDriveHash = createTorrentFile( m_fsTreeFile, m_fsTreeTorrentFile );
+        m_rootDriveHash = createTorrentFile( m_fsTreeFile, m_fsTreeTorrent );
     }
 
     // recalculateHashes
@@ -184,7 +186,7 @@ public:
     void recalculateHashes()
     {
         fs::remove_all( m_torrentFolder );
-        fs::remove_all( m_fsTreeTorrentFile );
+        fs::remove_all( m_fsTreeTorrent );
         fs::remove_all( m_fsTreeFile );
         updateFsTreeTorrent();
     }
@@ -196,7 +198,12 @@ public:
         m_modifyDataInfoHash = modifyDataInfoHash;
         m_resultHandler      = resultHandler;
 
-        m_distributionSession->downloadFile( modifyDataInfoHash,
+        // clear tmp folder
+        fs::remove_all( m_sandboxDriveFolder.parent_path() );
+        fs::create_directories( m_sandboxDriveFolder );
+        fs::create_directories( m_sandboxTorrentFolder );
+
+        m_session->downloadFile( modifyDataInfoHash,
                                              m_sandboxFolder.parent_path(),
                                              std::bind( &DefaultDrive::downloadHandler, this, _1, _2, _3 ),
                                              m_otherReplicators );
@@ -218,7 +225,7 @@ public:
 
         if ( code == download_status::complete )
         {
-            modifyDrive();
+            std::thread( [this] { modifyDrive(); } ).detach();
         }
     }
 
@@ -256,11 +263,11 @@ public:
                 }
                 else
                 {
+                    fs::create_directories( torrentFile.parent_path() );
                     InfoHash infoHash = createTorrentFile( file, torrentFile );
                     size_t fileSize = std::filesystem::file_size( file );
 
                     // add file in resultFsTree
-                    fs::create_directories( torrentFile.parent_path() );
                     m_resultFsTree.addFile( fs::path(action.m_param1).parent_path(),
                                            file.filename(),
                                            infoHash,
@@ -271,9 +278,21 @@ public:
             case action_list_id::new_folder:
                 m_resultFsTree.addFolder( action.m_param1 );
                 break;
-            case action_list_id::move:
-                m_resultFsTree.move( action.m_param1, action.m_param2 );
+            case action_list_id::move: {
+                if ( fs::exists( m_driveFolder / action.m_param1 ) )
+                {
+                    // file path and torrentfile path
+                    fs::path file = m_sandboxDriveFolder / action.m_param2;
+                    fs::path torrentFile = m_sandboxTorrentFolder / action.m_param2;
+                    fs::copy( m_driveFolder / action.m_param1, file );
+
+                    fs::create_directories( torrentFile.parent_path() );
+                    InfoHash infoHash = createTorrentFile( file, torrentFile );
+
+                    m_resultFsTree.move( action.m_param1, action.m_param2 );
+                }
                 break;
+            }
             case action_list_id::remove:
                 m_resultFsTree.remove( action.m_param1 );
                 break;
@@ -284,7 +303,9 @@ public:
 
         // calculate new rootHash
         m_resultFsTree.doSerialize( m_sandboxFsTreeFile );
-        m_sandboxRootDriveInfoHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxFsTreeFile );
+//        FsTree tree;
+//        tree.deserialize( m_sandboxFsTreeFile );
+        m_sandboxRootDriveInfoHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxFsTreeTorrent );
 
         // update drive
         updateDrive();
@@ -292,8 +313,8 @@ public:
 
     void updateDrive()
     {
-        m_distributionSession->endSession();
-        m_distributionSession.reset();
+//        m_distributionSession->endSession();
+//        m_distributionSession.reset();
 
         for( const Action& action : m_actionList )
         {
@@ -304,8 +325,6 @@ public:
             case action_list_id::new_folder:
                 break;
             case action_list_id::move:
-                //TODO
-                break;
             case action_list_id::remove:
                 fs::remove_all( m_driveFolder / action.m_param1 );
                 fs::remove_all( m_torrentFolder / action.m_param1 );
@@ -319,9 +338,9 @@ public:
         fs::rename( m_sandboxTorrentFolder, m_torrentFolder );
         fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
 
-        updateFsTreeTorrent();
+        m_resultHandler( true, InfoHash(), "" );
 
-        startDistributionSession();
+        //todo
     }
 
     void alertHandler( LibTorrentSession*, libtorrent::alert* )

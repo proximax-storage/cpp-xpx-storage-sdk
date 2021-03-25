@@ -102,7 +102,7 @@ struct FsTree: public fs_tree::Folder {
 
     bool     remove( const std::string& path );
 
-    bool     move( const std::string& oldPathAndName, const std::string& newPathAndName );
+    bool     move( const std::string& oldPathAndName, const std::string& newPathAndName, const InfoHash* newInfoHash = nullptr );
 };
 
 }

@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 #link_directories(/usr/local/lib)
 
-file(GLOB SOURCES "../../src/*.cpp")
+file(GLOB SOURCES "../../src/*.cpp" "../../include/*.h")
 
 find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
