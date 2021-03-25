@@ -11,14 +11,14 @@ and related or neighboring rights to the source code in this file.
 http://creativecommons.org/publicdomain/zero/1.0/
 */
 
-#include "KeccakSpongeWidth1600.h"
+#include "external/sha3/KeccakSpongeWidth1600.h"
 
 #ifdef KeccakReference
     #include "displayIntermediateValues.h"
 #endif
 
 #ifndef KeccakP1600_excluded
-    #include "KeccakP-1600-SnP.h"
+    #include "external/sha3/KeccakP-1600-SnP.h"
 
     #define prefix KeccakWidth1600
     #define SnP KeccakP1600
@@ -27,7 +27,7 @@ http://creativecommons.org/publicdomain/zero/1.0/
     #if defined(KeccakF1600_FastLoop_supported)
         #define SnP_FastLoop_Absorb KeccakF1600_FastLoop_Absorb
     #endif
-        #include "KeccakSponge.inc"
+        #include "external/sha3/KeccakSponge.inc"
     #undef prefix
     #undef SnP
     #undef SnP_width
@@ -36,7 +36,7 @@ http://creativecommons.org/publicdomain/zero/1.0/
 #endif
 
 #ifndef KeccakP1600_excluded
-    #include "KeccakP-1600-SnP.h"
+    #include "external/sha3/KeccakP-1600-SnP.h"
 
     #define prefix KeccakWidth1600_12rounds
     #define SnP KeccakP1600
@@ -45,7 +45,7 @@ http://creativecommons.org/publicdomain/zero/1.0/
     #if defined(KeccakP1600_12rounds_FastLoop_supported)
         #define SnP_FastLoop_Absorb KeccakP1600_12rounds_FastLoop_Absorb
     #endif
-        #include "KeccakSponge.inc"
+        #include "external/sha3/KeccakSponge.inc"
     #undef prefix
     #undef SnP
     #undef SnP_width

@@ -1,49 +1,22 @@
-cmake_minimum_required(VERSION 3.2)
-
-include_directories(.)
-include_directories(external)
+cmake_minimum_required(VERSION 3.9)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
 add_subdirectory(download)
 add_subdirectory(upload)
+add_subdirectory(libtorrent)
 
 add_subdirectory(libtorrenttest)
 
-#-----------------------------------------------------------------------------
-# test action list
-#-----------------------------------------------------------------------------
+### test action list
+add_executable(testActionList testActionList.cpp)
+target_link_libraries(testActionList drive)
 
-add_executable(testActionList testActionList.cpp ../src/drive/ActionList.cpp)
+### test drive
+add_executable(testDrive testDrive.cpp)
+target_link_libraries(testDrive drive)
 
-target_link_libraries(testActionList
-        ${Boost_LIBRARIES}
-        sirius
-        netio
-        external)
-
-#-----------------------------------------------------------------------------
-# test drive
-#-----------------------------------------------------------------------------
-add_executable(testDrive testDrive.cpp ../src/drive/Drive.cpp ../src/drive/FsTree.cpp ../src/drive/ActionList.cpp)
-
-target_link_libraries(testDrive
-       ${Boost_LIBRARIES}
-        sirius
-       netio
-       external)
-
-#-----------------------------------------------------------------------------
-# test node connection
-#-----------------------------------------------------------------------------
-
+### test node connection
 add_executable(testValidatorConnection testValidatorConnection.cpp)
-
-target_link_libraries(testValidatorConnection
-        PRIVATE
-        ${Boost_LIBRARIES}
-        sirius
-        netio
-        external
-        )
+target_link_libraries(testValidatorConnection connection crypto ionet net)
 

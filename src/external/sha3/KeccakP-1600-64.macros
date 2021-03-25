@@ -57,16 +57,16 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bbo = ROL64(A##mo, 21); \
     A##su ^= Du; \
     Bbu = ROL64(A##su, 14); \
-    E##ba =   Bba ^(  Bbe |  Bbi ); \
+    E##ba =   Bba ^(  Bbe |  Bbi); \
     E##ba ^= KeccakF1600RoundConstants[i]; \
     Ca = E##ba; \
-    E##be =   Bbe ^((~Bbi)|  Bbo ); \
+    E##be =   Bbe ^((~Bbi)|  Bbo); \
     Ce = E##be; \
-    E##bi =   Bbi ^(  Bbo &  Bbu ); \
+    E##bi =   Bbi ^(  Bbo &  Bbu); \
     Ci = E##bi; \
-    E##bo =   Bbo ^(  Bbu |  Bba ); \
+    E##bo =   Bbo ^(  Bbu |  Bba); \
     Co = E##bo; \
-    E##bu =   Bbu ^(  Bba &  Bbe ); \
+    E##bu =   Bbu ^(  Bba &  Bbe); \
     Cu = E##bu; \
 \
     A##bo ^= Do; \
@@ -79,15 +79,15 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bgo = ROL64(A##me, 45); \
     A##si ^= Di; \
     Bgu = ROL64(A##si, 61); \
-    E##ga =   Bga ^(  Bge |  Bgi ); \
+    E##ga =   Bga ^(  Bge |  Bgi); \
     Ca ^= E##ga; \
-    E##ge =   Bge ^(  Bgi &  Bgo ); \
+    E##ge =   Bge ^(  Bgi &  Bgo); \
     Ce ^= E##ge; \
     E##gi =   Bgi ^(  Bgo |(~Bgu)); \
     Ci ^= E##gi; \
-    E##go =   Bgo ^(  Bgu |  Bga ); \
+    E##go =   Bgo ^(  Bgu |  Bga); \
     Co ^= E##go; \
-    E##gu =   Bgu ^(  Bga &  Bge ); \
+    E##gu =   Bgu ^(  Bga &  Bge); \
     Cu ^= E##gu; \
 \
     A##be ^= De; \
@@ -100,15 +100,15 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bko = ROL64(A##mu, 8); \
     A##sa ^= Da; \
     Bku = ROL64(A##sa, 18); \
-    E##ka =   Bka ^(  Bke |  Bki ); \
+    E##ka =   Bka ^(  Bke |  Bki); \
     Ca ^= E##ka; \
-    E##ke =   Bke ^(  Bki &  Bko ); \
+    E##ke =   Bke ^(  Bki &  Bko); \
     Ce ^= E##ke; \
-    E##ki =   Bki ^((~Bko)&  Bku ); \
+    E##ki =   Bki ^((~Bko)&  Bku); \
     Ci ^= E##ki; \
-    E##ko = (~Bko)^(  Bku |  Bka ); \
+    E##ko = (~Bko)^(  Bku |  Bka); \
     Co ^= E##ko; \
-    E##ku =   Bku ^(  Bka &  Bke ); \
+    E##ku =   Bku ^(  Bka &  Bke); \
     Cu ^= E##ku; \
 \
     A##bu ^= Du; \
@@ -121,15 +121,15 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bmo = ROL64(A##mi, 15); \
     A##so ^= Do; \
     Bmu = ROL64(A##so, 56); \
-    E##ma =   Bma ^(  Bme &  Bmi ); \
+    E##ma =   Bma ^(  Bme &  Bmi); \
     Ca ^= E##ma; \
-    E##me =   Bme ^(  Bmi |  Bmo ); \
+    E##me =   Bme ^(  Bmi |  Bmo); \
     Ce ^= E##me; \
-    E##mi =   Bmi ^((~Bmo)|  Bmu ); \
+    E##mi =   Bmi ^((~Bmo)|  Bmu); \
     Ci ^= E##mi; \
-    E##mo = (~Bmo)^(  Bmu &  Bma ); \
+    E##mo = (~Bmo)^(  Bmu &  Bma); \
     Co ^= E##mo; \
-    E##mu =   Bmu ^(  Bma |  Bme ); \
+    E##mu =   Bmu ^(  Bma |  Bme); \
     Cu ^= E##mu; \
 \
     A##bi ^= Di; \
@@ -142,15 +142,15 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bso = ROL64(A##ma, 41); \
     A##se ^= De; \
     Bsu = ROL64(A##se, 2); \
-    E##sa =   Bsa ^((~Bse)&  Bsi ); \
+    E##sa =   Bsa ^((~Bse)&  Bsi); \
     Ca ^= E##sa; \
-    E##se = (~Bse)^(  Bsi |  Bso ); \
+    E##se = (~Bse)^(  Bsi |  Bso); \
     Ce ^= E##se; \
-    E##si =   Bsi ^(  Bso &  Bsu ); \
+    E##si =   Bsi ^(  Bso &  Bsu); \
     Ci ^= E##si; \
-    E##so =   Bso ^(  Bsu |  Bsa ); \
+    E##so =   Bso ^(  Bsu |  Bsa); \
     Co ^= E##so; \
-    E##su =   Bsu ^(  Bsa &  Bse ); \
+    E##su =   Bsu ^(  Bsa &  Bse); \
     Cu ^= E##su; \
 \
 
@@ -173,12 +173,12 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bbo = ROL64(A##mo, 21); \
     A##su ^= Du; \
     Bbu = ROL64(A##su, 14); \
-    E##ba =   Bba ^(  Bbe |  Bbi ); \
+    E##ba =   Bba ^(  Bbe |  Bbi); \
     E##ba ^= KeccakF1600RoundConstants[i]; \
-    E##be =   Bbe ^((~Bbi)|  Bbo ); \
-    E##bi =   Bbi ^(  Bbo &  Bbu ); \
-    E##bo =   Bbo ^(  Bbu |  Bba ); \
-    E##bu =   Bbu ^(  Bba &  Bbe ); \
+    E##be =   Bbe ^((~Bbi)|  Bbo); \
+    E##bi =   Bbi ^(  Bbo &  Bbu); \
+    E##bo =   Bbo ^(  Bbu |  Bba); \
+    E##bu =   Bbu ^(  Bba &  Bbe); \
 \
     A##bo ^= Do; \
     Bga = ROL64(A##bo, 28); \
@@ -190,11 +190,11 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bgo = ROL64(A##me, 45); \
     A##si ^= Di; \
     Bgu = ROL64(A##si, 61); \
-    E##ga =   Bga ^(  Bge |  Bgi ); \
-    E##ge =   Bge ^(  Bgi &  Bgo ); \
+    E##ga =   Bga ^(  Bge |  Bgi); \
+    E##ge =   Bge ^(  Bgi &  Bgo); \
     E##gi =   Bgi ^(  Bgo |(~Bgu)); \
-    E##go =   Bgo ^(  Bgu |  Bga ); \
-    E##gu =   Bgu ^(  Bga &  Bge ); \
+    E##go =   Bgo ^(  Bgu |  Bga); \
+    E##gu =   Bgu ^(  Bga &  Bge); \
 \
     A##be ^= De; \
     Bka = ROL64(A##be, 1); \
@@ -206,11 +206,11 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bko = ROL64(A##mu, 8); \
     A##sa ^= Da; \
     Bku = ROL64(A##sa, 18); \
-    E##ka =   Bka ^(  Bke |  Bki ); \
-    E##ke =   Bke ^(  Bki &  Bko ); \
-    E##ki =   Bki ^((~Bko)&  Bku ); \
-    E##ko = (~Bko)^(  Bku |  Bka ); \
-    E##ku =   Bku ^(  Bka &  Bke ); \
+    E##ka =   Bka ^(  Bke |  Bki); \
+    E##ke =   Bke ^(  Bki &  Bko); \
+    E##ki =   Bki ^((~Bko)&  Bku); \
+    E##ko = (~Bko)^(  Bku |  Bka); \
+    E##ku =   Bku ^(  Bka &  Bke); \
 \
     A##bu ^= Du; \
     Bma = ROL64(A##bu, 27); \
@@ -222,11 +222,11 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bmo = ROL64(A##mi, 15); \
     A##so ^= Do; \
     Bmu = ROL64(A##so, 56); \
-    E##ma =   Bma ^(  Bme &  Bmi ); \
-    E##me =   Bme ^(  Bmi |  Bmo ); \
-    E##mi =   Bmi ^((~Bmo)|  Bmu ); \
-    E##mo = (~Bmo)^(  Bmu &  Bma ); \
-    E##mu =   Bmu ^(  Bma |  Bme ); \
+    E##ma =   Bma ^(  Bme &  Bmi); \
+    E##me =   Bme ^(  Bmi |  Bmo); \
+    E##mi =   Bmi ^((~Bmo)|  Bmu); \
+    E##mo = (~Bmo)^(  Bmu &  Bma); \
+    E##mu =   Bmu ^(  Bma |  Bme); \
 \
     A##bi ^= Di; \
     Bsa = ROL64(A##bi, 62); \
@@ -238,11 +238,11 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bso = ROL64(A##ma, 41); \
     A##se ^= De; \
     Bsu = ROL64(A##se, 2); \
-    E##sa =   Bsa ^((~Bse)&  Bsi ); \
-    E##se = (~Bse)^(  Bsi |  Bso ); \
-    E##si =   Bsi ^(  Bso &  Bsu ); \
-    E##so =   Bso ^(  Bsu |  Bsa ); \
-    E##su =   Bsu ^(  Bsa &  Bse ); \
+    E##sa =   Bsa ^((~Bse)&  Bsi); \
+    E##se = (~Bse)^(  Bsi |  Bso); \
+    E##si =   Bsi ^(  Bso &  Bsu); \
+    E##so =   Bso ^(  Bsu |  Bsa); \
+    E##su =   Bsu ^(  Bsa &  Bse); \
 \
 
 #else /* UseBebigokimisa */
@@ -265,16 +265,16 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bbo = ROL64(A##mo, 21); \
     A##su ^= Du; \
     Bbu = ROL64(A##su, 14); \
-    E##ba =   Bba ^((~Bbe)&  Bbi ); \
+    E##ba =   Bba ^((~Bbe)&  Bbi); \
     E##ba ^= KeccakF1600RoundConstants[i]; \
     Ca = E##ba; \
-    E##be =   Bbe ^((~Bbi)&  Bbo ); \
+    E##be =   Bbe ^((~Bbi)&  Bbo); \
     Ce = E##be; \
-    E##bi =   Bbi ^((~Bbo)&  Bbu ); \
+    E##bi =   Bbi ^((~Bbo)&  Bbu); \
     Ci = E##bi; \
-    E##bo =   Bbo ^((~Bbu)&  Bba ); \
+    E##bo =   Bbo ^((~Bbu)&  Bba); \
     Co = E##bo; \
-    E##bu =   Bbu ^((~Bba)&  Bbe ); \
+    E##bu =   Bbu ^((~Bba)&  Bbe); \
     Cu = E##bu; \
 \
     A##bo ^= Do; \
@@ -287,15 +287,15 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bgo = ROL64(A##me, 45); \
     A##si ^= Di; \
     Bgu = ROL64(A##si, 61); \
-    E##ga =   Bga ^((~Bge)&  Bgi ); \
+    E##ga =   Bga ^((~Bge)&  Bgi); \
     Ca ^= E##ga; \
-    E##ge =   Bge ^((~Bgi)&  Bgo ); \
+    E##ge =   Bge ^((~Bgi)&  Bgo); \
     Ce ^= E##ge; \
-    E##gi =   Bgi ^((~Bgo)&  Bgu ); \
+    E##gi =   Bgi ^((~Bgo)&  Bgu); \
     Ci ^= E##gi; \
-    E##go =   Bgo ^((~Bgu)&  Bga ); \
+    E##go =   Bgo ^((~Bgu)&  Bga); \
     Co ^= E##go; \
-    E##gu =   Bgu ^((~Bga)&  Bge ); \
+    E##gu =   Bgu ^((~Bga)&  Bge); \
     Cu ^= E##gu; \
 \
     A##be ^= De; \
@@ -308,15 +308,15 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bko = ROL64(A##mu, 8); \
     A##sa ^= Da; \
     Bku = ROL64(A##sa, 18); \
-    E##ka =   Bka ^((~Bke)&  Bki ); \
+    E##ka =   Bka ^((~Bke)&  Bki); \
     Ca ^= E##ka; \
-    E##ke =   Bke ^((~Bki)&  Bko ); \
+    E##ke =   Bke ^((~Bki)&  Bko); \
     Ce ^= E##ke; \
-    E##ki =   Bki ^((~Bko)&  Bku ); \
+    E##ki =   Bki ^((~Bko)&  Bku); \
     Ci ^= E##ki; \
-    E##ko =   Bko ^((~Bku)&  Bka ); \
+    E##ko =   Bko ^((~Bku)&  Bka); \
     Co ^= E##ko; \
-    E##ku =   Bku ^((~Bka)&  Bke ); \
+    E##ku =   Bku ^((~Bka)&  Bke); \
     Cu ^= E##ku; \
 \
     A##bu ^= Du; \
@@ -329,15 +329,15 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bmo = ROL64(A##mi, 15); \
     A##so ^= Do; \
     Bmu = ROL64(A##so, 56); \
-    E##ma =   Bma ^((~Bme)&  Bmi ); \
+    E##ma =   Bma ^((~Bme)&  Bmi); \
     Ca ^= E##ma; \
-    E##me =   Bme ^((~Bmi)&  Bmo ); \
+    E##me =   Bme ^((~Bmi)&  Bmo); \
     Ce ^= E##me; \
-    E##mi =   Bmi ^((~Bmo)&  Bmu ); \
+    E##mi =   Bmi ^((~Bmo)&  Bmu); \
     Ci ^= E##mi; \
-    E##mo =   Bmo ^((~Bmu)&  Bma ); \
+    E##mo =   Bmo ^((~Bmu)&  Bma); \
     Co ^= E##mo; \
-    E##mu =   Bmu ^((~Bma)&  Bme ); \
+    E##mu =   Bmu ^((~Bma)&  Bme); \
     Cu ^= E##mu; \
 \
     A##bi ^= Di; \
@@ -350,15 +350,15 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bso = ROL64(A##ma, 41); \
     A##se ^= De; \
     Bsu = ROL64(A##se, 2); \
-    E##sa =   Bsa ^((~Bse)&  Bsi ); \
+    E##sa =   Bsa ^((~Bse)&  Bsi); \
     Ca ^= E##sa; \
-    E##se =   Bse ^((~Bsi)&  Bso ); \
+    E##se =   Bse ^((~Bsi)&  Bso); \
     Ce ^= E##se; \
-    E##si =   Bsi ^((~Bso)&  Bsu ); \
+    E##si =   Bsi ^((~Bso)&  Bsu); \
     Ci ^= E##si; \
-    E##so =   Bso ^((~Bsu)&  Bsa ); \
+    E##so =   Bso ^((~Bsu)&  Bsa); \
     Co ^= E##so; \
-    E##su =   Bsu ^((~Bsa)&  Bse ); \
+    E##su =   Bsu ^((~Bsa)&  Bse); \
     Cu ^= E##su; \
 \
 
@@ -381,12 +381,12 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bbo = ROL64(A##mo, 21); \
     A##su ^= Du; \
     Bbu = ROL64(A##su, 14); \
-    E##ba =   Bba ^((~Bbe)&  Bbi ); \
+    E##ba =   Bba ^((~Bbe)&  Bbi); \
     E##ba ^= KeccakF1600RoundConstants[i]; \
-    E##be =   Bbe ^((~Bbi)&  Bbo ); \
-    E##bi =   Bbi ^((~Bbo)&  Bbu ); \
-    E##bo =   Bbo ^((~Bbu)&  Bba ); \
-    E##bu =   Bbu ^((~Bba)&  Bbe ); \
+    E##be =   Bbe ^((~Bbi)&  Bbo); \
+    E##bi =   Bbi ^((~Bbo)&  Bbu); \
+    E##bo =   Bbo ^((~Bbu)&  Bba); \
+    E##bu =   Bbu ^((~Bba)&  Bbe); \
 \
     A##bo ^= Do; \
     Bga = ROL64(A##bo, 28); \
@@ -398,11 +398,11 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bgo = ROL64(A##me, 45); \
     A##si ^= Di; \
     Bgu = ROL64(A##si, 61); \
-    E##ga =   Bga ^((~Bge)&  Bgi ); \
-    E##ge =   Bge ^((~Bgi)&  Bgo ); \
-    E##gi =   Bgi ^((~Bgo)&  Bgu ); \
-    E##go =   Bgo ^((~Bgu)&  Bga ); \
-    E##gu =   Bgu ^((~Bga)&  Bge ); \
+    E##ga =   Bga ^((~Bge)&  Bgi); \
+    E##ge =   Bge ^((~Bgi)&  Bgo); \
+    E##gi =   Bgi ^((~Bgo)&  Bgu); \
+    E##go =   Bgo ^((~Bgu)&  Bga); \
+    E##gu =   Bgu ^((~Bga)&  Bge); \
 \
     A##be ^= De; \
     Bka = ROL64(A##be, 1); \
@@ -414,11 +414,11 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bko = ROL64(A##mu, 8); \
     A##sa ^= Da; \
     Bku = ROL64(A##sa, 18); \
-    E##ka =   Bka ^((~Bke)&  Bki ); \
-    E##ke =   Bke ^((~Bki)&  Bko ); \
-    E##ki =   Bki ^((~Bko)&  Bku ); \
-    E##ko =   Bko ^((~Bku)&  Bka ); \
-    E##ku =   Bku ^((~Bka)&  Bke ); \
+    E##ka =   Bka ^((~Bke)&  Bki); \
+    E##ke =   Bke ^((~Bki)&  Bko); \
+    E##ki =   Bki ^((~Bko)&  Bku); \
+    E##ko =   Bko ^((~Bku)&  Bka); \
+    E##ku =   Bku ^((~Bka)&  Bke); \
 \
     A##bu ^= Du; \
     Bma = ROL64(A##bu, 27); \
@@ -430,11 +430,11 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bmo = ROL64(A##mi, 15); \
     A##so ^= Do; \
     Bmu = ROL64(A##so, 56); \
-    E##ma =   Bma ^((~Bme)&  Bmi ); \
-    E##me =   Bme ^((~Bmi)&  Bmo ); \
-    E##mi =   Bmi ^((~Bmo)&  Bmu ); \
-    E##mo =   Bmo ^((~Bmu)&  Bma ); \
-    E##mu =   Bmu ^((~Bma)&  Bme ); \
+    E##ma =   Bma ^((~Bme)&  Bmi); \
+    E##me =   Bme ^((~Bmi)&  Bmo); \
+    E##mi =   Bmi ^((~Bmo)&  Bmu); \
+    E##mo =   Bmo ^((~Bmu)&  Bma); \
+    E##mu =   Bmu ^((~Bma)&  Bme); \
 \
     A##bi ^= Di; \
     Bsa = ROL64(A##bi, 62); \
@@ -446,11 +446,11 @@ http://creativecommons.org/publicdomain/zero/1.0/
     Bso = ROL64(A##ma, 41); \
     A##se ^= De; \
     Bsu = ROL64(A##se, 2); \
-    E##sa =   Bsa ^((~Bse)&  Bsi ); \
-    E##se =   Bse ^((~Bsi)&  Bso ); \
-    E##si =   Bsi ^((~Bso)&  Bsu ); \
-    E##so =   Bso ^((~Bsu)&  Bsa ); \
-    E##su =   Bsu ^((~Bsa)&  Bse ); \
+    E##sa =   Bsa ^((~Bse)&  Bsi); \
+    E##se =   Bse ^((~Bsi)&  Bso); \
+    E##si =   Bsi ^((~Bso)&  Bsu); \
+    E##so =   Bso ^((~Bsu)&  Bsa); \
+    E##su =   Bsu ^((~Bsa)&  Bse); \
 \
 
 #endif /* UseBebigokimisa */

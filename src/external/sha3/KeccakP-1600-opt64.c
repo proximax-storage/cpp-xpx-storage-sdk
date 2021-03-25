@@ -21,8 +21,8 @@ Please refer to LowLevel.build for the exact list of other files it must be comb
 
 #include <string.h>
 #include <stdlib.h>
-#include "brg_endian.h"
-#include "KeccakP-1600-opt64-config.h"
+#include "external/sha3/brg_endian.h"
+#include "external/sha3/KeccakP-1600-opt64-config.h"
 
 typedef unsigned char UINT8;
 typedef unsigned long long int UINT64;
@@ -135,7 +135,7 @@ void KeccakP1600_AddLanes(void *state, const unsigned char *data, unsigned int l
 #endif
     {
       /* Otherwise... */
-      for( ; (i+8)<=laneCount; i+=8) {
+      for(; (i+8)<=laneCount; i+=8) {
           ((UINT64*)state)[i+0] ^= ((UINT64*)data)[i+0];
           ((UINT64*)state)[i+1] ^= ((UINT64*)data)[i+1];
           ((UINT64*)state)[i+2] ^= ((UINT64*)data)[i+2];
@@ -145,13 +145,13 @@ void KeccakP1600_AddLanes(void *state, const unsigned char *data, unsigned int l
           ((UINT64*)state)[i+6] ^= ((UINT64*)data)[i+6];
           ((UINT64*)state)[i+7] ^= ((UINT64*)data)[i+7];
       }
-      for( ; (i+4)<=laneCount; i+=4) {
+      for(; (i+4)<=laneCount; i+=4) {
           ((UINT64*)state)[i+0] ^= ((UINT64*)data)[i+0];
           ((UINT64*)state)[i+1] ^= ((UINT64*)data)[i+1];
           ((UINT64*)state)[i+2] ^= ((UINT64*)data)[i+2];
           ((UINT64*)state)[i+3] ^= ((UINT64*)data)[i+3];
       }
-      for( ; (i+2)<=laneCount; i+=2) {
+      for(; (i+2)<=laneCount; i+=2) {
           ((UINT64*)state)[i+0] ^= ((UINT64*)data)[i+0];
           ((UINT64*)state)[i+1] ^= ((UINT64*)data)[i+1];
       }

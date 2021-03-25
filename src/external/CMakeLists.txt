@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.9)
 project(external)
 
 file(GLOB external_ref10_SRC

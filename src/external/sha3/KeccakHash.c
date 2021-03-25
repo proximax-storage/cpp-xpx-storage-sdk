@@ -12,7 +12,7 @@ http://creativecommons.org/publicdomain/zero/1.0/
 */
 
 #include <string.h>
-#include "KeccakHash.h"
+#include "external/sha3/KeccakHash.h"
 
 /* ---------------------------------------------------------------- */
 

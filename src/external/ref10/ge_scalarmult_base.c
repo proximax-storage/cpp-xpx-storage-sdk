@@ -1,4 +1,4 @@
-#include "ge.h"
+#include "external/ref10/ge.h"
 #include "crypto_uint32.h"
 
 static unsigned char equal(signed char b,signed char c)

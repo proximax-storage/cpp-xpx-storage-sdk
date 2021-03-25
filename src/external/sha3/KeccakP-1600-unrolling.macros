@@ -14,16 +14,16 @@ http://creativecommons.org/publicdomain/zero/1.0/
 #if (defined(FullUnrolling))
 #define rounds24 \
     prepareTheta \
-    thetaRhoPiChiIotaPrepareTheta( 0, A, E) \
-    thetaRhoPiChiIotaPrepareTheta( 1, E, A) \
-    thetaRhoPiChiIotaPrepareTheta( 2, A, E) \
-    thetaRhoPiChiIotaPrepareTheta( 3, E, A) \
-    thetaRhoPiChiIotaPrepareTheta( 4, A, E) \
-    thetaRhoPiChiIotaPrepareTheta( 5, E, A) \
-    thetaRhoPiChiIotaPrepareTheta( 6, A, E) \
-    thetaRhoPiChiIotaPrepareTheta( 7, E, A) \
-    thetaRhoPiChiIotaPrepareTheta( 8, A, E) \
-    thetaRhoPiChiIotaPrepareTheta( 9, E, A) \
+    thetaRhoPiChiIotaPrepareTheta(0, A, E) \
+    thetaRhoPiChiIotaPrepareTheta(1, E, A) \
+    thetaRhoPiChiIotaPrepareTheta(2, A, E) \
+    thetaRhoPiChiIotaPrepareTheta(3, E, A) \
+    thetaRhoPiChiIotaPrepareTheta(4, A, E) \
+    thetaRhoPiChiIotaPrepareTheta(5, E, A) \
+    thetaRhoPiChiIotaPrepareTheta(6, A, E) \
+    thetaRhoPiChiIotaPrepareTheta(7, E, A) \
+    thetaRhoPiChiIotaPrepareTheta(8, A, E) \
+    thetaRhoPiChiIotaPrepareTheta(9, E, A) \
     thetaRhoPiChiIotaPrepareTheta(10, A, E) \
     thetaRhoPiChiIotaPrepareTheta(11, E, A) \
     thetaRhoPiChiIotaPrepareTheta(12, A, E) \
@@ -296,7 +296,7 @@ http://creativecommons.org/publicdomain/zero/1.0/
         copyStateVariables(A, E) \
         ++i; \
     } \
-    for( /* empty */; i<24; i+=2) { \
+    for(/* empty */; i<24; i+=2) { \
         thetaRhoPiChiIotaPrepareTheta(i  , A, E) \
         thetaRhoPiChiIotaPrepareTheta(i+1, E, A) \
     }

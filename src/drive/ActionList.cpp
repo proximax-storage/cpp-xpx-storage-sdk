@@ -4,41 +4,34 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "ActionList.h"
-
+#include "drive/ActionList.h"
 #include <fstream>
-
-#include <cereal/types/vector.hpp>
-#include <cereal/types/array.hpp>
 #include <cereal/types/memory.hpp>
-#include <cereal/archives/binary.hpp>
+#include <cereal/archives/portable_binary.hpp>
 
-namespace xpx_storage_sdk {
+namespace sirius { namespace drive {
 
-void ActionList::serialize( std::string fileName ) const
-{
-    std::ofstream os( fileName, std::ios::binary );
-    cereal::BinaryOutputArchive archive( os );
-//            archive( static_cast<uint16_t>( size() ));
-//            for( uint i=0; i<size(); i++ ) {
-//                archive( at(i) );
-//            }
-    archive( *this );
-}
+	void ActionList::serialize(const std::string& fileName) const
+	{
+		std::ofstream os(fileName, std::ios::binary);
+		cereal::PortableBinaryOutputArchive archive(os);
+		archive(size());
+		for(uint i = 0; i < size(); i++) {
+			archive(at(i));
+		}
+	}
 
-void ActionList::deserialize( std::string fileName )
-{
-    clear();
-    std::ifstream is( fileName, std::ios::binary );
-    cereal::BinaryInputArchive iarchive(is);
-
-//            uint16_t size;
-//            iarchive( size );
-//            for( uint i=0; i<size; i++ ) {
-//                push_back( Action() );
-//                iarchive( at(i) );
-//            }
-    iarchive( *this );
-}
-
-}
+	void ActionList::deserialize(const std::string& fileName)
+	{
+		clear();
+		std::ifstream is(fileName, std::ios::binary);
+		cereal::PortableBinaryInputArchive archive(is);
+		size_t size;
+		archive(size);
+		reserve(size);
+		for (uint i = 0; i < size; i++) {
+			push_back(Action());
+			archive(at(i));
+		}
+	}
+}}

@@ -1,12 +1,10 @@
-#include <cstdlib>
 #include "libtorrent/entry.hpp"
-#include "libtorrent/bencode.hpp"
 #include "libtorrent/session.hpp"
 #include "libtorrent/torrent_info.hpp"
 
 #include <iostream>
 
-int main(int argc, char* argv[]) try
+int main(int, char*[]) try
 {
     lt::settings_pack sessionSettings;
 
@@ -27,7 +25,7 @@ int main(int argc, char* argv[]) try
 
         s.pop_alerts(&alerts);
 
-        for (int i = 0; i < alerts.size(); i++)
+        for (auto i = 0u; i < alerts.size(); i++)
         {
             std::cout << "alert msg: " << alerts[i]->message() << std::endl;
             std::cout << "alert msg: " << alerts[i]->what() << std::endl;
@@ -41,7 +39,7 @@ int main(int argc, char* argv[]) try
     std::string torrentFile = "./files/bc.log.torrent";
     p.ti = std::make_shared<lt::torrent_info>(torrentFile);
     lt::torrent_handle th = s.add_torrent(p);
-    lt::sha256_hash torrentHash = th.info_hashes().v2;
+//    lt::sha256_hash torrentHash = th.info_hashes().v2;
 
     lt::tcp::endpoint endpoint;
     endpoint.address(boost::asio::ip::make_address("10.0.0.14"));
@@ -60,8 +58,7 @@ int main(int argc, char* argv[]) try
         std::this_thread::sleep_for(lt::milliseconds(500));
 
         lt::torrent_status st1 = th.status();
-        th.c
-        if(st1.is_finished)
+        if (st1.is_finished)
         {
             s.abort();
             break;

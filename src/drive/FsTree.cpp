@@ -4,250 +4,234 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "FsTree.h"
+#include "drive/FsTree.h"
 #include <filesystem>
 #include <iostream>
 #include <fstream>
-
 #include <cereal/types/vector.hpp>
-#include <cereal/types/set.hpp>
-#include <cereal/types/variant.hpp>
 #include <cereal/types/memory.hpp>
 #include <cereal/archives/binary.hpp>
 
-namespace fs = std::filesystem;
+namespace sirius { namespace drive {
 
-namespace xpx_storage_sdk {
-using namespace fs_tree;
+	void Folder::dbgPrint(std::string leadingSpaces) const {
 
-// dbgPring
-void fs_tree::Folder::dbgPrint( std::string leadingSpaces ) const {
+		std::cout << leadingSpaces << "• " << m_name << std::endl;
 
-    std::cout << leadingSpaces << "• " << m_name << std::endl;
+		for(auto it = m_childs.begin(); it != m_childs.end(); it++) {
 
-    for( auto it = m_childs.begin(); it != m_childs.end(); it++ ) {
+			if (isFolder(*it)) {
+				getFolder(*it).dbgPrint(leadingSpaces+"  ");
+			}
+			else {
+				std::cout << leadingSpaces << "  " << getFile(*it).m_name << std::endl;
+			}
+		}
+	}
 
-        if ( fs_tree::isFolder(*it) ) {
-            getFolder(*it).dbgPrint( leadingSpaces+"  " );
-        }
-        else {
-            std::cout << leadingSpaces << "  " << getFile(*it).m_name << std::endl;
-        }
-    }
-}
+	// sort
+	void Folder::sort() {
+		std::sort(m_childs.begin(), m_childs.end());
 
-// sort
-void fs_tree::Folder::sort() {
-    std::sort(m_childs.begin(), m_childs.end());
+		for(auto it = m_childs.begin(); it != m_childs.end(); it++) {
+			if (isFolder(*it)) {
+				getFolder(*it).sort();
+			}
+		}
+	}
 
-    for( auto it = m_childs.begin(); it != m_childs.end(); it++ ) {
-        if ( fs_tree::isFolder(*it) ) {
-            getFolder(*it).sort();
-        }
-    }
-}
+	// initWithFolder
+	bool Folder::initWithFolder(const std::string& pathToFolder) try {
 
-// initWithFolder
-bool fs_tree::Folder::initWithFolder( const std::string& pathToFolder ) try {
+	#ifdef DEBUG
+		std::srand(unsigned(std::time(nullptr)));
+	#endif
 
+		m_childs.clear();
+		m_name = std::filesystem::path(pathToFolder).filename();
+
+		for (const auto& entry : std::filesystem::directory_iterator(pathToFolder)) {
+
+			const auto entryName = entry.path().filename().string();
+
+			if (entry.is_directory()) {
+				//std::cout << "dir:  " << filenameStr << '\n';
+
+				Folder subfolder{};
+
+				//TODO Windows path!
+				if (!subfolder.initWithFolder(pathToFolder+"/"+entryName))
+					return false;
+
+				m_childs.push_back(subfolder);
+				//m_childs.insert(subfolder);
+			}
+			else if (entry.is_regular_file()) {
+				//std::cout << "file: " << filenameStr << '\n';
+
+				if (entryName != ".DS_Store")
+				{
 #ifdef DEBUG
-    std::srand(unsigned(std::time(nullptr)));
-#endif
-
-    m_childs.clear();
-    m_name = fs::path(pathToFolder).filename();
-    
-    for (const auto& entry : std::filesystem::directory_iterator(pathToFolder)) {
-
-        const auto entryName = entry.path().filename().string();
-
-        if ( entry.is_directory() ) {
-            //std::cout << "dir:  " << filenameStr << '\n';
-
-            Folder subfolder{entryName};
-
-            //TODO Windows path!
-            if ( !subfolder.initWithFolder( pathToFolder+"/"+entryName ) )
-                return false;
-
-            m_childs.push_back( subfolder );
-            //m_childs.insert( subfolder );
-        }
-        else if ( entry.is_regular_file() ) {
-            //std::cout << "file: " << filenameStr << '\n';
-
-
-            if ( entryName != ".DS_Store" )
-            {
-#ifdef DEBUG
-                FileHash fileHash;
-                std::generate( fileHash.begin(), fileHash.end(), std::rand );
-                //m_childs.insert(  );
-                m_childs.emplace_back( File{entryName,fileHash,entry.file_size()} );
+					Hash256 fileHash;
+					std::generate(fileHash.begin(), fileHash.end(), std::rand);
+					//m_childs.insert(  );
+					m_childs.emplace_back(File{entryName,fileHash,entry.file_size()});
 #else
-                m_childs.emplace_back( File{entryName} );
-                //m_childs.insert( File{entryName} );
+	                m_childs.emplace_back(File{entryName, Hash256(), 0u});
+					//m_childs.insert(File{entryName});
 
 #endif
-            }
-        }
-    }
+				}
+			}
+		}
 
-    return true;
-}
-catch(...)
-{
-    return false;
-}
+		return true;
+	}
+	catch(...)
+	{
+		return false;
+	}
 
-// doSerialize
-FileHash FsTree::doSerialize( std::string fileName ) {
-    std::ofstream os( fileName, std::ios::binary );
-    cereal::BinaryOutputArchive archive( os );
+	// doSerialize
+	Hash256 FsTree::doSerialize(std::string fileName) {
+		std::ofstream os(fileName, std::ios::binary);
+		cereal::BinaryOutputArchive archive(os);
 
-    // sort tree before saving
-    sort();
-    archive( *this );
+		// sort tree before saving
+		sort();
+//		archive(*this);
 
-    //TODO
-    return FileHash();
-}
+		//TODO
+		return Hash256();
+	}
 
-// deserialize
-void FsTree::deserialize( std::string fileName ) {
-    m_childs.clear();
-    std::ifstream is( fileName, std::ios::binary );
-    cereal::BinaryInputArchive iarchive(is);
-    iarchive( *this );
-}
+	// deserialize
+	void FsTree::deserialize(std::string fileName) {
+		m_childs.clear();
+		std::ifstream is(fileName, std::ios::binary);
+		cereal::BinaryInputArchive iarchive(is);
+//		iarchive(*this);
+	}
 
-// addFile
-bool FsTree::addFile( const std::string& destinationPath, const std::string& filename, const FileHash& fileHash, size_t size ) {
+	// addFile
+	bool FsTree::addFile(const std::string& destinationPath, const std::string& filename, const Hash256& fileHash, size_t size) {
 
-    Folder* parentFolder = getFolderPtr( destinationPath, true );
+		Folder* parentFolder = getFolderPtr(destinationPath, true);
 
-    if ( parentFolder == nullptr )
-        return false;
+		if (parentFolder == nullptr)
+			return false;
 
-    parentFolder->m_childs.emplace_back( File{filename,fileHash,size} );
+		parentFolder->m_childs.emplace_back(File{filename,fileHash,size});
 
-    return true;
-}
+		return true;
+	}
 
-// addFolder
-bool FsTree::addFolder( const std::string& folderPath ) {
+	// addFolder
+	bool FsTree::addFolder(const std::string& folderPath) {
 
-    Folder* parentFolder = getFolderPtr( folderPath, true );
+		Folder* parentFolder = getFolderPtr(folderPath, true);
 
-    return parentFolder != nullptr;
-}
+		return parentFolder != nullptr;
+	}
 
-// remove
-bool FsTree::remove( const std::string& fullPath ) {
+	// remove
+	bool FsTree::remove(const std::string& fullPath) {
 
-    fs::path path( fullPath );
-    std::string filename = path.filename().string();
-    fs_tree::Folder* parentFolder = getFolderPtr( path.parent_path().string() );
+		std::filesystem::path path(fullPath);
+		std::string filename = path.filename().string();
+		Folder* parentFolder = getFolderPtr(path.parent_path().string());
 
-    auto it = std::find_if( parentFolder->m_childs.begin(), parentFolder->m_childs.end(),
-                         [=](const Child& child) -> bool
-                         {
-                             if ( isFolder(child) )
-                                 return getFolder(child).m_name == filename;
-                             return getFile(child).m_name == filename;
-                         });
+		auto it = std::find_if(parentFolder->m_childs.begin(), parentFolder->m_childs.end(),
+							 [=](const Child& child) -> bool
+							 {
+								 if (isFolder(child))
+									 return getFolder(child).m_name == filename;
+								 return getFile(child).m_name == filename;
+							 });
 
-    if ( it == parentFolder->m_childs.end() )
-        return false;
+		if (it == parentFolder->m_childs.end())
+			return false;
 
-    parentFolder->m_childs.erase( it );
+		parentFolder->m_childs.erase(it);
 
-    return true;
-}
+		return true;
+	}
 
-// move
-bool FsTree::move( const std::string& oldPathAndName, const std::string& newPathAndName )
-{
-    if ( fs::path( newPathAndName ) == fs::path( oldPathAndName ) )
-        return true;
+	// move
+	bool FsTree::move(const std::string& oldPathAndName, const std::string& newPathAndName)
+	{
+		if (std::filesystem::path(newPathAndName) == std::filesystem::path(oldPathAndName))
+			return true;
 
-    fs::path path( oldPathAndName );
-    std::string filename = path.filename().string();
-    fs_tree::Folder* parentFolder = getFolderPtr( path.parent_path().string() );
+		std::filesystem::path path(oldPathAndName);
+		std::string filename = path.filename().string();
+		Folder* parentFolder = getFolderPtr(path.parent_path().string());
 
-    auto it = std::find_if( parentFolder->m_childs.begin(), parentFolder->m_childs.end(),
-                         [=](const Child& child) -> bool
-                         {
-                             if ( isFolder(child) )
-                                 return getFolder(child).m_name == filename;
-                             return getFile(child).m_name == filename;
-                         });
+		auto it = std::find_if(parentFolder->m_childs.begin(), parentFolder->m_childs.end(),
+							 [=](const Child& child) -> bool
+							 {
+								 if (isFolder(child))
+									 return getFolder(child).m_name == filename;
+								 return getFile(child).m_name == filename;
+							 });
 
-    if ( it == parentFolder->m_childs.end() )
-        return false;
+		if (it == parentFolder->m_childs.end())
+			return false;
 
-    fs::path newPath( newPathAndName );
-    std::string newFilename = newPath.filename().string();
-    fs_tree::Folder* newParentFolder = getFolderPtr( newPath.parent_path().string(), true );
+		std::filesystem::path newPath(newPathAndName);
+		std::string newFilename = newPath.filename().string();
+		Folder* newParentFolder = getFolderPtr(newPath.parent_path().string(), true);
 
-    auto newIt = std::find_if( newParentFolder->m_childs.begin(), newParentFolder->m_childs.end(),
-                         [=](const Child& child) -> bool
-                         {
-                             if ( isFolder(child) )
-                                 return getFolder(child).m_name == newFilename;
-                             return getFile(child).m_name == newFilename;
-                         });
+		auto newIt = std::find_if(newParentFolder->m_childs.begin(), newParentFolder->m_childs.end(),
+							 [=](const Child& child) -> bool
+							 {
+								 if (isFolder(child))
+									 return getFolder(child).m_name == newFilename;
+								 return getFile(child).m_name == newFilename;
+							 });
 
-    // newPathAndName should not exist
-    if ( newIt != newParentFolder->m_childs.end() )
-        return false;
+		// newPathAndName should not exist
+		if (newIt != newParentFolder->m_childs.end())
+			return false;
 
-    newParentFolder->m_childs.emplace_back( *it );
-    parentFolder->m_childs.erase( it );
+		newParentFolder->m_childs.emplace_back(*it);
+		parentFolder->m_childs.erase(it);
 
-    return true;
-}
+		return true;
+	}
 
-// getFolderPtr
-fs_tree::Folder* FsTree::getFolderPtr( const std::string& fullPath, bool createIfNotExist )
-{
-//    if ( fullPath.empty() || fullPath=="/" || fullPath=="\\" )
-//        return this;
+	Folder* FsTree::getFolderPtr(const std::string& fullPath, bool createIfNotExist)
+	{
+		std::filesystem::path path(fullPath);
+		Folder* treeWalker = this;
 
-    fs::path path( fullPath );
-    fs_tree::Folder* treeValker = this;
+		for(auto pathIt = path.begin(); pathIt != path.end(); pathIt++) {
 
-    for( auto pathIt = path.begin(); pathIt != path.end(); pathIt++ ) {
+			auto it = std::find_if(treeWalker->m_childs.begin(), treeWalker->m_childs.end(),
+								 [=](const Child& child) -> bool
+								 {
+									 return isFolder(child) && getFolder(child).m_name == pathIt->string();
+								 });
 
-        auto it = std::find_if( treeValker->m_childs.begin(), treeValker->m_childs.end(),
-                             [=](const Child& child) -> bool
-                             {
-                                 return isFolder(child) && getFolder(child).m_name == pathIt->string();
-                             });
+			if (it == treeWalker->m_childs.end())
+			{
+				if (!createIfNotExist)
+					return nullptr;
 
-        if ( it == treeValker->m_childs.end() )
-        {
-            if ( !createIfNotExist )
-                return nullptr;
+				treeWalker->m_childs.emplace_back(Folder{pathIt->string(), {}});
+				treeWalker = &getFolder(treeWalker->m_childs.back());
+			}
+			else if (isFolder(*it))
+			{
+				treeWalker = &getFolder(*it);
+			}
+			else
+			{
+				//TODO invalid path
+				return nullptr;
+			}
+		}
 
-            treeValker->m_childs.emplace_back( Folder{pathIt->string()} );
-            treeValker = &getFolder(treeValker->m_childs.back());
-        }
-        else if ( isFolder(*it) )
-        {
-            treeValker = &getFolder(*it);
-        }
-        else
-        {
-            //TODO invalid path
-            return nullptr;
-        }
-    }
-
-    return treeValker;
-}
-
-
-
-
-}
+		return treeWalker;
+	}
+}}
