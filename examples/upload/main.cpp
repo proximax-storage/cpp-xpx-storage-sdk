@@ -1,19 +1,16 @@
-#include <FileTransmitter.h>
-
+#include "drive/FileTransmitter.h"
 #include <memory>
 #include <string>
 
-using namespace xpx_storage_sdk;
-
-int main(int argc, char *argv[]) {
-    std::shared_ptr<FileTransmitter> ft = createDefaultFileTransmitter();
+int main(int, char *[]) {
+    std::shared_ptr<sirius::drive::FileTransmitter> ft = sirius::drive::CreateDefaultFileTransmitter();
     ft->init("0.0.0.0:5551");
 
     std::string path = "./files/bc.log";
 
-    Key driveKey;
+	sirius::Key driveKey;
 
-    ft->addFile(driveKey, path, [](error::code code, const std::string& textMessage) {});
+    ft->addFile(driveKey, path, [](sirius::error::code, const std::string&) {});
 
     // wait for the user to end
     char a;

@@ -7,7 +7,7 @@
 #include <libtorrent/extensions/ut_metadata.hpp>
 #include <libtorrent/extensions/ut_pex.hpp>
 
-int main(int argc, char *argv[])
+int main(int, char *[])
 {
     lt::add_torrent_params p;
     p.seeding_time = 3600;

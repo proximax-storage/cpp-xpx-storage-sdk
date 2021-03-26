@@ -1,13 +1,10 @@
-#include <FileTransmitter.h>
-
+#include "drive/FileTransmitter.h"
 #include <memory>
 #include <string>
 #include <iostream>
 
-using namespace xpx_storage_sdk;
-
-int main(int argc, char *argv[]) {
-    std::shared_ptr<FileTransmitter> ft = createDefaultFileTransmitter();
+int main(int, char *[]) {
+    std::shared_ptr<sirius::drive::FileTransmitter> ft = sirius::drive::CreateDefaultFileTransmitter();
     ft->init("192.168.1.100:5550");
 
     std::string hash = "7098b8d0f216ba7ac4dd7afc21fe5e486b0f1396faf205df8c7fe51363b10177";
@@ -15,11 +12,11 @@ int main(int argc, char *argv[]) {
 
     std::cout << hash << std::endl;
 
-    FileHash finalHash;
+	sirius::Hash256 finalHash;
 
     std::copy(hash.begin(), hash.end(), std::begin(finalHash));
 
-    ft->download(finalHash, path, [](download_status::code code, FileHash h, const std::string &fileName) {
+    ft->download(finalHash, path, [](sirius::download_status::code code, sirius::Hash256 h, const std::string &fileName) {
         std::cout << "code: " << code << std::endl;
         std::cout << "hash: " << h.data() << std::endl;
         std::cout << "fileName: " << fileName << std::endl;

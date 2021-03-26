@@ -4,22 +4,16 @@
 *** license that can be found in the LICENSE file.
 */
 
+#include "connection/NodeConnector.h"
+#include "crypto/KeyPair.h"
+#include "crypto/KeyUtils.h"
+#include "ionet/Node.h"
+#include "net/PeerConnectCode.h"
 #include <iostream>
-#include <boost/asio.hpp>
-#include "sirius/crypto/KeyPair.h"
-#include "netio/ValidatorConnector.h"
-#include "sirius/ionet/Node.h"
-#include "sirius/crypto/KeyUtils.h"
-#include "sirius/net/PeerConnectCode.h"
 
 using namespace sirius;
 
 int main() {
-    ionet::PacketSocketOptions options;
-    options.WorkingBufferSize =  524288;
-    options.WorkingBufferSensitivity = 100;
-    options.MaxPacketDataSize = 157286400;
-
     std::string bootKey = "CB9183E99CB2D027E6905E5F6DF747EAEF17C53615F0CB76E28CB8A4EE2FCDEB";
     auto kePair = crypto::KeyPair::FromString(bootKey);
 
@@ -41,7 +35,7 @@ int main() {
     settings.OutgoingSecurityMode = static_cast<ionet::ConnectionSecurityMode>(1);
     settings.IncomingSecurityModes = static_cast<ionet::ConnectionSecurityMode>(1);
 
-    auto connector = netio::CreateDefaultNodeConnector(options, settings, kePair,[=](auto code, auto packet){
+    auto connector = connection::CreateDefaultNodeConnector(settings, kePair,[=](auto code, auto){
         if(code == net::PeerConnectCode::Accepted)
             std::cout << "Node Connection Accepted" << std::endl;
         else

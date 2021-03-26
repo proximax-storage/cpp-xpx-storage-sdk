@@ -1,4 +1,4 @@
-#include "ge.h"
+#include "external/ref10/ge.h"
 
 void ge_tobytes(unsigned char *s,const ge_p2 *h)
 {

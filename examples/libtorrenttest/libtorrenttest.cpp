@@ -1,6 +1,5 @@
-#include <LibTorrentSession.h>
+#include "drive/LibTorrentSession.h"
 
-#include <memory>
 #include <string>
 #include <filesystem>
 #include <iostream>
@@ -15,20 +14,16 @@
 
 #define IP_ADDR_2 "192.168.1.100"
 
-namespace fs = std::filesystem;
-
-using namespace xpx_storage_sdk;
-
-void     downloader( InfoHash infoHash );
-fs::path createProviderFolderWithFiles();
+void     downloader(sirius::Hash256 infoHash);
+std::filesystem::path createProviderFolderWithFiles();
 
 std::condition_variable condVariable;
 std::mutex              cvMutex;
 bool                    downloadCompleted = false;
 
 // progressHandler
-void progressHandler( download_status::code code, InfoHash, const std::string& info ) {
-    assert( code == download_status::complete );
+void progressHandler(sirius::download_status::code code, sirius::Hash256, const std::string&) {
+    assert(code == sirius::download_status::complete);
     downloadCompleted = true;
     condVariable.notify_all();
 }
@@ -39,16 +34,16 @@ int main(int,char**) {
     auto tmpFolder = createProviderFolderWithFiles();
 
     // Create torrent file for tmp folder
-    InfoHash infoHash = createTorrentFile( tmpFolder.string(), tmpFolder.replace_extension("torrent").string() );
+    sirius::Hash256 infoHash = sirius::drive::createTorrentFile(tmpFolder.string(), tmpFolder.replace_extension("torrent").string());
 
     // Run file provider
-    auto ltWrapper = createDefaultLibTorrentWrapper("127.0.0.1:5550");
-    ltWrapper->addTorrentFileToSession( tmpFolder.replace_extension("torrent").string(), tmpFolder.string() );
+    auto ltWrapper = sirius::drive::createDefaultLibTorrentWrapper("127.0.0.1:5550");
+    ltWrapper->addTorrentFileToSession(tmpFolder.replace_extension("torrent").string(), tmpFolder.string());
     
-    downloader( infoHash );
+    downloader(infoHash);
 
     std::unique_lock<std::mutex> lock(cvMutex);
-    condVariable.wait( lock, []{return downloadCompleted;} );
+    condVariable.wait(lock, []{return downloadCompleted;});
 
     std::cout << "successfuly completed" << std::endl;
 
@@ -56,31 +51,31 @@ int main(int,char**) {
 }
 
 // downloader
-void downloader( InfoHash infoHash ) {
+void downloader(sirius::Hash256 infoHash) {
 
-    auto rcvFolder = fs::temp_directory_path() / "receiver";
-    fs::remove_all( rcvFolder );
-    fs::create_directories( rcvFolder );
+    auto rcvFolder = std::filesystem::temp_directory_path() / "receiver";
+    std::filesystem::remove_all(rcvFolder);
+    std::filesystem::create_directories(rcvFolder);
     std::cout << "rcv: " << rcvFolder << std::endl;
 
-    auto ltWrapper = createDefaultLibTorrentWrapper( IP_ADDR_2 ":5551" );
+    auto ltWrapper = sirius::drive::createDefaultLibTorrentWrapper(IP_ADDR_2 ":5551");
 
     endpoint_list eList;
     boost::asio::ip::address e = boost::asio::ip::address::from_string("127.0.0.1");
-    eList.emplace_back( e, 5550 );
-    ltWrapper->downloadFile( infoHash, rcvFolder.string(), progressHandler, eList);
+    eList.emplace_back(e, 5550);
+    ltWrapper->downloadFile(infoHash, rcvFolder.string(), progressHandler, eList);
 
     std::unique_lock<std::mutex> lock(cvMutex);
-    condVariable.wait( lock, []{return downloadCompleted;} );
+    condVariable.wait(lock, []{return downloadCompleted;});
 }
 
 // createProviderFolderWithFiles
-fs::path createProviderFolderWithFiles() {
+std::filesystem::path createProviderFolderWithFiles() {
 
     // create empty tmp folder for testing
-    auto tmpFolder = fs::temp_directory_path() / "lt_test_tmpFolder" / "subFolder";
-    fs::remove_all( tmpFolder );
-    fs::create_directories( tmpFolder );
+    auto tmpFolder = std::filesystem::temp_directory_path() / "lt_test_tmpFolder" / "subFolder";
+    std::filesystem::remove_all(tmpFolder);
+    std::filesystem::create_directories(tmpFolder);
 
     //
     // create file1.bin
@@ -90,10 +85,10 @@ fs::path createProviderFolderWithFiles() {
 
     std::vector<uint8_t> data1(1024*1024/2);
     //std::srand(unsigned(std::time(nullptr)));
-    std::generate( data1.begin(), data1.end(), std::rand );
+    std::generate(data1.begin(), data1.end(), std::rand);
 
-    std::ofstream file1( fname1 );
-    file1.write( (char*) data1.data(), data1.size() );
+    std::ofstream file1(fname1);
+    file1.write((char*) data1.data(), data1.size());
 
     //
     // create file2.bin
@@ -103,10 +98,10 @@ fs::path createProviderFolderWithFiles() {
 
     std::vector<uint8_t> data2(1*1024*1024);
     //std::srand(unsigned(std::time(nullptr)));
-    std::generate( data2.begin(), data2.end(), std::rand );
+    std::generate(data2.begin(), data2.end(), std::rand);
 
-    std::ofstream file2( fname2 );
-    file2.write( (char*) data2.data(), data2.size() );
+    std::ofstream file2(fname2);
+    file2.write((char*) data2.data(), data2.size());
 
     return tmpFolder;
 }

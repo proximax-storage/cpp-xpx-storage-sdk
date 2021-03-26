@@ -4,26 +4,27 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "ActionList.h"
-
-using namespace xpx_storage_sdk;
+#include "drive/ActionList.h"
+#include "utils/Logging.h"
 
 int main() {
+	sirius::drive::ActionList actList;
 
-    ActionList actList;
-
-    actList.push_back( Action::newFolder( "/some_dir" ) );
-    actList.push_back( Action::upload( "/home/x/file1", "/some_dir/file1" ) );
-    actList.push_back( Action::newFolder( "/some_another_dir" ) );
-    actList.push_back( Action::rename( "/some_dir/file1", "/some_another_dir/file1" ) );
-    actList.push_back( Action::remove( "/some_dir/file1" ) );
+    actList.push_back(sirius::drive::Action::newFolder("/some_dir"));
+    actList.push_back(sirius::drive::Action::upload("/home/x/file1", "/some_dir/file1"));
+    actList.push_back(sirius::drive::Action::newFolder("/some_another_dir"));
+    actList.push_back(sirius::drive::Action::rename("/some_dir/file1", "/some_another_dir/file1"));
+    actList.push_back(sirius::drive::Action::remove("/some_dir/file1"));
 
     actList.serialize("testActList.bin");
 
-    ActionList actList2;
+	sirius::drive::ActionList actList2;
     actList2.deserialize("testActList.bin");
 
-    assert( actList == actList2 );
+    if (actList != actList2) {
+		CATAPULT_LOG(debug) << "action list serialization failed";
+		return 1;
+	}
 
     return 0;
 }

@@ -6,7 +6,7 @@
  * Distributed under the MIT software license, see the accompanying
  * file COPYING or http://www.opensource.org/licenses/mit-license.php.
  */
-#include "ripemd160.h"
+#include "external/ripemd160/ripemd160.h"
 #include "endian.h"
 #include "compiler.h"
 #include <stdbool.h>
