@@ -18,13 +18,14 @@
 *** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#include "PacketHeader.h"
-#include <ostream>
+#include "NodeInteractionResultCode.h"
+#include "utils/MacroBasedEnumIncludes.h"
 
 namespace sirius { namespace ionet {
 
-	std::ostream& operator<<(std::ostream& out, const PacketHeader& header) {
-	    out << "packet " << header.Type << " with size " << header.Size;
-		return out;
-	}
+#define DEFINE_ENUM NodeInteractionResultCode
+#define ENUM_LIST NODE_INTERACTION_RESULT_CODE_LIST
+#include "utils/MacroBasedEnum.h"
+#undef ENUM_LIST
+#undef DEFINE_ENUM
 }}

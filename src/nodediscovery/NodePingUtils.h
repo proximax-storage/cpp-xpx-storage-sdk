@@ -18,13 +18,21 @@
 *** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#include "PacketHeader.h"
-#include <ostream>
+#pragma once
+#include "ionet/Node.h"
 
-namespace sirius { namespace ionet {
-
-	std::ostream& operator<<(std::ostream& out, const PacketHeader& header) {
-	    out << "packet " << header.Type << " with size " << header.Size;
-		return out;
+namespace sirius {
+	namespace ionet {
+		class NodeContainerView;
+		struct Packet;
 	}
+}
+
+namespace sirius { namespace nodediscovery {
+
+	/// Tries to parse \a packet into \a node.
+	bool TryParseNodePacket(const ionet::Packet& packet, ionet::Node& node);
+
+	/// Tries to parse \a packet into \a nodes.
+	bool TryParseNodesPacket(const ionet::Packet& packet, ionet::NodeSet& nodes);
 }}
