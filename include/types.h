@@ -16,7 +16,7 @@
 //TODO!
 #define DEBUG
 
-namespace xpx_storage_sdk {
+namespace sirius { namespace drive {
 
     using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
 
@@ -67,5 +67,5 @@ namespace xpx_storage_sdk {
 
     // DownloadHandler
     using DownloadHandler = std::function<void( download_status::code code, InfoHash, std::string info )>;
-}
+}}
 

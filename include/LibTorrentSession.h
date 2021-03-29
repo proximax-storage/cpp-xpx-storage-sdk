@@ -7,6 +7,8 @@
 
 #include "types.h"
 #include "ActionList.h"
+//#include <libtorrent/sha1_hash.hpp>
+#include <libtorrent/torrent_handle.hpp>
 #include <vector>
 #include <boost/asio/ip/tcp.hpp>
 
@@ -18,35 +20,40 @@ namespace libtorrent {
     struct alert;
 }
 
-namespace xpx_storage_sdk {
+namespace sirius { namespace drive {
+
+#define FS_TREE_FILE_NAME "FsTree.bin"
 
 // LibTorrentSession
 class LibTorrentSession {
 public:
+    using lt_handle = lt::torrent_handle;
+    using RemoveHandler = std::optional<std::function<void()>>;
+
 
     virtual ~LibTorrentSession() = default;
 
-    virtual void     endSession() = 0;
+    virtual void      endSession() = 0;
 
-    virtual void     addTorrentFileToSession( std::string torrentFilename,
-                                              std::string rootFolder,
-                                              endpoint_list = {} ) = 0;
+    virtual lt_handle addTorrentFileToSession( std::string torrentFilename,
+                                               std::string savePath,
+                                               endpoint_list = {} ) = 0;
 
-    virtual InfoHash addActionListToSession( const ActionList&,
-                                             const std::string& workFolder,
-                                             endpoint_list list = {} ) = 0;
+    virtual InfoHash  addActionListToSession( const ActionList&,
+                                              const std::string& workFolder,
+                                              endpoint_list list = {} ) = 0;
 
-    virtual void     downloadFile( InfoHash,
-                                   std::string outputFolder,
-                                   DownloadHandler,
-                                   endpoint_list list = {} ) = 0;
+    virtual void      downloadFile( InfoHash,
+                                    std::string outputFolder,
+                                    DownloadHandler,
+                                    endpoint_list list = {} ) = 0;
 
-    virtual void     connectPeers( endpoint_list list ) = 0;
+    virtual void      removeTorrentFromSession( lt_handle, RemoveHandler h = {} ) = 0;
+
 };
 
 // createTorrentFile
-InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string outputTorrentFilename = "" );
-
+InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string pathToRootFolder, std::string outputTorrentFilename );
 
 //
 // createDefaultLibTorrentSession
@@ -56,4 +63,4 @@ using LibTorrentAlertHandler = std::function<void( LibTorrentSession*, libtorren
 
 std::shared_ptr<LibTorrentSession> createDefaultLibTorrentSession( std::string address, LibTorrentAlertHandler );
 
-};
+}}

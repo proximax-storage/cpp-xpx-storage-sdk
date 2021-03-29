@@ -9,9 +9,17 @@
 #include "FsTree.h"
 #include <memory>
 
-namespace xpx_storage_sdk {
+namespace sirius { namespace drive {
 
-    using ModifyDriveResultHandler = std::function<void( bool success, InfoHash resultRootInfoHash, std::string error )>;
+    namespace modify_status {
+        enum code {
+            failed = 0,
+            calculated = 2, // calculated in sandbox
+            update_completed = 3
+        };
+    };
+
+    using DriveModifyHandler = std::function<void( modify_status::code, InfoHash resultRootInfoHash, std::string error )>;
 
     // Drive
     class Drive {
@@ -19,7 +27,8 @@ namespace xpx_storage_sdk {
 
         virtual ~Drive() = default;
 
-        virtual void startModifyDrive( InfoHash modifyDataInfoHash, ModifyDriveResultHandler ) = 0;
+        virtual InfoHash rootDriveHash() = 0;
+        virtual void startModifyDrive( InfoHash modifyDataInfoHash, DriveModifyHandler ) = 0;
 
         //virtual void executeActionList( InfoHash actionListHash ) = 0;
 
@@ -29,8 +38,10 @@ namespace xpx_storage_sdk {
     };
 
     std::shared_ptr<Drive> createDefaultDrive( std::string listenInterface,
-                                               std::string rootPath,
-                                               size_t maxSize,
+                                               std::string replicatorRootFolder,
+                                               std::string replicatorSandboxRootFolder,
+                                               std::string drivePubKey,
+                                               size_t      maxSize,
                                                endpoint_list otherReplicators = {}
                                                );
-};
+}}

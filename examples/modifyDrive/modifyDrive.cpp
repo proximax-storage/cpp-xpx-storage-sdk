@@ -1,12 +1,8 @@
 #include "LibTorrentSession.h"
 #include "Drive.h"
 
-#include <memory>
-#include <string>
-#include <filesystem>
-#include <iostream>
 #include <fstream>
-#include <thread>
+#include <filesystem>
 #include <future>
 #include <condition_variable>
 
@@ -20,22 +16,31 @@
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 // !!!
 #define CLIENT_IP_ADDR "192.168.1.100"
-#define DRIVE_ROOT_FOLDER "/Users/alex/111/test_drive_root"
+#define REPLICATOR_IP_ADDR "127.0.0.1"
+#define REPLICATOR_ROOT_FOLDER          "/Users/alex/111/test_replicator_root"
+#define REPLICATOR_SANDBOX_ROOT_FOLDER  "/Users/alex/111/test_replicator_sandbox_root"
+#define DRIVE_PUB_KEY                   "test_drive_pub_key"
 
 namespace fs = std::filesystem;
 
-using namespace xpx_storage_sdk;
+using namespace sirius::drive;
 
 // forward declarations
 //
-void client( endpoint_list addrList );
 void replicator( );
+void clientDownloadFsTree( InfoHash rootHash, endpoint_list addrList );
+void clientUploadFiles( endpoint_list addrList );
+void clientModifyDrive( endpoint_list addrList );
 fs::path createClientFiles();
+fs::path createClientFiles2();
 
-// global variables
+// global variables, which help synchronize client and replicator
 //
-std::mutex              pauseMutex;
+std::mutex              clientPauseMutex;
+std::promise<InfoHash>  rootHashPromise;
+std::promise<InfoHash>  rootHashPromise2;
 std::promise<InfoHash>  uploadPromise;
+std::promise<InfoHash>  modifyPromise;
 
 // alertHandler
 void alertHandler( LibTorrentSession*, libtorrent::alert* alert )
@@ -52,22 +57,29 @@ void alertHandler( LibTorrentSession*, libtorrent::alert* alert )
 //
 int main(int,char**)
 {
-    pauseMutex.lock();
-
+    // prepare mutex for unlocking
+    clientPauseMutex.lock();
 
     // Start replicator
-    //
     std::thread replicatorThread( replicator );
-    
+
     // Make the list of replicator addresses
     //
     endpoint_list replicatorsList;
     boost::asio::ip::address e = boost::asio::ip::address::from_string(CLIENT_IP_ADDR);
     replicatorsList.emplace_back( e, 5551 );
 
+    // Client: read fsTree
+    clientDownloadFsTree( rootHashPromise.get_future().get(), replicatorsList );
+
     // Client: upload files
-    //
-    client( replicatorsList );
+    clientUploadFiles( replicatorsList );
+
+    // Client: read new fsTree
+    clientDownloadFsTree( rootHashPromise2.get_future().get(), replicatorsList );
+
+    // Client: modify drive
+    clientModifyDrive( replicatorsList );
 
     replicatorThread.join();
 
@@ -75,21 +87,115 @@ int main(int,char**)
 }
 
 //
-// client
+// replicatorDownloadHandler
 //
-void client( endpoint_list addrList )
+void replicatorDownloadHandler ( modify_status::code code, InfoHash resultRootInfoHash, std::string error )
+{
+
+    if ( code == modify_status::update_completed ) {
+        std::cout << "successfully uploaded" << std::endl;
+    }
+    else if ( code == modify_status::calculated ) {
+        std::cout << "successfully uploaded" << std::endl;
+    }
+    else {
+        std::cout << "ERROR: " << error << std::endl;
+    }
+
+    // unlock client
+    clientPauseMutex.unlock();
+}
+
+//
+// replicator
+//
+void replicator()
+{
+    std::cout << "Replicator started" << std::endl;
+
+    fs::remove_all( REPLICATOR_ROOT_FOLDER );
+    fs::remove_all( REPLICATOR_SANDBOX_ROOT_FOLDER );
+    auto drive = createDefaultDrive( CLIENT_IP_ADDR":5551",
+                                     REPLICATOR_ROOT_FOLDER,
+                                     REPLICATOR_SANDBOX_ROOT_FOLDER,
+                                     DRIVE_PUB_KEY,
+                                     100*1024*1024, {} );
+
+    rootHashPromise.set_value( drive->rootDriveHash() );
+
+    std::cout << "Replicator is waiting of infoHash" << std::endl;
+    InfoHash infoHash = uploadPromise.get_future().get();
+
+    std::cout << "Replicator received infoHash" << std::endl;
+    
+    drive->startModifyDrive( infoHash, replicatorDownloadHandler );
+
+    rootHashPromise2.set_value( drive->rootDriveHash() );
+
+    std::cout << "Replicator is waiting of 2-d infoHash" << std::endl;
+    InfoHash infoHash2 = modifyPromise.get_future().get();
+
+    std::cout << "Replicator received 2-d infoHash" << std::endl;
+
+    drive->startModifyDrive( infoHash2, replicatorDownloadHandler );
+
+    sleep(1);
+}
+
+//
+// clientDwonloadHandler
+//
+void clientDownloadHandler( download_status::code code, InfoHash, std::string info )
+{
+    if ( code == download_status::complete )
+    {
+//        FsTree fsTree;
+//        fsTree.deserialize( fs::temp_directory_path() / "fsTree-folder" / FS_TREE_FILE_NAME );
+//        fsTree.dbgPrint();
+
+        clientPauseMutex.unlock();
+    }
+    else if ( code == download_status::failed )
+    {
+        exit(-1);
+    }
+}
+
+//
+// clientDownloadFsTree
+//
+void clientDownloadFsTree( InfoHash rootHash, endpoint_list addrList )
+{
+    auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", alertHandler );
+
+    // Make the list of replicator addresses
+    //
+    ltSession->downloadFile( rootHash,
+                             fs::temp_directory_path() / "fsTree-folder",
+                             clientDownloadHandler,
+                             addrList );
+    // wait the end of download
+    clientPauseMutex.lock();
+}
+
+//
+// clientUploadFiles
+//
+void clientUploadFiles( endpoint_list addrList )
 {
     std::cout << "Client started" << std::endl;
 
-//    auto ltSession = createDefaultLibTorrentSession( CLIENT_IP_ADDR ":5551" );
-    auto ltSession = createDefaultLibTorrentSession( "127.0.0.1:5550", alertHandler );
+    auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", alertHandler );
 
     fs::path clientFolder = createClientFiles();
 
     ActionList actionList;
     actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
-    actionList.push_back( Action::upload( clientFolder / "folder1" / "b.bin", "folder1/b.bin" ) );
+    actionList.push_back( Action::upload( clientFolder / "a.txt", fs::path("folder1") / "a_copy.txt" ) );
+    actionList.push_back( Action::upload( clientFolder / "b.bin", fs::path("folder1") / "b.bin" ) );
+    actionList.push_back( Action::upload( clientFolder / "b.bin", fs::path("folder1") / "b_copy.bin" ) );
     actionList.push_back( Action::upload( clientFolder / "c.txt", "c.txt" ) );
+    actionList.push_back( Action::upload( clientFolder / "c.txt", fs::path("folder1") / "c_copy.txt" ) );
 
     // Create empty tmp folder for 'modifyDrive data'
     //
@@ -104,7 +210,7 @@ void client( endpoint_list addrList )
     std::cout << "Client is waiting pauseMutex.unlock" << std::endl;
 
     // wait the end of replicator's work
-    pauseMutex.lock();
+    clientPauseMutex.lock();
 
     fs::remove_all( tmpFolder );
 
@@ -112,39 +218,89 @@ void client( endpoint_list addrList )
 }
 
 //
-// replicatorDownloadHandler
+// createClientFiles2
 //
-void replicatorDownloadHandler ( bool success, InfoHash resultRootInfoHash, std::string error )
-{
-    if ( success ) {
-        std::cout << "successfully uploaded" << std::endl;
+fs::path createClientFiles2() {
+
+    // Create empty tmp folder for testing
+    //
+    auto tmpFolder = fs::temp_directory_path() / "client_files";
+    fs::remove_all( tmpFolder );
+    fs::create_directories( tmpFolder );
+
+    {
+        fs::path a_txt = tmpFolder / "a.txt";
+        std::ofstream file( a_txt );
+        file.write( "a_txt updated", 5 );
     }
-    else {
-        std::cout << "ERROR: " << error << std::endl;
+    {
+        fs::path b_bin = tmpFolder /  "b.bin";
+        fs::create_directories( b_bin.parent_path() );
+        std::vector<uint8_t> data(1024/2);
+        std::generate( data.begin(), data.end(), std::rand );
+        std::ofstream file( b_bin );
+        file.write( (char*) data.data(), data.size() );
+    }
+    {
+        fs::path c_txt = tmpFolder / "c.txt";
+        std::ofstream file( c_txt );
+        file.write( "new c_txt", 5 );
     }
 
-    // unlock client
-    pauseMutex.unlock();
+    // Return path to file
+    return tmpFolder;
 }
 
 //
-// replicator
+// clientModifyDrive
 //
-void replicator()
+void clientModifyDrive( endpoint_list addrList )
 {
-    std::cout << "Replicator started" << std::endl;
+    std::cout << "Client started" << std::endl;
 
-    fs::remove_all( DRIVE_ROOT_FOLDER );
-    auto drive = createDefaultDrive( CLIENT_IP_ADDR":5551", DRIVE_ROOT_FOLDER, 100*1024*1024, {} );
+    auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", alertHandler );
 
-    std::cout << "Replicator is waiting of infoHash" << std::endl;
-    InfoHash infoHash = uploadPromise.get_future().get();
+    // download fs tree
 
-    std::cout << "Replicator received infoHash" << std::endl;
-    
-    drive->startModifyDrive( infoHash, replicatorDownloadHandler );
+    fs::path clientFolder = createClientFiles2();
 
-    sleep(600);
+    ActionList actionList;
+
+    // override existing file 'a.txt'
+    actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
+
+    // remove existing file 'a_copy.txt'
+    actionList.push_back( Action::remove( "a_copy.txt" ) );
+
+    // move 'folder1/b.bin' and upload n
+    actionList.push_back( Action::remove( fs::path("folder1")/"b.bin" ) );
+    actionList.push_back( Action::rename( "c.txt", fs::path("folder1")/"c_moved.txt" ) );
+
+    actionList.push_back( Action::rename( "c.txt", fs::path("folder1")/"c_moved.txt" ) );
+
+    actionList.push_back( Action::remove( clientFolder / "folder11" / "bb.bin" ) );//, "folder11/b.bin" ) );
+    actionList.push_back( Action::upload( clientFolder / "folder1" / "b.bin", "folder1/b.bin" ) );
+    actionList.push_back( Action::upload( clientFolder / "c.txt", "c.txt" ) );
+
+    // Create empty tmp folder for 'modifyDrive data'
+    //
+    auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
+    fs::remove_all( tmpFolder );
+    fs::create_directories( tmpFolder );
+
+    // start file downloading
+    InfoHash hash = ltSession->addActionListToSession( actionList, tmpFolder, addrList );
+    modifyPromise.set_value( hash );
+
+    std::cout << "Client is waiting pauseMutex.unlock" << std::endl;
+
+    // wait the end of replicator's work
+    clientPauseMutex.lock();
+
+    fs::remove_all( tmpFolder );
+    sleep(10);
+
+    std::cout << "Client finished" << std::endl;
 }
 
 //
@@ -155,7 +311,6 @@ fs::path createClientFiles() {
     // Create empty tmp folder for testing
     //
     auto tmpFolder = fs::temp_directory_path() / "client_files";
-    LOG( "createClientFiles:" << tmpFolder );
     fs::remove_all( tmpFolder );
     fs::create_directories( tmpFolder );
 
@@ -165,7 +320,7 @@ fs::path createClientFiles() {
         file.write( "a_txt", 5 );
     }
     {
-        fs::path b_bin = tmpFolder / "folder1" / "b.bin";
+        fs::path b_bin = tmpFolder / "b.bin";
         fs::create_directories( b_bin.parent_path() );
         std::vector<uint8_t> data(1024*1024/2);
         std::generate( data.begin(), data.end(), std::rand );
@@ -178,8 +333,7 @@ fs::path createClientFiles() {
         file.write( "c_txt", 5 );
     }
 
-
-
     // Return path to file
     return tmpFolder;
 }
+

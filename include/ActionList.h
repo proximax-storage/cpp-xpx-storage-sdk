@@ -9,16 +9,17 @@
 
 #include <string>
 #include <vector>
-//#include <fstream>
+#include <libtorrent/torrent_handle.hpp>
 
 
-namespace xpx_storage_sdk {
+namespace sirius { namespace drive {
+
+    using lt_handle  = lt::torrent_handle;
 
     // action_list_id::code
     namespace action_list_id {
         enum code
         {
-            none        = 0,
             upload      = 1,
             new_folder  = 2,
             move      = 3,
@@ -26,13 +27,15 @@ namespace xpx_storage_sdk {
         };
     };
 
+    struct EmptyStruct {};
+
     // Action
     struct Action {
         Action() = default;
 
         Action( action_list_id::code code, std::string p1, std::string p2 = "" ) : m_actionId(code), m_param1(p1), m_param2(p2) {}
         Action( action_list_id::code code, InfoHash hash ) : m_actionId(code), m_hash(hash) {}
-
+        
         static Action upload( std::string pathToLocalFile, std::string remoteFileNameWithPath ) {
             return Action( action_list_id::upload, pathToLocalFile, remoteFileNameWithPath );
         }
@@ -67,10 +70,14 @@ namespace xpx_storage_sdk {
 
         bool operator==( const Action& a ) const { return m_actionId==a.m_actionId && m_param1==a.m_param1 && m_param2 == a.m_param2; }
 
-        action_list_id::code m_actionId = action_list_id::none;
+        action_list_id::code m_actionId;
         std::string          m_param1;
         std::string          m_param2;
         InfoHash             m_hash;
+
+    private:
+        friend class DefaultDrive;
+        lt_handle            m_ltHandle;
     };
 
     // ActionList
@@ -80,4 +87,4 @@ namespace xpx_storage_sdk {
         void deserialize( std::string fileName );
     };
 
-};
+}}

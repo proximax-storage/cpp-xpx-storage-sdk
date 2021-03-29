@@ -8,7 +8,7 @@
 #include "types.h"
 #include <filesystem>
 
-namespace xpx_storage_sdk {
+namespace sirius { namespace drive {
 
 namespace fs = std::filesystem;
 
@@ -20,5 +20,5 @@ std::string toString( const InfoHash& key );
 
 bool isPathInsideFolder( fs::path path, fs::path folder );
 
-}
+}}
 

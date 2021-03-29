@@ -32,7 +32,7 @@ void replicator( std::promise<InfoHash> );
 fs::path createReplicatorFile();
 
 
-// condition variable and auxiliary variables
+// global variables, which help synchronize client and replicator
 //
 std::condition_variable finishCondVar;
 std::mutex              finishMutex;

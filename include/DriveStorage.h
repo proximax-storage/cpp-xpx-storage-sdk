@@ -8,7 +8,7 @@
 #include "types.h"
 #include "Drive.h"
 
-//namespace xpx_storage_sdk {
+//namespace sirius { namespace drive {
 
 //    // DriveInfo
 //    struct DriveInfo {
@@ -32,4 +32,4 @@
 //    };
 
 //    std::shared_ptr<DriveStorage> createDefaultDriveStorage();
-//};
+//}}
