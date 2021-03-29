@@ -65,9 +65,6 @@ namespace sirius { namespace ionet {
 
 #pragma pack(pop)
 
-	/// Packs a \a node model into a network node.
-	model::UniqueEntityPtr<NetworkNode> PackNode(const Node& node);
-
 	/// Unpacks a network node (\a networkNode) into a node model.
 	Node UnpackNode(const NetworkNode& networkNode);
 }}

@@ -19,7 +19,7 @@
 **/
 
 #pragma once
-#include "PacketType.h"
+#include "ionet/PacketType.h"
 #include <iosfwd>
 
 namespace sirius { namespace ionet {

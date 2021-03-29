@@ -18,17 +18,10 @@
 *** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#include "NetworkNode.h"
-#include "utils/MemoryUtils.h"
+#include "ionet/NetworkNode.h"
 #include "model/EntityPtr.h"
 
 namespace sirius { namespace ionet {
-
-	namespace {
-		uint8_t GetPackedSize(const std::string& str) {
-			return static_cast<uint8_t>(std::min<size_t>(str.size(), std::numeric_limits<uint8_t>::max()));
-		}
-	}
 
 	Node UnpackNode(const NetworkNode& networkNode) {
 		const auto* pNetworkNodeData = reinterpret_cast<const char*>(&networkNode + 1);

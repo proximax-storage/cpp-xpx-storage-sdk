@@ -20,7 +20,6 @@
 
 #include "NodePingUtils.h"
 #include "ionet/NetworkNode.h"
-#include "ionet/NodeContainer.h"
 #include "ionet/PacketEntityUtils.h"
 
 namespace sirius { namespace nodediscovery {
