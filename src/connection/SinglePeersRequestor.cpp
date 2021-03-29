@@ -1,8 +1,8 @@
 
 #include "nodediscovery/RemoteNodeApi.h"
-#include "SinglePeersRequestor.h"
+#include "connection/SinglePeersRequestor.h"
 
-namespace sirius { namespace netio {
+namespace sirius { namespace connection {
     SinglePeersRequestor::SinglePeersRequestor(ionet::NodePacketIoPair& nodePacketIoPair, const NodesConsumer& nodesConsumer)
         : m_nodePacketIoPair(nodePacketIoPair)
         , m_nodesConsumer(nodesConsumer)

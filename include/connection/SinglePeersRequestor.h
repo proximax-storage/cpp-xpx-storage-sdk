@@ -12,7 +12,7 @@
 #include "ionet/NodePacketIoPair.h"
 #include "thread/Future.h"
 
-namespace sirius { namespace netio {
+namespace sirius { namespace connection {
 
     /// Creates a single node peers requestor.
     class SinglePeersRequestor {

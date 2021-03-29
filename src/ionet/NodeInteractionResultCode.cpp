@@ -18,7 +18,7 @@
 *** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#include "NodeInteractionResultCode.h"
+#include "ionet/NodeInteractionResultCode.h"
 #include "utils/MacroBasedEnumIncludes.h"
 
 namespace sirius { namespace ionet {

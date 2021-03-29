@@ -22,5 +22,5 @@ target_link_libraries(testValidatorConnection connection crypto ionet net model)
 
 ### test discovery using single node
 add_executable(testSingleNodeDiscovery testSingleNodeDiscovery.cpp common/ConnnectionAdapter.cpp)
-target_link_libraries(testSingleNodeDiscovery connection crypto ionet net model)
+target_link_libraries(testSingleNodeDiscovery connection crypto ionet net model nodediscovery)
 
