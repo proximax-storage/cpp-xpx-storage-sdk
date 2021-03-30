@@ -284,7 +284,7 @@ void clientModifyDrive( endpoint_list addrList )
     actionList.push_back( Action::remove( fs::path("folder1")/"b.bin" ) );
     actionList.push_back( Action::rename( "c.txt", fs::path("folder1")/"c_moved.txt" ) );
 
-    actionList.push_back( Action::rename( "c.txt", fs::path("folder1")/"c_moved.txt" ) );
+//    actionList.push_back( Action::rename( "c.txt", fs::path("folder1")/"c_moved.txt" ) );
 
     actionList.push_back( Action::remove( clientFolder / "folder11" / "bb.bin" ) );//, "folder11/b.bin" ) );
     actionList.push_back( Action::upload( clientFolder / "folder1" / "b.bin", "folder1/b.bin" ) );

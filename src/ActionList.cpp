@@ -31,4 +31,28 @@ void ActionList::deserialize( std::string fileName )
     iarchive( *this );
 }
 
+void ActionList::dbgPrint()
+{
+    std::cerr << "ActionList {" << std::endl;
+    for( const auto& action : *this )
+    {
+        switch( action.m_actionId )
+        {
+            case action_list_id::upload:
+                std::cerr << " upload: '" << action.m_param1 << "' to '" << action.m_param2 << "'" << std::endl;
+                break;
+            case action_list_id::new_folder:
+                std::cerr << " new_folder: '" << action.m_param1 << "'" << std::endl;
+                break;
+            case action_list_id::move:
+                std::cerr << " move: '" << action.m_param1 << "' to '" << action.m_param2 << "'" << std::endl;
+                break;
+            case action_list_id::remove:
+                std::cerr << " remove: '" << action.m_param1 << "'" << std::endl;
+                break;
+        }
+    }
+    std::cerr << "}" << std::endl;
+}
+
 }}

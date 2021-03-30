@@ -85,6 +85,8 @@ namespace sirius { namespace drive {
     {
         void serialize( std::string fileName ) const;
         void deserialize( std::string fileName );
+
+        void dbgPrint();
     };
 
 }}

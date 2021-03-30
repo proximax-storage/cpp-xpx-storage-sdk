@@ -62,10 +62,11 @@ class DefaultDrive: public Drive, protected DrivePaths {
     using LtSession = std::shared_ptr<LibTorrentSession>;
     using lt_handle  = LibTorrentSession::lt_handle;
 
-    LtSession     m_session;
     const std::string& m_listenInterface;
     size_t        m_maxSize;
     endpoint_list m_otherReplicators;
+
+    LtSession     m_session;
 
     // FsTree
     FsTree        m_fsTree;
