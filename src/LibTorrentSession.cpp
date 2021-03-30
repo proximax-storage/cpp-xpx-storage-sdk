@@ -135,7 +135,6 @@ public:
         //dbg///////////////////////////////////////////////////
 
         lt::torrent_handle tHandle = m_session.add_torrent(params);
-        LOG( "m_lastTorrentFileHandle: " << sizeof(tHandle) );
 
         connectPeers( tHandle, list );
 
@@ -264,19 +263,26 @@ private:
 
                     if ( it != m_downloadHandlerMap.end() )
                     {
-                        // call DownloadHandler
                         DownloadHandler handler = it->second;
 
                         // remove entry from downloadHandlerMap
-//                        LOG( "*** native_handle:" << alertInfo->handle.native_handle() );
-//                        LOG( "*** m_downloadHandlerMap.size:" << m_downloadHandlerMap.size() );
                         m_downloadHandlerMap.erase( it );
 
-                        //handler( download_status::complete, alertInfo->handle.info_hashes().v2, "" );
+                        auto ltHash = alertInfo->handle.info_hashes().v2;
                         InfoHash hash;
-                        //hash.fill( alertInfo->handle.info_hashes().v2 );
-                        memcpy( hash.data(), alertInfo->handle.info_hashes().v2.data(), hash.size() );
-                        handler( download_status::complete, hash, "" );
+                        if ( ltHash.size() != hash.size() )
+                        {
+                            LOG("ltHash.size() != hash.size()");
+                            handler( download_status::failed, InfoHash(), "internal error 'ltHash.size() != hash.size()'" );
+                        }
+                        else
+                        {
+                            memcpy( hash.data(), ltHash.data(), hash.size() );
+                            handler( download_status::complete, hash, "" );
+                        }
+                        
+                        // remove entry from downloadHandlerMap
+                        //m_downloadHandlerMap.erase( it );
                     }
 
                     break;
@@ -302,32 +308,23 @@ private:
                             isAllComplete = isAllComplete && complete;
 
                             //dbg/////////////////////////
-                            const std::string fileName = alertInfo->handle.torrent_file()->files().file_name(i).to_string();
-                            const std::string filePath = alertInfo->handle.torrent_file()->files().file_path(i);
-                            LOG( m_addressAndPort << ": " << filePath
-                                      << ": alert: progress: " << fp[i] << " of " << fsize );
+//                            const std::string fileName = alertInfo->handle.torrent_file()->files().file_name(i).to_string();
+//                            const std::string filePath = alertInfo->handle.torrent_file()->files().file_path(i);
+//                            LOG( m_addressAndPort << ": " << filePath
+//                                      << ": alert: progress: " << fp[i] << " of " << fsize );
                             //dbg/////////////////////////
                         }
 //                        LOG( "-" );
 
-                        // notify about the end of the download
                         if ( isAllComplete ) {
 
                             auto it = m_downloadHandlerMap.find(alertInfo->handle.id());
 
                             if ( it != m_downloadHandlerMap.end() ) {
-                                LOG( "*** native_handle:" << alertInfo->handle.native_handle() );
+                                //LOG( "*** native_handle:" << alertInfo->handle.native_handle() );
 
                                 // remove torrent
                                 m_session.remove_torrent( alertInfo->handle, lt::session::delete_partfile );
-
-//                                // call DownloadHandler
-//                                DownloadHandler handler = it->second.first;
-//                                InfoHash hash = it->second.second;
-//                                handler( download_status::complete, hash, "" );
-//
-//                                // remove entry from m_downloadHandlerMap
-//                                m_downloadHandlerMap.erase( it );
                             }
                         }
 

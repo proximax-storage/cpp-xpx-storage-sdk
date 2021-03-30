@@ -54,7 +54,7 @@ std::string toString( const InfoHash& key ) {
     return hashStr;
 }
 
-bool isPathInsideFolder( fs::path path, fs::path folder )
+bool isPathInsideFolder( const fs::path& path, const fs::path& folder )
 {
     fs::path path0 = fs::absolute(path);
     fs::path folder0 = fs::absolute(folder);

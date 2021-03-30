@@ -7,6 +7,7 @@
 #include "Drive.h"
 #include "LibTorrentSession.h"
 #include "ActionList.h"
+#include "utils.h"
 #include <filesystem>
 #include <iostream>
 #include <thread>
@@ -23,9 +24,9 @@ namespace sirius { namespace drive {
 //
 class DrivePaths {
 protected:
-    DrivePaths( std::string replicatorRootFolder,
-                std::string replicatorSandboxRootFolder,
-                std::string drivePubKey )
+    DrivePaths( const std::string& replicatorRootFolder,
+                const std::string& replicatorSandboxRootFolder,
+                const std::string& drivePubKey )
         :
           m_drivePubKey( drivePubKey ),
           m_replicatorRoot( replicatorRootFolder ),
@@ -33,7 +34,8 @@ protected:
     {}
 
 protected:
-    std::string     m_drivePubKey;
+    const std::string& m_drivePubKey;
+
     const fs::path  m_replicatorRoot;
     const fs::path  m_replicatorSandboxRoot;
 
@@ -61,7 +63,7 @@ class DefaultDrive: public Drive, protected DrivePaths {
     using lt_handle  = LibTorrentSession::lt_handle;
 
     LtSession     m_session;
-    std::string   m_listenInterface;
+    const std::string& m_listenInterface;
     size_t        m_maxSize;
     endpoint_list m_otherReplicators;
 
@@ -83,12 +85,12 @@ class DefaultDrive: public Drive, protected DrivePaths {
 
 public:
 
-    DefaultDrive( std::string listenInterface,
-                  std::string replicatorRootFolder,
-                  std::string replicatorSandboxRootFolder,
-                  std::string drivePubKey,
-                  size_t      maxSize,
-                  endpoint_list otherReplicators )
+    DefaultDrive( const std::string&   listenInterface,
+                  const std::string&   replicatorRootFolder,
+                  const std::string&   replicatorSandboxRootFolder,
+                  const std::string&   drivePubKey,
+                  size_t               maxSize,
+                  const endpoint_list& otherReplicators )
         :
           DrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
           m_listenInterface(listenInterface),
@@ -311,11 +313,11 @@ public:
     }
 
     // will be called by Session
-    void downloadHandler( download_status::code code, InfoHash infoHash, std::string info )
+    void downloadHandler( download_status::code code, const InfoHash& infoHash, const std::string& info )
     {
         if ( m_clientDataInfoHash != infoHash )
         {
-            m_modifyHandler( modify_status::failed, InfoHash(), std::string("DefaultDrive::downloadHandler: internal error: ") + info );
+            m_modifyHandler( modify_status::failed, infoHash, std::string("DefaultDrive::downloadHandler: internal error: ") + info );
             return;
         }
 
@@ -414,13 +416,24 @@ public:
             case action_list_id::move: {
                 if ( fs::exists( m_driveFolder / action.m_param1 ) )
                 {
-                    // file path and torrentfile path
-                    fs::path file = m_sandboxDriveFolder / action.m_param2;
-                    fs::path torrentFile = m_sandboxTorrentFolder / action.m_param2;
-                    fs::copy( m_driveFolder / action.m_param1, file );
+                    // (we never move files inside sandbox, user should pass valid actionList)
+                    fs::path srcFile = m_driveFolder / action.m_param1;
+                    if ( !fs::exists(srcFile) )
+                    {
+                        m_modifyHandler( modify_status::failed,
+                                         InfoHash(),
+                                         std::string("invalid action list: move src nonexists: ") + action.m_param1 );
+                    }
+                    fs::path destFile = m_sandboxDriveFolder / action.m_param2;
+                    fs::path destTorrentFile = m_sandboxTorrentFolder / action.m_param2;
+                    LOG( "move from:" << m_driveFolder / action.m_param1 );
+                    LOG( "move to:" << destFile );
 
-                    fs::create_directories( torrentFile.parent_path() );
-                    InfoHash infoHash = createTorrentFile( file, m_sandboxRootPath, torrentFile );
+                    fs::create_directories( destFile.parent_path() );
+                    fs::copy( m_driveFolder / action.m_param1, destFile );
+
+                    fs::create_directories( destTorrentFile.parent_path() );
+                    InfoHash infoHash = createTorrentFile( destFile, m_sandboxRootPath, destTorrentFile );
 
                     m_resultFsTree.move( action.m_param1, action.m_param2, &infoHash );
                 }
@@ -438,6 +451,9 @@ public:
         // calculate new rootHash
         m_resultFsTree.doSerialize( m_sandboxFsTreeFile );
         m_resultRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
+
+        // Call update handler
+        m_modifyHandler( modify_status::sandbox_root_hash, m_resultRootHash, "" );
 
         // start drive update
         updateDrive_1();
@@ -546,12 +562,12 @@ public:
 
 
 std::shared_ptr<Drive> createDefaultDrive(
-        std::string listenInterface,
-        std::string replicatorRootFolder,
-        std::string replicatorSandboxRootFolder,
-        std::string drivePubKey,
+        const std::string& listenInterface,
+        const std::string& replicatorRootFolder,
+        const std::string& replicatorSandboxRootFolder,
+        const std::string& drivePubKey,
         size_t      maxSize,
-        endpoint_list otherReplicators )
+        const endpoint_list& otherReplicators )
 {
     return std::make_shared<DefaultDrive>( listenInterface,
                                            replicatorRootFolder,

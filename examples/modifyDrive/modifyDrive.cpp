@@ -1,9 +1,11 @@
 #include "LibTorrentSession.h"
 #include "Drive.h"
+#include "utils.h"
 
 #include <fstream>
 #include <filesystem>
 #include <future>
+#include <shared_mutex>
 #include <condition_variable>
 
 #include <libtorrent/alert.hpp>
@@ -36,11 +38,19 @@ fs::path createClientFiles2();
 
 // global variables, which help synchronize client and replicator
 //
-std::mutex              clientPauseMutex;
+
+bool                    isFsTreeReceived = false;
+std::condition_variable fsTreeCondVar;
+std::mutex              fsTreeMutex;
+
+bool                    isDriveUpdated = false;
+std::condition_variable driveUpdateCondVar;
+std::mutex              driveUpdateMutex;
+
 std::promise<InfoHash>  rootHashPromise;
 std::promise<InfoHash>  rootHashPromise2;
-std::promise<InfoHash>  uploadPromise;
-std::promise<InfoHash>  modifyPromise;
+std::promise<InfoHash>  clientDataPromise;
+std::promise<InfoHash>  clientDataPromise2;
 
 // alertHandler
 void alertHandler( LibTorrentSession*, libtorrent::alert* alert )
@@ -57,9 +67,6 @@ void alertHandler( LibTorrentSession*, libtorrent::alert* alert )
 //
 int main(int,char**)
 {
-    // prepare mutex for unlocking
-    clientPauseMutex.lock();
-
     // Start replicator
     std::thread replicatorThread( replicator );
 
@@ -70,15 +77,19 @@ int main(int,char**)
     replicatorsList.emplace_back( e, 5551 );
 
     // Client: read fsTree
+    isFsTreeReceived = false;
     clientDownloadFsTree( rootHashPromise.get_future().get(), replicatorsList );
 
     // Client: upload files
+    isDriveUpdated = false;
     clientUploadFiles( replicatorsList );
 
     // Client: read new fsTree
+    isFsTreeReceived = false;
     clientDownloadFsTree( rootHashPromise2.get_future().get(), replicatorsList );
 
     // Client: modify drive
+    isDriveUpdated = false;
     clientModifyDrive( replicatorsList );
 
     replicatorThread.join();
@@ -92,18 +103,22 @@ int main(int,char**)
 void replicatorDownloadHandler ( modify_status::code code, InfoHash resultRootInfoHash, std::string error )
 {
 
-    if ( code == modify_status::update_completed ) {
-        std::cout << "successfully uploaded" << std::endl;
-    }
-    else if ( code == modify_status::calculated ) {
-        std::cout << "successfully uploaded" << std::endl;
-    }
-    else {
-        std::cout << "ERROR: " << error << std::endl;
-    }
+    if ( code == modify_status::update_completed )
+    {
+        std::cout << "@ update_completed" << std::endl;
 
-    // unlock client
-    clientPauseMutex.unlock();
+        isDriveUpdated = true;
+        driveUpdateCondVar.notify_all();
+    }
+    else if ( code == modify_status::sandbox_root_hash )
+    {
+        std::cout << "@ sandbox calculated" << std::endl;
+    }
+    else
+    {
+        std::cout << "ERROR: " << error << std::endl;
+        exit(-1);
+    }
 }
 
 //
@@ -111,8 +126,9 @@ void replicatorDownloadHandler ( modify_status::code code, InfoHash resultRootIn
 //
 void replicator()
 {
-    std::cout << "Replicator started" << std::endl;
+    std::cout << "@ Replicator started" << std::endl;
 
+    // start drive
     fs::remove_all( REPLICATOR_ROOT_FOLDER );
     fs::remove_all( REPLICATOR_SANDBOX_ROOT_FOLDER );
     auto drive = createDefaultDrive( CLIENT_IP_ADDR":5551",
@@ -121,39 +137,57 @@ void replicator()
                                      DRIVE_PUB_KEY,
                                      100*1024*1024, {} );
 
+    // set root drive hash
     rootHashPromise.set_value( drive->rootDriveHash() );
 
-    std::cout << "Replicator is waiting of infoHash" << std::endl;
-    InfoHash infoHash = uploadPromise.get_future().get();
-
-    std::cout << "Replicator received infoHash" << std::endl;
+    // wait client data infoHash (1)
+    std::cout << "@ Replicator is waiting of client data infoHash" << std::endl;
+    InfoHash infoHash = clientDataPromise.get_future().get();
+    std::cout << "@ Replicator received client data infoHash" << std::endl;
     
+    // start drive update
     drive->startModifyDrive( infoHash, replicatorDownloadHandler );
 
+    // wait the end of drive update
+    {
+        std::unique_lock<std::mutex> lock(driveUpdateMutex);
+        driveUpdateCondVar.wait( lock, []{return isDriveUpdated;} );
+    }
+
+    // set updated root drive hash
     rootHashPromise2.set_value( drive->rootDriveHash() );
 
-    std::cout << "Replicator is waiting of 2-d infoHash" << std::endl;
-    InfoHash infoHash2 = modifyPromise.get_future().get();
+    // wait client data infoHash (2)
+    std::cout << "@ Replicator is waiting of 2-d client data infoHash" << std::endl;
+    InfoHash infoHash2 = clientDataPromise2.get_future().get();
+    std::cout << "@ Replicator received 2-d client data infoHash" << std::endl;
 
-    std::cout << "Replicator received 2-d infoHash" << std::endl;
-
+    // start drive update
     drive->startModifyDrive( infoHash2, replicatorDownloadHandler );
 
-    sleep(1);
+    // wait the end of drive update
+    {
+        std::unique_lock<std::mutex> lock(driveUpdateMutex);
+        driveUpdateCondVar.wait( lock, []{return isDriveUpdated;} );
+    }
 }
 
 //
 // clientDwonloadHandler
 //
-void clientDownloadHandler( download_status::code code, InfoHash, std::string info )
+void clientDownloadHandler( download_status::code code, const InfoHash& hash, const std::string& info )
 {
     if ( code == download_status::complete )
     {
-//        FsTree fsTree;
-//        fsTree.deserialize( fs::temp_directory_path() / "fsTree-folder" / FS_TREE_FILE_NAME );
-//        fsTree.dbgPrint();
+        LOG( "# Client received FsTree: " << toString(hash) );
 
-        clientPauseMutex.unlock();
+        // print FsTree
+        FsTree fsTree;
+        fsTree.deserialize( fs::temp_directory_path() / "fsTree-folder" / FS_TREE_FILE_NAME );
+        fsTree.dbgPrint();
+
+        isFsTreeReceived = true;
+        fsTreeCondVar.notify_all();
     }
     else if ( code == download_status::failed )
     {
@@ -166,6 +200,7 @@ void clientDownloadHandler( download_status::code code, InfoHash, std::string in
 //
 void clientDownloadFsTree( InfoHash rootHash, endpoint_list addrList )
 {
+    LOG( "# Client started FsTree download: " << toString(rootHash) );
     auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", alertHandler );
 
     // Make the list of replicator addresses
@@ -174,8 +209,12 @@ void clientDownloadFsTree( InfoHash rootHash, endpoint_list addrList )
                              fs::temp_directory_path() / "fsTree-folder",
                              clientDownloadHandler,
                              addrList );
+
     // wait the end of download
-    clientPauseMutex.lock();
+    {
+        std::unique_lock<std::mutex> lock(fsTreeMutex);
+        fsTreeCondVar.wait( lock, []{return isFsTreeReceived;} );
+    }
 }
 
 //
@@ -183,7 +222,7 @@ void clientDownloadFsTree( InfoHash rootHash, endpoint_list addrList )
 //
 void clientUploadFiles( endpoint_list addrList )
 {
-    std::cout << "Client started" << std::endl;
+    std::cout << "\n# Client started: 1-st upload" << std::endl;
 
     auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", alertHandler );
 
@@ -205,50 +244,19 @@ void clientUploadFiles( endpoint_list addrList )
 
     // start file downloading
     InfoHash hash = ltSession->addActionListToSession( actionList, tmpFolder, addrList );
-    uploadPromise.set_value( hash );
+    clientDataPromise.set_value( hash );
 
-    std::cout << "Client is waiting pauseMutex.unlock" << std::endl;
+    std::cout << "# Client is waiting the end of replicator update" << std::endl;
 
     // wait the end of replicator's work
-    clientPauseMutex.lock();
+    {
+        std::unique_lock<std::mutex> lock(driveUpdateMutex);
+        driveUpdateCondVar.wait( lock, []{return isDriveUpdated;} );
+    }
 
     fs::remove_all( tmpFolder );
 
-    std::cout << "Client finished" << std::endl;
-}
-
-//
-// createClientFiles2
-//
-fs::path createClientFiles2() {
-
-    // Create empty tmp folder for testing
-    //
-    auto tmpFolder = fs::temp_directory_path() / "client_files";
-    fs::remove_all( tmpFolder );
-    fs::create_directories( tmpFolder );
-
-    {
-        fs::path a_txt = tmpFolder / "a.txt";
-        std::ofstream file( a_txt );
-        file.write( "a_txt updated", 5 );
-    }
-    {
-        fs::path b_bin = tmpFolder /  "b.bin";
-        fs::create_directories( b_bin.parent_path() );
-        std::vector<uint8_t> data(1024/2);
-        std::generate( data.begin(), data.end(), std::rand );
-        std::ofstream file( b_bin );
-        file.write( (char*) data.data(), data.size() );
-    }
-    {
-        fs::path c_txt = tmpFolder / "c.txt";
-        std::ofstream file( c_txt );
-        file.write( "new c_txt", 5 );
-    }
-
-    // Return path to file
-    return tmpFolder;
+    std::cout << "# Client finished" << std::endl;
 }
 
 //
@@ -256,7 +264,7 @@ fs::path createClientFiles2() {
 //
 void clientModifyDrive( endpoint_list addrList )
 {
-    std::cout << "Client started" << std::endl;
+    std::cout << "\n# Client started: 2-d upload" << std::endl;
 
     auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", alertHandler );
 
@@ -288,14 +296,17 @@ void clientModifyDrive( endpoint_list addrList )
     fs::remove_all( tmpFolder );
     fs::create_directories( tmpFolder );
 
-    // start file downloading
+    // start file uploading
     InfoHash hash = ltSession->addActionListToSession( actionList, tmpFolder, addrList );
-    modifyPromise.set_value( hash );
+    clientDataPromise2.set_value( hash );
 
-    std::cout << "Client is waiting pauseMutex.unlock" << std::endl;
+    std::cout << "# Client is waiting the end of replicator update" << std::endl;
 
     // wait the end of replicator's work
-    clientPauseMutex.lock();
+    {
+        std::unique_lock<std::mutex> lock(driveUpdateMutex);
+        driveUpdateCondVar.wait( lock, []{return isDriveUpdated;} );
+    }
 
     fs::remove_all( tmpFolder );
     sleep(10);
@@ -331,6 +342,40 @@ fs::path createClientFiles() {
         fs::path c_txt = tmpFolder / "c.txt";
         std::ofstream file( c_txt );
         file.write( "c_txt", 5 );
+    }
+
+    // Return path to file
+    return tmpFolder;
+}
+
+//
+// createClientFiles2
+//
+fs::path createClientFiles2() {
+
+    // Create empty tmp folder for testing
+    //
+    auto tmpFolder = fs::temp_directory_path() / "client_files";
+    fs::remove_all( tmpFolder );
+    fs::create_directories( tmpFolder );
+
+    {
+        fs::path a_txt = tmpFolder / "a.txt";
+        std::ofstream file( a_txt );
+        file.write( "a_txt updated", 5 );
+    }
+    {
+        fs::path b_bin = tmpFolder /  "b.bin";
+        fs::create_directories( b_bin.parent_path() );
+        std::vector<uint8_t> data(1024/2);
+        std::generate( data.begin(), data.end(), std::rand );
+        std::ofstream file( b_bin );
+        file.write( (char*) data.data(), data.size() );
+    }
+    {
+        fs::path c_txt = tmpFolder / "c.txt";
+        std::ofstream file( c_txt );
+        file.write( "new c_txt", 5 );
     }
 
     // Return path to file

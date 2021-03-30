@@ -18,7 +18,7 @@ std::string magnetLink( const InfoHash& key );
 // toString
 std::string toString( const InfoHash& key );
 
-bool isPathInsideFolder( fs::path path, fs::path folder );
+bool isPathInsideFolder( const fs::path& path, const fs::path& folder );
 
 }}
 

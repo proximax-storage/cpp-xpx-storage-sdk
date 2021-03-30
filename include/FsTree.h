@@ -19,12 +19,6 @@ using lt_handle  = lt::torrent_handle;
 
 // File
 class File {
-    friend class Folder;
-    friend class FsTree;
-    friend class DefaultDrive;
-
-    File( std::string name, const InfoHash hash, size_t size ) : m_name(name), m_hash(hash), m_size(size) {}
-
 public:
     File() = default;
 
@@ -43,11 +37,18 @@ public:
     }
 
 private:
+    friend class Folder;
+    friend class FsTree;
+    friend class DefaultDrive;
+
+    File( std::string name, const InfoHash hash, size_t size ) : m_name(name), m_hash(hash), m_size(size) {}
+
     std::string m_name;
     InfoHash    m_hash;
     size_t      m_size;
 
 private:
+    // only for drive side
     lt_handle   m_ltHandle;
 };
 

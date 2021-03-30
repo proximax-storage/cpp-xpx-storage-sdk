@@ -7,7 +7,6 @@
 
 #include "types.h"
 #include "ActionList.h"
-//#include <libtorrent/sha1_hash.hpp>
 #include <libtorrent/torrent_handle.hpp>
 #include <vector>
 #include <boost/asio/ip/tcp.hpp>
@@ -24,12 +23,23 @@ namespace sirius { namespace drive {
 
 #define FS_TREE_FILE_NAME "FsTree.bin"
 
-// LibTorrentSession
+//
+namespace download_status {
+    enum code {
+        complete = 0,
+        uploading = 2,
+        failed = 3
+    };
+};
+
+//
+using DownloadHandler = std::function<void( download_status::code code, InfoHash, const std::string& info )>;
+
+//
 class LibTorrentSession {
 public:
     using lt_handle = lt::torrent_handle;
     using RemoveHandler = std::optional<std::function<void()>>;
-
 
     virtual ~LibTorrentSession() = default;
 

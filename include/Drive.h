@@ -14,12 +14,12 @@ namespace sirius { namespace drive {
     namespace modify_status {
         enum code {
             failed = 0,
-            calculated = 2, // calculated in sandbox
+            sandbox_root_hash = 2, // calculated in sandbox
             update_completed = 3
         };
     };
 
-    using DriveModifyHandler = std::function<void( modify_status::code, InfoHash resultRootInfoHash, std::string error )>;
+    using DriveModifyHandler = std::function<void( modify_status::code, InfoHash resultRootInfoHash, const std::string& error )>;
 
     // Drive
     class Drive {
@@ -37,11 +37,11 @@ namespace sirius { namespace drive {
         //virtual bool createDriveStruct( FsTree& node, const std::string& path, const std::string& logicalPath = "" ) = 0;
     };
 
-    std::shared_ptr<Drive> createDefaultDrive( std::string listenInterface,
-                                               std::string replicatorRootFolder,
-                                               std::string replicatorSandboxRootFolder,
-                                               std::string drivePubKey,
+    std::shared_ptr<Drive> createDefaultDrive( const std::string& listenInterface,
+                                               const std::string& replicatorRootFolder,
+                                               const std::string& replicatorSandboxRootFolder,
+                                               const std::string& drivePubKey,
                                                size_t      maxSize,
-                                               endpoint_list otherReplicators = {}
+                                               const endpoint_list& otherReplicators = {}
                                                );
 }}
