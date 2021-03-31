@@ -18,13 +18,14 @@
 *** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#include "PacketHeader.h"
-#include <ostream>
+#pragma once
+#include "exceptions.h"
 
-namespace sirius { namespace ionet {
+namespace sirius { namespace api {
 
-	std::ostream& operator<<(std::ostream& out, const PacketHeader& header) {
-	    out << "packet " << header.Type << " with size " << header.Size;
-		return out;
-	}
+	/// Exception class that is thrown when a catapult api operation produces an error.
+	class catapult_api_error : public catapult_runtime_error {
+	public:
+		using catapult_runtime_error::catapult_runtime_error;
+	};
 }}

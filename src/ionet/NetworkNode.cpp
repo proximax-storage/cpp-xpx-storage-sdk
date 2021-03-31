@@ -18,13 +18,25 @@
 *** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#include "PacketHeader.h"
-#include <ostream>
+#include "ionet/NetworkNode.h"
+#include "model/EntityPtr.h"
 
 namespace sirius { namespace ionet {
 
-	std::ostream& operator<<(std::ostream& out, const PacketHeader& header) {
-	    out << "packet " << header.Type << " with size " << header.Size;
-		return out;
+	Node UnpackNode(const NetworkNode& networkNode) {
+		const auto* pNetworkNodeData = reinterpret_cast<const char*>(&networkNode + 1);
+
+		auto endpoint = NodeEndpoint();
+		endpoint.Port = networkNode.Port;
+		endpoint.Host = std::string(pNetworkNodeData, networkNode.HostSize);
+		pNetworkNodeData += networkNode.HostSize;
+
+		auto metadata = NodeMetadata();
+		metadata.NetworkIdentifier = networkNode.NetworkIdentifier;
+		metadata.Name = std::string(pNetworkNodeData, networkNode.FriendlyNameSize);
+		metadata.Version = networkNode.Version;
+		metadata.Roles = networkNode.Roles;
+
+		return Node(networkNode.IdentityKey, endpoint, metadata);
 	}
 }}

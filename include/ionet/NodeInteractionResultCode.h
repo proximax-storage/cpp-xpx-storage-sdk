@@ -18,13 +18,32 @@
 *** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#include "PacketHeader.h"
-#include <ostream>
+#pragma once
+#include <iosfwd>
+#include <stdint.h>
 
 namespace sirius { namespace ionet {
 
-	std::ostream& operator<<(std::ostream& out, const PacketHeader& header) {
-	    out << "packet " << header.Type << " with size " << header.Size;
-		return out;
-	}
+#define NODE_INTERACTION_RESULT_CODE_LIST \
+	/* No experience. */ \
+	ENUM_VALUE(None) \
+	\
+	/* Experience was neutral. */ \
+	ENUM_VALUE(Neutral) \
+	\
+	/* Experience was good. */ \
+	ENUM_VALUE(Success) \
+	\
+	/* Experience was bad. */ \
+	ENUM_VALUE(Failure)
+
+#define ENUM_VALUE(LABEL) LABEL,
+	/// Possible node interaction result codes.
+	enum class NodeInteractionResultCode {
+		NODE_INTERACTION_RESULT_CODE_LIST
+	};
+#undef ENUM_VALUE
+
+	/// Insertion operator for outputting \a value to \a out.
+	std::ostream& operator<<(std::ostream& out, NodeInteractionResultCode value);
 }}

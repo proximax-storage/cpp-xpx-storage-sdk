@@ -18,13 +18,30 @@
 *** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#include "PacketHeader.h"
-#include <ostream>
+#pragma once
+#include "NodeInteractionResultCode.h"
+#include "types.h"
 
 namespace sirius { namespace ionet {
 
-	std::ostream& operator<<(std::ostream& out, const PacketHeader& header) {
-	    out << "packet " << header.Type << " with size " << header.Size;
-		return out;
-	}
+	/// Result from a node interaction.
+	struct NodeInteractionResult {
+	public:
+		/// Creates a default node interaction result.
+		NodeInteractionResult() : NodeInteractionResult(Key(), NodeInteractionResultCode::None)
+		{}
+
+		/// Creates a node interaction result around \a identityKey and \a code.
+		NodeInteractionResult(const Key& identityKey, NodeInteractionResultCode code)
+				: IdentityKey(identityKey)
+				, Code(code)
+		{}
+
+	public:
+		/// Identity key of the remote node.
+		Key IdentityKey;
+
+		/// Interaction result code.
+		NodeInteractionResultCode Code;
+	};
 }}

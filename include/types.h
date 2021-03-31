@@ -6,6 +6,7 @@
 
 #pragma once
 #include "utils/ByteArray.h"
+#include "utils/RawBuffer.h"
 #include <string>
 #include <array>
 #include <functional>
@@ -38,7 +39,16 @@ namespace sirius {
 	struct GenerationHash_tag { static constexpr auto Byte_Size = 32; };
 	using GenerationHash = utils::ByteArray<Hash256_Size, GenerationHash_tag>;
 
-	// endregion
+    struct Timestamp_tag {};
+    using Timestamp = utils::BaseValue<uint64_t, Timestamp_tag>;
+
+    constexpr size_t Address_Decoded_Size = 25;
+    constexpr size_t Address_Encoded_Size = 40;
+
+    struct Address_tag {};
+    using Address = utils::ByteArray<Address_Decoded_Size, Address_tag>;
+
+    // endregion
 
 	template<typename T, size_t N>
 	constexpr size_t CountOf(T const (&)[N]) noexcept {

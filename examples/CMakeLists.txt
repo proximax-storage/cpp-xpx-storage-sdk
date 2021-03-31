@@ -17,6 +17,10 @@ add_executable(testDrive testDrive.cpp)
 target_link_libraries(testDrive drive)
 
 ### test node connection
-add_executable(testValidatorConnection testValidatorConnection.cpp)
-target_link_libraries(testValidatorConnection connection crypto ionet net)
+add_executable(testValidatorConnection testValidatorConnection.cpp common/ConnnectionAdapter.cpp)
+target_link_libraries(testValidatorConnection connection crypto ionet net model)
+
+### test discovery using single node
+add_executable(testSingleNodeDiscovery testSingleNodeDiscovery.cpp common/ConnnectionAdapter.cpp)
+target_link_libraries(testSingleNodeDiscovery connection crypto ionet net model nodediscovery)
 

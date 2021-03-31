@@ -18,13 +18,26 @@
 *** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#include "PacketHeader.h"
-#include <ostream>
+#pragma once
+#include "utils/BitwiseEnum.h"
+#include <string>
 
 namespace sirius { namespace ionet {
 
-	std::ostream& operator<<(std::ostream& out, const PacketHeader& header) {
-	    out << "packet " << header.Type << " with size " << header.Size;
-		return out;
-	}
+	/// A node's role.
+	enum class NodeRoles : uint32_t {
+		/// No roles.
+		None,
+
+		/// A peer node.
+		Peer = 0x01,
+
+		/// An api node.
+		Api = 0x02
+	};
+
+	MAKE_BITWISE_ENUM(NodeRoles)
+
+	/// Tries to parse \a str into node \a roles.
+	bool TryParseValue(const std::string& str, NodeRoles& roles);
 }}
