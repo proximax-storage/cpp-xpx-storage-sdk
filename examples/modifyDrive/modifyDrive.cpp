@@ -49,6 +49,7 @@ std::mutex              driveUpdateMutex;
 
 std::promise<InfoHash>  rootHashPromise;
 std::promise<InfoHash>  rootHashPromise2;
+std::promise<InfoHash>  rootHashPromise3;
 std::promise<InfoHash>  clientDataPromise;
 std::promise<InfoHash>  clientDataPromise2;
 
@@ -81,7 +82,10 @@ int main(int,char**)
     clientDownloadFsTree( rootHashPromise.get_future().get(), replicatorsList );
 
     // Client: upload files
-    isDriveUpdated = false;
+    {
+        std::unique_lock<std::mutex> lock(driveUpdateMutex);
+        isDriveUpdated = false;
+    }
     clientUploadFiles( replicatorsList );
 
     // Client: read new fsTree
@@ -89,8 +93,15 @@ int main(int,char**)
     clientDownloadFsTree( rootHashPromise2.get_future().get(), replicatorsList );
 
     // Client: modify drive
-    isDriveUpdated = false;
+    {
+        std::unique_lock<std::mutex> lock(driveUpdateMutex);
+        isDriveUpdated = false;
+    }
+    isFsTreeReceived = false;
     clientModifyDrive( replicatorsList );
+
+    // Client: read new fsTree
+    clientDownloadFsTree( rootHashPromise3.get_future().get(), replicatorsList );
 
     replicatorThread.join();
 
@@ -170,6 +181,29 @@ void replicator()
         std::unique_lock<std::mutex> lock(driveUpdateMutex);
         driveUpdateCondVar.wait( lock, []{return isDriveUpdated;} );
     }
+
+    // wait the end of drive update
+    {
+        std::unique_lock<std::mutex> lock(driveUpdateMutex);
+        driveUpdateCondVar.wait( lock, []{return isDriveUpdated;} );
+    }
+
+    // set updated root drive hash
+    rootHashPromise3.set_value( drive->rootDriveHash() );
+
+    // wait the end of FsTree download by client
+    {
+        std::unique_lock<std::mutex> lock(fsTreeMutex);
+        fsTreeCondVar.wait( lock, []{return isFsTreeReceived;} );
+    }
+    
+    std::cout << "@ Print drive FsTree:" << std::endl;
+    FsTree fsTree;
+    fsTree.initWithFolder( fs::path(REPLICATOR_ROOT_FOLDER) / DRIVE_PUB_KEY / "drive" );
+    fsTree.sort();
+    fsTree.dbgPrint();
+    
+    std::cout << "@ Replicator exited" << std::endl;
 }
 
 //
@@ -200,7 +234,7 @@ void clientDownloadHandler( download_status::code code, const InfoHash& hash, co
 //
 void clientDownloadFsTree( InfoHash rootHash, endpoint_list addrList )
 {
-    LOG( "# Client started FsTree download: " << toString(rootHash) );
+    LOG( "\n# Client started FsTree download: " << toString(rootHash) );
     auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", alertHandler );
 
     // Make the list of replicator addresses
@@ -235,6 +269,7 @@ void clientUploadFiles( endpoint_list addrList )
     actionList.push_back( Action::upload( clientFolder / "b.bin", fs::path("folder1") / "b_copy.bin" ) );
     actionList.push_back( Action::upload( clientFolder / "c.txt", "c.txt" ) );
     actionList.push_back( Action::upload( clientFolder / "c.txt", fs::path("folder1") / "c_copy.txt" ) );
+    actionList.dbgPrint();
 
     // Create empty tmp folder for 'modifyDrive data'
     //
@@ -256,7 +291,7 @@ void clientUploadFiles( endpoint_list addrList )
 
     fs::remove_all( tmpFolder );
 
-    std::cout << "# Client finished" << std::endl;
+    //std::cout << "# Client finished" << std::endl;
 }
 
 //
@@ -282,13 +317,11 @@ void clientModifyDrive( endpoint_list addrList )
 
     // move 'folder1/b.bin' and upload n
     actionList.push_back( Action::remove( fs::path("folder1")/"b.bin" ) );
-    actionList.push_back( Action::rename( "c.txt", fs::path("folder1")/"c_moved.txt" ) );
-
-//    actionList.push_back( Action::rename( "c.txt", fs::path("folder1")/"c_moved.txt" ) );
-
-    actionList.push_back( Action::remove( clientFolder / "folder11" / "bb.bin" ) );//, "folder11/b.bin" ) );
+    actionList.push_back( Action::rename( "/c.txt", fs::path("folder1")/"c_moved.txt" ) );
+    actionList.push_back( Action::remove( fs::path("/folder11") / "bb.bin" ) );//, "folder11/b.bin" ) );
     actionList.push_back( Action::upload( clientFolder / "folder1" / "b.bin", "folder1/b.bin" ) );
     actionList.push_back( Action::upload( clientFolder / "c.txt", "c.txt" ) );
+    actionList.dbgPrint();
 
     // Create empty tmp folder for 'modifyDrive data'
     //
@@ -311,7 +344,7 @@ void clientModifyDrive( endpoint_list addrList )
     fs::remove_all( tmpFolder );
     sleep(10);
 
-    std::cout << "Client finished" << std::endl;
+    //std::cout << "Client finished" << std::endl;
 }
 
 //

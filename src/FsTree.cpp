@@ -90,6 +90,20 @@ Folder::Child* Folder::findChild( const std::string& childName ) {
 }
 
 
+// returns child iteraror
+std::vector<Folder::Child>::iterator Folder::findChildIt( const std::string& childName ) {
+    auto it = std::find_if(
+                 m_childs.begin(),
+                 m_childs.end(),
+                 [=](const Child& child) -> bool
+                 {
+                     if ( isFolder(child) )
+                         return getFolder(child).name() == childName;
+                     return getFile(child).name() == childName;
+                 });
+    return it;
+}
+
 // initWithFolder
 bool Folder::initWithFolder( const std::string& pathToFolder ) try {
 
@@ -164,14 +178,21 @@ catch(...) {
 }
 
 // addFile
-bool FsTree::addFile( const std::string& destinationPath, const std::string& filename, const InfoHash& fileHash, size_t size ) {
+bool FsTree::addFile( const std::string& destPath, const std::string& filename, const InfoHash& fileHash, size_t size ) {
 
-    Folder* parentFolder = getFolderPtr( destinationPath, true );
+    Folder* destFolder = getFolderPtr( destPath, true );
 
-    if ( parentFolder == nullptr )
+    if ( destFolder == nullptr )
         return false;
 
-    parentFolder->m_childs.emplace_back( File{filename,fileHash,size} );
+    auto destIt = destFolder->findChildIt( filename );
+
+    if ( destIt != destFolder->m_childs.end() )
+    {
+        destFolder->m_childs.erase( destIt );
+    }
+
+    destFolder->m_childs.emplace_back( File{filename,fileHash,size} );
 
     return true;
 }
@@ -190,14 +211,11 @@ bool FsTree::remove( const std::string& fullPath ) {
     fs::path path( fullPath );
     std::string filename = path.filename().string();
     Folder* parentFolder = getFolderPtr( path.parent_path().string() );
+    
+    if ( parentFolder == nullptr )
+        return false;
 
-    auto it = std::find_if( parentFolder->m_childs.begin(), parentFolder->m_childs.end(),
-                         [=](const Child& child) -> bool
-                         {
-                             if ( isFolder(child) )
-                                 return getFolder(child).name() == filename;
-                             return getFile(child).name() == filename;
-                         });
+    auto it = parentFolder->findChildIt( filename );
 
     if ( it == parentFolder->m_childs.end() )
         return false;
@@ -207,57 +225,92 @@ bool FsTree::remove( const std::string& fullPath ) {
     return true;
 }
 
-// move
-bool FsTree::move( const std::string& oldPathAndName, const std::string& newPathAndName, const InfoHash* newInfoHash )
+//    Moves or renames the filesystem object identified by 'srcPath' to 'destPath' as if by the POSIX rename:
+//
+//    If 'srcPath' is a non-directory file, then if
+//
+//        - 'destPath' is the same file as 'srcPath' or a hardlink to it:
+//           nothing is done in this case
+//
+//        - 'destPath' is existing non-directory file:
+//          'destPath' is first deleted,
+//          then, without allowing other processes to observe 'destPath' as deleted,
+//          the pathname 'destPath' is linked to the file and 'srcPath' is unlinked from the file.
+//
+//        - 'destPath' is non-existing file in an existing directory:
+//          The pathname 'destPath' is linked to the file and 'srcPath' is unlinked from the file.
+//
+//    If 'srcPath' is a directory, then if
+//
+//        - 'destPath' is the same directory as 'srcPath' or a hardlink to it:
+//          nothing is done in this case
+//
+//        - 'destPath' is existing directory:
+//          'destPath' is deleted if empty on POSIX systems, but this may be an error on other systems.
+//          If not an error, then 'destPath' is first deleted, then, without allowing other processes to observe 'destPath' as deleted,
+//          the pathname 'destPath' is linked to the directory and 'srcPath' is unlinked from the directory.
+//
+//        - 'destPath' is non-existing directory, not ending with a directory separator,
+//          and whose parent directory exists:
+//          The pathname 'destPath' is linked to the directory and 'srcPath' is unlinked from the directory.
+//
+//    Fails if
+//        - 'destPath' ends with dot or with dot-dot
+//        - 'destPath' names a non-existing directory ending with a directory separator
+//        - 'srcPath' is a directory which is an ancestor of 'destPath'
+//
+bool FsTree::move( const std::string& srcPathAndName, const std::string& destPathAndName, const InfoHash* newInfoHash )
 {
-    if ( fs::path( newPathAndName ) == fs::path( oldPathAndName ) )
+    if ( fs::path( destPathAndName ) == fs::path( srcPathAndName ) )
         return true;
 
-    fs::path path( oldPathAndName );
-    std::string filename = path.filename().string();
-    Folder* parentFolder = getFolderPtr( path.parent_path().string() );
+    fs::path srcPath( srcPathAndName );
+    std::string srcFilename = srcPath.filename().string();
+    Folder* srcParentFolder = getFolderPtr( srcPath.parent_path().string() );
 
-    auto it = std::find_if( parentFolder->m_childs.begin(), parentFolder->m_childs.end(),
-                         [=](const Child& child) -> bool
-                         {
-                             if ( isFolder(child) )
-                                 return getFolder(child).name() == filename;
-                             return getFile(child).name() == filename;
-                         });
-
-    if ( it == parentFolder->m_childs.end() )
+    if ( srcParentFolder == nullptr )
         return false;
 
-    fs::path newPath( newPathAndName );
-    std::string newFilename = newPath.filename().string();
-    Folder* newParentFolder = getFolderPtr( newPath.parent_path().string(), true );
+    auto srcIt = srcParentFolder->findChildIt( srcFilename );
 
-    auto newIt = std::find_if( newParentFolder->m_childs.begin(), newParentFolder->m_childs.end(),
-                         [=](const Child& child) -> bool
-                         {
-                             if ( isFolder(child) )
-                                 return getFolder(child).name() == newFilename;
-                             return getFile(child).name() == newFilename;
-                         });
-
-    // newPathAndName should not exist
-    if ( newIt != newParentFolder->m_childs.end() )
+    // src must exists
+    if ( srcIt == srcParentFolder->m_childs.end() )
         return false;
 
-    // set new InfoHash
-    if ( !isFolder(*it) ) {
-        if ( newInfoHash == nullptr ) {
+    fs::path destPath( destPathAndName );
+    std::string destFilename = destPath.filename().string();
+    Folder* destParentFolder = getFolderPtr( destPath.parent_path(), true );
+
+    // create destination parent folder if not exists
+    if ( destParentFolder == nullptr )
+    {
+        if ( !addFolder( destPath.parent_path() ) )
             return false;
-        }
-        getFile(*it).m_hash = *newInfoHash;
+        destParentFolder = getFolderPtr( destPath.parent_path(), true );
     }
-    else if ( isFolder(*it) && newInfoHash != nullptr ) {
+
+    auto destIt = destParentFolder->findChildIt( destFilename );
+
+    // remove dest entry
+    if ( destIt != destParentFolder->m_childs.end() )
+    {
+        // remove it
+        destParentFolder->m_childs.erase(destIt);
+    }
+    
+    // update InfoHash (it now depends on filename)
+    if ( !isFolder(*srcIt) ) {
+        if ( newInfoHash == nullptr ) {
+            throw std::runtime_error( "ActionList::move: newInfoHash could not be nullptr" );
+        }
+        getFile(*srcIt).m_hash = *newInfoHash;
+    }
+    else if ( isFolder(*srcIt) && newInfoHash != nullptr ) {
         return false;
     }
 
-
-    newParentFolder->m_childs.emplace_back( *it );
-    parentFolder->m_childs.erase( it );
+    destParentFolder->m_childs.emplace_back( *srcIt );
+    srcParentFolder->m_childs.erase( srcIt );
 
     return true;
 }

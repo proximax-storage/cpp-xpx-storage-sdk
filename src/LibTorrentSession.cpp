@@ -131,7 +131,7 @@ public:
 //        LOG( tInfo.info_hashes().v2 ) );
 //        LOG( "add torrent: torrent filename:" << torrentFilename );
 //        LOG( "add torrent: fileFolder:" << fileFolder );
-        LOG( "add torrent: " << lt::make_magnet_uri(tInfo) );
+        //LOG( "add torrent: " << lt::make_magnet_uri(tInfo) );
         //dbg///////////////////////////////////////////////////
 
         lt::torrent_handle tHandle = m_session.add_torrent(params);

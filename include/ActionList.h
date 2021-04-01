@@ -22,7 +22,7 @@ namespace sirius { namespace drive {
         {
             upload      = 1,
             new_folder  = 2,
-            move      = 3,
+            move        = 3,
             remove      = 4,
         };
     };
@@ -33,22 +33,19 @@ namespace sirius { namespace drive {
     struct Action {
         Action() = default;
 
-        Action( action_list_id::code code, std::string p1, std::string p2 = "" ) : m_actionId(code), m_param1(p1), m_param2(p2) {}
-        Action( action_list_id::code code, InfoHash hash ) : m_actionId(code), m_hash(hash) {}
-        
-        static Action upload( std::string pathToLocalFile, std::string remoteFileNameWithPath ) {
+        static Action upload( const std::string& pathToLocalFile, const std::string& remoteFileNameWithPath ) {
             return Action( action_list_id::upload, pathToLocalFile, remoteFileNameWithPath );
         }
 
-        static Action newFolder( std::string remoteFolderNameWithPath ) {
+        static Action newFolder( const std::string& remoteFolderNameWithPath ) {
             return Action( action_list_id::new_folder, remoteFolderNameWithPath );
         }
 
-        static Action rename( std::string oldNameWithPath, std::string newNameWithPath ) {
+        static Action rename( const std::string& oldNameWithPath, const std::string& newNameWithPath ) {
             return Action( action_list_id::move, oldNameWithPath, newNameWithPath );
         }
 
-        static Action remove( std::string remoteObjectNameWithPath ) {
+        static Action remove( const std::string& remoteObjectNameWithPath ) {
             return Action( action_list_id::remove, remoteObjectNameWithPath );
         }
 
@@ -58,13 +55,8 @@ namespace sirius { namespace drive {
 
             arch( m_param1 );
 
-            if ( m_actionId == action_list_id::move ) {
+            if ( m_actionId == action_list_id::upload || m_actionId == action_list_id::move ) {
                 arch( m_param2 );
-            }
-
-            if ( m_actionId == action_list_id::upload ) {
-                arch( m_param2 );
-                arch( m_hash );
             }
         }
 
@@ -73,10 +65,29 @@ namespace sirius { namespace drive {
         action_list_id::code m_actionId;
         std::string          m_param1;
         std::string          m_param2;
-        InfoHash             m_hash;
+
+    private:
+        Action( action_list_id::code code, const std::string& p1, const std::string& p2 = "" )
+            : m_actionId(code), m_param1(p1), m_param2(p2)
+        {
+            if ( m_actionId != action_list_id::upload ) {
+                while ( !m_param1.empty() && m_param1[0] == '/')
+                    m_param1 = m_param1.substr( 1 );
+            }
+
+            while ( !m_param2.empty() && m_param2[0] == '/') {
+                m_param2 = m_param2.substr( 1 );
+            }
+
+            if ( m_actionId != action_list_id::move ) {
+                while( m_param2.back() == '/')
+                    m_param2.resize(m_param2.size()-1 );
+            }
+        }
 
     private:
         friend class DefaultDrive;
+        mutable bool         m_isInvalid = false;
         lt_handle            m_ltHandle;
     };
 

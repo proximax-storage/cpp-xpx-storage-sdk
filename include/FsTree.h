@@ -26,7 +26,7 @@ public:
     const InfoHash&    hash() const { return m_hash; }
     size_t             size() const { return m_size; }
 
-    bool operator==( const File& f ) const { return m_name==f.m_name && m_hash==f.m_hash; }
+    bool operator==( const File& f ) const { return m_name==f.m_name; }//TODO && m_hash==f.m_hash; }
 
 public:
     // for cereal
@@ -75,6 +75,10 @@ public:
         arch( m_childs );
     }
 
+public: // public for debugging
+
+    void sort();
+
 protected:
     // creates subfolder if not exist
     Folder& getSubfolderOrCreate( const std::string& subFolderName );
@@ -82,8 +86,9 @@ protected:
     // returns nullptr if child is absent
     Child* findChild( const std::string& childName );
 
-protected:
-    void sort();
+    // returns child iteraror
+    std::vector<Child>::iterator findChildIt( const std::string& childName );
+
 
 protected:
     friend class FsTree;
