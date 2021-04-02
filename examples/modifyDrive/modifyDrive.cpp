@@ -5,8 +5,8 @@
 #include <fstream>
 #include <filesystem>
 #include <future>
-#include <shared_mutex>
 #include <condition_variable>
+#include "boost/date_time/posix_time/posix_time.hpp"
 
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
@@ -26,6 +26,16 @@
 namespace fs = std::filesystem;
 
 using namespace sirius::drive;
+
+inline std::mutex gExLogMutex;
+
+static std::string now_str();
+
+#define EXLOG(expr) { \
+        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::cout << now_str() << ": " << expr << std::endl << std::flush; \
+    }
+
 
 // forward declarations
 //
@@ -58,7 +68,7 @@ void alertHandler( LibTorrentSession*, libtorrent::alert* alert )
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
-        std::cerr << alert->message() << std::endl;
+        std::cerr << alert->message() << std::endl << std::flush;
         exit(-1);
     }
 }
@@ -116,18 +126,18 @@ void replicatorDownloadHandler ( modify_status::code code, InfoHash resultRootIn
 
     if ( code == modify_status::update_completed )
     {
-        std::cout << "@ update_completed" << std::endl;
+        EXLOG( "@ update_completed" );
 
         isDriveUpdated = true;
         driveUpdateCondVar.notify_all();
     }
     else if ( code == modify_status::sandbox_root_hash )
     {
-        std::cout << "@ sandbox calculated" << std::endl;
+        EXLOG( "@ sandbox calculated" );
     }
     else
     {
-        std::cout << "ERROR: " << error << std::endl;
+        EXLOG( "ERROR: " << error );
         exit(-1);
     }
 }
@@ -137,7 +147,7 @@ void replicatorDownloadHandler ( modify_status::code code, InfoHash resultRootIn
 //
 void replicator()
 {
-    std::cout << "@ Replicator started" << std::endl;
+    EXLOG( "@ Replicator started" );
 
     // start drive
     fs::remove_all( REPLICATOR_ROOT_FOLDER );
@@ -152,9 +162,10 @@ void replicator()
     rootHashPromise.set_value( drive->rootDriveHash() );
 
     // wait client data infoHash (1)
-    std::cout << "@ Replicator is waiting of client data infoHash" << std::endl;
+    EXLOG( "@ Replicator is waiting of client data infoHash" );
     InfoHash infoHash = clientDataPromise.get_future().get();
-    std::cout << "@ Replicator received client data infoHash" << std::endl;
+    std::cout << "\n";
+    EXLOG( "@ Replicator received client data infoHash" );
     
     // start drive update
     drive->startModifyDrive( infoHash, replicatorDownloadHandler );
@@ -169,10 +180,11 @@ void replicator()
     rootHashPromise2.set_value( drive->rootDriveHash() );
 
     // wait client data infoHash (2)
-    std::cout << "@ Replicator is waiting of 2-d client data infoHash" << std::endl;
+    EXLOG( "@ Replicator is waiting of 2-d client data infoHash" );
     InfoHash infoHash2 = clientDataPromise2.get_future().get();
-    std::cout << "@ Replicator received 2-d client data infoHash" << std::endl;
-    std::cout << "@ infoHash2: " << toString(infoHash2) << std::endl;
+    std::cout << "\n";
+    EXLOG( "@ Replicator received 2-d client data infoHash" );
+    EXLOG( "@ infoHash2: " << toString(infoHash2) );
     sleep(1);
 
     // start drive update
@@ -199,12 +211,12 @@ void replicator()
         fsTreeCondVar.wait( lock, []{return isFsTreeReceived;} );
     }
     
-    std::cout << "@ Print drive FsTree:" << std::endl;
+    EXLOG( "@ Print drive FsTree:" );
     FsTree fsTree;
     fsTree.initWithFolder( fs::path(REPLICATOR_ROOT_FOLDER) / DRIVE_PUB_KEY / "drive" );
     fsTree.dbgPrint();
     
-    std::cout << "@ Replicator exited" << std::endl;
+    EXLOG( "@ Replicator exited" );
 }
 
 //
@@ -214,7 +226,7 @@ void clientDownloadHandler( download_status::code code, const InfoHash& hash, co
 {
     if ( code == download_status::complete )
     {
-        LOG( "# Client received FsTree: " << toString(hash) );
+        EXLOG( "# Client received FsTree: " << toString(hash) );
 
         // print FsTree
         FsTree fsTree;
@@ -235,7 +247,8 @@ void clientDownloadHandler( download_status::code code, const InfoHash& hash, co
 //
 void clientDownloadFsTree( InfoHash rootHash, endpoint_list addrList )
 {
-    LOG( "\n# Client started FsTree download: " << toString(rootHash) );
+    std::cout << "\n";
+    EXLOG( "# Client started FsTree download: " << toString(rootHash) );
     auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", alertHandler );
 
     // Make the list of replicator addresses
@@ -257,7 +270,7 @@ void clientDownloadFsTree( InfoHash rootHash, endpoint_list addrList )
 //
 void clientUploadFiles( endpoint_list addrList )
 {
-    std::cout << "\n# Client started: 1-st upload" << std::endl;
+    EXLOG( "\n# Client started: 1-st upload" );
 
     auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", alertHandler );
 
@@ -285,7 +298,7 @@ void clientUploadFiles( endpoint_list addrList )
     InfoHash hash = ltSession->addActionListToSession( actionList, tmpFolder, addrList );
     clientDataPromise.set_value( hash );
 
-    std::cout << "# Client is waiting the end of replicator update" << std::endl;
+    EXLOG( "# Client is waiting the end of replicator update" );
 
     // wait the end of replicator's work
     {
@@ -295,7 +308,7 @@ void clientUploadFiles( endpoint_list addrList )
 
     fs::remove_all( tmpFolder );
 
-    //std::cout << "# Client finished" << std::endl;
+    //EXLOG( "# Client finished" );
 }
 
 //
@@ -303,7 +316,7 @@ void clientUploadFiles( endpoint_list addrList )
 //
 void clientModifyDrive( endpoint_list addrList )
 {
-    std::cout << "\n# Client started: 2-d upload" << std::endl;
+    EXLOG( "\n# Client started: 2-d upload" );
 
     auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", alertHandler );
 
@@ -334,7 +347,7 @@ void clientModifyDrive( endpoint_list addrList )
     // Create empty tmp folder for 'modifyDrive data'
     //
     auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
-    std::cout << "tmp:" << fs::temp_directory_path() / "modify_drive_data" << std::endl;
+    EXLOG( "tmp:" << fs::temp_directory_path() / "modify_drive_data" );
     fs::remove_all( tmpFolder );
     fs::create_directories( tmpFolder );
 
@@ -342,7 +355,7 @@ void clientModifyDrive( endpoint_list addrList )
     InfoHash hash = ltSession->addActionListToSession( actionList, tmpFolder, addrList );
     clientDataPromise2.set_value( hash );
 
-    std::cout << "# Client is waiting the end of replicator update" << std::endl;
+    EXLOG( "# Client is waiting the end of replicator update" );
 
     // wait the end of replicator's work
     {
@@ -352,7 +365,7 @@ void clientModifyDrive( endpoint_list addrList )
 
     fs::remove_all( tmpFolder );
 
-    //std::cout << "Client finished" << std::endl;
+    //EXLOG( "Client finished" );
 }
 
 //
@@ -421,5 +434,48 @@ fs::path createClientFiles2() {
 
     // Return path to file
     return tmpFolder;
+}
+
+static std::string now_str()
+{
+    // Get current time from the clock, using microseconds resolution
+    const boost::posix_time::ptime now =
+        boost::posix_time::microsec_clock::local_time();
+
+    // Get the time offset in current day
+    const boost::posix_time::time_duration td = now.time_of_day();
+
+    //
+    // Extract hours, minutes, seconds and milliseconds.
+    //
+    // Since there is no direct accessor ".milliseconds()",
+    // milliseconds are computed _by difference_ between total milliseconds
+    // (for which there is an accessor), and the hours/minutes/seconds
+    // values previously fetched.
+    //
+    const long hours        = td.hours();
+    const long minutes      = td.minutes();
+    const long seconds      = td.seconds();
+    const long milliseconds = td.total_milliseconds() -
+                              ((hours * 3600 + minutes * 60 + seconds) * 1000);
+
+    //
+    // Format like this:
+    //
+    //      hh:mm:ss.SSS
+    //
+    // e.g. 02:15:40:321
+    //
+    //      ^          ^
+    //      |          |
+    //      123456789*12
+    //      ---------10-     --> 12 chars + \0 --> 13 chars should suffice
+    //
+    //
+    char buf[40];
+    sprintf(buf, "%02ld:%02ld:%02ld.%03ld",
+        hours, minutes, seconds, milliseconds);
+
+    return buf;
 }
 
