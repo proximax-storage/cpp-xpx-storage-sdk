@@ -149,6 +149,8 @@ bool Folder::initWithFolder( const std::string& pathToFolder ) try {
         }
     }
 
+    sort();
+
     return true;
 }
 catch(...)
@@ -185,11 +187,11 @@ bool FsTree::addFile( const std::string& destPath, const std::string& filename, 
     if ( destFolder == nullptr )
         return false;
 
-    auto destIt = destFolder->findChildIt( filename );
+    auto destChildIt = destFolder->findChildIt( filename );
 
-    if ( destIt != destFolder->m_childs.end() )
+    if ( destChildIt != destFolder->m_childs.end() )
     {
-        destFolder->m_childs.erase( destIt );
+        destFolder->m_childs.erase( destChildIt );
     }
 
     destFolder->m_childs.emplace_back( File{filename,fileHash,size} );
@@ -277,9 +279,11 @@ bool FsTree::move( const std::string& srcPathAndName, const std::string& destPat
     if ( srcIt == srcParentFolder->m_childs.end() )
         return false;
 
+    auto destChild = *srcIt;
+
     fs::path destPath( destPathAndName );
     std::string destFilename = destPath.filename().string();
-    Folder* destParentFolder = getFolderPtr( destPath.parent_path(), true );
+    Folder* destParentFolder = getFolderPtr( destPath.parent_path() );
 
     // create destination parent folder if not exists
     if ( destParentFolder == nullptr )
@@ -298,21 +302,45 @@ bool FsTree::move( const std::string& srcPathAndName, const std::string& destPat
         destParentFolder->m_childs.erase(destIt);
     }
     
-    // update InfoHash (it now depends on filename)
-    if ( !isFolder(*srcIt) ) {
+    // rename and set new hash for file
+    if ( isFolder(destChild) ) {
+        if ( newInfoHash != nullptr ) {
+            throw std::runtime_error("ActionList::move: newInfoHash != nullptr");
+        }
+        getFolder(destChild).m_name = destFilename;
+    }
+    else {
         if ( newInfoHash == nullptr ) {
             throw std::runtime_error( "ActionList::move: newInfoHash could not be nullptr" );
         }
-        getFile(*srcIt).m_hash = *newInfoHash;
-    }
-    else if ( isFolder(*srcIt) && newInfoHash != nullptr ) {
-        return false;
+        getFile(destChild).m_hash = *newInfoHash;
+        getFile(destChild).m_name = destFilename;
     }
 
-    destParentFolder->m_childs.emplace_back( *srcIt );
+    destParentFolder->m_childs.emplace_back( destChild );
+    
+    // update srcIt and remove src
+    srcParentFolder = getFolderPtr( srcPath.parent_path().string() );
+    srcIt = srcParentFolder->findChildIt( srcFilename );
     srcParentFolder->m_childs.erase( srcIt );
 
     return true;
+}
+
+Folder::Child* FsTree::getEntryPtr( const std::string& pathStr )
+{
+    fs::path path(pathStr);
+
+    Folder* parentFolder = this;
+    if ( !path.parent_path().empty() )
+    {
+        parentFolder = getFolderPtr( path.parent_path() );
+    }
+
+    if ( parentFolder == nullptr )
+        return nullptr;
+
+    return parentFolder->findChild( path.filename() );
 }
 
 // getFolderPtr

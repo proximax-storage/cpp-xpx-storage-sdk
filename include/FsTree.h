@@ -7,7 +7,7 @@
 
 #include "types.h"
 #include <vector>
-#include <set>
+#include <forward_list>
 #include <variant>
 
 #include <libtorrent/torrent_handle.hpp>
@@ -49,7 +49,7 @@ private:
 
 private:
     // only for drive side
-    lt_handle   m_ltHandle;
+    mutable lt_handle   m_ltHandle;
 };
 
 // Folder
@@ -62,6 +62,7 @@ public:
 
     const std::string&          name()   const { return m_name; }
     const std::vector<Child>&   childs() const { return m_childs; }
+    //const std::forward_list<Child>&   childs() const { return m_childs; }
 
     bool initWithFolder( const std::string& pathToFolder );
     void dbgPrint( std::string leadingSpaces = "" ) const;
@@ -75,10 +76,6 @@ public:
         arch( m_childs );
     }
 
-public: // public for debugging
-
-    void sort();
-
 protected:
     // creates subfolder if not exist
     Folder& getSubfolderOrCreate( const std::string& subFolderName );
@@ -89,6 +86,7 @@ protected:
     // returns child iteraror
     std::vector<Child>::iterator findChildIt( const std::string& childName );
 
+    void sort();
 
 protected:
     friend class FsTree;
@@ -96,6 +94,7 @@ protected:
 
     std::string         m_name;
     std::vector<Child>  m_childs;
+//    std::forward_list<Child>  m_childs;
 };
 
 // variant utilities
@@ -138,6 +137,8 @@ public:
     bool     remove( const std::string& path );
 
     bool     move( const std::string& oldPathAndName, const std::string& newPathAndName, const InfoHash* newInfoHash = nullptr );
+
+    Child*   getEntryPtr( const std::string& path );
 };
 
 }}

@@ -156,6 +156,11 @@ public:
 
         // path to root folder
         fs::path addFilesFolder = fs::path(sandboxFolder).append( "drive" );
+//        fs::create_directories( addFilesFolder );
+        {
+            std::ofstream fileStream( fs::path(sandboxFolder)/"stub", std::ios::binary );
+//            //fileStream.write("12345",5);
+        }
 
         // parse action list
         for( auto& action : actionList ) {
@@ -242,12 +247,12 @@ private:
 
                 case lt::torrent_deleted_alert::alert_type: {
                     auto *alertInfo = dynamic_cast<lt::torrent_deleted_alert*>(alert);
-//                    LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.native_handle() );
+                    //LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.info_hashes().v2 );
 //                    LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.torrent_file()->files().file_name(0).to_string() );
 //                    LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.torrent_file()->files().file_path(0) );
 //                    LOG( "*** lt::torrent_deleted_alert:" );
-//                    LOG( "*** get_torrents().size()=" << m_session.get_torrents().size() );
-
+                    //LOG( "*** get_torrents().size()=" << m_session.get_torrents().size() );
+                    
                     if ( auto it = m_removeHandlerSet.find(alertInfo->handle.id()); it != m_removeHandlerSet.end() )
                     {
                         m_removeHandlerSet.erase( it );
@@ -454,6 +459,7 @@ InfoHash createTorrentFile( std::string fileOrFolder, std::string rootFolder, st
 
     // convert to bencoding
     std::vector<char> torrentFileBytes;
+//    entry_info["info"].dict()["xpx"]=lt::entry("pub_key/folder1");
     lt::bencode(std::back_inserter(torrentFileBytes), entry_info); // metainfo -> binary
 
     //dbg////////////////////////////////
@@ -461,7 +467,7 @@ InfoHash createTorrentFile( std::string fileOrFolder, std::string rootFolder, st
     //LOG( "entry[info]:" << entry["info"].to_string() );
     //LOG( entry.to_string() );
     auto tInfo = lt::torrent_info(torrentFileBytes, lt::from_span);
-    //LOG( "make_magnet_uri:" << lt::make_magnet_uri(tInfo) );
+    LOG( "make_magnet_uri:" << lt::make_magnet_uri(tInfo) );
     //dbg////////////////////////////////
 
     // get infoHash

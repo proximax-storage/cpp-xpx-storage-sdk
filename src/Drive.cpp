@@ -9,6 +9,7 @@
 #include "ActionList.h"
 #include "utils.h"
 #include <filesystem>
+#include <set>
 #include <iostream>
 #include <thread>
 
@@ -39,19 +40,25 @@ protected:
     const fs::path  m_replicatorRoot;
     const fs::path  m_replicatorSandboxRoot;
 
+    // Drive paths
     const fs::path  m_driveRootPath     = m_replicatorRoot / m_drivePubKey;
     const fs::path  m_driveFolder       = m_driveRootPath / "drive";
     const fs::path  m_torrentFolder     = fs::path( m_driveRootPath ) / "torrent";
     const fs::path  m_fsTreeFile        = fs::path( m_driveRootPath ) / FS_TREE_FILE_NAME;
     const fs::path  m_fsTreeTorrent     = fs::path( m_driveRootPath ) / "FsTree.torrent";
 
+    // Sandbox paths
     const fs::path  m_sandboxRootPath       = m_replicatorSandboxRoot / m_drivePubKey;
-    const fs::path  m_clientDataFolder      = m_sandboxRootPath / "client-data";
     const fs::path  m_sandboxDriveFolder    = m_sandboxRootPath / "drive";
     const fs::path  m_sandboxTorrentFolder  = m_sandboxRootPath / "torrent";
     const fs::path  m_sandboxFsTreeFile     = m_sandboxRootPath / FS_TREE_FILE_NAME;
     const fs::path  m_sandboxFsTreeTorrent  = m_sandboxRootPath / "FsTree.torrent";
-    const fs::path  m_sandboxActionListFile = m_sandboxRootPath / "ActionList.bin";
+
+    // Client data paths
+    const fs::path  m_clientDataFolder      = m_sandboxRootPath / "client-data";
+    const fs::path  m_clientDriveFolder     = m_clientDataFolder / "drive";
+    const fs::path  m_clientActionListFile  = m_clientDataFolder / "ActionList.bin";
+
 };
 
 //
@@ -70,8 +77,9 @@ class DefaultDrive: public Drive, protected DrivePaths {
 
     // FsTree
     FsTree        m_fsTree;
-    FsTree        m_resultFsTree;
-    lt_handle     m_fsTreeLtHandle;
+    FsTree        m_sandboxFsTree;
+    lt_handle     m_fsTreeLtHandle; // used for removing FsTree torrent from session
+    std::set<std::string> m_toBeRemovedEntries;
 
     // Root hashes
     InfoHash      m_rootHash;
@@ -306,6 +314,7 @@ public:
         // clear tmp folder
         fs::remove_all( m_sandboxDriveFolder.parent_path() );
         fs::create_directories( m_sandboxRootPath);
+        m_toBeRemovedEntries.clear();
 
         m_session->downloadFile( modifyDataInfoHash,
                                  m_sandboxRootPath,
@@ -346,27 +355,21 @@ public:
             m_modifyHandler( modify_status::failed, InfoHash(), "modify drive: 'client-data' is absent: " );
         }
 
-        // Move client data to proper folder
-        for( fs::path it: fs::directory_iterator(m_clientDataFolder) )
-        {
-                fs::rename( it, m_sandboxRootPath / it.filename() );
-        }
-
         // Check 'action list' is received in client data
-        if ( !fs::exists( m_sandboxActionListFile ) )
+        if ( !fs::exists( m_clientActionListFile ) )
         {
-            LOG( "m_sandboxActionListFile=" << m_sandboxActionListFile );
+            LOG( "m_clientActionListFile=" << m_clientActionListFile );
             m_modifyHandler( modify_status::failed, InfoHash(), "modify drive: 'ActionList.bin' is absent: " );
             return;
         }
 
-        // Load actionList into our structure
+        // Load actionList into memory
         ActionList m_actionList;
-        m_actionList.deserialize( m_sandboxActionListFile );
+        m_actionList.deserialize( m_clientActionListFile );
 
-        // Copy current resultFsTree
-        FsTree m_resultFsTree;
-        m_resultFsTree.deserialize( m_fsTreeFile );
+        // Get current copy of FsTree
+        FsTree m_sandboxFsTree;
+        m_sandboxFsTree.deserialize( m_fsTreeFile );
 
         //
         // Perform actions
@@ -383,35 +386,51 @@ public:
             //
             case action_list_id::upload: {
 
-                // file path and torrentfile path
-                fs::path file = m_sandboxDriveFolder / action.m_param2;
-                //LOG( "upload file:   " << file );
-                fs::path torrentFile = m_sandboxTorrentFolder / action.m_param2;
-                //LOG( "upload torrent:" << torrentFile );
-
-                // when file is absent, we will ignore invalid 'add' action
-                if ( !fs::exists(file) )
+                // Check that file exists
+                fs::path clientFile = m_clientDriveFolder / action.m_param2;
+                if ( !fs::exists( clientFile ) || fs::is_directory(clientFile) )
                 {
                     action.m_isInvalid = true;
                     break;
                 }
-                
-                // calculate torrent, hash, and size
+
+                // Path file in sandbox
+                fs::path sandboxFilePath = m_sandboxDriveFolder / action.m_param2;
+
+                // if the file already exists in sandbox, remove it
+                if ( fs::exists( sandboxFilePath ) )
+                {
+                    fs::remove_all( sandboxFilePath );
+                }
+
+                // Move file to sandbox
+                fs::create_directories( sandboxFilePath.parent_path() );
+                fs::copy( clientFile, m_sandboxDriveFolder / sandboxFilePath );
+
+                // torrentfile path
+                fs::path torrentFile = m_sandboxTorrentFolder / action.m_param2;
+
+                // if torrentfile in sandbox already exists we remove it
                 if ( fs::exists(torrentFile) )
                 {
-                    // Skip duplicated 'add' actions
+                    fs::remove_all( torrentFile );
                 }
-                else
-                {
-                    fs::create_directories( torrentFile.parent_path() );
-                    InfoHash infoHash = createTorrentFile( file, m_sandboxRootPath, torrentFile );
-                    size_t fileSize = std::filesystem::file_size( file );
 
-                    // add file in resultFsTree
-                    m_resultFsTree.addFile( fs::path(action.m_param2).parent_path(),
-                                           file.filename(),
-                                           infoHash,
-                                           fileSize );
+                // calculate torrent, hash, and size
+                fs::create_directories( torrentFile.parent_path() );
+                InfoHash infoHash = createTorrentFile( sandboxFilePath, m_sandboxRootPath, torrentFile );
+                size_t fileSize = std::filesystem::file_size( sandboxFilePath );
+
+                // add file in resultFsTree
+                m_sandboxFsTree.addFile( fs::path(action.m_param2).parent_path(),
+                                       sandboxFilePath.filename(),
+                                       infoHash,
+                                       fileSize );
+
+                // remember files to be removed
+                if ( fs::exists( m_driveFolder / action.m_param2 ) )
+                {
+                    m_toBeRemovedEntries.insert( action.m_param2 );
                 }
                 break;
             }
@@ -420,15 +439,15 @@ public:
             //
             case action_list_id::new_folder: {
                 fs::path path = m_driveFolder / action.m_param1;
-                if ( !fs::exists(path) )
+
+                // Check that entry is free
+                if ( m_sandboxFsTree.findChild( action.m_param1 ) != nullptr )
                 {
-                    m_resultFsTree.addFolder( action.m_param2 );
+                    action.m_isInvalid = true;
+                    break;
                 }
-                else
-                {
-                    if ( !fs::is_directory(path) )
-                        action.m_isInvalid = true;
-                }
+
+                m_sandboxFsTree.addFolder( action.m_param2 );
                 break;
             }
             //
@@ -436,33 +455,101 @@ public:
             //
             case action_list_id::move: {
 
-                //TODO !!! check moving parent to subfolder
+                auto* srcChild = m_sandboxFsTree.getEntryPtr( action.m_param1 );
+                m_sandboxFsTree.dbgPrint();
 
-                // (we never move files inside sandbox, user should pass valid actionList)
-                fs::path srcFile = m_driveFolder / action.m_param1;
-
-                if ( !fs::exists(srcFile) )
+                // Check that src child exists
+                if ( srcChild == nullptr )
                 {
+                    LOG( "invalid 'move' action: src not exists (in FsTree): " << action.m_param1  );
                     action.m_isInvalid = true;
                     break;
-//                    m_modifyHandler( modify_status::failed,
-//                                     InfoHash(),
-//                                     std::string("invalid action list: move src not exists: ") + action.m_param1 );
                 }
 
-                fs::path destFile = m_sandboxDriveFolder / action.m_param2;
+                fs::path srcPath = m_driveFolder / action.m_param1;
+                fs::path srcInSandboxPath = m_sandboxDriveFolder / action.m_param1;
+                fs::path destPath = m_sandboxDriveFolder / action.m_param2;
                 fs::path destTorrentFile = m_sandboxTorrentFolder / action.m_param2;
 
-                // copy file to sandbox
-                fs::create_directories( destFile.parent_path() );
-                fs::copy( m_driveFolder / action.m_param1, destFile );
+                if ( destPath == srcPath )
+                {
+                    // nothing to do
+                    action.m_isInvalid = true;
+                    break;
+                }
 
-                // create new torrent file (it now depends on filename)
+                // Check topology (nesting)
+                if ( isPathInsideFolder( destPath, srcPath ) )
+                {
+                    LOG( "invalid 'move' action: 'srcPath' is a directory which is an ancestor of 'destPath': " << action.m_param1  );
+                    LOG( "invalid 'move' action: srcPath : " << srcPath  );
+                    LOG( "invalid 'move' action: destPath : " << destPath  );
+                    action.m_isInvalid = true;
+                    break;
+                }
+
+                if ( fs::exists(srcInSandboxPath) )
+                {
+                    // Try to move file/folder from from location
+
+                    if ( fs::exists(destPath) )
+                        fs::remove_all(destPath);
+
+                    // move file to destPath
+                    fs::create_directories( destPath.parent_path() );
+                    fs::rename( srcInSandboxPath, destPath );
+
+                    // remove old torrentfile
+                    fs::path oldTorrentFile = m_sandboxTorrentFolder / action.m_param1;
+                    if ( fs::exists(oldTorrentFile) )
+                        fs::remove_all(oldTorrentFile);
+                }
+                else
+                {
+                    // Try to move file/folder from drive location
+
+                    if ( !fs::exists(srcPath) || m_toBeRemovedEntries.contains(srcPath) )
+                    {
+                        LOG( "invalid 'move' action: src not exists (on Drive): " << action.m_param1  );
+                        action.m_isInvalid = true;
+                        break;
+                    }
+
+                    if ( fs::exists(destPath) )
+                        fs::remove_all(destPath);
+
+                    // copy file to sandbox
+                    fs::create_directories( destPath.parent_path() );
+                    fs::copy( srcPath, destPath );
+
+                    // remember srcPath to be removed
+                    m_toBeRemovedEntries.insert( action.m_param1 );
+                }
+
+                // process folder separately
+                if ( isFolder(*srcChild) )
+                {
+                    m_sandboxFsTree.move( action.m_param1, action.m_param2 );
+                    break;
+                }
+
+                // remove old torrentfile
+                if ( fs::exists(destTorrentFile) )
+                    fs::remove_all(destTorrentFile);
+
+                // create new torrent file (it depends on filename)
                 fs::create_directories( destTorrentFile.parent_path() );
-                InfoHash infoHash = createTorrentFile( destFile, m_sandboxRootPath, destTorrentFile );
+                InfoHash infoHash = createTorrentFile( destPath, m_sandboxRootPath, destTorrentFile );
 
                 // modify FsTree
-                m_resultFsTree.move( action.m_param1, action.m_param2, &infoHash );
+                //LOG( "move: " << action.m_param1 << " to: " << action.m_param2  );
+                m_sandboxFsTree.move( action.m_param1, action.m_param2, &infoHash );
+
+                // remember destPath to be removed
+                if ( fs::exists( m_driveFolder / action.m_param2 ) )
+                {
+                    m_toBeRemovedEntries.insert( action.m_param2 );
+                }
 
                 break;
             }
@@ -470,22 +557,30 @@ public:
             // Remove
             //
             case action_list_id::remove: {
-                fs::path srcFile = m_driveFolder / action.m_param1;
-                    
-                if ( !fs::exists(srcFile) )
+
+                if ( m_sandboxFsTree.findChild( action.m_param1 ) == nullptr )
                 {
+                    LOG( "invalid 'remove' action: src not exists (in FsTree): " << action.m_param1  );
                     action.m_isInvalid = true;
                     break;
                 }
+
                 //LOG( "remove:" << action.m_param1 );
-                m_resultFsTree.remove( action.m_param1 );
+                m_sandboxFsTree.remove( action.m_param1 );
+
+                // remember path to be removed
+                if ( fs::exists( m_driveFolder / action.m_param1 ) )
+                {
+                    m_toBeRemovedEntries.insert( action.m_param1 );
+                }
+                break;
             }
-            break;
-            }
-        }
+
+            } // end of switch()
+        } // end of for( const Action& action : m_actionList )
 
         // calculate new rootHash
-        m_resultFsTree.doSerialize( m_sandboxFsTreeFile );
+        m_sandboxFsTree.doSerialize( m_sandboxFsTreeFile );
         m_resultRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
 
         // Call update handler
@@ -520,11 +615,16 @@ public:
         }
 
         // Remove FsTree torrent
-        m_session->removeTorrentFromSession( m_fsTreeLtHandle, [this] { updateDrive_2(); } );
+        m_session->removeTorrentFromSession( m_fsTreeLtHandle, [this]
+        {
+            fs::remove( m_fsTreeFile );
+            fs::remove( m_fsTreeTorrent );
+
+            updateDrive_2();
+        });
     }
 
     // updates drive (2st phase)
-    // - removes all moved or removed files from drive
     // - move new files from sandbox to drive
     // - move new torrents from sandbox to drive
     // - add new torrents to session
@@ -534,35 +634,25 @@ public:
         //
         // Remove files
         //
-        for( const Action& action : m_actionList )
+        for( const std::string& path : m_toBeRemovedEntries )
         {
-            if (action.m_isInvalid)
-                continue;
-
-            switch( action.m_actionId )
-            {
-            case action_list_id::upload:
-            case action_list_id::new_folder:
-                break;
-            case action_list_id::move:
-            case action_list_id::remove:
-                fs::remove_all( m_driveFolder / action.m_param1 );
-                fs::remove_all( m_torrentFolder / action.m_param1 );
-                break;
-            }
+            fs::remove_all( m_driveFolder / path );
+            fs::remove_all( m_torrentFolder / path );
         }
+
+        m_toBeRemovedEntries.clear();
 
         //
         // Move files from sandbox to drive folder
         //
         m_rootHash = m_resultRootHash;
-        moveFiles( m_sandboxDriveFolder, m_driveFolder );
-        moveFiles( m_sandboxTorrentFolder, m_torrentFolder );
+        if ( fs::exists(m_sandboxDriveFolder) )
+            moveFiles( m_sandboxDriveFolder, m_driveFolder );
+        if ( fs::exists(m_sandboxTorrentFolder) )
+            moveFiles( m_sandboxTorrentFolder, m_torrentFolder );
 
-        fs::remove( m_fsTreeFile );
         fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
 
-        fs::remove( m_fsTreeTorrent );
         fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
 
         fs::remove_all( m_sandboxRootPath );
@@ -580,11 +670,11 @@ public:
                 case action_list_id::upload:
                 case action_list_id::move: {
     
-                    auto child = m_resultFsTree.findChild( fs::path( action.m_param2 ) );
+                    const auto* child = m_sandboxFsTree.findChild( fs::path( action.m_param2 ) );
     
                     if ( child != nullptr && !isFolder(*child) )
                     {
-                        File& fsTreeFile = getFile(*child);
+                        const File& fsTreeFile = getFile(*child);
                         fs::path file = m_driveFolder / action.m_param2;
                         fs::path torrentFile = m_torrentFolder / action.m_param2;
     
@@ -621,6 +711,7 @@ public:
             }
             else
             {
+                //LOG( "fs::rename: " << srcFolder/entryName << " to " << destFolder/entryName );
                 fs::rename( srcFolder/entryName, destFolder/entryName );
             }
         }

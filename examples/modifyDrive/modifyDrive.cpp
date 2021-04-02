@@ -19,9 +19,9 @@
 // !!!
 #define CLIENT_IP_ADDR "192.168.1.100"
 #define REPLICATOR_IP_ADDR "127.0.0.1"
-#define REPLICATOR_ROOT_FOLDER          "/Users/alex/111/test_replicator_root"
-#define REPLICATOR_SANDBOX_ROOT_FOLDER  "/Users/alex/111/test_replicator_sandbox_root"
-#define DRIVE_PUB_KEY                   "test_drive_pub_key"
+#define REPLICATOR_ROOT_FOLDER          "/Users/alex/111/replicator_root"
+#define REPLICATOR_SANDBOX_ROOT_FOLDER  "/Users/alex/111/sandbox_root"
+#define DRIVE_PUB_KEY                   "pub_key"
 
 namespace fs = std::filesystem;
 
@@ -172,6 +172,8 @@ void replicator()
     std::cout << "@ Replicator is waiting of 2-d client data infoHash" << std::endl;
     InfoHash infoHash2 = clientDataPromise2.get_future().get();
     std::cout << "@ Replicator received 2-d client data infoHash" << std::endl;
+    std::cout << "@ infoHash2: " << toString(infoHash2) << std::endl;
+    sleep(1);
 
     // start drive update
     drive->startModifyDrive( infoHash2, replicatorDownloadHandler );
@@ -200,7 +202,6 @@ void replicator()
     std::cout << "@ Print drive FsTree:" << std::endl;
     FsTree fsTree;
     fsTree.initWithFolder( fs::path(REPLICATOR_ROOT_FOLDER) / DRIVE_PUB_KEY / "drive" );
-    fsTree.sort();
     fsTree.dbgPrint();
     
     std::cout << "@ Replicator exited" << std::endl;
@@ -263,12 +264,15 @@ void clientUploadFiles( endpoint_list addrList )
     fs::path clientFolder = createClientFiles();
 
     ActionList actionList;
-    actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
-    actionList.push_back( Action::upload( clientFolder / "a.txt", fs::path("folder1") / "a_copy.txt" ) );
-    actionList.push_back( Action::upload( clientFolder / "b.bin", fs::path("folder1") / "b.bin" ) );
-    actionList.push_back( Action::upload( clientFolder / "b.bin", fs::path("folder1") / "b_copy.bin" ) );
-    actionList.push_back( Action::upload( clientFolder / "c.txt", "c.txt" ) );
-    actionList.push_back( Action::upload( clientFolder / "c.txt", fs::path("folder1") / "c_copy.txt" ) );
+//    actionList.push_back( Action::move( clientFolder / "a.txt", "a.txt" ) );
+//    actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
+//    actionList.push_back( Action::upload( clientFolder / "a.txt", fs::path("f1") / "a_copy.txt" ) );
+    actionList.push_back( Action::upload( clientFolder / "b.bin", fs::path("f1") / "b.bin" ) );
+//    actionList.push_back( Action::upload( clientFolder / "b.bin", fs::path("f1") / "b2.bin" ) );
+//    actionList.push_back( Action::upload( clientFolder / "b.bin", fs::path("f1") / "b3.bin" ) );
+//    actionList.push_back( Action::upload( clientFolder / "b.bin", fs::path("f1") / "b_copy.bin" ) );
+//    actionList.push_back( Action::upload( clientFolder / "c.txt", "c.txt" ) );
+//    actionList.push_back( Action::upload( clientFolder / "c.txt", fs::path("f1") / "c_copy.txt" ) );
     actionList.dbgPrint();
 
     // Create empty tmp folder for 'modifyDrive data'
@@ -304,28 +308,33 @@ void clientModifyDrive( endpoint_list addrList )
     auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", alertHandler );
 
     // download fs tree
-
+    
     fs::path clientFolder = createClientFiles2();
 
     ActionList actionList;
 
     // override existing file 'a.txt'
-    actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
+    //actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
 
     // remove existing file 'a_copy.txt'
     actionList.push_back( Action::remove( "a_copy.txt" ) );
 
     // move 'folder1/b.bin' and upload n
-    actionList.push_back( Action::remove( fs::path("folder1")/"b.bin" ) );
-    actionList.push_back( Action::rename( "/c.txt", fs::path("folder1")/"c_moved.txt" ) );
-    actionList.push_back( Action::remove( fs::path("/folder11") / "bb.bin" ) );//, "folder11/b.bin" ) );
-    actionList.push_back( Action::upload( clientFolder / "folder1" / "b.bin", "folder1/b.bin" ) );
-    actionList.push_back( Action::upload( clientFolder / "c.txt", "c.txt" ) );
+//    actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
+//    actionList.push_back( Action::remove( fs::path("f1")/"b.bin" ) );
+    actionList.push_back( Action::move( "f1/b.bin", "f2/b_moved.bin" ) );
+//    actionList.push_back( Action::move( "/c.txt", fs::path("f1")/"c_moved.txt" ) );
+//    actionList.push_back( Action::rename( fs::path("f1")/"b2.txt", "b2_moved.txt" ) );
+//    actionList.push_back( Action::rename( fs::path("f1"), fs::path("f2")/"f3"/"moved_f1" ) );
+//    actionList.push_back( Action::remove( fs::path("/folder11") / "bb.bin" ) );
+//    actionList.push_back( Action::upload( clientFolder / "f1" / "b.bin", "folder1/b.bin" ) );
+//    actionList.push_back( Action::upload( clientFolder / "c.txt", "c.txt" ) );
     actionList.dbgPrint();
 
     // Create empty tmp folder for 'modifyDrive data'
     //
     auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
+    std::cout << "tmp:" << fs::temp_directory_path() / "modify_drive_data" << std::endl;
     fs::remove_all( tmpFolder );
     fs::create_directories( tmpFolder );
 
@@ -342,7 +351,6 @@ void clientModifyDrive( endpoint_list addrList )
     }
 
     fs::remove_all( tmpFolder );
-    sleep(10);
 
     //std::cout << "Client finished" << std::endl;
 }

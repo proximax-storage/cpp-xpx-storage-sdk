@@ -41,7 +41,7 @@ namespace sirius { namespace drive {
             return Action( action_list_id::new_folder, remoteFolderNameWithPath );
         }
 
-        static Action rename( const std::string& oldNameWithPath, const std::string& newNameWithPath ) {
+        static Action move( const std::string& oldNameWithPath, const std::string& newNameWithPath ) {
             return Action( action_list_id::move, oldNameWithPath, newNameWithPath );
         }
 
