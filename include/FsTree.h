@@ -6,8 +6,7 @@
 #pragma once
 
 #include "types.h"
-#include <vector>
-#include <forward_list>
+#include <list>
 #include <variant>
 
 #include <libtorrent/torrent_handle.hpp>
@@ -61,8 +60,7 @@ public:
     Folder( std::string folderName ) : m_name(folderName) {}
 
     const std::string&          name()   const { return m_name; }
-    const std::vector<Child>&   childs() const { return m_childs; }
-    //const std::forward_list<Child>&   childs() const { return m_childs; }
+    const std::list<Child>&   childs() const { return m_childs; }
 
     bool initWithFolder( const std::string& pathToFolder );
     void dbgPrint( std::string leadingSpaces = "" ) const;
@@ -84,7 +82,7 @@ protected:
     Child* findChild( const std::string& childName );
 
     // returns child iteraror
-    std::vector<Child>::iterator findChildIt( const std::string& childName );
+    std::list<Child>::iterator findChildIt( const std::string& childName );
 
     void sort();
 
@@ -93,8 +91,7 @@ protected:
     friend class DefaultDrive;
 
     std::string         m_name;
-    std::vector<Child>  m_childs;
-//    std::forward_list<Child>  m_childs;
+    std::list<Child>  m_childs;
 };
 
 // variant utilities
