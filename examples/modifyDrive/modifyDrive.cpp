@@ -277,7 +277,7 @@ void clientUploadFiles( endpoint_list addrList )
     fs::path clientFolder = createClientFiles();
 
     ActionList actionList;
-//    actionList.push_back( Action::move( clientFolder / "a.txt", "a.txt" ) );
+    actionList.push_back( Action::move( clientFolder / "a.txt", "a.txt" ) );
 //    actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
 //    actionList.push_back( Action::upload( clientFolder / "a.txt", fs::path("f1") / "a_copy.txt" ) );
     actionList.push_back( Action::upload( clientFolder / "b.bin", fs::path("f1") / "b.bin" ) );
@@ -335,7 +335,11 @@ void clientModifyDrive( endpoint_list addrList )
     // move 'folder1/b.bin' and upload n
 //    actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
 //    actionList.push_back( Action::remove( fs::path("f1")/"b.bin" ) );
-    actionList.push_back( Action::move( "f1/b.bin", "f2/b_moved.bin" ) );
+//    actionList.push_back( Action::move( "a.txt", "f1/a_moved.txt" ) );
+//    actionList.push_back( Action::move( "f1/b.bin", "f2/b_moved.bin" ) );
+    actionList.push_back( Action::upload( clientFolder / "a.txt", "f1/a.txt" ) );
+//    actionList.push_back( Action::move( "a.txt", "f1/a_moved.txt" ) );
+    actionList.push_back( Action::move( "f1", "f3/f1" ) );
 //    actionList.push_back( Action::move( "/c.txt", fs::path("f1")/"c_moved.txt" ) );
 //    actionList.push_back( Action::rename( fs::path("f1")/"b2.txt", "b2_moved.txt" ) );
 //    actionList.push_back( Action::rename( fs::path("f1"), fs::path("f2")/"f3"/"moved_f1" ) );
@@ -387,7 +391,7 @@ fs::path createClientFiles() {
     {
         fs::path b_bin = tmpFolder / "b.bin";
         fs::create_directories( b_bin.parent_path() );
-        std::vector<uint8_t> data(1024*1024/2);
+        std::vector<uint8_t> data(48*1024/2);
         std::generate( data.begin(), data.end(), std::rand );
         std::ofstream file( b_bin );
         file.write( (char*) data.data(), data.size() );

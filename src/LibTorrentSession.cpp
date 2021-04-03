@@ -467,7 +467,7 @@ InfoHash createTorrentFile( std::string fileOrFolder, std::string rootFolder, st
     //LOG( "entry[info]:" << entry["info"].to_string() );
     //LOG( entry.to_string() );
     auto tInfo = lt::torrent_info(torrentFileBytes, lt::from_span);
-    LOG( "make_magnet_uri:" << lt::make_magnet_uri(tInfo) );
+    //LOG( "make_magnet_uri:" << lt::make_magnet_uri(tInfo) );
     //dbg////////////////////////////////
 
     // get infoHash
