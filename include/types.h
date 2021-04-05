@@ -55,40 +55,10 @@ namespace sirius {
 		return N;
 	}
 
-    // error::code
-    namespace error {
-        enum code {
-            success = 0,
-            failed  = 1
-        };
-    };
+    namespace drive {
+        // InfoHash
+        using InfoHash = std::array<uint8_t,32>;
+    }
 
-    // ErrorHandler
-    using ErrorHandler = std::function<void(error::code code, const std::string& textMessage)>;
-
-    // upload_status::code
-    namespace upload_status {
-        enum code {
-            complete = 0,
-            waiting_blockchain_notification = 1,
-            uploading = 2,
-            failed = 3
-        };
-    };
-
-    // UploadHandler
-    using UploadHandler = std::function<void(upload_status::code code, const std::string& info)>;
-
-    // download_status ::code
-    namespace download_status {
-        enum code {
-            complete = 0,
-            uploading = 2,
-            failed = 3
-        };
-    };
-
-    // DownloadHandler
-    using DownloadHandler = std::function<void(download_status::code code, const Hash256&, const std::string& info)>;
 }
 

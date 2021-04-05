@@ -2,25 +2,18 @@ cmake_minimum_required(VERSION 3.9)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-add_subdirectory(download)
-add_subdirectory(upload)
-add_subdirectory(libtorrent)
-
-add_subdirectory(libtorrenttest)
-
-### test action list
-add_executable(testActionList testActionList.cpp)
-target_link_libraries(testActionList drive)
-
-### test drive
-add_executable(testDrive testDrive.cpp)
-target_link_libraries(testDrive drive)
-
 ### test node connection
-add_executable(testValidatorConnection testValidatorConnection.cpp common/ConnnectionAdapter.cpp)
-target_link_libraries(testValidatorConnection connection crypto ionet net model)
+#@#add_executable(testValidatorConnection testValidatorConnection.cpp common/ConnnectionAdapter.cpp)
+#@#target_link_libraries(testValidatorConnection connection crypto ionet net model)
 
 ### test discovery using single node
-add_executable(testSingleNodeDiscovery testSingleNodeDiscovery.cpp common/ConnnectionAdapter.cpp)
-target_link_libraries(testSingleNodeDiscovery connection crypto ionet net model nodediscovery)
+#@#add_executable(testSingleNodeDiscovery testSingleNodeDiscovery.cpp common/ConnnectionAdapter.cpp)
+#@#target_link_libraries(testSingleNodeDiscovery connection crypto ionet net model nodediscovery)
 
+
+### download file example
+#@#
+add_subdirectory(downloadFile)
+
+### modify drive example
+add_subdirectory(modifyDrive)
