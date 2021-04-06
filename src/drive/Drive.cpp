@@ -5,7 +5,7 @@
 */
 
 #include "drive/Drive.h"
-#include "drive/LibTorrentSession.h"
+#include "drive/Session.h"
 #include "drive/ActionList.h"
 #include "drive/utils.h"
 
@@ -22,9 +22,32 @@ namespace fs = std::filesystem;
 
 namespace sirius { namespace drive {
 
-class Session {
+//
+// Session for file transmissions
+//
+class SingleSession
+{
+public:
+    static std::shared_ptr<Session> createSessionIfNotExist( const std::string& listenInterface,
+                                                             const LibTorrentErrorHandler& errorHandler )
+    {
+        m_mutex.lock();
+        if ( m_session.get() == nullptr )
+        {
+            m_session = createDefaultSession( listenInterface, errorHandler );
+        }
+        m_mutex.unlock();
 
+        return m_session;
+    }
+
+private:
+    static std::shared_ptr<Session> m_session;
+    static std::mutex               m_mutex;
 };
+
+std::shared_ptr<Session>    SingleSession::m_session;
+std::mutex                  SingleSession::m_mutex;
 
 //
 // DrivePaths - drive paths, used at replicator side
@@ -72,8 +95,8 @@ protected:
 //
 class DefaultDrive: public Drive, protected DrivePaths {
 
-    using LtSession = std::shared_ptr<LibTorrentSession>;
-    using lt_handle  = LibTorrentSession::lt_handle;
+    using LtSession = std::shared_ptr<Session>;
+    using lt_handle  = Session::lt_handle;
 
     const std::string& m_listenInterface;
     size_t        m_maxSize;
@@ -182,10 +205,9 @@ public:
     //
     void startDistributionSession()
     {
-        using namespace std::placeholders;  // for _1, _2
-
-        m_session = createDefaultLibTorrentSession( m_listenInterface,
-                                                    std::bind( &DefaultDrive::alertHandler, this, _1, _2 ) );
+        m_session = SingleSession::createSessionIfNotExist(
+                                                m_listenInterface,
+                                                DefaultDrive::errorHandler );
     }
 
     // Build FsTree
@@ -790,7 +812,7 @@ public:
 
     }
 
-    void alertHandler( LibTorrentSession*, libtorrent::alert* alert )
+    static void errorHandler( Session*, libtorrent::alert* alert )
     {
         if ( alert->type() == lt::listen_failed_alert::alert_type )
         {

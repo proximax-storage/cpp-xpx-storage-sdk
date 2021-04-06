@@ -42,11 +42,11 @@ namespace modify_status {
         //virtual bool createDriveStruct( FsTree& node, const std::string& path, const std::string& logicalPath = "" ) = 0;
     };
 
-    std::shared_ptr<Drive> createDefaultDrive( const std::string& listenInterface,
-                                               const std::string& replicatorRootFolder,
-                                               const std::string& replicatorSandboxRootFolder,
-                                               const std::string& drivePubKey,
-                                               size_t      maxSize,
+    std::shared_ptr<Drive> createDefaultDrive( const std::string&   listenInterface,
+                                               const std::string&   replicatorRootFolder,
+                                               const std::string&   replicatorSandboxRootFolder,
+                                               const std::string&   drivePubKey,
+                                               size_t               maxSize,
                                                const endpoint_list& otherReplicators = {}
                                                );
 }}

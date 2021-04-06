@@ -4,7 +4,7 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "drive/LibTorrentSession.h"
+#include "drive/Session.h"
 #include "drive/utils.h"
 #include "drive/log.h"
 
@@ -37,7 +37,7 @@ namespace sirius { namespace drive {
 //
 // DefaultLibTorrentSession -
 //
-class DefaultLibTorrentSession: public LibTorrentSession {
+class DefaultSession: public Session {
     using RemoveTorrentSet = std::set<std::uint32_t>;
     using DownloadMap = std::map<std::uint32_t,DownloadHandler>;
 
@@ -49,17 +49,17 @@ class DefaultLibTorrentSession: public LibTorrentSession {
     RemoveTorrentSet        m_removeHandlerSet;
     RemoveHandler           m_removeHandler;
 
-    LibTorrentAlertHandler  m_alertHandler;
+    LibTorrentErrorHandler  m_alertHandler;
 
 public:
 
-    DefaultLibTorrentSession( std::string address, LibTorrentAlertHandler alertHandler )
+    DefaultSession( std::string address, LibTorrentErrorHandler alertHandler )
         : m_addressAndPort(address), m_alertHandler(alertHandler)
     {
         createSession();
     }
 
-    virtual ~DefaultLibTorrentSession() {}
+    virtual ~DefaultSession() {}
 
     // createSession
     void createSession() {
@@ -531,10 +531,10 @@ InfoHash createTorrentFile( std::string fileOrFolder, std::string rootFolder, st
 }
 
 // createDefaultLibTorrentSession
-std::shared_ptr<LibTorrentSession> createDefaultLibTorrentSession( std::string address,
-                                                                   LibTorrentAlertHandler alertHandler )
+std::shared_ptr<Session> createDefaultSession( std::string address,
+                                               const LibTorrentErrorHandler& alertHandler )
 {
-    return std::make_shared<DefaultLibTorrentSession>( address, alertHandler );
+    return std::make_shared<DefaultSession>( address, alertHandler );
 }
 
 }}

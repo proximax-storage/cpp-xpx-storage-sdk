@@ -96,7 +96,7 @@ endif()
 
 # used to define a catapult target (library, executable) and automatically enables PCH for clang
 function(storage_sdk_target TARGET_NAME)
-	set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 17)
+        set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 20)
 
 	# indicate boost as a dependency
 	target_link_libraries(${TARGET_NAME} ${Boost_LIBRARIES} ${CMAKE_DL_LIBS})
@@ -156,7 +156,7 @@ endfunction()
 function(storage_sdk_object_library TARGET_NAME)
 	add_library(${TARGET_NAME} OBJECT ${ARGN})
 	set_property(TARGET ${TARGET_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
-	set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 17)
+        set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 20)
 endfunction()
 
 # used to define a catapult library, creating an appropriate source group and adding a library

@@ -35,12 +35,12 @@ namespace download_status {
 using DownloadHandler = std::function<void( download_status::code code, InfoHash, const std::string& info )>;
 
 //
-class LibTorrentSession {
+class Session {
 public:
     using lt_handle = lt::torrent_handle;
     using RemoveHandler = std::optional<std::function<void()>>;
 
-    virtual ~LibTorrentSession() = default;
+    virtual ~Session() = default;
 
     virtual void      endSession() = 0;
 
@@ -68,8 +68,8 @@ InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string pathTo
 // createDefaultLibTorrentSession
 //
 
-using LibTorrentAlertHandler = std::function<void( LibTorrentSession*, libtorrent::alert* )>;
+using LibTorrentErrorHandler = std::function<void( Session*, libtorrent::alert* )>;
 
-std::shared_ptr<LibTorrentSession> createDefaultLibTorrentSession( std::string address, LibTorrentAlertHandler );
+std::shared_ptr<Session> createDefaultSession( std::string address, const LibTorrentErrorHandler& );
 
 }}

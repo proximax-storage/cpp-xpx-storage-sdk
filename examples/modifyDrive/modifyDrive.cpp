@@ -1,4 +1,4 @@
-#include "LibTorrentSession.h"
+#include "Session.h"
 #include "Drive.h"
 #include "utils.h"
 
@@ -66,7 +66,7 @@ std::promise<InfoHash>  clientDataPromise;
 std::promise<InfoHash>  clientDataPromise2;
 
 // clientAlertHandler
-void clientAlertHandler( LibTorrentSession*, libtorrent::alert* alert )
+void clientAlertHandler( Session*, libtorrent::alert* alert )
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
@@ -253,7 +253,7 @@ void clientDownloadFsTree( InfoHash rootHash, endpoint_list addrList )
 {
     std::cout << "\n";
     EXLOG( "# Client started FsTree download: " << toString(rootHash) );
-    auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", clientAlertHandler );
+    auto ltSession = createDefaultSession( REPLICATOR_IP_ADDR ":5550", clientAlertHandler );
 
     // Make the list of replicator addresses
     //
@@ -276,7 +276,7 @@ void clientUploadFiles( endpoint_list addrList )
 {
     EXLOG( "\n# Client started: 1-st upload" );
 
-    auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", clientAlertHandler );
+    auto ltSession = createDefaultSession( REPLICATOR_IP_ADDR ":5550", clientAlertHandler );
 
     fs::path clientFolder = createClientFiles();
 
@@ -322,7 +322,7 @@ void clientModifyDrive( endpoint_list addrList )
 {
     EXLOG( "\n# Client started: 2-d upload" );
 
-    auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", clientAlertHandler );
+    auto ltSession = createDefaultSession( REPLICATOR_IP_ADDR ":5550", clientAlertHandler );
 
     // download fs tree
     

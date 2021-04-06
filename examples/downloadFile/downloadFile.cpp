@@ -1,4 +1,4 @@
-#include "LibTorrentSession.h"
+#include "Session.h"
 
 #include <memory>
 #include <string>
@@ -43,7 +43,7 @@ std::mutex              finishMutex;
 bool                    isFinished = false;
 
 // clientAlertHandler
-void clientAlertHandler( LibTorrentSession*, libtorrent::alert* alert )
+void clientAlertHandler( Session*, libtorrent::alert* alert )
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
@@ -53,7 +53,7 @@ void clientAlertHandler( LibTorrentSession*, libtorrent::alert* alert )
 }
 
 // replicatorAlertHandler
-void replicatorAlertHandler( LibTorrentSession*, libtorrent::alert* alert )
+void replicatorAlertHandler( Session*, libtorrent::alert* alert )
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
@@ -134,7 +134,7 @@ void client( endpoint_list replicatorAddresses, InfoHash infoHashOfSomeFile, fs:
 {
     // Create libtorrent session
     //
-    auto ltSession = createDefaultLibTorrentSession( CLIENT_IP_ADDR ":5551", clientAlertHandler );
+    auto ltSession = createDefaultSession( CLIENT_IP_ADDR ":5551", clientAlertHandler );
 
     // Start file downloading
     //
@@ -162,7 +162,7 @@ void replicator( std::promise<InfoHash> infoHashPromise )
     InfoHash infoHashOfFile = createTorrentFile( file, file.parent_path(), torrentFile );
 
     // Emulate replicator side
-    auto ltSession = createDefaultLibTorrentSession( REPLICATOR_IP_ADDR ":5550", replicatorAlertHandler );
+    auto ltSession = createDefaultSession( REPLICATOR_IP_ADDR ":5550", replicatorAlertHandler );
     ltSession->addTorrentFileToSession( torrentFile, file.parent_path() );
 
     // Pass InfoHash
