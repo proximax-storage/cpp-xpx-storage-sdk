@@ -4,10 +4,10 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "Drive.h"
-#include "LibTorrentSession.h"
-#include "ActionList.h"
-#include "utils.h"
+#include "drive/Drive.h"
+#include "drive/LibTorrentSession.h"
+#include "drive/ActionList.h"
+#include "drive/utils.h"
 
 #include <filesystem>
 #include <set>

@@ -4,9 +4,9 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "LibTorrentSession.h"
-#include "utils.h"
-#include "log.h"
+#include "drive/LibTorrentSession.h"
+#include "drive/utils.h"
+#include "drive/log.h"
 
 #include <iostream>
 #include <vector>
