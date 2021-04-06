@@ -165,20 +165,43 @@ void FsTree::doSerialize( std::string fileName ) {
     std::ofstream os( fileName, std::ios::binary );
     cereal::PortableBinaryOutputArchive archive( os );
 
+    // save fs tree version
+    archive( FS_TREE_VERSION );
+
     // sort tree before saving
     sort();
     archive( *this );
 }
 
 // deserialize
-void FsTree::deserialize( std::string fileName ) try {
+void FsTree::deserialize( std::string fileName ) {
+
     m_childs.clear();
+
     std::ifstream is( fileName, std::ios::binary );
     cereal::PortableBinaryInputArchive iarchive(is);
-    iarchive( *this );
-}
-catch(...) {
-    throw std::runtime_error( std::string("Invalid FsTree file format: ") + fileName );
+
+    // deserialize fs tree version
+    uint32_t version;
+    try {
+        iarchive( version );
+    }
+    catch(...) {
+        throw std::runtime_error( std::string("Invalid FsTree file format: ") + fileName );
+    }
+
+    // check fs tree version
+    if ( version != FS_TREE_VERSION ) {
+        throw std::runtime_error( std::string("Invalid FS_TREE_VERSION: ") + fileName );
+    }
+
+    // deserialize fs tree
+    try {
+        iarchive( *this );
+    }
+    catch(...) {
+            throw std::runtime_error( std::string("Invalid FsTree file format: ") + fileName );
+    }
 }
 
 // addFile

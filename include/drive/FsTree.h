@@ -16,6 +16,8 @@ namespace sirius { namespace drive {
 
 using lt_handle  = lt::torrent_handle;
 
+const uint32_t FS_TREE_VERSION = 0x01;
+
 // File
 class File {
 public:
