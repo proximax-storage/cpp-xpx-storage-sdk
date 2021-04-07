@@ -1,6 +1,6 @@
-#include "Session.h"
-#include "Drive.h"
-#include "utils.h"
+#include "drive/Session.h"
+#include "drive/Drive.h"
+#include "drive/Utils.h"
 
 #include <fstream>
 #include <filesystem>
@@ -125,7 +125,7 @@ int main(int,char**)
 //
 // replicatorDownloadHandler
 //
-void replicatorDownloadHandler ( modify_status::code code, InfoHash resultRootInfoHash, std::string error )
+void replicatorDownloadHandler ( modify_status::code code, InfoHash /*resultRootInfoHash*/, std::string error )
 {
 
     if ( code == modify_status::update_completed )
@@ -226,7 +226,7 @@ void replicator()
 //
 // clientDwonloadHandler
 //
-void clientDownloadHandler( download_status::code code, const InfoHash& hash, const std::string& info )
+void clientDownloadHandler( download_status::code code, const InfoHash& hash, const std::string& /*info*/ )
 {
     if ( code == download_status::complete )
     {

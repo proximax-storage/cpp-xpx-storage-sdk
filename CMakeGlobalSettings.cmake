@@ -53,15 +53,26 @@ elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
 	# - Wno-padded: allow compiler to automatically pad data types for alignment
 	# - Wno-switch-enum: do not require enum switch statements to list every value (this setting is also incompatible with GCC warnings)
 	# - Wno-weak-vtables: vtables are emitted in all translsation units for virtual classes with no out-of-line virtual method definitions
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
-		-Werror \
-		-fbracket-depth=1024 \
-		-Wno-c++98-compat \
-		-Wno-c++98-compat-pedantic \
-		-Wno-disabled-macro-expansion \
-		-Wno-padded \
-		-Wno-switch-enum \
-		-Wno-weak-vtables")
+#	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
+#		-Werror \
+#		-fbracket-depth=1024 \
+#		-Wno-c++98-compat \
+#		-Wno-c++98-compat-pedantic \
+#		-Wno-disabled-macro-expansion \
+#		-Wno-padded \
+#		-Wno-switch-enum \
+#                -Wno-weak-vtables")
+
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
+                -Wall\
+                -Wextra\
+                -Werror\
+                -Wstrict-aliasing=1\
+                -Wnon-virtual-dtor\
+                -Wno-error=uninitialized\
+                -Wno-unused-const-variable\
+                -Wno-unused-private-field\
+                ")
 
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden")
