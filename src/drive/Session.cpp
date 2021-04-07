@@ -275,7 +275,7 @@ private:
 
                         auto ltHash = alertInfo->handle.info_hashes().v2;
                         InfoHash hash;
-                        if ( ltHash.size() != hash.size() )
+                        if ( ((size_t)ltHash.size()) != hash.size() )
                         {
                             LOG("ltHash.size() != hash.size()");
                             handler( download_status::failed, InfoHash(), "internal error 'ltHash.size() != hash.size()'" );
@@ -479,7 +479,7 @@ private:
 //
 // ('static') createTorrentFile
 //
-InfoHash createTorrentFile( std::string fileOrFolder, std::string rootFolder, std::string outputTorrentFilename )
+InfoHash createTorrentFile( std::string fileOrFolder, std::string /*rootFolder*/, std::string outputTorrentFilename )
 {
     // setup file storage
     lt::file_storage fStorage;

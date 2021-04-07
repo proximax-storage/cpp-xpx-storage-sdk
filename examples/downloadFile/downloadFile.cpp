@@ -114,7 +114,7 @@ int main(int,char**)
 //
 // progressHandler
 //
-void progressHandler( download_status::code code, InfoHash, std::string info )
+void progressHandler( download_status::code code, InfoHash, std::string )
 {
     if ( code == download_status::complete ) {
         isFinished = true;

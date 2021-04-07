@@ -651,7 +651,7 @@ public:
         updateDrive_1();
     }
     
-    void calculateTorrentsForFolderFiles( fs::path srcFolder, fs::path torrentFolder, Folder& fsTreeFolder )
+    void calculateTorrentsForFolderFiles( fs::path srcFolder, fs::path /*torrentFolder*/, Folder& fsTreeFolder )
     {
         for (const auto& entry: fs::directory_iterator(srcFolder)) {
 
