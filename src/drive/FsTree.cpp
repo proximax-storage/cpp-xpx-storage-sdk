@@ -55,7 +55,7 @@ void Folder::sort() {
 Folder& Folder::getSubfolderOrCreate( const std::string& subFolderName ) {
 
     auto it = std::find_if( m_childs.begin(), m_childs.end(),
-                         [=](const Child& child) -> bool
+                         [&subFolderName](const Child& child) -> bool
                          {
                              if ( isFolder(child) )
                                  return getFolder(child).name() == subFolderName;
@@ -77,7 +77,7 @@ Folder& Folder::getSubfolderOrCreate( const std::string& subFolderName ) {
 // findChild
 Folder::Child* Folder::findChild( const std::string& childName ) {
     auto it = std::find_if( m_childs.begin(), m_childs.end(),
-                         [=](const Child& child) -> bool
+                         [&childName](const Child& child) -> bool
                          {
                              if ( isFolder(child) )
                                  return getFolder(child).name() == childName;
@@ -97,7 +97,7 @@ std::list<Folder::Child>::iterator Folder::findChildIt( const std::string& child
     auto it = std::find_if(
                  m_childs.begin(),
                  m_childs.end(),
-                 [=](const Child& child) -> bool
+                 [&childName](const Child& child) -> bool
                  {
                      if ( isFolder(child) )
                          return getFolder(child).name() == childName;
@@ -378,7 +378,7 @@ Folder* FsTree::getFolderPtr( const std::string& fullPath, bool createIfNotExist
     for( auto pathIt = path.begin(); pathIt != path.end(); pathIt++ ) {
 
         auto it = std::find_if( treeValker->m_childs.begin(), treeValker->m_childs.end(),
-                             [=](const Child& child) -> bool
+                             [&pathIt](const Child& child) -> bool
                              {
                                  return isFolder(child) && getFolder(child).name() == pathIt->string();
                              });
