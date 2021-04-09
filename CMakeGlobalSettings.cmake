@@ -67,6 +67,7 @@ elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
                 -Wall\
                 -Wextra\
                 -Werror\
+                -Werror-deprecated\
                 -Wstrict-aliasing=1\
                 -Wnon-virtual-dtor\
                 -Wno-error=uninitialized\
