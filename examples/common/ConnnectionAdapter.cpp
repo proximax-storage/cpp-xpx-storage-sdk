@@ -31,6 +31,6 @@ namespace sirius { namespace sdk { namespace examples {
         auto connector = connection::CreateDefaultNodeConnector(settings, kePair, callback);
 
         connector->connect(node);
-        return std::move(connector);
+        return connector;
     }
 }}}
