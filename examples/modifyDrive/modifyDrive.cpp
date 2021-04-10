@@ -65,8 +65,8 @@ std::promise<InfoHash>  rootHashPromise3;
 std::promise<InfoHash>  clientDataPromise;
 std::promise<InfoHash>  clientDataPromise2;
 
-// clientAlertHandler
-void clientAlertHandler( Session*, libtorrent::alert* alert )
+// clientSessionErrorHandler
+void clientSessionErrorHandler( libtorrent::alert* alert )
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
@@ -74,6 +74,17 @@ void clientAlertHandler( Session*, libtorrent::alert* alert )
         exit(-1);
     }
 }
+
+// replicatorSessionErrorHandler
+void replicatorSessionErrorHandler( libtorrent::alert* alert)
+{
+    if ( alert->type() == lt::listen_failed_alert::alert_type )
+    {
+        std::cerr << alert->message() << std::endl << std::flush;
+        exit(-1);
+    }
+}
+
 
 //
 // main
@@ -153,10 +164,12 @@ void replicator()
 {
     EXLOG( "@ Replicator started" );
 
+    auto session = createDefaultSession( CLIENT_IP_ADDR":5551", replicatorSessionErrorHandler );
+
     // start drive
     fs::remove_all( REPLICATOR_ROOT_FOLDER );
     fs::remove_all( REPLICATOR_SANDBOX_ROOT_FOLDER );
-    auto drive = createDefaultDrive( CLIENT_IP_ADDR":5551",
+    auto drive = createDefaultDrive( session,
                                      REPLICATOR_ROOT_FOLDER,
                                      REPLICATOR_SANDBOX_ROOT_FOLDER,
                                      DRIVE_PUB_KEY,
@@ -253,7 +266,7 @@ void clientDownloadFsTree( InfoHash rootHash, endpoint_list addrList )
 {
     std::cout << "\n";
     EXLOG( "# Client started FsTree download: " << toString(rootHash) );
-    auto ltSession = createDefaultSession( REPLICATOR_IP_ADDR ":5550", clientAlertHandler );
+    auto ltSession = createDefaultSession( REPLICATOR_IP_ADDR ":5550", clientSessionErrorHandler );
 
     // Make the list of replicator addresses
     //
@@ -276,7 +289,7 @@ void clientUploadFiles( endpoint_list addrList )
 {
     EXLOG( "\n# Client started: 1-st upload" );
 
-    auto ltSession = createDefaultSession( REPLICATOR_IP_ADDR ":5550", clientAlertHandler );
+    auto ltSession = createDefaultSession( REPLICATOR_IP_ADDR ":5550", clientSessionErrorHandler );
 
     fs::path clientFolder = createClientFiles();
 
@@ -322,7 +335,7 @@ void clientModifyDrive( endpoint_list addrList )
 {
     EXLOG( "\n# Client started: 2-d upload" );
 
-    auto ltSession = createDefaultSession( REPLICATOR_IP_ADDR ":5550", clientAlertHandler );
+    auto ltSession = createDefaultSession( REPLICATOR_IP_ADDR ":5550", clientSessionErrorHandler );
 
     // download fs tree
     

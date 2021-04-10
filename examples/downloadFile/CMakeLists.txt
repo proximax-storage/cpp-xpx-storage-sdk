@@ -23,8 +23,8 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     link_directories(/usr/local/opt/openssl@1.1/lib)
 
     target_link_libraries(downloadFile
-#        /usr/local/lib/libtorrent-rasterbar.dylib.2.0
-        /Users/alex/Proj/libtorrent/bin/Debug/libtorrent-rasterbar.a
+        /usr/local/lib/libtorrent-rasterbar.dylib.2.0
+#        /Users/alex/Proj/libtorrent/bin/Debug/libtorrent-rasterbar.a
 #        /Users/alex/Proj/libtorrent/bin/Debug/libtorrent-rasterbar.dylib
         /usr/local/opt/openssl@1.1/lib/libcrypto.dylib
         /usr/local/opt/openssl@1.1/lib/libssl.dylib

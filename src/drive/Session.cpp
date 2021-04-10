@@ -353,7 +353,7 @@ private:
                 }
 
                 case lt::listen_failed_alert::alert_type: {
-                    this->m_alertHandler( this, alert );
+                    this->m_alertHandler( alert );
 
                     auto *alertInfo = dynamic_cast<lt::listen_failed_alert *>(alert);
 
@@ -439,22 +439,22 @@ private:
                     auto *alertInfo = dynamic_cast<lt::block_uploaded_alert *>(alert);
 
                     if (alertInfo) {
-                        LOG("block_uploaded: " << alertInfo->message())
-
-                        // get peers info
-                        std::vector<lt::peer_info> peers;
-                        alertInfo->handle.get_peer_info(peers);
-
-                        for (const lt::peer_info &pi : peers) {
-                            LOG("Upload. Peer ip: " << pi.ip.address().to_string())
-                            LOG("Upload. Peer id: " << pi.pid.to_string())
+//                        LOG("block_uploaded: " << alertInfo->message())
+//
+//                        // get peers info
+//                        std::vector<lt::peer_info> peers;
+//                        alertInfo->handle.get_peer_info(peers);
+//
+//                        for (const lt::peer_info &pi : peers) {
+//                            LOG("Upload. Peer ip: " << pi.ip.address().to_string())
+//                            LOG("Upload. Peer id: " << pi.pid.to_string())
 
                             // the total number of bytes downloaded from and uploaded to this peer.
                             // These numbers do not include the protocol chatter, but only the
                             // payload data.
-                            LOG("Upload. Total download: " << pi.total_download)
-                            LOG("Upload. Total upload: " << pi.total_upload)
-                        }
+//                            LOG("Upload. Total download: " << pi.total_download)
+//                            LOG("Upload. Total upload: " << pi.total_upload)
+//                        }
                     }
                     break;
                 }

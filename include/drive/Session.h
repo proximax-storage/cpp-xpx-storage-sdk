@@ -68,7 +68,7 @@ InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string pathTo
 // createDefaultLibTorrentSession
 //
 
-using LibTorrentErrorHandler = std::function<void( Session*, libtorrent::alert* )>;
+using LibTorrentErrorHandler = std::function<void( libtorrent::alert* )>;
 
 std::shared_ptr<Session> createDefaultSession( std::string address, const LibTorrentErrorHandler& );
 

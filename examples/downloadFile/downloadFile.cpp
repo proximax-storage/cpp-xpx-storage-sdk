@@ -42,8 +42,8 @@ std::condition_variable finishCondVar;
 std::mutex              finishMutex;
 bool                    isFinished = false;
 
-// clientAlertHandler
-void clientAlertHandler( Session*, libtorrent::alert* alert )
+// clientSessionErrorHandler
+void clientSessionErrorHandler( libtorrent::alert* alert )
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
@@ -53,7 +53,7 @@ void clientAlertHandler( Session*, libtorrent::alert* alert )
 }
 
 // replicatorAlertHandler
-void replicatorAlertHandler( Session*, libtorrent::alert* alert )
+void replicatorAlertHandler( libtorrent::alert* alert )
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
@@ -134,7 +134,7 @@ void client( endpoint_list replicatorAddresses, InfoHash infoHashOfSomeFile, fs:
 {
     // Create libtorrent session
     //
-    auto ltSession = createDefaultSession( CLIENT_IP_ADDR ":5551", clientAlertHandler );
+    auto ltSession = createDefaultSession( CLIENT_IP_ADDR ":5551", clientSessionErrorHandler );
 
     // Start file downloading
     //

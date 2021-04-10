@@ -23,33 +23,6 @@ namespace fs = std::filesystem;
 namespace sirius { namespace drive {
 
 //
-// Session for file transmissions
-//
-class SingleSession
-{
-public:
-    static std::shared_ptr<Session> createSessionIfNotExist( const std::string& listenInterface,
-                                                             const LibTorrentErrorHandler& errorHandler )
-    {
-        m_mutex.lock();
-        if ( m_session.get() == nullptr )
-        {
-            m_session = createDefaultSession( listenInterface, errorHandler );
-        }
-        m_mutex.unlock();
-
-        return m_session;
-    }
-
-private:
-    static std::shared_ptr<Session> m_session;
-    static std::mutex               m_mutex;
-};
-
-std::shared_ptr<Session>    SingleSession::m_session;
-std::mutex                  SingleSession::m_mutex;
-
-//
 // DrivePaths - drive paths, used at replicator side
 //
 class DrivePaths {
@@ -98,11 +71,10 @@ class DefaultDrive: public Drive, protected DrivePaths {
     using LtSession = std::shared_ptr<Session>;
     using lt_handle  = Session::lt_handle;
 
-    const std::string& m_listenInterface;
+    LtSession     m_session;
+
     size_t        m_maxSize;
     endpoint_list m_otherReplicators;
-
-    LtSession     m_session;
 
     // FsTree
     FsTree        m_fsTree;
@@ -123,15 +95,15 @@ class DefaultDrive: public Drive, protected DrivePaths {
 
 public:
 
-    DefaultDrive( const std::string&   listenInterface,
-                  const std::string&   replicatorRootFolder,
-                  const std::string&   replicatorSandboxRootFolder,
-                  const std::string&   drivePubKey,
-                  size_t               maxSize,
-                  const endpoint_list& otherReplicators )
+    DefaultDrive( std::shared_ptr<Session>  session,
+                  const std::string&        replicatorRootFolder,
+                  const std::string&        replicatorSandboxRootFolder,
+                  const std::string&        drivePubKey,
+                  size_t                    maxSize,
+                  const endpoint_list&      otherReplicators )
         :
           DrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
-          m_listenInterface(listenInterface),
+          m_session(session),
           m_maxSize(maxSize),
           m_otherReplicators(otherReplicators)
     {
@@ -152,9 +124,6 @@ public:
     {
         // Clear m_rootDriveHash
         memset( m_rootHash.data(), 0 , m_rootHash.size() );
-
-        // Start drive session
-        startDistributionSession();
 
         // Create nonexistent folders
         if ( !fs::exists( m_fsTreeFile ) )
@@ -198,16 +167,6 @@ public:
         // Add FsTree to session
         //m_session->addTorrentFileToSession( m_fsTreeTorrent, m_replicatorRoot, m_otherReplicators );
         m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent, m_fsTreeTorrent.parent_path(), m_otherReplicators );
-    }
-
-
-    // Start libtorrent session with 'torrent files'
-    //
-    void startDistributionSession()
-    {
-        m_session = SingleSession::createSessionIfNotExist(
-                                                m_listenInterface,
-                                                DefaultDrive::errorHandler );
     }
 
     // Build FsTree
@@ -824,14 +783,14 @@ public:
 
 
 std::shared_ptr<Drive> createDefaultDrive(
-        const std::string& listenInterface,
-        const std::string& replicatorRootFolder,
-        const std::string& replicatorSandboxRootFolder,
-        const std::string& drivePubKey,
-        size_t      maxSize,
-        const endpoint_list& otherReplicators )
+        std::shared_ptr<Session> session,
+        const std::string&       replicatorRootFolder,
+        const std::string&       replicatorSandboxRootFolder,
+        const std::string&       drivePubKey,
+        size_t                   maxSize,
+        const endpoint_list&     otherReplicators )
 {
-    return std::make_shared<DefaultDrive>( listenInterface,
+    return std::make_shared<DefaultDrive>( session,
                                            replicatorRootFolder,
                                            replicatorSandboxRootFolder,
                                            drivePubKey,
