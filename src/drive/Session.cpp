@@ -34,6 +34,8 @@ namespace fs = std::filesystem;
 
 namespace sirius { namespace drive {
 
+enum { PIECE_SIZE = 16*1024 };
+
 //
 // DefaultLibTorrentSession -
 //
@@ -110,8 +112,8 @@ public:
     }
 
     // addTorrentFileToSession
-    virtual lt_handle addTorrentFileToSession( std::string torrentFilename,
-                                          std::string savePath,
+    virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
+                                          const std::string& savePath,
                                           endpoint_list list ) override {
 
         // read torrent file
@@ -127,7 +129,7 @@ public:
         params.ti = std::make_shared<lt::torrent_info>( buffer, lt::from_span );
 
         //dbg///////////////////////////////////////////////////
-        auto tInfo = lt::torrent_info(buffer, lt::from_span);
+//        auto tInfo = lt::torrent_info(buffer, lt::from_span);
 //        LOG( tInfo.info_hashes().v2.to_string() ) );
 //        LOG( tInfo.info_hashes().v2 ) );
 //        LOG( "add torrent: torrent filename:" << torrentFilename );
@@ -202,15 +204,16 @@ public:
     }
 
     // downloadFile
-    virtual void downloadFile( InfoHash infoHash,
-                               std::string outputFolder,
-                               DownloadHandler downloadHandler,
-                               endpoint_list list ) override {
+    virtual void downloadFile( InfoHash           infoHash,
+                               const std::string& outputFolder,
+                               DownloadHandler    downloadHandler,
+                               endpoint_list      list ) override {
 
         //LOG( "downloadFile: " << toString(infoHash) );
 
         // create add_torrent_params
-        lt::add_torrent_params params = lt::parse_magnet_uri( magnetLink(infoHash) );
+        lt::error_code ec;
+        lt::add_torrent_params params = lt::parse_magnet_uri( magnetLink(infoHash), ec );
 
         // where the file will be placed
         params.save_path = outputFolder;
@@ -233,6 +236,50 @@ public:
         m_downloadHandlerMap[tHandle.id()] = downloadHandler;
     }
 
+//    virtual std::string getRootHashOfFile( const std::string& filename ) override
+//    {
+//        // setup file storage
+//        lt::file_storage fStorage;
+//        lt::add_files( fStorage, filename, lt::create_flags_t{} );
+
+//        // create torrent info
+//        lt::create_torrent createInfo( fStorage, PIECE_SIZE, lt::create_torrent::v2_only );
+
+//        // calculate hashes for 'fileOrFolder' relative to 'rootFolder'
+//        lt::error_code ec;
+//    //    lt::set_piece_hashes( createInfo, rootFolder, ec );
+//    //    std::cout << ec.category().name() << ':' << ec.value();
+//        lt::set_piece_hashes( createInfo, fs::path(filename).parent_path(), ec );
+
+//        // generate metadata
+//        lt::entry entry_info = createInfo.generate();
+
+//        // convert to bencoding
+//        std::vector<char> torrentFileBytes;
+//    //    entry_info["info"].dict()["xpx"]=lt::entry("pub_key/folder1");
+//        lt::bencode(std::back_inserter(torrentFileBytes), entry_info); // metainfo -> binary
+
+//        //dbg////////////////////////////////
+//        auto entry = entry_info;
+//        //LOG( "entry[info]:" << entry["info"].to_string() );
+//        //LOG( entry.to_string() );
+//        auto tInfo = lt::torrent_info(torrentFileBytes, lt::from_span);
+//        //LOG( "make_magnet_uri:" << lt::make_magnet_uri(tInfo) );
+//        //dbg////////////////////////////////
+
+//        // get infoHash
+//        lt::torrent_info torrentInfo( torrentFileBytes, lt::from_span );
+//        auto binaryString = torrentInfo.info_hashes().v2.to_string();
+
+//        // copy hash
+//        InfoHash infoHash;
+//        if ( binaryString.size()==32 ) {
+//            memcpy( &infoHash[0], &binaryString[0], 32 );
+//        }
+
+//        return "infoHash";
+//    }
+
 private:
 
     void alertHandler() {
@@ -249,7 +296,7 @@ private:
                 case lt::torrent_deleted_alert::alert_type: {
                     auto *alertInfo = dynamic_cast<lt::torrent_deleted_alert*>(alert);
                     //LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.info_hashes().v2 );
-                    LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.torrent_file()->files().file_name(0).to_string() );
+                    LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.torrent_file()->files().file_name(0) );
                     LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.torrent_file()->files().file_path(0) );
                     //LOG( "*** get_torrents().size()=" << m_session.get_torrents().size() );
                     
@@ -439,22 +486,22 @@ private:
                     auto *alertInfo = dynamic_cast<lt::block_uploaded_alert *>(alert);
 
                     if (alertInfo) {
-//                        LOG("block_uploaded: " << alertInfo->message())
-//
-//                        // get peers info
-//                        std::vector<lt::peer_info> peers;
-//                        alertInfo->handle.get_peer_info(peers);
-//
-//                        for (const lt::peer_info &pi : peers) {
-//                            LOG("Upload. Peer ip: " << pi.ip.address().to_string())
-//                            LOG("Upload. Peer id: " << pi.pid.to_string())
+                        LOG("block_uploaded: " << alertInfo->message())
 
-                            // the total number of bytes downloaded from and uploaded to this peer.
-                            // These numbers do not include the protocol chatter, but only the
-                            // payload data.
-//                            LOG("Upload. Total download: " << pi.total_download)
-//                            LOG("Upload. Total upload: " << pi.total_upload)
-//                        }
+                        // get peers info
+                        std::vector<lt::peer_info> peers;
+                        alertInfo->handle.get_peer_info(peers);
+
+                        for (const lt::peer_info &pi : peers) {
+                            LOG("Upload. Peer ip: " << pi.ip.address().to_string())
+                            LOG("Upload. Peer id: " << pi.pid.to_string())
+
+                             //the total number of bytes downloaded from and uploaded to this peer.
+                             //These numbers do not include the protocol chatter, but only the
+                             //payload data.
+                            LOG("Upload. Total download: " << pi.total_download)
+                            LOG("Upload. Total upload: " << pi.total_upload)
+                        }
                     }
                     break;
                 }
@@ -469,7 +516,13 @@ private:
                 }
 
                 default: {
-                    //LOG( "other alert: " << alert->message() );
+                    //TODO
+                    if ( alert->type() != 52 && alert->type() != 78 && alert->type() != 86
+                        && alert->type() != 81 && alert->type() != 85
+                        && m_addressAndPort == "192.168.1.101:5551") //52==portmap_log_alert
+                    {
+                        LOG( m_addressAndPort << " alert(" << alert->type() << "): " << alert->message() );
+                    }
                 }
             }
         }
@@ -479,14 +532,14 @@ private:
 //
 // ('static') createTorrentFile
 //
-InfoHash createTorrentFile( std::string fileOrFolder, std::string /*rootFolder*/, std::string outputTorrentFilename )
+InfoHash createTorrentFile( const std::string& fileOrFolder, const std::string& /*rootFolder*/, const std::string& outputTorrentFilename )
 {
     // setup file storage
     lt::file_storage fStorage;
     lt::add_files( fStorage, fileOrFolder, lt::create_flags_t{} );
 
     // create torrent info
-    lt::create_torrent createInfo( fStorage, 16*1024, lt::create_torrent::v2_only );
+    lt::create_torrent createInfo( fStorage, PIECE_SIZE, lt::create_torrent::v2_only );
 
     // calculate hashes for 'fileOrFolder' relative to 'rootFolder'
 //    lt::error_code ec;
@@ -528,6 +581,218 @@ InfoHash createTorrentFile( std::string fileOrFolder, std::string /*rootFolder*/
     }
 
     return infoHash;
+}
+
+RootHash calculateRootHash( const std::string& pathToFile )
+{
+    // setup file storage
+    lt::file_storage fStorage;
+    lt::add_files( fStorage, pathToFile, lt::create_flags_t{} );
+
+    // create torrent info
+    lt::create_torrent createInfo( fStorage, PIECE_SIZE, lt::create_torrent::v2_only );
+
+    // calculate hashes
+    lt::error_code ec;
+    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path() );
+    if ( ec )
+    {
+        throw std::runtime_error( std::string("moveFileToFlatDrive: libtorrent error: ") + ec.message() );
+    }
+
+    // generate metadata tree
+    lt::entry entry_info = createInfo.generate();
+
+    // extract root hash
+    auto fileRootHash = entry_info["info"]["file tree"].dict().begin()->second.dict().begin()->second["pieces root"].string();
+    RootHash rootHash;
+    if ( fileRootHash.size() != rootHash.size() )
+    {
+        throw std::runtime_error( std::string("moveFileToFlatDrive: invalid 'pieces root'") );
+    }
+    memcpy( rootHash.data(), fileRootHash.data(), rootHash.size() );
+
+    return rootHash;
+}
+
+InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
+                                      const std::string& drivePublicKey,
+                                      const std::string& outputTorrentPath )
+{
+    if ( fs::is_directory(pathToFile) )
+    {
+        throw std::runtime_error( std::string("moveFileToFlatDrive: 1-st parameter cannot be a folder: ") + pathToFile );
+    }
+
+    if ( !outputTorrentPath.empty() && !fs::is_directory(outputTorrentPath) )
+    {
+        throw std::runtime_error( std::string("moveFileToFlatDrive: 'outputTorrentPath' must be a folder: ") + pathToFile );
+    }
+
+    // setup file storage
+    lt::file_storage fStorage;
+    lt::add_files( fStorage, pathToFile, lt::create_flags_t{} );
+
+    // create torrent info
+    lt::create_torrent createInfo( fStorage, PIECE_SIZE, lt::create_torrent::v2_only );
+
+    // calculate hashes
+    lt::error_code ec;
+    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path() );
+    if ( ec )
+    {
+        throw std::runtime_error( std::string("moveFileToFlatDrive: libtorrent error: ") + ec.message() );
+    }
+
+    // generate metadata tree
+    lt::entry entry_info = createInfo.generate();
+
+    // add public key of drive
+    entry_info["info"].dict()["xpx"]=lt::entry( drivePublicKey );
+
+    // convert to bencoding
+    std::vector<char> torrentFileBytes;
+    lt::bencode(std::back_inserter(torrentFileBytes), entry_info); // metainfo -> binary
+
+    //dbg////////////////////////////////
+    LOG( "entry_info[info]:" << entry_info["info"].to_string() );
+    //auto tInfo = lt::torrent_info(torrentFileBytes, lt::from_span);
+    //LOG( "make_magnet_uri:" << lt::make_magnet_uri(tInfo) );
+    //dbg////////////////////////////////
+
+    // create torrentInfo
+    lt::torrent_info torrentInfo( torrentFileBytes, lt::from_span );
+    auto binaryString = torrentInfo.info_hashes().v2.to_string();
+
+    // copy hash
+    InfoHash infoHash;
+    if ( binaryString.size()==32 ) {
+        memcpy( infoHash.data(), binaryString.data(), 32 );
+    }
+    std::string newFileName = uniqueFileName(infoHash);
+
+#if 0
+    // replace file name
+//    auto& info = entry_info["info"];
+//    auto& fileTreeDict = info["file tree"].dict();
+//    auto fileInfo = fileTreeDict.begin()->second;
+//    fileTreeDict.erase( fileTreeDict.begin() );
+//    fileTreeDict[newFileName] = fileInfo;
+//    auto name = info.dict().find("name");
+//    info.dict().erase( name );
+//    info.dict()["name"] = newFileName;
+
+    LOG( "entry[info]:" << entry_info["info"].to_string() );
+
+    std::vector<char> torrentFileBytes2;
+    lt::bencode(std::back_inserter(torrentFileBytes2), entry_info); // metainfo -> binary
+    lt::torrent_info torrentInfo2( torrentFileBytes2, lt::from_span );
+
+    if (1)
+    {
+        // get infoHash
+        auto binaryString2 = torrentInfo2.info_hashes().v2.to_string();
+
+        // copy hash
+        InfoHash infoHash2;
+        if ( binaryString2.size()==32 ) {
+            memcpy( infoHash2.data(), binaryString2.data(), 32 );
+        }
+
+        LOG( "infoHash :" << toString(infoHash) );
+        LOG( "infoHash2:" << toString(infoHash2) );
+        assert( infoHash == infoHash2 );
+    }
+
+    // write to file
+    if ( !outputTorrentPath.empty() )
+    {
+        std::ofstream fileStream( fs::path(outputTorrentPath) / (newFileName +".torrent"), std::ios::binary );
+        fileStream.write( torrentFileBytes2.data(), torrentFileBytes2.size() );
+    }
+#else
+    if ( !outputTorrentPath.empty() )
+    {
+        std::ofstream fileStream( fs::path(outputTorrentPath) / (newFileName +".torrent"), std::ios::binary );
+        fileStream.write(torrentFileBytes.data(),torrentFileBytes.size());
+    }
+#endif
+
+    // write to file
+//        std::ofstream fileStream( outputTorrentFilename, std::ios::binary );
+//        fileStream.write(torrentFileBytes.data(),torrentFileBytes.size());
+
+
+    return infoHash;
+}
+
+InfoHash moveFileToFlatDrive( const std::string& pathToFile,
+                              const std::string& /*flatDrivePath*/ )
+{
+    // setup file storage
+    lt::file_storage fStorage;
+    lt::add_files( fStorage, pathToFile, lt::create_flags_t{} );
+
+    // create torrent info
+    lt::create_torrent createInfo( fStorage, PIECE_SIZE, lt::create_torrent::v2_only );
+
+    // calculate hashes
+    lt::error_code ec;
+    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path() );
+    if ( ec )
+    {
+        throw std::runtime_error( std::string("moveFileToFlatDrive: libtorrent error: ") + ec.message() );
+    }
+
+    // generate metadata tree
+    lt::entry entry_info = createInfo.generate();
+
+    // extract root hash
+    auto rootHash = entry_info["info"]["file tree"].dict().begin()->second.dict().begin()->second["pieces root"].string();
+    InfoHash rootInfoHash;
+    if ( rootHash.size() != rootInfoHash.size() )
+    {
+        throw std::runtime_error( std::string("moveFileToFlatDrive: invalid 'pieces root'") );
+    }
+    memcpy( rootInfoHash.data(), rootHash.data(), rootInfoHash.size() );
+
+    LOG( "entry[info]:" << entry_info["info"].to_string() );
+    LOG( "entry[info]:" << toString( rootInfoHash ) );
+
+    // convert to bencoding
+    std::vector<char> torrentFileBytes;
+//    entry_info["info"].dict()["xpx"]=lt::entry("pub_key/folder1");
+    lt::bencode(std::back_inserter(torrentFileBytes), entry_info); // metainfo -> binary
+
+    //dbg////////////////////////////////
+    auto entry = entry_info;
+    LOG( "entry[info]:" << entry["info"].to_string() );
+    auto h = entry["info"]["file tree"].dict().begin()->second.dict().begin()->second["pieces root"].string();
+    LOG( ":" << h.size() );
+    //LOG( entry.to_string() );
+    auto tInfo = lt::torrent_info(torrentFileBytes, lt::from_span);
+    //LOG( "make_magnet_uri:" << lt::make_magnet_uri(tInfo) );
+    //dbg////////////////////////////////
+
+    // get infoHash
+    lt::torrent_info torrentInfo( torrentFileBytes, lt::from_span );
+    auto binaryString = torrentInfo.info_hashes().v2.to_string();
+
+    // copy hash
+    InfoHash infoHash;
+    if ( binaryString.size()==32 ) {
+        memcpy( &infoHash[0], &binaryString[0], 32 );
+    }
+
+    // write to file
+//    if ( !outputTorrentFilename.empty() )
+//    {
+//        std::ofstream fileStream( outputTorrentFilename, std::ios::binary );
+//        fileStream.write(torrentFileBytes.data(),torrentFileBytes.size());
+//    }
+
+    return infoHash;
+
 }
 
 // createDefaultLibTorrentSession

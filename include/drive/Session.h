@@ -44,25 +44,38 @@ public:
 
     virtual void      endSession() = 0;
 
-    virtual lt_handle addTorrentFileToSession( std::string torrentFilename,
-                                               std::string savePath,
+    virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
+                                               const std::string& savePath,
                                                endpoint_list = {} ) = 0;
+
+    virtual void      removeTorrentFromSession( lt_handle, RemoveHandler h = {} ) = 0;
 
     virtual InfoHash  addActionListToSession( const ActionList&,
                                               const std::string& workFolder,
                                               endpoint_list list = {} ) = 0;
 
     virtual void      downloadFile( InfoHash,
-                                    std::string outputFolder,
+                                    const std::string& outputFolder,
                                     DownloadHandler,
                                     endpoint_list list = {} ) = 0;
-
-    virtual void      removeTorrentFromSession( lt_handle, RemoveHandler h = {} ) = 0;
 
 };
 
 // createTorrentFile
-InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string pathToRootFolder, std::string outputTorrentFilename );
+InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
+                            const std::string& /*pathToRootFolder*/,
+                            const std::string& outputTorrentFilename );
+
+// calculateRootHash
+RootHash calculateRootHash( const std::string& pathToFile );
+
+// calculateInfoHash (InfoHash is a part of magnetlink)
+//InfoHash calculateInfoHash( const std::string& pathToFile, const std::string& drivePublicKey );
+
+// calculateInfoHashAndTorrent (InfoHash is a part of magnetlink)
+InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
+                                      const std::string& drivePublicKey,
+                                      const std::string& outputTorrentPath );
 
 //
 // createDefaultLibTorrentSession

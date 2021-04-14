@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.2)
-project(downloadFile)
+project(downloadFileFlat)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -11,9 +11,9 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
 
-add_executable(downloadFile ${SOURCES} downloadFile.cpp)
+add_executable(downloadFileFlat ${SOURCES} downloadFileFlat.cpp)
 
-target_precompile_headers(downloadFile PRIVATE pch.h)
+target_precompile_headers(downloadFileFlat PRIVATE pch.h)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR} /usr/local/Cellar/openssl@1.1/1.1.1i/)
@@ -23,13 +23,14 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     link_directories(/usr/local/opt/icu4c/lib/)
     link_directories(/usr/local/opt/openssl@1.1/lib)
 
-    target_link_libraries(downloadFile
+    target_link_libraries(downloadFileFlat
         #        /usr/local/lib/libtorrent-rasterbar.dylib.2.0
         #        /Users/alex/Proj/libtorrent/bin/Debug/libtorrent-rasterbar.a
-        /Users/alex/Proj/libtorrent/bin/Debug/libtorrent-rasterbar.dylib
+        /Users/alex/Proj/libtorrent/_bin_rel/libtorrent-rasterbar.dylib
+        #/Users/alex/Proj/libtorrent/_bin/libtorrent-rasterbar.dylib
         /usr/local/opt/openssl@1.1/lib/libcrypto.dylib
         /usr/local/opt/openssl@1.1/lib/libssl.dylib
         "-framework CoreFoundation" "-framework SystemConfiguration" )
 else()
-    target_link_libraries(downloadFile libtorrent-rasterbar.so Threads::Threads)
+    target_link_libraries(downloadFileFlat libtorrent-rasterbar.so Threads::Threads)
 endif()

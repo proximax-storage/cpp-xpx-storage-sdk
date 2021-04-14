@@ -1,4 +1,5 @@
 #include "drive/Session.h"
+#include "drive/Utils.h"
 
 #include <memory>
 #include <string>
@@ -19,7 +20,7 @@
 
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 //!!!
-#define CLIENT_IP_ADDR "192.168.1.102"
+#define CLIENT_IP_ADDR "192.168.1.101"
 #define REPLICATOR_IP_ADDR "127.0.0.1"
 
 
@@ -158,12 +159,16 @@ void replicator( std::promise<InfoHash> infoHashPromise )
 
     // Create torrent file
     //
-    fs::path torrentFile = file.parent_path() / "info.torrent";
-    InfoHash infoHashOfFile = createTorrentFile( file, file.parent_path(), torrentFile );
+//@    fs::path torrentFile = file.parent_path() / "info.torrent";
+//@    InfoHash infoHashOfFile = createTorrentFile( file, file.parent_path(), torrentFile );
+    InfoHash infoHashOfFile = calculateInfoHashAndTorrent( file, "pub_key", file.parent_path() );
+    fs::path newFilename = file.parent_path() / uniqueFileName(infoHashOfFile);
+    fs::path torrentFilename = file.parent_path() / (uniqueFileName(infoHashOfFile) + ".torrent");
+    //fs::rename( file, newFilename );
 
     // Emulate replicator side
     auto ltSession = createDefaultSession( REPLICATOR_IP_ADDR ":5550", replicatorAlertHandler );
-    ltSession->addTorrentFileToSession( torrentFile, file.parent_path() );
+    ltSession->addTorrentFileToSession( torrentFilename, newFilename.parent_path() );
 
     // Pass InfoHash
     infoHashPromise.set_value( infoHashOfFile );
