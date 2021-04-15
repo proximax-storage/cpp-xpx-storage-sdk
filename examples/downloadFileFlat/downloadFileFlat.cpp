@@ -164,7 +164,7 @@ void replicator( std::promise<InfoHash> infoHashPromise )
     InfoHash infoHashOfFile = calculateInfoHashAndTorrent( file, "pub_key", file.parent_path() );
     fs::path newFilename = file.parent_path() / uniqueFileName(infoHashOfFile);
     fs::path torrentFilename = file.parent_path() / (uniqueFileName(infoHashOfFile) + ".torrent");
-    //fs::rename( file, newFilename );
+    fs::rename( file, newFilename );
 
     // Emulate replicator side
     auto ltSession = createDefaultSession( REPLICATOR_IP_ADDR ":5550", replicatorAlertHandler );

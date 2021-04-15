@@ -66,13 +66,9 @@ InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
                             const std::string& /*pathToRootFolder*/,
                             const std::string& outputTorrentFilename );
 
-// calculateRootHash
-RootHash calculateRootHash( const std::string& pathToFile );
-
-// calculateInfoHash (InfoHash is a part of magnetlink)
-//InfoHash calculateInfoHash( const std::string& pathToFile, const std::string& drivePublicKey );
-
+//
 // calculateInfoHashAndTorrent (InfoHash is a part of magnetlink)
+//
 InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
                                       const std::string& drivePublicKey,
                                       const std::string& outputTorrentPath );
