@@ -162,8 +162,8 @@ void replicator( std::promise<InfoHash> infoHashPromise )
 //@    fs::path torrentFile = file.parent_path() / "info.torrent";
 //@    InfoHash infoHashOfFile = createTorrentFile( file, file.parent_path(), torrentFile );
     InfoHash infoHashOfFile = calculateInfoHashAndTorrent( file, "pub_key", file.parent_path() );
-    fs::path newFilename = file.parent_path() / uniqueFileName(infoHashOfFile);
-    fs::path torrentFilename = file.parent_path() / (uniqueFileName(infoHashOfFile) + ".torrent");
+    fs::path newFilename = file.parent_path() / internalFileName(infoHashOfFile);
+    fs::path torrentFilename = file.parent_path() / (internalFileName(infoHashOfFile) + ".torrent");
     fs::rename( file, newFilename );
 
     // Emulate replicator side
@@ -193,10 +193,14 @@ fs::path createReplicatorFile() {
     //
     fs::path fname = tmpFolder / "file.bin";
 
-    std::vector<uint8_t> data(1024*1024/2);
+    std::vector<uint8_t> data(1024);//*1024/2);
     std::generate( data.begin(), data.end(), std::rand );
 
     std::ofstream file( fname );
+    file.write( (char*) data.data(), data.size() );
+
+    // Create 2-d file
+    std::ofstream file2( tmpFolder / "file2.bin" );
     file.write( (char*) data.data(), data.size() );
 
     // Return path to file

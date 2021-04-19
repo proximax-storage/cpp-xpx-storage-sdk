@@ -4,10 +4,12 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "drive/Drive.h"
+#include "drive/FlatDrive.h"
 #include "drive/Session.h"
 #include "drive/ActionList.h"
 #include "drive/Utils.h"
+#include "drive/FsTree.h"
+#include "drive/log.h"
 
 #include <filesystem>
 #include <set>
@@ -25,9 +27,9 @@ namespace sirius { namespace drive {
 //
 // DrivePaths - drive paths, used at replicator side
 //
-class DrivePaths {
+class FlatDrivePaths {
 protected:
-    DrivePaths( const std::string& replicatorRootFolder,
+    FlatDrivePaths( const std::string& replicatorRootFolder,
                 const std::string& replicatorSandboxRootFolder,
                 const std::string& drivePubKey )
         :
@@ -36,7 +38,7 @@ protected:
           m_replicatorSandboxRoot( replicatorSandboxRootFolder )
     {}
 
-    virtual ~DrivePaths() {}
+    virtual ~FlatDrivePaths() {}
 
 protected:
     const std::string& m_drivePubKey;
@@ -48,17 +50,15 @@ protected:
     const fs::path  m_driveRootPath     = m_replicatorRoot / m_drivePubKey;
     const fs::path  m_driveFolder       = m_driveRootPath / "drive";
     const fs::path  m_torrentFolder     = fs::path( m_driveRootPath ) / "torrent";
-    const fs::path  m_fsTreeFile        = fs::path( m_driveRootPath ) / FS_TREE_FILE_NAME;
-    const fs::path  m_fsTreeTorrent     = fs::path( m_driveRootPath ) / "FsTree.torrent";
+    const fs::path  m_fsTreeFile        = fs::path( m_driveRootPath ) / "fs_tree" / FS_TREE_FILE_NAME;
+    const fs::path  m_fsTreeTorrent     = fs::path( m_driveRootPath ) / "fs_tree" / FS_TREE_FILE_NAME ".torrent";
 
     // Sandbox paths
     const fs::path  m_sandboxRootPath       = m_replicatorSandboxRoot / m_drivePubKey;
-    const fs::path  m_sandboxDriveFolder    = m_sandboxRootPath / "drive";
-    const fs::path  m_sandboxTorrentFolder  = m_sandboxRootPath / "torrent";
     const fs::path  m_sandboxFsTreeFile     = m_sandboxRootPath / FS_TREE_FILE_NAME;
-    const fs::path  m_sandboxFsTreeTorrent  = m_sandboxRootPath / "FsTree.torrent";
+    const fs::path  m_sandboxFsTreeTorrent  = m_sandboxRootPath / FS_TREE_FILE_NAME ".torrent";
 
-    // Client data paths
+    // Client session data paths
     const fs::path  m_clientDataFolder      = m_sandboxRootPath / "client-data";
     const fs::path  m_clientDriveFolder     = m_clientDataFolder / "drive";
     const fs::path  m_clientActionListFile  = m_clientDataFolder / "ActionList.bin";
@@ -68,10 +68,15 @@ protected:
 //
 // DefaultDrive - it manages all user files at replicator side
 //
-class DefaultFlatDrive: public Drive, protected DrivePaths {
+class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     using LtSession = std::shared_ptr<Session>;
     using lt_handle  = Session::lt_handle;
+
+    struct FileExData {
+        lt_handle m_ltHandle = {};
+        bool      m_toBeRemoved = false;
+    };
 
     LtSession     m_session;
 
@@ -82,7 +87,6 @@ class DefaultFlatDrive: public Drive, protected DrivePaths {
     FsTree        m_fsTree;
     FsTree        m_sandboxFsTree;
     lt_handle     m_fsTreeLtHandle; // used for removing FsTree torrent from session
-    std::set<std::string> m_toBeRemovedEntries;
 
     // Root hashes
     InfoHash      m_rootHash;
@@ -95,6 +99,8 @@ class DefaultFlatDrive: public Drive, protected DrivePaths {
     // Will be called at the end of the sanbox work
     DriveModifyHandler m_modifyHandler;
 
+    std::map<InfoHash,FileExData> m_fileMap;
+
 public:
 
     DefaultFlatDrive( std::shared_ptr<Session>  session,
@@ -104,7 +110,7 @@ public:
                   size_t                    maxSize,
                   const endpoint_list&      otherReplicators )
         :
-          DrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
+          FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
           m_session(session),
           m_maxSize(maxSize),
           m_otherReplicators(otherReplicators)
@@ -159,7 +165,7 @@ public:
 
         // Calculate torrent and root hash
         m_fsTree.deserialize( m_fsTreeFile );
-        m_rootHash = createTorrentFile( m_fsTreeFile, m_fsTreeFile.parent_path(), m_fsTreeTorrent );
+        m_rootHash = createTorrentFile( m_fsTreeFile, m_replicatorRoot, m_fsTreeTorrent );
 
         //TODO compare rootHash with blockchain?
 
@@ -167,7 +173,6 @@ public:
 //        addFilesToSession( m_driveFolder, m_torrentFolder, m_fsTree );
 
         // Add FsTree to session
-        //m_session->addTorrentFileToSession( m_fsTreeTorrent, m_replicatorRoot, m_otherReplicators );
         m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent, m_fsTreeTorrent.parent_path(), m_otherReplicators );
     }
 
@@ -231,9 +236,16 @@ public:
                     fsTreeChild = &fsTreeFolder.m_childs.back();
                 }
 
-                getFile( *fsTreeChild ).m_ltHandle = m_session->addTorrentFileToSession( torrentFile,
-                                                                                         torrentFile.parent_path(),
-                                                                                         m_otherReplicators );
+                fileHash = getFile( *fsTreeChild ).m_hash;
+
+                // skip equal files
+                if ( m_fileMap.find(fileHash) != m_fileMap.end() )
+                    continue;
+
+                lt_handle ltHandle = m_session->addTorrentFileToSession( torrentFile,
+                                                                         m_driveFolder,
+                                                                         m_otherReplicators );
+                m_fileMap[fileHash] = FileExData{ltHandle,false};
             }
         }
     }
@@ -258,7 +270,7 @@ public:
                     throw std::runtime_error( std::string("internal error, absent folder: ") + name.string() );
                 }
 
-                if ( !isFolder(*fsTreeChild) ) {
+                if ( isFile(*fsTreeChild) ) {
                     throw std::runtime_error( std::string("internal error, must be folder, filname: ") + name.string() );
                 }
 
@@ -300,10 +312,9 @@ public:
         m_clientDataInfoHash = modifyDataInfoHash;
         m_modifyHandler      = modifyHandler;
 
-        // clear tmp folder
-        fs::remove_all( m_sandboxDriveFolder.parent_path() );
+        // clear client session folder
+        fs::remove_all( m_sandboxRootPath );
         fs::create_directories( m_sandboxRootPath);
-        m_toBeRemovedEntries.clear();
 
         m_session->downloadFile( modifyDataInfoHash,
                                  m_sandboxRootPath,
@@ -337,14 +348,14 @@ public:
     //
     void modifyDriveInSandbox()
     {
-        // Check client data
+        // Check that client data exist
         if ( !fs::exists(m_clientDataFolder) || !fs::is_directory(m_clientDataFolder) )
         {
             LOG( "m_clientDataFolder=" << m_clientDataFolder );
             m_modifyHandler( modify_status::failed, InfoHash(), "modify drive: 'client-data' is absent: " );
         }
 
-        // Check 'action list' is received in client data
+        // Check 'actionList.bin' is received
         if ( !fs::exists( m_clientActionListFile ) )
         {
             LOG( "m_clientActionListFile=" << m_clientActionListFile );
@@ -352,11 +363,11 @@ public:
             return;
         }
 
-        // Load actionList into memory
+        // Load 'actionList' into memory
         ActionList m_actionList;
         m_actionList.deserialize( m_clientActionListFile );
 
-        // Get current copy of FsTree
+        // Make copy of current FsTree
         FsTree m_sandboxFsTree;
         m_sandboxFsTree.deserialize( m_fsTreeFile );
 
@@ -373,9 +384,9 @@ public:
             //
             // Upload
             //
-            case action_list_id::upload: {
-
-                // Check that file exists
+            case action_list_id::upload:
+            {
+                // Check that file exists in client folder
                 fs::path clientFile = m_clientDriveFolder / action.m_param2;
                 if ( !fs::exists( clientFile ) || fs::is_directory(clientFile) )
                 {
@@ -383,55 +394,34 @@ public:
                     break;
                 }
 
-                // Path file in sandbox
-                fs::path sandboxFilePath = m_sandboxDriveFolder / action.m_param2;
+                // calculate torrent, file hash, and file size
+                InfoHash fileHash = calculateInfoHashAndTorrent( clientFile, m_drivePubKey, m_torrentFolder );
+                size_t fileSize = std::filesystem::file_size( clientFile );
 
-                // if the file already exists in sandbox, remove it
-                if ( fs::exists( sandboxFilePath ) )
-                {
-                    fs::remove_all( sandboxFilePath );
-                }
-
-                // Move file to sandbox
-                fs::create_directories( sandboxFilePath.parent_path() );
-                fs::copy( clientFile, m_sandboxDriveFolder / sandboxFilePath );
-
-                // torrentfile path
-                fs::path torrentFile = m_sandboxTorrentFolder / action.m_param2;
-
-                // if torrentfile in sandbox already exists we remove it
-                if ( fs::exists(torrentFile) )
-                {
-                    fs::remove_all( torrentFile );
-                }
-
-                // calculate torrent, hash, and size
-                fs::create_directories( torrentFile.parent_path() );
-                InfoHash infoHash = createTorrentFile( sandboxFilePath, sandboxFilePath.parent_path(), torrentFile );
-                size_t fileSize = std::filesystem::file_size( sandboxFilePath );
+                // rename file and place it into drive
+                std::string newFileName = internalFileName( fileHash );
+                fs::rename( clientFile, m_driveFolder / newFileName );
 
                 // add file in resultFsTree
                 m_sandboxFsTree.addFile( fs::path(action.m_param2).parent_path(),
-                                       sandboxFilePath.filename(),
-                                       infoHash,
+                                       clientFile.filename(),
+                                       fileHash,
                                        fileSize );
 
-                // remember files to be removed
-                if ( fs::exists( m_driveFolder / action.m_param2 ) )
-                {
-                    m_toBeRemovedEntries.insert( action.m_param2 );
-                }
+                // add ref to 'fileMap'
+                m_fileMap.try_emplace( fileHash, FileExData{} );
+
                 break;
             }
             //
             // New folder
             //
-            case action_list_id::new_folder: {
-                fs::path path = m_driveFolder / action.m_param1;
-
+            case action_list_id::new_folder:
+            {
                 // Check that entry is free
                 if ( m_sandboxFsTree.findChild( action.m_param1 ) != nullptr )
                 {
+                    //todo m_isInvalid?
                     action.m_isInvalid = true;
                     break;
                 }
@@ -442,10 +432,9 @@ public:
             //
             // Move
             //
-            case action_list_id::move: {
-
+            case action_list_id::move:
+            {
                 auto* srcChild = m_sandboxFsTree.getEntryPtr( action.m_param1 );
-                //m_sandboxFsTree.dbgPrint();
 
                 // Check that src child exists
                 if ( srcChild == nullptr )
@@ -455,123 +444,28 @@ public:
                     break;
                 }
 
-                if ( action.m_param1 == action.m_param2 )
+                // Check topology (nesting folders)
+                if ( isFolder(*srcChild) )
                 {
-                    // nothing to do
-                    action.m_isInvalid = true;
-                    break;
-                }
+                    fs::path srcPath = fs::path("root") / action.m_param1;
+                    fs::path destPath = fs::path("root") / action.m_param2;
 
-                fs::path srcPath = m_driveFolder / action.m_param1;
-                fs::path destPath = m_driveFolder / action.m_param2;
-                fs::path srcInSandboxPath = m_sandboxDriveFolder / action.m_param1;
-                fs::path destInSandboxPath = m_sandboxDriveFolder / action.m_param2;
-
-                // Check topology (nesting)
-                if ( isPathInsideFolder( destInSandboxPath, srcInSandboxPath ) )
-                {
-                    LOG( "invalid 'move' action: 'srcPath' is a directory which is an ancestor of 'destPath': " << action.m_param1  );
-                    LOG( "invalid 'move' action: srcPath : " << srcPath  );
-                    LOG( "invalid 'move' action: destPath : " << destInSandboxPath  );
-                    action.m_isInvalid = true;
-                    break;
-                }
-
-                if ( !fs::exists(srcInSandboxPath) &&
-                    (!fs::exists(srcPath) || m_toBeRemovedEntries.contains(action.m_param1)) )
-                {
-                    LOG( "invalid 'move' action: internal error: src not exists: " << action.m_param1  );
-                    action.m_isInvalid = true;
-                    break;
-                }
-
-                // remember destPath to be removed
-                if ( fs::exists(destPath) )
-                    m_toBeRemovedEntries.insert( action.m_param2 );
-
-                // remove dest path in sanbox
-                if ( fs::exists(destInSandboxPath) )
-                    fs::remove_all(destInSandboxPath);
-
-                // prepare parent folder
-                fs::create_directories( destInSandboxPath.parent_path() );
-
-                // Move file/folder from drive location
-                //
-                if ( fs::exists(srcInSandboxPath) && ! m_toBeRemovedEntries.contains(action.m_param1) )
-                {
-                    // remember srcPath to be removed
-                    m_toBeRemovedEntries.insert( action.m_param1 );
-
-                    if ( fs::exists(destInSandboxPath) )
+                    // srcPath should not be a parent folder of destPath
+                    if ( isPathInsideFolder( destPath, srcPath ) )
                     {
-                        fs::remove_all(destInSandboxPath);
+                        LOG( "invalid 'move' action: 'srcPath' is a directory which is an ancestor of 'destPath'" );
+                        LOG( "invalid 'move' action: srcPath : " << action.m_param1  );
+                        LOG( "invalid 'move' action: destPath : " << action.m_param2  );
+                        action.m_isInvalid = true;
+                        break;
                     }
-
-                    // copy file to dest sandbox
-                    fs::create_directories( destInSandboxPath.parent_path() );
-                    fs::copy( srcPath, destInSandboxPath );
                 }
 
-                // Move file/folder from sanbox location
-                if ( fs::exists(srcInSandboxPath) )
+                // modify FsTree
+                m_sandboxFsTree.moveFlat( action.m_param1, action.m_param2, [this] ( const InfoHash& fileHash )
                 {
-                    // move folder/files to dest sandbox
-                    if ( fs::is_directory(srcInSandboxPath) )
-                    {
-                        moveFiles( srcInSandboxPath, destInSandboxPath );
-                    }
-                    else
-                    {
-                        fs::remove( destInSandboxPath );
-                        fs::copy( srcInSandboxPath, destInSandboxPath );
-                    }
-
-                    // remove old torrentfile
-                    fs::path oldTorrentFile = m_sandboxTorrentFolder / action.m_param1;
-                    if ( fs::exists(oldTorrentFile) )
-                        fs::remove_all(oldTorrentFile);
-                }
-                
-                // remove src in sandbox
-                fs::remove( srcInSandboxPath );
-                fs::remove( m_sandboxTorrentFolder / action.m_param1 );
-
-                // Process torret files
-                fs::path destTorrentPath = m_sandboxTorrentFolder / action.m_param2;
-
-                // remove old torrentfile/s
-                if ( fs::exists(destTorrentPath) )
-                    fs::remove_all(destTorrentPath);
-                
-                if ( fs::is_directory(destInSandboxPath) )
-                {
-                    // modify FsTree
-                    m_sandboxFsTree.move( action.m_param1, action.m_param2 );
-                    Folder* fsTreeFolder = m_sandboxFsTree.getFolderPtr( action.m_param2 );
-                    if ( fsTreeFolder == nullptr )
-                    {
-                        m_modifyHandler( modify_status::failed, InfoHash(), "internal error: fsTreeFolder == nullptr" );
-                        return;
-                    }
-                    fs::create_directories( destTorrentPath );
-                    calculateTorrentsForFolderFiles( destInSandboxPath, destTorrentPath, *fsTreeFolder );
-                }
-                else
-                {
-                    // create new torrent file (it depends on filename)
-                    fs::create_directories( destTorrentPath.parent_path() );
-                    InfoHash infoHash = createTorrentFile( destInSandboxPath, m_sandboxRootPath, destTorrentPath );
-
-                    // modify FsTree
-                    m_sandboxFsTree.move( action.m_param1, action.m_param2, &infoHash );
-                }
-
-                // remember destPath to be removed
-                if ( fs::exists( m_driveFolder / action.m_param2 ) )
-                {
-                    m_toBeRemovedEntries.insert( action.m_param2 );
-                }
+                    m_fileMap.try_emplace( fileHash, FileExData{} );
+                } );
 
                 break;
             }
@@ -587,14 +481,12 @@ public:
                     break;
                 }
 
-                //LOG( "remove:" << action.m_param1 );
-                m_sandboxFsTree.remove( action.m_param1 );
-
-                // remember path to be removed
-                if ( fs::exists( m_driveFolder / action.m_param1 ) )
+                // remove entry from FsTree
+                m_sandboxFsTree.removeFlat( action.m_param1, [this] ( const InfoHash& fileHash )
                 {
-                    m_toBeRemovedEntries.insert( action.m_param1 );
-                }
+                    m_fileMap.try_emplace( fileHash, FileExData{} );
+                } );
+
                 break;
             }
 
@@ -605,72 +497,41 @@ public:
         m_sandboxFsTree.doSerialize( m_sandboxFsTreeFile );
         m_resultRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
 
-        // Call update handler
+        // Call handler
         m_modifyHandler( modify_status::sandbox_root_hash, m_resultRootHash, "" );
 
         // start drive update
         updateDrive_1();
     }
     
-    void calculateTorrentsForFolderFiles( fs::path srcFolder, fs::path /*torrentFolder*/, Folder& fsTreeFolder )
-    {
-        for (const auto& entry: fs::directory_iterator(srcFolder)) {
-
-            const auto entryName = entry.path().filename().string();
-
-            if ( entry.is_directory() )
-            {
-                fs::path subfolder = srcFolder/entryName;
-                fs::path torrentSubfolder = srcFolder/entryName;
-                auto* child = fsTreeFolder.findChild( entryName );
-
-                // calulate subfolder
-                calculateTorrentsForFolderFiles( subfolder, torrentSubfolder, getFolder(*child) );
-            }
-            else
-            {
-                fs::path filename = srcFolder/entryName;
-                fs::path torrentFilename = srcFolder/entryName;
-
-                // calulate torrent info
-                InfoHash infoHash = createTorrentFile( filename, filename.parent_path(), torrentFilename );
-
-                // update hash in FsTree
-                auto* child = fsTreeFolder.findChild( entryName );
-                getFile(*child).m_hash = infoHash;
-            }
-        }
-
-    }
-
-
-    // updates drive (1st step) - remove torrents
-    // - removes all moved or removed torents
-    // - removes current fsTree torrent
+    // updates drive (1st step after aprove)
+    // - remove torrents from session
     //
     void updateDrive_1()
     {
-        // Remove torrents
-        for( const Action& action : m_actionList )
-        {
-            if (action.m_isInvalid)
-                continue;
+        // Prepare map (m_toBeRemoved = true)
+        for( auto& it : m_fileMap )
+            it.second.m_toBeRemoved = true;
 
-            switch( action.m_actionId )
+        // Set m_toBeRemoved = false
+        markUsedFiles( m_fsTree );
+
+
+        // Remove unused files from session
+        for( const auto& it : m_fileMap )
+        {
+            const FileExData& info = it.second;
+            if ( info.m_toBeRemoved )
             {
-            case action_list_id::upload:
-            case action_list_id::new_folder:
-                break;
-            case action_list_id::move:
-            case action_list_id::remove:
-                m_session->removeTorrentFromSession( action.m_ltHandle );
-                break;
+                if ( info.m_ltHandle.is_valid() )
+                    m_session->removeTorrentFromSession( info.m_ltHandle );
             }
         }
 
         // Remove FsTree torrent
         m_session->removeTorrentFromSession( m_fsTreeLtHandle, [this]
         {
+            // remove files
             fs::remove( m_fsTreeFile );
             fs::remove( m_fsTreeTorrent );
 
@@ -678,69 +539,46 @@ public:
         });
     }
 
-    // updates drive (2st phase)
-    // - move new files from sandbox to drive
-    // - move new torrents from sandbox to drive
+    // updates drive (2st phase after fsTree torrent removed)
+    // - remove unused files and torrent files
     // - add new torrents to session
     //
-    void updateDrive_2()
+    void updateDrive_2() try
     {
-        //
-        // Remove files
-        //
-        for( const std::string& path : m_toBeRemovedEntries )
-        {
-            LOG( "m_toBeRemovedEntries remove:" << path );
-            fs::remove_all( m_driveFolder / path );
-            fs::remove_all( m_torrentFolder / path );
-        }
-
-        m_toBeRemovedEntries.clear();
-
-        //
-        // Move files from sandbox to drive folder
-        //
-        m_rootHash = m_resultRootHash;
-        if ( fs::exists(m_sandboxDriveFolder) )
-            moveFiles( m_sandboxDriveFolder, m_driveFolder );
-        if ( fs::exists(m_sandboxTorrentFolder) )
-            moveFiles( m_sandboxTorrentFolder, m_torrentFolder );
-
+        // update FsTree file & torrent
         fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
-
         fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
 
+        // clear sandbox
         fs::remove_all( m_sandboxRootPath );
+
+        // remove unused files and torrents from drive
+        for( const auto& it : m_fileMap )
+        {
+            const FileExData& info = it.second;
+            if ( info.m_toBeRemoved )
+            {
+                const auto& hash = it.first;
+                std::string filename = internalFileName( hash );
+                fs::remove( fs::path(m_driveFolder) / filename );
+                fs::remove( fs::path(m_torrentFolder) / filename );
+            }
+        }
+
+        // remove unused data from 'fileMap'
+        std::erase_if( m_fileMap, [] (const auto& it) { return it.second.m_toBeRemoved; } );
 
         //
         // Add torrents to session
         //
-        for( const Action& action : m_actionList )
+        for( auto& it : m_fileMap )
         {
-            if (action.m_isInvalid)
-                continue;
-
-            switch( action.m_actionId )
+            if ( !it.second.m_ltHandle.is_valid() )
             {
-                case action_list_id::upload:
-                case action_list_id::move: {
-    
-                    const auto* child = m_sandboxFsTree.findChild( fs::path( action.m_param2 ) );
-    
-                    if ( child != nullptr && !isFolder(*child) )
-                    {
-                        const File& fsTreeFile = getFile(*child);
-                        fs::path file = m_driveFolder / action.m_param2;
-                        fs::path torrentFile = m_torrentFolder / action.m_param2;
-    
-                        fsTreeFile.m_ltHandle = m_session->addTorrentFileToSession( torrentFile, m_driveFolder );
-                    }
-                    break;
-                }
-                case action_list_id::new_folder:
-                    break;
-                case action_list_id::remove:
-                    break;
+                std::string fileName = internalFileName( it.first );
+                m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_torrentFolder / fileName,
+                                                                       m_torrentFolder,
+                                                                       m_otherReplicators );
             }
         }
 
@@ -750,41 +588,52 @@ public:
         // Call update handler
         m_modifyHandler( modify_status::update_completed, InfoHash(), "" );
     }
-
-    static void moveFiles( fs::path srcFolder, fs::path destFolder )
+    catch ( std::exception ex )
     {
-        for (const auto& entry: fs::directory_iterator(srcFolder)) {
+        LOG( "!ERROR!: updateDrive_2 error: " << ex.what() );
+        exit(-1);
+    }
 
-            const auto entryName = entry.path().filename().string();
-
-            if ( entry.is_directory() )
+    // Recursively marks 'm_toBeRemoved' as false
+    //
+    void markUsedFiles( const Folder& folder )
+    {
+        for( const auto& child : folder.m_childs )
+        {
+            if ( isFolder(child) )
             {
-                fs::path destSubfolder = destFolder/entryName;
-                fs::create_directory( destSubfolder );
-
-                moveFiles( srcFolder/entryName, destSubfolder );
+                markUsedFiles( getFolder(child) );
             }
             else
             {
-                //LOG( "fs::rename: " << srcFolder/entryName << " to " << destFolder/entryName );
-                fs::rename( srcFolder/entryName, destFolder/entryName );
+                auto& hash = getFile(child).m_hash;
+                const auto& it = m_fileMap.find(hash);
+                if ( it != m_fileMap.end() )
+                {
+                    it->second.m_toBeRemoved = false;
+                }
+                else
+                {
+                    LOG( "markUsedFiles: internal error");
+                }
             }
         }
-
     }
 
-    static void errorHandler( Session*, libtorrent::alert* alert )
-    {
-        if ( alert->type() == lt::listen_failed_alert::alert_type )
-        {
-            std::cerr << "replicator socket error: " << alert->message() << std::endl << std::flush;
-            exit(-1);
-        }
-    }
+    // Now it holds only liteners errors
+    //
+//    static void errorHandler( Session*, libtorrent::alert* alert )
+//    {
+//        if ( alert->type() == lt::listen_failed_alert::alert_type )
+//        {
+//            std::cerr << "replicator socket error: " << alert->message() << std::endl << std::flush;
+//            exit(-1); //TODO
+//        }
+//    }
 };
 
 
-std::shared_ptr<Drive> createDefaultDrive(
+std::shared_ptr<FlatDrive> createDefaultFlatDrive(
         std::shared_ptr<Session> session,
         const std::string&       replicatorRootFolder,
         const std::string&       replicatorSandboxRootFolder,

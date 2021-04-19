@@ -83,6 +83,8 @@ namespace sirius { namespace drive {
 
     private:
         friend class DefaultDrive;
+        friend class DefaultFlatDrive;
+
         mutable bool         m_isInvalid = false;
         lt_handle            m_ltHandle;
     };

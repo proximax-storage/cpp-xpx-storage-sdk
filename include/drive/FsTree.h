@@ -41,6 +41,7 @@ private:
     friend class Folder;
     friend class FsTree;
     friend class DefaultDrive;
+    friend class DefaultFlatDrive;
 
     File( std::string name, const InfoHash hash, size_t size ) : m_name(name), m_hash(hash), m_size(size) {}
 
@@ -93,6 +94,7 @@ protected:
 protected:
     friend class FsTree;
     friend class DefaultDrive;
+    friend class DefaultFlatDrive;
 
     std::string         m_name;
     std::list<Child>  m_childs;
@@ -100,6 +102,7 @@ protected:
 
 // variant utilities
 inline bool          isFolder( const Folder::Child& child )  { return child.index()==0; }
+inline bool          isFile(   const Folder::Child& child )  { return child.index()==1; }
 inline const Folder& getFolder( const Folder::Child& child ) { return std::get<0>(child); }
 inline       Folder& getFolder( Folder::Child& child )       { return std::get<0>(child); }
 inline const File&   getFile( const Folder::Child& child )   { return std::get<1>(child); }
@@ -120,6 +123,8 @@ inline bool operator<(const Folder::Child& a, const Folder::Child& b) {
     return false;
 }
 
+
+
 // FsTree
 class FsTree: public Folder {
 public:
@@ -131,13 +136,25 @@ public:
 
     Folder*  getFolderPtr( const std::string& path, bool createIfNotExist = false );
 
-    bool     addFile( const std::string& destinationPath, const std::string& filename, const InfoHash&, size_t size );
+    bool     addFile( const std::string& destinationPath,
+                      const std::string& filename,
+                      const InfoHash&    infoHash,
+                      size_t             size );
 
     bool     addFolder( const std::string& folderPath );
 
     bool     remove( const std::string& path );
 
-    bool     move( const std::string& oldPathAndName, const std::string& newPathAndName, const InfoHash* newInfoHash = nullptr );
+    bool     move( const std::string& oldPathAndName,
+                   const std::string& newPathAndName,
+                   const InfoHash*    newInfoHash = nullptr );
+
+    bool     moveFlat( const std::string&     oldPathAndName,
+                       const std::string&     newPathAndName,
+                       std::function<void(const InfoHash&)> addInfoHashToFileMapFunc );
+
+    bool     removeFlat( const std::string& path,
+                         std::function<void(const InfoHash&)> addInfoHashToFileMapFunc );
 
     Child*   getEntryPtr( const std::string& path );
 };

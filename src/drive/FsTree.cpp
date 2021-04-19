@@ -67,7 +67,7 @@ Folder& Folder::getSubfolderOrCreate( const std::string& subFolderName ) {
         return getFolder( m_childs.front() );
     }
 
-    if ( !isFolder( *it ) ) {
+    if ( isFile( *it ) ) {
         throw std::runtime_error( std::string("attempt to create a folder with existing file name: ") + subFolderName );
     }
 
@@ -252,6 +252,32 @@ bool FsTree::remove( const std::string& fullPath ) {
     return true;
 }
 
+// removeFlat
+bool FsTree::removeFlat( const std::string& fullPath,
+                         std::function<void(const InfoHash&)> addInfoHashToFileMapFunc ) {
+
+   fs::path path( fullPath );
+   std::string filename = path.filename().string();
+   Folder* parentFolder = getFolderPtr( path.parent_path().string() );
+
+   if ( parentFolder == nullptr )
+       return false;
+
+   auto it = parentFolder->findChildIt( filename );
+
+   if ( it == parentFolder->m_childs.end() )
+       return false;
+
+   if ( isFile(*it) ) {
+       addInfoHashToFileMapFunc( getFile(*it).m_hash );
+   }
+
+   parentFolder->m_childs.erase( it );
+
+   return true;
+}
+
+
 //    Moves or renames the filesystem object identified by 'srcPath' to 'destPath' as if by the POSIX rename:
 //
 //    If 'srcPath' is a non-directory file, then if
@@ -349,6 +375,67 @@ bool FsTree::move( const std::string& srcPathAndName, const std::string& destPat
 
     return true;
 }
+
+bool FsTree::moveFlat( const std::string& srcPathAndName,
+                       const std::string& destPathAndName,
+                       std::function<void(const InfoHash&)> addInfoHashToFileMapFunc )
+{
+   //TODO? check if dest is a subfolder of src
+
+   fs::path srcPath( srcPathAndName );
+   std::string srcFilename = srcPath.filename().string();
+   Folder* srcParentFolder = getFolderPtr( srcPath.parent_path().string() );
+
+   if ( srcParentFolder == nullptr )
+       return false;
+
+   auto srcIt = srcParentFolder->findChildIt( srcFilename );
+
+   if ( isFile(*srcIt) ) {
+       addInfoHashToFileMapFunc( getFile(*srcIt).m_hash );
+   }
+
+   // src must exists
+   if ( srcIt == srcParentFolder->m_childs.end() )
+       return false;
+
+   if ( fs::path( destPathAndName ) == fs::path( srcPathAndName ) )
+       return true;
+
+   auto destChild = *srcIt;
+
+   fs::path destPath( destPathAndName );
+   std::string destFilename = destPath.filename().string();
+   Folder* destParentFolder = getFolderPtr( destPath.parent_path() );
+
+   // create destination parent folder if not exists
+   if ( destParentFolder == nullptr )
+   {
+       if ( !addFolder( destPath.parent_path() ) )
+           return false;
+       destParentFolder = getFolderPtr( destPath.parent_path(), true );
+   }
+
+   // remove dest entry if exists
+   if ( auto destIt = destParentFolder->findChildIt( destFilename ); destIt != destParentFolder->m_childs.end() )
+   {
+       if ( isFile(*destIt) ) {
+           addInfoHashToFileMapFunc( getFile(*destIt).m_hash );
+       }
+
+       // remove it
+       destParentFolder->m_childs.erase(destIt);
+   }
+
+   destParentFolder->m_childs.emplace_front( destChild );
+
+   // update srcIt and remove src
+   srcParentFolder->m_childs.erase( srcIt );
+
+   return true;
+}
+
+
 
 Folder::Child* FsTree::getEntryPtr( const std::string& pathStr )
 {

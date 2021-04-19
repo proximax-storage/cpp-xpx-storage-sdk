@@ -160,10 +160,10 @@ public:
         // path to root folder
         fs::path addFilesFolder = fs::path(sandboxFolder).append( "drive" );
 //        fs::create_directories( addFilesFolder );
-        {
-            std::ofstream fileStream( fs::path(sandboxFolder)/"stub", std::ios::binary );
+//        {
+//            std::ofstream fileStream( fs::path(sandboxFolder)/"stub", std::ios::binary );
 //            //fileStream.write("12345",5);
-        }
+//        }
 
         // parse action list
         for( auto& action : actionList ) {
@@ -464,13 +464,12 @@ private:
                 }
 
                 default: {
-                    //TODO
 //                    if ( alert->type() != 52 && alert->type() != 78 && alert->type() != 86
 //                        && alert->type() != 81 && alert->type() != 85
 //                        && m_addressAndPort == "192.168.1.101:5551") //52==portmap_log_alert
-                    {
-                        LOG( m_addressAndPort << " alert(" << alert->type() << "): " << alert->message() );
-                    }
+//                    {
+//                        LOG( m_addressAndPort << " alert(" << alert->type() << "): " << alert->message() );
+//                    }
                 }
             }
         }
@@ -480,7 +479,7 @@ private:
 //
 // ('static') createTorrentFile
 //
-InfoHash createTorrentFile( const std::string& fileOrFolder, const std::string& /*rootFolder*/, const std::string& outputTorrentFilename )
+InfoHash createTorrentFile( const std::string& fileOrFolder, const std::string& rootFolder, const std::string& outputTorrentFilename )
 {
     // setup file storage
     lt::file_storage fStorage;
@@ -490,10 +489,13 @@ InfoHash createTorrentFile( const std::string& fileOrFolder, const std::string& 
     lt::create_torrent createInfo( fStorage, PIECE_SIZE, lt::create_torrent::v2_only );
 
     // calculate hashes for 'fileOrFolder' relative to 'rootFolder'
-//    lt::error_code ec;
-//    lt::set_piece_hashes( createInfo, rootFolder, ec );
+    lt::error_code ec;
+    lt::set_piece_hashes( createInfo, rootFolder, ec );
+    if ( ec ) {
+        throw std::runtime_error( std::string("createTorrentFile error: ") + ec.message() );
+    }
 //    std::cout << ec.category().name() << ':' << ec.value();
-    lt::set_piece_hashes( createInfo, fs::path(fileOrFolder).parent_path() );
+//    lt::set_piece_hashes( createInfo, fs::path(fileOrFolder).parent_path() );
 
     // generate metadata
     lt::entry entry_info = createInfo.generate();
@@ -584,9 +586,8 @@ InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
     if ( binaryString.size()==32 ) {
         memcpy( infoHash.data(), binaryString.data(), 32 );
     }
-    std::string newFileName = uniqueFileName(infoHash);
+    std::string newFileName = internalFileName(infoHash);
 
-#if 1
     // replace file name
     auto& info = entry_info["info"];
     auto& fileTreeDict = info["file tree"].dict();
@@ -603,21 +604,18 @@ InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
     lt::bencode(std::back_inserter(torrentFileBytes2), entry_info); // metainfo -> binary
     lt::torrent_info torrentInfo2( torrentFileBytes2, lt::from_span );
 
-    if (1)
-    {
-        // get infoHash
-        auto binaryString2 = torrentInfo2.info_hashes().v2.to_string();
+    // get infoHash
+    auto binaryString2 = torrentInfo2.info_hashes().v2.to_string();
 
-        // copy hash
-        InfoHash infoHash2;
-        if ( binaryString2.size()==32 ) {
-            memcpy( infoHash2.data(), binaryString2.data(), 32 );
-        }
-
-        LOG( "infoHash :" << toString(infoHash) );
-        LOG( "infoHash2:" << toString(infoHash2) );
-        assert( infoHash == infoHash2 );
+    // copy hash
+    InfoHash infoHash2;
+    if ( binaryString2.size()==32 ) {
+        memcpy( infoHash2.data(), binaryString2.data(), 32 );
     }
+
+    LOG( "infoHash :" << toString(infoHash) );
+    LOG( "infoHash2:" << toString(infoHash2) );
+    assert( infoHash == infoHash2 );
 
     // write to file
     if ( !outputTorrentPath.empty() )
@@ -625,18 +623,6 @@ InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
         std::ofstream fileStream( fs::path(outputTorrentPath) / (newFileName +".torrent"), std::ios::binary );
         fileStream.write( torrentFileBytes2.data(), torrentFileBytes2.size() );
     }
-#else
-    if ( !outputTorrentPath.empty() )
-    {
-        std::ofstream fileStream( fs::path(outputTorrentPath) / (newFileName +".torrent"), std::ios::binary );
-        fileStream.write(torrentFileBytes.data(),torrentFileBytes.size());
-    }
-#endif
-
-    // write to file
-//        std::ofstream fileStream( outputTorrentFilename, std::ios::binary );
-//        fileStream.write(torrentFileBytes.data(),torrentFileBytes.size());
-
 
     return infoHash;
 }

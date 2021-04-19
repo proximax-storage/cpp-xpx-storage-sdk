@@ -15,8 +15,14 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 #@#add_subdirectory(downloadFile)
 
 ### modify drive example
-#@#add_subdirectory(modifyDrive)
+#@#
+add_subdirectory(modifyDrive)
 
 ### download file example
 #@#
 add_subdirectory(downloadFileFlat)
+
+### download file example
+#@#
+add_subdirectory(modifyDriveFlat)
+

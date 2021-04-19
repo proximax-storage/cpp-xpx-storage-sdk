@@ -53,7 +53,7 @@ std::string toString( const InfoHash& key ) {
     return std::string( hashStr, hashStr+64 );
 }
 
-std::string uniqueFileName( const InfoHash& key ) {
+std::string internalFileName( const InfoHash& key ) {
 
     char hashStr[64];
 
