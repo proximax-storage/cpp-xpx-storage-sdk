@@ -24,5 +24,5 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     include_directories(SYSTEM "/usr/local/include/" )
 endif()
 
-add_subdirectory(src)
+#@#add_subdirectory(src)
 add_subdirectory(examples)

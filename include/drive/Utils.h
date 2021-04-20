@@ -3,15 +3,22 @@
 *** Use of this source code is governed by the Apache 2.0
 *** license that can be found in the LICENSE file.
 */
-
 #pragma once
+
 #include "types.h"
+#include <filesystem>
 
 namespace sirius { namespace drive {
 
-	template<typename TArray>
-	std::string ToString(const TArray& array);
+namespace fs = std::filesystem;
 
-	std::string CreateMagnetLink(const Hash256& hash);
+// magnetLink
+std::string magnetLink( const InfoHash& key );
+
+// toString
+std::string toString( const InfoHash& key );
+
+bool isPathInsideFolder( const fs::path& path, const fs::path& folder );
+
 }}
 

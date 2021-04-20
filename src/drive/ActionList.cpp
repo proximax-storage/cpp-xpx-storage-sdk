@@ -5,33 +5,54 @@
 */
 
 #include "drive/ActionList.h"
+
 #include <fstream>
+
+#include <cereal/types/vector.hpp>
+#include <cereal/types/array.hpp>
 #include <cereal/types/memory.hpp>
+//#include <cereal/archives/binary.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
 namespace sirius { namespace drive {
 
-	void ActionList::serialize(const std::string& fileName) const
-	{
-		std::ofstream os(fileName, std::ios::binary);
-		cereal::PortableBinaryOutputArchive archive(os);
-		archive(size());
-		for(uint i = 0; i < size(); i++) {
-			archive(at(i));
-		}
-	}
+void ActionList::serialize( std::string fileName ) const
+{
+    std::ofstream os( fileName, std::ios::binary );
+    cereal::PortableBinaryOutputArchive archive( os );
+    archive( *this );
+}
 
-	void ActionList::deserialize(const std::string& fileName)
-	{
-		clear();
-		std::ifstream is(fileName, std::ios::binary);
-		cereal::PortableBinaryInputArchive archive(is);
-		size_t size;
-		archive(size);
-		reserve(size);
-		for (uint i = 0; i < size; i++) {
-			push_back(Action());
-			archive(at(i));
-		}
-	}
+void ActionList::deserialize( std::string fileName )
+{
+    clear();
+    std::ifstream is( fileName, std::ios::binary );
+    cereal::PortableBinaryInputArchive iarchive(is);
+    iarchive( *this );
+}
+
+void ActionList::dbgPrint()
+{
+    std::cerr << "ActionList {" << std::endl;
+    for( const auto& action : *this )
+    {
+        switch( action.m_actionId )
+        {
+            case action_list_id::upload:
+                std::cerr << " upload: '" << action.m_param1 << "' to '" << action.m_param2 << "'" << std::endl;
+                break;
+            case action_list_id::new_folder:
+                std::cerr << " new_folder: '" << action.m_param1 << "'" << std::endl;
+                break;
+            case action_list_id::move:
+                std::cerr << " move: '" << action.m_param1 << "' to '" << action.m_param2 << "'" << std::endl;
+                break;
+            case action_list_id::remove:
+                std::cerr << " remove: '" << action.m_param1 << "'" << std::endl;
+                break;
+        }
+    }
+    std::cerr << "}" << std::endl;
+}
+
 }}
