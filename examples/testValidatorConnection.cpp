@@ -35,7 +35,7 @@ int main() {
     settings.OutgoingSecurityMode = static_cast<ionet::ConnectionSecurityMode>(1);
     settings.IncomingSecurityModes = static_cast<ionet::ConnectionSecurityMode>(1);
 
-    auto connector = connection::CreateDefaultNodeConnector(settings, kePair,[=](auto code, auto){
+    auto connector = connection::CreateDefaultNodeConnector(settings, kePair,[=](auto, auto code, auto){
         if(code == net::PeerConnectCode::Accepted)
             std::cout << "Node Connection Accepted" << std::endl;
         else
