@@ -9,6 +9,9 @@ set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
 
+### set general ctest settings
+set_property(GLOBAL PROPERTY CTEST_TARGETS_ADDED 1)
+
 ### set compiler settings
 if(MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /WX /EHsc")
@@ -102,7 +105,7 @@ function(storage_sdk_target TARGET_NAME)
 	target_link_libraries(${TARGET_NAME} ${Boost_LIBRARIES} ${CMAKE_DL_LIBS})
 
 	# copy boost shared libraries
-	foreach(BOOST_COMPONENT ATOMIC SYSTEM DATE_TIME REGEX TIMER CHRONO LOG THREAD FILESYSTEM PROGRAM_OPTIONS STACKTRACE_BACKTRACE)
+	foreach(BOOST_COMPONENT ATOMIC SYSTEM DATE_TIME REGEX TIMER CHRONO LOG THREAD FILESYSTEM)
 		if(MSVC)
 			# copy into ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$(Configuration)
 			string(REPLACE ".lib" ".dll" BOOSTDLLNAME ${Boost_${BOOST_COMPONENT}_LIBRARY_RELEASE})
@@ -221,4 +224,136 @@ function(storage_sdk_header_only_target TARGET_NAME)
 		# target_sources doesn't work with interface libraries, but we can use custom_target (with empty action)
 		add_custom_target(${TARGET_NAME} SOURCES ${${TARGET_NAME}_FILES})
 	endif()
+endfunction()
+
+# used to define a catapult target (library, executable) and automatically enables PCH for clang
+function(storage_sdk_target TARGET_NAME)
+	set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 17)
+
+	# indicate boost as a dependency
+	target_link_libraries(${TARGET_NAME} ${Boost_LIBRARIES} ${CMAKE_DL_LIBS})
+
+	# copy boost shared libraries
+	foreach(BOOST_COMPONENT ATOMIC SYSTEM DATE_TIME REGEX TIMER CHRONO LOG THREAD FILESYSTEM)
+		if(MSVC)
+			# copy into ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$(Configuration)
+			string(REPLACE ".lib" ".dll" BOOSTDLLNAME ${Boost_${BOOST_COMPONENT}_LIBRARY_RELEASE})
+			add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+					COMMAND ${CMAKE_COMMAND} -E copy_if_different
+					"${BOOSTDLLNAME}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$(Configuration)")
+		elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
+			# copy into ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/boost
+			set(BOOSTDLLNAME ${Boost_${BOOST_COMPONENT}_LIBRARY_RELEASE})
+			set(BOOSTVERSION "${Boost_MAJOR_VERSION}.${Boost_MINOR_VERSION}.${Boost_SUBMINOR_VERSION}")
+			get_filename_component(BOOSTFILENAME ${BOOSTDLLNAME} NAME)
+			add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+					COMMAND ${CMAKE_COMMAND} -E copy_if_different
+					"${BOOSTDLLNAME}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/boost")
+		endif()
+	endforeach()
+
+	# put both plugins and plugins tests in same 'folder'
+	if(TARGET_NAME MATCHES "\.plugins")
+		set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "plugins")
+	endif()
+
+	if(TARGET_NAME MATCHES "\.tools")
+		set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "tools")
+	endif()
+endfunction()
+
+# finds all files comprising a target
+function(storage_sdk_find_all_target_files TARGET_TYPE TARGET_NAME)
+	if (CMAKE_VERBOSE_MAKEFILE)
+		message("processing ${TARGET_TYPE} '${TARGET_NAME}'")
+	endif()
+
+	file(GLOB ${TARGET_NAME}_INCLUDE_SRC "*.h")
+	file(GLOB ${TARGET_NAME}_SRC "*.cpp")
+
+	set(CURRENT_FILES ${${TARGET_NAME}_INCLUDE_SRC} ${${TARGET_NAME}_SRC})
+	SOURCE_GROUP("src" FILES ${CURRENT_FILES})
+	set(TARGET_FILES ${CURRENT_FILES})
+
+	# add any (optional) subdirectories
+	foreach(arg ${ARGN})
+		set(SUBDIR ${arg})
+		if (CMAKE_VERBOSE_MAKEFILE)
+			message("+ processing subdirectory '${arg}'")
+		endif()
+
+		file(GLOB ${TARGET_NAME}_${SUBDIR}_INCLUDE_SRC "${SUBDIR}/*.h")
+		file(GLOB ${TARGET_NAME}_${SUBDIR}_SRC "${SUBDIR}/*.cpp")
+
+		set(CURRENT_FILES ${${TARGET_NAME}_${SUBDIR}_INCLUDE_SRC} ${${TARGET_NAME}_${SUBDIR}_SRC})
+		SOURCE_GROUP("${SUBDIR}" FILES ${CURRENT_FILES})
+		set(TARGET_FILES ${TARGET_FILES} ${CURRENT_FILES})
+	endforeach()
+
+	set(${TARGET_NAME}_FILES ${TARGET_FILES} PARENT_SCOPE)
+endfunction()
+
+
+# used to define a catapult executable, creating an appropriate source group and adding an executable
+function(storage_sdk_executable TARGET_NAME)
+	storage_sdk_find_all_target_files("exe" ${TARGET_NAME} ${ARGN})
+
+	if(MSVC)
+		set_win_version_definitions(${TARGET_NAME} VFT_APP)
+	endif()
+
+	add_executable(${TARGET_NAME} ${${TARGET_NAME}_FILES} ${VERSION_RESOURCES})
+
+	if(WIN32 AND MINGW)
+		target_link_libraries(${TARGET_NAME} wsock32 ws2_32)
+	endif()
+endfunction()
+
+# used to define a catapult test executable
+function(storage_sdk_test_executable TARGET_NAME)
+	find_package(GTest REQUIRED)
+	include_directories(SYSTEM ${GTEST_INCLUDE_DIR})
+
+	storage_sdk_executable(${TARGET_NAME} ${ARGN})
+	set(_ENV ASAN_OPTIONS=$ENV{ASAN_OPTIONS};TSAN_OPTIONS=$ENV{TSAN_OPTIONS};UBSAN_OPTIONS=$ENV{UBSAN_OPTIONS})
+
+	add_test(
+			NAME ${TARGET_NAME}
+			WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+			COMMAND ${TARGET_NAME}
+	)
+	# apply env vars set by sanitizers
+	set_tests_properties(${TARGET_NAME} PROPERTIES
+			ENVIRONMENT ${_ENV}
+			)
+	target_link_libraries(${TARGET_NAME} ${GTEST_LIBRARIES})
+
+	if (ENABLE_CODE_COVERAGE)
+		message(STATUS "Enabling code coverage for ${TARGET_NAME}")
+		set_target_properties(${TARGET_NAME} PROPERTIES COMPILE_FLAGS "-fprofile-arcs -ftest-coverage")
+		target_link_libraries(${TARGET_NAME} gcov)
+	endif()
+endfunction()
+
+
+function(storage_sdk_test_executable_target TARGET_NAME TEST_DEPENDENCY_NAME)
+	storage_sdk_test_executable(${TARGET_NAME} ${ARGN})
+
+	# inline instead of calling storage_sdk_add_gtest_dependencies in order to apply gtest dependencies to correct scope
+	find_package(GTest REQUIRED)
+	include_directories(SYSTEM ${GTEST_INCLUDE_DIR})
+
+	# customize and export compiler options for gtest
+	#storage_sdk_set_test_compiler_options()
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}" PARENT_SCOPE)
+
+	# test libraries are in the form test.xyz, so add xyz as a dependency (the library under test)
+	string(FIND ${TARGET_NAME} "." TEST_END_INDEX)
+	MATH(EXPR TEST_END_INDEX "${TEST_END_INDEX}+1")
+	string(SUBSTRING ${TARGET_NAME} ${TEST_END_INDEX} -1 LIBRARY_UNDER_TEST)
+
+	target_link_libraries(${TARGET_NAME} gtest gtest_main)
+	target_link_libraries(${TARGET_NAME} ${TEST_DEPENDENCY_NAME} ${LIBRARY_UNDER_TEST})
+	storage_sdk_target(${TARGET_NAME})
 endfunction()

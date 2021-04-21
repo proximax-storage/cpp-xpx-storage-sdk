@@ -5,6 +5,7 @@ include(CMakeGlobalSettings.cmake)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
+set(XPX_STORAGE_SDK_BUILD_TESTS "Build tests." OFF)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
@@ -26,3 +27,9 @@ endif()
 
 add_subdirectory(src)
 add_subdirectory(examples)
+
+if (XPX_STORAGE_SDK_BUILD_TESTS)
+    include(CTest)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
