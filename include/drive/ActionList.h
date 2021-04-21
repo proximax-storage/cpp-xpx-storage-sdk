@@ -4,79 +4,96 @@
 *** license that can be found in the LICENSE file.
 */
 #pragma once
+
 #include "types.h"
-#include <string>
-#include <utility>
-#include <vector>
+#include <libtorrent/torrent_handle.hpp>
 
 namespace sirius { namespace drive {
 
+    using lt_handle  = lt::torrent_handle;
+
+    // action_list_id::code
     namespace action_list_id {
         enum code
         {
-            none        = 0,
             upload      = 1,
             new_folder  = 2,
-            rename      = 3,
+            move        = 3,
             remove      = 4,
         };
-    }
+    };
 
-    class Action {
-	public:
+    struct EmptyStruct {};
+
+    // Action
+    struct Action {
         Action() = default;
-        Action(action_list_id::code code, std::string currentPath, std::string newPath)
-        	: m_id(code)
-        	, m_currentPath(std::move(currentPath))
-        	, m_newPath(std::move(newPath)) {}
 
-        static Action upload(std::string currentPath, std::string newPath) {
-            return Action(action_list_id::upload, std::move(currentPath), std::move(newPath));
+        static Action upload( const std::string& pathToLocalFile, const std::string& remoteFileNameWithPath ) {
+            return Action( action_list_id::upload, pathToLocalFile, remoteFileNameWithPath );
         }
 
-        static Action newFolder(std::string remoteFolderPath) {
-            return Action(action_list_id::new_folder, "", std::move(remoteFolderPath));
+        static Action newFolder( const std::string& remoteFolderNameWithPath ) {
+            return Action( action_list_id::new_folder, remoteFolderNameWithPath );
         }
 
-        static Action rename(std::string currentPath, std::string newPath) {
-            return Action(action_list_id::rename, std::move(currentPath), std::move(newPath));
+        static Action move( const std::string& oldNameWithPath, const std::string& newNameWithPath ) {
+            return Action( action_list_id::move, oldNameWithPath, newNameWithPath );
         }
 
-        static Action remove(std::string newPath) {
-            return Action(action_list_id::remove, std::move(newPath), "");
+        static Action remove( const std::string& remoteObjectNameWithPath ) {
+            return Action( action_list_id::remove, remoteObjectNameWithPath );
         }
 
-	public:
-    	auto id() const {
-			return m_id;
+        template <class Archive> void serialize( Archive & arch ) {
+
+            arch( m_actionId );
+
+            arch( m_param1 );
+
+            if ( m_actionId == action_list_id::upload || m_actionId == action_list_id::move ) {
+                arch( m_param2 );
+            }
         }
 
-    	auto currentPath() const {
-			return m_currentPath;
+        bool operator==( const Action& a ) const { return m_actionId==a.m_actionId && m_param1==a.m_param1 && m_param2 == a.m_param2; }
+
+        action_list_id::code m_actionId;
+        std::string          m_param1;
+        std::string          m_param2;
+
+    private:
+        Action( action_list_id::code code, const std::string& p1, const std::string& p2 = "" )
+            : m_actionId(code), m_param1(p1), m_param2(p2)
+        {
+            if ( m_actionId != action_list_id::upload ) {
+                while ( !m_param1.empty() && m_param1[0] == '/')
+                    m_param1 = m_param1.substr( 1 );
+            }
+
+            while ( !m_param2.empty() && m_param2[0] == '/') {
+                m_param2 = m_param2.substr( 1 );
+            }
+
+            if ( m_actionId != action_list_id::move ) {
+                while( m_param2.back() == '/')
+                    m_param2.resize(m_param2.size()-1 );
+            }
         }
 
-    	auto newPath() const {
-			return m_newPath;
-        }
-
-        template<class Archive>
-        void serialize(Archive& arch) {
-            arch(m_id);
-			arch(m_currentPath);
-			arch(m_newPath);
-        }
-
-        bool operator==(const Action& a) const { return m_id == a.m_id && m_currentPath == a.m_currentPath && m_newPath == a.m_newPath; }
-
-	private:
-        action_list_id::code m_id = action_list_id::none;
-        std::string m_currentPath;
-        std::string m_newPath;
+    private:
+        friend class DefaultDrive;
+        mutable bool         m_isInvalid = false;
+        lt_handle            m_ltHandle;
     };
 
-    class ActionList : public std::vector<Action> {
-	public:
-        void serialize(const std::string& fileName) const;
-        void deserialize(const std::string& fileName);
+    // ActionList
+    struct ActionList : public std::vector<Action>
+    {
+        void serialize( std::string fileName ) const;
+        void deserialize( std::string fileName );
+
+        void dbgPrint();
     };
+
 }}

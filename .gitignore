@@ -60,3 +60,5 @@ cpp-xpx-storage-sdk.xcodeproj/project.xcworkspace/xcuserdata/alex.xcuserdatad/Us
 bin
 
 .idea
+
+CMakeLists.back

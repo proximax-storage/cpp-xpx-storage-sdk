@@ -31,7 +31,7 @@ namespace sirius { namespace connection {
                     m_context,
                     m_settings.toSocketOptions(),
                     node.endpoint(),
-                    [=](auto result, const auto& pConnectedSocket) {
+                    [=,this](auto result, const auto& pConnectedSocket) {
                         if (ionet::ConnectResult::Connected != result) {
                             m_callback(node, net::PeerConnectCode::Socket_Error, nullptr);
                             return;
@@ -51,7 +51,7 @@ namespace sirius { namespace connection {
         void verify(const Key& publicKey, const ionet::Node& node, const PacketSocketPointer& pConnectedSocket) {
             VerifiedPeerInfo serverPeerInfo{ publicKey, m_settings.OutgoingSecurityMode };
 
-            VerifyServer(pConnectedSocket, serverPeerInfo, m_keyPair, [=](
+            VerifyServer(pConnectedSocket, serverPeerInfo, m_keyPair, [=,this](
                     auto verifyResult,
                     const auto& verifiedPeerInfo) {
                 if (VerifyResult::Success != verifyResult) {
