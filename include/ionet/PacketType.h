@@ -66,6 +66,9 @@ namespace sirius { namespace ionet {
 	/* Sub cache merkle roots have been requested. */ \
 	ENUM_VALUE(Sub_Cache_Merkle_Roots, 12) \
 	\
+    /* A initialization from a client to a server. */ \
+	ENUM_VALUE(Client_Initialization, 13) \
+	\
 	/* api only packets have types [500, 600) */ \
 	\
 	/* Partial aggregate transactions have been pushed by an api-node. */ \
