@@ -5,10 +5,12 @@
 #include "connection/SinglePeersRequestor.h"
 
 namespace sirius { namespace nodediscovery {
-        NodesKeeper::NodesKeeper(const net::ConnectionSettings& settings, const crypto::KeyPair& keyPair, const uint64_t& interval)
+        NodesKeeper::NodesKeeper(const net::ConnectionSettings& settings, const crypto::KeyPair& keyPair, const uint64_t& interval, const uint64_t& maxNodesCount)
                 : m_interval(boost::posix_time::milliseconds(interval))
                 , m_timer(m_ioContext, m_interval)
-                , m_pNodeConnector(connection::CreateDefaultNodeConnector(settings, keyPair, boost::bind(&NodesKeeper::connectionCallback, this, _1, _2, _3))) {
+                , m_settings(settings)
+                , m_keyPair(keyPair)
+                , m_maxNodesCount(maxNodesCount) {
         }
 
         void NodesKeeper::start(const ionet::Node& bootstrapNode) {
@@ -35,14 +37,22 @@ namespace sirius { namespace nodediscovery {
 
         void NodesKeeper::nodesConsumer(const ionet::NodeSet& peers) {
             CATAPULT_LOG(info) << "Number of peers returned : " << peers.size();
-            m_activeNodes.insert(peers.begin(), peers.end());
+            for (const auto& peer : peers) {
+                if (m_activeNodes.size() < m_maxNodesCount) {
+                    m_activeNodes.insert(peer);
+                } else {
+                    break;
+                }
+            }
         }
 
         void NodesKeeper::timerTask(boost::system::error_code errorCode)
         {
             if (errorCode == boost::system::errc::success) {
                 for (const auto& node : m_activeNodes) {
-                    m_pNodeConnector->connect(node);
+                    auto connector = connection::CreateDefaultNodeConnector(m_settings, m_keyPair, boost::bind(&NodesKeeper::connectionCallback, this, node, _1, _2));
+                    connector->connect(node);
+                    connector->close();
                 }
 
                 m_timer.expires_from_now(m_interval);

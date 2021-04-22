@@ -240,7 +240,7 @@ endfunction()
 
 # used to define a catapult target (library, executable) and automatically enables PCH for clang
 function(storage_sdk_target TARGET_NAME)
-	set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 17)
+	set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 20)
 
 	# indicate boost as a dependency
 	target_link_libraries(${TARGET_NAME} ${Boost_LIBRARIES} ${CMAKE_DL_LIBS})

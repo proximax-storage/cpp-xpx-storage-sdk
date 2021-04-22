@@ -14,7 +14,7 @@ namespace sirius { namespace connection {
 
     class DefaultNodeConnector : public NodeConnector {
     public:
-        using ConnectCallback = consumer<const ionet::Node&, net::PeerConnectCode, const std::shared_ptr<ionet::PacketSocket>&>;
+        using ConnectCallback = consumer<net::PeerConnectCode, const std::shared_ptr<ionet::PacketSocket>&>;
         using PacketSocketPointer = std::shared_ptr<ionet::PacketSocket>;
 
         DefaultNodeConnector(
@@ -33,11 +33,11 @@ namespace sirius { namespace connection {
                     node.endpoint(),
                     [this, &node](auto result, const auto& pConnectedSocket) {
                         if (ionet::ConnectResult::Connected != result) {
-                            m_callback(node, net::PeerConnectCode::Socket_Error, nullptr);
+                            m_callback(net::PeerConnectCode::Socket_Error, nullptr);
                             return;
                         }
 
-                        verify(node.identityKey(), node, pConnectedSocket);
+                        verify(node.identityKey(), pConnectedSocket);
                     });
 
             m_context.run();
@@ -48,20 +48,20 @@ namespace sirius { namespace connection {
         }
 
     private:
-        void verify(const Key& publicKey, const ionet::Node& node, const PacketSocketPointer& pConnectedSocket) {
+        void verify(const Key& publicKey, const PacketSocketPointer& pConnectedSocket) {
             VerifiedPeerInfo serverPeerInfo{ publicKey, m_settings.OutgoingSecurityMode };
 
-            VerifyServer(pConnectedSocket, serverPeerInfo, m_keyPair, [this, &pConnectedSocket, &node](
+            VerifyServer(pConnectedSocket, serverPeerInfo, m_keyPair, [this, pConnectedSocket](
                     auto verifyResult,
                     const auto& verifiedPeerInfo) {
                 if (VerifyResult::Success != verifyResult) {
                     CATAPULT_LOG(warning) << "VerifyServer failed with " << verifyResult;
-                    m_callback(node, net::PeerConnectCode::Verify_Error, nullptr);
+                    m_callback(net::PeerConnectCode::Verify_Error, nullptr);
                     return;
                 }
 
                 auto pSecuredSocket = secure(pConnectedSocket, verifiedPeerInfo);
-                m_callback(node, net::PeerConnectCode::Accepted, pSecuredSocket);
+                m_callback(net::PeerConnectCode::Accepted, pSecuredSocket);
             });
         }
 

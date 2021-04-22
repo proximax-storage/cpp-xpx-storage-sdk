@@ -15,7 +15,7 @@ namespace cpp_xpx_storage_sdk::tests {
         sirius::ionet::Node bootstrapNode(identityKey, endpoint);
 
         const sirius::crypto::KeyPair keyPair = sirius::crypto::KeyPair::FromString("415ABF3AA04493587AD0B3C6B594F369F74F4055CFBD2BF028AE29EA3C1C6BD3");
-        sirius::nodediscovery::NodesKeeper nodesKeeper(sirius::net::ConnectionSettings(), keyPair, 2000);
+        sirius::nodediscovery::NodesKeeper nodesKeeper(sirius::net::ConnectionSettings(), keyPair, 5000, 10);
         nodesKeeper.start(bootstrapNode);
 
         char a;

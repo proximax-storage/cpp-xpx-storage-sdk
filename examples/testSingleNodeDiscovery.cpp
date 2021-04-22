@@ -23,21 +23,19 @@ int main() {
     auto key = crypto::ParseKey(nodeKey);
 
     auto node = ionet::Node(key, endpoint);
-    auto connector = sdk::examples::ConnectNode(node, [n = node](auto code, auto packet){
+    auto connector = sdk::examples::ConnectNode(node, [n = node](auto, auto code, auto packet){
         if(code != net::PeerConnectCode::Accepted) {
             std::cout << "Node Connection failed " << std::endl;
             return;
         }
 
         ionet::NodePacketIoPair pair(n, packet);
-        connection::SinglePeersRequestor requestor(pair, [=](const ionet::NodeSet& peers){
+        connection::SinglePeersRequestor requestor(pair, [](const ionet::NodeSet& peers){
             std::cout << "Number of peers returned : " << peers.size() ;
         });
 
-        requestor.findPeersOfPeers();
+        requestor.findPeersOfPeers().get();
     });
-
-    getchar();
 
     return 0;
 }

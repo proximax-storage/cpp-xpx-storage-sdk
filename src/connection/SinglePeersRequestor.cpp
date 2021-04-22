@@ -10,7 +10,7 @@ namespace sirius { namespace connection {
     }
 
     thread::future<SinglePeersRequestor::RemoteApiResults> SinglePeersRequestor::findPeersOfPeers( ) const {
-        auto peersInfoFuture = api::CreateRemoteNodeApi(*m_nodePacketIoPair.io().get())->peersInfo();
+        auto peersInfoFuture = api::CreateRemoteNodeApi(*m_nodePacketIoPair.io())->peersInfo();
         const auto& identityKey = m_nodePacketIoPair.node().identityKey();
         peersInfoFuture.then([nodesConsumer = m_nodesConsumer, packetIoPair = m_nodePacketIoPair, identityKey](auto&& nodesFuture) {
             try {

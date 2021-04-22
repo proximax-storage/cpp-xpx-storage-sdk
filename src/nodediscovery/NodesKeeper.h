@@ -12,7 +12,7 @@
 namespace sirius { namespace nodediscovery {
         class NodesKeeper {
         public:
-            explicit NodesKeeper(const net::ConnectionSettings&, const crypto::KeyPair&, const uint64_t&);
+            explicit NodesKeeper(const net::ConnectionSettings&, const crypto::KeyPair&, const uint64_t&, const uint64_t&);
 
             void start(const ionet::Node& bootstrapNode);
             std::unordered_set<ionet::Node, ionet::NodeHasher> getActiveNodes();
@@ -26,8 +26,10 @@ namespace sirius { namespace nodediscovery {
             boost::asio::io_context m_ioContext;
             boost::posix_time::milliseconds m_interval;
             boost::asio::deadline_timer m_timer;
-            std::shared_ptr<connection::NodeConnector> m_pNodeConnector;
             std::unordered_set<ionet::Node, ionet::NodeHasher> m_activeNodes;
+            net::ConnectionSettings m_settings;
+            const crypto::KeyPair& m_keyPair;
+            uint64_t m_maxNodesCount;
         };
     }
 }
