@@ -37,20 +37,54 @@ namespace sirius { namespace drive {
 enum { PIECE_SIZE = 16*1024 };
 
 //
-// DefaultLibTorrentSession -
+// It will be used to inform drive that all required torrents
+// have been sucessfully deleted
+//
+struct RemoveTorrentContext
+{
+    // A set of torrents to be removed
+    // Torrent id (uint32_t) is used instead of lt::torrent_handler
+    //
+    std::set<std::uint32_t> m_torrentSet;
+
+    // This handler will be called after all torrents have been removed
+    RemoveNotification      m_endRemoveHandler;
+};
+
+//
+// DefaultSession
 //
 class DefaultSession: public Session {
-    using RemoveTorrentSet = std::set<std::uint32_t>;
-    using DownloadMap = std::map<std::uint32_t,DownloadHandler>;
 
+    // Every drive could have its own 'RemoveTorrentContext'
+    //
+    using RemoveSets = std::set<std::shared_ptr<RemoveTorrentContext>>;
+
+    // This map is used to inform 'client' about downloading progress
+    // Torrent id (uint32_t) is used instead of lt::torrent_handler
+    //
+    using DownloadMap      = std::map<std::uint32_t,DownloadContext>;
+
+    // Endpoint of libtorrent node
+    //
     std::string             m_addressAndPort;
 
+    // Libtorrent session
+    //
     lt::session             m_session;
 
-    DownloadMap             m_downloadHandlerMap;
-    RemoveTorrentSet        m_removeHandlerSet;
-    RemoveHandler           m_removeHandler;
+    // see coments to 'DownloadMap'
+    //
+    DownloadMap             m_downloadMap;
+    std::mutex              m_downloadMapMutex;
 
+    // see comments to 'RemoveSets'
+    //
+    RemoveSets              m_removeSets;
+    std::mutex              m_removeMutex;
+
+    // It will be called on socket listening error
+    //
     LibTorrentErrorHandler  m_alertHandler;
 
 public:
@@ -84,7 +118,7 @@ public:
     }
 
     virtual void endSession() override {
-        m_downloadHandlerMap.clear();
+        m_downloadMap.clear();
         //TODO?
         m_session.abort();
     }
@@ -100,14 +134,28 @@ public:
         }
     }
 
-    virtual void removeTorrentFromSession( lt_handle torrentHandle, RemoveHandler removeHandler ) override {
-        if ( m_removeHandlerSet.find(torrentHandle.id()) != m_removeHandlerSet.end() )
+    virtual RemoveTorrentContextPtr createRemoveTorrentContext() override {
+        std::lock_guard locker( m_removeMutex );
+        auto result = m_removeSets.emplace();
+        return *result.first;
+    }
+
+
+    virtual void removeTorrentFromSession( lt_handle torrentHandle, RemoveTorrentContextPtr removeContext ) override {
+
+        // Save torrent id into 'remove context'
+        if ( removeContext.get() != nullptr )
         {
-            //TODO
-            LOG_ERR( "double torrent id in removeHandlerMap" );
+            std::lock_guard locker( m_removeMutex );
+
+            if ( removeContext->m_torrentSet.find(torrentHandle.id()) != removeContext->m_torrentSet.end() )
+            {
+                //TODO
+                LOG_ERR( "double torrent id in removeHandlerMap" );
+                throw std::runtime_error( "double torrent id in removeHandlerMap" );
+            }
+            removeContext->m_torrentSet.insert( torrentHandle.id() );
         }
-        m_removeHandlerSet.insert( torrentHandle.id() );
-        m_removeHandler = removeHandler;
         m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
     }
 
@@ -204,19 +252,18 @@ public:
     }
 
     // downloadFile
-    virtual void downloadFile( InfoHash           infoHash,
-                               const std::string& outputFolder,
-                               DownloadHandler    downloadHandler,
-                               endpoint_list      list ) override {
-
-        //LOG( "downloadFile: " << toString(infoHash) );
+    virtual void downloadFile( const DownloadContext& downloadContext,
+                               endpoint_list          list  ) override {
 
         // create add_torrent_params
         lt::error_code ec;
-        lt::add_torrent_params params = lt::parse_magnet_uri( magnetLink(infoHash), ec );
+        lt::add_torrent_params params = lt::parse_magnet_uri( magnetLink(downloadContext.m_infoHash), ec );
+        if (ec) {
+            throw std::runtime_error( std::string("downloadFile error: ") + ec.message() );
+        }
 
         // where the file will be placed
-        params.save_path = outputFolder;
+        params.save_path = downloadContext.m_saveFolder;
 
         // create torrent_handle
         lt::torrent_handle tHandle = m_session.add_torrent(params);
@@ -233,7 +280,8 @@ public:
         }
 
         // save download handler
-        m_downloadHandlerMap[tHandle.id()] = downloadHandler;
+        std::lock_guard locker(m_downloadMapMutex);
+        m_downloadMap[tHandle.id()] = downloadContext;
     }
 
 private:
@@ -248,6 +296,10 @@ private:
         for (auto &alert : alerts) {
 
             switch (alert->type()) {
+//                case lt::peer_log_alert::alert_type: {
+//                    LOG( m_addressAndPort << ":peer_log_alert: " << alert->message() );
+//                    break;
+//                }
 
                 case lt::torrent_deleted_alert::alert_type: {
                     auto *alertInfo = dynamic_cast<lt::torrent_deleted_alert*>(alert);
@@ -261,8 +313,8 @@ private:
                         m_removeHandlerSet.erase( it );
                         if ( m_removeHandlerSet.size() == 0 )
                         {
-                            if ( m_removeHandler.has_value() )
-                                m_removeHandler.value()();
+                            if ( m_removeNotification.has_value() )
+                                m_removeNotification.value()();
                             return;
                         }
                     }

@@ -124,7 +124,6 @@ inline bool operator<(const Folder::Child& a, const Folder::Child& b) {
 }
 
 
-
 // FsTree
 class FsTree: public Folder {
 public:

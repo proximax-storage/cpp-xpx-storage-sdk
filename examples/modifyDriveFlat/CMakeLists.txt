@@ -18,8 +18,8 @@ add_executable(modifyDriveFlat modifyDriveFlat.cpp ${SOURCES})
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     target_link_libraries(modifyDriveFlat
         #/Users/alex/Proj/libtorrent/bin/darwin-12.0.0/release/crypto-openssl/cxxstd-17-iso/debug-symbols-on/threading-multi/libtorrent-rasterbar.dylib.2.0.3
-        #/Users/alex/Proj/libtorrent/_bin/libtorrent-rasterbar.2.0.dylib
-        /Users/alex/Proj/libtorrent/_bin_rel/libtorrent-rasterbar.dylib
+        /Users/alex/Proj/libtorrent/_bin/libtorrent-rasterbar.2.0.dylib
+        #/Users/alex/Proj/libtorrent/_bin_rel/libtorrent-rasterbar.dylib
         #/Users/alex/Proj/libtorrent/bin/Debug/libtorrent-rasterbar.2.0.3.dylib
         )
 #        /usr/local/opt/openssl/lib/libssl.dylib

@@ -26,8 +26,8 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     target_link_libraries(downloadFileFlat
         #        /usr/local/lib/libtorrent-rasterbar.dylib.2.0
         #        /Users/alex/Proj/libtorrent/bin/Debug/libtorrent-rasterbar.a
-        /Users/alex/Proj/libtorrent/_bin_rel/libtorrent-rasterbar.dylib
-        #/Users/alex/Proj/libtorrent/_bin/libtorrent-rasterbar.dylib
+        #/Users/alex/Proj/libtorrent/_bin_rel/libtorrent-rasterbar.dylib
+        /Users/alex/Proj/libtorrent/_bin/libtorrent-rasterbar.dylib
         /usr/local/opt/openssl@1.1/lib/libcrypto.dylib
         /usr/local/opt/openssl@1.1/lib/libssl.dylib
         "-framework CoreFoundation" "-framework SystemConfiguration" )
