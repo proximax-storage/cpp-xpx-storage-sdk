@@ -90,7 +90,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     // Root hashes
     InfoHash      m_rootHash;
-    InfoHash      m_resultRootHash;
+    InfoHash      m_sandboxRootHash;
 
     // Client data
     InfoHash      m_clientDataInfoHash;
@@ -165,7 +165,7 @@ public:
 
         // Calculate torrent and root hash
         m_fsTree.deserialize( m_fsTreeFile );
-        m_rootHash = createTorrentFile( m_fsTreeFile, m_replicatorRoot, m_fsTreeTorrent );
+        m_rootHash = createTorrentFile( m_fsTreeFile, m_fsTreeFile.parent_path(), m_fsTreeTorrent );
 
         //TODO compare rootHash with blockchain?
 
@@ -316,18 +316,19 @@ public:
         fs::remove_all( m_sandboxRootPath );
         fs::create_directories( m_sandboxRootPath);
 
-        m_session->downloadFile( modifyDataInfoHash,
-                                 m_sandboxRootPath,
-                                 std::bind( &DefaultFlatDrive::downloadHandler, this, _1, _2, _3 ),
+        m_session->downloadFile( DownloadContext(
+                                     std::bind( &DefaultFlatDrive::downloadHandler, this, _1, _2, _3 ),
+                                     modifyDataInfoHash,
+                                     m_sandboxRootPath),
                                  m_otherReplicators );
     }
 
     // will be called by Session
-    void downloadHandler( download_status::code code, const InfoHash& infoHash, const std::string& info )
+    void downloadHandler( const DownloadContext& context, download_status::code code, const std::string& info )
     {
-        if ( m_clientDataInfoHash != infoHash )
+        if ( m_clientDataInfoHash != context.m_infoHash )
         {
-            m_modifyHandler( modify_status::failed, infoHash, std::string("DefaultDrive::downloadHandler: internal error: ") + info );
+            m_modifyHandler( modify_status::failed, context.m_infoHash, std::string("DefaultDrive::downloadHandler: internal error: ") + info );
             return;
         }
 
@@ -495,10 +496,10 @@ public:
 
         // calculate new rootHash
         m_sandboxFsTree.doSerialize( m_sandboxFsTreeFile );
-        m_resultRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
+        m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
 
         // Call handler
-        m_modifyHandler( modify_status::sandbox_root_hash, m_resultRootHash, "" );
+        m_modifyHandler( modify_status::sandbox_root_hash, m_sandboxRootHash, "" );
 
         // start drive update
         updateDrive_1();
@@ -516,6 +517,8 @@ public:
         // Set m_toBeRemoved = false
         markUsedFiles( m_fsTree );
 
+        RemoveContextPtr removeContext = m_session->createRemoveTorrentContext(
+                                            std::bind( &DefaultFlatDrive::updateDrive_2, this ) );
 
         // Remove unused files from session
         for( const auto& it : m_fileMap )
@@ -524,19 +527,12 @@ public:
             if ( info.m_toBeRemoved )
             {
                 if ( info.m_ltHandle.is_valid() )
-                    m_session->removeTorrentFromSession( info.m_ltHandle );
+                    m_session->removeTorrentFromSession( info.m_ltHandle, removeContext );
             }
         }
 
         // Remove FsTree torrent
-        m_session->removeTorrentFromSession( m_fsTreeLtHandle, [this]
-        {
-            // remove files
-            fs::remove( m_fsTreeFile );
-            fs::remove( m_fsTreeTorrent );
-
-            updateDrive_2();
-        });
+        m_session->removeTorrentFromSession( m_fsTreeLtHandle, removeContext );
     }
 
     // updates drive (2st phase after fsTree torrent removed)
@@ -548,6 +544,7 @@ public:
         // update FsTree file & torrent
         fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
         fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
+        m_rootHash = m_sandboxRootHash;
 
         // clear sandbox
         fs::remove_all( m_sandboxRootPath );

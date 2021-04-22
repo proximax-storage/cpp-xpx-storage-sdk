@@ -44,7 +44,7 @@ std::mutex              finishMutex;
 bool                    isFinished = false;
 
 // clientSessionErrorHandler
-void clientSessionErrorHandler( libtorrent::alert* alert )
+void clientSessionErrorHandler( const lt::alert* alert )
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
@@ -54,7 +54,7 @@ void clientSessionErrorHandler( libtorrent::alert* alert )
 }
 
 // replicatorAlertHandler
-void replicatorAlertHandler( libtorrent::alert* alert )
+void replicatorAlertHandler( const lt::alert* alert )
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
@@ -115,7 +115,7 @@ int main(int,char**)
 //
 // progressHandler
 //
-void progressHandler( download_status::code code, InfoHash, std::string )
+void progressHandler( const DownloadContext&, download_status::code code, const std::string& )
 {
     if ( code == download_status::complete ) {
         isFinished = true;
@@ -139,9 +139,7 @@ void client( endpoint_list replicatorAddresses, InfoHash infoHashOfSomeFile, fs:
 
     // Start file downloading
     //
-    ltSession->downloadFile( infoHashOfSomeFile,
-                             destinationFolder,
-                             progressHandler,
+    ltSession->downloadFile( DownloadContext( progressHandler, infoHashOfSomeFile, destinationFolder ),
                              replicatorAddresses );
 
     // Wait for the download to finish

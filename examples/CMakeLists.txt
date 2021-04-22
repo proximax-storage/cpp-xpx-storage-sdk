@@ -11,14 +11,6 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 #@#target_link_libraries(testSingleNodeDiscovery connection crypto ionet net model nodediscovery)
 
 
-### download file example
-#@#
-add_subdirectory(downloadFile)
-
-### modify drive example
-#@#
-add_subdirectory(modifyDrive)
-
 ### download flat file example
 #@#
 add_subdirectory(downloadFileFlat)

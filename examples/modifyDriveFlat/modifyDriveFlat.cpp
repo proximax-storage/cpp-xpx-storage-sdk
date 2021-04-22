@@ -67,7 +67,7 @@ std::promise<InfoHash>  clientDataPromise;
 std::promise<InfoHash>  clientDataPromise2;
 
 // clientSessionErrorHandler
-void clientSessionErrorHandler( libtorrent::alert* alert )
+void clientSessionErrorHandler( const lt::alert* alert )
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
@@ -77,7 +77,7 @@ void clientSessionErrorHandler( libtorrent::alert* alert )
 }
 
 // replicatorSessionErrorHandler
-void replicatorSessionErrorHandler( libtorrent::alert* alert)
+void replicatorSessionErrorHandler( const lt::alert* alert)
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
@@ -240,11 +240,11 @@ void replicator()
 //
 // clientDwonloadHandler
 //
-void clientDownloadHandler( download_status::code code, const InfoHash& hash, const std::string& /*info*/ )
+void clientDownloadHandler( const DownloadContext& context, download_status::code code, const std::string& /*info*/ )
 {
     if ( code == download_status::complete )
     {
-        EXLOG( "# Client received FsTree: " << toString(hash) );
+        EXLOG( "# Client received FsTree: " << toString(context.m_infoHash) );
 
         // print FsTree
         FsTree fsTree;
@@ -271,9 +271,10 @@ void clientDownloadFsTree( InfoHash rootHash, endpoint_list addrList )
 
     // Make the list of replicator addresses
     //
-    ltSession->downloadFile( rootHash,
-                             fs::temp_directory_path() / "fsTree-folder",
-                             clientDownloadHandler,
+    ltSession->downloadFile( DownloadContext(
+                                 clientDownloadHandler,
+                                 rootHash,
+                                 fs::temp_directory_path() / "fsTree-folder" ),
                              addrList );
 
     // wait the end of download

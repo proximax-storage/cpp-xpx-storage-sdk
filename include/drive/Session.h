@@ -19,7 +19,6 @@ namespace sirius { namespace drive {
 
 #define FS_TREE_FILE_NAME "FsTree.bin"
 
-struct DownloadContext;
 
 // It will be used to inform 'client' about download status
 //
@@ -33,26 +32,24 @@ namespace download_status {
 
 // It will be used to inform 'client' about download status
 //
-using DownloadNotification = std::function<void( const DownloadContext&,
-                                                 download_status::code,
-                                                 const std::string& errorText )>;
-
-// It will be used to inform 'client' about download status
-//
 struct DownloadContext {
 
-    DownloadContext( DownloadNotification  downloadNotification,
-                     InfoHash              infoHash
+    using Notification = std::function<void( const DownloadContext&,
+                                             download_status::code,
+                                             const std::string& errorText )>;
+
+    DownloadContext( Notification          notification,
+                     InfoHash              infoHash,
                      std::filesystem::path saveFolder,
                      std::filesystem::path renameAs = {} )
         :
-          m_downloadNotification(downloadNotification),
+          m_downloadNotification(notification),
           m_infoHash(infoHash),
           m_saveFolder(saveFolder),
           m_renameAs(renameAs)
         {}
 
-    DownloadNotification  m_downloadNotification;
+    Notification          m_downloadNotification;
 
     InfoHash              m_infoHash;
     std::filesystem::path m_saveFolder;
@@ -65,11 +62,13 @@ struct DownloadContext {
 //
 // It will be used to inform 'client' that all required torrents
 // have been sucessfully removed from the session.
-// And only after that 'client' could remove/move files and torrnet file.
+// And only after that the 'client' could remove/move files and torrnet file.
 //
+using  RemoveNotification = std::function<void()>;
+
 struct RemoveTorrentContext
 {
-    using  RemoveNotification = std::optional<std::function<void()>>;
+    RemoveTorrentContext( RemoveNotification func ) : m_endRemoveHandler(func) {}
 
     // A set of torrents to be removed
     // Torrent id (uint32_t) is used instead of lt::torrent_handler
@@ -80,7 +79,7 @@ struct RemoveTorrentContext
     RemoveNotification      m_endRemoveHandler;
 };
 
-using  RemoveTorrentContextPtr = std::shared_ptr<RemoveTorrentContext>;
+using  RemoveContextPtr = std::shared_ptr<RemoveTorrentContext>;
 
 //
 // It provides the ability to exchange files
@@ -98,10 +97,10 @@ public:
                                                const std::string& savePath,
                                                endpoint_list = {} ) = 0;
 
-    virtual RemoveTorrentContextPtr createRemoveTorrentContext() = 0;
+    virtual RemoveContextPtr createRemoveTorrentContext( RemoveNotification&& func ) = 0;
 
     // It removes torrent from session
-    virtual void      removeTorrentFromSession( lt_handle, RemoveTorrentContextPtr ) = 0;
+    virtual void      removeTorrentFromSession( lt_handle, RemoveContextPtr ) = 0;
 
     virtual InfoHash  addActionListToSession( const ActionList&,
                                               const std::string& workFolder,
@@ -113,11 +112,11 @@ public:
 
 // createTorrentFile
 InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
-                            const std::string& /*pathToRootFolder*/, // noyt used
+                            const std::string& /*pathToRootFolder*/, // not used
                             const std::string& outputTorrentFilename );
 
 //
-// calculateInfoHashAndTorrent (InfoHash is a part of magnetlink)
+// It will be used on drive side only.
 //
 InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
                                       const std::string& drivePublicKey,
@@ -131,7 +130,7 @@ namespace libtorrent {
     struct alert;
 }
 
-using LibTorrentErrorHandler = std::function<void( libtorrent::alert* )>;
+using LibTorrentErrorHandler = std::function<void( const lt::alert* )>;
 
 std::shared_ptr<Session> createDefaultSession( std::string address, const LibTorrentErrorHandler& );
 
