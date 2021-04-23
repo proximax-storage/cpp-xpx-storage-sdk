@@ -44,7 +44,7 @@ class DefaultSession: public Session {
 
     // Every drive have its own 'RemoveTorrentContext'
     //
-    using RemoveSets = std::set<std::unique_ptr<RemoveTorrentContext>>;
+    using RemoveContexts = std::vector<std::unique_ptr<RemoveTorrentContext>>;
 
     // This map is used to inform 'client' about downloading progress
     // Torrent id (uint32_t) is used instead of lt::torrent_handler
@@ -63,7 +63,7 @@ private:
 
     // see comments to 'RemoveSets'
     //
-    RemoveSets              m_removeSets;
+    RemoveContexts          m_removeContexts;
     std::mutex              m_removeMutex;
 
     // see coments to 'DownloadMap'
@@ -117,7 +117,7 @@ public:
     {
         {
             std::lock_guard locker( m_removeMutex );
-            m_removeSets.emplace( std::make_unique<RemoveTorrentContext>( std::move(torrents), endNotification ) );
+            m_removeContexts.push_back( std::make_unique<RemoveTorrentContext>( std::move(torrents), endNotification ) );
         }
 
         for( const auto& torrentHandle : torrents )
@@ -283,7 +283,7 @@ private:
                         std::lock_guard<std::mutex> locker(m_removeMutex);
 
                         // loop by set
-                        for ( auto removeContextIt  = m_removeSets.begin(); removeContextIt != m_removeSets.end(); )
+                        for ( auto removeContextIt  = m_removeContexts.begin(); removeContextIt != m_removeContexts.end(); )
                         {
                             auto& removeContext = *removeContextIt->get();
 
@@ -302,7 +302,7 @@ private:
                                 if ( removeContext.m_torrentSet.empty() )
                                 {
                                     auto endRemoveNotification = removeContext.m_endRemoveNotification;
-                                    m_removeSets.erase( removeContextIt++ );
+                                    m_removeContexts.erase( removeContextIt );
                                     endRemoveNotification();
                                 }
                                 else
@@ -323,6 +323,7 @@ private:
                         context.m_downloadNotification( context, download_status::complete, "" );
 
                         // remove entry from downloadHandlerMap
+                        std::lock_guard<std::mutex> locker(m_downloadMapMutex);
                         m_downloadMap.erase( downloadConextIt );
                     }
 
