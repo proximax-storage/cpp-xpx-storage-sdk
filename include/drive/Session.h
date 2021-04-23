@@ -64,19 +64,22 @@ struct DownloadContext {
 // have been sucessfully removed from the session.
 // And only after that the 'client' could remove/move files and torrnet file.
 //
-using  RemoveNotification = std::function<void()>;
-
 struct RemoveTorrentContext
 {
-    RemoveTorrentContext( RemoveNotification func ) : m_endRemoveHandler(func) {}
-
+    RemoveTorrentContext(
+            std::set<lt::torrent_handle>&& torrentSet,
+            const std::function<void()>&   endRemoveNotification )
+        :
+            m_torrentSet(torrentSet),
+            m_endRemoveNotification(endRemoveNotification)
+        {}
     // A set of torrents to be removed
     // Torrent id (uint32_t) is used instead of lt::torrent_handler
     //
-    std::set<std::uint32_t> m_torrentSet;
+    std::set<lt::torrent_handle> m_torrentSet;
 
     // This handler will be called after all torrents have been removed
-    RemoveNotification      m_endRemoveHandler;
+    std::function<void()>        m_endRemoveNotification;
 };
 
 using  RemoveContextPtr = std::shared_ptr<RemoveTorrentContext>;
@@ -97,10 +100,11 @@ public:
                                                const std::string& savePath,
                                                endpoint_list = {} ) = 0;
 
-    virtual RemoveContextPtr createRemoveTorrentContext( RemoveNotification&& func ) = 0;
-
-    // It removes torrent from session
-    virtual void      removeTorrentFromSession( lt_handle, RemoveContextPtr ) = 0;
+    // It removes torrents from session.
+    // After removing 'endNotification' will be called.
+    // And only after that the 'client' could move/remove files and torrnet file.
+    virtual void      removeTorrentsFromSession( std::set<lt::torrent_handle>&& torrents,
+                                                 std::function<void()>          endNotification ) = 0;
 
     virtual InfoHash  addActionListToSession( const ActionList&,
                                               const std::string& workFolder,

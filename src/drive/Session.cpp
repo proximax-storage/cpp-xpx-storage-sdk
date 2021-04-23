@@ -22,6 +22,7 @@
 #include <libtorrent/hex.hpp>
 #include <libtorrent/create_torrent.hpp>
 #include <libtorrent/torrent_flags.hpp>
+#include <libtorrent/torrent.hpp>
 #include <libtorrent/extensions/ut_metadata.hpp>
 
 // boost
@@ -43,7 +44,7 @@ class DefaultSession: public Session {
 
     // Every drive have its own 'RemoveTorrentContext'
     //
-    using RemoveSets = std::set<std::shared_ptr<RemoveTorrentContext>>;
+    using RemoveSets = std::set<std::unique_ptr<RemoveTorrentContext>>;
 
     // This map is used to inform 'client' about downloading progress
     // Torrent id (uint32_t) is used instead of lt::torrent_handler
@@ -60,15 +61,15 @@ private:
     //
     lt::session             m_session;
 
-    // see coments to 'DownloadMap'
-    //
-    DownloadMap             m_downloadMap;
-    std::mutex              m_downloadMapMutex;
-
     // see comments to 'RemoveSets'
     //
     RemoveSets              m_removeSets;
     std::mutex              m_removeMutex;
+
+    // see coments to 'DownloadMap'
+    //
+    DownloadMap             m_downloadMap;
+    std::mutex              m_downloadMapMutex;
 
     // It will be called on socket listening error
     //
@@ -111,29 +112,18 @@ public:
         m_session.abort();
     }
 
-    virtual RemoveContextPtr createRemoveTorrentContext( RemoveNotification&& func ) override {
-
-        std::lock_guard locker( m_removeMutex );
-        auto result = m_removeSets.emplace( std::make_shared<RemoveTorrentContext>(func) );
-        return *result.first;
-    }
-
-    virtual void removeTorrentFromSession( lt_handle torrentHandle, RemoveContextPtr removeContext ) override {
-
-        // Save torrent id into 'remove context'
-        if ( removeContext.get() != nullptr )
+    virtual void removeTorrentsFromSession( std::set<lt::torrent_handle>&& torrents,
+                                            std::function<void()>          endNotification ) override
+    {
         {
             std::lock_guard locker( m_removeMutex );
-
-            if ( removeContext->m_torrentSet.find(torrentHandle.id()) != removeContext->m_torrentSet.end() )
-            {
-                //TODO
-                LOG_ERR( "double torrent id in removeHandlerMap" );
-                throw std::runtime_error( "double torrent id in removeHandlerMap" );
-            }
-            removeContext->m_torrentSet.insert( torrentHandle.id() );
+            m_removeSets.emplace( std::make_unique<RemoveTorrentContext>( std::move(torrents), endNotification ) );
         }
-        m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
+
+        for( const auto& torrentHandle : torrents )
+        {
+            m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
+        }
     }
 
     virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
@@ -289,35 +279,51 @@ private:
 
                     // Notify about removed torrents
                     //
-                    for( auto& removeContext : m_removeSets )
                     {
-                        if ( auto torrentIt = removeContext->m_torrentSet.find(alertInfo->handle.id());
-                             torrentIt != removeContext->m_torrentSet.end() )
+                        std::lock_guard<std::mutex> locker(m_removeMutex);
+
+                        // loop by set
+                        for ( auto removeContextIt  = m_removeSets.begin(); removeContextIt != m_removeSets.end(); )
                         {
-                            removeContext->m_torrentSet.erase(torrentIt);
-                            if ( removeContext->m_torrentSet.empty() )
+                            auto& removeContext = *removeContextIt->get();
+
+                            // skip not-ordered torrents
+                            if ( auto torrentIt  = removeContext.m_torrentSet.find(alertInfo->handle);
+                                      torrentIt != removeContext.m_torrentSet.end() )
                             {
-                                removeContext->m_endRemoveHandler();
-                                //m_removeSets.erase( removeContext );
+                                // remove torrent from 'context'
+                                removeContext.m_torrentSet.erase(torrentIt);
+
+                                //TODO?
+                                //std::erase_if( removeContext.m_torrentSet,
+                                //               [](auto const& torrent) { return !torrent.is_valid(); } );
+
+                                // try to remove 'context'
+                                if ( removeContext.m_torrentSet.empty() )
+                                {
+                                    auto endRemoveNotification = removeContext.m_endRemoveNotification;
+                                    m_removeSets.erase( removeContextIt++ );
+                                    endRemoveNotification();
+                                }
+                                else
+                                {
+                                    removeContextIt++;
+                                }
                             }
                         }
                     }
 
-                    // Notify about torrent download is completed
+                    // Notify about completed downloads
                     //
-                    if ( auto conextIt = m_downloadMap.find(alertInfo->handle.id());
-                         conextIt != m_downloadMap.end() )
+                    if ( auto downloadConextIt  = m_downloadMap.find(alertInfo->handle.id());
+                              downloadConextIt != m_downloadMap.end() )
                     {
-                        // copy context object
-                        DownloadContext context = conextIt->second;
-
-                        // remove entry from downloadHandlerMap
-                        m_downloadMap.erase( conextIt );
-
+                        // do notification
+                        DownloadContext context = downloadConextIt->second;
                         context.m_downloadNotification( context, download_status::complete, "" );
 
                         // remove entry from downloadHandlerMap
-                        //m_downloadHandlerMap.erase( it );
+                        m_downloadMap.erase( downloadConextIt );
                     }
 
                     break;

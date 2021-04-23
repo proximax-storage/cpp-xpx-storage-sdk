@@ -517,8 +517,7 @@ public:
         // Set m_toBeRemoved = false
         markUsedFiles( m_fsTree );
 
-        RemoveContextPtr removeContext = m_session->createRemoveTorrentContext(
-                                            std::bind( &DefaultFlatDrive::updateDrive_2, this ) );
+        std::set<lt::torrent_handle> toBeRemovedTorrents;
 
         // Remove unused files from session
         for( const auto& it : m_fileMap )
@@ -527,12 +526,14 @@ public:
             if ( info.m_toBeRemoved )
             {
                 if ( info.m_ltHandle.is_valid() )
-                    m_session->removeTorrentFromSession( info.m_ltHandle, removeContext );
+                    toBeRemovedTorrents.insert( info.m_ltHandle );
             }
         }
 
+        toBeRemovedTorrents.insert( m_fsTreeLtHandle );
+
         // Remove FsTree torrent
-        m_session->removeTorrentFromSession( m_fsTreeLtHandle, removeContext );
+        m_session->removeTorrentsFromSession( std::move(toBeRemovedTorrents), [this]{ updateDrive_2(); } );
     }
 
     // updates drive (2st phase after fsTree torrent removed)

@@ -18,7 +18,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # boost from brew has an issue linking to -licudata
     # https://stackoverflow.com/questions/65380307/os-x-library-not-found-for-licudata
     # this needs to be defined before add_library
-    link_directories(/usr/local/opt/icu4c/lib/)
+    #link_directories(/usr/local/opt/icu4c/lib/)
 
     link_directories(/usr/local/opt/openssl@1.1/lib)
     include_directories(SYSTEM "/usr/local/include/" )

@@ -203,7 +203,6 @@ void replicator()
     std::cout << "\n";
     EXLOG( "@ Replicator received 2-d client data infoHash" );
     EXLOG( "@ infoHash2: " << toString(infoHash2) );
-    sleep(1);
 
     // start drive update
     drive->startModifyDrive( infoHash2, replicatorDownloadHandler );

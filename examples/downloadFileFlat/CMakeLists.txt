@@ -20,7 +20,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(OPENSSL_CRYPTO_LIBRARY ${OPENSSL_ROOT_DIR}/lib/libcrypto.dylib CACHE FILEPATH "" FORCE)
     set(OPENSSL_SSL_LIBRARY ${OPENSSL_ROOT_DIR}/lib/libssl.dylib CACHE FILEPATH "" FORCE)
 
-    link_directories(/usr/local/opt/icu4c/lib/)
+    #link_directories(/usr/local/opt/icu4c/lib/)
     link_directories(/usr/local/opt/openssl@1.1/lib)
 
     target_link_libraries(downloadFileFlat
