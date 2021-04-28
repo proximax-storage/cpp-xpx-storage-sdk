@@ -96,6 +96,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     InfoHash      m_clientDataInfoHash;
     ActionList    m_actionList;
 
+    std::vector<InfoHash> m_toBeAddedFiles;
+
     // Will be called at the end of the sanbox work
     DriveModifyHandler m_modifyHandler;
 
@@ -340,7 +342,7 @@ public:
 
         if ( code == download_status::complete )
         {
-            std::thread( [this] { modifyDriveInSandbox(); } ).detach();
+            std::thread( [this] { this->modifyDriveInSandbox(); } ).detach();
         }
     }
 
@@ -369,7 +371,6 @@ public:
         m_actionList.deserialize( m_clientActionListFile );
 
         // Make copy of current FsTree
-        FsTree m_sandboxFsTree;
         m_sandboxFsTree.deserialize( m_fsTreeFile );
 
         //
@@ -396,18 +397,20 @@ public:
                 }
 
                 // calculate torrent, file hash, and file size
-                InfoHash fileHash = calculateInfoHashAndTorrent( clientFile, m_drivePubKey, m_torrentFolder );
+                InfoHash fileHash = calculateInfoHashAndTorrent( clientFile, m_drivePubKey, m_torrentFolder, "" );
                 size_t fileSize = std::filesystem::file_size( clientFile );
 
-                // rename file and place it into drive
-                std::string newFileName = internalFileName( fileHash );
-                fs::rename( clientFile, m_driveFolder / newFileName );
+                // rename file and move it into drive folder
+                std::string newFileName = m_driveFolder / internalFileName( fileHash );
+                fs::rename( clientFile, newFileName );
 
                 // add file in resultFsTree
                 m_sandboxFsTree.addFile( fs::path(action.m_param2).parent_path(),
                                        clientFile.filename(),
                                        fileHash,
                                        fileSize );
+
+                m_toBeAddedFiles.emplace_back( fileHash );
 
                 // add ref to 'fileMap'
                 m_fileMap.try_emplace( fileHash, FileExData{} );
@@ -498,24 +501,25 @@ public:
         m_sandboxFsTree.doSerialize( m_sandboxFsTreeFile );
         m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
 
-        // Call handler
+        // Call modify handler
         m_modifyHandler( modify_status::sandbox_root_hash, m_sandboxRootHash, "" );
 
         // start drive update
         updateDrive_1();
     }
-    
+
     // updates drive (1st step after aprove)
     // - remove torrents from session
     //
     void updateDrive_1()
     {
         // Prepare map (m_toBeRemoved = true)
+        // This map is needed for deleting of unused files (and torrent files)
         for( auto& it : m_fileMap )
             it.second.m_toBeRemoved = true;
 
         // Set m_toBeRemoved = false
-        markUsedFiles( m_fsTree );
+        markUsedFiles( m_sandboxFsTree );
 
         std::set<lt::torrent_handle> toBeRemovedTorrents;
 
@@ -575,10 +579,18 @@ public:
             {
                 std::string fileName = internalFileName( it.first );
                 m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_torrentFolder / fileName,
-                                                                       m_torrentFolder,
+                                                                       m_driveFolder,
                                                                        m_otherReplicators );
             }
         }
+
+        // Add new files
+        for( const auto& fileHash: m_toBeAddedFiles )
+        {
+            fs::path torrentFile = m_torrentFolder / internalFileName(fileHash);
+            m_session->addTorrentFileToSession( torrentFile, m_driveFolder, {} );
+        }
+        m_toBeAddedFiles.clear();
 
         // Add FsTree torrent to session
         m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent, m_fsTreeTorrent.parent_path(), m_otherReplicators );

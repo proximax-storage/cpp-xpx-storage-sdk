@@ -7,6 +7,7 @@
 
 #include "types.h"
 #include "ActionList.h"
+#include "log.h"
 
 #include <filesystem>
 #include <libtorrent/torrent_handle.hpp>
@@ -38,6 +39,8 @@ struct DownloadContext {
                                              download_status::code,
                                              const std::string& errorText )>;
 
+//    DownloadContext( const DownloadContext& ) = default;
+
     DownloadContext( Notification          notification,
                      InfoHash              infoHash,
                      std::filesystem::path saveFolder,
@@ -48,6 +51,11 @@ struct DownloadContext {
           m_saveFolder(saveFolder),
           m_renameAs(renameAs)
         {}
+
+//    ~DownloadContext() {
+//        LOG("m_saveFolder:" << m_saveFolder);
+//        LOG("m_renameAs:"   << m_renameAs);
+//    }
 
     Notification          m_downloadNotification;
 
@@ -120,11 +128,15 @@ InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
                             const std::string& outputTorrentFilename );
 
 //
-// It will be used on drive side only.
+// It is used on drive side only.
+// It calculates modified InfoHash for 'file'
+// and creates modified torrent file in 'outputTorrentPath'
+// with name as 'InfoHash' + '.' + 'outputTorrentFileExtension'
 //
-InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
+InfoHash calculateInfoHashAndTorrent( const std::string& file,
                                       const std::string& drivePublicKey,
-                                      const std::string& outputTorrentPath );
+                                      const std::string& outputTorrentPath,
+                                      const std::string& outputTorrentFileExtension );
 
 //
 // createDefaultLibTorrentSession

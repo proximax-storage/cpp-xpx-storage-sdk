@@ -153,6 +153,15 @@ public:
 
         lt::torrent_handle tHandle = m_session.add_torrent(params);
 
+        //TODO!!!
+        //todo++
+        //LOG( "torrentFilename: " << torrentFilename );
+        if ( fs::path(torrentFilename).filename() == "d6c5a005e980b0d18c9f73fbf4b5123371807be9e0fc98f42cf1ac40081e7886" )
+        {
+            tHandle.set_upload_limit(100000);
+            tHandle.set_download_limit(100000);
+        }
+
         connectPeers( tHandle, list );
 
         return tHandle;
@@ -226,6 +235,10 @@ public:
         // create torrent_handle
         lt::torrent_handle tHandle = m_session.add_torrent(params);
 
+        //TODO!!!
+//        tHandle.set_download_limit(1000);
+//        tHandle.set_upload_limit(1000);
+
         if ( !m_session.is_valid() )
             throw std::runtime_error("downloadFile: libtorrent session is not valid");
 
@@ -270,11 +283,37 @@ private:
 //                    break;
 //                }
 
+//                case lt::peer_alert::alert_type: {
+//                    LOG(  m_addressAndPort << ": peer_alert: " << alert->message())
+//                    break;
+//                }
+
+                case lt::torrent_error_alert::alert_type: {
+                    auto *alertInfo = dynamic_cast<lt::torrent_error_alert *>(alert);
+
+                    LOG(  m_addressAndPort << ": torrent error: " << alertInfo->message())
+
+                    if ( auto downloadConextIt  = m_downloadMap.find(alertInfo->handle.id());
+                              downloadConextIt != m_downloadMap.end() )
+                    {
+                        // do notification
+                        DownloadContext context = downloadConextIt->second;
+                        context.m_downloadNotification( context, download_status::failed, alertInfo->message() );
+
+                        // remove entry from downloadHandlerMap
+                        std::lock_guard<std::mutex> locker(m_downloadMapMutex);
+                        m_downloadMap.erase( downloadConextIt );
+                    }
+
+                    break;
+                }
+
+
                 case lt::torrent_deleted_alert::alert_type: {
                     auto *alertInfo = dynamic_cast<lt::torrent_deleted_alert*>(alert);
                     //LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.info_hashes().v2 );
-                    LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.torrent_file()->files().file_name(0) );
-                    LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.torrent_file()->files().file_path(0) );
+                    //LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.torrent_file()->files().file_name(0) );
+                    //LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.torrent_file()->files().file_path(0) );
                     //LOG( "*** get_torrents().size()=" << m_session.get_torrents().size() );
 
                     // Notify about removed torrents
@@ -320,11 +359,12 @@ private:
                     {
                         // do notification
                         DownloadContext context = downloadConextIt->second;
-                        context.m_downloadNotification( context, download_status::complete, "" );
 
                         // remove entry from downloadHandlerMap
                         std::lock_guard<std::mutex> locker(m_downloadMapMutex);
-                        m_downloadMap.erase( downloadConextIt );
+                        m_downloadMap.erase( downloadConextIt->first );
+
+                        context.m_downloadNotification( context, download_status::complete, "" );
                     }
 
                     break;
@@ -351,10 +391,10 @@ private:
 
                             //dbg/////////////////////////
 //                            const std::string fileName = alertInfo->handle.torrent_file()->files().file_name(i).to_string();
-//                            const std::string filePath = alertInfo->handle.torrent_file()->files().file_path(i);
+                            const std::string filePath = alertInfo->handle.torrent_file()->files().file_path(i);
+                            LOG( m_addressAndPort << ": " << filePath
+                                      << ": alert: progress: " << fp[i] << " of " << fsize );
 //                            LOG( alertInfo->handle.info_hash() );
-//                            LOG( m_addressAndPort << ": " << filePath
-//                                      << ": alert: progress: " << fp[i] << " of " << fsize );
                             //dbg/////////////////////////
                         }
 //                        LOG( "-" );
@@ -369,17 +409,17 @@ private:
                                 std::vector<lt::peer_info> peers;
                                 alertInfo->handle.get_peer_info(peers);
 
-                                for (const lt::peer_info &pi : peers)
-                                {
-                                    LOG("Peer ip: " << pi.ip.address().to_string())
-                                    LOG("Peer id: " << pi.pid.to_string())
-
-                                    // the total number of bytes downloaded from and uploaded to this peer.
-                                    // These numbers do not include the protocol chatter, but only the
-                                    // payload data.
-                                    LOG("Total download: " << pi.total_download)
-                                    LOG("Total upload: " << pi.total_upload)
-                                }
+//                                for (const lt::peer_info &pi : peers)
+//                                {
+//                                    LOG("Peer ip: " << pi.ip.address().to_string())
+//                                    LOG("Peer id: " << pi.pid.to_string())
+//
+//                                    // the total number of bytes downloaded from and uploaded to this peer.
+//                                    // These numbers do not include the protocol chatter, but only the
+//                                    // payload data.
+//                                    LOG("Total download: " << pi.total_download)
+//                                    LOG("Total upload: " << pi.total_upload)
+//                                }
 
                                 // remove torrent
                                 m_session.remove_torrent( alertInfo->handle, lt::session::delete_partfile );
@@ -432,15 +472,6 @@ private:
 
                     if ( alertInfo ) {
                         LOG(  "udp error: " << alertInfo->message())
-                    }
-                    break;
-                }
-
-                case lt::torrent_error_alert::alert_type: {
-                    auto *alertInfo = dynamic_cast<lt::torrent_error_alert *>(alert);
-
-                    if ( alertInfo ) {
-                        LOG(  m_addressAndPort << ": torrent error: " << alertInfo->message())
                     }
                     break;
                 }
@@ -577,7 +608,8 @@ InfoHash createTorrentFile( const std::string& fileOrFolder, const std::string& 
 
 InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
                                       const std::string& drivePublicKey,
-                                      const std::string& outputTorrentPath )
+                                      const std::string& outputTorrentPath,
+                                      const std::string& outputTorrentFileExtension )
 {
     if ( fs::is_directory(pathToFile) )
     {
@@ -615,9 +647,7 @@ InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
     lt::bencode(std::back_inserter(torrentFileBytes), entry_info); // metainfo -> binary
 
     //dbg////////////////////////////////
-    LOG( "entry_info[info]:" << entry_info["info"].to_string() );
-    //auto tInfo = lt::torrent_info(torrentFileBytes, lt::from_span);
-    //LOG( "make_magnet_uri:" << lt::make_magnet_uri(tInfo) );
+    //LOG( "entry_info[info]:" << entry_info["info"].to_string() );
     //dbg////////////////////////////////
 
     // create torrentInfo
@@ -641,7 +671,7 @@ InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
     info.dict().erase( name );
     info.dict()["name"] = newFileName;
 
-    LOG( "entry[info]:" << entry_info["info"].to_string() );
+    //LOG( "entry[info]:" << entry_info["info"].to_string() );
 
     std::vector<char> torrentFileBytes2;
     lt::bencode(std::back_inserter(torrentFileBytes2), entry_info); // metainfo -> binary
@@ -657,13 +687,13 @@ InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
     }
 
     LOG( "infoHash :" << toString(infoHash) );
-    LOG( "infoHash2:" << toString(infoHash2) );
+    //LOG( "infoHash2:" << toString(infoHash2) );
     assert( infoHash == infoHash2 );
 
     // write to file
     if ( !outputTorrentPath.empty() )
     {
-        std::ofstream fileStream( fs::path(outputTorrentPath) / (newFileName +".torrent"), std::ios::binary );
+        std::ofstream fileStream( fs::path(outputTorrentPath) / (newFileName + outputTorrentFileExtension), std::ios::binary );
         fileStream.write( torrentFileBytes2.data(), torrentFileBytes2.size() );
     }
 

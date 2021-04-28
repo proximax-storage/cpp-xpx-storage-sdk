@@ -475,7 +475,7 @@ Folder* FsTree::getFolderPtr( const std::string& fullPath, bool createIfNotExist
             if ( !createIfNotExist )
                 return nullptr;
 
-            treeValker->m_childs.emplace_front( Folder{pathIt->string()} );
+            treeValker->m_childs.emplace_back( Folder{pathIt->string()} );
             treeValker = &getFolder(treeValker->m_childs.back());
         }
         else if ( isFolder(*it) )
