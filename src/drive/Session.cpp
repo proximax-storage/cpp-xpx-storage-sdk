@@ -120,8 +120,11 @@ public:
             m_removeContexts.push_back( std::make_unique<RemoveTorrentContext>( std::move(torrents), endNotification ) );
         }
 
+        LOG( "+++ remove_torrent:size: " << torrents.size() );
+        
         for( const auto& torrentHandle : torrents )
         {
+            LOG( "remove_torrent: " << torrentHandle.info_hashes().v2 )
             m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
         }
     }
@@ -156,11 +159,11 @@ public:
         //TODO!!!
         //todo++
         //LOG( "torrentFilename: " << torrentFilename );
-        if ( fs::path(torrentFilename).filename() == "d6c5a005e980b0d18c9f73fbf4b5123371807be9e0fc98f42cf1ac40081e7886" )
-        {
-            tHandle.set_upload_limit(100000);
-            tHandle.set_download_limit(100000);
-        }
+//        if ( fs::path(torrentFilename).filename() == "d6c5a005e980b0d18c9f73fbf4b5123371807be9e0fc98f42cf1ac40081e7886" )
+//        {
+//            tHandle.set_upload_limit(100000);
+//            tHandle.set_download_limit(100000);
+//        }
 
         connectPeers( tHandle, list );
 
@@ -181,6 +184,15 @@ public:
 
         // path to root folder
         fs::path addFilesFolder = fs::path(sandboxFolder).append( "drive" );
+        //fs::create_directory( addFilesFolder );
+
+        {
+            fs::path dopant = fs::path(sandboxFolder) / "dopant";
+            std::ofstream file( dopant );
+            std::string fileText = "dopant dopant dopant dopant dopant dopant dopant dopant dopant dopant dopant dopant dopant dopant dopant dopant ";
+            fileText = "dopant";
+            file.write( fileText.c_str(), fileText.size() );
+        }
 
         // parse action list
         for( auto& action : actionList ) {
@@ -233,7 +245,10 @@ public:
         params.save_path = downloadContext.m_saveFolder;
 
         // create torrent_handle
-        lt::torrent_handle tHandle = m_session.add_torrent(params);
+        lt::torrent_handle tHandle = m_session.add_torrent(params,ec);
+        if (ec) {
+            throw std::runtime_error( std::string("downloadFile error: ") + ec.message() );
+        }
 
         //TODO!!!
 //        tHandle.set_download_limit(1000);
@@ -266,6 +281,21 @@ public:
         }
     }
 
+    void      printActiveTorrents() override
+    {
+        LOG( "Active torrents:" );
+        std::vector<lt::torrent_handle> torrents = m_session.get_torrents();
+        for( const lt::torrent_handle& tHandle : torrents )
+        {
+//            if ( tHandle.is_valid() )
+            if ( tHandle.in_session() )
+            {
+                auto hash = tHandle.info_hashes().v2;
+                LOG( " file hash: " << hash );
+            }
+        }
+    }
+
 private:
 
     void alertHandler() {
@@ -277,28 +307,129 @@ private:
         // loop by alerts
         for (auto &alert : alerts) {
 
+//            if ( alert->type() != lt::log_alert::alert_type )
+//            {
+//                LOG( "type:" << alert->type() << ":  " << alert->message() );
+//            }
+
             switch (alert->type()) {
-//                case lt::peer_log_alert::alert_type: {
-//                    LOG( m_addressAndPort << ":peer_log_alert: " << alert->message() );
-//                    break;
-//                }
+                case lt::peer_log_alert::alert_type: {
+                    if ( auto *theAlert = dynamic_cast<lt::peer_log_alert *>(alert); theAlert->direction == lt::peer_log_alert::incoming_message )
+                    {
+                        //LOG( "#: " << m_addressAndPort << ": peer_log_alert: " << alert->message() << "\n" );
+                    }
+                    break;
+                }
 
 //                case lt::peer_alert::alert_type: {
 //                    LOG(  m_addressAndPort << ": peer_alert: " << alert->message())
 //                    break;
 //                }
 
+                // piece_finished_alert
+                case lt::piece_finished_alert::alert_type: {
+
+                    auto *theAlert = dynamic_cast<lt::piece_finished_alert *>(alert);
+
+                    if ( theAlert ) {
+
+                        // TODO: better to use piece_granularity
+                        std::vector<int64_t> fp = theAlert->handle.file_progress();
+
+                        // check completeness
+                        bool isAllComplete = true;
+                        for( uint32_t i=0; i<fp.size(); i++ ) {
+
+                            auto fsize = theAlert->handle.torrent_file()->files().file_size(i);
+                            bool const complete = ( fp[i] == fsize );
+
+                            isAllComplete = isAllComplete && complete;
+
+                            //dbg/////////////////////////
+//                            const std::string filePath = theAlert->handle.torrent_file()->files().file_path(i);
+//                            LOG( m_addressAndPort << ": " << filePath << ": alert: progress: " << fp[i] << " of " << fsize );
+                            //dbg/////////////////////////
+
+                            if ( auto it =  m_downloadMap.find(theAlert->handle.id());
+                                      it != m_downloadMap.end() )
+                            {
+                                it->second.m_downloadPercents = 100.0 * float(fp[i]) / float(fsize);
+                                it->second.m_downloadNotification( it->second, download_status::code::downloading, "" );
+                            }
+
+                        }
+
+                        if ( isAllComplete )
+                        {
+                            auto it = m_downloadMap.find(theAlert->handle.id());
+
+                            if ( it != m_downloadMap.end() )
+                            {
+                                // get peers info
+                                std::vector<lt::peer_info> peers;
+                                theAlert->handle.get_peer_info(peers);
+
+//                                for (const lt::peer_info &pi : peers)
+//                                {
+//                                    LOG("Peer ip: " << pi.ip.address().to_string())
+//                                    LOG("Peer id: " << pi.pid.to_string())
+//
+//                                    // the total number of bytes downloaded from and uploaded to this peer.
+//                                    // These numbers do not include the protocol chatter, but only the
+//                                    // payload data.
+//                                    LOG("Total download: " << pi.total_download)
+//                                    LOG("Total upload: " << pi.total_upload)
+//                                }
+
+                                // remove torrent
+                                m_session.remove_torrent( theAlert->handle, lt::session::delete_partfile );
+                            }
+                        }
+                    }
+                    break;
+                }
+
+                case lt::file_completed_alert::alert_type: {
+//                    auto *theAlert = dynamic_cast<lt::file_completed_alert *>(alert);
+//                    //LOG( "!!!!!! file_completed_alert !!!!" );
+
+//                    auto it = m_downloadMap.find(theAlert->handle.id());
+
+//                    if ( it != m_downloadMap.end() )
+//                    {
+//                        // get peers info
+////                        std::vector<lt::peer_info> peers;
+////                        theAlert->handle.get_peer_info(peers);
+
+////                        for (const lt::peer_info &pi : peers)
+////                        {
+////                            LOG("Peer ip: " << pi.ip.address().to_string())
+////                            LOG("Peer id: " << pi.pid.to_string())
+
+////                            // the total number of bytes downloaded from and uploaded to this peer.
+////                            // These numbers do not include the protocol chatter, but only the
+////                            // payload data.
+////                            LOG("Total download: " << pi.total_download)
+////                            LOG("Total upload: " << pi.total_upload)
+////                        }
+
+//                        // remove torrent
+//                        m_session.remove_torrent( theAlert->handle, lt::session::delete_partfile );
+//                    }
+                    break;
+                }
+
                 case lt::torrent_error_alert::alert_type: {
-                    auto *alertInfo = dynamic_cast<lt::torrent_error_alert *>(alert);
+                    auto *theAlert = dynamic_cast<lt::torrent_error_alert *>(alert);
 
-                    LOG(  m_addressAndPort << ": torrent error: " << alertInfo->message())
+                    LOG(  m_addressAndPort << ": torrent error: " << theAlert->message())
 
-                    if ( auto downloadConextIt  = m_downloadMap.find(alertInfo->handle.id());
+                    if ( auto downloadConextIt  = m_downloadMap.find(theAlert->handle.id());
                               downloadConextIt != m_downloadMap.end() )
                     {
                         // do notification
                         DownloadContext context = downloadConextIt->second;
-                        context.m_downloadNotification( context, download_status::failed, alertInfo->message() );
+                        context.m_downloadNotification( context, download_status::failed, theAlert->message() );
 
                         // remove entry from downloadHandlerMap
                         std::lock_guard<std::mutex> locker(m_downloadMapMutex);
@@ -310,10 +441,10 @@ private:
 
 
                 case lt::torrent_deleted_alert::alert_type: {
-                    auto *alertInfo = dynamic_cast<lt::torrent_deleted_alert*>(alert);
-                    //LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.info_hashes().v2 );
-                    //LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.torrent_file()->files().file_name(0) );
-                    //LOG( "*** lt::torrent_deleted_alert:" << alertInfo->handle.torrent_file()->files().file_path(0) );
+                    auto *theAlert = dynamic_cast<lt::torrent_deleted_alert*>(alert);
+                    //LOG( "*** lt::torrent_deleted_alert:" << theAlert->handle.info_hashes().v2 );
+                    //LOG( "*** lt::torrent_deleted_alert:" << theAlert->handle.torrent_file()->files().file_name(0) );
+                    //LOG( "*** lt::torrent_deleted_alert:" << theAlert->handle.torrent_file()->files().file_path(0) );
                     //LOG( "*** get_torrents().size()=" << m_session.get_torrents().size() );
 
                     // Notify about removed torrents
@@ -327,7 +458,7 @@ private:
                             auto& removeContext = *removeContextIt->get();
 
                             // skip not-ordered torrents
-                            if ( auto torrentIt  = removeContext.m_torrentSet.find(alertInfo->handle);
+                            if ( auto torrentIt  = removeContext.m_torrentSet.find(theAlert->handle);
                                       torrentIt != removeContext.m_torrentSet.end() )
                             {
                                 // remove torrent from 'context'
@@ -354,7 +485,7 @@ private:
 
                     // Notify about completed downloads
                     //
-                    if ( auto downloadConextIt  = m_downloadMap.find(alertInfo->handle.id());
+                    if ( auto downloadConextIt  = m_downloadMap.find(theAlert->handle.id());
                               downloadConextIt != m_downloadMap.end() )
                     {
                         // do notification
@@ -370,148 +501,116 @@ private:
                     break;
                 }
 
-                // piece_finished_alert
-                case lt::piece_finished_alert::alert_type: {
-
-                    auto *alertInfo = dynamic_cast<lt::piece_finished_alert *>(alert);
-
-                    if ( alertInfo ) {
-
-                        // TODO: better to use piece_granularity
-                        std::vector<int64_t> fp = alertInfo->handle.file_progress();
-
-                        // check completeness
-                        bool isAllComplete = true;
-                        for( uint32_t i=0; i<fp.size(); i++ ) {
-
-                            auto fsize = alertInfo->handle.torrent_file()->files().file_size(i);
-                            bool const complete = ( fp[i] == fsize );
-
-                            isAllComplete = isAllComplete && complete;
-
-                            //dbg/////////////////////////
-//                            const std::string fileName = alertInfo->handle.torrent_file()->files().file_name(i).to_string();
-                            const std::string filePath = alertInfo->handle.torrent_file()->files().file_path(i);
-                            LOG( m_addressAndPort << ": " << filePath
-                                      << ": alert: progress: " << fp[i] << " of " << fsize );
-//                            LOG( alertInfo->handle.info_hash() );
-                            //dbg/////////////////////////
-                        }
-//                        LOG( "-" );
-
-                        if ( isAllComplete )
-                        {
-                            auto it = m_downloadMap.find(alertInfo->handle.id());
-
-                            if ( it != m_downloadMap.end() )
-                            {
-                                // get peers info
-                                std::vector<lt::peer_info> peers;
-                                alertInfo->handle.get_peer_info(peers);
-
-//                                for (const lt::peer_info &pi : peers)
-//                                {
-//                                    LOG("Peer ip: " << pi.ip.address().to_string())
-//                                    LOG("Peer id: " << pi.pid.to_string())
-//
-//                                    // the total number of bytes downloaded from and uploaded to this peer.
-//                                    // These numbers do not include the protocol chatter, but only the
-//                                    // payload data.
-//                                    LOG("Total download: " << pi.total_download)
-//                                    LOG("Total upload: " << pi.total_upload)
-//                                }
-
-                                // remove torrent
-                                m_session.remove_torrent( alertInfo->handle, lt::session::delete_partfile );
-                            }
-                        }
-                    }
+                case lt::request_dropped_alert::alert_type: {
+                    LOG("!!!!! request_dropped_alert");
                     break;
                 }
+
+                case lt::storage_moved_alert::alert_type: {
+                    LOG("!!!!! storage_moved_alert");
+                    break;
+                }
+
+//                case lt::block_finished_alert::alert_type: {
+//                    LOG("!!!!! block_finished_alert");
+//                    break;
+//                }
+
+                case lt::incoming_connection_alert::alert_type: {
+                    LOG("!!!!! incoming_connection_alert");
+                    break;
+                }
+//                case lt::incoming_request_alert::alert_type: {
+//                    LOG("!!!!! incoming_request_alert");
+//                    break;
+//                }
+
+
+
 
                 case lt::listen_failed_alert::alert_type: {
                     this->m_alertHandler( alert );
 
-                    auto *alertInfo = dynamic_cast<lt::listen_failed_alert *>(alert);
+                    auto *theAlert = dynamic_cast<lt::listen_failed_alert *>(alert);
 
-                    if ( alertInfo ) {
-                        LOG(  "listen error: " << alertInfo->message())
+                    if ( theAlert ) {
+                        LOG(  "listen error: " << theAlert->message())
                     }
                     break;
                 }
 
                 case lt::portmap_error_alert::alert_type: {
-                    auto *alertInfo = dynamic_cast<lt::portmap_error_alert *>(alert);
+                    auto *theAlert = dynamic_cast<lt::portmap_error_alert *>(alert);
 
-                    if ( alertInfo ) {
-                        LOG(  "portmap error: " << alertInfo->message())
+                    if ( theAlert ) {
+                        LOG(  "portmap error: " << theAlert->message())
                     }
                     break;
                 }
 
                 case lt::dht_error_alert::alert_type: {
-                    auto *alertInfo = dynamic_cast<lt::dht_error_alert *>(alert);
+                    auto *theAlert = dynamic_cast<lt::dht_error_alert *>(alert);
 
-                    if ( alertInfo ) {
-                        LOG(  "dht error: " << alertInfo->message())
+                    if ( theAlert ) {
+                        LOG(  "dht error: " << theAlert->message())
                     }
                     break;
                 }
 
                 case lt::session_error_alert::alert_type: {
-                    auto *alertInfo = dynamic_cast<lt::session_error_alert *>(alert);
+                    auto *theAlert = dynamic_cast<lt::session_error_alert *>(alert);
 
-                    if ( alertInfo ) {
-                        LOG(  "session error: " << alertInfo->message())
+                    if ( theAlert ) {
+                        LOG(  "session error: " << theAlert->message())
                     }
                     break;
                 }
 
                 case lt::udp_error_alert::alert_type: {
-                    auto *alertInfo = dynamic_cast<lt::udp_error_alert *>(alert);
+                    auto *theAlert = dynamic_cast<lt::udp_error_alert *>(alert);
 
-                    if ( alertInfo ) {
-                        LOG(  "udp error: " << alertInfo->message())
+                    if ( theAlert ) {
+                        LOG(  "udp error: " << theAlert->message())
                     }
                     break;
                 }
 
                 case lt::peer_error_alert::alert_type: {
-                    auto *alertInfo = dynamic_cast<lt::peer_error_alert *>(alert);
+                    auto *theAlert = dynamic_cast<lt::peer_error_alert *>(alert);
 
-                    if ( alertInfo ) {
-                        LOG(  "peer error: " << alertInfo->message())
+                    if ( theAlert ) {
+                        LOG(  "peer error: " << theAlert->message())
                     }
                     break;
                 }
 
                 case lt::peer_disconnected_alert::alert_type: {
-                    auto *alertInfo = dynamic_cast<lt::peer_disconnected_alert *>(alert);
+                    auto *theAlert = dynamic_cast<lt::peer_disconnected_alert *>(alert);
 
-                    if ( alertInfo ) {
-                        //LOG(  m_addressAndPort << ": peer disconnected: " << alertInfo->message())
+                    if ( theAlert ) {
+                        //LOG(  m_addressAndPort << ": peer disconnected: " << theAlert->message())
                     }
                     break;
                 }
 
                 case lt::file_error_alert::alert_type: {
-                    auto *alertInfo = dynamic_cast<lt::file_error_alert *>(alert);
+                    auto *theAlert = dynamic_cast<lt::file_error_alert *>(alert);
 
-                    if ( alertInfo ) {
-                        LOG(  "file error: " << alertInfo->message())
+                    if ( theAlert ) {
+                        LOG(  "file error: " << theAlert->message())
                     }
                     break;
                 }
 
                 case lt::block_uploaded_alert::alert_type: {
-//                    auto *alertInfo = dynamic_cast<lt::block_uploaded_alert *>(alert);
+//                    auto *theAlert = dynamic_cast<lt::block_uploaded_alert *>(alert);
 //TODO download statistic
-//                    if (alertInfo) {
-//                        LOG("block_uploaded: " << alertInfo->message())
+//                    if (theAlert) {
+//                        LOG("block_uploaded: " << theAlert->message())
 //
 //                        // get peers info
 //                        std::vector<lt::peer_info> peers;
-//                        alertInfo->handle.get_peer_info(peers);
+//                        theAlert->handle.get_peer_info(peers);
 //
 //                        for (const lt::peer_info &pi : peers) {
 //                            LOG("Upload. Peer ip: " << pi.ip.address().to_string())
@@ -528,10 +627,10 @@ private:
                 }
 
                 case lt::log_alert::alert_type: {
-                    auto *alertInfo = dynamic_cast<lt::file_error_alert *>(alert);
+                    auto *theAlert = dynamic_cast<lt::file_error_alert *>(alert);
 
-                    if ( alertInfo ) {
-                        LOG(  "log_alert: " << alertInfo->message())
+                    if ( theAlert ) {
+                        LOG(  "log_alert: " << theAlert->message())
                     }
                     break;
                 }
@@ -686,7 +785,7 @@ InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
         memcpy( infoHash2.data(), binaryString2.data(), 32 );
     }
 
-    LOG( "infoHash :" << toString(infoHash) );
+    LOG( "file infoHash :" << toString(infoHash) );
     //LOG( "infoHash2:" << toString(infoHash2) );
     assert( infoHash == infoHash2 );
 

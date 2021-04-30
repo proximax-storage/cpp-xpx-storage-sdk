@@ -98,54 +98,39 @@ int main(int,char**)
 {
     EXLOG("started+");
 
+    ///
     /// Start replicator
+    ///
     std::thread replicatorThread( replicator );
 
+    ///
     /// Create client session
+    ///
     session = createDefaultSession( CLIENT_IP_ADDR ":5550", clientSessionErrorHandler );
 
+    ///
     /// Make the list of replicator addresses
     ///
     endpoint_list replicatorsList;
     boost::asio::ip::address e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR);
-    replicatorsList.emplace_back( e, 5551 );
+    replicatorsList.emplace_back( e, 5001 );
 
-    /// Client: read fsTree (0)
-    isFileDownloaded = false;
+    /// Client: read fsTree (1)
     clientDownloadFsTree( session, rootHashPromise.get_future().get(), replicatorsList );
 
     /// Client: modify drive (1)
-    {
-        std::unique_lock<std::mutex> lock(driveUpdateMutex);
-        isDriveUpdated = false;
-    }
     clientModifyDrive1( session, replicatorsList );
 
-    /// Client: read new fsTree (1)
-    isFileDownloaded = false;
+    /// Client: read changed fsTree (2)
     clientDownloadFsTree( session, rootHashPromise2.get_future().get(), replicatorsList );
 
     /// Client: read files from drive
-    isFileDownloaded = false;
     clientDownloadFiles( session, fsTree, replicatorsList );
 
-    /// wait the end of file downloading
-    sleep(2);
-//    {
-//        std::unique_lock<std::mutex> lock(clientDownloadMutex);
-//        clientDownloadCondVar.wait( lock, []{return isFileDownloaded;} );
-//    }
-
-
     /// Client: modify drive (2)
-//    {
-//        std::unique_lock<std::mutex> lock(driveUpdateMutex);
-//        isDriveUpdated = false;
-//    }
-    isFileDownloaded = false;
     clientModifyDrive2( session, replicatorsList );
 
-    /// Client: read new fsTree
+    /// Client: read new fsTree (3)
     clientDownloadFsTree( session, rootHashPromise3.get_future().get(), replicatorsList );
 
     /// Delete client session
@@ -164,6 +149,7 @@ void replicatorDownloadHandler ( modify_status::code code, InfoHash /*resultRoot
 
     if ( code == modify_status::update_completed )
     {
+        EXLOG( "" );
         EXLOG( "@ update_completed" );
 
         isDriveUpdated = true;
@@ -187,7 +173,7 @@ void replicator()
 {
     EXLOG( "@ Replicator started" );
 
-    auto session = createDefaultSession( REPLICATOR_IP_ADDR":5551", replicatorSessionErrorHandler );
+    auto session = createDefaultSession( REPLICATOR_IP_ADDR":5001", replicatorSessionErrorHandler );
 
     // start drive
     fs::remove_all( REPLICATOR_ROOT_FOLDER );
@@ -204,10 +190,11 @@ void replicator()
     // wait client data infoHash (1)
     EXLOG( "@ Replicator is waiting of client data infoHash" );
     InfoHash infoHash = clientDataPromise.get_future().get();
-    std::cout << "\n";
-    EXLOG( "@ Replicator received client data infoHash" );
+    LOG("");
+    EXLOG( "@ Replicator received 1-st client data infoHash" );
     
     // start drive update
+    isDriveUpdated = false;
     drive->startModifyDrive( infoHash, replicatorDownloadHandler );
 
     // wait the end of drive update
@@ -216,10 +203,14 @@ void replicator()
         driveUpdateCondVar.wait( lock, []{return isDriveUpdated;} );
     }
 
+    drive->printDriveStatus();
+
     // set updated root drive hash
+    isDriveUpdated = false;
     rootHashPromise2.set_value( drive->rootDriveHash() );
 
     // wait client data infoHash (2)
+    LOG( "" );
     EXLOG( "@ Replicator is waiting of 2-d client data infoHash" );
     InfoHash infoHash2 = clientDataPromise2.get_future().get();
     std::cout << "\n";
@@ -235,31 +226,28 @@ void replicator()
         driveUpdateCondVar.wait( lock, []{return isDriveUpdated;} );
     }
 
-    // wait the end of drive update
-    {
-        std::unique_lock<std::mutex> lock(driveUpdateMutex);
-        driveUpdateCondVar.wait( lock, []{return isDriveUpdated;} );
-    }
+    drive->printDriveStatus();
 
     // set updated root drive hash
+    isFileDownloaded = false;
     rootHashPromise3.set_value( drive->rootDriveHash() );
 
-    // wait the end of FsTree download by client
-    {
-        std::unique_lock<std::mutex> lock(clientDownloadMutex);
-        clientDownloadCondVar.wait( lock, []{return isFileDownloaded;} );
-    }
-    
     EXLOG( "@ Print drive FsTree:" );
     FsTree fsTree;
     fsTree.initWithFolder( fs::path(REPLICATOR_ROOT_FOLDER) / DRIVE_PUB_KEY / "drive" );
     fsTree.dbgPrint();
     
+    // wait the end of FsTree download by client
+    {
+        std::unique_lock<std::mutex> lock(clientDownloadMutex);
+        clientDownloadCondVar.wait( lock, []{return isFileDownloaded;} );
+    }
+
     EXLOG( "@ Replicator exited" );
 }
 
 //
-// clientDwonloadHandler
+// clientDownloadHandler
 //
 void clientDownloadHandler( const DownloadContext& context, download_status::code code, const std::string& /*info*/ )
 {
@@ -286,6 +274,8 @@ void clientDownloadHandler( const DownloadContext& context, download_status::cod
 //
 void clientDownloadFsTree( std::shared_ptr<Session> session, InfoHash rootHash, endpoint_list addrList )
 {
+    isFileDownloaded = false;
+
     std::cout << "\n";
     EXLOG( "# Client started FsTree download: " << toString(rootHash) );
 
@@ -317,9 +307,10 @@ void clientModifyDrive1( std::shared_ptr<Session> session, endpoint_list addrLis
 
     ActionList actionList;
 //    actionList.push_back( Action::move( clientFolder / "a.txt", "a.txt" ) );
-//    actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
+    actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
 //    actionList.push_back( Action::upload( clientFolder / "a.txt", fs::path("f1") / "a_copy.txt" ) );
-    actionList.push_back( Action::upload( clientFolder / "b.bin", "b.bin" ) );
+//    actionList.push_back( Action::upload( clientFolder / "b.bin", "b.bin" ) );
+    actionList.push_back( Action::upload( clientFolder / "b.bin", "f1/b2.bin" ) );
 //    actionList.push_back( Action::upload( clientFolder / "b.bin", fs::path("f1") / "b.bin" ) );
 //    actionList.push_back( Action::upload( clientFolder / "b.bin", fs::path("f1") / "b2.bin" ) );
 //    actionList.push_back( Action::upload( clientFolder / "b.bin", fs::path("f1") / "b3.bin" ) );
@@ -361,8 +352,12 @@ void clientDownloadFilesHandler( const DownloadContext& context, download_status
         LOG( "@ hash: " << toString(context.m_infoHash) );
         LOG( "@ renameAs: " << context.m_renameAs );
         LOG( "@ saveFolder: " << context.m_saveFolder );
-//        isFileDownloaded = true;
-//        clientDownloadCondVar.notify_all();
+        isFileDownloaded = true;
+        clientDownloadCondVar.notify_all();
+    }
+    else if ( code == download_status::downloading )
+    {
+        LOG( "downloaded:" << context.m_downloadPercents );
     }
     else if ( code == download_status::failed )
     {
@@ -374,17 +369,18 @@ void clientDownloadFilesHandler( const DownloadContext& context, download_status
 //
 // Client: read files
 //
-void clientDownloadFiles( std::shared_ptr<Session> session, const Folder& folder, endpoint_list addrList )
+void clientDownloadFilesR( std::shared_ptr<Session> session, const Folder& folder, endpoint_list addrList )
 {
     for( const auto& child: folder.childs() )
     {
         if ( isFolder(child) )
         {
-            clientDownloadFiles( session, getFolder(child), addrList );
+            //clientDownloadFiles( session, getFolder(child), addrList );
         }
         else
         {
             const File& file = getFile(child);
+            EXLOG( "# Client started download file " << internalFileName( file.hash() ) );
             session->downloadFile( DownloadContext(
                                         clientDownloadFilesHandler,
                                         file.hash(),
@@ -394,13 +390,25 @@ void clientDownloadFiles( std::shared_ptr<Session> session, const Folder& folder
         }
     }
 }
+void clientDownloadFiles( std::shared_ptr<Session> session, const Folder& folder, endpoint_list addrList )
+{
+    isFileDownloaded = false;
+
+    clientDownloadFilesR( session, folder, addrList );
+
+    /// wait the end of file downloading
+    {
+        std::unique_lock<std::mutex> lock(clientDownloadMutex);
+        clientDownloadCondVar.wait( lock, []{return isFileDownloaded;} );
+    }
+}
 
 //
 // clientModifyDrive2
 //
 void clientModifyDrive2( std::shared_ptr<Session> session, endpoint_list addrList )
 {
-    EXLOG( "\n# Client started: 2-d upload" );
+    EXLOG( "\n# Client started: 2-d modify" );
 
     session = createDefaultSession( CLIENT_IP_ADDR ":5550", clientSessionErrorHandler );
 
@@ -414,11 +422,11 @@ void clientModifyDrive2( std::shared_ptr<Session> session, endpoint_list addrLis
     //actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
 
     // remove existing file 'a_copy.txt'
-    actionList.push_back( Action::remove( "a_copy.txt" ) );
+    //actionList.push_back( Action::remove( "a_copy.txt" ) );
 
     // move 'folder1/b.bin' and upload n
 //    actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
-    actionList.push_back( Action::remove( "b.bin" ) );
+    actionList.push_back( Action::remove( "/f1/b2.bin" ) );
 //    actionList.push_back( Action::move( "a.txt", "f1/a_moved.txt" ) );
 //    actionList.push_back( Action::move( "f1/b.bin", "f2/b_moved.bin" ) );
 //    actionList.push_back( Action::upload( clientFolder / "a.txt", "f1/a.txt" ) );
@@ -475,7 +483,8 @@ fs::path createClientFiles() {
     {
         fs::path b_bin = tmpFolder / "b.bin";
         fs::create_directories( b_bin.parent_path() );
-        std::vector<uint8_t> data(10*1024*1024);
+//        std::vector<uint8_t> data(10*1024*1024);
+        std::vector<uint8_t> data(1024*1024);
         std::generate( data.begin(), data.end(), std::rand );
         std::ofstream file( b_bin );
         file.write( (char*) data.data(), data.size() );

@@ -31,13 +31,14 @@ namespace modify_status {
         virtual ~FlatDrive() = default;
 
         virtual InfoHash rootDriveHash() = 0;
-        virtual void startModifyDrive( InfoHash modifyDataInfoHash, DriveModifyHandler ) = 0;
-
-        //virtual void executeActionList( InfoHash actionListHash ) = 0;
-
+        virtual void     startModifyDrive( InfoHash modifyDataInfoHash, DriveModifyHandler ) = 0;
 
         //todo
-        //virtual bool createDriveStruct( FsTree& node, const std::string& path, const std::string& logicalPath = "" ) = 0;
+        virtual void     addFileIntoSession( const InfoHash& fileHash ) = 0;
+        virtual void     removeFileFromSession( const InfoHash& fileHash ) = 0;
+
+        // for testing and debugging
+        virtual void printDriveStatus() = 0;
     };
 
     class Session;

@@ -26,7 +26,7 @@ namespace sirius { namespace drive {
 namespace download_status {
     enum code {
         complete = 0,
-        uploading = 2,
+        downloading = 2,
         failed = 3
     };
 };
@@ -120,6 +120,8 @@ public:
 
     virtual void      downloadFile( const DownloadContext& downloadParameters, endpoint_list list = {} ) = 0;
 
+    // for testing and debugging
+    virtual void      printActiveTorrents() = 0;
 };
 
 // createTorrentFile

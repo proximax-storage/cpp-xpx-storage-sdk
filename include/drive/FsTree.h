@@ -8,6 +8,7 @@
 #include "types.h"
 #include <list>
 #include <variant>
+#include <functional>
 
 #include <libtorrent/torrent_handle.hpp>
 #include <cereal/archives/binary.hpp>
@@ -72,6 +73,8 @@ public:
 
     bool operator==( const Folder& f ) const { return m_name==f.m_name && m_childs==f.m_childs; }
 
+    void iterate( const std::function<void(File&)>& func );
+
 public:
     // for cereal
     template <class Archive> void serialize( Archive & arch ) {
@@ -107,6 +110,23 @@ inline const Folder& getFolder( const Folder::Child& child ) { return std::get<0
 inline       Folder& getFolder( Folder::Child& child )       { return std::get<0>(child); }
 inline const File&   getFile( const Folder::Child& child )   { return std::get<1>(child); }
 inline       File&   getFile( Folder::Child& child )         { return std::get<1>(child); }
+
+inline void Folder::iterate( const std::function<void(File&)>& func )
+{
+    for( auto& child : m_childs )
+    {
+       if ( isFolder(child) )
+       {
+           getFolder(child).iterate( func );
+       }
+       else
+       {
+           File& file = getFile(child);
+           func( file );
+       }
+   }
+
+}
 
 // for sorting
 inline bool operator<(const Folder::Child& a, const Folder::Child& b) {

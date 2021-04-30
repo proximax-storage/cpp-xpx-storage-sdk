@@ -73,9 +73,11 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     using LtSession = std::shared_ptr<Session>;
     using lt_handle  = Session::lt_handle;
 
-    struct FileExData {
+    // TorrentExData is used to avoid adding torrents into session with the same hash
+    // and for deleting unused files and torrents from session
+    struct TorrentExData {
         lt_handle m_ltHandle = {};
-        bool      m_toBeRemoved = false;
+        bool      m_isUnused = false;
     };
 
     LtSession     m_session;
@@ -101,7 +103,9 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     // Will be called at the end of the sanbox work
     DriveModifyHandler m_modifyHandler;
 
-    std::map<InfoHash,FileExData> m_fileMap;
+    // TorrentHandleMap is used to avoid adding torrents into session with the same hash
+    // and for deleting unused files and torrents from session
+    std::map<InfoHash,TorrentExData> m_torrentHandleMap;
 
 public:
 
@@ -240,14 +244,14 @@ public:
 
                 fileHash = getFile( *fsTreeChild ).m_hash;
 
-                // skip equal files
-                if ( m_fileMap.find(fileHash) != m_fileMap.end() )
-                    continue;
-
-                lt_handle ltHandle = m_session->addTorrentFileToSession( torrentFile,
-                                                                         m_driveFolder,
-                                                                         m_otherReplicators );
-                m_fileMap[fileHash] = FileExData{ltHandle,false};
+                // skip files with equal hashes
+                if ( m_torrentHandleMap.find(fileHash) == m_torrentHandleMap.end() )
+                {
+                    lt_handle ltHandle = m_session->addTorrentFileToSession( torrentFile,
+                                                                             m_driveFolder,
+                                                                             m_otherReplicators );
+                    m_torrentHandleMap[fileHash] = TorrentExData{ltHandle};
+                }
             }
         }
     }
@@ -351,6 +355,8 @@ public:
     //
     void modifyDriveInSandbox()
     {
+        //LOG("++++++++++++++++++++++ modifyDriveInSandbox");
+
         // Check that client data exist
         if ( !fs::exists(m_clientDataFolder) || !fs::is_directory(m_clientDataFolder) )
         {
@@ -412,8 +418,8 @@ public:
 
                 m_toBeAddedFiles.emplace_back( fileHash );
 
-                // add ref to 'fileMap'
-                m_fileMap.try_emplace( fileHash, FileExData{} );
+                // add ref into 'torrentMap'
+                m_torrentHandleMap.try_emplace( fileHash, TorrentExData{} );
 
                 break;
             }
@@ -466,9 +472,9 @@ public:
                 }
 
                 // modify FsTree
-                m_sandboxFsTree.moveFlat( action.m_param1, action.m_param2, [this] ( const InfoHash& fileHash )
+                m_sandboxFsTree.moveFlat( action.m_param1, action.m_param2, [/*this*/] ( const InfoHash& /*fileHash*/ )
                 {
-                    m_fileMap.try_emplace( fileHash, FileExData{} );
+                    //m_torrentMap.try_emplace( fileHash, TorrentExData{} );
                 } );
 
                 break;
@@ -478,9 +484,10 @@ public:
             //
             case action_list_id::remove: {
 
-                if ( m_sandboxFsTree.findChild( action.m_param1 ) == nullptr )
+                if ( m_sandboxFsTree.getEntryPtr( action.m_param1 ) == nullptr )
                 {
                     LOG( "invalid 'remove' action: src not exists (in FsTree): " << action.m_param1  );
+                    m_sandboxFsTree.dbgPrint();
                     action.m_isInvalid = true;
                     break;
                 }
@@ -488,7 +495,7 @@ public:
                 // remove entry from FsTree
                 m_sandboxFsTree.removeFlat( action.m_param1, [this] ( const InfoHash& fileHash )
                 {
-                    m_fileMap.try_emplace( fileHash, FileExData{} );
+                    m_torrentHandleMap.try_emplace( fileHash, TorrentExData{} );
                 } );
 
                 break;
@@ -513,30 +520,32 @@ public:
     //
     void updateDrive_1()
     {
-        // Prepare map (m_toBeRemoved = true)
-        // This map is needed for deleting of unused files (and torrent files)
-        for( auto& it : m_fileMap )
-            it.second.m_toBeRemoved = true;
+        // Prepare map (m_isUnused = true) for detecting of used files
+        for( auto& it : m_torrentHandleMap )
+            it.second.m_isUnused = true;
 
-        // Set m_toBeRemoved = false
+        // Mark used files
         markUsedFiles( m_sandboxFsTree );
 
+        // Prepare set<> for to be removed torrents
         std::set<lt::torrent_handle> toBeRemovedTorrents;
 
-        // Remove unused files from session
-        for( const auto& it : m_fileMap )
+        // Add unused files into set<>
+        for( const auto& it : m_torrentHandleMap )
         {
-            const FileExData& info = it.second;
-            if ( info.m_toBeRemoved )
+            const TorrentExData& info = it.second;
+            if ( info.m_isUnused )
             {
                 if ( info.m_ltHandle.is_valid() )
                     toBeRemovedTorrents.insert( info.m_ltHandle );
             }
         }
 
+        // Add current fsTree torrent handle
         toBeRemovedTorrents.insert( m_fsTreeLtHandle );
 
-        // Remove FsTree torrent
+        // Remove unused torrents
+        LOG( "toBeRemovedTorrents: " << toBeRemovedTorrents.size() );
         m_session->removeTorrentsFromSession( std::move(toBeRemovedTorrents), [this]{ updateDrive_2(); } );
     }
 
@@ -549,31 +558,33 @@ public:
         // update FsTree file & torrent
         fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
         fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
+        m_fsTree = m_sandboxFsTree;
         m_rootHash = m_sandboxRootHash;
 
         // clear sandbox
         fs::remove_all( m_sandboxRootPath );
 
-        // remove unused files and torrents from drive
-        for( const auto& it : m_fileMap )
+        // remove unused files and torrent files from the drive
+        for( const auto& it : m_torrentHandleMap )
         {
-            const FileExData& info = it.second;
-            if ( info.m_toBeRemoved )
+            const TorrentExData& info = it.second;
+            if ( info.m_isUnused )
             {
                 const auto& hash = it.first;
                 std::string filename = internalFileName( hash );
                 fs::remove( fs::path(m_driveFolder) / filename );
                 fs::remove( fs::path(m_torrentFolder) / filename );
+                LOG("+++ updateDrive_2: removed: " << filename );
             }
         }
 
         // remove unused data from 'fileMap'
-        std::erase_if( m_fileMap, [] (const auto& it) { return it.second.m_toBeRemoved; } );
+        std::erase_if( m_torrentHandleMap, [] (const auto& it) { return it.second.m_isUnused; } );
 
         //
-        // Add torrents to session
+        // Add torrents into session
         //
-        for( auto& it : m_fileMap )
+        for( auto& it : m_torrentHandleMap )
         {
             if ( !it.second.m_ltHandle.is_valid() )
             {
@@ -617,10 +628,10 @@ public:
             else
             {
                 auto& hash = getFile(child).m_hash;
-                const auto& it = m_fileMap.find(hash);
-                if ( it != m_fileMap.end() )
+                const auto& it = m_torrentHandleMap.find(hash);
+                if ( it != m_torrentHandleMap.end() )
                 {
-                    it->second.m_toBeRemoved = false;
+                    it->second.m_isUnused = false;
                 }
                 else
                 {
@@ -630,16 +641,23 @@ public:
         }
     }
 
-    // Now it holds only liteners errors
-    //
-//    static void errorHandler( Session*, libtorrent::alert* alert )
-//    {
-//        if ( alert->type() == lt::listen_failed_alert::alert_type )
-//        {
-//            std::cerr << "replicator socket error: " << alert->message() << std::endl << std::flush;
-//            exit(-1); //TODO
-//        }
-//    }
+    void     addFileIntoSession( const InfoHash& /*fileHash*/ ) override
+    {
+        //todo
+    }
+
+    void     removeFileFromSession( const InfoHash& /*fileHash*/ ) override
+    {
+        //todo
+    }
+
+    virtual void printDriveStatus() override
+    {
+        LOG("Drive Status:")
+        m_fsTree.dbgPrint();
+        m_session->printActiveTorrents();
+    }
+
 };
 
 
