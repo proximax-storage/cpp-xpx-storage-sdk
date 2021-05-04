@@ -16,5 +16,5 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 ### modify flat drive example
 #@#
-add_subdirectory(modifyDriveFlat)
+add_subdirectory(modifyDriveFlat2)
 

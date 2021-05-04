@@ -162,6 +162,7 @@ catch(...)
 
 // doSerialize
 void FsTree::doSerialize( std::string fileName ) {
+
     std::ofstream os( fileName, std::ios::binary );
     cereal::PortableBinaryOutputArchive archive( os );
 

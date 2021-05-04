@@ -40,15 +40,28 @@ static std::string now_str();
     }
 
 
-// forward declarations
+// Replicator run loop
 //
 void replicator( );
-void clientDownloadFsTree( std::shared_ptr<Session>, InfoHash rootHash, endpoint_list addrList );
-void clientModifyDrive1( std::shared_ptr<Session>, endpoint_list addrList );
-void clientDownloadFiles( std::shared_ptr<Session> session, const Folder& folder, endpoint_list addrList );
-void clientModifyDrive2( std::shared_ptr<Session>, endpoint_list addrList );
-fs::path createClientFiles();
-fs::path createClientFiles2();
+
+
+// Client functions
+//
+void clientDownloadFsTree( InfoHash rootHash, endpoint_list addrList );
+void clientModifyDrive1( endpoint_list addrList );
+void clientDownloadFiles( const Folder& folder, endpoint_list addrList );
+void clientModifyDrive2( endpoint_list addrList );
+fs::path createClientFiles( size_t bigFileSize );
+
+// FsTree
+FsTree gFsTree;
+
+// Client folder for his files
+fs::path gTmpClientFolder;
+
+// Libtorrent session
+std::shared_ptr<Session> gClientSession = nullptr;
+
 
 // global variables, which help synchronize client and replicator
 //
@@ -67,10 +80,9 @@ std::promise<InfoHash>  rootHashPromise3;
 std::promise<InfoHash>  clientDataPromise;
 std::promise<InfoHash>  clientDataPromise2;
 
-FsTree fsTree;
-std::shared_ptr<Session> session = nullptr;
 
-// clientSessionErrorHandler
+// Listen (socket) error handle
+//
 void clientSessionErrorHandler( const lt::alert* alert )
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
@@ -81,6 +93,7 @@ void clientSessionErrorHandler( const lt::alert* alert )
 }
 
 // replicatorSessionErrorHandler
+//
 void replicatorSessionErrorHandler( const lt::alert* alert)
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
@@ -89,7 +102,6 @@ void replicatorSessionErrorHandler( const lt::alert* alert)
         exit(-1);
     }
 }
-
 
 //
 // main
@@ -104,9 +116,11 @@ int main(int,char**)
     std::thread replicatorThread( replicator );
 
     ///
-    /// Create client session
+    /// Prepare client session
     ///
-    session = createDefaultSession( CLIENT_IP_ADDR ":5550", clientSessionErrorHandler );
+    gTmpClientFolder  = createClientFiles(10*1024);
+    gClientSession = createDefaultSession( CLIENT_IP_ADDR ":5550", clientSessionErrorHandler );
+    fs::path clientFolder = gTmpClientFolder / "client_files";
 
     ///
     /// Make the list of replicator addresses
@@ -115,28 +129,36 @@ int main(int,char**)
     boost::asio::ip::address e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR);
     replicatorsList.emplace_back( e, 5001 );
 
-    /// Client: read fsTree (1)
-    clientDownloadFsTree( session, rootHashPromise.get_future().get(), replicatorsList );
 
-    /// Client: modify drive (1)
-    clientModifyDrive1( session, replicatorsList );
+    /// Client: read fsTree (1)
+    ///
+    clientDownloadFsTree( rootHashPromise.get_future().get(), replicatorsList );
+
+    /// Client: request to modify drive (1)
+    ///
+    EXLOG( "\n# Client started: 1-st upload" );
+    clientModifyDrive1( replicatorsList );
 
     /// Client: read changed fsTree (2)
-    clientDownloadFsTree( session, rootHashPromise2.get_future().get(), replicatorsList );
+    ///
+    clientDownloadFsTree( rootHashPromise2.get_future().get(), replicatorsList );
 
     /// Client: read files from drive
-    clientDownloadFiles( session, fsTree, replicatorsList );
+    clientDownloadFiles( gFsTree, replicatorsList );
 
     /// Client: modify drive (2)
-    clientModifyDrive2( session, replicatorsList );
+    EXLOG( "\n# Client started: 2-st upload" );
+    clientModifyDrive2( replicatorsList );
 
     /// Client: read new fsTree (3)
-    clientDownloadFsTree( session, rootHashPromise3.get_future().get(), replicatorsList );
+    clientDownloadFsTree( rootHashPromise3.get_future().get(), replicatorsList );
 
     /// Delete client session
-    session.reset();
+    gClientSession.reset();
 
     replicatorThread.join();
+
+    fs::remove_all( gTmpClientFolder );
 
     return 0;
 }
@@ -255,10 +277,10 @@ void clientDownloadHandler( const DownloadContext& context, download_status::cod
     {
         EXLOG( "# Client received FsTree: " << toString(context.m_infoHash) );
 
-        fsTree.deserialize( fs::temp_directory_path() / "fsTree-folder" / FS_TREE_FILE_NAME );
+        gFsTree.deserialize( fs::temp_directory_path() / "fsTree-folder" / FS_TREE_FILE_NAME );
 
         // print FsTree
-        fsTree.dbgPrint();
+        gFsTree.dbgPrint();
 
         isFileDownloaded = true;
         clientDownloadCondVar.notify_all();
@@ -272,7 +294,7 @@ void clientDownloadHandler( const DownloadContext& context, download_status::cod
 //
 // clientDownloadFsTree
 //
-void clientDownloadFsTree( std::shared_ptr<Session> session, InfoHash rootHash, endpoint_list addrList )
+void clientDownloadFsTree( InfoHash rootHash, endpoint_list addrList )
 {
     isFileDownloaded = false;
 
@@ -281,7 +303,7 @@ void clientDownloadFsTree( std::shared_ptr<Session> session, InfoHash rootHash, 
 
     // Make the list of replicator addresses
     //
-    session->downloadFile( DownloadContext(
+    gClientSession->downloadFile( DownloadContext(
                                  clientDownloadHandler,
                                  rootHash,
                                  fs::temp_directory_path() / "fsTree-folder" ),
@@ -297,13 +319,11 @@ void clientDownloadFsTree( std::shared_ptr<Session> session, InfoHash rootHash, 
 //
 // clientModifyDrive1
 //
-void clientModifyDrive1( std::shared_ptr<Session> session, endpoint_list addrList )
+void clientModifyDrive1( endpoint_list addrList )
 {
     EXLOG( "\n# Client started: 1-st upload" );
 
-    session = createDefaultSession( CLIENT_IP_ADDR ":5550", clientSessionErrorHandler );
-
-    fs::path clientFolder = createClientFiles();
+    fs::path clientFolder = gTmpClientFolder / "client_files";
 
     ActionList actionList;
 //    actionList.push_back( Action::move( clientFolder / "a.txt", "a.txt" ) );
@@ -326,7 +346,7 @@ void clientModifyDrive1( std::shared_ptr<Session> session, endpoint_list addrLis
     fs::create_directories( tmpFolder );
 
     // start file downloading
-    InfoHash hash = session->addActionListToSession( actionList, tmpFolder, addrList );
+    InfoHash hash = gClientSession->addActionListToSession( actionList, tmpFolder, addrList );
     clientDataPromise.set_value( hash );
 
     EXLOG( "# Client is waiting the end of replicator update" );
@@ -336,8 +356,6 @@ void clientModifyDrive1( std::shared_ptr<Session> session, endpoint_list addrLis
         std::unique_lock<std::mutex> lock(driveUpdateMutex);
         driveUpdateCondVar.wait( lock, []{return isDriveUpdated;} );
     }
-
-    fs::remove_all( tmpFolder );
 
     //EXLOG( "# Client finished" );
 }
@@ -369,7 +387,7 @@ void clientDownloadFilesHandler( const DownloadContext& context, download_status
 //
 // Client: read files
 //
-void clientDownloadFilesR( std::shared_ptr<Session> session, const Folder& folder, endpoint_list addrList )
+void clientDownloadFilesR( const Folder& folder, endpoint_list addrList )
 {
     for( const auto& child: folder.childs() )
     {
@@ -381,7 +399,7 @@ void clientDownloadFilesR( std::shared_ptr<Session> session, const Folder& folde
         {
             const File& file = getFile(child);
             EXLOG( "# Client started download file " << internalFileName( file.hash() ) );
-            session->downloadFile( DownloadContext(
+            gClientSession->downloadFile( DownloadContext(
                                         clientDownloadFilesHandler,
                                         file.hash(),
                                         fs::temp_directory_path() / "client_tmp",
@@ -390,11 +408,11 @@ void clientDownloadFilesR( std::shared_ptr<Session> session, const Folder& folde
         }
     }
 }
-void clientDownloadFiles( std::shared_ptr<Session> session, const Folder& folder, endpoint_list addrList )
+void clientDownloadFiles( const Folder& folder, endpoint_list addrList )
 {
     isFileDownloaded = false;
 
-    clientDownloadFilesR( session, folder, addrList );
+    clientDownloadFilesR( folder, addrList );
 
     /// wait the end of file downloading
     {
@@ -406,15 +424,13 @@ void clientDownloadFiles( std::shared_ptr<Session> session, const Folder& folder
 //
 // clientModifyDrive2
 //
-void clientModifyDrive2( std::shared_ptr<Session> session, endpoint_list addrList )
+void clientModifyDrive2( endpoint_list addrList )
 {
     EXLOG( "\n# Client started: 2-d modify" );
 
-    session = createDefaultSession( CLIENT_IP_ADDR ":5550", clientSessionErrorHandler );
-
     // download fs tree
     
-    fs::path clientFolder = createClientFiles2();
+    fs::path clientFolder = gTmpClientFolder / "client_files";
 
     ActionList actionList;
 
@@ -440,7 +456,7 @@ void clientModifyDrive2( std::shared_ptr<Session> session, endpoint_list addrLis
 //    actionList.push_back( Action::upload( clientFolder / "c.txt", "c.txt" ) );
     actionList.dbgPrint();
 
-    // Create empty tmp folder for 'modifyDrive data'
+    // Create empty tmp folder for 'client data'
     //
     auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
     EXLOG( "tmp:" << fs::temp_directory_path() / "modify_drive_data" );
@@ -448,7 +464,7 @@ void clientModifyDrive2( std::shared_ptr<Session> session, endpoint_list addrLis
     fs::create_directories( tmpFolder );
 
     // start file uploading
-    InfoHash hash = session->addActionListToSession( actionList, tmpFolder, addrList );
+    InfoHash hash = gClientSession->addActionListToSession( actionList, tmpFolder, addrList );
     clientDataPromise2.set_value( hash );
 
     EXLOG( "# Client is waiting the end of replicator update" );
@@ -459,79 +475,46 @@ void clientModifyDrive2( std::shared_ptr<Session> session, endpoint_list addrLis
         driveUpdateCondVar.wait( lock, []{return isDriveUpdated;} );
     }
 
-    fs::remove_all( tmpFolder );
-
     //EXLOG( "Client finished" );
 }
 
 //
 // createClientFiles
 //
-fs::path createClientFiles() {
+fs::path createClientFiles( size_t bigFileSize ) {
 
     // Create empty tmp folder for testing
     //
-    auto tmpFolder = fs::temp_directory_path() / "client_files";
-    fs::remove_all( tmpFolder );
-    fs::create_directories( tmpFolder );
+    auto dataFolder = fs::temp_directory_path() / "client_tmp_folder" / "client_files";
+    fs::remove_all( dataFolder );
+    fs::create_directories( dataFolder );
 
     {
-        fs::path a_txt = tmpFolder / "a.txt";
-        std::ofstream file( a_txt );
+        std::ofstream file( dataFolder / "a.txt" );
         file.write( "a_txt", 5 );
     }
     {
-        fs::path b_bin = tmpFolder / "b.bin";
+        fs::path b_bin = dataFolder / "b.bin";
         fs::create_directories( b_bin.parent_path() );
 //        std::vector<uint8_t> data(10*1024*1024);
-        std::vector<uint8_t> data(1024*1024);
+        std::vector<uint8_t> data(bigFileSize);
         std::generate( data.begin(), data.end(), std::rand );
         std::ofstream file( b_bin );
         file.write( (char*) data.data(), data.size() );
     }
     {
-        fs::path c_txt = tmpFolder / "c.txt";
-        std::ofstream file( c_txt );
+        std::ofstream file( dataFolder / "c.txt" );
         file.write( "c_txt", 5 );
     }
-
-    // Return path to file
-    return tmpFolder;
-}
-
-//
-// createClientFiles2
-//
-fs::path createClientFiles2() {
-
-    // Create empty tmp folder for testing
-    //
-    auto tmpFolder = fs::temp_directory_path() / "client_files";
-    fs::remove_all( tmpFolder );
-    fs::create_directories( tmpFolder );
-
     {
-        fs::path a_txt = tmpFolder / "a.txt";
-        std::ofstream file( a_txt );
-        file.write( "a_txt updated", 5 );
-    }
-    {
-        fs::path b_bin = tmpFolder /  "b.bin";
-        fs::create_directories( b_bin.parent_path() );
-        std::vector<uint8_t> data(1024/2);
-        std::generate( data.begin(), data.end(), std::rand );
-        std::ofstream file( b_bin );
-        file.write( (char*) data.data(), data.size() );
-    }
-    {
-        fs::path c_txt = tmpFolder / "c.txt";
-        std::ofstream file( c_txt );
-        file.write( "new c_txt", 5 );
+        std::ofstream file( dataFolder / "d.txt" );
+        file.write( "d_txt", 5 );
     }
 
     // Return path to file
-    return tmpFolder;
+    return dataFolder.parent_path();
 }
+
 
 static std::string now_str()
 {

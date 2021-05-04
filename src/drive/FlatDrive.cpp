@@ -164,8 +164,8 @@ public:
         // Create FsTree if it is absent
         if ( !fs::exists(m_fsTreeFile) )
         {
-            buildFsTree();
             fs::create_directories( m_fsTreeFile.parent_path() );
+            m_fsTree.m_name = m_driveFolder.filename();
             m_fsTree.doSerialize( m_fsTreeFile );
         }
 
@@ -180,80 +180,6 @@ public:
 
         // Add FsTree to session
         m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent, m_fsTreeTorrent.parent_path(), m_otherReplicators );
-    }
-
-    // Build FsTree
-    //
-    void buildFsTree()
-    {
-        // Build FsTree recursively
-        buildFsTree( m_driveFolder, m_torrentFolder, m_fsTree );
-        m_fsTree.m_name = m_driveFolder.filename();
-    }
-
-    // Build FsTree recursively
-    //
-    void buildFsTree( fs::path folderPath, fs::path torrentFolderPath, Folder& fsTreeFolder )
-    {
-        // Check if 'torrent folder' exists
-        if ( !fs::exists( torrentFolderPath ) )
-        {
-            fs::create_directories( torrentFolderPath );
-        }
-
-        // Loop by folder childs
-        //
-        for( const auto& child : std::filesystem::directory_iterator( folderPath ) )
-        {
-            // Child name
-            auto name = child.path().filename();
-
-            if ( child.is_directory() )
-            {
-                // Add subfolder
-                buildFsTree( folderPath / name,
-                             torrentFolderPath / name,
-                             fsTreeFolder.getSubfolderOrCreate( name ) );
-            }
-            else if ( child.is_regular_file() )
-            {
-                // Add file
-                //
-                fs::path torrentFile = torrentFolderPath / name;
-
-                // Get FsTree child
-                Folder::Child* fsTreeChild = fsTreeFolder.findChild( name );
-
-                // Throw error if it's folder
-                if ( fsTreeChild != nullptr && isFolder(*fsTreeChild) ) {
-                    throw std::runtime_error( std::string("attempt to create a file with existing folder with same name: ") + name.string() );
-                }
-
-                // Calculate torrent info
-                InfoHash fileHash;
-                if ( !fs::exists( torrentFile ) || fsTreeChild == nullptr ) {
-                    fileHash = createTorrentFile( child.path(), m_driveRootPath, torrentFile );
-                }
-
-                // Add file into FsTree
-                if ( fsTreeChild == nullptr ) {
-                    size_t fileSize = std::filesystem::file_size( child.path() );
-                    fsTreeFolder.m_childs.emplace_back( File{name,fileHash,fileSize} );
-                    fsTreeChild = &fsTreeFolder.m_childs.back();
-                }
-
-                fileHash = getFile( *fsTreeChild ).m_hash;
-
-                // skip files with equal hashes
-                if ( m_torrentHandleMap.find(fileHash) == m_torrentHandleMap.end() )
-                {
-                    lt_handle ltHandle = m_session->addTorrentFileToSession( torrentFile,
-                                                                             m_driveFolder,
-                                                                             m_otherReplicators );
-                    m_torrentHandleMap[fileHash] = TorrentExData{ltHandle};
-                }
-            }
-        }
     }
 
     // add files to session recursively
@@ -429,7 +355,7 @@ public:
             case action_list_id::new_folder:
             {
                 // Check that entry is free
-                if ( m_sandboxFsTree.findChild( action.m_param1 ) != nullptr )
+                if ( m_sandboxFsTree.getEntryPtr( action.m_param1 ) != nullptr )
                 {
                     //todo m_isInvalid?
                     action.m_isInvalid = true;
@@ -545,7 +471,6 @@ public:
         toBeRemovedTorrents.insert( m_fsTreeLtHandle );
 
         // Remove unused torrents
-        LOG( "toBeRemovedTorrents: " << toBeRemovedTorrents.size() );
         m_session->removeTorrentsFromSession( std::move(toBeRemovedTorrents), [this]{ updateDrive_2(); } );
     }
 

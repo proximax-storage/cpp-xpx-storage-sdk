@@ -120,11 +120,9 @@ public:
             m_removeContexts.push_back( std::make_unique<RemoveTorrentContext>( std::move(torrents), endNotification ) );
         }
 
-        LOG( "+++ remove_torrent:size: " << torrents.size() );
-        
         for( const auto& torrentHandle : torrents )
         {
-            LOG( "remove_torrent: " << torrentHandle.info_hashes().v2 )
+            //LOG( "remove_torrent: " << torrentHandle.info_hashes().v2 )
             m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
         }
     }
@@ -186,14 +184,6 @@ public:
         fs::path addFilesFolder = fs::path(sandboxFolder).append( "drive" );
         //fs::create_directory( addFilesFolder );
 
-        {
-            fs::path dopant = fs::path(sandboxFolder) / "dopant";
-            std::ofstream file( dopant );
-            std::string fileText = "dopant dopant dopant dopant dopant dopant dopant dopant dopant dopant dopant dopant dopant dopant dopant dopant ";
-            fileText = "dopant";
-            file.write( fileText.c_str(), fileText.size() );
-        }
-
         // parse action list
         for( auto& action : actionList ) {
 
@@ -216,6 +206,16 @@ public:
                 default:
                     break;
             }
+        }
+
+        //if ( !fs::exists( addFilesFolder ) )
+        {
+            // it seems that it is a bug of libtorrent
+            // when actionList.bin is a single file
+            fs::path ballast = fs::path(sandboxFolder) / "ballast";
+            std::ofstream file( ballast );
+            std::string fileText = "ballast";
+            file.write( fileText.c_str(), fileText.size() );
         }
 
         // save ActionList
@@ -516,10 +516,10 @@ private:
 //                    break;
 //                }
 
-                case lt::incoming_connection_alert::alert_type: {
-                    LOG("!!!!! incoming_connection_alert");
-                    break;
-                }
+//                case lt::incoming_connection_alert::alert_type: {
+//                    LOG("!!!!! incoming_connection_alert");
+//                    break;
+//                }
 //                case lt::incoming_request_alert::alert_type: {
 //                    LOG("!!!!! incoming_request_alert");
 //                    break;
@@ -785,7 +785,7 @@ InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
         memcpy( infoHash2.data(), binaryString2.data(), 32 );
     }
 
-    LOG( "file infoHash :" << toString(infoHash) );
+    //LOG( "file infoHash :" << toString(infoHash) );
     //LOG( "infoHash2:" << toString(infoHash2) );
     assert( infoHash == infoHash2 );
 
