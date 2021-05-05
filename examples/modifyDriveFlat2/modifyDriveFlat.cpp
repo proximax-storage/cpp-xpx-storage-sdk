@@ -136,7 +136,10 @@ int main(int,char**)
     {
         ActionList actionList;
         actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
-        actionList.push_back( Action::upload( clientFolder / "b.bin", "f1/b2.bin" ) );
+        actionList.push_back( Action::upload( clientFolder / "a.txt", "a2.txt" ) );
+        actionList.push_back( Action::upload( clientFolder / "b.bin", "f1/b1.bin" ) );
+        actionList.push_back( Action::upload( clientFolder / "b.bin", "f2/b2.bin" ) );
+        actionList.push_back( Action::upload( clientFolder / "a.txt", "f2/a.txt" ) );
         clientModifyDrive( actionList, replicatorsList );
     }
 
@@ -145,13 +148,15 @@ int main(int,char**)
     clientDownloadFsTree(replicatorsList );
 
     /// Client: read files from drive
-    clientDownloadFiles( 2, gFsTree, replicatorsList );
+    clientDownloadFiles( 5, gFsTree, replicatorsList );
 
     /// Client: modify drive (2)
     EXLOG( "\n# Client started: 2-st upload" );
     {
         ActionList actionList;
+        actionList.push_back( Action::remove( "a2.txt" ) );
         actionList.push_back( Action::remove( "f1/b2.bin" ) );
+        actionList.push_back( Action::remove( "f2/b2.bin" ) );
         clientModifyDrive( actionList, replicatorsList );
     }
 
@@ -264,7 +269,10 @@ static void replicator()
 //
 // clientDownloadHandler
 //
-static void clientDownloadHandler( const DownloadContext& context, download_status::code code, const std::string& /*info*/ )
+static void clientDownloadHandler( const DownloadContext& context,
+                                   download_status::code  code,
+                                   float /*downloadPercents*/,
+                                   const std::string& /*info*/ )
 {
     if ( code == download_status::complete )
     {
@@ -349,22 +357,27 @@ static void clientModifyDrive( const ActionList& actionList, endpoint_list addrL
 // clientDownloadFilesHandler
 //
 int downloadFileCount;
-static void clientDownloadFilesHandler( const DownloadContext& context, download_status::code code, const std::string& error )
+int downloadedFileCount;
+static void clientDownloadFilesHandler( const DownloadContext& /*context*/,
+                                        download_status::code  code,
+                                        float                  downloadPercents,
+                                        const std::string&     error )
 {
     if ( code == download_status::complete )
     {
-        LOG( "@ hash: " << toString(context.m_infoHash) );
-        LOG( "@ renameAs: " << context.m_renameAs );
-        LOG( "@ saveFolder: " << context.m_saveFolder );
-        if ( --downloadFileCount <= 0 )
+//        LOG( "@ hash: " << toString(context.m_infoHash) );
+//        LOG( "@ renameAs: " << context.m_renameAs );
+//        LOG( "@ saveFolder: " << context.m_saveFolder );
+        if ( ++downloadedFileCount == downloadFileCount )
         {
+            EXLOG( "# Downloaded " << downloadedFileCount << " files" );
             isDownloadCompleted = true;
             clientCondVar.notify_all();
         }
     }
     else if ( code == download_status::downloading )
     {
-        LOG( "downloaded:" << context.m_downloadPercents );
+        LOG( "downloaded:" << downloadPercents );
     }
     else if ( code == download_status::failed )
     {
@@ -402,9 +415,16 @@ static void clientDownloadFiles( int fileNumber, Folder& fsTree, endpoint_list a
     isDownloadCompleted = false;
 
     downloadFileCount = 0;
+    downloadedFileCount = 0;
     fsTree.iterate([](File& /*file*/) {
         downloadFileCount++;
     });
+
+    if ( downloadFileCount == 0 )
+    {
+        EXLOG( "downloadFileCount == 0" );
+        return;
+    }
 
     if ( fileNumber != downloadFileCount )
     {
@@ -412,7 +432,7 @@ static void clientDownloadFiles( int fileNumber, Folder& fsTree, endpoint_list a
         exit(-1);
     }
 
-    LOG("=======================clientDownloadFiles= " << downloadFileCount );
+    EXLOG("#======================clientDownloadFiles= " << downloadFileCount );
 
     clientDownloadFilesR( fsTree, addrList );
 

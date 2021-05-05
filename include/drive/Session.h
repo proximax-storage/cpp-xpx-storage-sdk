@@ -37,9 +37,8 @@ struct DownloadContext {
 
     using Notification = std::function<void( const DownloadContext&,
                                              download_status::code,
+                                             float downloadPercents,
                                              const std::string& errorText )>;
-
-//    DownloadContext( const DownloadContext& ) = default;
 
     DownloadContext( Notification          notification,
                      InfoHash              infoHash,
@@ -62,9 +61,6 @@ struct DownloadContext {
     InfoHash              m_infoHash;
     std::filesystem::path m_saveFolder;
     std::filesystem::path m_renameAs;
-
-    float                 m_downloadPercents = 0.;
-    // ... todo
 };
 
 //

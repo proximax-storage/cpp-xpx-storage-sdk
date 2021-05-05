@@ -49,7 +49,7 @@ class DefaultSession: public Session {
     // This map is used to inform 'client' about downloading progress
     // Torrent id (uint32_t) is used instead of lt::torrent_handler
     //
-    using DownloadMap      = std::map<std::uint32_t,DownloadContext>;
+    using DownloadMap      = std::map<std::uint32_t,std::vector<DownloadContext>>;
 
 private:
 
@@ -265,9 +265,15 @@ public:
             tHandle.connect_peer(endpoint);
         }
 
+        if ( auto it = m_downloadMap.find(tHandle.id()); it != m_downloadMap.end() )
+        {
+            LOG( "~~~~~~~~~ downloadFile: found");
+            it->second.push_back( downloadContext );
+        }
+
         // save download handler
         std::lock_guard locker(m_downloadMapMutex);
-        m_downloadMap.emplace( std::pair<std::uint32_t,DownloadContext>{ tHandle.id(), downloadContext });
+        m_downloadMap.emplace( std::pair<std::uint32_t,std::vector<DownloadContext>>{ tHandle.id(), {downloadContext} });
     }
 
     void connectPeers( lt::torrent_handle tHandle, endpoint_list list ) {
@@ -353,8 +359,25 @@ private:
                             if ( auto it =  m_downloadMap.find(theAlert->handle.id());
                                       it != m_downloadMap.end() )
                             {
-                                it->second.m_downloadPercents = 100.0 * float(fp[i]) / float(fsize);
-                                it->second.m_downloadNotification( it->second, download_status::code::downloading, "" );
+                                float downloadPercents = 100.0 * float(fp[i]) / float(fsize);
+                                for( auto& context: it->second )
+                                {
+                                    context.m_downloadNotification( context,
+                                                                    download_status::code::downloading,
+                                                                    downloadPercents, "" );
+                                }
+
+                                //TODO
+//                                auto torrentVector = m_session.get_torrents();
+//                                int counter = 0;
+//                                for( auto t : torrentVector )
+//                                {
+//                                    if ( t.info_hashes().v2 == theAlert->handle.info_hashes().v2 )
+//                                    {
+//                                        counter++;
+//                                    }
+//                                }
+//                                LOG( "counter:" << counter );
                             }
 
                         }
@@ -427,13 +450,16 @@ private:
                     if ( auto downloadConextIt  = m_downloadMap.find(theAlert->handle.id());
                               downloadConextIt != m_downloadMap.end() )
                     {
-                        // do notification
-                        DownloadContext context = downloadConextIt->second;
-                        context.m_downloadNotification( context, download_status::failed, theAlert->message() );
+                        auto contexts = downloadConextIt->second;
 
                         // remove entry from downloadHandlerMap
                         std::lock_guard<std::mutex> locker(m_downloadMapMutex);
-                        m_downloadMap.erase( downloadConextIt );
+                        m_downloadMap.erase( downloadConextIt->first );
+
+                        for( auto context : contexts )
+                        {
+                            context.m_downloadNotification( context, download_status::failed, 0.0, "" );
+                        }
                     }
 
                     break;
@@ -488,14 +514,16 @@ private:
                     if ( auto downloadConextIt  = m_downloadMap.find(theAlert->handle.id());
                               downloadConextIt != m_downloadMap.end() )
                     {
-                        // do notification
-                        DownloadContext context = downloadConextIt->second;
+                        auto contexts = downloadConextIt->second;
 
                         // remove entry from downloadHandlerMap
                         std::lock_guard<std::mutex> locker(m_downloadMapMutex);
                         m_downloadMap.erase( downloadConextIt->first );
 
-                        context.m_downloadNotification( context, download_status::complete, "" );
+                        for( auto context : contexts )
+                        {
+                            context.m_downloadNotification( context, download_status::complete, 100.0, "" );
+                        }
                     }
 
                     break;

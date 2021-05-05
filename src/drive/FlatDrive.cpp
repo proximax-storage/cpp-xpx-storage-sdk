@@ -249,14 +249,14 @@ public:
         fs::create_directories( m_sandboxRootPath);
 
         m_session->downloadFile( DownloadContext(
-                                     std::bind( &DefaultFlatDrive::downloadHandler, this, _1, _2, _3 ),
+                                     std::bind( &DefaultFlatDrive::downloadHandler, this, _1, _2, _3, _4 ),
                                      modifyDataInfoHash,
                                      m_sandboxRootPath),
                                  m_otherReplicators );
     }
 
     // will be called by Session
-    void downloadHandler( const DownloadContext& context, download_status::code code, const std::string& info )
+    void downloadHandler( const DownloadContext& context, download_status::code code, float /*downloadPercents*/, const std::string& info )
     {
         if ( m_clientDataInfoHash != context.m_infoHash )
         {
