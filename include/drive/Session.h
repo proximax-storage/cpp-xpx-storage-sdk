@@ -26,8 +26,8 @@ namespace sirius { namespace drive {
 namespace download_status {
     enum code {
         complete = 0,
-        downloading = 2,
-        failed = 3
+        downloading = 1,
+        failed = 2
     };
 };
 
@@ -35,32 +35,41 @@ namespace download_status {
 //
 struct DownloadContext {
 
-    using Notification = std::function<void( const DownloadContext&,
-                                             download_status::code,
-                                             float downloadPercents,
+    enum download_type {
+        fs_tree = 0,
+        file_from_drive = 1,
+        client_data = 3
+    };
+
+    using Notification = std::function<void( download_status::code,
+                                             const InfoHash&,
+                                             const std::filesystem::path filePath,
+                                             size_t downloaded,
+                                             size_t fileSize,
                                              const std::string& errorText )>;
 
-    DownloadContext( Notification          notification,
+    DownloadContext( download_type         downloadType,
+                     Notification          notification,
                      InfoHash              infoHash,
-                     std::filesystem::path saveFolder,
-                     std::filesystem::path renameAs = {} )
+                     std::filesystem::path saveAs = {} )
         :
+          m_downloadType(downloadType),
           m_downloadNotification(notification),
           m_infoHash(infoHash),
-          m_saveFolder(saveFolder),
-          m_renameAs(renameAs)
-        {}
+          m_saveAs(saveAs)
+        {
+            if ( m_downloadType == file_from_drive && m_saveAs.empty() )
+                throw std::runtime_error("m_downloadType == file_from_drive && m_saveAs.empty()");
 
-//    ~DownloadContext() {
-//        LOG("m_saveFolder:" << m_saveFolder);
-//        LOG("m_renameAs:"   << m_renameAs);
-//    }
+            if ( (m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty() )
+                throw std::runtime_error("(m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty()");
+        }
+
+    download_type         m_downloadType;
 
     Notification          m_downloadNotification;
-
     InfoHash              m_infoHash;
-    std::filesystem::path m_saveFolder;
-    std::filesystem::path m_renameAs;
+    std::filesystem::path m_saveAs;
 };
 
 //
@@ -114,7 +123,10 @@ public:
                                               const std::string& workFolder,
                                               endpoint_list list = {} ) = 0;
 
-    virtual void      downloadFile( const DownloadContext& downloadParameters, endpoint_list list = {} ) = 0;
+    // initiate file downloading (identified by downloadParameters.m_infoHash)
+    virtual void      download( DownloadContext&&   downloadParameters,
+                                const std::string&  tmpFolder,
+                                endpoint_list       list = {} ) = 0;
 
     // for testing and debugging
     virtual void      printActiveTorrents() = 0;

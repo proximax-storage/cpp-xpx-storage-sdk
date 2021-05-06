@@ -248,25 +248,32 @@ public:
         fs::remove_all( m_sandboxRootPath );
         fs::create_directories( m_sandboxRootPath);
 
-        m_session->downloadFile( DownloadContext(
-                                     std::bind( &DefaultFlatDrive::downloadHandler, this, _1, _2, _3, _4 ),
-                                     modifyDataInfoHash,
-                                     m_sandboxRootPath),
-                                 m_otherReplicators );
+        m_session->download( DownloadContext(
+                                            DownloadContext::client_data,
+                                            std::bind( &DefaultFlatDrive::downloadHandler, this, _1, _2, _3, _4, _5, _6 ),
+                                            modifyDataInfoHash,
+                                            ""),
+                                       m_sandboxRootPath,
+                                       m_otherReplicators );
     }
 
     // will be called by Session
-    void downloadHandler( const DownloadContext& context, download_status::code code, float /*downloadPercents*/, const std::string& info )
+    void downloadHandler( download_status::code code,
+                          const InfoHash& infoHash,
+                          const std::filesystem::path /*filePath*/,
+                          size_t /*downloaded*/,
+                          size_t /*fileSize*/,
+                          const std::string& errorText )
     {
-        if ( m_clientDataInfoHash != context.m_infoHash )
+        if ( m_clientDataInfoHash != infoHash )
         {
-            m_modifyHandler( modify_status::failed, context.m_infoHash, std::string("DefaultDrive::downloadHandler: internal error: ") + info );
+            m_modifyHandler( modify_status::failed, infoHash, std::string("DefaultDrive::downloadHandler: internal error: ") );
             return;
         }
 
         if ( code == download_status::failed )
         {
-            m_modifyHandler( modify_status::failed, InfoHash(), std::string("modify drive: download failed: ") + info );
+            m_modifyHandler( modify_status::failed, infoHash, std::string("modify drive: download failed: ") + errorText );
             return;
         }
 

@@ -269,15 +269,17 @@ static void replicator()
 //
 // clientDownloadHandler
 //
-static void clientDownloadHandler( const DownloadContext& context,
-                                   download_status::code  code,
-                                   float /*downloadPercents*/,
-                                   const std::string& /*info*/ )
+static void clientDownloadHandler( download_status::code code,
+                                   const InfoHash& infoHash,
+                                   const std::filesystem::path filePath,
+                                   size_t /*downloaded*/,
+                                   size_t /*fileSize*/,
+                                   const std::string& /*errorText*/ )
 {
     if ( code == download_status::complete )
     {
-        EXLOG( "# Client received FsTree: " << toString(context.m_infoHash) );
-        EXLOG( "# FsTree: " << gTmpClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
+        EXLOG( "# Client received FsTree: " << toString(infoHash) );
+        EXLOG( "# FsTree: " << filePath );
         gFsTree.deserialize( gTmpClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
 
         // print FsTree
@@ -311,10 +313,11 @@ static void clientDownloadFsTree( endpoint_list addrList )
     LOG("");
     EXLOG( "# Client started FsTree download: " << toString(rootHash) );
 
-    gClientSession->downloadFile( DownloadContext(
-                                 clientDownloadHandler,
-                                 rootHash,
-                                 gTmpClientFolder / "fsTree-folder" ),
+    gClientSession->download( DownloadContext(
+                                    DownloadContext::fs_tree,
+                                    clientDownloadHandler,
+                                    rootHash ),
+                              gTmpClientFolder / "fsTree-folder",
                              addrList );
 
     // wait the end of download
@@ -358,10 +361,12 @@ static void clientModifyDrive( const ActionList& actionList, endpoint_list addrL
 //
 int downloadFileCount;
 int downloadedFileCount;
-static void clientDownloadFilesHandler( const DownloadContext& /*context*/,
-                                        download_status::code  code,
-                                        float                  downloadPercents,
-                                        const std::string&     error )
+static void clientDownloadFilesHandler( download_status::code code,
+                                        const InfoHash& /*infoHash*/,
+                                        const std::filesystem::path filePath,
+                                        size_t downloaded,
+                                        size_t fileSize,
+                                        const std::string& errorText )
 {
     if ( code == download_status::complete )
     {
@@ -370,18 +375,18 @@ static void clientDownloadFilesHandler( const DownloadContext& /*context*/,
 //        LOG( "@ saveFolder: " << context.m_saveFolder );
         if ( ++downloadedFileCount == downloadFileCount )
         {
-            EXLOG( "# Downloaded " << downloadedFileCount << " files" );
+            EXLOG( "# Downloaded " << filePath << " files" );
             isDownloadCompleted = true;
             clientCondVar.notify_all();
         }
     }
     else if ( code == download_status::downloading )
     {
-        LOG( "downloaded:" << downloadPercents );
+        LOG( "downloading: " << downloaded << " of " << fileSize );
     }
     else if ( code == download_status::failed )
     {
-        EXLOG( "# Error in clientDownloadFilesHandler: " << error );
+        EXLOG( "# Error in clientDownloadFilesHandler: " << errorText );
         exit(-1);
     }
 }
@@ -401,12 +406,14 @@ static void clientDownloadFilesR( const Folder& folder, endpoint_list addrList )
         {
             const File& file = getFile(child);
             EXLOG( "# Client started download file " << internalFileName( file.hash() ) );
-            gClientSession->downloadFile( DownloadContext(
-                                        clientDownloadFilesHandler,
-                                        file.hash(),
-                                        fs::temp_directory_path() / "client_tmp",
-                                        fs::temp_directory_path() / "client_tmp" / file.name() ),
-                                   addrList );
+            EXLOG( "#  to " << gTmpClientFolder / "downloaded_files" / folder.name()  / file.name() );
+            gClientSession->download( DownloadContext(
+                                            DownloadContext::file_from_drive,
+                                            clientDownloadFilesHandler,
+                                            file.hash(),
+                                            gTmpClientFolder / "downloaded_files" / folder.name() / file.name() ),
+                                      gTmpClientFolder / "downloaded_files",
+                                      addrList );
         }
     }
 }
