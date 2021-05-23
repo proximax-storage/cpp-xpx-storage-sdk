@@ -7,7 +7,7 @@
 #pragma once
 #include "ionet/Packet.h"
 
-namespace sirius { namespace storage {
+namespace sirius { namespace api {
 
 #pragma pack(push, 1)
 		template<ionet::PacketType packetType>
