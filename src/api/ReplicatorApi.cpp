@@ -23,7 +23,7 @@ namespace sirius { namespace api {
 				uint32_t payloadSize = 0u;
 				for (const auto& fileName : fileNames)
 					payloadSize += sizeof(uint16_t) + fileName.size();
-				auto pPacket = ionet::CreateSharedPacket<storage::FileDownloadPacket<RequestPacketType>>(payloadSize);
+				auto pPacket = ionet::CreateSharedPacket<FileDownloadPacket<RequestPacketType>>(payloadSize);
 				pPacket->DriveKey = driveKey;
 				pPacket->FileCount = utils::checked_cast<size_t, uint32_t>(fileNames.size());
 				auto* pPayload = reinterpret_cast<char*>(pPacket.get() + 1);
@@ -41,7 +41,7 @@ namespace sirius { namespace api {
 
 		public:
 			bool tryParseResult(const ionet::Packet& packet, ResultType& result) const {
-				const auto* pResponse = ionet::CoercePacket<storage::FileDownloadPacket<ResponsePacketType>>(&packet);
+				const auto* pResponse = ionet::CoercePacket<FileDownloadPacket<ResponsePacketType>>(&packet);
 				if (!pResponse)
 					return false;
 
