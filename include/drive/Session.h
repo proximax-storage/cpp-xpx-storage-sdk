@@ -6,6 +6,7 @@
 #pragma once
 
 #include "types.h"
+#include "plugins.h"
 #include "ActionList.h"
 #include <libtorrent/torrent_handle.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -70,6 +71,7 @@ InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string pathTo
 
 using LibTorrentErrorHandler = std::function<void( libtorrent::alert* )>;
 
+PLUGIN_API
 std::shared_ptr<Session> createDefaultSession( std::string address, const LibTorrentErrorHandler& );
 
 }}
