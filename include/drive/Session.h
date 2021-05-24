@@ -63,6 +63,7 @@ public:
 };
 
 // createTorrentFile
+PLUGIN_API
 InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string pathToRootFolder, std::string outputTorrentFilename );
 
 //
