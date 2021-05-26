@@ -17,3 +17,4 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 ### modify drive example
 #@#
 add_subdirectory(modifyDrive)
+add_subdirectory(replicator)
