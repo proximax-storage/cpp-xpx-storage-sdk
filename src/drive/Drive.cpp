@@ -351,11 +351,9 @@ public:
         }
 
         // Load actionList into memory
-        ActionList m_actionList;
         m_actionList.deserialize( m_clientActionListFile );
 
         // Get current copy of FsTree
-        FsTree m_sandboxFsTree;
         m_sandboxFsTree.deserialize( m_fsTreeFile );
 
         //
