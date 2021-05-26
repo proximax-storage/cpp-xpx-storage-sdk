@@ -28,7 +28,7 @@ namespace modify_status {
     using DriveModifyHandler = std::function<void( modify_status::code, InfoHash resultRootInfoHash, const std::string& error )>;
 
     // Drive
-    class Drive {
+    class PLUGIN_API Drive {
     public:
 
         virtual ~Drive() = default;
