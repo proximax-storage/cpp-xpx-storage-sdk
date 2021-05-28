@@ -17,8 +17,8 @@
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
 #define REPLICATOR_IP_ADDR "127.0.0.1"
-#define REPLICATOR_ROOT_FOLDER          "/Users/alex/111/replicator_root"
-#define REPLICATOR_SANDBOX_ROOT_FOLDER  "/Users/alex/111/sandbox_root"
+#define REPLICATOR_ROOT_FOLDER          (std::string(getenv("HOME")) + "/1111/replicator_root")
+#define REPLICATOR_SANDBOX_ROOT_FOLDER  (std::string(getenv("HOME")) + "/1111/sandbox_root")
 #define DRIVE_PUB_KEY                   "pub_key"
 
 namespace fs = std::filesystem;

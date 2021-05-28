@@ -2,6 +2,8 @@
 #include "drive/Drive.h"
 #include "drive/Utils.h"
 
+#include "drive/DbgClientServer.h"
+
 #include <fstream>
 #include <filesystem>
 #include <future>
@@ -18,6 +20,8 @@
 
 #define CLIENT_IP_ADDR     "192.168.1.100"
 #define REPLICATOR_IP_ADDR "127.0.0.1"
+
+#define CLIENT_FILES          (std::filesystem::path(getenv("HOME")) / "1111" / "client_files")
 
 namespace fs = std::filesystem;
 
@@ -75,7 +79,6 @@ static void clientSessionErrorHandler( const lt::alert* alert )
 //
 int main(int,char**)
 {
-
     ///
     /// Prepare client session
     ///
@@ -95,18 +98,19 @@ int main(int,char**)
     // Create client socket
     //
 
+    boost::system::error_code ec;
     boost::asio::io_service io_service;
     boost::asio::ip::tcp::socket client_socket(io_service);
 
     client_socket.connect(
                 tcp::endpoint(
                     boost::asio::ip::address::from_string("127.0.0.1"),
-                    9999));
+                    9999), ec);
 
     //
     // Read root hash
     //
-    boost::system::error_code ec;
+
     boost::asio::streambuf buf;
     boost::asio::read( client_socket, buf, boost::asio::transfer_exactly(32), ec );
     if (ec) {
@@ -122,7 +126,7 @@ int main(int,char**)
     //
     // Download FsTree
     //
-    clientDownloadFsTree(replicatorsList );
+    clientDownloadFsTree( replicatorsList );
 
     /// Client: request to modify drive (1)
     ///
@@ -214,7 +218,7 @@ static void clientDownloadFsTree( endpoint_list addrList )
     EXLOG( "# Client started FsTree download: " << toString(rootHash) );
 
     gClientSession->downloadFile( rootHash,
-                             fs::temp_directory_path() / "fsTree-folder",
+                             CLIENT_FILES / "fsTree-folder",
                              clientDownloadHandler,
                              addrList );
 
@@ -234,7 +238,7 @@ static InfoHash clientModifyDrive( const ActionList& actionList, endpoint_list a
 
     // Create empty tmp folder for 'client modify data'
     //
-    auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
+    auto tmpFolder = CLIENT_FILES / "modify_drive_data";
     fs::remove_all( tmpFolder );
     fs::create_directories( tmpFolder );
 
@@ -251,8 +255,8 @@ static fs::path createClientFiles( size_t bigFileSize ) {
 
     // Create empty tmp folder for testing
     //
-    auto dataFolder = fs::temp_directory_path() / "client_tmp_folder" / "client_files";
-    fs::remove_all( dataFolder.parent_path() );
+    auto dataFolder = CLIENT_FILES;
+    fs::remove_all( dataFolder );
     fs::create_directories( dataFolder );
 
     {
