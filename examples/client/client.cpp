@@ -189,7 +189,7 @@ void clientDownloadHandler( download_status::code code, const InfoHash& hash, co
 
         // print FsTree
         FsTree fsTree;
-        fsTree.deserialize( fs::temp_directory_path() / "fsTree-folder" / FS_TREE_FILE_NAME );
+        fsTree.deserialize( CLIENT_FILES / "fsTree-folder" / FS_TREE_FILE_NAME );
         fsTree.dbgPrint();
 
         isDownloadCompleted = true;
