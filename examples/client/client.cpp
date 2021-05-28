@@ -43,20 +43,19 @@ inline std::mutex gExLogMutex;
 bool                        isDownloadCompleted = false;
 std::condition_variable     clientCondVar;
 std::mutex                  clientMutex;
-std::shared_ptr<InfoHash>   driveRootHash;
 
 //
 // Client functions
 //
 static fs::path createClientFiles( size_t bigFileSize );
-static void     clientDownloadFsTree( endpoint_list addrList );
+static void     clientDownloadFsTree( endpoint_list addrList, const InfoHash& driveRootHash );
 static InfoHash clientModifyDrive( const ActionList&, endpoint_list addrList );
 
 // FsTree
 FsTree gFsTree;
 
 // Client folder for his files
-fs::path gTmpClientFolder;
+fs::path gClientFolder;
 
 // Libtorrent session
 std::shared_ptr<Session> gClientSession = nullptr;
@@ -82,9 +81,8 @@ int main(int,char**)
     ///
     /// Prepare client session
     ///
-    gTmpClientFolder  = createClientFiles(10*1024);
+    gClientFolder  = createClientFiles(10 * 1024);
     gClientSession = createDefaultSession( CLIENT_IP_ADDR ":5511", clientSessionErrorHandler );
-    fs::path clientFolder = gTmpClientFolder / "client_files";
 
     ///
     /// Make the list of replicator addresses
@@ -118,15 +116,14 @@ int main(int,char**)
         exit(-1);
     }
 
-    InfoHash infoHash;
-    memcpy( &infoHash[0], boost::asio::buffer_cast<const void*>(buf.data()), 32 );
-    driveRootHash = std::make_shared<InfoHash>( infoHash );
-    LOG( "Received driveRootHash: " << driveRootHash );
+    InfoHash driveRootHash;
+    memcpy( &driveRootHash[0], boost::asio::buffer_cast<const void*>(buf.data()), 32 );
+    LOG( "Received driveRootHash: " << toString(driveRootHash) );
 
     //
     // Download FsTree
     //
-    clientDownloadFsTree( replicatorsList );
+    clientDownloadFsTree( replicatorsList, driveRootHash );
 
     /// Client: request to modify drive (1)
     ///
@@ -134,11 +131,12 @@ int main(int,char**)
     EXLOG( "\n# Client started: 1-st upload" );
     {
         ActionList actionList;
-        actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
-        //actionList.push_back( Action::upload( clientFolder / "a.txt", "a2.txt" ) );
-        actionList.push_back( Action::upload( clientFolder / "b.bin", "b.bin" ) );
-        //actionList.push_back( Action::upload( clientFolder / "b.bin", "f2/b2.bin" ) );
-        //actionList.push_back( Action::upload( clientFolder / "a.txt", "f2/a.txt" ) );
+        fs::path clientFiles = gClientFolder / "client_files";
+        actionList.push_back( Action::upload(clientFiles / "a.txt", "a.txt" ) );
+        //actionList.push_back( Action::upload( clientFiles / "a.txt", "a2.txt" ) );
+        actionList.push_back( Action::upload(clientFiles / "b.bin", "b.bin" ) );
+        //actionList.push_back( Action::upload( clientFiles / "b.bin", "f2/b2.bin" ) );
+        //actionList.push_back( Action::upload( clientFiles / "a.txt", "f2/a.txt" ) );
         modifyInfoHash = clientModifyDrive( actionList, replicatorsList );
     }
 
@@ -163,15 +161,12 @@ int main(int,char**)
         exit(-1);
     }
 
-    memcpy( &infoHash[0], boost::asio::buffer_cast<const void*>(buf2.data()), 32 );
-    driveRootHash = std::make_shared<InfoHash>( infoHash );
-    *driveRootHash = infoHash;
-    EXLOG( "Received driveRootHash (2): " << toString(infoHash) );
-    EXLOG( "Received driveRootHash (2): " << toString(*driveRootHash) );
+    memcpy( &driveRootHash[0], boost::asio::buffer_cast<const void*>(buf2.data()), 32 );
+    EXLOG( "Received driveRootHash (2): " << toString(driveRootHash) );
 
     /// Client: read changed fsTree (2)
     ///
-    clientDownloadFsTree(replicatorsList );
+    clientDownloadFsTree( replicatorsList, driveRootHash );
 
     EXLOG( "# Client finished");
 
@@ -204,20 +199,14 @@ void clientDownloadHandler( download_status::code code, const InfoHash& hash, co
 //
 // clientDownloadFsTree
 //
-static void clientDownloadFsTree( endpoint_list addrList )
+static void clientDownloadFsTree( endpoint_list addrList, const InfoHash& driveRootHash )
 {
-
-    InfoHash rootHash = *driveRootHash;
-    //todo!!!
-    //rootHash[0] = 0;
-    driveRootHash.reset();
-
     isDownloadCompleted = false;
 
     LOG("");
-    EXLOG( "# Client started FsTree download: " << toString(rootHash) );
+    EXLOG( "# Client started FsTree download: " << toString(driveRootHash) );
 
-    gClientSession->downloadFile( rootHash,
+    gClientSession->downloadFile( driveRootHash,
                              CLIENT_FILES / "fsTree-folder",
                              clientDownloadHandler,
                              addrList );
