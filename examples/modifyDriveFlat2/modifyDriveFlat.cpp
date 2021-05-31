@@ -110,6 +110,8 @@ int main(int,char**)
     /// Start replicator
     ///
     std::thread replicatorThread( replicator );
+    //todo!!!
+    //sleep(1000);
 
     ///
     /// Prepare client session
@@ -128,6 +130,7 @@ int main(int,char**)
 
     /// Client: read fsTree (1)
     ///
+    //TODO++
     clientDownloadFsTree(replicatorsList );
 
     /// Client: request to modify drive (1)
@@ -271,7 +274,7 @@ static void replicator()
 //
 static void clientDownloadHandler( download_status::code code,
                                    const InfoHash& infoHash,
-                                   const std::filesystem::path filePath,
+                                   const std::filesystem::path /*filePath*/,
                                    size_t /*downloaded*/,
                                    size_t /*fileSize*/,
                                    const std::string& /*errorText*/ )
@@ -279,7 +282,7 @@ static void clientDownloadHandler( download_status::code code,
     if ( code == download_status::complete )
     {
         EXLOG( "# Client received FsTree: " << toString(infoHash) );
-        EXLOG( "# FsTree: " << filePath );
+        //EXLOG( "# FsTree file path: " << filePath );
         gFsTree.deserialize( gTmpClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
 
         // print FsTree
@@ -306,6 +309,8 @@ static void clientDownloadFsTree( endpoint_list addrList )
     }
 
     InfoHash rootHash = *driveRootHash;
+    //todo!!!
+    //rootHash[0] = 0;
     driveRootHash.reset();
 
     isDownloadCompleted = false;

@@ -16,10 +16,10 @@ using namespace sirius;
 int main() {
 
     ionet::NodeEndpoint endpoint;
-    endpoint.Port = 7906;
+    endpoint.Port = 7904;
     endpoint.Host = "127.0.0.1";
 
-    std::string nodeKey = "7D31F73B9C73D1381F331659970B1D284099E2B4A65BD6CDCA33D0D10222255B";
+    std::string nodeKey = "E8D4B7BEB2A531ECA8CC7FD93F79A4C828C24BE33F99CF7C5609FF5CE14605F4";
     auto key = crypto::ParseKey(nodeKey);
 
     auto node = ionet::Node(key, endpoint);

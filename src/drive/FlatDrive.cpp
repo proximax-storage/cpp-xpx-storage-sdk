@@ -126,7 +126,18 @@ public:
     }
 
     virtual ~DefaultFlatDrive() {
-        //TODO remove torrents
+        terminate();
+    }
+
+    void terminate() {
+        //TODO 
+        m_session.reset();
+        if ( m_modifyHandler )
+        {
+            m_modifyHandler( modify_status::broken, InfoHash(), std::string("DefaultDrive::downloadHandler: internal error: ") );
+            m_modifyHandler = nullptr;
+        }
+        //m_session->endSession();
     }
 
     virtual InfoHash rootDriveHash() override {
@@ -171,7 +182,15 @@ public:
 
         // Calculate torrent and root hash
         m_fsTree.deserialize( m_fsTreeFile );
+//        m_fsTree.addFolder("x");
+//        m_fsTree.doSerialize( m_fsTreeFile );
+//        m_fsTree.dbgPrint();
         m_rootHash = createTorrentFile( m_fsTreeFile, m_fsTreeFile.parent_path(), m_fsTreeTorrent );
+        //todo!!!
+//        m_fsTree.remove("x");
+//        m_fsTree.addFolder("y");
+//        m_fsTree.doSerialize( m_fsTreeFile );
+//        m_fsTree.dbgPrint();
 
         //TODO compare rootHash with blockchain?
 
@@ -268,12 +287,14 @@ public:
         if ( m_clientDataInfoHash != infoHash )
         {
             m_modifyHandler( modify_status::failed, infoHash, std::string("DefaultDrive::downloadHandler: internal error: ") );
+            m_modifyHandler = nullptr;
             return;
         }
 
         if ( code == download_status::failed )
         {
             m_modifyHandler( modify_status::failed, infoHash, std::string("modify drive: download failed: ") + errorText );
+            m_modifyHandler = nullptr;
             return;
         }
 
@@ -295,6 +316,8 @@ public:
         {
             LOG( "m_clientDataFolder=" << m_clientDataFolder );
             m_modifyHandler( modify_status::failed, InfoHash(), "modify drive: 'client-data' is absent: " );
+            m_modifyHandler = nullptr;
+            return;
         }
 
         // Check 'actionList.bin' is received
@@ -302,6 +325,7 @@ public:
         {
             LOG( "m_clientActionListFile=" << m_clientActionListFile );
             m_modifyHandler( modify_status::failed, InfoHash(), "modify drive: 'ActionList.bin' is absent: " );
+            m_modifyHandler = nullptr;
             return;
         }
 
@@ -540,6 +564,7 @@ public:
 
         // Call update handler
         m_modifyHandler( modify_status::update_completed, InfoHash(), "" );
+        m_modifyHandler = nullptr;
     }
     catch ( std::exception ex )
     {

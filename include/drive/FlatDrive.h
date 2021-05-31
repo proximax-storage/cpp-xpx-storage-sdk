@@ -17,8 +17,9 @@ using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
 namespace modify_status {
         enum code {
             failed = 0,
-            sandbox_root_hash = 2, // calculated in sandbox
-            update_completed = 3
+            sandbox_root_hash = 1, // calculated in sandbox
+            update_completed = 2,
+            broken = 3 // terminated
         };
     };
 
@@ -29,6 +30,7 @@ namespace modify_status {
     public:
 
         virtual ~FlatDrive() = default;
+        //virtual void terminate() = 0;
 
         virtual InfoHash rootDriveHash() = 0;
         virtual void     startModifyDrive( InfoHash modifyDataInfoHash, DriveModifyHandler ) = 0;

@@ -149,8 +149,8 @@ public:
         params.ti = std::make_shared<lt::torrent_info>( buffer, lt::from_span );
 
         //dbg///////////////////////////////////////////////////
-//        auto tInfo = lt::torrent_info(buffer, lt::from_span);
-//        LOG( tInfo.info_hashes().v2.to_string() ) );
+        auto tInfo = lt::torrent_info(buffer, lt::from_span);
+        LOG( "addTorrentToSession: " << tInfo.info_hashes().v2 );
 //        LOG( tInfo.info_hashes().v2 ) );
 //        LOG( "add torrent: torrent filename:" << torrentFilename );
 //        LOG( "add torrent: fileFolder:" << fileFolder );
@@ -160,7 +160,6 @@ public:
         lt::torrent_handle tHandle = m_session.add_torrent(params);
 
         //TODO!!!
-        //todo++
         //LOG( "torrentFilename: " << torrentFilename );
 //        if ( fs::path(torrentFilename).filename() == "d6c5a005e980b0d18c9f73fbf4b5123371807be9e0fc98f42cf1ac40081e7886" )
 //        {
@@ -340,16 +339,31 @@ private:
 
 //            if ( alert->type() != lt::log_alert::alert_type )
 //            {
-//                LOG( "type:" << alert->type() << ":  " << alert->message() );
+                //if ( m_addressAndPort == "127.0.0.1:5001" ) {
+                    //LOG( m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
+                //}
 //            }
 
             switch (alert->type()) {
-                case lt::peer_log_alert::alert_type: {
-                    if ( auto *theAlert = dynamic_cast<lt::peer_log_alert *>(alert); theAlert->direction == lt::peer_log_alert::incoming_message )
-                    {
-                        //LOG( "#: " << m_addressAndPort << ": peer_log_alert: " << alert->message() << "\n" );
-                    }
-                    break;
+//                case lt::peer_log_alert::alert_type: {
+//                    if ( auto *theAlert = dynamic_cast<lt::peer_log_alert *>(alert); theAlert->direction == lt::peer_log_alert::incoming_message )
+//                    {
+//                        LOG( "#: " << m_addressAndPort << ": peer_log_alert: " << alert->message() << "\n" );
+//                    }
+//                    break;
+//                }
+
+                case lt::peer_snubbed_alert::alert_type: {
+                    auto* theAlert = dynamic_cast<lt::peer_snubbed_alert*>(alert);
+
+                LOG( "#!!!peer_snubbed_alert!!!: " << theAlert->endpoint << "\n" );
+                }
+
+                case lt::peer_disconnected_alert::alert_type: {
+//                    auto* theAlert = dynamic_cast<lt::peer_disconnected_alert*>(alert);
+//
+//                    LOG( "#peer_disconnected_alert: " << theAlert->error.category().name() << " " << theAlert->error << " " << theAlert->endpoint << "\n" );
+//                    break;
                 }
 
 //                case lt::peer_alert::alert_type: {
@@ -685,15 +699,6 @@ private:
 
                     if ( theAlert ) {
                         LOG(  "peer error: " << theAlert->message())
-                    }
-                    break;
-                }
-
-                case lt::peer_disconnected_alert::alert_type: {
-                    auto *theAlert = dynamic_cast<lt::peer_disconnected_alert *>(alert);
-
-                    if ( theAlert ) {
-                        //LOG(  m_addressAndPort << ": peer disconnected: " << theAlert->message())
                     }
                     break;
                 }
