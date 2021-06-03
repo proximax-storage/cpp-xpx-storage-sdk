@@ -391,8 +391,8 @@ private:
                             isAllComplete = isAllComplete && complete;
 
                             //dbg/////////////////////////
-//                            const std::string filePath = theAlert->handle.torrent_file()->files().file_path(i);
-//                            LOG( m_addressAndPort << ": " << filePath << ": alert: progress: " << fp[i] << " of " << fsize );
+                            const std::string filePath = theAlert->handle.torrent_file()->files().file_path(i);
+                            LOG( m_addressAndPort << ": " << filePath << ": alert: progress: " << fp[i] << " of " << fsize );
                             //dbg/////////////////////////
 
                             if ( auto it =  m_downloadMap.find(theAlert->handle.id());

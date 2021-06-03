@@ -17,6 +17,7 @@ std::string magnetLink( const InfoHash& key );
 
 // toString
 std::string toString( const InfoHash& key );
+std::string arrayToString( const Key& key );
 
 // internalFileName
 std::string internalFileName( const InfoHash& key );
