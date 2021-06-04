@@ -61,7 +61,7 @@ protected:
     // Client session data paths
     const fs::path  m_clientDataFolder      = m_sandboxRootPath / "client-data";
     const fs::path  m_clientDriveFolder     = m_clientDataFolder / "drive";
-    const fs::path  m_clientActionListFile  = m_clientDataFolder / "ActionList.bin";
+    const fs::path  m_clientActionListFile  = m_clientDataFolder / "actionList.bin";
 
 };
 
@@ -566,7 +566,7 @@ public:
         m_modifyHandler( modify_status::update_completed, InfoHash(), "" );
         m_modifyHandler = nullptr;
     }
-    catch ( std::exception ex )
+    catch ( std::exception &ex )
     {
         LOG( "!ERROR!: updateDrive_2 error: " << ex.what() );
         exit(-1);

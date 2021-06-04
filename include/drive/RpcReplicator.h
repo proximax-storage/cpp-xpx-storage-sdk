@@ -74,7 +74,7 @@ public:
 
                 return result;
             }
-            catch( std::runtime_error err) {
+            catch( std::runtime_error &err) {
                 ResultWithInfoHash result;
                 result.m_error = err.what();
                 return result;

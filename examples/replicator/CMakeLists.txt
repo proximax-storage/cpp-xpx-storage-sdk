@@ -26,5 +26,8 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 #        "-framework CoreFoundation" "-framework SystemConfiguration"
 #        )
 else()
-    target_link_libraries(replicator libtorrent-rasterbar.so Threads::Threads)
+    target_link_libraries(replicator
+            /home/newman/projects/libtorrent/_build/libtorrent-sirius.so
+            ${CMAKE_SOURCE_DIR}/rpclib/_build/librpc.a
+            Threads::Threads)
 endif()

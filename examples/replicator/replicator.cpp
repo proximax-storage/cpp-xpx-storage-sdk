@@ -23,8 +23,8 @@
 
 #define CLIENT_IP_ADDR "192.168.1.100"
 #define REPLICATOR_IP_ADDR "127.0.0.1"
-#define REPLICATOR_ROOT_FOLDER          "/Users/alex/111/replicator_root"
-#define REPLICATOR_SANDBOX_ROOT_FOLDER  "/Users/alex/111/sandbox_root"
+#define REPLICATOR_ROOT_FOLDER          (std::string(getenv("HOME"))+"/111/replicator_root")
+#define REPLICATOR_SANDBOX_ROOT_FOLDER  (std::string(getenv("HOME"))+"/111/sandbox_root")
 #define DRIVE_PUB_KEY                   "pub_key"
 
 namespace fs = std::filesystem;
@@ -34,7 +34,7 @@ using namespace sirius::drive;
 inline std::mutex gExLogMutex;
 
 //static std::string now_str();
-
+/*
 //#define EXLOG(expr) { \
 //        const std::lock_guard<std::mutex> autolock( gExLogMutex ); \
 //        std::cout << now_str() << ": " << expr << std::endl << std::flush; \
@@ -44,7 +44,7 @@ inline std::mutex gExLogMutex;
 //        const std::lock_guard<std::mutex> autolock( gExLogMutex ); \
 //        std::cerr << now_str() << ": ERROR: " << expr << std::endl << std::flush; \
 //    }
-
+*/
 int main()
 {
     system("pwd\n");

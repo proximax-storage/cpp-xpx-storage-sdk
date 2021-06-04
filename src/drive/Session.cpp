@@ -357,6 +357,7 @@ private:
                     auto* theAlert = dynamic_cast<lt::peer_snubbed_alert*>(alert);
 
                 LOG( "#!!!peer_snubbed_alert!!!: " << theAlert->endpoint << "\n" );
+                break;
                 }
 
                 case lt::peer_disconnected_alert::alert_type: {
