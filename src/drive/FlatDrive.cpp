@@ -41,7 +41,7 @@ protected:
     virtual ~FlatDrivePaths() {}
 
 protected:
-    const std::string& m_drivePubKey;
+    const std::string m_drivePubKey;
 
     const fs::path  m_replicatorRoot;
     const fs::path  m_replicatorSandboxRoot;
@@ -96,7 +96,6 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     // Client data
     InfoHash      m_clientDataInfoHash;
-    ActionList    m_actionList;
 
     std::vector<InfoHash> m_toBeAddedFiles;
 
@@ -141,6 +140,10 @@ public:
     }
 
     virtual InfoHash rootDriveHash() override {
+        uint64_t* ptr = (uint64_t*)&m_drivePubKey;
+        LOG( "m_drivePubKey: " << ptr );
+        LOG( "m_drivePubKey: " << *ptr );
+        LOG( "m_drivePubKey: " << m_drivePubKey );
         return m_rootHash;
     }
 
@@ -330,8 +333,8 @@ public:
         }
 
         // Load 'actionList' into memory
-        ActionList m_actionList;
-        m_actionList.deserialize( m_clientActionListFile );
+        ActionList actionList;
+        actionList.deserialize( m_clientActionListFile );
 
         // Make copy of current FsTree
         m_sandboxFsTree.deserialize( m_fsTreeFile );
@@ -339,7 +342,7 @@ public:
         //
         // Perform actions
         //
-        for( const Action& action : m_actionList )
+        for( const Action& action : actionList )
         {
             if (action.m_isInvalid)
                 continue;
@@ -459,7 +462,7 @@ public:
             }
 
             } // end of switch()
-        } // end of for( const Action& action : m_actionList )
+        } // end of for( const Action& action : actionList )
 
         // calculate new rootHash
         m_sandboxFsTree.doSerialize( m_sandboxFsTreeFile );
@@ -566,7 +569,7 @@ public:
         m_modifyHandler( modify_status::update_completed, InfoHash(), "" );
         m_modifyHandler = nullptr;
     }
-    catch ( std::exception &ex )
+    catch ( const std::exception& ex )
     {
         LOG( "!ERROR!: updateDrive_2 error: " << ex.what() );
         exit(-1);

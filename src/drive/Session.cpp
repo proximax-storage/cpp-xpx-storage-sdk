@@ -896,8 +896,10 @@ InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
         memcpy( infoHash2.data(), binaryString2.data(), 32 );
     }
 
-    //LOG( "file infoHash :" << toString(infoHash) );
-    //LOG( "infoHash2:" << toString(infoHash2) );
+    LOG( "file infoHash :" << toString(infoHash) );
+    LOG( "infoHash2 :" << toString(infoHash2) );
+    LOG( "pathToFile :" << pathToFile );
+    LOG( "drivePublicKey :" << drivePublicKey );
     assert( infoHash == infoHash2 );
 
     // write to file

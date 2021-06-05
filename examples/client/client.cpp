@@ -22,12 +22,9 @@
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_IP_ADDR "192.168.1.102"
+#define CLIENT_IP_ADDR "192.168.1.100"
 #define REPLICATOR_IP_ADDR "127.0.0.1"
 #define REPLICATOR_PORT 5550
-#define REPLICATOR_ROOT_FOLDER          (std::string(getenv("HOME"))+"/111/replicator_root")
-#define REPLICATOR_SANDBOX_ROOT_FOLDER  (std::string(getenv("HOME"))+"/111/sandbox_root")
-#define DRIVE_PUB_KEY                   "pub_key"
 
 namespace fs = std::filesystem;
 
@@ -54,7 +51,7 @@ static void     clientDownloadFiles( int fileNumber, Folder& folder, endpoint_li
 FsTree gFsTree;
 
 // Client folder for his files
-fs::path gTmpClientFolder;
+fs::path gClientFolder;
 
 // Libtorrent session
 std::shared_ptr<Session> gClientSession = nullptr;
@@ -63,7 +60,6 @@ std::shared_ptr<Session> gClientSession = nullptr;
 // global variables, which help synchronize client
 //
 bool                        isDownloadCompleted = false;
-//std::shared_ptr<InfoHash>   clientModifyHash;
 std::condition_variable     clientCondVar;
 std::mutex                  clientMutex;
 
@@ -74,21 +70,21 @@ static void clientSessionErrorHandler( const lt::alert* alert )
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
         std::cerr << alert->message() << std::endl << std::flush;
+        std::cerr << "cannot open server socket at: " << CLIENT_IP_ADDR ":5550" << std::endl << std::flush;
         exit(-1);
     }
 }
 
 
-int main()
-{
+int main() try {
     EXLOG("client started");
 
     ///
     /// Prepare client session
     ///
-    gTmpClientFolder  = createClientFiles(10*1024);
+    gClientFolder  = createClientFiles(10*1024);
     gClientSession = createDefaultSession( CLIENT_IP_ADDR ":5550", clientSessionErrorHandler );
-    fs::path clientFolder = gTmpClientFolder / "client_files";
+    fs::path clientFolder = gClientFolder / "client_files";
 
     ///
     /// Make the list of replicator addresses
@@ -152,6 +148,11 @@ int main()
 
     return 0;
 }
+catch( const std::runtime_error& err )
+{
+    LOG( "ERROR: " << err.what() );
+    exit(-1);
+}
 
 //
 // clientDownloadHandler
@@ -167,7 +168,7 @@ static void clientDownloadHandler( download_status::code code,
     {
         EXLOG( "# Client received FsTree: " << toString(infoHash) );
         //EXLOG( "# FsTree file path: " << filePath );
-        gFsTree.deserialize( gTmpClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
+        gFsTree.deserialize( gClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
 
         // print FsTree
         gFsTree.dbgPrint();
@@ -196,7 +197,7 @@ static void clientDownloadFsTree( endpoint_list addrList, const InfoHash& rootHa
             DownloadContext::fs_tree,
             clientDownloadHandler,
             rootHash ),
-                              gTmpClientFolder / "fsTree-folder",
+                              gClientFolder / "fsTree-folder",
                               addrList );
 
     // wait the end of download
@@ -275,13 +276,13 @@ static void clientDownloadFilesR( const Folder& folder, endpoint_list addrList )
         {
             const File& file = getFile(child);
             EXLOG( "# Client started download file " << internalFileName( file.hash() ) );
-            EXLOG( "#  to " << gTmpClientFolder / "downloaded_files" / folder.name()  / file.name() );
+            EXLOG( "#  to " << gClientFolder / "downloaded_files" / folder.name()  / file.name() );
             gClientSession->download( DownloadContext(
                     DownloadContext::file_from_drive,
                     clientDownloadFilesHandler,
                     file.hash(),
-                    gTmpClientFolder / "downloaded_files" / folder.name() / file.name() ),
-                                      gTmpClientFolder / "downloaded_files",
+                    gClientFolder / "downloaded_files" / folder.name() / file.name() ),
+                                      gClientFolder / "downloaded_files",
                                       addrList );
         }
     }
@@ -327,7 +328,9 @@ static fs::path createClientFiles( size_t bigFileSize ) {
 
     // Create empty tmp folder for testing
     //
-    auto dataFolder = fs::temp_directory_path() / "client_tmp_folder" / "client_files";
+#define REPLICATOR_ROOT_FOLDER          (std::string(getenv("HOME"))+"/111/replicator_root")
+
+    auto dataFolder = fs::path(getenv("HOME")) / "111" / "client_tmp_folder" / "client_files";
     fs::remove_all( dataFolder.parent_path() );
     fs::create_directories( dataFolder );
 

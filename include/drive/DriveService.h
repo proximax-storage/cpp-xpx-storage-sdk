@@ -64,6 +64,20 @@ public:
                 arrayToString(driveKey),
                 driveSize);
 
+        //TODO
+        std::shared_ptr<sirius::drive::FlatDrive> pDrive;
+        {
+            if ( auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+            {
+                pDrive = driveIt->second;
+            }
+            else {
+                throw std::runtime_error("drive not found");
+            }
+        }
+
+        pDrive->rootDriveHash();
+
         return "";
     }
 

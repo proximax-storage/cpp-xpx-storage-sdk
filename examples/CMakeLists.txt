@@ -12,7 +12,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 
 ### download flat file example
-add_subdirectory(downloadFileFlat)
+#add_subdirectory(downloadFileFlat)
 
 ### modify flat drive example
 add_subdirectory(modifyDriveFlat2)

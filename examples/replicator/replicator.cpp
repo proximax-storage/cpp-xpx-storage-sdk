@@ -48,7 +48,7 @@ inline std::mutex gExLogMutex;
 int main()
 {
     system("pwd\n");
-    LOG("started");
+    LOG("Replicator started");
     RpcReplicator replicator( "5550", REPLICATOR_ROOT_FOLDER, REPLICATOR_SANDBOX_ROOT_FOLDER, 5510 );
 
     replicator.runRpcServer();

@@ -23,14 +23,11 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     #link_directories(/usr/local/opt/icu4c/lib/)
     link_directories(/usr/local/opt/openssl@1.1/lib)
 
-    target_link_libraries(downloadFileFlat
-        #        /usr/local/lib/libtorrent-rasterbar.dylib.2.0
-        #        /Users/alex/Proj/libtorrent/bin/Debug/libtorrent-rasterbar.a
-        #/Users/alex/Proj/libtorrent/_bin_rel/libtorrent-rasterbar.dylib
-        /Users/alex/Proj/libtorrent/_bin/libtorrent-rasterbar.dylib
-        /usr/local/opt/openssl@1.1/lib/libcrypto.dylib
-        /usr/local/opt/openssl@1.1/lib/libssl.dylib
-        "-framework CoreFoundation" "-framework SystemConfiguration" )
+    target_link_libraries(downloadFileFlat  ${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib )
+            #        /usr/local/opt/openssl/lib/libssl.dylib
+            #        /usr/local/opt/openssl/lib/libcrypto.dylib
+            #        "-framework CoreFoundation" "-framework SystemConfiguration"
+            #        )
 else()
-    target_link_libraries(downloadFileFlat libtorrent-rasterbar.so Threads::Threads)
+    target_link_libraries(downloadFileFlat ${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.so Threads::Threads)
 endif()
