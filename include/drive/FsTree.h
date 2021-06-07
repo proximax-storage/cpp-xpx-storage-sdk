@@ -6,6 +6,7 @@
 #pragma once
 
 #include "types.h"
+#include "plugins.h"
 #include <list>
 #include <variant>
 #include <functional>
@@ -20,7 +21,7 @@ using lt_handle  = lt::torrent_handle;
 const uint32_t FS_TREE_VERSION = 0x01;
 
 // File
-class File {
+class PLUGIN_API File {
 public:
     File() = default;
 
@@ -58,7 +59,7 @@ private:
 };
 
 // Folder
-class Folder {
+class PLUGIN_API Folder {
 public:
     using Child = std::variant<Folder,File>;
 
@@ -145,7 +146,7 @@ inline bool operator<(const Folder::Child& a, const Folder::Child& b) {
 
 
 // FsTree
-class FsTree: public Folder {
+class PLUGIN_API FsTree: public Folder {
 public:
 
     FsTree() = default;

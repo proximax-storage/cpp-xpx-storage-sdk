@@ -2,7 +2,7 @@
 
 set(CMAKE_CXX_STANDARD 20)
 
-storage_sdk_library_target(drive)
+storage_sdk_shared_library_target(drive)
 
 #include_directories( PRIVATE "../../include/drive" )
 

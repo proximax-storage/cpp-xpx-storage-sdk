@@ -6,6 +6,7 @@
 #pragma once
 
 #include "types.h"
+#include "plugins.h"
 #include <libtorrent/torrent_handle.hpp>
 
 namespace sirius { namespace drive {
@@ -26,7 +27,7 @@ namespace sirius { namespace drive {
     struct EmptyStruct {};
 
     // Action
-    struct Action {
+    struct PLUGIN_API Action {
         Action() = default;
 
         static Action upload( const std::string& pathToLocalFile, const std::string& remoteFileNameWithPath ) {
@@ -90,7 +91,7 @@ namespace sirius { namespace drive {
     };
 
     // ActionList
-    struct ActionList : public std::vector<Action>
+    struct PLUGIN_API ActionList : public std::vector<Action>
     {
         void serialize( std::string fileName ) const;
         void deserialize( std::string fileName );
