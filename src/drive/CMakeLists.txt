@@ -13,9 +13,11 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
             )
 #            "-framework CoreFoundation" "-framework SystemConfiguration")
 else()
+#    message('${CMAKE_SOURCE_DIR}')
+#    message('${PROJECT_SOURCE_DIR}')
     target_link_libraries(drive
-            ${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.so
-            ${CMAKE_SOURCE_DIR}/rpclib/build/librpc.a
+            ${PROJECT_SOURCE_DIR}/libtorrent/_build/libtorrent-sirius.so
+            ${PROJECT_SOURCE_DIR}/rpclib/build/librpc.a
             Threads::Threads)
 endif()
 
