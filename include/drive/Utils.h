@@ -7,22 +7,23 @@
 
 #include "types.h"
 #include <filesystem>
+#include "plugins.h"
 
 namespace sirius { namespace drive {
 
 namespace fs = std::filesystem;
 
 // magnetLink
-std::string magnetLink( const InfoHash& key );
+PLUGIN_API std::string magnetLink( const InfoHash& key );
 
 // toString
-std::string toString( const InfoHash& key );
-std::string arrayToString( const Key& key );
+PLUGIN_API std::string toString( const InfoHash& key );
+PLUGIN_API std::string arrayToString( const Key& key );
 
 // internalFileName
-std::string internalFileName( const InfoHash& key );
+PLUGIN_API std::string internalFileName( const InfoHash& key );
 
-bool isPathInsideFolder( const fs::path& path, const fs::path& folder );
+PLUGIN_API bool isPathInsideFolder( const fs::path& path, const fs::path& folder );
 
 }}
 

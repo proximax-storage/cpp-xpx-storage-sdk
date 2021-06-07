@@ -133,7 +133,7 @@ public:
 };
 
 // createTorrentFile
-InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
+PLUGIN_API InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
                             const std::string& /*pathToRootFolder*/, // not used
                             const std::string& outputTorrentFilename );
 
@@ -143,7 +143,7 @@ InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
 // and creates modified torrent file in 'outputTorrentPath'
 // with name as 'InfoHash' + '.' + 'outputTorrentFileExtension'
 //
-InfoHash calculateInfoHashAndTorrent( const std::string& file,
+PLUGIN_API InfoHash calculateInfoHashAndTorrent( const std::string& file,
                                       const std::string& drivePublicKey,
                                       const std::string& outputTorrentPath,
                                       const std::string& outputTorrentFileExtension );
@@ -158,6 +158,6 @@ namespace libtorrent {
 
 using LibTorrentErrorHandler = std::function<void( const lt::alert* )>;
 
-std::shared_ptr<Session> createDefaultSession( std::string address, const LibTorrentErrorHandler& );
+PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address, const LibTorrentErrorHandler& );
 
 }}

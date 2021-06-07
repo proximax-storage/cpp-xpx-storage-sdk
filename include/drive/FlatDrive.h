@@ -6,6 +6,7 @@
 #pragma once
 
 #include "types.h"
+#include "plugins.h"
 #include <boost/asio/ip/tcp.hpp>
 #include <memory>
 
@@ -45,7 +46,7 @@ namespace modify_status {
 
     class Session;
 
-    std::shared_ptr<FlatDrive> createDefaultFlatDrive( std::shared_ptr<Session> session,
+    PLUGIN_API std::shared_ptr<FlatDrive> createDefaultFlatDrive( std::shared_ptr<Session> session,
                                                        const std::string&   replicatorRootFolder,
                                                        const std::string&   replicatorSandboxRootFolder,
                                                        const std::string&   drivePubKey,

@@ -19,7 +19,7 @@ add_executable(replicator replicator.cpp ${SOURCES})
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     target_link_libraries(replicator
         ${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
-        ${CMAKE_SOURCE_DIR}/rpclib/_build/librpc.a
+        ${CMAKE_SOURCE_DIR}/rpclib/build/librpc.a
         )
 #        /usr/local/opt/openssl/lib/libssl.dylib
 #        /usr/local/opt/openssl/lib/libcrypto.dylib
