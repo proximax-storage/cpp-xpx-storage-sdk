@@ -6,6 +6,7 @@
 #pragma once
 
 #include "types.h"
+#include "plugins.h"
 #include <filesystem>
 
 namespace sirius { namespace drive {
@@ -16,7 +17,7 @@ namespace fs = std::filesystem;
 std::string magnetLink( const InfoHash& key );
 
 // toString
-std::string toString( const InfoHash& key );
+std::string PLUGIN_API toString( const InfoHash& key );
 
 bool isPathInsideFolder( const fs::path& path, const fs::path& folder );
 

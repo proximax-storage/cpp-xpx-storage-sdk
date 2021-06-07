@@ -66,6 +66,18 @@ namespace sirius { namespace ionet {
 	/* Sub cache merkle roots have been requested. */ \
 	ENUM_VALUE(Sub_Cache_Merkle_Roots, 12) \
 	\
+    /* Peer requested file download. */ \
+    ENUM_VALUE(Start_Download_Files, 18) \
+	\
+    /* Peer response on file download request. */ \
+    ENUM_VALUE(Start_Download_Files_Response, 19) \
+	\
+    /* Peer requested file download stop. */ \
+    ENUM_VALUE(Stop_Download_Files, 20) \
+	\
+    /* Peer response on file download request. */ \
+    ENUM_VALUE(Stop_Download_Files_Response, 21) \
+	\
 	/* api only packets have types [500, 600) */ \
 	\
 	/* Partial aggregate transactions have been pushed by an api-node. */ \

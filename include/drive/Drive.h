@@ -6,6 +6,7 @@
 #pragma once
 
 #include "types.h"
+#include "plugins.h"
 #include "FsTree.h"
 #include "log.h"
 #include <boost/asio/ip/tcp.hpp>
@@ -27,7 +28,7 @@ namespace modify_status {
     using DriveModifyHandler = std::function<void( modify_status::code, InfoHash resultRootInfoHash, const std::string& error )>;
 
     // Drive
-    class Drive {
+    class PLUGIN_API Drive {
     public:
 
         virtual ~Drive() = default;
@@ -44,6 +45,7 @@ namespace modify_status {
 
     class Session;
 
+	PLUGIN_API
     std::shared_ptr<Drive> createDefaultDrive( std::shared_ptr<Session> session,
                                                const std::string&   replicatorRootFolder,
                                                const std::string&   replicatorSandboxRootFolder,

@@ -177,11 +177,16 @@ public:
                         throw std::runtime_error( "invalid destination path in 'upload' action: " + action.m_param2 );
                     }
 
-                    //LOG( action.m_param1 );
+                    LOG( action.m_param1 );
+                    LOG( action.m_param2 );
+                    LOG( addFilesFolder );
+                    LOG( sandboxFilePath );
 
                     fs::create_directories( sandboxFilePath.parent_path() );
-                    fs::create_symlink( action.m_param1, sandboxFilePath);
-                    //fs::copy( action.m_param1, addFilesFolder/action.m_param2 );
+                    std::string target = action.m_param1;
+                    LOG( target );
+//                    fs::create_symlink( target, sandboxFilePath);
+					fs::copy( target, sandboxFilePath );
                     break;
                 }
                 default:
@@ -190,7 +195,7 @@ public:
         }
 
         // save ActionList
-        actionList.serialize( fs::path(sandboxFolder)/"actionList.bin" );
+        actionList.serialize( fs::path(sandboxFolder)/"ActionList.bin" );
 
         // create torrent file
         InfoHash infoHash = createTorrentFile( fs::path(sandboxFolder), workFolder, fs::path(sandboxFolder)/"root.torrent" );
