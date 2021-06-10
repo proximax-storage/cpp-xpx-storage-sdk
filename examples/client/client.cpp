@@ -22,7 +22,7 @@
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_IP_ADDR "192.168.1.100"
+#define CLIENT_IP_ADDR "192.168.1.102"
 #define REPLICATOR_IP_ADDR "127.0.0.1"
 #define REPLICATOR_PORT 5550
 
