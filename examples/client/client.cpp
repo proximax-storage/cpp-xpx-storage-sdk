@@ -104,8 +104,8 @@ int main() try {
 
     // Download fsTree
     InfoHash rootHash = client.getRootHash( driveKey );
-    LOG( "rootHash=" << toString(rootHash) );
-    rootHash[0] = 0;
+//    LOG( "rootHash=" << toString(rootHash) );
+//    rootHash[0] = 0;
     LOG( "rootHash=" << toString(rootHash) );
     clientDownloadFsTree(replicatorsList, rootHash );
     return 0;

@@ -104,9 +104,6 @@ public:
         settingsPack.set_str( lt::settings_pack::dht_bootstrap_nodes, "" );
 
         // todo public_key?
-        //boost::uuids::uuid uuid = boost::uuids::random_generator()();
-        //settingsPack.set_str(  lt::settings_pack::user_agent, boost::uuids::to_string(uuid) );
-
         char todoPubKey[32];
         std::memset(todoPubKey,'x', sizeof(todoPubKey));
         todoPubKey[5] = 0;
