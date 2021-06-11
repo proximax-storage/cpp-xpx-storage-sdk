@@ -22,8 +22,8 @@
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_IP_ADDR "192.168.1.102"
-#define REPLICATOR_IP_ADDR "127.0.0.1"
+#define CLIENT_ADDR "192.168.1.102" ":5551"
+#define REPLICATOR_IP "127.0.0.1"
 #define REPLICATOR_PORT 5550
 
 namespace fs = std::filesystem;
@@ -70,7 +70,7 @@ static void clientSessionErrorHandler( const lt::alert* alert )
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
         std::cerr << alert->message() << std::endl << std::flush;
-        std::cerr << "cannot open server socket at: " << CLIENT_IP_ADDR ":5550" << std::endl << std::flush;
+        std::cerr << "cannot open server socket at: " << CLIENT_ADDR << std::endl << std::flush;
         exit(-1);
     }
 }
@@ -83,20 +83,20 @@ int main() try {
     /// Prepare client session
     ///
     gClientFolder  = createClientFiles(10*1024);
-    gClientSession = createDefaultSession( CLIENT_IP_ADDR ":5550", clientSessionErrorHandler );
+    gClientSession = createDefaultSession( CLIENT_ADDR, clientSessionErrorHandler );
     fs::path clientFolder = gClientFolder / "client_files";
 
     ///
     /// Make the list of replicator addresses
     ///
     endpoint_list replicatorsList;
-    boost::asio::ip::address e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR);
-    replicatorsList.emplace_back( e, REPLICATOR_PORT );
+    boost::asio::ip::address ip = boost::asio::ip::address::from_string(REPLICATOR_IP);
+    replicatorsList.emplace_back( ip, REPLICATOR_PORT );
 
     //
     // RpcClient
     //
-    RpcReplicatorClient client( REPLICATOR_IP_ADDR, 5510 );
+    RpcReplicatorClient client( REPLICATOR_IP, 5510 );
 
     // Create drive
     sirius::Key driveKey{ {0x01,0x01} };
@@ -105,7 +105,11 @@ int main() try {
     // Download fsTree
     InfoHash rootHash = client.getRootHash( driveKey );
     LOG( "rootHash=" << toString(rootHash) );
+    rootHash[0] = 0;
+    LOG( "rootHash=" << toString(rootHash) );
     clientDownloadFsTree(replicatorsList, rootHash );
+    return 0;
+
 
     /// Client: request to modify drive (1)
     ///

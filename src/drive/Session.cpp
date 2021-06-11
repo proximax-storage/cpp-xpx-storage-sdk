@@ -24,6 +24,8 @@
 #include <libtorrent/torrent_flags.hpp>
 #include <libtorrent/torrent.hpp>
 #include <libtorrent/extensions/ut_metadata.hpp>
+#include <libtorrent/aux_/generate_peer_id.hpp>
+#include "libtorrent/aux_/session_impl.hpp"
 
 // boost
 #include <boost/uuid/uuid.hpp>
@@ -86,9 +88,12 @@ public:
         : m_addressAndPort(address), m_alertHandler(alertHandler)
     {
         createSession();
+        LOG( "DefaultSession created: " << m_addressAndPort );
     }
 
-    virtual ~DefaultSession() {}
+    virtual ~DefaultSession() {
+        LOG( "DefaultSession deleted" );
+    }
 
     // createSession
     void createSession() {
@@ -99,8 +104,13 @@ public:
         settingsPack.set_str( lt::settings_pack::dht_bootstrap_nodes, "" );
 
         // todo public_key?
-        boost::uuids::uuid uuid = boost::uuids::random_generator()();
-        settingsPack.set_str(  lt::settings_pack::user_agent, boost::uuids::to_string(uuid) );
+        //boost::uuids::uuid uuid = boost::uuids::random_generator()();
+        //settingsPack.set_str(  lt::settings_pack::user_agent, boost::uuids::to_string(uuid) );
+
+        char todoPubKey[32];
+        std::memset(todoPubKey,'x', sizeof(todoPubKey));
+        todoPubKey[5] = 0;
+        settingsPack.set_str(  lt::settings_pack::user_agent, std::string(todoPubKey,32) );
 
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
@@ -263,6 +273,7 @@ public:
 
         // connect to peers
         for( auto endpoint : list ) {
+            LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
             tHandle.connect_peer(endpoint);
         }
 
@@ -292,11 +303,15 @@ public:
         }
         else
         {
-            if ( downloadContext.m_downloadType == DownloadContext::fs_tree )
-                downloadContext.m_saveAs = fs::path(tmpFolder) / "FsTree.bin";
+            if ( downloadContext.m_downloadType == DownloadContext::fs_tree ) {
+                downloadContext.m_saveAs = fs::path(tmpFolder) / FS_TREE_FILE_NAME;
+            }
+            else if ( downloadContext.m_downloadType == DownloadContext::file_from_drive ) {
+                if (downloadContext.m_saveAs.empty())
+                    throw std::runtime_error("download(file_from_drive): DownloadContext::m_saveAs' is empty");
+            }
 
             m_downloadMap[ tHandle.id() ] = DownloadMapCell{ tmpFolder, {std::move(downloadContext)} };
-
         }
     }
 
@@ -339,19 +354,21 @@ private:
 
 //            if ( alert->type() != lt::log_alert::alert_type )
 //            {
-                //if ( m_addressAndPort == "127.0.0.1:5001" ) {
-                    //LOG( m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
-                //}
+//                if ( m_addressAndPort == "192.168.1.102:5551" ) {
+//                    LOG( ">" << m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
+//                }
 //            }
 
             switch (alert->type()) {
-//                case lt::peer_log_alert::alert_type: {
-//                    if ( auto *theAlert = dynamic_cast<lt::peer_log_alert *>(alert); theAlert->direction == lt::peer_log_alert::incoming_message )
-//                    {
-//                        LOG( "#: " << m_addressAndPort << ": peer_log_alert: " << alert->message() << "\n" );
-//                    }
-//                    break;
-//                }
+                case lt::add_torrent_alert::        alert_type:
+                case lt::dht_announce_alert::       alert_type:
+                case lt::torrent_log_alert::        alert_type:
+                case lt::incoming_connection_alert::alert_type: {
+                    LOG( m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
+                    break;
+                }
+
+
 
                 case lt::peer_snubbed_alert::alert_type: {
                     auto* theAlert = dynamic_cast<lt::peer_snubbed_alert*>(alert);
@@ -635,11 +652,6 @@ private:
 //                    LOG("!!!!! block_finished_alert");
 //                    break;
 //                }
-
-//                case lt::incoming_connection_alert::alert_type: {
-//                    LOG("!!!!! incoming_connection_alert");
-//                    break;
-//                }
 //                case lt::incoming_request_alert::alert_type: {
 //                    LOG("!!!!! incoming_request_alert");
 //                    break;
@@ -714,26 +726,28 @@ private:
                 }
 
                 case lt::block_uploaded_alert::alert_type: {
-//                    auto *theAlert = dynamic_cast<lt::block_uploaded_alert *>(alert);
-//TODO download statistic
-//                    if (theAlert) {
-//                        LOG("block_uploaded: " << theAlert->message())
-//
-//                        // get peers info
-//                        std::vector<lt::peer_info> peers;
-//                        theAlert->handle.get_peer_info(peers);
-//
-//                        for (const lt::peer_info &pi : peers) {
-//                            LOG("Upload. Peer ip: " << pi.ip.address().to_string())
-//                            LOG("Upload. Peer id: " << pi.pid.to_string())
-//
-//                             //the total number of bytes downloaded from and uploaded to this peer.
-//                             //These numbers do not include the protocol chatter, but only the
-//                             //payload data.
-//                            LOG("Upload. Total download: " << pi.total_download)
-//                            LOG("Upload. Total upload: " << pi.total_upload)
-//                        }
-//                    }
+                    auto *theAlert = dynamic_cast<lt::block_uploaded_alert *>(alert);
+                    //TODO download statistic!
+                    if (theAlert) {
+                        LOG("block_uploaded: " << theAlert->message())
+
+                        // get peers info
+                        std::vector<lt::peer_info> peers;
+                        theAlert->handle.get_peer_info(peers);
+
+                        for (const lt::peer_info &pi : peers) {
+                            LOG("Upload. client: " << pi.client);
+                            LOG("Upload. ip: " << pi.ip);
+                            LOG("Upload. pid: " << pi.pid.to_string());
+                            LOG("Upload. local_endpoint: " << pi.local_endpoint);
+
+                             //the total number of bytes downloaded from and uploaded to this peer.
+                             //These numbers do not include the protocol chatter, but only the
+                             //payload data.
+                            LOG("Upload. Total download: " << pi.total_download)
+                            LOG("Upload. Total upload: " << pi.total_upload)
+                        }
+                    }
                     break;
                 }
 

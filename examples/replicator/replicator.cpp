@@ -18,14 +18,10 @@
 // This example shows interaction between 'client' and 'replicator'.
 //
 
-// !!!
-// CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
-
-#define CLIENT_IP_ADDR "192.168.1.100"
-#define REPLICATOR_IP_ADDR "127.0.0.1"
+#define REPLICATOR_PORT "5550"
+#define RPC_PORT 5510
 #define REPLICATOR_ROOT_FOLDER          (std::string(getenv("HOME"))+"/111/replicator_root")
 #define REPLICATOR_SANDBOX_ROOT_FOLDER  (std::string(getenv("HOME"))+"/111/sandbox_root")
-#define DRIVE_PUB_KEY                   "pub_key"
 
 namespace fs = std::filesystem;
 
@@ -49,7 +45,10 @@ int main()
 {
     system("pwd\n");
     LOG("Replicator started");
-    RpcReplicator replicator( "5550", REPLICATOR_ROOT_FOLDER, REPLICATOR_SANDBOX_ROOT_FOLDER, 5510 );
+    RpcReplicator replicator( REPLICATOR_PORT,
+                              REPLICATOR_ROOT_FOLDER,
+                              REPLICATOR_SANDBOX_ROOT_FOLDER,
+                              RPC_PORT );
 
     replicator.runRpcServer();
 

@@ -140,9 +140,6 @@ public:
     }
 
     virtual InfoHash rootDriveHash() override {
-        uint64_t* ptr = (uint64_t*)&m_drivePubKey;
-        LOG( "m_drivePubKey: " << ptr );
-        LOG( "m_drivePubKey: " << *ptr );
         LOG( "m_drivePubKey: " << m_drivePubKey );
         return m_rootHash;
     }

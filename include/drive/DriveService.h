@@ -96,7 +96,7 @@ public:
 
     InfoHash getRootHash(const Key& driveKey)
     {
-        LOG( "getRootHash " << driveKey );
+        LOG( "getRootHash: " << driveKey );
 
         std::shared_ptr<sirius::drive::FlatDrive> pDrive;
         {
@@ -110,7 +110,10 @@ public:
             }
         }
 
-        return pDrive->rootDriveHash();
+        InfoHash rootHash = pDrive->rootDriveHash();
+        LOG( "getRootHash: " << driveKey << " -> " << rootHash );
+
+        return rootHash;
     }
 
     std::string modify(const Key& driveKey, const InfoHash& infoHash, const DriveModifyHandler& handler )
