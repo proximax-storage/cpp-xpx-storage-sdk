@@ -362,7 +362,7 @@ private:
             switch (alert->type()) {
                 case lt::add_torrent_alert::        alert_type:
                 case lt::dht_announce_alert::       alert_type:
-                case lt::torrent_log_alert::        alert_type:
+                //case lt::torrent_log_alert::        alert_type:
                 case lt::incoming_connection_alert::alert_type: {
                     LOG( m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
                     break;
