@@ -393,7 +393,7 @@ public:
                     break;
                 }
 
-                m_sandboxFsTree.addFolder( action.m_param2 );
+                m_sandboxFsTree.addFolder( action.m_param1 );
                 break;
             }
             //
