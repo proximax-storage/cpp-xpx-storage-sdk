@@ -136,6 +136,26 @@ public:
         return "";
     }
 
+    std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash )
+    {
+        LOG( "loadTorrent:\ndrive: " << driveKey << "\n info hash: " << infoHash );
+
+        std::shared_ptr<sirius::drive::FlatDrive> pDrive;
+        {
+            const std::unique_lock<std::mutex> lock(m_mutex);
+            if ( auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+            {
+                pDrive = driveIt->second;
+            }
+            else {
+                return "drive not found";
+            }
+        }
+
+        pDrive->loadTorrent( infoHash );
+        return "";
+    }
+
 private:
     std::shared_ptr<sirius::drive::Session> session() {
         return m_pSession;

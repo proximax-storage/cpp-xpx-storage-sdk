@@ -128,6 +128,12 @@ public:
                                 const std::string&  tmpFolder,
                                 endpoint_list       list = {} ) = 0;
 
+//    virtual void      loadTorrent( const InfoHash& infoHash,
+//                                   std::function<void(bool)> addTorrentNotifier,
+//                                   const std::string& torrentFilename,
+//                                   const std::string& savePath,
+//                                   endpoint_list = {} ) = 0;
+
     // for testing and debugging
     virtual void      printActiveTorrents() = 0;
 };

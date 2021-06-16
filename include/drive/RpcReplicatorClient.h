@@ -62,10 +62,20 @@ public:
         return result.m_rootHash;
     }
 
-    void modify(const Key& driveKey, const InfoHash& infoHash ) {
-        LOG( "RpcReplicatorClient: drive modification:\ndrive: " << driveKey << "\n info hash: " << infoHash );
+    void modify( const Key& driveKey, const InfoHash& infoHash ) {
+        LOG( "RpcReplicatorClient: drive modification:\n drive: " << driveKey << "\n info hash: " << infoHash );
 
         auto result = m_rpcClient->call( "modify", driveKey.array(), infoHash.array() ).as<ResultWithModifyStatus>();
+
+        if ( !result.m_error.empty() ) {
+            CATAPULT_THROW_INVALID_ARGUMENT_1(result.m_error, driveKey);
+        }
+    }
+
+    void loadTorrent( const Key& driveKey, const InfoHash& infoHash ) {
+        LOG( "RpcReplicatorClient: loadTorrent:\n drive: " << driveKey << "\n info hash: " << infoHash );
+
+        auto result = m_rpcClient->call( "loadTorrent", driveKey.array(), infoHash.array() ).as<ResultWithModifyStatus>();
 
         if ( !result.m_error.empty() ) {
             CATAPULT_THROW_INVALID_ARGUMENT_1(result.m_error, driveKey);

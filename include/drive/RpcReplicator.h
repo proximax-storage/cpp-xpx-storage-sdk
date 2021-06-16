@@ -39,91 +39,114 @@ public:
                    int                 rpcPort )
             :
             m_replicatorRootFolder( replicatorRootFolder ),
-            m_sandboxRootFolder( sandboxRootFolder )
-    {
-        DriveServiceConfig config{ replicatorPort, replicatorRootFolder, sandboxRootFolder };
+            m_sandboxRootFolder( sandboxRootFolder ) {
+        DriveServiceConfig config{replicatorPort, replicatorRootFolder, sandboxRootFolder};
         m_driveService = std::make_shared<DriveService>( config );
 
-        m_rpcServer = std::make_shared<rpc::server>("127.0.0.1",rpcPort);
+        m_rpcServer = std::make_shared<rpc::server>( "127.0.0.1", rpcPort );
 
         //
         // addDrive
         //
-        m_rpcServer->bind("addDrive", [driveService=m_driveService] ( const std::array<uint8_t,32>& driveKey, size_t driveSize ) {
+        m_rpcServer->bind( "addDrive", [driveService = m_driveService]( const std::array<uint8_t, 32>& driveKey,
+                                                                        size_t driveSize ) {
             auto reply = driveService->addDrive( reinterpret_cast<const sirius::Key&>(driveKey), driveSize );
             return reply;
-        });
+        } );
 
         //
         // removeDrive
         //
-        m_rpcServer->bind("removeDrive", [driveService=m_driveService] ( const std::array<uint8_t,32>& driveKey ) {
-            auto reply = driveService->removeDrive( reinterpret_cast<const sirius::Key&>(driveKey) );
+        m_rpcServer->bind( "removeDrive", [driveService = m_driveService]( const std::array<uint8_t, 32>& driveKey ) {
+            auto reply = driveService->removeDrive( reinterpret_cast<const sirius::Key&>(driveKey));
             return reply;
-        });
+        } );
 
         //
         // getRootHash
         //
-        m_rpcServer->bind("getRootHash", [driveService=m_driveService] ( const std::array<uint8_t,32>& driveKey ) {
+        m_rpcServer->bind( "getRootHash", [driveService = m_driveService]( const std::array<uint8_t, 32>& driveKey ) {
 
             try {
-                InfoHash hash = driveService->getRootHash( reinterpret_cast<const sirius::Key&>(driveKey) );
+                InfoHash hash = driveService->getRootHash( reinterpret_cast<const sirius::Key&>(driveKey));
 
-                ResultWithInfoHash result{ hash.array(), "" };
+                ResultWithInfoHash result{hash.array(), ""};
 
                 return result;
             }
-            catch( std::runtime_error &err) {
+            catch ( std::runtime_error& err ) {
                 ResultWithInfoHash result;
                 result.m_error = err.what();
                 return result;
             }
-        });
+        } );
 
         //
         // modify
         //
-        m_rpcServer->bind("modify",
-              [driveService=m_driveService] ( const std::array<uint8_t,32>& driveKey, const std::array<uint8_t,32>& hash )
+        m_rpcServer->bind( "modify",
+                           [driveService = m_driveService]( const std::array<uint8_t, 32>& driveKey,
+                                                            const std::array<uint8_t, 32>& hash ) {
+                               auto drivePubKey = reinterpret_cast<const sirius::Key&>(driveKey);
+                               auto infoHash = reinterpret_cast<const InfoHash&>(hash);
+                               std::promise<ResultWithModifyStatus> promise;
+                               auto future = promise.get_future();
+
+                               driveService->modify( drivePubKey, infoHash, [&promise, driveKey = drivePubKey](
+                                       sirius::drive::modify_status::code code,
+                                       sirius::drive::InfoHash rootHash,
+                                       std::string error ) {
+                                   switch ( code ) {
+                                       case sirius::drive::modify_status::update_completed: {
+                                           LOG( " drive update completed:\n drive key: " << driveKey << "\n root hash: "
+                                                                                         << sirius::drive::toString(
+                                                                                                 rootHash ));
+                                           ResultWithModifyStatus result{sirius::drive::modify_status::update_completed,
+                                                                         ""};
+                                           promise.set_value( result );
+                                           break;
+                                       }
+                                       case sirius::drive::modify_status::sandbox_root_hash: {
+                                           LOG( " drive modified in sandbox:\n drive key: " << driveKey
+                                                                                            << "\n root hash: "
+                                                                                            << sirius::drive::toString(
+                                                                                                    rootHash ));
+                                           break;
+                                       }
+                                       case sirius::drive::modify_status::failed: {
+                                           LOG_ERR( " drive modification failed:\n drive key: " << driveKey
+                                                                                                << "\n error: "
+                                                                                                << error );
+                                           ResultWithModifyStatus result{sirius::drive::modify_status::failed, error};
+                                           promise.set_value( result );
+                                           break;
+                                       }
+                                       case sirius::drive::modify_status::broken: {
+                                           LOG_ERR( " drive modification aborted:\n drive key: " << driveKey );
+                                           ResultWithModifyStatus result{sirius::drive::modify_status::broken, ""};
+                                           promise.set_value( result );
+                                           return;
+                                       }
+                                   }
+                               } );
+                               rpc::this_handler().respond( future.get());
+                           } );
+
+        //
+        // loadTorrent
+        //
+        m_rpcServer->bind( "loadTorrent", [driveService = m_driveService]( const std::array<uint8_t,32>& driveKey,
+                                                                           const std::array<uint8_t,32>& hash )
         {
             auto drivePubKey = reinterpret_cast<const sirius::Key&>(driveKey);
-            auto infoHash    = reinterpret_cast<const InfoHash&>(hash);
-            std::promise<ResultWithModifyStatus> promise;
-            auto future = promise.get_future();
-
-            driveService->modify( drivePubKey, infoHash, [&promise,driveKey=drivePubKey] (
-                                                            sirius::drive::modify_status::code code,
-                                                            sirius::drive::InfoHash rootHash,
-                                                            std::string error )
-            {
-                switch (code)
-                {
-                    case sirius::drive::modify_status::update_completed: {
-                        LOG( " drive update completed:\n drive key: " << driveKey << "\n root hash: " << sirius::drive::toString(rootHash) );
-                        ResultWithModifyStatus result{sirius::drive::modify_status::update_completed,""};
-                        promise.set_value( result );
-                        break;
-                    }
-                    case sirius::drive::modify_status::sandbox_root_hash: {
-                        LOG( " drive modified in sandbox:\n drive key: " << driveKey << "\n root hash: " << sirius::drive::toString(rootHash) );
-                        break;
-                    }
-                    case sirius::drive::modify_status::failed: {
-                        LOG_ERR( " drive modification failed:\n drive key: " << driveKey << "\n error: " << error );
-                        ResultWithModifyStatus result{sirius::drive::modify_status::failed,error};
-                        promise.set_value( result );
-                        break;
-                    }
-                    case sirius::drive::modify_status::broken: {
-                        LOG_ERR( " drive modification aborted:\n drive key: " << driveKey );
-                        ResultWithModifyStatus result{sirius::drive::modify_status::broken,""};
-                        promise.set_value( result );
-                        return;
-                    }
-                }
-            });
-            rpc::this_handler().respond( future.get() );
+            auto infoHash = reinterpret_cast<const InfoHash&>(hash);
+            try {
+                auto reply = driveService->loadTorrent( drivePubKey, infoHash );
+                return reply;
+            }
+            catch ( std::runtime_error& err ) {
+                return std::string(err.what());
+            }
         });
     }
 
@@ -134,21 +157,21 @@ public:
 
 private:
 
-    void replicatorDownloadHandler ( modify_status::code code, InfoHash /*resultRootInfoHash*/, std::string error )
-    {
-        if ( code == modify_status::update_completed )
-        {
-            LOG( "@ update_completed: " );
-        }
-        else if ( code == modify_status::sandbox_root_hash )
-        {
-            LOG( "@ sandbox calculated" );
-        }
-        else
-        {
-            LOG( "ERROR: " << error );
-        }
-    }
+//    void replicatorDownloadHandler ( modify_status::code code, InfoHash /*resultRootInfoHash*/, std::string error )
+//    {
+//        if ( code == modify_status::update_completed )
+//        {
+//            LOG( "@ update_completed: " );
+//        }
+//        else if ( code == modify_status::sandbox_root_hash )
+//        {
+//            LOG( "@ sandbox calculated" );
+//        }
+//        else
+//        {
+//            LOG( "ERROR: " << error );
+//        }
+//    }
 
     static void sessionErrorHandler( const lt::alert* alert)
     {

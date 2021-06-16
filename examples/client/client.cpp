@@ -22,9 +22,12 @@
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_ADDR "192.168.1.102" ":5551"
+#define CLIENT_ADDR "192.168.1.101" ":5551"
 #define REPLICATOR_IP "127.0.0.1"
 #define REPLICATOR_PORT 5550
+
+#define CLIENT_WORK_FOLDER fs::path(getenv("HOME")) / "111" / "client_folder"
+
 
 namespace fs = std::filesystem;
 
@@ -106,9 +109,9 @@ int main() try {
     InfoHash rootHash = client.getRootHash( driveKey );
 //    LOG( "rootHash=" << toString(rootHash) );
 //    rootHash[0] = 0;
-    LOG( "rootHash=" << toString(rootHash) );
+//    LOG( "rootHash=" << toString(rootHash) );
     clientDownloadFsTree(replicatorsList, rootHash );
-    return 0;
+//    return 0;
 
 
     /// Client: request to modify drive (1)
@@ -279,13 +282,17 @@ static void clientDownloadFilesR( const Folder& folder, endpoint_list addrList )
         else
         {
             const File& file = getFile(child);
+            std::string folderName = "root";
+            if ( folder.name() != "/" )
+                folderName = folder.name();
+
             EXLOG( "# Client started download file " << internalFileName( file.hash() ) );
-            EXLOG( "#  to " << gClientFolder / "downloaded_files" / folder.name()  / file.name() );
+            EXLOG( "#  to " << gClientFolder / "downloaded_files" / folderName  / file.name() );
             gClientSession->download( DownloadContext(
                     DownloadContext::file_from_drive,
                     clientDownloadFilesHandler,
                     file.hash(),
-                    gClientFolder / "downloaded_files" / folder.name() / file.name() ),
+                    gClientFolder / "downloaded_files" / folderName / file.name() ),
                                       gClientFolder / "downloaded_files",
                                       addrList );
         }
@@ -334,7 +341,7 @@ static fs::path createClientFiles( size_t bigFileSize ) {
     //
 #define REPLICATOR_ROOT_FOLDER          (std::string(getenv("HOME"))+"/111/replicator_root")
 
-    auto dataFolder = fs::path(getenv("HOME")) / "111" / "client_tmp_folder" / "client_files";
+    auto dataFolder = CLIENT_WORK_FOLDER / "client_files";
     fs::remove_all( dataFolder.parent_path() );
     fs::create_directories( dataFolder );
 

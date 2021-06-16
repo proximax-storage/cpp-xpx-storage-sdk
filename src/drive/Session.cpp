@@ -57,6 +57,7 @@ class DefaultSession: public Session {
     };
 
     using DownloadMap      = std::map<std::uint32_t,DownloadMapCell>;
+    //using LoadTorrentMap   = std::map<InfoHash,std::function<void(bool)>>;
 
 private:
 
@@ -77,6 +78,9 @@ private:
     //
     DownloadMap             m_downloadMap;
     std::mutex              m_downloadMapMutex;
+
+    // loadTorrentMap
+    //LoadTorrentMap          m_loadTorrentMap;
 
     // It will be called on socket listening error
     //
@@ -311,6 +315,23 @@ public:
             m_downloadMap[ tHandle.id() ] = DownloadMapCell{ tmpFolder, {std::move(downloadContext)} };
         }
     }
+
+//    void loadTorrent( const InfoHash& infoHash,
+//                           std::function<void(bool)> addTorrentNotifier,
+//                           const std::string& torrentFilename,
+//                           const std::string& savePath,
+//                           endpoint_list endpointList ) override
+//    {
+//        if ( auto it = m_loadTorrentMap.find(infoHash); it != m_loadTorrentMap.end() )
+//        {
+//            //shift timer
+//            return;
+//        }
+//        m_loadTorrentMap[infoHash] = addTorrentNotifier;
+//        //start timer
+//        addTorrentFileToSession( torrentFilename, savePath, endpointList );
+//    };
+
 
     void connectPeers( lt::torrent_handle tHandle, endpoint_list list ) {
 

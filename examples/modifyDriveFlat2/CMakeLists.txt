@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.2)
-project(modifyDriveFlat)
+project(modifyDriveFlat2)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -11,12 +11,12 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
 
-add_executable(modifyDriveFlat modifyDriveFlat.cpp ${SOURCES})
+add_executable(modifyDriveFlat2 modifyDriveFlat2.cpp ${SOURCES})
 
 #target_precompile_headers(modifyDriveFlat PRIVATE pch.h)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    target_link_libraries(modifyDriveFlat
+    target_link_libraries(modifyDriveFlat2
             ${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
             )
     #        /usr/local/opt/openssl/lib/libssl.dylib
@@ -24,5 +24,5 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     #        "-framework CoreFoundation" "-framework SystemConfiguration"
     #        )
 else()
-    target_link_libraries(modifyDriveFlat libtorrent-rasterbar.so Threads::Threads)
+    target_link_libraries(modifyDriveFlat2 libtorrent-sirius.so Threads::Threads)
 endif()
