@@ -36,9 +36,7 @@ namespace modify_status {
         virtual InfoHash rootDriveHash() = 0;
         virtual void     startModifyDrive( InfoHash modifyDataInfoHash, DriveModifyHandler ) = 0;
 
-        //todo
-        virtual void     addFileIntoSession( const InfoHash& fileHash ) = 0;
-        virtual void     removeFileFromSession( const InfoHash& fileHash ) = 0;
+        virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
 
         // for testing and debugging
         virtual void printDriveStatus() = 0;

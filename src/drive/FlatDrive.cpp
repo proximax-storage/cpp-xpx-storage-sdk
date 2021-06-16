@@ -176,7 +176,7 @@ public:
         if ( !fs::exists(m_fsTreeFile) )
         {
             fs::create_directories( m_fsTreeFile.parent_path() );
-            m_fsTree.m_name = m_driveFolder.filename();
+            m_fsTree.m_name = "/";//m_driveFolder.filename();
             m_fsTree.doSerialize( m_fsTreeFile );
         }
 
@@ -598,14 +598,9 @@ public:
         }
     }
 
-    void     addFileIntoSession( const InfoHash& /*fileHash*/ ) override
+    void     loadTorrent( const InfoHash& /*fileHash*/ ) override
     {
-        //todo
-    }
-
-    void     removeFileFromSession( const InfoHash& /*fileHash*/ ) override
-    {
-        //todo
+        //todo m_session->loadTorrent();
     }
 
     virtual void printDriveStatus() override

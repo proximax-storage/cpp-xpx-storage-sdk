@@ -46,6 +46,30 @@ namespace sirius { namespace drive {
             return Action( action_list_id::remove, remoteObjectNameWithPath );
         }
 
+        std::string getSource() const
+        {
+            assert( m_actionId == action_list_id::upload || m_actionId == action_list_id::move );
+            return m_param1;
+        }
+
+        std::string getDestination() const
+        {
+            assert( m_actionId == action_list_id::upload || m_actionId == action_list_id::move );
+            return m_param2;
+        }
+
+        std::string getNewFolder() const
+        {
+            assert( m_actionId == action_list_id::new_folder );
+            return m_param1;
+        }
+
+        std::string getRemovedItem() const
+        {
+            assert( m_actionId == action_list_id::remove );
+            return m_param1;
+        }
+
         template <class Archive> void serialize( Archive & arch ) {
 
             arch( m_actionId );
