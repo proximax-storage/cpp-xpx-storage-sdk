@@ -20,7 +20,7 @@
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_IP_ADDR "192.168.1.101"
+#define CLIENT_IP_ADDR "192.168.1.102"
 #define REPLICATOR_IP_ADDR "127.0.0.1"
 #define REPLICATOR_ROOT_FOLDER          fs::path(getenv("HOME")) / "111" / "replicator_root"
 #define REPLICATOR_SANDBOX_ROOT_FOLDER  fs::path(getenv("HOME")) / "111" / "sandbox_root"
@@ -142,7 +142,9 @@ int main(int,char**)
     {
         ActionList actionList;
         actionList.push_back( Action::newFolder( "fff1" ) );
-        actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
+        actionList.push_back( Action::upload( clientFolder / "a.txt", "fff2/a.txt" ) );
+
+        //actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
         actionList.push_back( Action::upload( clientFolder / "a.txt", "a2.txt" ) );
         actionList.push_back( Action::upload( clientFolder / "b.bin", "f1/b1.bin" ) );
         actionList.push_back( Action::upload( clientFolder / "b.bin", "f2/b2.bin" ) );
@@ -161,8 +163,12 @@ int main(int,char**)
     EXLOG( "\n# Client started: 2-st upload" );
     {
         ActionList actionList;
+        actionList.push_back( Action::remove( "fff1" ) );
+        actionList.push_back( Action::remove( "fff2" ) );
+
         actionList.push_back( Action::remove( "a2.txt" ) );
         actionList.push_back( Action::remove( "f1/b2.bin" ) );
+//        actionList.push_back( Action::remove( "f1" ) );
         actionList.push_back( Action::remove( "f2/b2.bin" ) );
         clientModifyDrive( actionList, replicatorsList );
     }

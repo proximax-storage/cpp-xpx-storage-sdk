@@ -176,7 +176,7 @@ public:
         if ( !fs::exists(m_fsTreeFile) )
         {
             fs::create_directories( m_fsTreeFile.parent_path() );
-            m_fsTree.m_name = "/";//m_driveFolder.filename();
+            m_fsTree.m_name = "/";
             m_fsTree.doSerialize( m_fsTreeFile );
         }
 
