@@ -5,7 +5,7 @@ git clone git@github.com:proximax-storage/cpp-xpx-storage-sdk.git
 cd cpp-xpx-storage-sdk
 git fetch --all
 git checkout develop # or another
-git submodule init && git submodule update --recursive --remote
+git submodule update --init --recursive --remote
 ```
 
 ## Build Libtorrent
@@ -13,13 +13,8 @@ git submodule init && git submodule update --recursive --remote
 ```shell
 cd libtorrent
 mkdir _build && cd _build
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 -DBOOST_ROOT=PATH/TO/BOOST/boost-build-1.71.0 ..
 
-or with CLION\`s cmake, i.e:
-/snap/clion/152/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 -DBOOST_ROOT=PATH/TO/BOOST/boost-build-1.71.0 ..
-
-make -j 4
-or cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=17 ..
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 .. && make
 
 cd ../..
 ```
@@ -27,12 +22,11 @@ cd ../..
 ## Build rpclib
 
 ```shell
-cd ../rpclib
+cd rpclib
 mkdir build && cd build
-cmake ..
-#or cmake -DRPCLIB_ENABLE_LOGGING=ON ..
+cmake .. && cmake --build .
+#or cmake -DRPCLIB_ENABLE_LOGGING=ON .. && cmake --build .
 
-cmake --build .
 cd ../..
 ```
 
@@ -40,7 +34,6 @@ cd ../..
 
 ```shell
 mkdir _build && cd _build
-cmake ..
-make -j 4
+cmake -DBOOST_ROOT=PATH/TO/BOOST/boost-build-1.71.0 .. && make
 cd ..
 ```
