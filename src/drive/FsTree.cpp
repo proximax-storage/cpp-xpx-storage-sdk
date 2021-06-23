@@ -403,11 +403,19 @@ bool FsTree::moveFlat( const std::string& srcPathAndName,
    if ( fs::path( destPathAndName ) == fs::path( srcPathAndName ) )
        return true;
 
-   auto destChild = *srcIt;
-
    fs::path destPath( destPathAndName );
    std::string destFilename = destPath.filename().string();
    Folder* destParentFolder = getFolderPtr( destPath.parent_path() );
+
+    Folder::Child destChild = *srcIt;
+    if ( isFolder(destChild) )
+    {
+        getFolder(destChild).m_name = destFilename;
+    }
+    else
+    {
+        getFile(destChild).m_name = destFilename;
+    }
 
    // create destination parent folder if not exists
    if ( destParentFolder == nullptr )

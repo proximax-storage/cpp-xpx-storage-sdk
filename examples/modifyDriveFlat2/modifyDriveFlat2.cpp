@@ -141,7 +141,7 @@ int main(int,char**)
     EXLOG( "\n# Client started: 1-st upload" );
     {
         ActionList actionList;
-        actionList.push_back( Action::newFolder( "fff1" ) );
+        actionList.push_back( Action::newFolder( "fff1/" ) );
         actionList.push_back( Action::upload( clientFolder / "a.txt", "fff2/a.txt" ) );
 
         //actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
@@ -163,13 +163,15 @@ int main(int,char**)
     EXLOG( "\n# Client started: 2-st upload" );
     {
         ActionList actionList;
-        actionList.push_back( Action::remove( "fff1" ) );
-        actionList.push_back( Action::remove( "fff2" ) );
+        actionList.push_back( Action::remove( "fff1/" ) );
+        actionList.push_back( Action::remove( "fff2/" ) );
 
         actionList.push_back( Action::remove( "a2.txt" ) );
         actionList.push_back( Action::remove( "f1/b2.bin" ) );
 //        actionList.push_back( Action::remove( "f1" ) );
         actionList.push_back( Action::remove( "f2/b2.bin" ) );
+        actionList.push_back( Action::move( "f2/", "f2_renamed/" ) );
+        actionList.push_back( Action::move( "f2_renamed/a.txt", "f2_renamed/a_renamed.txt" ) );
         clientModifyDrive( actionList, replicatorsList );
     }
 
