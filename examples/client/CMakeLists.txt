@@ -28,7 +28,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 else()
 #    target_link_libraries(client libtorrent-rasterbar.so Threads::Threads)
     target_link_libraries(client
-            /home/newman/projects/libtorrent/_build/libtorrent-sirius.so
+            ${CMAKE_SOURCE_DIR}/libtorrent/_build/libtorrent-sirius.so
             ${CMAKE_SOURCE_DIR}/rpclib/build/librpc.a
             Threads::Threads)
 endif()

@@ -24,5 +24,5 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     #        "-framework CoreFoundation" "-framework SystemConfiguration"
     #        )
 else()
-    target_link_libraries(modifyDriveFlat2 libtorrent-sirius.so Threads::Threads)
+    target_link_libraries(modifyDriveFlat2 ${CMAKE_SOURCE_DIR}/libtorrent/_build/libtorrent-sirius.so Threads::Threads)
 endif()
