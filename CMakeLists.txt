@@ -13,6 +13,7 @@ find_package(Boost COMPONENTS atomic system date_time regex timer chrono log thr
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 
 include_directories(SYSTEM "cereal/include")
+include_directories(SYSTEM "libtorrent/include")
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # boost from brew has an issue linking to -licudata
@@ -24,5 +25,5 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     include_directories(SYSTEM "/usr/local/include/" )
 endif()
 
-add_subdirectory(src)
+#add_subdirectory(src)
 add_subdirectory(examples)
