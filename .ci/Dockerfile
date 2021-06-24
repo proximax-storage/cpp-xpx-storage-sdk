@@ -33,7 +33,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   
 WORKDIR /app/src
 COPY . .
-RUN git submodule init && git submodule update --recursive --remote
+RUN git submodule update --init --recursive --remote
 
 ## Build Libtorrent
 RUN cd libtorrent \
@@ -55,7 +55,7 @@ RUN cd rpclib \
 
 # Build cpp-xpx-storage-sdk
 RUN rm -rf _build \
-    && _build \
+    && mkdir _build \
     && cd _build \
     && cmake .. \
     && make
