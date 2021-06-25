@@ -1,4 +1,4 @@
-FROM debian:sid
+FROM debian:sid AS BUILDER
 
 RUN apt-get update && apt-get install --no-install-recommends -y \
     software-properties-common \
@@ -20,9 +20,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     libboost-random-dev \
     libssl-dev \
     libssl1.1 \
-    openssl\
-    # gnutls-bin \
-    # guile-gnutls \
+    openssl \
     libgnutls-dane0 \
     libgnutls-openssl27 \
     libgnutls28-dev \
@@ -44,7 +42,7 @@ RUN cd libtorrent \
     -DCMAKE_CXX_STANDARD=17 \
     .. \
     && make
-    
+
 ## Build rpclib
 RUN cd rpclib \
     && rm -rf build \
@@ -59,3 +57,10 @@ RUN rm -rf _build \
     && cd _build \
     && cmake .. \
     && make
+
+FROM debian:sid-slim
+
+COPY --from=BUILDER /app/src/_build/bin /sirius/bin
+COPY --from=BUILDER /app/src/libtorrent/_build/*.so* /usr/lib/
+
+ENTRYPOINT ["/sirius/bin/replicator"]
