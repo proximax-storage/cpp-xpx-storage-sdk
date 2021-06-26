@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.9)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
+include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/libtorrent/include)
+
 ### test node connection
 #@#add_executable(testValidatorConnection testValidatorConnection.cpp common/ConnnectionAdapter.cpp)
 #@#target_link_libraries(testValidatorConnection connection crypto ionet net model)
