@@ -27,6 +27,10 @@
 #include <libtorrent/aux_/generate_peer_id.hpp>
 #include "libtorrent/aux_/session_impl.hpp"
 
+#ifdef SIRIUS_DRIVE_MULTI
+#include <sirius_drive/session_delegate.h>
+#endif
+
 // boost
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
@@ -86,12 +90,27 @@ private:
     //
     LibTorrentErrorHandler  m_alertHandler;
 
-public:
+#ifdef SIRIUS_DRIVE_MULTI
+    std::shared_ptr<lt::session_delegate> m_downloadLimiter;
+#endif
 
-    DefaultSession( std::string address, LibTorrentErrorHandler alertHandler )
+        public:
+
+    DefaultSession( std::string address,
+                    LibTorrentErrorHandler alertHandler
+#ifdef SIRIUS_DRIVE_MULTI
+                    ,std::shared_ptr<lt::session_delegate> downloadLimiter
+#endif
+                    )
         : m_addressAndPort(address), m_alertHandler(alertHandler)
+#ifdef SIRIUS_DRIVE_MULTI
+        , m_downloadLimiter(downloadLimiter)
+#endif
     {
         createSession();
+#ifdef SIRIUS_DRIVE_MULTI
+        m_session.setDelegate( m_downloadLimiter );
+#endif
         LOG( "DefaultSession created: " << m_addressAndPort );
     }
 
@@ -155,6 +174,12 @@ public:
         lt::add_torrent_params params;
         params.flags &= ~lt::torrent_flags::paused;
         params.flags &= ~lt::torrent_flags::auto_managed;
+
+        //todo?
+        params.flags |= lt::torrent_flags::seed_mode;
+        params.flags |= lt::torrent_flags::upload_mode;
+        params.flags |= lt::torrent_flags::no_verify_files;
+
         params.storage_mode = lt::storage_mode_sparse;
         params.save_path = fs::path(savePath);
         params.ti = std::make_shared<lt::torrent_info>( buffer, lt::from_span );
@@ -200,22 +225,27 @@ public:
         //fs::create_directory( addFilesFolder );
 
         // parse action list
-        for( auto& action : actionList ) {
-
-            switch ( action.m_actionId ) {
-                case action_list_id::upload: {
+        for( auto& action : actionList )
+        {
+            switch ( action.m_actionId )
+            {
+                case action_list_id::upload:
+                {
                     fs::path sandboxFilePath = addFilesFolder/action.m_param2;
-                    if ( !isPathInsideFolder( sandboxFolder, addFilesFolder ) )
-                    {
-                        LOG( action.m_param2 );
-                        LOG( sandboxFilePath );
-                        LOG( addFilesFolder );
-                        throw std::runtime_error( "invalid destination path in 'upload' action: " + action.m_param2 );
-                    }
-
                     fs::create_directories( sandboxFilePath.parent_path() );
                     fs::create_symlink( action.m_param1, sandboxFilePath);
                     //fs::copy( action.m_param1, addFilesFolder/action.m_param2 );
+                    break;
+                }
+                case action_list_id::move:
+                {
+                    if ( isPathInsideFolder( action.m_param1, action.m_param2 ) )
+                    {
+                        LOG( action.m_param1 );
+                        LOG( action.m_param2 );
+                        throw std::runtime_error( "invalid 'move/rename' action (destination is a child folder): " + action.m_param1
+                        + " -> " + action.m_param2 );
+                    }
                     break;
                 }
                 default:
@@ -372,11 +402,12 @@ private:
 
 //            if ( alert->type() != lt::log_alert::alert_type )
 //            {
-//                if ( m_addressAndPort == "192.168.1.102:5551" ) {
+////                if ( m_addressAndPort == "192.168.1.102:5551" ) {
 //                    LOG( ">" << m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
-//                }
+////                }
 //            }
 
+#pragma mark --alerts--
             switch (alert->type()) {
                 case lt::add_torrent_alert::        alert_type:
                 case lt::dht_announce_alert::       alert_type:
@@ -387,12 +418,30 @@ private:
                 }
 
 
+                case lt::incoming_request_alert::alert_type: {
+                    auto* theAlert = dynamic_cast<lt::incoming_request_alert*>(alert);
+
+                    LOG( m_addressAndPort << " " << "#!!!incoming_request_alert!!!: " << theAlert->endpoint <<
+                        " " << theAlert->pid << " " << theAlert->req.length << "\n" );
+                    LOG( "# : " << theAlert->torrent_name() <<
+                        " " << theAlert->req.piece << " " << theAlert->req.start << " " << theAlert->req.length << "\n" );
+                    break;
+                }
+
+
+                case lt::block_downloading_alert::alert_type: {
+                    auto* theAlert = dynamic_cast<lt::block_downloading_alert*>(alert);
+
+                    LOG( m_addressAndPort << " " << "#!!!block_downloading_alert!!!: " << theAlert->endpoint << "\n" );
+                    LOG( "#!!!block_downloading_alert!!!: block idx:" << theAlert->block_index << " piece_index:" << theAlert->piece_index << " pid:" << theAlert->pid << "\n" );
+                    break;
+                }
 
                 case lt::peer_snubbed_alert::alert_type: {
                     auto* theAlert = dynamic_cast<lt::peer_snubbed_alert*>(alert);
 
-                LOG( "#!!!peer_snubbed_alert!!!: " << theAlert->endpoint << "\n" );
-                break;
+                    LOG( "#!!!peer_snubbed_alert!!!: " << theAlert->endpoint << "\n" );
+                    break;
                 }
 
                 case lt::peer_disconnected_alert::alert_type: {
@@ -670,10 +719,6 @@ private:
 //                    LOG("!!!!! block_finished_alert");
 //                    break;
 //                }
-//                case lt::incoming_request_alert::alert_type: {
-//                    LOG("!!!!! incoming_request_alert");
-//                    break;
-//                }
 
 
 
@@ -729,7 +774,7 @@ private:
                     auto *theAlert = dynamic_cast<lt::peer_error_alert *>(alert);
 
                     if ( theAlert ) {
-                        LOG(  "peer error: " << theAlert->message())
+                        LOG(  m_addressAndPort << ": peer error: " << theAlert->message())
                     }
                     break;
                 }
@@ -945,10 +990,19 @@ InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
 }
 
 // createDefaultLibTorrentSession
+#ifdef SIRIUS_DRIVE_MULTI
+std::shared_ptr<Session> createDefaultSession( std::string address,
+                                               const LibTorrentErrorHandler& alertHandler,
+                                               std::shared_ptr<lt::session_delegate> downloadLimiter )
+{
+    return std::make_shared<DefaultSession>( address, alertHandler, downloadLimiter );
+}
+#else
 std::shared_ptr<Session> createDefaultSession( std::string address,
                                                const LibTorrentErrorHandler& alertHandler )
 {
     return std::make_shared<DefaultSession>( address, alertHandler );
 }
+#endif
 
 }}

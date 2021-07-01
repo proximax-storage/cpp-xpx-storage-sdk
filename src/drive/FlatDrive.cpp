@@ -418,7 +418,7 @@ public:
                     fs::path destPath = fs::path("root") / action.m_param2;
 
                     // srcPath should not be a parent folder of destPath
-                    if ( isPathInsideFolder( destPath, srcPath ) )
+                    if ( isPathInsideFolder( srcPath, destPath ) )
                     {
                         LOG( "invalid 'move' action: 'srcPath' is a directory which is an ancestor of 'destPath'" );
                         LOG( "invalid 'move' action: srcPath : " << action.m_param1  );

@@ -13,6 +13,11 @@
 #include <libtorrent/torrent_handle.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
+#ifdef SIRIUS_DRIVE_MULTI
+#include <sirius_drive/session_delegate.h>
+#endif
+
+
 using  tcp = boost::asio::ip::tcp;
 using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
 
@@ -164,6 +169,12 @@ namespace libtorrent {
 
 using LibTorrentErrorHandler = std::function<void( const lt::alert* )>;
 
-PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address, const LibTorrentErrorHandler& );
+#ifdef SIRIUS_DRIVE_MULTI
+    PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address,
+                                                              const LibTorrentErrorHandler&,
+                                                              std::shared_ptr<lt::session_delegate> );
+#else
+    PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address, const LibTorrentErrorHandler& );
+#endif
 
 }}
