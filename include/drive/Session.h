@@ -6,73 +6,175 @@
 #pragma once
 
 #include "types.h"
-#include "plugins.h"
 #include "ActionList.h"
+#include "log.h"
+
+#include <filesystem>
 #include <libtorrent/torrent_handle.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
+#ifdef SIRIUS_DRIVE_MULTI
+#include <sirius_drive/session_delegate.h>
+#endif
+
+
 using  tcp = boost::asio::ip::tcp;
 using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
-
-
-namespace libtorrent {
-    struct alert;
-}
 
 namespace sirius { namespace drive {
 
 #define FS_TREE_FILE_NAME "FsTree.bin"
 
+
+// It will be used to inform 'client' about download status
 //
 namespace download_status {
     enum code {
         complete = 0,
-        uploading = 2,
-        failed = 3
+        downloading = 1,
+        failed = 2
     };
 };
 
+// It will be used to inform 'client' about download status
 //
-using DownloadHandler = std::function<void( download_status::code code, InfoHash, const std::string& info )>;
+struct DownloadContext {
 
+    enum download_type {
+        fs_tree = 0,
+        file_from_drive = 1,
+        client_data = 3
+    };
+
+    using Notification = std::function<void( download_status::code,
+                                             const InfoHash&,
+                                             const std::filesystem::path filePath,
+                                             size_t downloaded,
+                                             size_t fileSize,
+                                             const std::string& errorText )>;
+
+    DownloadContext( download_type         downloadType,
+                     Notification          notification,
+                     InfoHash              infoHash,
+                     std::filesystem::path saveAs = {} )
+        :
+          m_downloadType(downloadType),
+          m_downloadNotification(notification),
+          m_infoHash(infoHash),
+          m_saveAs(saveAs)
+        {
+            if ( m_downloadType == file_from_drive && m_saveAs.empty() )
+                throw std::runtime_error("m_downloadType == file_from_drive && m_saveAs.empty()");
+
+            if ( (m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty() )
+                throw std::runtime_error("(m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty()");
+        }
+
+    download_type         m_downloadType;
+
+    Notification          m_downloadNotification;
+    InfoHash              m_infoHash;
+    std::filesystem::path m_saveAs;
+};
+
+//
+// It will be used to inform 'client' that all required torrents
+// have been sucessfully removed from the session.
+// And only after that the 'client' could remove/move files and torrnet file.
+//
+struct RemoveTorrentContext
+{
+    RemoveTorrentContext(
+            std::set<lt::torrent_handle>&& torrentSet,
+            const std::function<void()>&   endRemoveNotification )
+        :
+            m_torrentSet(torrentSet),
+            m_endRemoveNotification(endRemoveNotification)
+        {}
+    // A set of torrents to be removed
+    // Torrent id (uint32_t) is used instead of lt::torrent_handler
+    //
+    std::set<lt::torrent_handle> m_torrentSet;
+
+    // This handler will be called after all torrents have been removed
+    std::function<void()>        m_endRemoveNotification;
+};
+
+using  RemoveContextPtr = std::shared_ptr<RemoveTorrentContext>;
+
+//
+// It provides the ability to exchange files
 //
 class Session {
 public:
+
     using lt_handle = lt::torrent_handle;
-    using RemoveHandler = std::optional<std::function<void()>>;
 
     virtual ~Session() = default;
 
     virtual void      endSession() = 0;
 
-    virtual lt_handle addTorrentFileToSession( std::string torrentFilename,
-                                               std::string savePath,
+    virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
+                                               const std::string& savePath,
                                                endpoint_list = {} ) = 0;
+
+    // It removes torrents from session.
+    // After removing 'endNotification' will be called.
+    // And only after that the 'client' could move/remove files and torrnet file.
+    virtual void      removeTorrentsFromSession( std::set<lt::torrent_handle>&& torrents,
+                                                 std::function<void()>          endNotification ) = 0;
 
     virtual InfoHash  addActionListToSession( const ActionList&,
                                               const std::string& workFolder,
                                               endpoint_list list = {} ) = 0;
 
-    virtual void      downloadFile( InfoHash,
-                                    std::string outputFolder,
-                                    DownloadHandler,
-                                    endpoint_list list = {} ) = 0;
+    // initiate file downloading (identified by downloadParameters.m_infoHash)
+    virtual void      download( DownloadContext&&   downloadParameters,
+                                const std::string&  tmpFolder,
+                                endpoint_list       list = {} ) = 0;
 
-    virtual void      removeTorrentFromSession( lt_handle, RemoveHandler h = {} ) = 0;
+//    virtual void      loadTorrent( const InfoHash& infoHash,
+//                                   std::function<void(bool)> addTorrentNotifier,
+//                                   const std::string& torrentFilename,
+//                                   const std::string& savePath,
+//                                   endpoint_list = {} ) = 0;
 
+    // for testing and debugging
+    virtual void      printActiveTorrents() = 0;
 };
 
 // createTorrentFile
-PLUGIN_API
-InfoHash createTorrentFile( std::string pathToFolderOrFolder, std::string pathToRootFolder, std::string outputTorrentFilename );
+PLUGIN_API InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
+                            const std::string& /*pathToRootFolder*/, // not used
+                            const std::string& outputTorrentFilename );
+
+//
+// It is used on drive side only.
+// It calculates modified InfoHash for 'file'
+// and creates modified torrent file in 'outputTorrentPath'
+// with name as 'InfoHash' + '.' + 'outputTorrentFileExtension'
+//
+PLUGIN_API InfoHash calculateInfoHashAndTorrent( const std::string& file,
+                                      const std::string& drivePublicKey,
+                                      const std::string& outputTorrentPath,
+                                      const std::string& outputTorrentFileExtension );
 
 //
 // createDefaultLibTorrentSession
 //
 
-using LibTorrentErrorHandler = std::function<void( libtorrent::alert* )>;
+namespace libtorrent {
+    struct alert;
+}
 
-PLUGIN_API
-std::shared_ptr<Session> createDefaultSession( std::string address, const LibTorrentErrorHandler& );
+using LibTorrentErrorHandler = std::function<void( const lt::alert* )>;
+
+#ifdef SIRIUS_DRIVE_MULTI
+    PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address,
+                                                              const LibTorrentErrorHandler&,
+                                                              std::shared_ptr<lt::session_delegate> );
+#else
+    PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address, const LibTorrentErrorHandler& );
+#endif
 
 }}

@@ -1,4 +1,5 @@
-#include "Session.h"
+#include "drive/Session.h"
+#include "drive/Utils.h"
 
 #include <memory>
 #include <string>
@@ -19,7 +20,7 @@
 
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 //!!!
-#define CLIENT_IP_ADDR "192.168.1.102"
+#define CLIENT_IP_ADDR "192.168.1.101"
 #define REPLICATOR_IP_ADDR "127.0.0.1"
 
 
@@ -43,7 +44,7 @@ std::mutex              finishMutex;
 bool                    isFinished = false;
 
 // clientSessionErrorHandler
-void clientSessionErrorHandler( libtorrent::alert* alert )
+void clientSessionErrorHandler( const lt::alert* alert )
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
@@ -53,7 +54,7 @@ void clientSessionErrorHandler( libtorrent::alert* alert )
 }
 
 // replicatorAlertHandler
-void replicatorAlertHandler( libtorrent::alert* alert )
+void replicatorAlertHandler( const lt::alert* alert )
 {
     if ( alert->type() == lt::listen_failed_alert::alert_type )
     {
@@ -114,7 +115,7 @@ int main(int,char**)
 //
 // progressHandler
 //
-void progressHandler( download_status::code code, InfoHash, std::string )
+void progressHandler( const DownloadContext&, download_status::code code, const std::string& )
 {
     if ( code == download_status::complete ) {
         isFinished = true;
@@ -138,9 +139,7 @@ void client( endpoint_list replicatorAddresses, InfoHash infoHashOfSomeFile, fs:
 
     // Start file downloading
     //
-    ltSession->downloadFile( infoHashOfSomeFile,
-                             destinationFolder,
-                             progressHandler,
+    ltSession->downloadFile( DownloadContext( progressHandler, infoHashOfSomeFile, destinationFolder ),
                              replicatorAddresses );
 
     // Wait for the download to finish
@@ -158,12 +157,16 @@ void replicator( std::promise<InfoHash> infoHashPromise )
 
     // Create torrent file
     //
-    fs::path torrentFile = file.parent_path() / "info.torrent";
-    InfoHash infoHashOfFile = createTorrentFile( file, file.parent_path(), torrentFile );
+//@    fs::path torrentFile = file.parent_path() / "info.torrent";
+//@    InfoHash infoHashOfFile = createTorrentFile( file, file.parent_path(), torrentFile );
+    InfoHash infoHashOfFile = calculateInfoHashAndTorrent( file, "pub_key", file.parent_path() );
+    fs::path newFilename = file.parent_path() / internalFileName(infoHashOfFile);
+    fs::path torrentFilename = file.parent_path() / (internalFileName(infoHashOfFile) + ".torrent");
+    fs::rename( file, newFilename );
 
     // Emulate replicator side
     auto ltSession = createDefaultSession( REPLICATOR_IP_ADDR ":5550", replicatorAlertHandler );
-    ltSession->addTorrentFileToSession( torrentFile, file.parent_path() );
+    ltSession->addTorrentFileToSession( torrentFilename, newFilename.parent_path() );
 
     // Pass InfoHash
     infoHashPromise.set_value( infoHashOfFile );
@@ -188,10 +191,14 @@ fs::path createReplicatorFile() {
     //
     fs::path fname = tmpFolder / "file.bin";
 
-    std::vector<uint8_t> data(1024*1024/2);
+    std::vector<uint8_t> data(1024);//*1024/2);
     std::generate( data.begin(), data.end(), std::rand );
 
     std::ofstream file( fname );
+    file.write( (char*) data.data(), data.size() );
+
+    // Create 2-d file
+    std::ofstream file2( tmpFolder / "file2.bin" );
     file.write( (char*) data.data(), data.size() );
 
     // Return path to file

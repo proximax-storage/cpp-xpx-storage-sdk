@@ -1,25 +1,27 @@
-#include "drive/Session.h"
-#include "drive/Drive.h"
+#include "drive/RpcReplicator.h"
 #include "drive/Utils.h"
+
+#include "rpc/server.h"
 
 #include <fstream>
 #include <filesystem>
 #include <future>
+#include <array>
 #include <condition_variable>
-#include <boost/asio.hpp>
 #include "boost/date_time/posix_time/posix_time.hpp"
 
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
 
 
-// !!!
-// CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
+//
+// This example shows interaction between 'client' and 'replicator'.
+//
 
-#define REPLICATOR_IP_ADDR "127.0.0.1"
-#define REPLICATOR_ROOT_FOLDER          (std::string(getenv("HOME")) + "/1111/replicator_root")
-#define REPLICATOR_SANDBOX_ROOT_FOLDER  (std::string(getenv("HOME")) + "/1111/sandbox_root")
-#define DRIVE_PUB_KEY                   "pub_key"
+#define REPLICATOR_PORT "5550"
+#define RPC_PORT 5510
+#define REPLICATOR_ROOT_FOLDER          (std::string(getenv("HOME"))+"/111/replicator_root")
+#define REPLICATOR_SANDBOX_ROOT_FOLDER  (std::string(getenv("HOME"))+"/111/sandbox_root")
 
 namespace fs = std::filesystem;
 
@@ -27,151 +29,74 @@ using namespace sirius::drive;
 
 inline std::mutex gExLogMutex;
 
-#define EXLOG(expr) { \
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        std::cout << expr << std::endl << std::flush; \
-    }
-
-
-// forward declarations
+//static std::string now_str();
+/*
+//#define EXLOG(expr) { \
+//        const std::lock_guard<std::mutex> autolock( gExLogMutex ); \
+//        std::cout << now_str() << ": " << expr << std::endl << std::flush; \
+//    }
 //
-void replicator();
-
-// global variables, which help synchronize client and replicator
-//
-bool                        isDriveUpdated = false;
-std::shared_ptr<InfoHash>   driveRootHash;
-std::condition_variable     driveCondVar;
-std::mutex                  driveMutex;
-
-// replicatorSessionErrorHandler
-void replicatorSessionErrorHandler( libtorrent::alert* alert)
+//#define EXLOG_ERR(expr) { \
+//        const std::lock_guard<std::mutex> autolock( gExLogMutex ); \
+//        std::cerr << now_str() << ": ERROR: " << expr << std::endl << std::flush; \
+//    }
+*/
+int main()
 {
-    if ( alert->type() == lt::listen_failed_alert::alert_type )
-    {
-        std::cerr << alert->message() << std::endl << std::flush;
-        exit(-1);
-    }
-}
+    system("pwd\n");
+    LOG("Replicator started");
+    RpcReplicator replicator( REPLICATOR_PORT,
+                              REPLICATOR_ROOT_FOLDER,
+                              REPLICATOR_SANDBOX_ROOT_FOLDER,
+                              RPC_PORT );
 
-
-//
-// main
-//
-int main(int,char**)
-{
-    EXLOG("started");
-
-    // Start replicator
-    std::thread replicatorThread( replicator );
-
-    replicatorThread.join();
+    replicator.runRpcServer();
 
     return 0;
 }
 
+
+
+//static std::string now_str()
+//{
+//    // Get current time from the clock, using microseconds resolution
+//    const boost::posix_time::ptime now =
+//        boost::posix_time::microsec_clock::local_time();
 //
-// replicatorDownloadHandler
+//    // Get the time offset in current day
+//    const boost::posix_time::time_duration td = now.time_of_day();
 //
-void replicatorDownloadHandler ( modify_status::code code, InfoHash /*resultRootInfoHash*/, std::string error )
-{
-
-    if ( code == modify_status::update_completed )
-    {
-        EXLOG( "@ update_completed: " );
-
-        isDriveUpdated = true;
-        driveCondVar.notify_all();
-    }
-    else if ( code == modify_status::sandbox_root_hash )
-    {
-        EXLOG( "@ sandbox calculated" );
-    }
-    else
-    {
-        EXLOG( "ERROR: " << error );
-        exit(-1);
-    }
-}
-
+//    //
+//    // Extract hours, minutes, seconds and milliseconds.
+//    //
+//    // Since there is no direct accessor ".milliseconds()",
+//    // milliseconds are computed _by difference_ between total milliseconds
+//    // (for which there is an accessor), and the hours/minutes/seconds
+//    // values previously fetched.
+//    //
+//    const long hours        = td.hours();
+//    const long minutes      = td.minutes();
+//    const long seconds      = td.seconds();
+//    const long milliseconds = td.total_milliseconds() -
+//                              ((hours * 3600 + minutes * 60 + seconds) * 1000);
 //
-// replicator
+//    //
+//    // Format like this:
+//    //
+//    //      hh:mm:ss.SSS
+//    //
+//    // e.g. 02:15:40:321
+//    //
+//    //      ^          ^
+//    //      |          |
+//    //      123456789*12
+//    //      ---------10-     --> 12 chars + \0 --> 13 chars should suffice
+//    //
+//    //
+//    char buf[40];
+//    sprintf(buf, "%02ld:%02ld:%02ld.%03ld",
+//        hours, minutes, seconds, milliseconds);
 //
-void replicator()
-{
-    boost::system::error_code ec;
+//    return buf;
+//}
 
-    EXLOG( "@ Replicator started" );
-
-    // Create Libtorrent Session
-    auto session = createDefaultSession( REPLICATOR_IP_ADDR":5550", replicatorSessionErrorHandler );
-
-    // Start drive
-    fs::remove_all( REPLICATOR_ROOT_FOLDER );
-    fs::remove_all( REPLICATOR_SANDBOX_ROOT_FOLDER );
-    auto drive = createDefaultDrive( session,
-                                     REPLICATOR_ROOT_FOLDER,
-                                     REPLICATOR_SANDBOX_ROOT_FOLDER,
-                                     DRIVE_PUB_KEY,
-                                     100*1024*1024, {} );
-
-    boost::asio::io_service io_service;
-
-    // Listening for any new incomming connection
-    tcp::acceptor acceptor_server( io_service, tcp::endpoint( tcp::v4(), 9999 ));
-
-    // Creating socket object
-    tcp::socket server_socket(io_service);
-
-    // waiting for connection
-    acceptor_server.accept(server_socket);
-
-    boost::asio::socket_base::keep_alive option(true);
-    server_socket.set_option( option );
-
-    // Send FsTree/root hash
-    auto rootHash = drive->rootDriveHash();
-    EXLOG( "@ Drive rootHash: " << toString(rootHash) );
-    boost::asio::write( server_socket, boost::asio::buffer( rootHash ), ec );
-    if (ec) {
-        EXLOG( "boost::asio::write(0) error:" << ec.message() );
-        exit(-1);
-    }
-
-    for(;;)
-    {
-        EXLOG( "@ Replicator is waiting of client data infoHash" );
-
-        // Read modify hash
-        boost::asio::streambuf buf;
-        boost::asio::read( server_socket, buf, boost::asio::transfer_exactly(32), ec );
-        if (ec) {
-            EXLOG( "boost::asio::read error:" << ec.message() );
-            exit(-1);
-        }
-
-        InfoHash infoHash;
-        memcpy( &infoHash[0], boost::asio::buffer_cast<const void*>(buf.data()), 32 );
-
-        EXLOG( "@ Replicator received client data infoHash: " << toString(infoHash) );
-        isDriveUpdated = false;
-        drive->startModifyDrive( infoHash, replicatorDownloadHandler );
-
-        // wait the end of drive update
-        {
-            std::unique_lock<std::mutex> lock(driveMutex);
-            driveCondVar.wait( lock, [] { return isDriveUpdated; } );
-        }
-
-        // Send FsTree/root hash
-        rootHash = drive->rootDriveHash();
-        EXLOG( "@ Next drive rootHash: " << toString(rootHash) );
-        boost::asio::write( server_socket, boost::asio::buffer( rootHash ) );
-        if (ec) {
-            EXLOG( "boost::asio::write error:" << ec.message() );
-            exit(-1);
-        }
-    }
-
-    EXLOG( "@ Replicator exited" );
-}

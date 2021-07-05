@@ -57,7 +57,8 @@ namespace sirius {
 
     namespace drive {
         // InfoHash
-        using InfoHash = std::array<uint8_t,32>;
+        using InfoHash = Hash256;// std::array<uint8_t,32>;
+        //using RootHash = std::array<uint8_t,32>;
     }
 
 }

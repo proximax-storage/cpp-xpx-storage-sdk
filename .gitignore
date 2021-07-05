@@ -62,3 +62,4 @@ bin
 .idea
 
 CMakeLists.back
+_build
