@@ -46,6 +46,7 @@ namespace sirius::nodediscovery {
             std::stringstream publicKey;
             publicKey << crypto::FormatKey(node.identityKey());
 
+            std::lock_guard<std::mutex> lock(m_activeNodesMutex);
             switch (code) {
                 case net::PeerConnectCode::Socket_Error: {
                     CATAPULT_LOG(warning) << "Socket error: " << publicKey.str();
