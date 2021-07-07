@@ -21,7 +21,7 @@
 #pragma once
 #include <iosfwd>
 
-namespace sirius { namespace net {
+namespace sirius::net {
 
 #define PEER_CONNECT_CODE_LIST \
 	/* Underlying socket operation failed. */ \
@@ -48,4 +48,4 @@ namespace sirius { namespace net {
 
 	/// Insertion operator for outputting \a value to \a out.
 	std::ostream& operator<<(std::ostream& out, PeerConnectCode value);
-}}
+}

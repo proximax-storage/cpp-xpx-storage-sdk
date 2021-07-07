@@ -14,10 +14,10 @@
 #include "net/PeerConnectCode.h"
 #include "ionet/Node.h"
 
-namespace sirius { namespace nodediscovery {
+namespace sirius::nodediscovery {
         class NodeContainer {
         public:
-            virtual ~NodeContainer(){};
+            virtual ~NodeContainer()= default;
 
         public:
             virtual void start(const std::vector<ionet::Node>&) = 0;
@@ -30,4 +30,3 @@ namespace sirius { namespace nodediscovery {
                 const uint64_t&,
                 const uint64_t&);
     }
-}
