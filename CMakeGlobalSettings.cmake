@@ -9,9 +9,6 @@ set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
 
-### set general ctest settings
-set_property(GLOBAL PROPERTY CTEST_TARGETS_ADDED 1)
-
 ### set compiler settings
 if(MSVC)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /WX /EHsc")
@@ -134,37 +131,6 @@ function(storage_sdk_target TARGET_NAME)
                                 "${BOOSTDLLNAME}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/boost")
                 endif()
         endforeach()
-endfunction()
-
-# finds all files comprising a target
-function(storage_sdk_find_all_target_files TARGET_TYPE TARGET_NAME)
-        if (CMAKE_VERBOSE_MAKEFILE)
-                message("processing ${TARGET_TYPE} '${TARGET_NAME}'")
-        endif()
-
-        file(GLOB ${TARGET_NAME}_INCLUDE_SRC "*.h")
-        file(GLOB ${TARGET_NAME}_SRC "*.cpp")
-
-        set(CURRENT_FILES ${${TARGET_NAME}_INCLUDE_SRC} ${${TARGET_NAME}_SRC})
-        SOURCE_GROUP("src" FILES ${CURRENT_FILES})
-        set(TARGET_FILES ${CURRENT_FILES})
-
-        # add any (optional) subdirectories
-        foreach(arg ${ARGN})
-                set(SUBDIR ${arg})
-                if (CMAKE_VERBOSE_MAKEFILE)
-                        message("+ processing subdirectory '${arg}'")
-                endif()
-
-                file(GLOB ${TARGET_NAME}_${SUBDIR}_INCLUDE_SRC "${SUBDIR}/*.h")
-                file(GLOB ${TARGET_NAME}_${SUBDIR}_SRC "${SUBDIR}/*.cpp")
-
-                set(CURRENT_FILES ${${TARGET_NAME}_${SUBDIR}_INCLUDE_SRC} ${${TARGET_NAME}_${SUBDIR}_SRC})
-                SOURCE_GROUP("${SUBDIR}" FILES ${CURRENT_FILES})
-                set(TARGET_FILES ${TARGET_FILES} ${CURRENT_FILES})
-        endforeach()
-
-        set(${TARGET_NAME}_FILES ${TARGET_FILES} PARENT_SCOPE)
 endfunction()
 
 # used to define a storage sdk object library

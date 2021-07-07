@@ -29,7 +29,6 @@ add_subdirectory(src)
 add_subdirectory(examples)
 
 if (XPX_STORAGE_SDK_BUILD_TESTS)
-    include(CTest)
     enable_testing()
     add_subdirectory(tests)
 endif()
