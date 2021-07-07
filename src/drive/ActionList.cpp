@@ -31,7 +31,7 @@ void ActionList::deserialize( std::string fileName )
     iarchive( *this );
 }
 
-void ActionList::dbgPrint()
+void ActionList::dbgPrint() const
 {
     std::cerr << "ActionList {" << std::endl;
     for( const auto& action : *this )

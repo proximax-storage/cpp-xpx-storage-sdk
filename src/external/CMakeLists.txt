@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.9)
-project(external)
+project(sdk_external)
 
 file(GLOB external_ref10_SRC
 	"ref10/*.cpp"
@@ -21,5 +21,5 @@ SOURCE_GROUP("sha256" FILES ${external_sha256_SRC})
 SOURCE_GROUP("sha3" FILES ${external_sha3_SRC})
 SOURCE_GROUP("ripemd160" FILES ${external_ripemd160_SRC})
 
-add_library(external ${external_ref10_SRC} ${external_sha256_SRC} ${external_sha3_SRC} ${external_ripemd160_SRC} README.txt)
-set_property(TARGET external PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_library(sdk_external ${external_ref10_SRC} ${external_sha256_SRC} ${external_sha3_SRC} ${external_ripemd160_SRC} README.txt)
+set_property(TARGET sdk_external PROPERTY POSITION_INDEPENDENT_CODE ON)
