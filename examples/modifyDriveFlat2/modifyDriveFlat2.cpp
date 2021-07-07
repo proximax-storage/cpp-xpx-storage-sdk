@@ -12,6 +12,10 @@
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
 
+#ifdef SIRIUS_DRIVE_MULTI
+#include <sirius_drive/session_delegate.h>
+#endif
+
 
 //
 // This example shows interaction between 'client' and 'replicator'.
@@ -103,6 +107,32 @@ static void replicatorSessionErrorHandler( const lt::alert* alert)
     }
 }
 
+#ifdef SIRIUS_DRIVE_MULTI
+class SimpleDownloadLimiter : public lt::session_delegate
+{
+    bool checkDownloadLimit( std::vector<uint8_t> /*reciept*/,
+                             lt::sha256_hash /*downloadChannelId*/,
+                             size_t /*downloadedSize*/ ) override
+    {
+        return true;
+    }
+
+    const lt::sha256_hash& privateKey() override
+    {
+        return reinterpret_cast<const lt::sha256_hash&>(m_privateKey);
+    }
+
+    const lt::sha256_hash& publicKey() override
+    {
+        return reinterpret_cast<const lt::sha256_hash&>(m_publicKey);
+    }
+
+private:
+    sirius::Hash256 m_privateKey;
+    sirius::Hash256 m_publicKey;
+};
+#endif
+
 //
 // main
 //
@@ -120,7 +150,12 @@ int main(int,char**)
     ///
     gClientFolder  = createClientFiles(10*1024);
     LOG( "gClientFolder: " << gClientFolder );
-    gClientSession = createDefaultSession( CLIENT_IP_ADDR ":5550", clientSessionErrorHandler );
+    gClientSession = createDefaultSession( CLIENT_IP_ADDR ":5550", clientSessionErrorHandler
+#ifdef SIRIUS_DRIVE_MULTI
+    ,std::make_shared<SimpleDownloadLimiter>()
+#endif
+    );
+    
     fs::path clientFolder = gClientFolder / "client_files";
 
     ///
@@ -142,6 +177,7 @@ int main(int,char**)
     {
         ActionList actionList;
         actionList.push_back( Action::newFolder( "fff1/" ) );
+        actionList.push_back( Action::newFolder( "fff1/ffff1" ) );
         actionList.push_back( Action::upload( clientFolder / "a.txt", "fff2/a.txt" ) );
 
         //actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
@@ -163,6 +199,7 @@ int main(int,char**)
     EXLOG( "\n# Client started: 2-st upload" );
     {
         ActionList actionList;
+        //actionList.push_back( Action::move( "fff1/", "fff1/ffff1" ) );
         actionList.push_back( Action::remove( "fff1/" ) );
         actionList.push_back( Action::remove( "fff2/" ) );
 
@@ -225,7 +262,11 @@ static void replicator()
 {
     EXLOG( "@ Replicator started" );
 
-    auto session = createDefaultSession( REPLICATOR_IP_ADDR":5001", replicatorSessionErrorHandler );
+    auto session = createDefaultSession( REPLICATOR_IP_ADDR":5001", replicatorSessionErrorHandler
+#ifdef SIRIUS_DRIVE_MULTI
+            ,std::make_shared<SimpleDownloadLimiter>()
+#endif
+    );
 
     // start drive
     fs::remove_all( REPLICATOR_ROOT_FOLDER );

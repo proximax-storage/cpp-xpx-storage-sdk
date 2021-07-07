@@ -8,8 +8,8 @@ storage_sdk_shared_library_target(drive)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     target_link_libraries(drive
-            ${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
-            ${CMAKE_SOURCE_DIR}/rpclib/build/librpc.a
+            ${CMAKE_SOURCE_DIR}/cpp-xpx-storage-sdk/libtorrent/_build/Debug/libtorrent-sirius.dylib
+            ${CMAKE_SOURCE_DIR}/cpp-xpx-storage-sdk/rpclib/build/librpc.a
             )
 #            "-framework CoreFoundation" "-framework SystemConfiguration")
 else()

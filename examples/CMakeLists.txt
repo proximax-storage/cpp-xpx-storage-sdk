@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.9)
 
+add_definitions(-DSIRIUS_DRIVE_MULTI)
+
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
 include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/libtorrent/include)
@@ -17,7 +19,8 @@ include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/libtorrent/include)
 #add_subdirectory(downloadFileFlat)
 
 ### modify flat drive example
-add_subdirectory(modifyDriveFlat2)
-add_subdirectory(replicator)
-add_subdirectory(client)
+add_subdirectory(modifyDriveFlat3)
+#add_subdirectory(replicator)
+#add_subdirectory(client)
+#add_subdirectory(sendMessage)
 

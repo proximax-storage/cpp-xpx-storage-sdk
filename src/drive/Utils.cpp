@@ -6,7 +6,6 @@
 
 #include "drive/Utils.h"
 
-
 namespace sirius { namespace drive {
 
 static char byteMap[256][2] = {
@@ -103,6 +102,35 @@ bool isPathInsideFolder( const fs::path& path, const fs::path& folder )
     }
 
     return false;
+}
+
+int charToInt( char input )
+{
+    if(input >= '0' && input <= '9')
+        return input - '0';
+
+    if(input >= 'A' && input <= 'F')
+        return input - 'A' + 10;
+
+    if(input >= 'a' && input <= 'f')
+        return input - 'a' + 10;
+
+    throw std::invalid_argument("Invalid input string");
+}
+
+Hash256 stringToHash( const boost::string_view& str )
+{
+    if ( str.size() != 64 )
+        throw std::invalid_argument("Invalid input string");
+
+    Hash256 hash;
+
+    for( unsigned int i=0; i<32; i++ )
+    {
+        hash[i] = (charToInt(str[2*i])<<8) + charToInt(str[2*i+1]);
+    }
+
+    return hash;
 }
 
 }}

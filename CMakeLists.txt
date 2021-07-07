@@ -22,7 +22,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     #link_directories(/usr/local/opt/icu4c/lib/)
 
     link_directories(/usr/local/opt/openssl@1.1/lib)
-    include_directories(SYSTEM "/usr/local/include/" )
+    #include_directories(SYSTEM "/usr/local/include/" )
 endif()
 
 #add_subdirectory(src)

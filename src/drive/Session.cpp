@@ -5,6 +5,7 @@
 */
 
 #include "drive/Session.h"
+#include "drive/Replicator.h"
 #include "drive/Utils.h"
 #include "drive/log.h"
 
@@ -26,6 +27,7 @@
 #include <libtorrent/extensions/ut_metadata.hpp>
 #include <libtorrent/aux_/generate_peer_id.hpp>
 #include "libtorrent/aux_/session_impl.hpp"
+#include "libtorrent/extensions.hpp"
 
 #ifdef SIRIUS_DRIVE_MULTI
 #include <sirius_drive/session_delegate.h>
@@ -46,7 +48,7 @@ enum { PIECE_SIZE = 16*1024 };
 //
 // DefaultSession
 //
-class DefaultSession: public Session {
+class DefaultSession: public Session, std::enable_shared_from_this<DefaultSession> {
 
     // Every drive have its own 'RemoveTorrentContext'
     //
@@ -134,11 +136,16 @@ private:
 
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
+        settingsPack.set_bool( lt::settings_pack::enable_upnp, false );
+        settingsPack.set_str(  lt::settings_pack::dht_bootstrap_nodes, "" );
+
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
         settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, true );
 
         m_session.apply_settings(settingsPack);
         m_session.set_alert_notify( [this] { alertHandler(); } );
+
+        addDhtRequestPlugin();
     }
 
     virtual void endSession() override {
@@ -389,6 +396,70 @@ private:
         }
     }
 
+#pragma mark --messaging--
+    struct DhtRequestPlugin : lt::plugin
+    {
+        std::weak_ptr<Replicator> m_replicator;
+        DhtRequestPlugin() {}
+
+        feature_flags_t implemented_features() override
+        {
+            return plugin::dht_request_feature;
+        }
+
+        bool on_dht_request(
+            lt::string_view                         query,
+            boost::asio::ip::udp::endpoint const&   /*source*/,
+            lt::bdecode_node const&                 message,
+            lt::entry&                              response ) override
+        {
+            if ( query == "get_peers" || query == "announce_peer" )
+                return false;
+
+//            LOG( "query: " << query );
+//            LOG( "message: " << message );
+            if ( message.dict_find_string_value("q") == "sirius_message" )
+            {
+                if ( message.dict_find_string_value("cmd") == "root_hash" )
+                {
+                    auto drivePublicKey = message.dict_find_string_value("drive");
+                    
+                    if ( auto replicator = m_replicator.lock(); replicator )
+                    {
+                        InfoHash hash = replicator->getRootHash( std::string(drivePublicKey) );
+                        response["root_hash"] = toString( hash );
+                    }
+                    return true;
+                }
+                response["x"] = "sirius_message_response";
+                return true;
+            }
+            return true;
+        }
+    };
+
+    void addDhtRequestPlugin()
+    {
+        m_session.add_extension(std::make_shared<DhtRequestPlugin>());
+    }
+
+    void  sendMessage( boost::asio::ip::udp::endpoint udp, const std::vector<uint8_t>& ) override
+    {
+        lt::entry e;
+        e["q"] = "sirius_message";
+        e["x"] = "-----------------------------------------------------------";
+        LOG( "lt::entry e: " << e );
+
+        lt::client_data_t client_data(this);
+        m_session.dht_direct_request( udp, e );
+    }
+
+    void handleResponse( lt::bdecode_node response )
+    {
+        LOG( "lt::bdecode_node response: " << response );
+        LOG( "lt::bdecode_node response: " << response );
+    }
+
 private:
 
     void alertHandler() {
@@ -417,6 +488,14 @@ private:
                     break;
                 }
 
+                case lt::dht_direct_response_alert::alert_type: {
+                    auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
+                    auto response = theAlert->response();
+                    handleResponse( response );
+//                    LOG( m_addressAndPort << " " << theAlert->what() << ":("<< alert->type() <<")  " << alert->message() );
+//                    LOG( m_addressAndPort << " " << response );
+                    break;
+                }
 
                 case lt::incoming_request_alert::alert_type: {
                     auto* theAlert = dynamic_cast<lt::incoming_request_alert*>(alert);

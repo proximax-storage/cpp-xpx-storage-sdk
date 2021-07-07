@@ -133,6 +133,8 @@ public:
                                 const std::string&  tmpFolder,
                                 endpoint_list       list = {} ) = 0;
 
+    virtual void      sendMessage( boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
+
 //    virtual void      loadTorrent( const InfoHash& infoHash,
 //                                   std::function<void(bool)> addTorrentNotifier,
 //                                   const std::string& torrentFilename,
@@ -172,7 +174,7 @@ using LibTorrentErrorHandler = std::function<void( const lt::alert* )>;
 #ifdef SIRIUS_DRIVE_MULTI
     PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address,
                                                               const LibTorrentErrorHandler&,
-                                                              std::shared_ptr<lt::session_delegate> );
+                                                             std::shared_ptr<lt::session_delegate> = {} );
 #else
     PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address, const LibTorrentErrorHandler& );
 #endif

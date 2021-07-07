@@ -8,6 +8,7 @@
 #include "types.h"
 #include <filesystem>
 #include "plugins.h"
+#include <boost/utility/string_view.hpp>
 
 namespace sirius { namespace drive {
 
@@ -24,6 +25,8 @@ PLUGIN_API std::string arrayToString( const Key& key );
 PLUGIN_API std::string internalFileName( const InfoHash& key );
 
 PLUGIN_API bool isPathInsideFolder( const fs::path& path, const fs::path& folder );
+
+PLUGIN_API Hash256 stringToHash( const boost::string_view& str );
 
 }}
 
