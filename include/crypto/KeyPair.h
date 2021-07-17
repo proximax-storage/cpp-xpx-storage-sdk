@@ -22,6 +22,7 @@
 #include "KeyGenerator.h"
 #include "PrivateKey.h"
 #include "types.h"
+#include "plugins.h"
 
 namespace sirius { namespace crypto {
 
@@ -30,7 +31,7 @@ namespace sirius { namespace crypto {
 #endif
 
 	/// Represents a pair of private key with associated public key.
-	class KeyPair final {
+    class KeyPair final {
 	private:
 		explicit KeyPair(PrivateKey&& privateKey) : m_privateKey(std::move(privateKey)) {
 			ExtractPublicKeyFromPrivateKey(m_privateKey, m_publicKey);

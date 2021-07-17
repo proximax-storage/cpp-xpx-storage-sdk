@@ -8,6 +8,9 @@ set(CMAKE_CXX_EXTENSIONS ON)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
+option(BUILD_STATIC_LIBS "Build the static library" ON)
+option(BUILD_SHARED_LIBS "Build the shared library" OFF)
+
 ### setup boost
 find_package(Boost COMPONENTS atomic system date_time regex timer chrono log thread filesystem program_options random REQUIRED)
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
@@ -21,9 +24,10 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # this needs to be defined before add_library
     #link_directories(/usr/local/opt/icu4c/lib/)
 
-    link_directories(/usr/local/opt/openssl@1.1/lib)
+    #link_directories(/usr/local/opt/openssl@1.1/lib)
     #include_directories(SYSTEM "/usr/local/include/" )
 endif()
 
-#add_subdirectory(src)
+add_subdirectory(src)
+
 add_subdirectory(examples)

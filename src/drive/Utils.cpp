@@ -52,6 +52,18 @@ std::string toString( const InfoHash& key ) {
     return std::string( hashStr, hashStr+64 );
 }
 
+std::string toString( const std::array<uint8_t,32>& key ) {
+
+    char hashStr[64];
+
+    for( uint32_t i=0; i<32; i++ ) {
+        hashStr[2*i]   = byteMap[key[i]][0];
+        hashStr[2*i+1] = byteMap[key[i]][1];
+    }
+
+    return std::string( hashStr, hashStr+64 );
+}
+
 std::string arrayToString( const Key& key ) {
 
     char hashStr[64];

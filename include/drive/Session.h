@@ -15,6 +15,9 @@
 
 #ifdef SIRIUS_DRIVE_MULTI
 #include <sirius_drive/session_delegate.h>
+
+//for dbg
+#include <libtorrent/session.hpp>
 #endif
 
 
@@ -112,6 +115,9 @@ public:
 
     virtual ~Session() = default;
 
+    virtual lt::session&  lt_session() = 0;
+
+
     virtual void      endSession() = 0;
 
     virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
@@ -174,7 +180,7 @@ using LibTorrentErrorHandler = std::function<void( const lt::alert* )>;
 #ifdef SIRIUS_DRIVE_MULTI
     PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address,
                                                               const LibTorrentErrorHandler&,
-                                                             std::shared_ptr<lt::session_delegate> = {} );
+                                                             std::weak_ptr<lt::session_delegate> = {} );
 #else
     PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address, const LibTorrentErrorHandler& );
 #endif

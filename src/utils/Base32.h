@@ -20,6 +20,7 @@
 
 #pragma once
 #include "types.h"
+#include "plugins.h"
 #include <string>
 #include <vector>
 
@@ -57,11 +58,11 @@ namespace sirius { namespace utils {
 
 	/// Tries to decode a base32 encoded string pointed to by \a encodedData into \a data.
 	/// \note The string length must be a multiple of 8.
-	bool TryBase32Decode(const RawString& encodedData, const MutableRawBuffer& data);
+    PLUGIN_API bool TryBase32Decode(const RawString& encodedData, const MutableRawBuffer& data);
 
 	/// Decodes a base32 encoded string pointed to by \a encodedData into \a data.
 	/// \note The string length must be a multiple of 8.
-	void Base32Decode(const RawString& encodedData, const MutableRawBuffer& data);
+    PLUGIN_API void Base32Decode(const RawString& encodedData, const MutableRawBuffer& data);
 
 	/// Decodes a base32 encoded string pointed to by \a encodedData. The string length must be a multiple of 8.
 	template<size_t N>

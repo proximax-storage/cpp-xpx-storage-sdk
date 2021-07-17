@@ -1,0 +1,207 @@
+/*
+*** Copyright 2021 ProximaX Limited. All rights reserved.
+*** Use of this source code is governed by the Apache 2.0
+*** license that can be found in the LICENSE file.
+*/
+
+#include "types.h"
+#include "drive/log.h"
+#include "drive/Replicator.h"
+#include "drive/FlatDrive.h"
+#include "drive/Utils.h"
+#include "drive/Session.h"
+#include "drive/DownloadLimiter.h"
+
+#include <libtorrent/alert_types.hpp>
+#include <filesystem>
+
+#include <mutex>
+
+namespace sirius { namespace drive {
+
+//
+// DefaultReplicator
+//
+class DefaultReplicator : public Replicator
+{
+    std::shared_ptr<Session> m_session;
+
+    std::shared_ptr<DownloadLimiter> m_downloadLimiter;
+
+    // Drives
+    std::map<Key, std::shared_ptr<sirius::drive::FlatDrive>> m_drives;
+    std::mutex  m_mutex;
+
+    // Replicator's keys
+    crypto::KeyPair m_keyPair;
+
+    // Session listen interface
+    std::string m_address;
+    std::string m_port;
+
+    // Folders for drives and sandboxes
+    std::string m_storageDirectory;
+    std::string m_sandboxDirectory;
+
+    const char* m_dbgReplicatorName;
+
+public:
+    DefaultReplicator (
+               crypto::KeyPair&& keyPair,
+               std::string&& address,
+               std::string&& port,
+               std::string&& storageDirectory,
+               std::string&& sandboxDirectory,
+               const char*   dbgReplicatorName )
+    :
+        m_keyPair( std::move(keyPair) ),
+        m_address( std::move(address) ),
+        m_port( std::move(port) ),
+        m_storageDirectory( std::move(storageDirectory) ),
+        m_sandboxDirectory( std::move(sandboxDirectory) ),
+        m_dbgReplicatorName( dbgReplicatorName )
+    {
+        m_downloadLimiter = std::make_shared<DownloadLimiter>( m_keyPair, dbgReplicatorName );
+    }
+
+    void start() override
+    {
+        m_session = createDefaultSession( m_address + ":" + m_port, [port=m_port] (const lt::alert* pAlert)
+        {
+            if ( pAlert->type() == lt::listen_failed_alert::alert_type ) {
+                LOG( "Replicator session alert: " << pAlert->message() );
+                LOG( "Port is busy?: " << port );
+            }
+        },
+        m_downloadLimiter->weak_from_this() );
+        m_session->lt_session().m_dbgOurPeerName = m_dbgReplicatorName;
+    }
+
+    Hash256 getRootHash( const Key& driveKey ) override
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+        {
+            auto rootHash = driveIt->second->rootDriveHash();
+            LOG( "getRootHash of: " << driveKey << " -> " << rootHash );
+            return rootHash;
+        }
+
+        LOG_ERR( "unknown drive: " << driveKey );
+        throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
+
+        return Hash256();
+    }
+
+    void printDriveStatus( const Key& driveKey ) override
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+        {
+            return driveIt->second->printDriveStatus();
+        }
+
+        LOG_ERR( "unknown dive: " << driveKey );
+        throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
+
+    }
+
+
+    std::string addDrive(const Key& driveKey, size_t driveSize) override
+    {
+        LOG( "adding drive " << driveKey );
+
+        std::unique_lock<std::mutex> lock(m_mutex);
+
+        if (m_drives.find(driveKey) != m_drives.end()) {
+            return "drive already added";
+        }
+
+        m_drives[driveKey] = sirius::drive::createDefaultFlatDrive(
+                session(),
+                m_storageDirectory,
+                m_sandboxDirectory,
+                arrayToString(driveKey),
+                driveSize);
+
+        return "";
+    }
+
+    std::string removeDrive(const Key& driveKey)
+    {
+        LOG( "removing drive " << driveKey );
+
+        std::unique_lock<std::mutex> lock(m_mutex);
+
+        if (m_drives.find(driveKey) == m_drives.end())
+            return "drive not found";
+
+        m_drives.erase(driveKey);
+        return "";
+    }
+
+
+    std::string modify(const Key& driveKey, const InfoHash& infoHash, const DriveModifyHandler& handler ) override
+    {
+        LOG( "drive modification:\ndrive: " << driveKey << "\n info hash: " << infoHash );
+
+        std::shared_ptr<sirius::drive::FlatDrive> pDrive;
+        {
+            const std::unique_lock<std::mutex> lock(m_mutex);
+            if ( auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+            {
+                pDrive = driveIt->second;
+            }
+            else {
+                return "drive not found";
+            }
+        }
+
+        pDrive->startModifyDrive( infoHash, handler );
+        return "";
+    }
+
+    std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash )
+    {
+        LOG( "loadTorrent:\ndrive: " << driveKey << "\n info hash: " << infoHash );
+
+        std::shared_ptr<sirius::drive::FlatDrive> pDrive;
+        {
+            const std::unique_lock<std::mutex> lock(m_mutex);
+            if ( auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+            {
+                pDrive = driveIt->second;
+            }
+            else {
+                return "drive not found";
+            }
+        }
+
+        pDrive->loadTorrent( infoHash );
+        return "";
+    }
+
+private:
+    std::shared_ptr<sirius::drive::Session> session() {
+        return m_session;
+    }
+};
+
+std::shared_ptr<Replicator> createDefaultReplicator(
+                                        crypto::KeyPair&&   keyPair,
+                                        std::string&&       address,
+                                        std::string&&       port,
+                                        std::string&&       storageDirectory,
+                                        std::string&&       sandboxDirectory,
+                                        const char*         dbgReplicatorName )
+{
+    return std::make_shared<DefaultReplicator>(
+                                               std::move(keyPair),
+                                               std::move(address),
+                                               std::move(port),
+                                               std::move(storageDirectory),
+                                               std::move(sandboxDirectory),
+                                               dbgReplicatorName );
+}
+
+}}

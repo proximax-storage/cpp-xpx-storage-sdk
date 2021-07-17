@@ -21,6 +21,8 @@ PLUGIN_API std::string magnetLink( const InfoHash& key );
 PLUGIN_API std::string toString( const InfoHash& key );
 PLUGIN_API std::string arrayToString( const Key& key );
 
+PLUGIN_API std::string toString( const std::array<uint8_t,32>& key );
+
 // internalFileName
 PLUGIN_API std::string internalFileName( const InfoHash& key );
 

@@ -101,7 +101,7 @@ private:
     DefaultSession( std::string address,
                     LibTorrentErrorHandler alertHandler
 #ifdef SIRIUS_DRIVE_MULTI
-                    ,std::shared_ptr<lt::session_delegate> downloadLimiter
+                    ,std::weak_ptr<lt::session_delegate> downloadLimiter
 #endif
                     )
         : m_addressAndPort(address), m_alertHandler(alertHandler)
@@ -119,6 +119,10 @@ private:
     virtual ~DefaultSession() {
         LOG( "DefaultSession deleted" );
     }
+
+    // for dbg
+    lt::session&  lt_session() override { return m_session; }
+
 
     // createSession
     void createSession() {
@@ -411,29 +415,29 @@ private:
             lt::string_view                         query,
             boost::asio::ip::udp::endpoint const&   /*source*/,
             lt::bdecode_node const&                 message,
-            lt::entry&                              response ) override
+            lt::entry&                              /*response*/ ) override
         {
             if ( query == "get_peers" || query == "announce_peer" )
                 return false;
 
-//            LOG( "query: " << query );
-//            LOG( "message: " << message );
-            if ( message.dict_find_string_value("q") == "sirius_message" )
-            {
-                if ( message.dict_find_string_value("cmd") == "root_hash" )
-                {
-                    auto drivePublicKey = message.dict_find_string_value("drive");
-                    
-                    if ( auto replicator = m_replicator.lock(); replicator )
-                    {
-                        InfoHash hash = replicator->getRootHash( std::string(drivePublicKey) );
-                        response["root_hash"] = toString( hash );
-                    }
-                    return true;
-                }
-                response["x"] = "sirius_message_response";
-                return true;
-            }
+            LOG( "query: " << query );
+            LOG( "message: " << message );
+//            if ( message.dict_find_string_value("q") == "sirius_message" )
+//            {
+//                if ( message.dict_find_string_value("cmd") == "root_hash" )
+//                {
+//                    auto drivePublicKey = message.dict_find_string_value("drive");
+//
+//                    if ( auto replicator = m_replicator.lock(); replicator )
+//                    {
+//                        InfoHash hash = replicator->getRootHash( std::string(drivePublicKey) );
+//                        response["root_hash"] = toString( hash );
+//                    }
+//                    return true;
+//                }
+//                response["x"] = "sirius_message_response";
+//                return true;
+//            }
             return true;
         }
     };
@@ -484,7 +488,7 @@ private:
                 case lt::dht_announce_alert::       alert_type:
                 //case lt::torrent_log_alert::        alert_type:
                 case lt::incoming_connection_alert::alert_type: {
-                    LOG( m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
+//                    LOG( m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
                     break;
                 }
 
@@ -498,21 +502,21 @@ private:
                 }
 
                 case lt::incoming_request_alert::alert_type: {
-                    auto* theAlert = dynamic_cast<lt::incoming_request_alert*>(alert);
-
-                    LOG( m_addressAndPort << " " << "#!!!incoming_request_alert!!!: " << theAlert->endpoint <<
-                        " " << theAlert->pid << " " << theAlert->req.length << "\n" );
-                    LOG( "# : " << theAlert->torrent_name() <<
-                        " " << theAlert->req.piece << " " << theAlert->req.start << " " << theAlert->req.length << "\n" );
+//                    auto* theAlert = dynamic_cast<lt::incoming_request_alert*>(alert);
+//
+//                    LOG( m_addressAndPort << " " << "#!!!incoming_request_alert!!!: " << theAlert->endpoint <<
+//                        " " << theAlert->pid << " " << theAlert->req.length << "\n" );
+//                    LOG( "# : " << theAlert->torrent_name() <<
+//                        " " << theAlert->req.piece << " " << theAlert->req.start << " " << theAlert->req.length << "\n" );
                     break;
                 }
 
 
                 case lt::block_downloading_alert::alert_type: {
-                    auto* theAlert = dynamic_cast<lt::block_downloading_alert*>(alert);
-
-                    LOG( m_addressAndPort << " " << "#!!!block_downloading_alert!!!: " << theAlert->endpoint << "\n" );
-                    LOG( "#!!!block_downloading_alert!!!: block idx:" << theAlert->block_index << " piece_index:" << theAlert->piece_index << " pid:" << theAlert->pid << "\n" );
+//                    auto* theAlert = dynamic_cast<lt::block_downloading_alert*>(alert);
+//
+//                    LOG( m_addressAndPort << " " << "#!!!block_downloading_alert!!!: " << theAlert->endpoint << "\n" );
+//                    LOG( "#!!!block_downloading_alert!!!: block idx:" << theAlert->block_index << " piece_index:" << theAlert->piece_index << " pid:" << theAlert->pid << "\n" );
                     break;
                 }
 
@@ -530,10 +534,10 @@ private:
 //                    break;
                 }
 
-//                case lt::peer_alert::alert_type: {
-//                    LOG(  m_addressAndPort << ": peer_alert: " << alert->message())
-//                    break;
-//                }
+                case lt::peer_log_alert::alert_type: {
+                    //LOG(  m_addressAndPort << ": peer_log_alert: " << alert->message())
+                    break;
+                }
 
                 // piece_finished_alert
                 case lt::piece_finished_alert::alert_type: {
@@ -585,17 +589,17 @@ private:
                                 std::vector<lt::peer_info> peers;
                                 theAlert->handle.get_peer_info(peers);
 
-//                                for (const lt::peer_info &pi : peers)
-//                                {
-//                                    LOG("Peer ip: " << pi.ip.address().to_string())
-//                                    LOG("Peer id: " << pi.pid.to_string())
-//
-//                                    // the total number of bytes downloaded from and uploaded to this peer.
-//                                    // These numbers do not include the protocol chatter, but only the
-//                                    // payload data.
-//                                    LOG("Total download: " << pi.total_download)
-//                                    LOG("Total upload: " << pi.total_upload)
-//                                }
+                                for (const lt::peer_info &pi : peers)
+                                {
+                                    LOG("Peer ip: " << pi.ip.address().to_string())
+                                    LOG("Peer id: " << pi.pid.to_string())
+
+                                    // the total number of bytes downloaded from and uploaded to this peer.
+                                    // These numbers do not include the protocol chatter, but only the
+                                    // payload data.
+                                    LOG("Total download: " << pi.total_download)
+                                    LOG("Total upload: " << pi.total_upload)
+                                }
 
                                 // remove torrent
                                 m_session.remove_torrent( theAlert->handle, lt::session::delete_partfile );
@@ -868,28 +872,28 @@ private:
                 }
 
                 case lt::block_uploaded_alert::alert_type: {
-                    auto *theAlert = dynamic_cast<lt::block_uploaded_alert *>(alert);
-                    //TODO download statistic!
-                    if (theAlert) {
-                        LOG("block_uploaded: " << theAlert->message())
-
-                        // get peers info
-                        std::vector<lt::peer_info> peers;
-                        theAlert->handle.get_peer_info(peers);
-
-                        for (const lt::peer_info &pi : peers) {
-                            LOG("Upload. client: " << pi.client);
-                            LOG("Upload. ip: " << pi.ip);
-                            LOG("Upload. pid: " << pi.pid.to_string());
-                            LOG("Upload. local_endpoint: " << pi.local_endpoint);
-
-                             //the total number of bytes downloaded from and uploaded to this peer.
-                             //These numbers do not include the protocol chatter, but only the
-                             //payload data.
-                            LOG("Upload. Total download: " << pi.total_download)
-                            LOG("Upload. Total upload: " << pi.total_upload)
-                        }
-                    }
+//                    auto *theAlert = dynamic_cast<lt::block_uploaded_alert *>(alert);
+//                    //TODO download statistic!
+//                    if (theAlert) {
+//                        LOG("block_uploaded: " << theAlert->message())
+//
+//                        // get peers info
+//                        std::vector<lt::peer_info> peers;
+//                        theAlert->handle.get_peer_info(peers);
+//
+//                        for (const lt::peer_info &pi : peers) {
+//                            LOG("Upload. client: " << pi.client);
+//                            LOG("Upload. ip: " << pi.ip);
+//                            LOG("Upload. pid: " << pi.pid.to_string());
+//                            LOG("Upload. local_endpoint: " << pi.local_endpoint);
+//
+//                             //the total number of bytes downloaded from and uploaded to this peer.
+//                             //These numbers do not include the protocol chatter, but only the
+//                             //payload data.
+//                            LOG("Upload. Total download: " << pi.total_download)
+//                            LOG("Upload. Total upload: " << pi.total_upload)
+//                        }
+//                    }
                     break;
                 }
 
@@ -1072,7 +1076,7 @@ InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
 #ifdef SIRIUS_DRIVE_MULTI
 std::shared_ptr<Session> createDefaultSession( std::string address,
                                                const LibTorrentErrorHandler& alertHandler,
-                                               std::shared_ptr<lt::session_delegate> downloadLimiter )
+                                               std::weak_ptr<lt::session_delegate> downloadLimiter )
 {
     return std::make_shared<DefaultSession>( address, alertHandler, downloadLimiter );
 }

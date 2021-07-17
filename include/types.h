@@ -24,7 +24,7 @@ namespace sirius {
 	struct Signature_tag {};
 	using Signature = utils::ByteArray<Signature_Size, Signature_tag>;
 
-	struct Key_tag {};
+struct Key_tag { static constexpr auto Byte_Size = 32; };
 	using Key = utils::ByteArray<Key_Size, Key_tag>;
 
 	struct Hash512_tag { static constexpr auto Byte_Size = 64; };
@@ -57,8 +57,11 @@ namespace sirius {
 
     namespace drive {
         // InfoHash
-        using InfoHash = Hash256;// std::array<uint8_t,32>;
-        //using RootHash = std::array<uint8_t,32>;
+        using InfoHash  = Hash256;// std::array<uint8_t,32>;
+
+        using SecretKey = Hash512;
+        using PublicKey = Hash256;
+        //using Signature = utils::ByteArray<Signature_Size, Signature_tag>;
     }
 
 }

@@ -117,15 +117,16 @@ class SimpleDownloadLimiter : public lt::session_delegate
         return true;
     }
 
-//    const lt::sha256_hash& privateKey() override
-//    {
-//        return reinterpret_cast<const lt::sha256_hash&>(m_privateKey);
-//    }
-
-    const std::array<uint8_t,32>& publicKey() override
+    const lt::sha256_hash& privateKey() override
     {
-        return m_privateKey.array();
+        return reinterpret_cast<const lt::sha256_hash&>(m_privateKey);
     }
+
+    const lt::sha256_hash& publicKey() override
+    {
+        return reinterpret_cast<const lt::sha256_hash&>(m_publicKey);
+    }
+
 private:
     sirius::Hash256 m_privateKey;
     sirius::Hash256 m_publicKey;
@@ -161,13 +162,21 @@ int main(int,char**)
     /// Make the list of replicator addresses
     ///
     endpoint_list replicatorsList;
-    boost::asio::ip::address e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR);
-    replicatorsList.emplace_back( e, 5001 );
+//    replicatorsList.emplace_back( e, 5001 );
+
+    // wait drive root hash
+    {
+        std::unique_lock<std::mutex> lock(driveMutex);
+        driveCondVar.wait( lock, [] { return driveRootHash; } );
+    }
+
+    auto addr = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR);
+    boost::asio::ip::udp::endpoint udp( addr, 5001 );
+    gClientSession->sendMessage( udp, std::vector<uint8_t>() );
 
 
     /// Client: read fsTree (1)
     ///
-    //TODO++
     clientDownloadFsTree(replicatorsList );
 
     /// Client: request to modify drive (1)
