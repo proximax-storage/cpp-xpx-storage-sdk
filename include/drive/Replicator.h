@@ -40,6 +40,8 @@ public:
 
     virtual Hash256     getRootHash( const Key& driveKey ) = 0;
 
+    virtual void        addDownloadChannelInfo( const Key& channelKey, size_t prepaidDownloadSize, std::vector<const Key>&& clients ) = 0;
+
     virtual void        printDriveStatus( const Key& driveKey ) = 0;
 
 };

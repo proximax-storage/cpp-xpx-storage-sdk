@@ -181,6 +181,11 @@ public:
         return "";
     }
 
+    void addDownloadChannelInfo( const Key& channelKey, size_t prepaidDownloadSize, std::vector<const Key>&& clients ) override
+    {
+        m_downloadLimiter->addDownloadChannelInfo( channelKey, prepaidDownloadSize, std::move(clients) );
+    }
+
 private:
     std::shared_ptr<sirius::drive::Session> session() {
         return m_session;

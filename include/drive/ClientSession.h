@@ -14,12 +14,15 @@ namespace sirius { namespace drive {
 
 class ClientSession : public lt::session_delegate, std::enable_shared_from_this<ClientSession>
 {
+    using DownloadChannelId = std::optional<std::array<uint8_t,32>>;
+
     std::shared_ptr<Session>    m_session;
     crypto::KeyPair             m_keyPair;
-    const char*                 m_dbgOurPeerName;
 
-    Key     m_downloadChannelId;
-    size_t  m_downloadedSize = 0;
+    DownloadChannelId           m_downloadChannelId;
+    uint64_t                    m_downloadedSize = 0;
+
+    const char*                 m_dbgOurPeerName;
 
 public:
     ClientSession( crypto::KeyPair&& keyPair, const char* dbgOurPeerName )
@@ -30,18 +33,24 @@ public:
 
 public:
 
-    void setupDownloadChannel( Key downloadChannelId )
+    //
+    void setDownloadChannel( Key downloadChannelId )
     {
-        m_downloadChannelId = downloadChannelId;
+        m_downloadChannelId = downloadChannelId.array();
         m_downloadedSize = 0;
     }
 
     // Initiate file downloading (identified by downloadParameters.m_infoHash)
     void download( DownloadContext&&   downloadParameters,
-                    const std::string&  tmpFolder,
-                    endpoint_list       list )
+                   const std::string&  tmpFolder,
+                   endpoint_list       list )
     {
-        m_session->download( std::move(downloadParameters), tmpFolder, list );
+        if ( m_downloadChannelId )
+        {
+            m_session->download( std::move(downloadParameters), tmpFolder, list );
+            return;
+        }
+        throw std::runtime_error("downloadChannel is not set");
     }
 
     // prepare session to modify action
@@ -52,28 +61,61 @@ public:
         return m_session->addActionListToSession( actionList, workFolder, list );
     }
 
+    // The next functions are called in libtorrent
 protected:
+
+    bool isClient() const override { return true; }
 
     bool checkDownloadLimit( std::vector<uint8_t> /*reciept*/,
                              lt::sha256_hash /*downloadChannelId*/,
                              size_t      /*downloadedSize*/ ) override
     {
+        // client does not check download limit
         return true;
     }
 
     void onPiece( size_t pieceSize ) override
     {
         m_downloadedSize += pieceSize;
-        LOG( "++++++++++++ " << m_downloadedSize << "     :" << pieceSize );
+        LOG( "++++++++++++ onPiece '" << m_dbgOurPeerName << "' :" << m_downloadedSize << "     :" << pieceSize );
     }
 
-    virtual void sign( const uint8_t* bytes, size_t size, std::array<uint8_t,64>& signature ) override
+    virtual void sign( const std::array<uint8_t,32>& replicatorPublicKey,
+                       uint64_t&                     outDownloadedSize,
+                       std::array<uint8_t,64>&       outSignature ) override
+    {
+        if ( m_downloadChannelId )
+        {
+            // sign the followingdata data:
+            //  - replicator public key,
+            //  - download channel hash,
+            //  - downloaded size
+
+            crypto::Sign( m_keyPair,
+                         {  utils::RawBuffer{replicatorPublicKey},
+                            utils::RawBuffer{*m_downloadChannelId},
+                            utils::RawBuffer{(const uint8_t*)&m_downloadedSize,8} },
+                         reinterpret_cast<Signature&>(outSignature) );
+
+            outDownloadedSize = m_downloadedSize;
+        }
+    }
+
+    bool verify( const std::array<uint8_t,32>&,
+                 uint64_t,
+                 const std::array<uint8_t,64>& ) override
+    {
+        // nothig to do
+        return true;
+    }
+
+    void sign( const uint8_t* bytes, size_t size, std::array<uint8_t,64>& signature ) override
     {
         crypto::Sign( m_keyPair, utils::RawBuffer{bytes,size}, reinterpret_cast<Signature&>(signature) );
     }
 
-    virtual bool verify( const std::array<uint8_t,32>& publicKey,
-                        const uint8_t* bytes, size_t size,
+    virtual bool verify( const uint8_t* bytes, size_t size,
+                         const std::array<uint8_t,32>& publicKey,
                          const std::array<uint8_t,64>& signature ) override
     {
         return crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
@@ -82,6 +124,11 @@ protected:
     const std::array<uint8_t,32>& publicKey() override
     {
         return m_keyPair.publicKey().array();
+    }
+
+    const std::optional<std::array<uint8_t,32>> downloadChannelId() override
+    {
+        return m_downloadChannelId;
     }
 
     virtual const char* dbgOurPeerName() override
@@ -98,13 +145,14 @@ private:
     auto session() { return m_session; }
 };
 
+// ClientSession creator
 inline std::shared_ptr<ClientSession> createClientSession(  crypto::KeyPair&&             keyPair,
                                                             const std::string&            address,
                                                             const LibTorrentErrorHandler& errorHandler,
                                                             const char*                   dbgClientName = "" )
 {
     std::shared_ptr<ClientSession> clientSession = std::make_shared<ClientSession>( std::move(keyPair), dbgClientName );
-    clientSession->session() = createDefaultSession( address, errorHandler, clientSession );
+    clientSession->m_session = createDefaultSession( address, errorHandler, clientSession );
     clientSession->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     return clientSession;
 }

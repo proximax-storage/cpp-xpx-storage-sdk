@@ -37,8 +37,15 @@
 
 #define CLIENT_WORK_FOLDER              fs::path(getenv("HOME")) / "111" / "client_work_folder"
 
-#define CLIENT_PRIVATE_KEY      "client_405010203040501020304050102030405010203040501020304050102"
-#define REPLICATOR_PRIVATE_KEY  "replicator_10203040501020304050102030405010203040501020304050102"
+#define REPLICATOR_PRIVATE_KEY  "0000000000010203040501020304050102030405010203040501020304050102"
+#define CLIENT_PRIVATE_KEY      "1111111405010203040501020304050102030405010203040501020304050102"
+
+const sirius::Key clientPublicKey;
+
+const sirius::Key downloadChannelKey1 = std::array<uint8_t,32>{1,1,1,1};
+const sirius::Key downloadChannelKey2 = std::array<uint8_t,32>{2,2,2,2};
+const sirius::Key downloadChannelKey3 = std::array<uint8_t,32>{3,3,3,3};
+
 
 namespace fs = std::filesystem;
 
@@ -114,6 +121,7 @@ static void clientSessionErrorHandler( const lt::alert* alert )
 //    }
 //}
 
+#pragma mark --main()--
 //
 // main
 //
@@ -133,6 +141,7 @@ int main(int,char**)
     gClientFolder  = createClientFiles(10*1024);
     LOG( "gClientFolder: " << gClientFolder );
     gClientSession = createClientSession( std::move(clientKeyPair), CLIENT_IP_ADDR ":5550", clientSessionErrorHandler, "client" );
+    gClientSession->setDownloadChannel( downloadChannelKey1 );
 
     fs::path clientFolder = gClientFolder / "client_files";
 
@@ -146,7 +155,6 @@ int main(int,char**)
 
     /// Client: read fsTree (1)
     ///
-    //TODO++
     clientDownloadFsTree(replicatorsList );
 
     /// Client: request to modify drive (1)
@@ -171,6 +179,7 @@ int main(int,char**)
     clientDownloadFsTree(replicatorsList );
 
     /// Client: read files from drive
+    gClientSession->setDownloadChannel( downloadChannelKey2 );
     clientDownloadFiles( 6, gFsTree, replicatorsList );
 
     /// Client: modify drive (2)
@@ -242,7 +251,7 @@ static void replicator()
     EXLOG( "@ Replicator started" );
 
     auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
-                                   sirius::crypto::PrivateKey::FromString( CLIENT_PRIVATE_KEY ));
+                                   sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY ));
 
     auto replicator = createDefaultReplicator(
                           std::move( clientKeyPair ),
@@ -253,6 +262,8 @@ static void replicator()
                           "replicator" );
     replicator->start();
     replicator->addDrive( DRIVE_PUB_KEY, 100*1024*1024 );
+
+    replicator->addDownloadChannelInfo( downloadChannelKey1, 1024*1024, { clientPublicKey } );
 
     // set root drive hash
     {

@@ -24,7 +24,7 @@ namespace sirius {
 	struct Signature_tag {};
 	using Signature = utils::ByteArray<Signature_Size, Signature_tag>;
 
-struct Key_tag { static constexpr auto Byte_Size = 32; };
+    struct Key_tag { static constexpr auto Byte_Size = 32; };
 	using Key = utils::ByteArray<Key_Size, Key_tag>;
 
 	struct Hash512_tag { static constexpr auto Byte_Size = 64; };
