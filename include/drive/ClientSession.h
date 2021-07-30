@@ -21,6 +21,7 @@ class ClientSession : public lt::session_delegate, std::enable_shared_from_this<
 
     DownloadChannelId           m_downloadChannelId;
     uint64_t                    m_downloadedSize = 0;
+    uint64_t                    m_requestedSize = 0;
 
     const char*                 m_dbgOurPeerName;
 
@@ -37,7 +38,6 @@ public:
     void setDownloadChannel( Key downloadChannelId )
     {
         m_downloadChannelId = downloadChannelId.array();
-        m_downloadedSize = 0;
     }
 
     // Initiate file downloading (identified by downloadParameters.m_infoHash)
@@ -74,7 +74,7 @@ protected:
         return true;
     }
 
-    void onPiece( size_t pieceSize ) override
+    void onPieceReceived( size_t pieceSize ) override
     {
         m_downloadedSize += pieceSize;
         LOG( "++++++++++++ onPiece '" << m_dbgOurPeerName << "' :" << m_downloadedSize << "     :" << pieceSize );
@@ -131,7 +131,29 @@ protected:
         return m_downloadChannelId;
     }
 
-    virtual const char* dbgOurPeerName() override
+    uint64_t downloadedSize( const std::array<uint8_t,32>& ) override
+    {
+        // for protocol compatibility we always retun 0; it could be ignored
+        return 0;
+    }
+
+    void setDownloadedSize( uint64_t downloadedSize ) override
+    {
+        // 'downloadedSize' should be set to proper value (last 'downloadedSize' of peviuos peer_connection)
+        m_downloadedSize = downloadedSize;
+    }
+
+    uint64_t downloadedSize() override
+    {
+        return m_downloadedSize;
+    }
+
+    uint64_t requestedSize() override
+    {
+        return m_requestedSize;
+    }
+
+    const char* dbgOurPeerName() override
     {
         return m_dbgOurPeerName;
     }

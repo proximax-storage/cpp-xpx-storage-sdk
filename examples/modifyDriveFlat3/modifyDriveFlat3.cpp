@@ -26,6 +26,8 @@
 // This example shows interaction between 'client' and 'replicator'.
 //
 
+#define BIG_FILE_SIZE 10*1024*1024
+
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
@@ -138,7 +140,7 @@ int main(int,char**)
     auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
                                    sirius::crypto::PrivateKey::FromString( CLIENT_PRIVATE_KEY ));
 
-    gClientFolder  = createClientFiles(10*1024);
+    gClientFolder  = createClientFiles(BIG_FILE_SIZE);
     LOG( "gClientFolder: " << gClientFolder );
     gClientSession = createClientSession( std::move(clientKeyPair), CLIENT_IP_ADDR ":5550", clientSessionErrorHandler, "client" );
     gClientSession->setDownloadChannel( downloadChannelKey1 );

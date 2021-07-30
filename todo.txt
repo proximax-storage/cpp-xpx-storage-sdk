@@ -1,0 +1,2 @@
+save/read downloadedSize map
+

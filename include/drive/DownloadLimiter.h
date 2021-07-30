@@ -57,6 +57,14 @@ public:
         m_channelMap[channelId] = DownloadChannelInfo{ prepaidDownloadSize, 0, std::move(clients) };
     }
 
+    // It will be called,
+    // when a piece is sent
+    virtual void onPieceSent( size_t /*pieceSize*/ ) override
+    {
+        // todo++
+    }
+
+
     void removeChannelInfo( const Key& channelId )
     {
         m_channelMap.erase( channelId );
@@ -117,6 +125,25 @@ public:
         return m_downloadChannelId;
     }
 
+    uint64_t downloadedSize( const std::array<uint8_t,32>& ) override
+    {
+        //todo++
+        return 0;
+    }
+
+    void setDownloadedSize( uint64_t /*downloadedSize*/ ) override
+    {
+    }
+
+    uint64_t downloadedSize() override
+    {
+        return 0;
+    }
+
+    uint64_t requestedSize() override
+    {
+        return 0;
+    }
 
     const char* dbgOurPeerName() override
     {

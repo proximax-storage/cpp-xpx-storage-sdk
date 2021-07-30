@@ -138,6 +138,12 @@ private:
         todoPubKey[5] = 0;
         settingsPack.set_str(  lt::settings_pack::user_agent, std::string(todoPubKey,32) );
 
+        settingsPack.set_bool( lt::settings_pack::enable_outgoing_utp, false );
+        settingsPack.set_bool( lt::settings_pack::enable_incoming_utp, false );
+
+        settingsPack.set_bool( lt::settings_pack::enable_outgoing_tcp, true );
+        settingsPack.set_bool( lt::settings_pack::enable_incoming_tcp, true );
+
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
         settingsPack.set_bool( lt::settings_pack::enable_upnp, false );
