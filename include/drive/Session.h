@@ -180,7 +180,8 @@ using LibTorrentErrorHandler = std::function<void( const lt::alert* )>;
 #ifdef SIRIUS_DRIVE_MULTI
     PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address,
                                                               const LibTorrentErrorHandler&,
-                                                             std::weak_ptr<lt::session_delegate> = {} );
+                                                              std::weak_ptr<lt::session_delegate> = {},
+                                                              bool useTcpSocket = true );
 #else
     PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address, const LibTorrentErrorHandler& );
 #endif

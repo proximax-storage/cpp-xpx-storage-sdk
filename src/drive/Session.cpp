@@ -102,6 +102,7 @@ private:
                     LibTorrentErrorHandler alertHandler
 #ifdef SIRIUS_DRIVE_MULTI
                     ,std::weak_ptr<lt::session_delegate> downloadLimiter
+                    ,bool useTcpSocket = true
 #endif
                     )
         : m_addressAndPort(address), m_alertHandler(alertHandler)
@@ -109,7 +110,7 @@ private:
         , m_downloadLimiter(downloadLimiter)
 #endif
     {
-        createSession();
+        createSession( useTcpSocket );
 #ifdef SIRIUS_DRIVE_MULTI
         m_session.setDelegate( m_downloadLimiter );
 #endif
@@ -125,7 +126,7 @@ private:
 
 
     // createSession
-    void createSession() {
+    void createSession( bool useTcpSocket ) {
 
         lt::settings_pack settingsPack;
 
@@ -138,11 +139,13 @@ private:
         todoPubKey[5] = 0;
         settingsPack.set_str(  lt::settings_pack::user_agent, std::string(todoPubKey,32) );
 
-        settingsPack.set_bool( lt::settings_pack::enable_outgoing_utp, false );
-        settingsPack.set_bool( lt::settings_pack::enable_incoming_utp, false );
-
-        settingsPack.set_bool( lt::settings_pack::enable_outgoing_tcp, true );
-        settingsPack.set_bool( lt::settings_pack::enable_incoming_tcp, true );
+        if ( useTcpSocket )
+        {
+            settingsPack.set_bool( lt::settings_pack::enable_outgoing_utp, false );
+            settingsPack.set_bool( lt::settings_pack::enable_incoming_utp, false );
+            settingsPack.set_bool( lt::settings_pack::enable_outgoing_tcp, true );
+            settingsPack.set_bool( lt::settings_pack::enable_incoming_tcp, true );
+        }
 
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
@@ -1082,9 +1085,10 @@ InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
 #ifdef SIRIUS_DRIVE_MULTI
 std::shared_ptr<Session> createDefaultSession( std::string address,
                                                const LibTorrentErrorHandler& alertHandler,
-                                               std::weak_ptr<lt::session_delegate> downloadLimiter )
+                                               std::weak_ptr<lt::session_delegate> downloadLimiter,
+                                               bool useTcpSocket )
 {
-    return std::make_shared<DefaultSession>( address, alertHandler, downloadLimiter );
+    return std::make_shared<DefaultSession>( address, alertHandler, downloadLimiter, useTcpSocket );
 }
 #else
 std::shared_ptr<Session> createDefaultSession( std::string address,

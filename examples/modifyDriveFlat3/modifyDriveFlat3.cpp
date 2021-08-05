@@ -31,11 +31,21 @@
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_IP_ADDR "192.168.1.102"
-#define REPLICATOR_IP_ADDR "127.0.0.1"
+#define CLIENT_IP_ADDR          "192.168.1.102"
+
+#define REPLICATOR_IP_ADDR      "127.0.0.1"
+#define REPLICATOR_PORT         5001
+#define REPLICATOR_IP_ADDR_2    "169.254.54.120"
+#define REPLICATOR_PORT_2       5002
+
+#define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111"
 #define REPLICATOR_ROOT_FOLDER          fs::path(getenv("HOME")) / "111" / "replicator_root"
 #define REPLICATOR_SANDBOX_ROOT_FOLDER  fs::path(getenv("HOME")) / "111" / "sandbox_root"
-#define DRIVE_PUB_KEY                   std::array<uint8_t,32>{0,0,1,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
+#define DRIVE_PUB_KEY                   std::array<uint8_t,32>{1,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
+
+#define REPLICATOR_ROOT_FOLDER_2          fs::path(getenv("HOME")) / "111" / "replicator_root_2"
+#define REPLICATOR_SANDBOX_ROOT_FOLDER_2  fs::path(getenv("HOME")) / "111" / "sandbox_root_2"
+#define DRIVE_PUB_KEY_2                   std::array<uint8_t,32>{2,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
 
 #define CLIENT_WORK_FOLDER              fs::path(getenv("HOME")) / "111" / "client_work_folder"
 
@@ -129,6 +139,8 @@ static void clientSessionErrorHandler( const lt::alert* alert )
 //
 int main(int,char**)
 {
+    fs::remove_all( ROOT_TEST_FOLDER );
+
     ///
     /// Start replicator
     ///
@@ -182,7 +194,7 @@ int main(int,char**)
 
     /// Client: read files from drive
     gClientSession->setDownloadChannel( downloadChannelKey2 );
-    clientDownloadFiles( 6, gFsTree, replicatorsList );
+    clientDownloadFiles( 5, gFsTree, replicatorsList );
 
     /// Client: modify drive (2)
     EXLOG( "\n# Client started: 2-st upload" );
@@ -261,11 +273,15 @@ static void replicator()
                           "5001",
                           REPLICATOR_ROOT_FOLDER,
                           REPLICATOR_SANDBOX_ROOT_FOLDER,
+                          true, // use TCP socket (instead of uTP)
                           "replicator" );
     replicator->start();
     replicator->addDrive( DRIVE_PUB_KEY, 100*1024*1024 );
 
-    replicator->addDownloadChannelInfo( downloadChannelKey1, 1024*1024, { clientPublicKey } );
+
+    replicator->addDownloadChannelInfo( downloadChannelKey1.array(), 1024*1024, { clientPublicKey } );
+    replicator->addDownloadChannelInfo( downloadChannelKey2.array(), 10*1024*1024, { clientPublicKey } );
+    replicator->addDownloadChannelInfo( downloadChannelKey3.array(), 1024*1024, { clientPublicKey } );
 
     // set root drive hash
     {
@@ -311,70 +327,6 @@ static void replicator()
 
     EXLOG( "@ Replicator exited" );
 }
-
-//static void replicator_old()
-//{
-//    EXLOG( "@ Replicator started" );
-//
-//    auto session = createDefaultSession( REPLICATOR_IP_ADDR":5001", replicatorSessionErrorHandler
-////#ifdef SIRIUS_DRIVE_MULTI
-////            ,std::make_shared<SimpleDownloadLimiter>()
-////#endif
-//    );
-//
-//    // start drive
-//    fs::remove_all( REPLICATOR_ROOT_FOLDER );
-//    fs::remove_all( REPLICATOR_SANDBOX_ROOT_FOLDER );
-//    auto drive = createDefaultFlatDrive( session,
-//                                         REPLICATOR_ROOT_FOLDER,
-//                                         REPLICATOR_SANDBOX_ROOT_FOLDER,
-//                                         "DRIVE_PUB_KEY",
-//                                         100*1024*1024, {} );
-//
-//    // set root drive hash
-//    {
-//        std::lock_guard locker(driveMutex);
-//        driveRootHash = std::make_shared<InfoHash>( drive->rootDriveHash() );
-//    }
-//    driveCondVar.notify_all();
-//
-//
-//    for( int i=1; ; i++ )
-//    {
-//        EXLOG( "@ Replicator is waiting of client data infoHash (" << i << ")");
-//        EXLOG(   "- - - - - - - - - - - - - - - - - - - - - - - - ");
-//        {
-//            std::unique_lock<std::mutex> lock(clientMutex);
-//            clientCondVar.wait( lock, []{ return clientModifyHash;} );
-//        }
-//
-//        InfoHash modifyHash = *clientModifyHash;
-//        clientModifyHash.reset();
-//
-//        if ( stopReplicator )
-//            break;
-//
-//        EXLOG( "@ Replicator received client data infoHash (" << i << ")" );
-//
-//        // start drive update
-//        isDriveUpdated = false;
-//        drive->startModifyDrive( modifyHash, replicatorDownloadHandler );
-//
-//        // wait the end of drive update
-//        {
-//            std::unique_lock<std::mutex> lock(driveMutex);
-//            driveCondVar.wait( lock, [] { return isDriveUpdated; } );
-//        }
-//
-//        drive->printDriveStatus();
-//
-//        // set root drive hash
-//        driveRootHash = std::make_shared<InfoHash>( drive->rootDriveHash() );
-//        driveCondVar.notify_all();
-//    }
-//
-//    EXLOG( "@ Replicator exited" );
-//}
 
 //
 // clientDownloadHandler

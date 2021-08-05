@@ -40,7 +40,11 @@ public:
 
     virtual Hash256     getRootHash( const Key& driveKey ) = 0;
 
-    virtual void        addDownloadChannelInfo( const Key& channelKey, size_t prepaidDownloadSize, std::vector<const Key>&& clients ) = 0;
+    virtual void        addDownloadChannelInfo( const std::array<uint8_t,32>& channelKey, size_t prepaidDownloadSize, std::vector<const Key>&& clients ) = 0;
+
+    virtual size_t      receiptLimit() const = 0;
+
+    virtual void        setReceiptLimit( size_t newLimitInBytes ) = 0;
 
     virtual void        printDriveStatus( const Key& driveKey ) = 0;
 
@@ -52,6 +56,7 @@ PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(
                                                std::string&&  port,
                                                std::string&&  storageDirectory,
                                                std::string&&  sandboxDirectory,
+                                               bool           useTcpSocket, // use TCP socket (instead of uTP)
                                                const char*    dbgReplicatorName = ""
 );
 

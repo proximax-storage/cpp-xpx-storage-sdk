@@ -35,9 +35,15 @@ public:
 public:
 
     //
-    void setDownloadChannel( Key downloadChannelId )
+    void setDownloadChannel( Key downloadChannelId, uint64_t downloadedSize = 0 )
     {
         m_downloadChannelId = downloadChannelId.array();
+        m_downloadedSize = downloadedSize;
+    }
+
+    void onHandshake( uint64_t /*uploadedSize*/ ) override
+    {
+        //todo here could be call back-call of test UI app
     }
 
     // Initiate file downloading (identified by downloadParameters.m_infoHash)
@@ -66,18 +72,18 @@ protected:
 
     bool isClient() const override { return true; }
 
-    bool checkDownloadLimit( std::vector<uint8_t> /*reciept*/,
-                             lt::sha256_hash /*downloadChannelId*/,
-                             size_t      /*downloadedSize*/ ) override
+    bool checkDownloadLimit( const std::array<uint8_t,64>& /*reciept*/,
+                             const std::array<uint8_t,32>& /*downloadChannelId*/,
+                             uint64_t                      /*downloadedSize*/ ) override
     {
         // client does not check download limit
         return true;
     }
 
-    void onPieceReceived( size_t pieceSize ) override
+    void onPieceReceived( uint64_t pieceSize ) override
     {
         m_downloadedSize += pieceSize;
-        LOG( "++++++++++++ onPiece '" << m_dbgOurPeerName << "' :" << m_downloadedSize << "     :" << pieceSize );
+        //LOG( "++++++++++++ onPieceReceived '" << m_dbgOurPeerName << "' :" << m_downloadedSize << "     :" << pieceSize );
     }
 
     virtual void sign( const std::array<uint8_t,32>& replicatorPublicKey,
@@ -162,6 +168,7 @@ private:
     friend std::shared_ptr<ClientSession> createClientSession( crypto::KeyPair&&,
                                                                const std::string&,
                                                                const LibTorrentErrorHandler&,
+                                                               bool,
                                                                const char* );
 
     auto session() { return m_session; }
@@ -171,10 +178,11 @@ private:
 inline std::shared_ptr<ClientSession> createClientSession(  crypto::KeyPair&&             keyPair,
                                                             const std::string&            address,
                                                             const LibTorrentErrorHandler& errorHandler,
+                                                            bool                          useTcpSocket, // instead of uTP
                                                             const char*                   dbgClientName = "" )
 {
     std::shared_ptr<ClientSession> clientSession = std::make_shared<ClientSession>( std::move(keyPair), dbgClientName );
-    clientSession->m_session = createDefaultSession( address, errorHandler, clientSession );
+    clientSession->m_session = createDefaultSession( address, errorHandler, clientSession, useTcpSocket );
     clientSession->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     return clientSession;
 }

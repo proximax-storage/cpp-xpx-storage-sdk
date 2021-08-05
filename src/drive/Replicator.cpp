@@ -43,6 +43,8 @@ class DefaultReplicator : public Replicator
     std::string m_storageDirectory;
     std::string m_sandboxDirectory;
 
+    bool        m_useTcpSocket;
+
     const char* m_dbgReplicatorName;
 
 public:
@@ -52,6 +54,7 @@ public:
                std::string&& port,
                std::string&& storageDirectory,
                std::string&& sandboxDirectory,
+               bool          useTcpSocket,
                const char*   dbgReplicatorName )
     :
         m_keyPair( std::move(keyPair) ),
@@ -59,6 +62,7 @@ public:
         m_port( std::move(port) ),
         m_storageDirectory( std::move(storageDirectory) ),
         m_sandboxDirectory( std::move(sandboxDirectory) ),
+        m_useTcpSocket( useTcpSocket ),
         m_dbgReplicatorName( dbgReplicatorName )
     {
         m_downloadLimiter = std::make_shared<DownloadLimiter>( m_keyPair, dbgReplicatorName );
@@ -67,13 +71,14 @@ public:
     void start() override
     {
         m_session = createDefaultSession( m_address + ":" + m_port, [port=m_port] (const lt::alert* pAlert)
-        {
-            if ( pAlert->type() == lt::listen_failed_alert::alert_type ) {
-                LOG( "Replicator session alert: " << pAlert->message() );
-                LOG( "Port is busy?: " << port );
-            }
-        },
-        m_downloadLimiter->weak_from_this() );
+            {
+                if ( pAlert->type() == lt::listen_failed_alert::alert_type ) {
+                    LOG( "Replicator session alert: " << pAlert->message() );
+                    LOG( "Port is busy?: " << port );
+                }
+            },
+            m_downloadLimiter->weak_from_this(),
+            m_useTcpSocket );
         m_session->lt_session().m_dbgOurPeerName = m_dbgReplicatorName;
     }
 
@@ -181,10 +186,21 @@ public:
         return "";
     }
 
-    void addDownloadChannelInfo( const Key& channelKey, size_t prepaidDownloadSize, std::vector<const Key>&& clients ) override
+    void addDownloadChannelInfo( const std::array<uint8_t,32>& channelKey, size_t prepaidDownloadSize, std::vector<const Key>&& clients ) override
     {
         m_downloadLimiter->addDownloadChannelInfo( channelKey, prepaidDownloadSize, std::move(clients) );
     }
+
+    size_t receiptLimit() const override
+    {
+        return m_downloadLimiter->receiptLimit();
+    }
+
+    void setReceiptLimit( size_t newLimitInBytes ) override
+    {
+        m_downloadLimiter->setReceiptLimit( newLimitInBytes );
+    }
+
 
 private:
     std::shared_ptr<sirius::drive::Session> session() {
@@ -198,6 +214,7 @@ std::shared_ptr<Replicator> createDefaultReplicator(
                                         std::string&&       port,
                                         std::string&&       storageDirectory,
                                         std::string&&       sandboxDirectory,
+                                        bool                useTcpSocket,
                                         const char*         dbgReplicatorName )
 {
     return std::make_shared<DefaultReplicator>(
@@ -206,6 +223,7 @@ std::shared_ptr<Replicator> createDefaultReplicator(
                                                std::move(port),
                                                std::move(storageDirectory),
                                                std::move(sandboxDirectory),
+                                               useTcpSocket,
                                                dbgReplicatorName );
 }
 

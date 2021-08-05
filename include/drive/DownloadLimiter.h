@@ -20,16 +20,18 @@ class DownloadLimiter : public lt::session_delegate, public std::enable_shared_f
 {
     struct DownloadChannelInfo
     {
-        size_t                  m_prepaidDownloadSize;
-        size_t                  m_downloadedSize;
+        uint64_t                m_prepaidDownloadSize;
+        uint64_t                m_uploadedSize;
         std::vector<const Key>  m_clients;
     };
 
-    using ChannelMap = std::map<Key, DownloadChannelInfo>;
+    using ChannelMap = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
 
     ChannelMap m_channelMap;
 
     const crypto::KeyPair& m_keyPair;
+
+    uint64_t m_receiptLimit = 32*1024; //1024*1024;
 
     const char* m_dbgOurPeerName = "unset";
 
@@ -38,7 +40,40 @@ public:
     {
     }
 
-    void addDownloadChannelInfo( const Key& channelId, size_t prepaidDownloadSize, std::vector<const Key>&& clients )
+    bool checkDownloadLimit( const std::array<uint8_t,64>& /*signature*/,
+                             const std::array<uint8_t,32>& downloadChannelId,
+                            uint64_t                       downloadedSizeByClient ) override
+    {
+        static int maxDelay = 0;
+
+        if ( auto it = m_channelMap.find( downloadChannelId ); it != m_channelMap.end() )
+        {
+            int delay = int(it->second.m_uploadedSize - downloadedSizeByClient);
+
+            if ( maxDelay < delay )
+                maxDelay = delay;
+
+            LOG( dbgOurPeerName() << " delay: " << maxDelay );
+            LOG( dbgOurPeerName() << " " << int(downloadChannelId[0]) << " %%%%%%% " << int(it->second.m_uploadedSize - downloadedSizeByClient) << " : " << it->second.m_uploadedSize << " "<< downloadedSizeByClient << "\n");
+            // notifyOtherReplicators
+
+            if ( it->second.m_uploadedSize > downloadedSizeByClient + m_receiptLimit )
+                return false;
+            return true;
+        }
+        return false;
+    }
+
+    uint8_t getUploadedSize( const std::array<uint8_t,32>& downloadChannelId ) override
+    {
+        if ( auto it = m_channelMap.find( downloadChannelId ); it != m_channelMap.end() )
+        {
+            return it->second.m_uploadedSize;
+        }
+        return 0;
+    }
+
+    void addDownloadChannelInfo( const std::array<uint8_t,32>& channelId, uint64_t prepaidDownloadSize, std::vector<const Key>&& clients )
     {
         if ( auto it = m_channelMap.find(channelId); it != m_channelMap.end() )
         {
@@ -59,30 +94,23 @@ public:
 
     // It will be called,
     // when a piece is sent
-    virtual void onPieceSent( size_t /*pieceSize*/ ) override
+    virtual void onPieceSent( const std::array<uint8_t,32>& downloadChannelId, uint64_t pieceSize ) override
     {
-        // todo++
+        if ( auto it = m_channelMap.find( downloadChannelId ); it != m_channelMap.end() )
+        {
+            it->second.m_uploadedSize += pieceSize;
+        }
+        else
+        {
+            LOG_ERR( "ERROR: unknown downloadChannelId" );
+        }
     }
 
 
-    void removeChannelInfo( const Key& channelId )
+    void removeChannelInfo( const std::array<uint8_t,32>& channelId )
     {
         m_channelMap.erase( channelId );
     }
-
-    bool checkDownloadLimit( std::vector<uint8_t>   /*reciept*/,
-                             lt::sha256_hash        /*downloadChannelId*/,
-                             size_t                 /*downloadedSize*/ ) override
-    {
-
-        return true;
-    }
-
-//    void sign( const std::array<uint8_t,32>&,
-//              size_t,
-//              std::array<uint8_t,64>& ) override
-//    {
-//    }
 
     bool isClient() const override { return false; }
 
@@ -149,6 +177,17 @@ public:
     {
         return m_dbgOurPeerName;
     }
+
+    uint64_t receiptLimit() const
+    {
+        return m_receiptLimit;
+    }
+
+    void setReceiptLimit( uint64_t newLimitInBytes )
+    {
+        m_receiptLimit = newLimitInBytes;
+    }
+
 
 private:
     std::optional<std::array<uint8_t,32>> m_downloadChannelId;
