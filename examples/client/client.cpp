@@ -22,8 +22,8 @@
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_ADDR "192.168.1.102" ":5551"
-#define REPLICATOR_IP "127.0.0.1"
+#define CLIENT_ADDR "172.17.0.2" ":5551"
+#define REPLICATOR_IP "172.17.0.3"
 #define REPLICATOR_PORT 5550
 
 #define CLIENT_WORK_FOLDER fs::path(getenv("HOME")) / "111" / "client_folder"

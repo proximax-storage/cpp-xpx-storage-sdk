@@ -14,7 +14,7 @@
 
 namespace sirius { namespace drive {
 
-constexpr auto Replicator_Host = "127.0.0.1:";
+constexpr auto Replicator_Host = "0.0.0.0:";
 
 #ifndef CATAPULT_THROW_INVALID_ARGUMENT_1
 #define CATAPULT_THROW_INVALID_ARGUMENT_1(msg,key) \

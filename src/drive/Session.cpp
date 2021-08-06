@@ -407,7 +407,7 @@ private:
 ////                }
 //            }
 
-#pragma mark --alerts--
+//#pragma mark --alerts--
             switch (alert->type()) {
                 case lt::add_torrent_alert::        alert_type:
                 case lt::dht_announce_alert::       alert_type:

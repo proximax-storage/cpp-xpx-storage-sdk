@@ -43,7 +43,7 @@ public:
         DriveServiceConfig config{replicatorPort, replicatorRootFolder, sandboxRootFolder};
         m_driveService = std::make_shared<DriveService>( config );
 
-        m_rpcServer = std::make_shared<rpc::server>( "127.0.0.1", rpcPort );
+        m_rpcServer = std::make_shared<rpc::server>( "0.0.0.0", rpcPort );
 
         //
         // addDrive
