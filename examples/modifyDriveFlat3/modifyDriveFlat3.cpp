@@ -17,21 +17,21 @@
 #include <libtorrent/alert_types.hpp>
 #include <libtorrent/kademlia/ed25519.hpp>
 
-#ifdef SIRIUS_DRIVE_MULTI
 #include <sirius_drive/session_delegate.h>
-#endif
 
 
 //
 // This example shows interaction between 'client' and 'replicator'.
 //
 
-#define BIG_FILE_SIZE 10*1024*1024
+#define BIG_FILE_SIZE 1*1024*1024
+#define TRANSPORT_PROTOCOL true // true - TCP, false - uTP
 
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
 #define CLIENT_IP_ADDR          "192.168.1.102"
+#define CLIENT_PORT             5000
 
 #define REPLICATOR_IP_ADDR      "127.0.0.1"
 #define REPLICATOR_PORT         5001
@@ -49,15 +49,15 @@
 
 #define CLIENT_WORK_FOLDER              fs::path(getenv("HOME")) / "111" / "client_work_folder"
 
-#define REPLICATOR_PRIVATE_KEY  "0000000000010203040501020304050102030405010203040501020304050102"
-#define CLIENT_PRIVATE_KEY      "1111111405010203040501020304050102030405010203040501020304050102"
+#define CLIENT_PRIVATE_KEY          "0000000000010203040501020304050102030405010203040501020304050102"
+#define REPLICATOR_PRIVATE_KEY      "1000000000010203040501020304050102030405010203040501020304050102"
+#define REPLICATOR_PRIVATE_KEY_2    "2000000000010203040501020304050102030405010203040501020304050102"
 
 const sirius::Key clientPublicKey;
 
 const sirius::Key downloadChannelKey1 = std::array<uint8_t,32>{1,1,1,1};
 const sirius::Key downloadChannelKey2 = std::array<uint8_t,32>{2,2,2,2};
 const sirius::Key downloadChannelKey3 = std::array<uint8_t,32>{3,3,3,3};
-
 
 namespace fs = std::filesystem;
 
@@ -72,9 +72,26 @@ static std::string now_str();
         std::cout << now_str() << ": " << expr << std::endl << std::flush; \
     }
 
-// Replicator run loop
+// Replicators
 //
-static void replicator( );
+std::shared_ptr<Replicator> gReplicator;
+std::thread gReplicatorThread;
+std::shared_ptr<Replicator> gReplicator2;
+std::thread gReplicatorThread2;
+
+static std::shared_ptr<Replicator> createReplicator(
+                                        const std::string&  pivateKey,
+                                        std::string&&       ipAddr,
+                                        int                 port,
+                                        std::string&&       rootFolder,
+                                        std::string&&       sandboxRootFolder,
+                                        bool                useTcpSocket,
+                                        const char*         dbgReplicatorName
+                                    );
+
+static void modifyDrive( std::shared_ptr<Replicator>    replicator,
+                         const sirius::Key&             driveKey,
+                         const InfoHash&                hash );
 
 //
 // Client functions
@@ -91,7 +108,7 @@ FsTree gFsTree;
 fs::path gClientFolder;
 
 // Libtorrent session
-std::shared_ptr<ClientSession> gClientSession = nullptr;
+std::shared_ptr<ClientSession> gClientSession;
 
 
 //
@@ -99,14 +116,11 @@ std::shared_ptr<ClientSession> gClientSession = nullptr;
 //
 
 bool                        isDownloadCompleted = false;
-std::shared_ptr<InfoHash>   clientModifyHash;
+InfoHash                    clientModifyHash;
 std::condition_variable     clientCondVar;
 std::mutex                  clientMutex;
 
-bool                        isDriveUpdated = false;
 std::shared_ptr<InfoHash>   driveRootHash;
-std::condition_variable     driveCondVar;
-std::mutex                  driveMutex;
 
 bool                        stopReplicator = false;
 
@@ -122,17 +136,6 @@ static void clientSessionErrorHandler( const lt::alert* alert )
     }
 }
 
-// replicatorSessionErrorHandler
-//
-//static void replicatorSessionErrorHandler( const lt::alert* alert)
-//{
-//    if ( alert->type() == lt::listen_failed_alert::alert_type )
-//    {
-//        std::cerr << alert->message() << std::endl << std::flush;
-//        exit(-1);
-//    }
-//}
-
 #pragma mark --main()--
 //
 // main
@@ -141,20 +144,39 @@ int main(int,char**)
 {
     fs::remove_all( ROOT_TEST_FOLDER );
 
-    ///
-    /// Start replicator
-    ///
-    std::thread replicatorThread( replicator );
+    auto startTime = std::clock();
 
     ///
-    /// Prepare client session
+    /// Create replicators
+    ///
+    gReplicator = createReplicator( REPLICATOR_PRIVATE_KEY,
+                                    REPLICATOR_IP_ADDR,
+                                    REPLICATOR_PORT,
+                                    std::string( REPLICATOR_ROOT_FOLDER ),
+                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER ),
+                                    TRANSPORT_PROTOCOL,
+                                    "replicator1" );
+
+    gReplicator2 = createReplicator( REPLICATOR_PRIVATE_KEY_2,
+                                    REPLICATOR_IP_ADDR_2,
+                                    REPLICATOR_PORT_2,
+                                    std::string( REPLICATOR_ROOT_FOLDER_2 ),
+                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_2 ),
+                                    TRANSPORT_PROTOCOL,
+                                    "replicator2" );
+
+    ///
+    /// Create client session
     ///
     auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
                                    sirius::crypto::PrivateKey::FromString( CLIENT_PRIVATE_KEY ));
 
     gClientFolder  = createClientFiles(BIG_FILE_SIZE);
-    LOG( "gClientFolder: " << gClientFolder );
-    gClientSession = createClientSession( std::move(clientKeyPair), CLIENT_IP_ADDR ":5550", clientSessionErrorHandler, "client" );
+    gClientSession = createClientSession( std::move(clientKeyPair),
+                                         CLIENT_IP_ADDR ":5550",
+                                         clientSessionErrorHandler,
+                                         TRANSPORT_PROTOCOL,
+                                         "client" );
     gClientSession->setDownloadChannel( downloadChannelKey1 );
 
     fs::path clientFolder = gClientFolder / "client_files";
@@ -164,7 +186,9 @@ int main(int,char**)
     ///
     endpoint_list replicatorsList;
     boost::asio::ip::address e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR);
-    replicatorsList.emplace_back( e, 5001 );
+    replicatorsList.emplace_back( e, REPLICATOR_PORT );
+    e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_2);
+    replicatorsList.emplace_back( e, REPLICATOR_PORT_2 );
 
 
     /// Client: read fsTree (1)
@@ -187,6 +211,11 @@ int main(int,char**)
         actionList.push_back( Action::upload( clientFolder / "a.txt", "f2/a.txt" ) );
         clientModifyDrive( actionList, replicatorsList );
     }
+
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator, DRIVE_PUB_KEY, clientModifyHash );
+    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientModifyHash );
+    gReplicatorThread.join();
+    gReplicatorThread2.join();
 
     /// Client: read changed fsTree (2)
     ///
@@ -213,117 +242,105 @@ int main(int,char**)
         clientModifyDrive( actionList, replicatorsList );
     }
 
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator, DRIVE_PUB_KEY, clientModifyHash );
+    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientModifyHash );
+    gReplicatorThread.join();
+    gReplicatorThread2.join();
+
     /// Client: read new fsTree (3)
-    clientDownloadFsTree(replicatorsList );
+    clientDownloadFsTree( replicatorsList );
 
-    /// Delete client session
+    /// Delete client session and replicators
     gClientSession.reset();
+    gReplicator.reset();
+    gReplicator2.reset();
 
-    /// Stop Replicator
-    stopReplicator = true;
-    clientModifyHash = std::make_shared<InfoHash>();
-    clientCondVar.notify_all();
-
-    replicatorThread.join();
-
-    //fs::remove_all( gClientFolder );
+    LOG( "\ntotal time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
 
     return 0;
-}
-
-//
-// replicatorDownloadHandler
-//
-static void replicatorDownloadHandler ( modify_status::code code, InfoHash /*resultRootInfoHash*/, const std::string& error )
-{
-
-    if ( code == modify_status::update_completed )
-    {
-        EXLOG( "" );
-        EXLOG( "@ update_completed" );
-
-        isDriveUpdated = true;
-        driveCondVar.notify_all();
-    }
-    else if ( code == modify_status::sandbox_root_hash )
-    {
-        EXLOG( "@ sandbox calculated" );
-    }
-    else
-    {
-        EXLOG( "ERROR: " << error );
-        exit(-1);
-    }
 }
 
 //
 // replicator
 //
 #pragma mark --replicator--
-static void replicator()
+static std::shared_ptr<Replicator> createReplicator(
+                                        const std::string&  privateKey,
+                                        std::string&&       ipAddr,
+                                        int                 port,
+                                        std::string&&       rootFolder,
+                                        std::string&&       sandboxRootFolder,
+                                        bool                useTcpSocket,
+                                        const char*         dbgReplicatorName )
 {
-    EXLOG( "@ Replicator started" );
-
     auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
-                                   sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY ));
+                                   sirius::crypto::PrivateKey::FromString( privateKey ));
 
     auto replicator = createDefaultReplicator(
-                          std::move( clientKeyPair ),
-                          REPLICATOR_IP_ADDR,
-                          "5001",
-                          REPLICATOR_ROOT_FOLDER,
-                          REPLICATOR_SANDBOX_ROOT_FOLDER,
-                          true, // use TCP socket (instead of uTP)
-                          "replicator" );
+                                              std::move( clientKeyPair ),
+                                              std::move( ipAddr ),
+                                              std::to_string(port),
+                                              std::move( rootFolder ),
+                                              std::move( sandboxRootFolder ),
+                                              useTcpSocket,
+                                              dbgReplicatorName );
+
     replicator->start();
     replicator->addDrive( DRIVE_PUB_KEY, 100*1024*1024 );
-
 
     replicator->addDownloadChannelInfo( downloadChannelKey1.array(), 1024*1024, { clientPublicKey } );
     replicator->addDownloadChannelInfo( downloadChannelKey2.array(), 10*1024*1024, { clientPublicKey } );
     replicator->addDownloadChannelInfo( downloadChannelKey3.array(), 1024*1024, { clientPublicKey } );
 
     // set root drive hash
-    {
-        std::lock_guard locker(driveMutex);
-        driveRootHash = std::make_shared<InfoHash>( replicator->getRootHash( DRIVE_PUB_KEY ) );
-    }
-    driveCondVar.notify_all();
+    driveRootHash = std::make_shared<InfoHash>( replicator->getRootHash( DRIVE_PUB_KEY ) );
 
+    return replicator;
+}
 
-    for( int i=1; ; i++ )
-    {
-        EXLOG( "@ Replicator is waiting of client data infoHash (" << i << ")");
-        EXLOG(   "- - - - - - - - - - - - - - - - - - - - - - - - ");
-        {
-            std::unique_lock<std::mutex> lock(clientMutex);
-            clientCondVar.wait( lock, []{ return clientModifyHash;} );
-        }
-
-        InfoHash modifyHash = *clientModifyHash;
-        clientModifyHash.reset();
-
-        if ( stopReplicator )
-            break;
-
-        EXLOG( "@ Replicator received client data infoHash (" << i << ")" );
-
+static void modifyDrive( std::shared_ptr<Replicator>    replicator,
+                         const sirius::Key&             driveKey,
+                         const InfoHash&                hash )
+{
         // start drive update
-        isDriveUpdated = false;
-        replicator->modify( DRIVE_PUB_KEY, modifyHash, replicatorDownloadHandler );
+    bool                    isDriveUpdated = false;
+    std::condition_variable driveCondVar;
+    std::mutex              driveMutex;
 
-        // wait the end of drive update
-        {
-            std::unique_lock<std::mutex> lock(driveMutex);
-            driveCondVar.wait( lock, [] { return isDriveUpdated; } );
-        }
+    replicator->modify( DRIVE_PUB_KEY, hash, [&] ( modify_status::code   code,
+                                                   InfoHash               resultRootInfoHash,
+                                                  const std::string&     error )
+       {
+           if ( code == modify_status::update_completed )
+           {
+               EXLOG( "" );
+               EXLOG( "@ update_completed" );
 
-        replicator->printDriveStatus( DRIVE_PUB_KEY );
+               //std::unique_lock<std::mutex> lock(driveMutex);
+               isDriveUpdated = true;
+               driveCondVar.notify_all();
+           }
+           else if ( code == modify_status::sandbox_root_hash )
+           {
+               EXLOG( "@ sandbox calculated" );
+           }
+           else
+           {
+               EXLOG( "ERROR: " << error );
+               exit(-1);
+           }
+       } );
 
-        // set root drive hash
-        driveRootHash = std::make_shared<InfoHash>( replicator->getRootHash( DRIVE_PUB_KEY ) );
-        driveCondVar.notify_all();
+    // wait the end of drive update
+    {
+        std::unique_lock<std::mutex> lock(driveMutex);
+        driveCondVar.wait( lock, [&] { return isDriveUpdated; } );
     }
+
+    replicator->printDriveStatus( DRIVE_PUB_KEY );
+
+    // set root drive hash
+    driveRootHash = std::make_shared<InfoHash>( replicator->getRootHash( DRIVE_PUB_KEY ) );
 
     EXLOG( "@ Replicator exited" );
 }
@@ -361,15 +378,7 @@ static void clientDownloadHandler( download_status::code code,
 //
 static void clientDownloadFsTree( endpoint_list addrList )
 {
-    // wait drive root hash
-    {
-        std::unique_lock<std::mutex> lock(driveMutex);
-        driveCondVar.wait( lock, [] { return driveRootHash; } );
-    }
-
     InfoHash rootHash = *driveRootHash;
-    //todo!!!
-    //rootHash[0] = 0;
     driveRootHash.reset();
 
     isDownloadCompleted = false;
@@ -384,10 +393,10 @@ static void clientDownloadFsTree( endpoint_list addrList )
                               gClientFolder / "fsTree-folder",
                              addrList );
 
-    // wait the end of download
+    /// wait the end of file downloading
     {
         std::unique_lock<std::mutex> lock(clientMutex);
-        clientCondVar.wait( lock, []{ return isDownloadCompleted; } );
+        clientCondVar.wait( lock, [] { return isDownloadCompleted; } );
     }
 }
 
@@ -408,16 +417,9 @@ static void clientModifyDrive( const ActionList& actionList, endpoint_list addrL
     InfoHash hash = gClientSession->addActionListToSession( actionList, tmpFolder, addrList );
 
     // inform replicator
-    clientModifyHash = std::make_shared<InfoHash>( hash );
-    clientCondVar.notify_all();
+    clientModifyHash = hash;
 
     EXLOG( "# Client is waiting the end of replicator update" );
-
-    // wait the end of replicator's work
-    {
-        std::unique_lock<std::mutex> lock(driveMutex);
-        driveCondVar.wait( lock, []{ return isDriveUpdated; } );
-    }
 }
 
 //
@@ -446,7 +448,7 @@ static void clientDownloadFilesHandler( download_status::code code,
     }
     else if ( code == download_status::downloading )
     {
-        LOG( "downloading: " << downloaded << " of " << fileSize );
+        //LOG( "downloading: " << downloaded << " of " << fileSize );
     }
     else if ( code == download_status::failed )
     {
