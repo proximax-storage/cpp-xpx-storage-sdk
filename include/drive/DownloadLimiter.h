@@ -6,17 +6,21 @@
 
 #pragma once
 
-#include "types.h"
-#include "crypto/Signer.h"
+#include "drive/Replicator.h"
 #include <sirius_drive/session_delegate.h>
+#include "crypto/Signer.h"
+#include "types.h"
+
 #include <map>
 
-namespace sirius {
+namespace sirius { namespace drive {
 
 //
 // DownloadLimiter - it manages all user files at replicator side
 //
-class DownloadLimiter : public lt::session_delegate, public std::enable_shared_from_this<DownloadLimiter>
+class DownloadLimiter : public Replicator,
+                        public lt::session_delegate,
+                        public std::enable_shared_from_this<DownloadLimiter>
 {
     struct DownloadChannelInfo
     {
@@ -73,13 +77,13 @@ public:
         return 0;
     }
 
-    void addDownloadChannelInfo( const std::array<uint8_t,32>& channelId, uint64_t prepaidDownloadSize, std::vector<const Key>&& clients )
+    void addChannelInfo( const std::array<uint8_t,32>& channelId, uint64_t prepaidDownloadSize, std::vector<const Key>&& clients )
     {
         if ( auto it = m_channelMap.find(channelId); it != m_channelMap.end() )
         {
             if ( it->second.m_prepaidDownloadSize <= prepaidDownloadSize )
             {
-                throw std::runtime_error( "addDownloadChannelInfo: invalid prepaidDownloadSize" );
+                throw std::runtime_error( "addChannelInfo: invalid prepaidDownloadSize" );
             }
             it->second.m_prepaidDownloadSize = prepaidDownloadSize;
             if ( clients.size() > 0 )
@@ -178,12 +182,12 @@ public:
         return m_dbgOurPeerName;
     }
 
-    uint64_t receiptLimit() const
+    uint64_t receiptLimit() const override
     {
         return m_receiptLimit;
     }
 
-    void setReceiptLimit( uint64_t newLimitInBytes )
+    void setReceiptLimit( uint64_t newLimitInBytes ) override
     {
         m_receiptLimit = newLimitInBytes;
     }
@@ -193,4 +197,4 @@ private:
     std::optional<std::array<uint8_t,32>> m_downloadChannelId;
 };
 
-}
+}}

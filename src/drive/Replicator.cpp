@@ -6,7 +6,6 @@
 
 #include "types.h"
 #include "drive/log.h"
-#include "drive/Replicator.h"
 #include "drive/FlatDrive.h"
 #include "drive/Utils.h"
 #include "drive/Session.h"
@@ -22,11 +21,9 @@ namespace sirius { namespace drive {
 //
 // DefaultReplicator
 //
-class DefaultReplicator : public Replicator
+class DefaultReplicator : public DownloadLimiter // Replicator
 {
     std::shared_ptr<Session> m_session;
-
-    std::shared_ptr<DownloadLimiter> m_downloadLimiter;
 
     // Drives
     std::map<Key, std::shared_ptr<sirius::drive::FlatDrive>> m_drives;
@@ -55,8 +52,8 @@ public:
                std::string&& storageDirectory,
                std::string&& sandboxDirectory,
                bool          useTcpSocket,
-               const char*   dbgReplicatorName )
-    :
+               const char*   dbgReplicatorName ) : DownloadLimiter( m_keyPair, dbgReplicatorName ),
+
         m_keyPair( std::move(keyPair) ),
         m_address( std::move(address) ),
         m_port( std::move(port) ),
@@ -65,7 +62,6 @@ public:
         m_useTcpSocket( useTcpSocket ),
         m_dbgReplicatorName( dbgReplicatorName )
     {
-        m_downloadLimiter = std::make_shared<DownloadLimiter>( m_keyPair, dbgReplicatorName );
     }
 
     void start() override
@@ -77,7 +73,7 @@ public:
                     LOG( "Port is busy?: " << port );
                 }
             },
-            m_downloadLimiter->weak_from_this(),
+            weak_from_this(),
             m_useTcpSocket );
         m_session->lt_session().m_dbgOurPeerName = m_dbgReplicatorName;
     }
@@ -188,17 +184,16 @@ public:
 
     void addDownloadChannelInfo( const std::array<uint8_t,32>& channelKey, size_t prepaidDownloadSize, std::vector<const Key>&& clients ) override
     {
-        m_downloadLimiter->addDownloadChannelInfo( channelKey, prepaidDownloadSize, std::move(clients) );
+        addChannelInfo( channelKey, prepaidDownloadSize, std::move(clients) );
     }
 
-    size_t receiptLimit() const override
+    void notifyOtherReplicators( const std::array<uint8_t,32>&  downloadChannelId,
+                                 const std::array<uint8_t,32>&  clientPublicKey,
+                                 uint64_t                       downloadedSize,
+                                 const std::array<uint8_t,64>&  signature ) override
     {
-        return m_downloadLimiter->receiptLimit();
-    }
-
-    void setReceiptLimit( size_t newLimitInBytes ) override
-    {
-        m_downloadLimiter->setReceiptLimit( newLimitInBytes );
+        // todo
+        return;
     }
 
 

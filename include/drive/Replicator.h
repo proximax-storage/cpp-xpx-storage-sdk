@@ -42,9 +42,9 @@ public:
 
     virtual void        addDownloadChannelInfo( const std::array<uint8_t,32>& channelKey, size_t prepaidDownloadSize, std::vector<const Key>&& clients ) = 0;
 
-    virtual size_t      receiptLimit() const = 0;
+    virtual uint64_t    receiptLimit() const = 0;
 
-    virtual void        setReceiptLimit( size_t newLimitInBytes ) = 0;
+    virtual void        setReceiptLimit( uint64_t newLimitInBytes ) = 0;
 
     virtual void        printDriveStatus( const Key& driveKey ) = 0;
 
