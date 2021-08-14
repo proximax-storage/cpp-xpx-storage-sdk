@@ -86,43 +86,35 @@ protected:
         //LOG( "++++++++++++ onPieceReceived '" << m_dbgOurPeerName << "' :" << m_downloadedSize << "     :" << pieceSize );
     }
 
-    virtual void sign( const std::array<uint8_t,32>& replicatorPublicKey,
-                       uint64_t&                     outDownloadedSize,
-                       std::array<uint8_t,64>&       outSignature ) override
+    virtual void signReceipt( const std::array<uint8_t,32>& downloadChannelId,
+                              const std::array<uint8_t,32>& replicatorPublicKey,
+                              uint64_t&                     outDownloadedSize,
+                              std::array<uint8_t,64>&       outSignature ) override
     {
         if ( m_downloadChannelId )
         {
-            // sign the followingdata data:
-            //  - replicator public key,
-            //  - download channel hash,
-            //  - downloaded size
-
             crypto::Sign( m_keyPair,
-                         {  utils::RawBuffer{replicatorPublicKey},
-                            utils::RawBuffer{*m_downloadChannelId},
-                            utils::RawBuffer{(const uint8_t*)&m_downloadedSize,8} },
-                         reinterpret_cast<Signature&>(outSignature) );
+                          {
+                            utils::RawBuffer{downloadChannelId},
+                            utils::RawBuffer{publicKey()},
+                            utils::RawBuffer{replicatorPublicKey},
+                            utils::RawBuffer{(const uint8_t*)&m_downloadedSize,8}
+                          },
+                          reinterpret_cast<Signature&>(outSignature) );
+
 
             outDownloadedSize = m_downloadedSize;
         }
     }
 
-    bool verify( const std::array<uint8_t,32>&,
-                 uint64_t,
-                 const std::array<uint8_t,64>& ) override
-    {
-        // nothig to do
-        return true;
-    }
-
-    void sign( const uint8_t* bytes, size_t size, std::array<uint8_t,64>& signature ) override
+    void signHandshake( const uint8_t* bytes, size_t size, std::array<uint8_t,64>& signature ) override
     {
         crypto::Sign( m_keyPair, utils::RawBuffer{bytes,size}, reinterpret_cast<Signature&>(signature) );
     }
 
-    virtual bool verify( const uint8_t* bytes, size_t size,
-                         const std::array<uint8_t,32>& publicKey,
-                         const std::array<uint8_t,64>& signature ) override
+    virtual bool verifyHandshake( const uint8_t* bytes, size_t size,
+                                  const std::array<uint8_t,32>& publicKey,
+                                  const std::array<uint8_t,64>& signature ) override
     {
         return crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
     }

@@ -141,6 +141,8 @@ public:
 
     virtual void      sendMessage( boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
 
+    virtual void      sendMessage( const std::string& query, boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
+
 //    virtual void      loadTorrent( const InfoHash& infoHash,
 //                                   std::function<void(bool)> addTorrentNotifier,
 //                                   const std::string& torrentFilename,

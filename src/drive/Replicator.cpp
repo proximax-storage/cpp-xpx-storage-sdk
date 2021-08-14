@@ -182,18 +182,48 @@ public:
         return "";
     }
 
-    void addDownloadChannelInfo( const std::array<uint8_t,32>& channelKey, size_t prepaidDownloadSize, std::vector<const Key>&& clients ) override
+    void addDownloadChannelInfo( const std::array<uint8_t,32>&  channelKey,
+                                size_t                          prepaidDownloadSize,
+                                const endpoint_list&            replicatorsList,
+                                std::vector<const Key>&&        clients ) override
     {
-        addChannelInfo( channelKey, prepaidDownloadSize, std::move(clients) );
+        addChannelInfo( channelKey, prepaidDownloadSize, replicatorsList, std::move(clients) );
     }
 
-    void notifyOtherReplicators( const std::array<uint8_t,32>&  downloadChannelId,
-                                 const std::array<uint8_t,32>&  clientPublicKey,
-                                 uint64_t                       downloadedSize,
-                                 const std::array<uint8_t,64>&  signature ) override
+    virtual void sendReceiptToOtherReplicators( const std::array<uint8_t,32>&  downloadChannelId,
+                                                const std::array<uint8_t,32>&  clientPublicKey,
+                                                uint64_t                       downloadedSize,
+                                                const std::array<uint8_t,64>&  signature ) override
     {
+        // verify receipt
+        if ( !DownloadLimiter::verifyReceipt(  downloadChannelId,
+                                               clientPublicKey,
+                                               publicKey(),
+                                               downloadedSize,
+                                               signature ) )
+        {
+            //todo log error?
+            std::cerr << "ERROR! Invalid receipt" << std::endl << std::flush;
+            //assert(0);
+
+            return;
+        }
+        
         // todo
-        return;
+        std::vector<uint8_t> message;
+        message.insert( message.end(), downloadChannelId.begin(), downloadChannelId.end() );
+        message.insert( message.end(), clientPublicKey.begin(),   clientPublicKey.end() );
+        message.insert( message.end(), (uint8_t*)&downloadedSize, ((uint8_t*)&downloadedSize)+8 );
+        message.insert( message.end(), signature.begin(),         signature.end() );
+
+        //todo mutex
+        if ( auto it = m_channelMap.find(downloadChannelId); it != m_channelMap.end() )
+        {
+            for( auto endpointIt = it->second.m_replicatorsList.begin(); endpointIt != it->second.m_replicatorsList.end(); endpointIt++ )
+            {
+                m_session->sendMessage( "rcpt", { endpointIt->address(), endpointIt->port() }, message );
+            }
+        }
     }
 
 
