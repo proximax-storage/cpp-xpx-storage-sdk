@@ -27,7 +27,7 @@ protected:
     {
         uint64_t                m_prepaidDownloadSize;
         uint64_t                m_uploadedSize;
-        std::vector<const Key>  m_clients;
+        std::vector<Key>        m_clients;
         endpoint_list           m_replicatorsList;
     };
 
@@ -82,7 +82,7 @@ public:
     void addChannelInfo( const std::array<uint8_t,32>&  channelId,
                          uint64_t                       prepaidDownloadSize,
                          const endpoint_list&           replicatorsList,
-                         std::vector<const Key>&&       clients )
+                         std::vector<Key>&&       clients )
     {
         //todo mutex
 

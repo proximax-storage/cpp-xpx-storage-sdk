@@ -49,7 +49,7 @@ public:
     virtual void        addDownloadChannelInfo( const std::array<uint8_t,32>&   channelKey,
                                                size_t                           prepaidDownloadSize,
                                                const endpoint_list&             replicatorsList,
-                                               std::vector<const Key>&&         clients ) = 0;
+                                               std::vector<Key>&&               clients ) = 0;
 
     virtual uint64_t    receiptLimit() const = 0;
 

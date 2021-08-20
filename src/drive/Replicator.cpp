@@ -185,7 +185,7 @@ public:
     void addDownloadChannelInfo( const std::array<uint8_t,32>&  channelKey,
                                 size_t                          prepaidDownloadSize,
                                 const endpoint_list&            replicatorsList,
-                                std::vector<const Key>&&        clients ) override
+                                std::vector<Key>&&              clients ) override
     {
         addChannelInfo( channelKey, prepaidDownloadSize, replicatorsList, std::move(clients) );
     }
