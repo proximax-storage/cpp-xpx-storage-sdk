@@ -26,7 +26,7 @@ class DownloadLimiter : public Replicator,
     {
         uint64_t                m_prepaidDownloadSize;
         uint64_t                m_uploadedSize;
-        std::vector<const Key>  m_clients;
+        std::vector<Key>  m_clients;
     };
 
     using ChannelMap = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
@@ -77,7 +77,7 @@ public:
         return 0;
     }
 
-    void addChannelInfo( const std::array<uint8_t,32>& channelId, uint64_t prepaidDownloadSize, std::vector<const Key>&& clients )
+    void addChannelInfo( const std::array<uint8_t,32>& channelId, uint64_t prepaidDownloadSize, std::vector<Key>&& clients )
     {
         if ( auto it = m_channelMap.find(channelId); it != m_channelMap.end() )
         {

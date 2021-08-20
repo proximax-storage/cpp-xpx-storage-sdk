@@ -40,7 +40,7 @@ public:
 
     virtual Hash256     getRootHash( const Key& driveKey ) = 0;
 
-    virtual void        addDownloadChannelInfo( const std::array<uint8_t,32>& channelKey, size_t prepaidDownloadSize, std::vector<const Key>&& clients ) = 0;
+    virtual void        addDownloadChannelInfo( const std::array<uint8_t,32>& channelKey, size_t prepaidDownloadSize, std::vector<Key>&& clients ) = 0;
 
     virtual uint64_t    receiptLimit() const = 0;
 
