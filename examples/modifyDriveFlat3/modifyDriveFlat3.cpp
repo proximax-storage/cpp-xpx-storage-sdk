@@ -30,12 +30,12 @@
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_IP_ADDR          "192.168.1.102"
+#define CLIENT_IP_ADDR          "192.168.1.103"
 #define CLIENT_PORT             5000
 
 #define REPLICATOR_IP_ADDR      "127.0.0.1"
 #define REPLICATOR_PORT         5001
-#define REPLICATOR_IP_ADDR_2    "169.254.67.162"
+#define REPLICATOR_IP_ADDR_2    "10.0.3.110"
 #define REPLICATOR_PORT_2       5002
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111"
@@ -122,7 +122,7 @@ std::mutex                  clientMutex;
 
 std::shared_ptr<InfoHash>   driveRootHash;
 
-bool                        stopReplicator = false;
+endpoint_list               replicatorsList;
 
 
 // Listen (socket) error handle
@@ -145,6 +145,14 @@ int main(int,char**)
     fs::remove_all( ROOT_TEST_FOLDER );
 
     auto startTime = std::clock();
+
+    ///
+    /// Make the list of replicator addresses
+    ///
+    boost::asio::ip::address e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR);
+    replicatorsList.emplace_back( e, REPLICATOR_PORT );
+    e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_2);
+    replicatorsList.emplace_back( e, REPLICATOR_PORT_2 );
 
     ///
     /// Create replicators
@@ -180,15 +188,6 @@ int main(int,char**)
     gClientSession->setDownloadChannel( downloadChannelKey1 );
 
     fs::path clientFolder = gClientFolder / "client_files";
-
-    ///
-    /// Make the list of replicator addresses
-    ///
-    endpoint_list replicatorsList;
-    boost::asio::ip::address e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR);
-    replicatorsList.emplace_back( e, REPLICATOR_PORT );
-    e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_2);
-    replicatorsList.emplace_back( e, REPLICATOR_PORT_2 );
 
 
     /// Client: read fsTree (1)
@@ -288,9 +287,9 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->start();
     replicator->addDrive( DRIVE_PUB_KEY, 100*1024*1024 );
 
-    replicator->addDownloadChannelInfo( downloadChannelKey1.array(), 1024*1024, { clientPublicKey } );
-    replicator->addDownloadChannelInfo( downloadChannelKey2.array(), 10*1024*1024, { clientPublicKey } );
-    replicator->addDownloadChannelInfo( downloadChannelKey3.array(), 1024*1024, { clientPublicKey } );
+    replicator->addDownloadChannelInfo( downloadChannelKey1.array(), 1024*1024,    replicatorsList, { clientPublicKey } );
+    replicator->addDownloadChannelInfo( downloadChannelKey2.array(), 10*1024*1024, replicatorsList, { clientPublicKey } );
+    replicator->addDownloadChannelInfo( downloadChannelKey3.array(), 1024*1024,    replicatorsList, { clientPublicKey } );
 
     // set root drive hash
     driveRootHash = std::make_shared<InfoHash>( replicator->getRootHash( DRIVE_PUB_KEY ) );

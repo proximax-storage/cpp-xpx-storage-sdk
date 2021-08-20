@@ -23,6 +23,10 @@
 
 
 namespace sirius { namespace drive {
+
+// It is used to notify other replictors
+using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
+
 //
 // Replicator
 //
@@ -40,12 +44,17 @@ public:
 
     virtual Hash256     getRootHash( const Key& driveKey ) = 0;
 
-    virtual void        addDownloadChannelInfo( const std::array<uint8_t,32>& channelKey, size_t prepaidDownloadSize, std::vector<Key>&& clients ) = 0;
+    // 'replicatorsList' is used to notify other replictors
+    // (it could contain its own endpoint)
+    virtual void        addDownloadChannelInfo( const std::array<uint8_t,32>&   channelKey,
+                                               size_t                           prepaidDownloadSize,
+                                               const endpoint_list&             replicatorsList,
+                                               std::vector<const Key>&&         clients ) = 0;
 
     virtual uint64_t    receiptLimit() const = 0;
 
     virtual void        setReceiptLimit( uint64_t newLimitInBytes ) = 0;
-
+    
     virtual void        printDriveStatus( const Key& driveKey ) = 0;
 
 };

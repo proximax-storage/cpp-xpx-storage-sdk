@@ -424,13 +424,36 @@ private:
             lt::string_view                         query,
             boost::asio::ip::udp::endpoint const&   /*source*/,
             lt::bdecode_node const&                 message,
-            lt::entry&                              /*response*/ ) override
+            lt::entry&                              response ) override
         {
             if ( query == "get_peers" || query == "announce_peer" )
                 return false;
 
-            LOG( "query: " << query );
-            LOG( "message: " << message );
+//            LOG( "query: " << query );
+//            LOG( "message: " << message );
+//            LOG( "message: " << response );
+
+            if ( message.dict_find_string_value("q") == "rcpt" )
+            {
+                auto replicator = m_replicator.lock();
+                
+                auto str = message.dict_find_string_value("x");
+                std::vector<uint8_t> packet( (uint8_t*)str.data(), (uint8_t*)str.data()+str.size() );
+//                message.insert( message.end(), downloadChannelId.begin(), downloadChannelId.end() );
+//                message.insert( message.end(), clientPublicKey.begin(),   clientPublicKey.end() );
+//                message.insert( message.end(), (uint8_t*)&downloadedSize, ((uint8_t*)&downloadedSize)+8 );
+//                message.insert( message.end(), signature.begin(),         signature.end() );
+//
+//
+
+//                replicator->acceptReceiptFromAnotherReplicator( const std::array<uint8_t,32>&  downloadChannelId,
+//                                               const std::array<uint8_t,32>&  clientPublicKey,
+//                                               uint64_t                       downloadedSize,
+//                                               const std::array<uint8_t,64>&  signature )
+
+                //m_session->delegate();
+            }
+            
 //            if ( message.dict_find_string_value("q") == "sirius_message" )
 //            {
 //                if ( message.dict_find_string_value("cmd") == "root_hash" )
@@ -444,7 +467,7 @@ private:
 //                    }
 //                    return true;
 //                }
-//                response["x"] = "sirius_message_response";
+                response["x"] = "sirius_message_response";
 //                return true;
 //            }
             return true;
@@ -463,8 +486,18 @@ private:
         e["x"] = "-----------------------------------------------------------";
         LOG( "lt::entry e: " << e );
 
-        lt::client_data_t client_data(this);
+//        lt::client_data_t client_data(this);
         m_session.dht_direct_request( udp, e );
+    }
+
+    void sendMessage( const std::string& query, boost::asio::ip::udp::endpoint endPoint, const std::vector<uint8_t>& message ) override
+    {
+        lt::entry entry;
+        entry["q"] = query;
+        entry["x"] = std::string( message.begin(), message.end() );
+
+  //      lt::client_data_t client_data(this);
+        m_session.dht_direct_request( endPoint, entry );
     }
 
     void handleResponse( lt::bdecode_node response )
