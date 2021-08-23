@@ -1,7 +1,6 @@
 #include "drive/Session.h"
 #include "drive/ClientSession.h"
 #include "drive/Replicator.h"
-#include "drive/Receipt.h"
 #include "drive/FlatDrive.h"
 #include "drive/FsTree.h"
 #include "drive/Utils.h"
@@ -59,7 +58,8 @@ const sirius::Hash256 downloadChannelKey1 = std::array<uint8_t,32>{1,1,1,1};
 const sirius::Hash256 downloadChannelKey2 = std::array<uint8_t,32>{2,2,2,2};
 const sirius::Hash256 downloadChannelKey3 = std::array<uint8_t,32>{3,3,3,3};
 
-const sirius::Hash256 modifyTransactionHash = std::array<uint8_t,32>{0xf,0xf,0xf,0xf};
+const sirius::Hash256 modifyTransactionHash1 = std::array<uint8_t,32>{0xf1,0xf,0xf,0xf};
+const sirius::Hash256 modifyTransactionHash2 = std::array<uint8_t,32>{0xf2,0xf,0xf,0xf};
 
 namespace fs = std::filesystem;
 
@@ -217,11 +217,11 @@ int main(int,char**)
         actionList.push_back( Action::upload( clientFolder / "b.bin", "f2/b2.bin" ) );
         actionList.push_back( Action::upload( clientFolder / "a.txt", "f2/a.txt" ) );
 
-        clientModifyDrive( actionList, replicatorList, modifyTransactionHash );
+        clientModifyDrive( actionList, replicatorList, modifyTransactionHash1 );
     }
 
-    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientModifyHash, modifyTransactionHash, BIG_FILE_SIZE+1024 );
-    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientModifyHash, modifyTransactionHash, BIG_FILE_SIZE+1024 );
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientModifyHash, modifyTransactionHash1, BIG_FILE_SIZE+1024 );
+    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientModifyHash, modifyTransactionHash1, BIG_FILE_SIZE+1024 );
     gReplicatorThread.join();
     gReplicatorThread2.join();
 
@@ -247,11 +247,11 @@ int main(int,char**)
         actionList.push_back( Action::remove( "f2/b2.bin" ) );
         actionList.push_back( Action::move( "f2/", "f2_renamed/" ) );
         actionList.push_back( Action::move( "f2_renamed/a.txt", "f2_renamed/a_renamed.txt" ) );
-        clientModifyDrive( actionList, replicatorList, modifyTransactionHash );
+        clientModifyDrive( actionList, replicatorList, modifyTransactionHash2 );
     }
 
-    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientModifyHash, modifyTransactionHash, BIG_FILE_SIZE+1024 );
-    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientModifyHash, modifyTransactionHash, BIG_FILE_SIZE+1024 );
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientModifyHash, modifyTransactionHash2, BIG_FILE_SIZE+1024 );
+    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientModifyHash, modifyTransactionHash2, BIG_FILE_SIZE+1024 );
     gReplicatorThread.join();
     gReplicatorThread2.join();
 
