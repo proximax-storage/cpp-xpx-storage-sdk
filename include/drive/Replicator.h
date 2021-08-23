@@ -8,24 +8,11 @@
 
 #include "types.h"
 #include "plugins.h"
-//#include "drive/Receipt.h"
 #include "drive/FlatDrive.h"
 #include "crypto/Signer.h"
 
-//#include <boost/utility/string_view.hpp>
-//#include "drive/log.h"
-//#include "DriveService.h"
-//#include "RpcTypes.h"
-//#include "rpc/server.h"
-//#include "rpc/this_handler.h"
-
-//#include <future>
-
 
 namespace sirius { namespace drive {
-
-// It is used to notify other replictors
-using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
 
 //
 // Replicator
@@ -40,16 +27,28 @@ public:
 
     virtual std::string addDrive(const Key& driveKey, size_t driveSize) = 0;
 
-    virtual std::string modify(const Key& driveKey, const InfoHash& infoHash, const DriveModifyHandler& handler ) = 0;
+    virtual std::string modify( const Key&      driveKey,
+                                const InfoHash& infoHash,
+                                const Hash256&  transactionHash,
+                                uint64_t maxDataSize,
+                                const DriveModifyHandler& handler ) = 0;
 
     virtual Hash256     getRootHash( const Key& driveKey ) = 0;
 
     // 'replicatorsList' is used to notify other replictors
-    // (it could contain its own endpoint)
+    // (it does not contain its own endpoint)
     virtual void        addDownloadChannelInfo( const std::array<uint8_t,32>&   channelKey,
-                                               size_t                           prepaidDownloadSize,
-                                               const endpoint_list&             replicatorsList,
-                                               std::vector<const Key>&&         clients ) = 0;
+                                                size_t                          prepaidDownloadSize,
+                                                const ReplicatorList&           replicatorsList,
+                                                std::vector<const Key>&&        clients ) = 0;
+
+    // 'replicatorsList' is used to verify other replictors receipts
+    // (it does not contain its own endpoint)
+//    virtual void        addModifyTransactionInfo( const std::array<uint8_t,32>& hash,
+//                                                  const Key&                    clientPublicKey,
+//                                                  size_t                        prepaidDownloadSize,
+//                                                  const ReplicatorList&         replicatorsList,
+//                                                  std::vector<const Key>&&      clients ) = 0;
 
     virtual uint64_t    receiptLimit() const = 0;
 

@@ -27,8 +27,8 @@ protected:
     {
         uint64_t                m_prepaidDownloadSize;
         uint64_t                m_uploadedSize;
-        std::vector<const Key>  m_clients;
-        endpoint_list           m_replicatorsList;
+        std::vector<const Key>  m_clients; //todo
+        ReplicatorList          m_replicatorsList;
     };
 
     using ChannelMap = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
@@ -81,7 +81,7 @@ public:
 
     void addChannelInfo( const std::array<uint8_t,32>&  channelId,
                          uint64_t                       prepaidDownloadSize,
-                         const endpoint_list&           replicatorsList,
+                         const ReplicatorList&          replicatorsList,
                          std::vector<const Key>&&       clients )
     {
         //todo mutex
@@ -133,7 +133,7 @@ public:
         {
             //todo log error?
             std::cerr << "ERROR! Invalid receipt" << std::endl << std::flush;
-            assert(0);
+            //assert(0);
 
             return;
         }
@@ -172,7 +172,7 @@ public:
     
     void signReceipt( const std::array<uint8_t,32>& downloadChannelId,
                       const std::array<uint8_t,32>& replicatorPublicKey,
-                      uint64_t&                     downloadedSize,
+                      uint64_t                      downloadedSize,
                       std::array<uint8_t,64>&       outSignature ) override
     {
         // not used
@@ -192,7 +192,12 @@ public:
                          uint64_t                       downloadedSize,
                          const std::array<uint8_t,64>&  signature ) override
     {
-        return crypto::Verify( publicKey(),
+//todo++
+        LOG( "+SSS " << dbgOurPeerName() << " " << int(downloadChannelId[0]) << " " << (int)clientPublicKey[0] << " " << (int) replicatorPublicKey[0] << " " << downloadedSize );
+//
+        LOG( "+SSS: " << int(signature[0]) );
+
+        return crypto::Verify( clientPublicKey,
                                {
                                     utils::RawBuffer{downloadChannelId},
                                     utils::RawBuffer{clientPublicKey},
@@ -212,17 +217,17 @@ public:
         return m_downloadChannelId;
     }
 
-    uint64_t downloadedSize( const std::array<uint8_t,32>& ) override
+    uint64_t receivedSize( const std::array<uint8_t,32>& ) override
     {
         //todo++
         return 0;
     }
 
-    void setDownloadedSize( uint64_t /*downloadedSize*/ ) override
+    void setStartReceivedSize( uint64_t /*downloadedSize*/ ) override
     {
     }
 
-    uint64_t downloadedSize() override
+    uint64_t receivedSize() override
     {
         return 0;
     }
