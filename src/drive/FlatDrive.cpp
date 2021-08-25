@@ -256,7 +256,10 @@ public:
 
     // startModifyDrive - should be called after client 'modify request'
     //
-    void startModifyDrive( InfoHash modifyDataInfoHash, DriveModifyHandler modifyHandler ) override
+    void startModifyDrive( InfoHash          modifyDataInfoHash,
+                          const Hash256&     transactionHash,
+                          uint64_t           maxDataSize,
+                          DriveModifyHandler modifyHandler ) override
     {
         using namespace std::placeholders;  // for _1, _2, _3
 
@@ -271,6 +274,8 @@ public:
                                             DownloadContext::client_data,
                                             std::bind( &DefaultFlatDrive::downloadHandler, this, _1, _2, _3, _4, _5, _6 ),
                                             modifyDataInfoHash,
+                                            transactionHash,
+                                            0, //todo
                                             ""),
                                        m_sandboxRootPath,
                                        m_otherReplicators );

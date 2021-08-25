@@ -20,14 +20,19 @@
 #include <libtorrent/session.hpp>
 #endif
 
-
-using  tcp = boost::asio::ip::tcp;
 using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
 
 namespace sirius { namespace drive {
 
 #define FS_TREE_FILE_NAME "FsTree.bin"
 
+struct ReplicatorInfo
+{
+    boost::asio::ip::tcp::endpoint  m_endpoint;
+    Key                             m_publicKey;
+};
+
+using ReplicatorList = std::vector<ReplicatorInfo>;
 
 // It will be used to inform 'client' about download status
 //
@@ -58,12 +63,16 @@ struct DownloadContext {
 
     DownloadContext( download_type         downloadType,
                      Notification          notification,
-                     InfoHash              infoHash,
+                     const InfoHash&       infoHash,
+                     const Hash256&        transactionHash,
+                     uint64_t              downloadLimit, // 0 means unlimited
                      std::filesystem::path saveAs = {} )
         :
           m_downloadType(downloadType),
           m_downloadNotification(notification),
           m_infoHash(infoHash),
+          m_transactionHash(transactionHash),
+          m_downloadLimit(downloadLimit),
           m_saveAs(saveAs)
         {
             if ( m_downloadType == file_from_drive && m_saveAs.empty() )
@@ -77,6 +86,8 @@ struct DownloadContext {
 
     Notification          m_downloadNotification;
     InfoHash              m_infoHash;
+    Hash256               m_transactionHash;
+    uint64_t              m_downloadLimit; // for modify drive - all data size
     std::filesystem::path m_saveAs;
 };
 

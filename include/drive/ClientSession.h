@@ -14,14 +14,19 @@ namespace sirius { namespace drive {
 
 class ClientSession : public lt::session_delegate, std::enable_shared_from_this<ClientSession>
 {
-    using DownloadChannelId = std::optional<std::array<uint8_t,32>>;
+    using DownloadChannelId     = std::optional<std::array<uint8_t,32>>;
+    using ModifyTransactionHash = std::optional<std::array<uint8_t,32>>;
 
     std::shared_ptr<Session>    m_session;
     crypto::KeyPair             m_keyPair;
 
     DownloadChannelId           m_downloadChannelId;
-    uint64_t                    m_downloadedSize = 0;
+    ReplicatorList              m_downloadReplicatorList;
     uint64_t                    m_requestedSize = 0;
+    uint64_t                    m_receivedSize = 0;
+
+    ModifyTransactionHash       m_modifyTransactionHash;
+    ReplicatorList              m_modifyReplicatorList;
 
     const char*                 m_dbgOurPeerName;
 
@@ -35,10 +40,12 @@ public:
 public:
 
     //
-    void setDownloadChannel( Key downloadChannelId, uint64_t downloadedSize = 0 )
+    void setDownloadChannel( const ReplicatorList& replicatorList, Hash256 downloadChannelId, uint64_t alreadyReceivedSize = 0 )
     {
+        m_downloadReplicatorList    = replicatorList;
         m_downloadChannelId = downloadChannelId.array();
-        m_downloadedSize = downloadedSize;
+        m_receivedSize      = alreadyReceivedSize;
+        m_requestedSize     = alreadyReceivedSize;
     }
 
     void onHandshake( uint64_t /*uploadedSize*/ ) override
@@ -48,23 +55,51 @@ public:
 
     // Initiate file downloading (identified by downloadParameters.m_infoHash)
     void download( DownloadContext&&   downloadParameters,
-                   const std::string&  tmpFolder,
-                   endpoint_list       list )
+                   const std::string&  tmpFolder )
     {
-        if ( m_downloadChannelId )
-        {
-            m_session->download( std::move(downloadParameters), tmpFolder, list );
-            return;
-        }
-        throw std::runtime_error("downloadChannel is not set");
+        // check that download channel was set
+        if ( !m_downloadChannelId )
+            throw std::runtime_error("downloadChannel is not set");
+        
+        downloadParameters.m_transactionHash = *m_downloadChannelId;
+
+        // check that replicator list is not empty
+        if ( m_downloadReplicatorList.empty() )
+            throw std::runtime_error("downloadChannel is not set");
+
+        // create endpoint list for libtorrent
+        endpoint_list endpointList;
+        for( const auto& it : m_downloadReplicatorList )
+            endpointList.emplace_back( it.m_endpoint );
+
+        // start downloading
+        m_session->download( std::move(downloadParameters), tmpFolder, endpointList );
     }
 
     // prepare session to modify action
     InfoHash addActionListToSession( const ActionList&  actionList,
-                                     const std::string& workFolder,
-                                     endpoint_list      list )
+                                     const ReplicatorList& replicatorList,
+                                     const sirius::Hash256& transactionHash,
+                                     const std::string& workFolder )
     {
-        return m_session->addActionListToSession( actionList, workFolder, list );
+        m_modifyReplicatorList = replicatorList;
+        m_modifyTransactionHash = transactionHash.array();
+        
+        // check that replicator list is not empty
+        if ( m_modifyReplicatorList.empty() )
+            throw std::runtime_error("modifyReplicatorList is empty");
+
+        // create endpoint list for libtorrent
+        endpoint_list endpointList;
+        for( const auto& it : m_downloadReplicatorList )
+            endpointList.emplace_back( it.m_endpoint );
+
+        return m_session->addActionListToSession( actionList, workFolder, endpointList );
+    }
+
+    const std::optional<std::array<uint8_t,32>> downloadChannelId() override
+    {
+        return m_downloadChannelId;
     }
 
     // The next functions are called in libtorrent
@@ -80,31 +115,36 @@ protected:
         return true;
     }
 
-    void onPieceReceived( uint64_t pieceSize ) override
-    {
-        m_downloadedSize += pieceSize;
-        //LOG( "++++++++++++ onPieceReceived '" << m_dbgOurPeerName << "' :" << m_downloadedSize << "     :" << pieceSize );
-    }
-
     virtual void signReceipt( const std::array<uint8_t,32>& downloadChannelId,
                               const std::array<uint8_t,32>& replicatorPublicKey,
-                              uint64_t&                     outDownloadedSize,
+                              uint64_t                      downloadedSize,
                               std::array<uint8_t,64>&       outSignature ) override
     {
-        if ( m_downloadChannelId )
+        assert( m_downloadChannelId );
         {
+//todo++
+            LOG( "SSS " << dbgOurPeerName() << " " << int(downloadChannelId[0]) << " " << (int)publicKey()[0] << " " << (int) replicatorPublicKey[0] << " " << m_downloadedSize );
             crypto::Sign( m_keyPair,
                           {
                             utils::RawBuffer{downloadChannelId},
                             utils::RawBuffer{publicKey()},
                             utils::RawBuffer{replicatorPublicKey},
-                            utils::RawBuffer{(const uint8_t*)&m_downloadedSize,8}
+                            utils::RawBuffer{(const uint8_t*)&downloadedSize,8}
                           },
                           reinterpret_cast<Signature&>(outSignature) );
 
-
-            outDownloadedSize = m_downloadedSize;
+//todo++
+            LOG( "SSS: " << int(outSignature[0]) );
         }
+
+        //todo++
+//        if ( !verifyReceipt( downloadChannelId,
+//                            publicKey(),       // client public key
+//                            replicatorPublicKey,   // replicator public key
+//                            downloadedSize, outSignature ) )
+//        {
+//            assert(0);
+//        }
     }
 
     void signHandshake( const uint8_t* bytes, size_t size, std::array<uint8_t,64>& signature ) override
@@ -124,31 +164,36 @@ protected:
         return m_keyPair.publicKey().array();
     }
 
-    const std::optional<std::array<uint8_t,32>> downloadChannelId() override
-    {
-        return m_downloadChannelId;
-    }
-
-    uint64_t downloadedSize( const std::array<uint8_t,32>& ) override
+    uint64_t receivedSize( const std::array<uint8_t,32>& ) override
     {
         // for protocol compatibility we always retun 0; it could be ignored
         return 0;
     }
 
-    void setDownloadedSize( uint64_t downloadedSize ) override
+    void setStartReceivedSize( uint64_t downloadedSize ) override
     {
         // 'downloadedSize' should be set to proper value (last 'downloadedSize' of peviuos peer_connection)
-        m_downloadedSize = downloadedSize;
+        m_receivedSize = downloadedSize;
     }
 
-    uint64_t downloadedSize() override
+    void onPieceRequested( uint64_t pieceSize ) override
     {
-        return m_downloadedSize;
+        m_requestedSize += pieceSize;
     }
 
     uint64_t requestedSize() override
     {
         return m_requestedSize;
+    }
+
+    void onPieceReceived( uint64_t pieceSize ) override
+    {
+        m_receivedSize += pieceSize;
+    }
+
+    uint64_t receivedSize() override
+    {
+        return m_receivedSize;
     }
 
     const char* dbgOurPeerName() override

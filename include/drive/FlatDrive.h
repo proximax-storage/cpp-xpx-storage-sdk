@@ -34,7 +34,10 @@ namespace modify_status {
         //virtual void terminate() = 0;
 
         virtual InfoHash rootDriveHash() = 0;
-        virtual void     startModifyDrive( InfoHash modifyDataInfoHash, DriveModifyHandler ) = 0;
+        virtual void     startModifyDrive( InfoHash modifyDataInfoHash,
+                                          const Hash256& transactionHash,
+                                          uint64_t maxDataSize,
+                                          DriveModifyHandler ) = 0;
 
         virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
 

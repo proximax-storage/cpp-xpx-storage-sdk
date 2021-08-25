@@ -310,6 +310,9 @@ private:
         // where the file will be placed
         params.save_path = tmpFolder;
 
+        params.m_transactionHash = downloadContext.m_transactionHash.array();
+        params.m_downloadLimit   = downloadContext.m_downloadLimit;
+        
         // create torrent_handle
         lt::torrent_handle tHandle = m_session.add_torrent(params,ec);
         if (ec) {
@@ -403,8 +406,7 @@ private:
 //            if ( tHandle.is_valid() )
             if ( tHandle.in_session() )
             {
-                auto hash = tHandle.info_hashes().v2;
-                LOG( " file hash: " << hash );
+                LOG( " file hash: " << tHandle.info_hashes().v2 );
             }
         }
     }
@@ -565,7 +567,7 @@ private:
                 case lt::peer_snubbed_alert::alert_type: {
                     auto* theAlert = dynamic_cast<lt::peer_snubbed_alert*>(alert);
 
-                    LOG( "#!!!peer_snubbed_alert!!!: " << theAlert->endpoint << "\n" );
+                    _LOG( "#!!!peer_snubbed_alert!!!: " << theAlert->endpoint << "\n" );
                     break;
                 }
 
@@ -639,8 +641,8 @@ private:
                                     // the total number of bytes downloaded from and uploaded to this peer.
                                     // These numbers do not include the protocol chatter, but only the
                                     // payload data.
-                                    LOG("Total download: " << pi.total_download)
-                                    LOG("Total upload: " << pi.total_upload)
+                                    _LOG("Total download: " << pi.total_download)
+                                    _LOG("Total upload: " << pi.total_upload)
                                 }
 
                                 // remove torrent

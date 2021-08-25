@@ -58,10 +58,6 @@ namespace sirius {
     namespace drive {
         // InfoHash
         using InfoHash  = Hash256;// std::array<uint8_t,32>;
-
-        using SecretKey = Hash512;
-        using PublicKey = Hash256;
-        //using Signature = utils::ByteArray<Signature_Size, Signature_tag>;
     }
 
 }

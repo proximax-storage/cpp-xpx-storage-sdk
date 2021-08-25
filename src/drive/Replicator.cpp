@@ -142,7 +142,11 @@ public:
     }
 
 
-    std::string modify(const Key& driveKey, const InfoHash& infoHash, const DriveModifyHandler& handler ) override
+    std::string modify( const Key&       driveKey,
+                        const InfoHash&  infoHash,
+                        const Hash256&   transactionHash,
+                        uint64_t 		 maxDataSize,
+                        const DriveModifyHandler& handler ) override
     {
         LOG( "drive modification:\ndrive: " << driveKey << "\n info hash: " << infoHash );
 
@@ -158,7 +162,7 @@ public:
             }
         }
 
-        pDrive->startModifyDrive( infoHash, handler );
+        pDrive->startModifyDrive( infoHash, transactionHash, maxDataSize, handler );
         return "";
     }
 
@@ -219,9 +223,9 @@ public:
         //todo mutex
         if ( auto it = m_channelMap.find(downloadChannelId); it != m_channelMap.end() )
         {
-            for( auto endpointIt = it->second.m_replicatorsList.begin(); endpointIt != it->second.m_replicatorsList.end(); endpointIt++ )
+            for( auto replicatorIt = it->second.m_replicatorsList.begin(); replicatorIt != it->second.m_replicatorsList.end(); replicatorIt++ )
             {
-                m_session->sendMessage( "rcpt", { endpointIt->address(), endpointIt->port() }, message );
+                m_session->sendMessage( "rcpt", { replicatorIt->m_endpoint.address(), replicatorIt->m_endpoint.port() }, message );
             }
         }
     }
