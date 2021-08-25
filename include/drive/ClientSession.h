@@ -123,7 +123,7 @@ protected:
         assert( m_downloadChannelId );
         {
 //todo++
-            LOG( "SSS " << dbgOurPeerName() << " " << int(downloadChannelId[0]) << " " << (int)publicKey()[0] << " " << (int) replicatorPublicKey[0] << " " << m_downloadedSize );
+            LOG( "SSS " << dbgOurPeerName() << " " << int(downloadChannelId[0]) << " " << (int)publicKey()[0] << " " << (int) replicatorPublicKey[0] << " " << downloadedSize );
             crypto::Sign( m_keyPair,
                           {
                             utils::RawBuffer{downloadChannelId},

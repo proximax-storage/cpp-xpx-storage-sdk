@@ -186,10 +186,10 @@ public:
         return "";
     }
 
-    void addDownloadChannelInfo( const std::array<uint8_t,32>&  channelKey,
-                                size_t                          prepaidDownloadSize,
-                                const endpoint_list&            replicatorsList,
-                                std::vector<Key>&&              clients ) override
+    void addDownloadChannelInfo( const std::array<uint8_t,32>&   channelKey,
+                                 size_t                          prepaidDownloadSize,
+                                 const ReplicatorList&           replicatorsList,
+                                 std::vector<Key>&&              clients ) override
     {
         addChannelInfo( channelKey, prepaidDownloadSize, replicatorsList, std::move(clients) );
     }

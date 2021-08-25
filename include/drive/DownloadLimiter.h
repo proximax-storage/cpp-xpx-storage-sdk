@@ -13,7 +13,7 @@
 
 #include <map>
 
-namespace sirius { namespace drive {
+namespace sirius::drive {
 
 //
 // DownloadLimiter - it manages all user files at replicator side
@@ -28,7 +28,7 @@ protected:
         uint64_t                m_prepaidDownloadSize;
         uint64_t                m_uploadedSize;
         std::vector<Key>        m_clients;
-        endpoint_list           m_replicatorsList;
+        ReplicatorList          m_replicatorsList;
     };
 
     using ChannelMap = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
@@ -81,7 +81,7 @@ public:
 
     void addChannelInfo( const std::array<uint8_t,32>&  channelId,
                          uint64_t                       prepaidDownloadSize,
-                         const endpoint_list&           replicatorsList,
+                         const ReplicatorList&          replicatorsList,
                          std::vector<Key>&&       		clients )
     {
         //todo mutex
@@ -257,4 +257,4 @@ private:
     std::optional<std::array<uint8_t,32>> m_downloadChannelId;
 };
 
-}}
+}
