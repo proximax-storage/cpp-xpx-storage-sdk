@@ -54,12 +54,12 @@
 
 const sirius::Key clientPublicKey;
 
-const sirius::Hash256 downloadChannelKey1 = std::array<uint8_t,32>{1,1,1,1};
-const sirius::Hash256 downloadChannelKey2 = std::array<uint8_t,32>{2,2,2,2};
-const sirius::Hash256 downloadChannelKey3 = std::array<uint8_t,32>{3,3,3,3};
+const sirius::Hash256 downloadChannelHash1 = std::array<uint8_t,32>{1,1,1,1};
+const sirius::Hash256 downloadChannelHash2 = std::array<uint8_t,32>{2,2,2,2};
+const sirius::Hash256 downloadChannelHash3 = std::array<uint8_t,32>{3,3,3,3};
 
-const sirius::Hash256 modifyTransactionHash1 = std::array<uint8_t,32>{0xf1,0xf,0xf,0xf};
-const sirius::Hash256 modifyTransactionHash2 = std::array<uint8_t,32>{0xf2,0xf,0xf,0xf};
+const sirius::Hash256 modifyTransactionHash1 = std::array<uint8_t,32>{0xa1,0xf,0xf,0xf};
+const sirius::Hash256 modifyTransactionHash2 = std::array<uint8_t,32>{0xa2,0xf,0xf,0xf};
 
 namespace fs = std::filesystem;
 
@@ -93,8 +93,10 @@ static std::shared_ptr<Replicator> createReplicator(
 
 static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const sirius::Key&             driveKey,
+                         const sirius::Key&             clientPublicKey,
                          const InfoHash&                hash,
                          const sirius::Hash256&         transactionHash,
+                         const ReplicatorList&          replicatorList,
                          uint64_t                       maxDataSize );
 
 //
@@ -199,7 +201,7 @@ int main(int,char**)
 
     /// Client: read fsTree (1)
     ///
-    gClientSession->setDownloadChannel( replicatorList, downloadChannelKey1 );
+    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
     clientDownloadFsTree();
 
     /// Client: request to modify drive (1)
@@ -220,14 +222,14 @@ int main(int,char**)
         clientModifyDrive( actionList, replicatorList, modifyTransactionHash1 );
     }
 
-    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientModifyHash, modifyTransactionHash1, BIG_FILE_SIZE+1024 );
-    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientModifyHash, modifyTransactionHash1, BIG_FILE_SIZE+1024 );
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread.join();
     gReplicatorThread2.join();
 
     /// Client: read changed fsTree (2)
     ///
-    gClientSession->setDownloadChannel( replicatorList, downloadChannelKey2 );
+    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash2 );
     clientDownloadFsTree();
 
     /// Client: read files from drive
@@ -250,13 +252,13 @@ int main(int,char**)
         clientModifyDrive( actionList, replicatorList, modifyTransactionHash2 );
     }
 
-    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientModifyHash, modifyTransactionHash2, BIG_FILE_SIZE+1024 );
-    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientModifyHash, modifyTransactionHash2, BIG_FILE_SIZE+1024 );
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread.join();
     gReplicatorThread2.join();
 
     /// Client: read new fsTree (3)
-    gClientSession->setDownloadChannel( replicatorList, downloadChannelKey3 );
+    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash3 );
     clientDownloadFsTree();
 
     /// Delete client session and replicators
@@ -284,6 +286,8 @@ static std::shared_ptr<Replicator> createReplicator(
 {
     auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
                                    sirius::crypto::PrivateKey::FromString( privateKey ));
+    
+    EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(clientKeyPair.publicKey().array()[0]) );
 
     auto replicator = createDefaultReplicator(
                                               std::move( clientKeyPair ),
@@ -297,9 +301,9 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->start();
     replicator->addDrive( DRIVE_PUB_KEY, 100*1024*1024 );
 
-    replicator->addDownloadChannelInfo( downloadChannelKey1.array(), 1024*1024,    replicatorList, { clientPublicKey } );
-    replicator->addDownloadChannelInfo( downloadChannelKey2.array(), 10*1024*1024, replicatorList, { clientPublicKey } );
-    replicator->addDownloadChannelInfo( downloadChannelKey3.array(), 1024*1024,    replicatorList, { clientPublicKey } );
+    replicator->addDownloadChannelInfo( downloadChannelHash1.array(), 1024*1024,    replicatorList, { clientPublicKey } );
+    replicator->addDownloadChannelInfo( downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientPublicKey } );
+    replicator->addDownloadChannelInfo( downloadChannelHash3.array(), 1024*1024,    replicatorList, { clientPublicKey } );
 
     // set root drive hash
     driveRootHash = std::make_shared<InfoHash>( replicator->getRootHash( DRIVE_PUB_KEY ) );
@@ -309,8 +313,10 @@ static std::shared_ptr<Replicator> createReplicator(
 
 static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const sirius::Key&             driveKey,
+                         const sirius::Key&             clientPublicKey,
                          const InfoHash&                infoHash,
                          const sirius::Hash256&         transactionHash,
+                         const ReplicatorList&          replicatorList,
                          uint64_t                       maxDataSize )
 {
         // start drive update
@@ -318,7 +324,7 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
     std::condition_variable driveCondVar;
     std::mutex              driveMutex;
 
-    replicator->modify( DRIVE_PUB_KEY, infoHash, transactionHash, maxDataSize,
+    replicator->modify( DRIVE_PUB_KEY, clientPublicKey, infoHash, transactionHash, replicatorList, maxDataSize,
        [&] ( modify_status::code  code,
            InfoHash               resultRootInfoHash,
            const std::string&     error )

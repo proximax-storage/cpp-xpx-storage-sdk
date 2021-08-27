@@ -183,8 +183,9 @@ private:
     }
 
     virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
-                                          const std::string& savePath,
-                                          endpoint_list list ) override {
+                                               const std::string& savePath,
+                                               uint32_t           siriusFlags,
+                                               endpoint_list list ) override {
 
         // read torrent file
         std::ifstream torrentFile( torrentFilename );
@@ -200,9 +201,10 @@ private:
         params.flags |= lt::torrent_flags::upload_mode;
         params.flags |= lt::torrent_flags::no_verify_files;
 
-        params.storage_mode = lt::storage_mode_sparse;
-        params.save_path = fs::path(savePath);
-        params.ti = std::make_shared<lt::torrent_info>( buffer, lt::from_span );
+        params.storage_mode     = lt::storage_mode_sparse;
+        params.save_path        = fs::path(savePath);
+        params.ti               = std::make_shared<lt::torrent_info>( buffer, lt::from_span );
+        params.m_siriusFlags    = siriusFlags;
 
         //dbg///////////////////////////////////////////////////
         auto tInfo = lt::torrent_info(buffer, lt::from_span);
@@ -290,7 +292,10 @@ private:
         InfoHash infoHash = createTorrentFile( fs::path(sandboxFolder), workFolder, fs::path(sandboxFolder)/"root.torrent" );
 
         // add torrent file
-        addTorrentFileToSession( fs::path(sandboxFolder)/"root.torrent", workFolder, list );
+        addTorrentFileToSession( fs::path(sandboxFolder)/"root.torrent",
+                                 workFolder,
+                                 lt::sf_has_modify_data,
+                                 list );
 
         return infoHash;
     }
@@ -313,6 +318,11 @@ private:
         params.m_transactionHash = downloadContext.m_transactionHash.array();
         params.m_downloadLimit   = downloadContext.m_downloadLimit;
         
+        if ( downloadContext.m_downloadType == DownloadContext::client_data )
+            params.m_siriusFlags     = lt::sf_is_replicator | lt::sf_is_receiver;
+        else
+            params.m_siriusFlags     = lt::sf_is_receiver;
+
         // create torrent_handle
         lt::torrent_handle tHandle = m_session.add_torrent(params,ec);
         if (ec) {

@@ -27,11 +27,13 @@ public:
 
     virtual std::string addDrive(const Key& driveKey, size_t driveSize) = 0;
 
-    virtual std::string modify( const Key&      driveKey,
-                                const InfoHash& infoHash,
-                                const Hash256&  transactionHash,
-                                uint64_t maxDataSize,
-                                const DriveModifyHandler& handler ) = 0;
+    virtual std::string modify( const Key&              driveKey,
+                                const Key&              clientPublicKey,
+                                const InfoHash&         infoHash,
+                                const Hash256&          transactionHash,
+                                const ReplicatorList&   replicatorList,
+                                uint64_t                maxDataSize,
+                                const DriveModifyHandler&   handler ) = 0;
 
     virtual Hash256     getRootHash( const Key& driveKey ) = 0;
 

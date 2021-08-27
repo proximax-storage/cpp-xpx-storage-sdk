@@ -198,7 +198,10 @@ public:
 //        addFilesToSession( m_driveFolder, m_torrentFolder, m_fsTree );
 
         // Add FsTree to session
-        m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent, m_fsTreeTorrent.parent_path(), m_otherReplicators );
+        m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
+                                                               m_fsTreeTorrent.parent_path(),
+                                                               lt::sf_is_replicator,
+                                                               m_otherReplicators );
     }
 
     // add files to session recursively
@@ -552,6 +555,7 @@ public:
                 std::string fileName = internalFileName( it.first );
                 m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_torrentFolder / fileName,
                                                                        m_driveFolder,
+                                                                       lt::sf_is_replicator,
                                                                        m_otherReplicators );
             }
         }
@@ -560,12 +564,15 @@ public:
         for( const auto& fileHash: m_toBeAddedFiles )
         {
             fs::path torrentFile = m_torrentFolder / internalFileName(fileHash);
-            m_session->addTorrentFileToSession( torrentFile, m_driveFolder, {} );
+            m_session->addTorrentFileToSession( torrentFile, m_driveFolder, lt::sf_is_replicator, {} );
         }
         m_toBeAddedFiles.clear();
 
         // Add FsTree torrent to session
-        m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent, m_fsTreeTorrent.parent_path(), m_otherReplicators );
+        m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
+                                                               m_fsTreeTorrent.parent_path(),
+                                                               lt::sf_is_replicator,
+                                                               m_otherReplicators );
 
         // Call update handler
         m_modifyHandler( modify_status::update_completed, InfoHash(), "" );

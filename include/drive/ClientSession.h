@@ -97,7 +97,7 @@ public:
         return m_session->addActionListToSession( actionList, workFolder, endpointList );
     }
 
-    const std::optional<std::array<uint8_t,32>> downloadChannelId() override
+    const std::optional<std::array<uint8_t,32>> downloadChannelId()
     {
         return m_downloadChannelId;
     }
@@ -106,6 +106,19 @@ public:
 protected:
 
     bool isClient() const override { return true; }
+    
+    bool acceptConnection( const std::array<uint8_t,32>&  transactionHash,
+                           const std::array<uint8_t,32>&  peerPublicKey ) override
+    {
+        return true;
+    }
+
+    void onDisconnected( const std::array<uint8_t,32>&  transactionHash,
+                         const std::array<uint8_t,32>&  peerPublicKey,
+                         int                            reason ) override
+    {
+        //_LOG( "onDisconnected: " << dbgOurPeerName() << " peer: " << (int)peerPublicKey[0] );
+    }
 
     bool checkDownloadLimit( const std::array<uint8_t,64>& /*reciept*/,
                              const std::array<uint8_t,32>& /*downloadChannelId*/,
@@ -123,7 +136,7 @@ protected:
         assert( m_downloadChannelId );
         {
 //todo++
-            LOG( "SSS " << dbgOurPeerName() << " " << int(downloadChannelId[0]) << " " << (int)publicKey()[0] << " " << (int) replicatorPublicKey[0] << " " << m_downloadedSize );
+            LOG( "SSS " << dbgOurPeerName() << " " << int(downloadChannelId[0]) << " " << (int)publicKey()[0] << " " << (int) replicatorPublicKey[0] << " " << downloadedSize );
             crypto::Sign( m_keyPair,
                           {
                             utils::RawBuffer{downloadChannelId},
@@ -176,19 +189,31 @@ protected:
         m_receivedSize = downloadedSize;
     }
 
-    void onPieceRequested( uint64_t pieceSize ) override
+    void onPieceRequested( const std::array<uint8_t,32>&  transactionHash,
+                           const std::array<uint8_t,32>&  receiverPublicKey,
+                           uint64_t                       pieceSize ) override
     {
+        //todo++
         m_requestedSize += pieceSize;
+    }
+    
+    void onPieceSent( const std::array<uint8_t,32>&  transactionHash,
+                      const std::array<uint8_t,32>&  receiverPublicKey,
+                      uint64_t                       pieceSize ) override
+    {
+        //todo++
+    }
+
+    void onPieceReceived( const std::array<uint8_t,32>&  /*transactionHash*/,
+                          const std::array<uint8_t,32>&  /*senderPublicKey*/,
+                          uint64_t                       pieceSize ) override
+    {
+        m_receivedSize += pieceSize;
     }
 
     uint64_t requestedSize() override
     {
         return m_requestedSize;
-    }
-
-    void onPieceReceived( uint64_t pieceSize ) override
-    {
-        m_receivedSize += pieceSize;
     }
 
     uint64_t receivedSize() override
@@ -218,6 +243,8 @@ inline std::shared_ptr<ClientSession> createClientSession(  crypto::KeyPair&&   
                                                             bool                          useTcpSocket, // instead of uTP
                                                             const char*                   dbgClientName = "" )
 {
+    _LOG( "creating: " << dbgClientName << " with key: " <<  int(keyPair.publicKey().array()[0]) );
+
     std::shared_ptr<ClientSession> clientSession = std::make_shared<ClientSession>( std::move(keyPair), dbgClientName );
     clientSession->m_session = createDefaultSession( address, errorHandler, clientSession, useTcpSocket );
     clientSession->session()->lt_session().m_dbgOurPeerName = dbgClientName;

@@ -10,10 +10,12 @@
 
 inline std::mutex gLogMutex;
 
-#define LOG(expr) { \
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        std::cerr << expr << std::endl << std::flush; \
-    }
+//#define LOG(expr) { \
+//        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+//        std::cerr << expr << std::endl << std::flush; \
+//    }
+
+#define LOG(expr) 
 
 #define _LOG(expr) { \
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
