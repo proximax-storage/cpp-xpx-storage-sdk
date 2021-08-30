@@ -133,6 +133,7 @@ public:
 
     virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
                                                const std::string& savePath,
+                                               uint32_t           siriusFlags,
                                                endpoint_list = {} ) = 0;
 
     // It removes torrents from session.

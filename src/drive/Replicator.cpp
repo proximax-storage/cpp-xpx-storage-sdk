@@ -142,11 +142,13 @@ public:
     }
 
 
-    std::string modify( const Key&       driveKey,
-                        const InfoHash&  infoHash,
-                        const Hash256&   transactionHash,
-                        uint64_t 		 maxDataSize,
-                        const DriveModifyHandler& handler ) override
+    std::string modify( const Key&              driveKey,
+                        const Key&              clientPublicKey,
+                        const InfoHash&         infoHash,
+                        const Hash256&          transactionHash,
+                        const ReplicatorList&   replicatorList,
+                        uint64_t                maxDataSize,
+                        const DriveModifyHandler&   handler ) override
     {
         LOG( "drive modification:\ndrive: " << driveKey << "\n info hash: " << infoHash );
 
@@ -162,6 +164,7 @@ public:
             }
         }
 
+        addModifyDriveInfo( transactionHash.array(), maxDataSize, clientPublicKey, replicatorList );
         pDrive->startModifyDrive( infoHash, transactionHash, maxDataSize, handler );
         return "";
     }
@@ -208,8 +211,7 @@ public:
         {
             //todo log error?
             std::cerr << "ERROR! Invalid receipt" << std::endl << std::flush;
-            //assert(0);
-
+            assert(0);
             return;
         }
         
