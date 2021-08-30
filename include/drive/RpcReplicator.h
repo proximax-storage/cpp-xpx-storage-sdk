@@ -92,7 +92,10 @@ public:
                                std::promise<ResultWithModifyStatus> promise;
                                auto future = promise.get_future();
 
-                               driveService->modify( drivePubKey, infoHash, [&promise, driveKey = drivePubKey](
+                               Hash256 transactionHash;
+                               uint64_t maxDataSize = 100;
+
+                               driveService->modify( drivePubKey, infoHash, transactionHash, maxDataSize, [&promise, driveKey = drivePubKey](
                                        sirius::drive::modify_status::code code,
                                        sirius::drive::InfoHash rootHash,
                                        std::string error ) {

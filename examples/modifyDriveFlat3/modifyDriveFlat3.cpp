@@ -29,13 +29,13 @@
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_IP_ADDR          "192.168.1.102"
+#define CLIENT_IP_ADDR          "10.0.0.14"
 #define CLIENT_PORT             5000
 
-#define REPLICATOR_IP_ADDR      "127.0.0.1"
+#define REPLICATOR_IP_ADDR      "192.168.0.100"
 #define REPLICATOR_PORT         5001
-#define REPLICATOR_IP_ADDR_2    "10.0.3.110"
-#define REPLICATOR_PORT_2       5002
+//#define REPLICATOR_IP_ADDR_2    "127.0.0.1"
+//#define REPLICATOR_PORT_2       5002
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111"
 #define REPLICATOR_ROOT_FOLDER          fs::path(getenv("HOME")) / "111" / "replicator_root"
@@ -54,12 +54,12 @@
 
 const sirius::Key clientPublicKey;
 
-const sirius::Hash256 downloadChannelHash1 = std::array<uint8_t,32>{1,1,1,1};
-const sirius::Hash256 downloadChannelHash2 = std::array<uint8_t,32>{2,2,2,2};
-const sirius::Hash256 downloadChannelHash3 = std::array<uint8_t,32>{3,3,3,3};
+const sirius::Hash256 downloadChannelKey1 = std::array<uint8_t,32>{1,1,1,1};
+const sirius::Hash256 downloadChannelKey2 = std::array<uint8_t,32>{2,2,2,2};
+const sirius::Hash256 downloadChannelKey3 = std::array<uint8_t,32>{3,3,3,3};
 
-const sirius::Hash256 modifyTransactionHash1 = std::array<uint8_t,32>{0xa1,0xf,0xf,0xf};
-const sirius::Hash256 modifyTransactionHash2 = std::array<uint8_t,32>{0xa2,0xf,0xf,0xf};
+const sirius::Hash256 modifyTransactionHash1 = std::array<uint8_t,32>{0xf1,0xf,0xf,0xf};
+const sirius::Hash256 modifyTransactionHash2 = std::array<uint8_t,32>{0xf2,0xf,0xf,0xf};
 
 namespace fs = std::filesystem;
 
@@ -78,8 +78,8 @@ static std::string now_str();
 //
 std::shared_ptr<Replicator> gReplicator;
 std::thread gReplicatorThread;
-std::shared_ptr<Replicator> gReplicator2;
-std::thread gReplicatorThread2;
+//std::shared_ptr<Replicator> gReplicator2;
+//std::thread gReplicatorThread2;
 
 static std::shared_ptr<Replicator> createReplicator(
                                         const std::string&  pivateKey,
@@ -161,9 +161,9 @@ int main(int,char**)
     replicatorList.emplace_back( ReplicatorInfo{ {e, REPLICATOR_PORT},
         sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY)).publicKey() } );
     
-    boost::asio::ip::address e2 = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_2);
-    replicatorList.emplace_back( ReplicatorInfo{ {e2, REPLICATOR_PORT_2},
-        sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY)).publicKey() } );
+//    boost::asio::ip::address e2 = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_2);
+//    replicatorList.emplace_back( ReplicatorInfo{ {e2, REPLICATOR_PORT_2},
+//        sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY)).publicKey() } );
 
     ///
     /// Create replicators
@@ -176,13 +176,13 @@ int main(int,char**)
                                     TRANSPORT_PROTOCOL,
                                     "replicator1" );
 
-    gReplicator2 = createReplicator( REPLICATOR_PRIVATE_KEY_2,
-                                    REPLICATOR_IP_ADDR_2,
-                                    REPLICATOR_PORT_2,
-                                    std::string( REPLICATOR_ROOT_FOLDER_2 ),
-                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_2 ),
-                                    TRANSPORT_PROTOCOL,
-                                    "replicator2" );
+//    gReplicator2 = createReplicator( REPLICATOR_PRIVATE_KEY_2,
+//                                    REPLICATOR_IP_ADDR_2,
+//                                    REPLICATOR_PORT_2,
+//                                    std::string( REPLICATOR_ROOT_FOLDER_2 ),
+//                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_2 ),
+//                                    TRANSPORT_PROTOCOL,
+//                                    "replicator2" );
 
     ///
     /// Create client session
@@ -201,7 +201,7 @@ int main(int,char**)
 
     /// Client: read fsTree (1)
     ///
-    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
+    gClientSession->setDownloadChannel( replicatorList, downloadChannelKey1 );
     clientDownloadFsTree();
 
     /// Client: request to modify drive (1)
@@ -222,14 +222,14 @@ int main(int,char**)
         clientModifyDrive( actionList, replicatorList, modifyTransactionHash1 );
     }
 
-    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
-    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientPublicKey, clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
+    //gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientPublicKey, clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread.join();
-    gReplicatorThread2.join();
+    //gReplicatorThread2.join();
 
     /// Client: read changed fsTree (2)
     ///
-    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash2 );
+    gClientSession->setDownloadChannel( replicatorList, downloadChannelKey2 );
     clientDownloadFsTree();
 
     /// Client: read files from drive
@@ -252,19 +252,19 @@ int main(int,char**)
         clientModifyDrive( actionList, replicatorList, modifyTransactionHash2 );
     }
 
-    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
-    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientPublicKey, clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
+    //gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientPublicKey, clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread.join();
-    gReplicatorThread2.join();
+    //gReplicatorThread2.join();
 
     /// Client: read new fsTree (3)
-    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash3 );
+    gClientSession->setDownloadChannel( replicatorList, downloadChannelKey3 );
     clientDownloadFsTree();
 
     /// Delete client session and replicators
     gClientSession.reset();
     gReplicator.reset();
-    gReplicator2.reset();
+    //gReplicator2.reset();
 
     _LOG( "\ntotal time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
 
@@ -301,9 +301,9 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->start();
     replicator->addDrive( DRIVE_PUB_KEY, 100*1024*1024 );
 
-    replicator->addDownloadChannelInfo( downloadChannelHash1.array(), 1024*1024,    replicatorList, { clientPublicKey } );
-    replicator->addDownloadChannelInfo( downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientPublicKey } );
-    replicator->addDownloadChannelInfo( downloadChannelHash3.array(), 1024*1024,    replicatorList, { clientPublicKey } );
+    replicator->addDownloadChannelInfo( downloadChannelKey1.array(), 1024*1024,    replicatorList, { clientPublicKey } );
+    replicator->addDownloadChannelInfo( downloadChannelKey2.array(), 10*1024*1024, replicatorList, { clientPublicKey } );
+    replicator->addDownloadChannelInfo( downloadChannelKey3.array(), 1024*1024,    replicatorList, { clientPublicKey } );
 
     // set root drive hash
     driveRootHash = std::make_shared<InfoHash>( replicator->getRootHash( DRIVE_PUB_KEY ) );
@@ -313,10 +313,10 @@ static std::shared_ptr<Replicator> createReplicator(
 
 static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const sirius::Key&             driveKey,
-                         const sirius::Key&             clientPublicKey,
+                         const sirius::Key&             clientPubKey,
                          const InfoHash&                infoHash,
                          const sirius::Hash256&         transactionHash,
-                         const ReplicatorList&          replicatorList,
+                         const ReplicatorList&          replicators,
                          uint64_t                       maxDataSize )
 {
         // start drive update
@@ -324,7 +324,7 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
     std::condition_variable driveCondVar;
     std::mutex              driveMutex;
 
-    replicator->modify( DRIVE_PUB_KEY, clientPublicKey, infoHash, transactionHash, replicatorList, maxDataSize,
+    replicator->modify( DRIVE_PUB_KEY, clientPubKey, infoHash, transactionHash, replicators, maxDataSize,
        [&] ( modify_status::code  code,
            InfoHash               resultRootInfoHash,
            const std::string&     error )
@@ -422,7 +422,7 @@ static void clientDownloadFsTree()
 // clientModifyDrive
 //
 static void clientModifyDrive( const ActionList& actionList,
-                               const ReplicatorList& replicatorList,
+                               const ReplicatorList& replicators,
                                const sirius::Hash256& transactionHash )
 {
     actionList.dbgPrint();

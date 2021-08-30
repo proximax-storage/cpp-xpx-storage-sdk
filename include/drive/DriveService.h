@@ -116,7 +116,12 @@ public:
         return rootHash;
     }
 
-    std::string modify(const Key& driveKey, const InfoHash& infoHash, const DriveModifyHandler& handler )
+    std::string modify(
+            const Key& driveKey,
+            const InfoHash& infoHash,
+            const Hash256& transactionHash,
+            uint64_t maxDataSize,
+            const DriveModifyHandler& handler )
     {
         LOG( "drive modification:\ndrive: " << driveKey << "\n info hash: " << infoHash );
 
@@ -132,7 +137,7 @@ public:
             }
         }
 
-        pDrive->startModifyDrive( infoHash, handler );
+        pDrive->startModifyDrive( infoHash, transactionHash, maxDataSize, handler );
         return "";
     }
 
