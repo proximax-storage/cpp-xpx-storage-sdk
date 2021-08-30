@@ -97,7 +97,7 @@ public:
         return m_session->addActionListToSession( actionList, workFolder, endpointList );
     }
 
-    const std::optional<std::array<uint8_t,32>> downloadChannelId()
+    const std::optional<std::array<uint8_t,32>> downloadChannelId() override
     {
         return m_downloadChannelId;
     }
