@@ -10,7 +10,7 @@
 #include "crypto/Signer.h"
 #include <sirius_drive/session_delegate.h>
 
-namespace sirius { namespace drive {
+namespace sirius::drive {
 
 class ClientSession : public lt::session_delegate, std::enable_shared_from_this<ClientSession>
 {
@@ -97,7 +97,7 @@ public:
         return m_session->addActionListToSession( actionList, workFolder, endpointList );
     }
 
-    const std::optional<std::array<uint8_t,32>> downloadChannelId() override
+    const std::optional<std::array<uint8_t,32>> downloadChannelId()
     {
         return m_downloadChannelId;
     }
@@ -251,4 +251,4 @@ inline std::shared_ptr<ClientSession> createClientSession(  crypto::KeyPair&&   
     return clientSession;
 }
 
-}}
+}

@@ -191,7 +191,7 @@ public:
         ReplicatorTrafficMap trafficMap;
         trafficMap.insert( { clientPublicKey.array(), {}} );
         
-        std::vector<const Key> clients;
+        std::vector<Key> clients;
         for( const auto& it : replicatorsList )
         {
             if ( it.m_publicKey.array() != publicKey() )
