@@ -12,8 +12,7 @@
 
 namespace sirius { namespace drive {
 
-using  tcp = boost::asio::ip::tcp;
-using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
+//using  tcp = boost::asio::ip::tcp;
 
 namespace modify_status {
         enum code {
@@ -34,9 +33,10 @@ namespace modify_status {
         //virtual void terminate() = 0;
 
         virtual InfoHash rootDriveHash() = 0;
-        virtual void     startModifyDrive( InfoHash modifyDataInfoHash,
-                                          const Hash256& transactionHash,
-                                          uint64_t maxDataSize,
+        virtual void     startModifyDrive( InfoHash             modifyDataInfoHash,
+                                          const Hash256&        transactionHash,
+                                          uint64_t              maxDataSize,
+                                          const ReplicatorList& replicatorList,
                                           DriveModifyHandler ) = 0;
 
         virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
@@ -51,8 +51,7 @@ namespace modify_status {
                                                        const std::string&   replicatorRootFolder,
                                                        const std::string&   replicatorSandboxRootFolder,
                                                        const std::string&   drivePubKey,
-                                                       size_t               maxSize,
-                                                       const endpoint_list& otherReplicators = {}
+                                                       size_t               maxSize
                                                        );
 }}
 

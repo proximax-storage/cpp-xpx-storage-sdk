@@ -1,3 +1,4 @@
+#include "types.h"
 #include "drive/Session.h"
 #include "drive/ClientSession.h"
 #include "drive/Replicator.h"
@@ -18,12 +19,13 @@
 
 #include <sirius_drive/session_delegate.h>
 
+const bool gUse3Replicators = true;
 
 //
 // This example shows interaction between 'client' and 'replicator'.
 //
 
-#define BIG_FILE_SIZE 1 * 1024*1024
+#define BIG_FILE_SIZE 10 * 1024*1024
 #define TRANSPORT_PROTOCOL true // true - TCP, false - uTP
 
 // !!!
@@ -34,8 +36,10 @@
 
 #define REPLICATOR_IP_ADDR      "127.0.0.1"
 #define REPLICATOR_PORT         5001
-#define REPLICATOR_IP_ADDR_2    "10.0.3.110"
+#define REPLICATOR_IP_ADDR_2    "10.0.3.112"
 #define REPLICATOR_PORT_2       5002
+#define REPLICATOR_IP_ADDR_3    "10.0.3.113"
+#define REPLICATOR_PORT_3       5003
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111"
 #define REPLICATOR_ROOT_FOLDER          fs::path(getenv("HOME")) / "111" / "replicator_root"
@@ -46,11 +50,16 @@
 #define REPLICATOR_SANDBOX_ROOT_FOLDER_2  fs::path(getenv("HOME")) / "111" / "sandbox_root_2"
 #define DRIVE_PUB_KEY_2                   std::array<uint8_t,32>{2,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
 
+#define REPLICATOR_ROOT_FOLDER_3          fs::path(getenv("HOME")) / "111" / "replicator_root_3"
+#define REPLICATOR_SANDBOX_ROOT_FOLDER_3  fs::path(getenv("HOME")) / "111" / "sandbox_root_3"
+#define DRIVE_PUB_KEY_3                   std::array<uint8_t,32>{3,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
+
 #define CLIENT_WORK_FOLDER              fs::path(getenv("HOME")) / "111" / "client_work_folder"
 
 #define CLIENT_PRIVATE_KEY          "0000000000010203040501020304050102030405010203040501020304050102"
 #define REPLICATOR_PRIVATE_KEY      "1000000000010203040501020304050102030405010203040501020304050102"
 #define REPLICATOR_PRIVATE_KEY_2    "2000000000010203040501020304050102030405010203040501020304050102"
+#define REPLICATOR_PRIVATE_KEY_3    "3000000000010203040501020304050102030405010203040501020304050102"
 
 const sirius::Key clientPublicKey;
 
@@ -80,6 +89,8 @@ std::shared_ptr<Replicator> gReplicator;
 std::thread gReplicatorThread;
 std::shared_ptr<Replicator> gReplicator2;
 std::thread gReplicatorThread2;
+std::shared_ptr<Replicator> gReplicator3;
+std::thread gReplicatorThread3;
 
 static std::shared_ptr<Replicator> createReplicator(
                                         const std::string&  pivateKey,
@@ -157,13 +168,17 @@ int main(int,char**)
     ///
     /// Make the list of replicator addresses
     ///
+    boost::asio::ip::address e3 = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_3);
+    replicatorList.emplace_back( ReplicatorInfo{ {e3, REPLICATOR_PORT_3},
+        sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3)).publicKey() } );
+
     boost::asio::ip::address e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR);
     replicatorList.emplace_back( ReplicatorInfo{ {e, REPLICATOR_PORT},
         sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY)).publicKey() } );
     
     boost::asio::ip::address e2 = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_2);
     replicatorList.emplace_back( ReplicatorInfo{ {e2, REPLICATOR_PORT_2},
-        sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY)).publicKey() } );
+        sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_2)).publicKey() } );
 
     ///
     /// Create replicators
@@ -184,25 +199,34 @@ int main(int,char**)
                                     TRANSPORT_PROTOCOL,
                                     "replicator2" );
 
+    gReplicator3 = createReplicator( REPLICATOR_PRIVATE_KEY_3,
+                                    REPLICATOR_IP_ADDR_3,
+                                    REPLICATOR_PORT_3,
+                                    std::string( REPLICATOR_ROOT_FOLDER_3 ),
+                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_3 ),
+                                    TRANSPORT_PROTOCOL,
+                                    "replicator3" );
+
     ///
     /// Create client session
     ///
     auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
                                    sirius::crypto::PrivateKey::FromString( CLIENT_PRIVATE_KEY ));
-
     gClientFolder  = createClientFiles(BIG_FILE_SIZE);
     gClientSession = createClientSession( std::move(clientKeyPair),
                                          CLIENT_IP_ADDR ":5550",
                                          clientSessionErrorHandler,
                                          TRANSPORT_PROTOCOL,
                                          "client" );
-    
+    _LOG("");
+
     fs::path clientFolder = gClientFolder / "client_files";
 
     /// Client: read fsTree (1)
     ///
-    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
-    clientDownloadFsTree();
+//    TODO++
+//    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
+//    clientDownloadFsTree();
 
     /// Client: request to modify drive (1)
     ///
@@ -223,9 +247,17 @@ int main(int,char**)
     }
 
     gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
+    sleep(1);
     gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread.join();
     gReplicatorThread2.join();
+    gReplicatorThread3.join();
+    
+    /// Print traffic distribution (for modify drive operation)
+    gReplicator3->printTrafficDistribution( modifyTransactionHash1.array() );
+    gReplicator->printTrafficDistribution( modifyTransactionHash1.array() );
+    gReplicator2->printTrafficDistribution( modifyTransactionHash1.array() );
 
     /// Client: read changed fsTree (2)
     ///
@@ -254,8 +286,10 @@ int main(int,char**)
 
     gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread.join();
     gReplicatorThread2.join();
+    gReplicatorThread3.join();
 
     /// Client: read new fsTree (3)
     gClientSession->setDownloadChannel( replicatorList, downloadChannelHash3 );
@@ -265,6 +299,7 @@ int main(int,char**)
     gClientSession.reset();
     gReplicator.reset();
     gReplicator2.reset();
+    gReplicator3.reset();
 
     _LOG( "\ntotal time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
 

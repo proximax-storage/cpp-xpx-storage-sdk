@@ -17,13 +17,15 @@ class ClientSession : public lt::session_delegate, std::enable_shared_from_this<
     using DownloadChannelId     = std::optional<std::array<uint8_t,32>>;
     using ModifyTransactionHash = std::optional<std::array<uint8_t,32>>;
 
+    using ReplicatorTraficMap   = std::map<std::array<uint8_t,32>,uint64_t>;
+
     std::shared_ptr<Session>    m_session;
     crypto::KeyPair             m_keyPair;
 
     DownloadChannelId           m_downloadChannelId;
     ReplicatorList              m_downloadReplicatorList;
-    uint64_t                    m_requestedSize = 0;
-    uint64_t                    m_receivedSize = 0;
+    ReplicatorTraficMap         m_requestedSize;
+    ReplicatorTraficMap         m_receivedSize;
 
     ModifyTransactionHash       m_modifyTransactionHash;
     ReplicatorList              m_modifyReplicatorList;
@@ -40,12 +42,19 @@ public:
 public:
 
     //
-    void setDownloadChannel( const ReplicatorList& replicatorList, Hash256 downloadChannelId, uint64_t alreadyReceivedSize = 0 )
+    void setDownloadChannel( const ReplicatorList& replicatorList, Hash256 downloadChannelId, std::vector<uint64_t> alreadyReceivedSize = {} )
     {
-        m_downloadReplicatorList    = replicatorList;
-        m_downloadChannelId = downloadChannelId.array();
-        m_receivedSize      = alreadyReceivedSize;
-        m_requestedSize     = alreadyReceivedSize;
+        m_downloadReplicatorList = replicatorList;
+        m_downloadChannelId      = downloadChannelId.array();
+        
+        if ( replicatorList.size() == alreadyReceivedSize.size() )
+        {
+            for( uint32_t i=0; i<replicatorList.size(); i++ )
+            {
+                m_receivedSize[replicatorList[i].m_publicKey.array()]  = alreadyReceivedSize[i];
+                m_requestedSize[replicatorList[i].m_publicKey.array()] = alreadyReceivedSize[i];
+            }
+        }
     }
 
     void onHandshake( uint64_t /*uploadedSize*/ ) override
@@ -67,13 +76,8 @@ public:
         if ( m_downloadReplicatorList.empty() )
             throw std::runtime_error("downloadChannel is not set");
 
-        // create endpoint list for libtorrent
-        endpoint_list endpointList;
-        for( const auto& it : m_downloadReplicatorList )
-            endpointList.emplace_back( it.m_endpoint );
-
         // start downloading
-        m_session->download( std::move(downloadParameters), tmpFolder, endpointList );
+        m_session->download( std::move(downloadParameters), tmpFolder, m_downloadReplicatorList );
     }
 
     // prepare session to modify action
@@ -91,7 +95,7 @@ public:
 
         // create endpoint list for libtorrent
         endpoint_list endpointList;
-        for( const auto& it : m_downloadReplicatorList )
+        for( const auto& it : replicatorList )
             endpointList.emplace_back( it.m_endpoint );
 
         return m_session->addActionListToSession( actionList, workFolder, endpointList );
@@ -117,7 +121,9 @@ protected:
                          const std::array<uint8_t,32>&  peerPublicKey,
                          int                            reason ) override
     {
-        //_LOG( "onDisconnected: " << dbgOurPeerName() << " peer: " << (int)peerPublicKey[0] );
+//        _LOG( "onDisconnected: " << dbgOurPeerName() << " from replicator: " << (int)peerPublicKey[0] );
+//        _LOG( " - requestedSize: " << m_requestedSize[peerPublicKey] );
+//        _LOG( " - receivedSize:  " << m_receivedSize[peerPublicKey] );
     }
 
     bool checkDownloadLimit( const std::array<uint8_t,64>& /*reciept*/,
@@ -177,25 +183,24 @@ protected:
         return m_keyPair.publicKey().array();
     }
 
-    uint64_t receivedSize( const std::array<uint8_t,32>& ) override
-    {
-        // for protocol compatibility we always retun 0; it could be ignored
-        return 0;
-    }
-
-    void setStartReceivedSize( uint64_t downloadedSize ) override
-    {
-        // 'downloadedSize' should be set to proper value (last 'downloadedSize' of peviuos peer_connection)
-        m_receivedSize = downloadedSize;
-    }
+//    void setStartReceivedSize( uint64_t downloadedSize ) override
+//    {
+//        // 'downloadedSize' should be set to proper value (last 'downloadedSize' of peviuos peer_connection)
+//        m_receivedSize = downloadedSize;
+//    }
 
     void onPieceRequested( const std::array<uint8_t,32>&  transactionHash,
                            const std::array<uint8_t,32>&  receiverPublicKey,
                            uint64_t                       pieceSize ) override
     {
-        //todo++
-        m_requestedSize += pieceSize;
     }
+    
+    void onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
+                                 const std::array<uint8_t,32>&  receiverPublicKey,
+                                 uint64_t                       pieceSize ) override
+    {
+    }
+
     
     void onPieceSent( const std::array<uint8_t,32>&  transactionHash,
                       const std::array<uint8_t,32>&  receiverPublicKey,
@@ -205,20 +210,20 @@ protected:
     }
 
     void onPieceReceived( const std::array<uint8_t,32>&  /*transactionHash*/,
-                          const std::array<uint8_t,32>&  /*senderPublicKey*/,
+                          const std::array<uint8_t,32>&  senderPublicKey,
                           uint64_t                       pieceSize ) override
     {
-        m_receivedSize += pieceSize;
+        m_receivedSize[senderPublicKey] += pieceSize;
     }
 
-    uint64_t requestedSize() override
+    uint64_t requestedSize( const std::array<uint8_t,32>&  peerPublicKey ) override
     {
-        return m_requestedSize;
+        return m_requestedSize[peerPublicKey];
     }
 
-    uint64_t receivedSize() override
+    uint64_t receivedSize( const std::array<uint8_t,32>&  peerPublicKey ) override
     {
-        return m_receivedSize;
+        return m_receivedSize[peerPublicKey];
     }
 
     const char* dbgOurPeerName() override

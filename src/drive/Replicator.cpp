@@ -163,9 +163,19 @@ public:
                 return "drive not found";
             }
         }
-
+        
         addModifyDriveInfo( transactionHash.array(), maxDataSize, clientPublicKey, replicatorList );
-        pDrive->startModifyDrive( infoHash, transactionHash, maxDataSize, handler );
+
+
+        ReplicatorList replicatorList2;
+        for( const auto& it : replicatorList )
+        {
+            if ( it.m_publicKey == publicKey() )
+                continue;
+            //_LOG( "modify: " << dbgOurPeerName() << " " << (int)it.m_publicKey[0] );
+            replicatorList2.push_back( it );
+        }
+        pDrive->startModifyDrive( infoHash, transactionHash, maxDataSize, replicatorList, handler );
         return "";
     }
 

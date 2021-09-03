@@ -83,7 +83,6 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     LtSession     m_session;
 
     size_t        m_maxSize;
-    endpoint_list m_otherReplicators;
 
     // FsTree
     FsTree        m_fsTree;
@@ -112,13 +111,11 @@ public:
                   const std::string&        replicatorRootFolder,
                   const std::string&        replicatorSandboxRootFolder,
                   const std::string&        drivePubKey,
-                  size_t                    maxSize,
-                  const endpoint_list&      otherReplicators )
+                  size_t                    maxSize )
         :
           FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
           m_session(session),
-          m_maxSize(maxSize),
-          m_otherReplicators(otherReplicators)
+          m_maxSize(maxSize)
     {
         // Initialize drive
         init();
@@ -200,8 +197,7 @@ public:
         // Add FsTree to session
         m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
                                                                m_fsTreeTorrent.parent_path(),
-                                                               lt::sf_is_replicator,
-                                                               m_otherReplicators );
+                                                               lt::sf_is_replicator );
     }
 
     // add files to session recursively
@@ -259,10 +255,11 @@ public:
 
     // startModifyDrive - should be called after client 'modify request'
     //
-    void startModifyDrive( InfoHash          modifyDataInfoHash,
-                          const Hash256&     transactionHash,
-                          uint64_t           maxDataSize,
-                          DriveModifyHandler modifyHandler ) override
+    void startModifyDrive( InfoHash             modifyDataInfoHash,
+                          const Hash256&        transactionHash,
+                          uint64_t              maxDataSize,
+                          const ReplicatorList& replicatorList,
+                          DriveModifyHandler    modifyHandler ) override
     {
         using namespace std::placeholders;  // for _1, _2, _3
 
@@ -280,8 +277,8 @@ public:
                                             transactionHash,
                                             0, //todo
                                             ""),
-                                       m_sandboxRootPath,
-                                       m_otherReplicators );
+                                        m_sandboxRootPath,
+                                        replicatorList );
     }
 
     // will be called by Session
@@ -555,8 +552,7 @@ public:
                 std::string fileName = internalFileName( it.first );
                 m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_torrentFolder / fileName,
                                                                        m_driveFolder,
-                                                                       lt::sf_is_replicator,
-                                                                       m_otherReplicators );
+                                                                       lt::sf_is_replicator );
             }
         }
 
@@ -571,8 +567,7 @@ public:
         // Add FsTree torrent to session
         m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
                                                                m_fsTreeTorrent.parent_path(),
-                                                               lt::sf_is_replicator,
-                                                               m_otherReplicators );
+                                                               lt::sf_is_replicator );
 
         // Call update handler
         m_modifyHandler( modify_status::update_completed, InfoHash(), "" );
@@ -630,15 +625,13 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
         const std::string&       replicatorRootFolder,
         const std::string&       replicatorSandboxRootFolder,
         const std::string&       drivePubKey,
-        size_t                   maxSize,
-        const endpoint_list&     otherReplicators )
+        size_t                   maxSize )
 {
     return std::make_shared<DefaultFlatDrive>( session,
                                            replicatorRootFolder,
                                            replicatorSandboxRootFolder,
                                            drivePubKey,
-                                           maxSize,
-                                           otherReplicators );
+                                           maxSize );
 }
 
 }}

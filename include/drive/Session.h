@@ -26,14 +26,6 @@ namespace sirius { namespace drive {
 
 #define FS_TREE_FILE_NAME "FsTree.bin"
 
-struct ReplicatorInfo
-{
-    boost::asio::ip::tcp::endpoint  m_endpoint;
-    Key                             m_publicKey;
-};
-
-using ReplicatorList = std::vector<ReplicatorInfo>;
-
 // It will be used to inform 'client' about download status
 //
 namespace download_status {
@@ -149,7 +141,7 @@ public:
     // initiate file downloading (identified by downloadParameters.m_infoHash)
     virtual void      download( DownloadContext&&   downloadParameters,
                                 const std::string&  tmpFolder,
-                                endpoint_list       list = {} ) = 0;
+                                ReplicatorList      list = {} ) = 0;
 
     virtual void      sendMessage( boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
 

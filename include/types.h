@@ -10,6 +10,8 @@
 #include <string>
 #include <array>
 #include <functional>
+#include <boost/asio/ip/tcp.hpp>
+
 
 namespace sirius {
 
@@ -58,6 +60,13 @@ namespace sirius {
     namespace drive {
         // InfoHash
         using InfoHash  = Hash256;// std::array<uint8_t,32>;
+
+        struct ReplicatorInfo
+        {
+            boost::asio::ip::tcp::endpoint  m_endpoint;
+            Key                             m_publicKey;
+        };
+        using ReplicatorList = std::vector<ReplicatorInfo>;
     }
 
 }

@@ -57,6 +57,8 @@ public:
     virtual void        setReceiptLimit( uint64_t newLimitInBytes ) = 0;
     
     virtual void        printDriveStatus( const Key& driveKey ) = 0;
+    
+    virtual void        printTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) = 0;
 
 };
 

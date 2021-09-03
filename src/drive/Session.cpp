@@ -200,6 +200,12 @@ private:
         params.flags |= lt::torrent_flags::seed_mode;
         params.flags |= lt::torrent_flags::upload_mode;
         params.flags |= lt::torrent_flags::no_verify_files;
+        
+        // set super seeding mode for clients
+//        if ( !(siriusFlags & lt::sf_is_replicator) )
+//        {
+//            params.flags |= lt::torrent_flags::super_seeding;
+//        }
 
         params.storage_mode     = lt::storage_mode_sparse;
         params.save_path        = fs::path(savePath);
@@ -303,7 +309,7 @@ private:
     // downloadFile
     virtual void download( DownloadContext&&    downloadContext,
                            const std::string&   tmpFolder,
-                           endpoint_list        list  ) override {
+                           ReplicatorList       list  ) override {
 
         // create add_torrent_params
         lt::error_code ec;
@@ -336,9 +342,9 @@ private:
             throw std::runtime_error("downloadFile: torrent handle is not valid");
 
         // connect to peers
-        for( auto endpoint : list ) {
-            LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
-            tHandle.connect_peer(endpoint);
+        for( const auto& it : list ) {
+            //LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
+            tHandle.connect_peer( it.m_endpoint );
         }
 
         // save download handler

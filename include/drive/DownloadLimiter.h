@@ -25,23 +25,13 @@ class DownloadLimiter : public Replicator,
 {
 protected:
     
+    // It is used for calculation of total data size, downloaded by 'client'
     struct ReplicatorUploadInfo
     {
         // It is the size uploaded by another replicator
         uint64_t m_uploadedSize = 0;
     };
-    
-    struct ReplicatorTrafficInfo
-    {
-        // It is the size received from another replicator or client
-        uint64_t m_receivedSize = 0;
-        
-        // It is the size sent to another replicator
-        uint64_t m_sentSize = 0;
-    };
-    
-    using ReplicatorUploadMap  = std::map<std::array<uint8_t,32>,ReplicatorUploadInfo>;
-    using ReplicatorTrafficMap = std::map<std::array<uint8_t,32>,ReplicatorTrafficInfo>;
+    using ReplicatorUploadMap = std::map<std::array<uint8_t,32>,ReplicatorUploadInfo>;
 
     struct DownloadChannelInfo
     {
@@ -53,17 +43,33 @@ protected:
         ReplicatorUploadMap     m_replicatorUploadMap;
     };
 
+    using ChannelMap        = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
+
+    // It is used for mutual calculation of the replicators, when they download 'modify data'
+    // (Note. Replicators could receive 'modify data' from client and from replicators, that already receives some piece)
+    struct ModifyTrafficInfo
+    {
+        // It is the size received from another replicator or client
+        uint64_t m_receivedSize = 0;
+        
+        // It is the size sent to another replicator
+        uint64_t m_requestedSize = 0;
+        uint64_t m_sentSize = 0;
+    };
+    using ModifyTrafficMap = std::map<std::array<uint8_t,32>,ModifyTrafficInfo>;
+
     struct ModifyDriveInfo
     {
         uint64_t                m_dataSize;
         uint64_t                m_downloadedSize = 0;
         ReplicatorList          m_replicatorsList;
-        ReplicatorTrafficMap    m_replicatorTrafficMap;
+        ModifyTrafficMap        m_modifyTrafficMap;
     };
 
-    using ChannelMap        = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
     using ModifyDriveMap    = std::map<std::array<uint8_t,32>, ModifyDriveInfo>;
 
+protected:
+    
     std::shared_mutex   m_mutex;
 
     ChannelMap          m_channelMap;
@@ -111,11 +117,72 @@ public:
 
     void onDisconnected( const std::array<uint8_t,32>&  transactionHash,
                          const std::array<uint8_t,32>&  peerPublicKey,
-                         int                            reason ) override
+                         int                            siriusFlags ) override
     {
-        //_LOG( "onDisconnected: " << dbgOurPeerName() << " peer: " << (int)peerPublicKey[0] );
+        //TODO++
+        return;
+        
+        std::shared_lock<std::shared_mutex> lock(m_mutex);
+
+        if ( !(siriusFlags & lt::sf_is_receiver) )
+        {
+//            _LOG( " :::::::::::::::::::::::::::::::::::: " );
+            _LOG( "onDisconnected: " << dbgOurPeerName() << " from client: " << (int)peerPublicKey[0] );
+//            if ( const auto& it = m_channelMap.find( transactionHash ); it != m_channelMap.end() )
+//            {
+//                _LOG( " requestedSize: " << it->second.m_requestedSize );
+//                _LOG( " uploadedSize: " <<  it->second.m_uploadedSize );
+//                for( const auto& replicatorIt : it->second.m_replicatorUploadMap )
+//                {
+//                    _LOG( " uploadedSize: " <<  replicatorIt.second.m_uploadedSize << " by " << (int)replicatorIt.first[0] );
+//                }
+//            }
+//            _LOG( " .................................... " );
+        }
+        else
+        {
+            //_LOG( " :::::::::::::::::::::::::::::::::::: " );
+            _LOG( "onDisconnected: " << dbgOurPeerName() << " from peer: " << (int)peerPublicKey[0] );
+            for( const auto& i : m_modifyDriveMap ) {
+                _LOG( "m_modifyDriveMap: " << (int)i.first[0] << " " << (int)transactionHash[0]);
+            }
+
+            if ( const auto& it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
+            {
+                for( const auto& replicatorIt : it->second.m_modifyTrafficMap )
+                {
+                    _LOG( " m_receivedSize: " <<  replicatorIt.second.m_receivedSize << " from " << (int)replicatorIt.first[0] );
+                    _LOG( " m_sentSize: "     <<  replicatorIt.second.m_sentSize << " to " << (int)replicatorIt.first[0] );
+                }
+                _LOG( " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ " );
+            }
+        }
     }
 
+    void printTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) override
+    {
+        std::shared_lock<std::shared_mutex> lock(m_mutex);
+
+        if ( const auto& it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
+        {
+            _LOG( "\nTrafficDistribution: " << dbgOurPeerName() << " (" << (int)publicKey()[0] << ")" );
+            for( const auto& replicatorIt : it->second.m_modifyTrafficMap )
+            {
+                if ( replicatorIt.second.m_receivedSize )
+                {
+                    _LOG( " receivedSize: " <<  replicatorIt.second.m_receivedSize << " from " << (int)replicatorIt.first[0] );
+                }
+                if ( replicatorIt.second.m_requestedSize )
+                {
+                    _LOG( " requestedSize: "     <<  replicatorIt.second.m_requestedSize << " by " << (int)replicatorIt.first[0] );
+                }
+                if ( replicatorIt.second.m_sentSize )
+                {
+                    _LOG( " sentSize: "     <<  replicatorIt.second.m_sentSize << " to " << (int)replicatorIt.first[0] );
+                }
+            }
+        }
+    }
 
     bool checkDownloadLimit( const std::array<uint8_t,64>& /*signature*/,
                              const std::array<uint8_t,32>& downloadChannelId,
@@ -154,7 +221,7 @@ public:
     void addChannelInfo( const std::array<uint8_t,32>&  channelId,
                          uint64_t                       prepaidDownloadSize,
                          const ReplicatorList&          replicatorsList,
-                         std::vector<const Key>&&       clients )
+                         const std::vector<const Key>&  clients )
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
@@ -168,7 +235,7 @@ public:
 
             if ( clients.size() > 0 )
             {
-                it->second.m_clients = std::move(clients);
+                //it->second.m_clients = clients; //TODO!!!
             }
             return;
         }
@@ -179,7 +246,7 @@ public:
             if ( it.m_publicKey.array() != publicKey() )
                 map.insert( { it.m_publicKey.array(), {}} );
         }
-        m_channelMap[channelId] = DownloadChannelInfo{ prepaidDownloadSize, 0, 0, std::move(clients), replicatorsList, std::move(map) };
+        m_channelMap[channelId] = DownloadChannelInfo{ prepaidDownloadSize, 0, 0, clients, replicatorsList, std::move(map) };
     }
 
     void addModifyDriveInfo( const Key&             modifyTransactionHash,
@@ -187,28 +254,29 @@ public:
                              const Key&             clientPublicKey,
                              const ReplicatorList&  replicatorsList )
     {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
 
-        ReplicatorTrafficMap trafficMap;
-        trafficMap.insert( { clientPublicKey.array(), {}} );
+        ModifyTrafficMap trafficMap;
+        trafficMap.insert( { clientPublicKey.array(), {0,0}} );
         
         std::vector<const Key> clients;
         for( const auto& it : replicatorsList )
         {
             if ( it.m_publicKey.array() != publicKey() )
             {
-                trafficMap.insert( { it.m_publicKey.array(), {}} );
+                //_LOG( dbgOurPeerName() << " pubKey: " << (int)it.m_publicKey.array()[0] );
+                trafficMap.insert( { it.m_publicKey.array(), {0,0}} );
                 clients.emplace_back( it.m_publicKey );
             }
         }
         
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
-
         m_modifyDriveMap[modifyTransactionHash.array()] = ModifyDriveInfo{ dataSize, 0, replicatorsList, trafficMap };
 
         // we need to add modifyTransactionHash into 'm_channelMap'
         // because replicators could download pieces from their neighbors
         //
         m_channelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ dataSize, 0, 0, std::move(clients), replicatorsList, {} };
+        
     }
     
     void removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash )
@@ -229,9 +297,28 @@ public:
             return;
         }
 
-        //todo LOG_ERR( "ERROR: unknown transactionHash: " << (int)transactionHash[0] );
+        LOG_ERR( "ERROR: unknown transactionHash: " << (int)transactionHash[0] );
     }
     
+    void onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
+                                 const std::array<uint8_t,32>&  receiverPublicKey,
+                                 uint64_t                       pieceSize ) override
+    {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+
+        if ( auto it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
+        {
+            if ( auto peerIt = it->second.m_modifyTrafficMap.find(receiverPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
+            {
+                peerIt->second.m_requestedSize += pieceSize;
+                return;
+            }
+            LOG_ERR( "ERROR: unknown peer: " << (int)receiverPublicKey[0] );
+        }
+
+        LOG_ERR( "ERROR: unknown transactionHash(onPieceRequestReceived): " << (int)transactionHash[0] );
+    }
+
     void onPieceSent( const std::array<uint8_t,32>&  transactionHash,
                       const std::array<uint8_t,32>&  receiverPublicKey,
                       uint64_t                       pieceSize ) override
@@ -241,17 +328,39 @@ public:
         if ( auto it = m_channelMap.find( transactionHash ); it != m_channelMap.end() )
         {
             it->second.m_uploadedSize += pieceSize;
-            return;
+            //return;
+        }
+
+        if ( auto it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
+        {
+            if ( auto peerIt = it->second.m_modifyTrafficMap.find(receiverPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
+            {
+                peerIt->second.m_sentSize += pieceSize;
+                return;
+            }
+            LOG_ERR( "ERROR: unknown peer: " << (int)receiverPublicKey[0] );
         }
 
         LOG_ERR( "ERROR(2): unknown transactionHash: " << (int)transactionHash[0] );
     }
 
-    void onPieceReceived( const std::array<uint8_t,32>&  /*transactionHash*/,
-                          const std::array<uint8_t,32>&  /*senderPublicKey*/,
+    void onPieceReceived( const std::array<uint8_t,32>&  transactionHash,
+                          const std::array<uint8_t,32>&  senderPublicKey,
                           uint64_t                       pieceSize ) override
     {
-        //todo
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+
+        if ( auto it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
+        {
+            if ( auto peerIt = it->second.m_modifyTrafficMap.find(senderPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
+            {
+                peerIt->second.m_receivedSize += pieceSize;
+                return;
+            }
+            LOG_ERR( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
+        }
+
+        LOG_ERR( "ERROR(3): unknown transactionHash: " << (int)transactionHash[0] );
     }
 
 
@@ -350,22 +459,16 @@ public:
         return m_keyPair.publicKey().array();
     }
 
-    uint64_t receivedSize( const std::array<uint8_t,32>& ) override
-    {
-        //todo++
-        return 0;
-    }
+//    void setStartReceivedSize( uint64_t /*downloadedSize*/ ) override
+//    {
+//    }
 
-    void setStartReceivedSize( uint64_t /*downloadedSize*/ ) override
-    {
-    }
-
-    uint64_t receivedSize() override
+    uint64_t receivedSize( const std::array<uint8_t,32>&  peerPublicKey ) override
     {
         return 0;
     }
 
-    uint64_t requestedSize() override
+    uint64_t requestedSize( const std::array<uint8_t,32>&  peerPublicKey ) override
     {
         return 0;
     }
