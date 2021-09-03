@@ -243,7 +243,7 @@ inline std::shared_ptr<ClientSession> createClientSession(  crypto::KeyPair&&   
                                                             bool                          useTcpSocket, // instead of uTP
                                                             const char*                   dbgClientName = "" )
 {
-    _LOG( "creating: " << dbgClientName << " with key: " <<  int(keyPair.publicKey().array()[0]) );
+    _LOG( "creating: " << dbgClientName << " with key: " <<  int(keyPair.publicKey().array()[0]) )
 
     std::shared_ptr<ClientSession> clientSession = std::make_shared<ClientSession>( std::move(keyPair), dbgClientName );
     clientSession->m_session = createDefaultSession( address, errorHandler, clientSession, useTcpSocket );
