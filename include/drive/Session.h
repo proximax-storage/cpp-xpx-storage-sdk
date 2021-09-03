@@ -22,7 +22,7 @@
 
 using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
 
-namespace sirius { namespace drive {
+namespace sirius::drive {
 
 #define FS_TREE_FILE_NAME "FsTree.bin"
 
@@ -200,4 +200,4 @@ using LibTorrentErrorHandler = std::function<void( const lt::alert* )>;
     PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address, const LibTorrentErrorHandler& );
 #endif
 
-}}
+}

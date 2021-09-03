@@ -166,7 +166,7 @@ public:
             }
             it->second.m_prepaidDownloadSize = prepaidDownloadSize;
 
-            if ( clients.size() > 0 )
+            if ( !clients.empty() )
             {
                 it->second.m_clients = std::move(clients);
             }
