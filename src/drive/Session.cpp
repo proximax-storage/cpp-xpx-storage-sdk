@@ -41,7 +41,7 @@
 
 namespace fs = std::filesystem;
 
-namespace sirius { namespace drive {
+namespace sirius::drive {
 
 enum { PIECE_SIZE = 16*1024 };
 
@@ -1149,4 +1149,4 @@ std::shared_ptr<Session> createDefaultSession( std::string address,
 }
 #endif
 
-}}
+}

@@ -1,3 +1,8 @@
+/*
+ endModify() -> timer -> sendPercents
+ onAllConnectionsClosed() -> sendPercents
+ onPercents() -> sendApprovalTransaction
+ */
 #include "types.h"
 #include "drive/Session.h"
 #include "drive/ClientSession.h"

@@ -14,7 +14,7 @@
 #include <map>
 #include <shared_mutex>
 
-namespace sirius { namespace drive {
+namespace sirius::drive {
 
 //
 // DownloadLimiter - it manages all user files at replicator side
@@ -38,7 +38,7 @@ protected:
         uint64_t                m_prepaidDownloadSize;
         uint64_t                m_requestedSize = 0;
         uint64_t                m_uploadedSize = 0;
-        std::vector<const Key>  m_clients; //todo
+        std::vector<std::array<uint8_t, 32>> m_clients; //todo
         ReplicatorList          m_replicatorsList;
         ReplicatorUploadMap     m_replicatorUploadMap;
     };
@@ -221,7 +221,7 @@ public:
     void addChannelInfo( const std::array<uint8_t,32>&  channelId,
                          uint64_t                       prepaidDownloadSize,
                          const ReplicatorList&          replicatorsList,
-                         const std::vector<const Key>&  clients )
+                         const std::vector<std::array<uint8_t,32>>&  clients )
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
@@ -233,7 +233,7 @@ public:
             }
             it->second.m_prepaidDownloadSize = prepaidDownloadSize;
 
-            if ( clients.size() > 0 )
+            if ( !clients.empty() )
             {
                 //it->second.m_clients = clients; //TODO!!!
             }
@@ -259,14 +259,14 @@ public:
         ModifyTrafficMap trafficMap;
         trafficMap.insert( { clientPublicKey.array(), {0,0}} );
         
-        std::vector<const Key> clients;
+        std::vector<std::array<uint8_t,32>> clients;
         for( const auto& it : replicatorsList )
         {
             if ( it.m_publicKey.array() != publicKey() )
             {
                 //_LOG( dbgOurPeerName() << " pubKey: " << (int)it.m_publicKey.array()[0] );
                 trafficMap.insert( { it.m_publicKey.array(), {0,0}} );
-                clients.emplace_back( it.m_publicKey );
+                clients.emplace_back( it.m_publicKey.array() );
             }
         }
         
@@ -306,6 +306,12 @@ public:
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
+        if ( auto it = m_channelMap.find( transactionHash ); it != m_channelMap.end() )
+        {
+            it->second.m_requestedSize += pieceSize;
+            return;
+        }
+
         if ( auto it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
         {
             if ( auto peerIt = it->second.m_modifyTrafficMap.find(receiverPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
@@ -338,10 +344,10 @@ public:
                 peerIt->second.m_sentSize += pieceSize;
                 return;
             }
-            LOG_ERR( "ERROR: unknown peer: " << (int)receiverPublicKey[0] );
+            //LOG_ERR( "ERROR: unknown peer: " << (int)receiverPublicKey[0] );
         }
 
-        LOG_ERR( "ERROR(2): unknown transactionHash: " << (int)transactionHash[0] );
+        //LOG_ERR( "ERROR(2): unknown transactionHash: " << (int)transactionHash[0] );
     }
 
     void onPieceReceived( const std::array<uint8_t,32>&  transactionHash,
@@ -490,4 +496,4 @@ public:
     }
 };
 
-}}
+}

@@ -12,9 +12,7 @@
 #include <libtorrent/alert_types.hpp>
 #include <filesystem>
 
-namespace sirius { namespace drive {
-
-constexpr auto Replicator_Host = "127.0.0.1:";
+namespace sirius::drive {
 
 #ifndef CATAPULT_THROW_INVALID_ARGUMENT_1
 #define CATAPULT_THROW_INVALID_ARGUMENT_1(msg,key) \
@@ -24,6 +22,9 @@ constexpr auto Replicator_Host = "127.0.0.1:";
 
 struct DriveServiceConfig {
 public:
+    /// Replicator address
+    std::string Address;
+
     /// Replicator port.
     std::string Port;
 
@@ -36,16 +37,16 @@ public:
 
 class DriveService : public std::enable_shared_from_this<DriveService> {
 public:
-    DriveService(const DriveServiceConfig& config ) : m_config(std::move(config)) {
-        m_pSession = sirius::drive::createDefaultSession(Replicator_Host + m_config.Port, [port=m_config.Port](const lt::alert* pAlert) {
+    explicit DriveService(const DriveServiceConfig& config ) : m_config(config) {
+        m_pSession = sirius::drive::createDefaultSession(m_config.Address + ":" + m_config.Port, [port=m_config.Port](const lt::alert* pAlert) {
             if ( pAlert->type() == lt::listen_failed_alert::alert_type ) {
-                LOG( "Replicator session alert: " << pAlert->message() );
-                LOG( "Port is busy?: " << port );
+                LOG( "Replicator session alert: " << pAlert->message() )
+                LOG( "Port is busy?: " << port )
             }
         });
     }
 
-    ~DriveService() {}
+    ~DriveService() = default;
 
     std::string addDrive(const Key& driveKey, size_t driveSize)
     {
@@ -116,7 +117,12 @@ public:
         return rootHash;
     }
 
-    std::string modify(const Key& driveKey, const InfoHash& infoHash, const DriveModifyHandler& handler )
+    std::string modify(
+            const Key& driveKey,
+            const InfoHash& infoHash,
+            const Hash256& transactionHash,
+            uint64_t maxDataSize,
+            const DriveModifyHandler& handler )
     {
         LOG( "drive modification:\ndrive: " << driveKey << "\n info hash: " << infoHash );
 
@@ -132,7 +138,7 @@ public:
             }
         }
 
-        pDrive->startModifyDrive( infoHash, handler );
+        pDrive->startModifyDrive( infoHash, transactionHash, maxDataSize, handler );
         return "";
     }
 
@@ -168,6 +174,4 @@ private:
 
     DriveServiceConfig m_config;
 };
-
-
-}}
+}

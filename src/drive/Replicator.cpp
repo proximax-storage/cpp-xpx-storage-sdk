@@ -16,7 +16,7 @@
 
 #include <mutex>
 
-namespace sirius { namespace drive {
+namespace sirius::drive {
 
 //
 // DefaultReplicator
@@ -128,7 +128,7 @@ public:
         return "";
     }
 
-    std::string removeDrive(const Key& driveKey)
+    std::string removeDrive(const Key& driveKey) override
     {
         LOG( "removing drive " << driveKey );
 
@@ -179,7 +179,7 @@ public:
         return "";
     }
 
-    std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash )
+    std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) override
     {
         LOG( "loadTorrent:\ndrive: " << driveKey << "\n info hash: " << infoHash );
 
@@ -199,12 +199,20 @@ public:
         return "";
     }
 
-    void addDownloadChannelInfo( const std::array<uint8_t,32>&  channelKey,
-                                size_t                          prepaidDownloadSize,
-                                const ReplicatorList&           replicatorsList,
-                                std::vector<const Key>&&        clients ) override
+    void addDownloadChannelInfo( const std::array<uint8_t,32>&   channelKey,
+                                 size_t                          prepaidDownloadSize,
+                                 const ReplicatorList&           replicatorsList,
+                                 std::vector<Key>&&              clients ) override
     {
-        addChannelInfo( channelKey, prepaidDownloadSize, replicatorsList, std::move(clients) );
+        std::vector<std::array<uint8_t,32>> clientList;
+        for( const auto& it : clients )
+            clientList.push_back( it.array() );
+        addChannelInfo( channelKey, prepaidDownloadSize, replicatorsList, std::move(clientList) );
+    }
+
+    void removeDownloadChannelInfo( const std::array<uint8_t,32>& channelKey ) override
+    {
+        removeChannelInfo(channelKey);
     }
 
     virtual void sendReceiptToOtherReplicators( const std::array<uint8_t,32>&  downloadChannelId,
@@ -268,4 +276,4 @@ std::shared_ptr<Replicator> createDefaultReplicator(
                                                dbgReplicatorName );
 }
 
-}}
+}
