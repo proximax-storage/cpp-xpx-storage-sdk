@@ -47,13 +47,9 @@ public:
 
     virtual std::string removeDrive( const Key& driveKey ) = 0;
 
-    virtual std::string modify( const Key&              driveKey,
-                                const Key&              clientPublicKey,
-                                const InfoHash&         infoHash,
-                                const Hash256&          transactionHash,
-                                const ReplicatorList&   replicatorList,
-                                uint64_t                maxDataSize,
-                                const ModifyHandler&    handler ) = 0;
+    virtual std::string modify( const Key&          driveKey,
+                                ModifyRequest&&     modifyRequest,
+                                ModifyHandler&&     handler ) = 0;
 
     virtual std::string cancelModify( const Key&        driveKey,
                                       const Hash256&    transactionHash ) = 0;

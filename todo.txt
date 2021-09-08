@@ -1,2 +1,11 @@
-save/read downloadedSize map
+save/read downloadedSize map (between reboots?)
+Remove torrent that is still downloading?
 
+
+
+--------------------------
+Our 'libtorrent' implementation:
+
+Thread-pool
+Every drive works on its own boost::asio:strand 
+Buffer-pool (16KB,32KB ?)

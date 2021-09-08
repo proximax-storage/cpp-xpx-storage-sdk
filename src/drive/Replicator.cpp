@@ -144,13 +144,9 @@ public:
     }
 
 
-    std::string modify( const Key&              driveKey,
-                        const Key&              clientPublicKey,
-                        const InfoHash&         infoHash,
-                        const Hash256&          transactionHash,
-                        const ReplicatorList&   replicatorList,
-                        uint64_t                maxDataSize,
-                        const ModifyHandler&    handler ) override
+    std::string modify( const Key&          driveKey,
+                        ModifyRequest&&     modifyRequest,
+                        ModifyHandler&&     handler ) override
     {
         LOG( "drive modification:\ndrive: " << driveKey << "\n info hash: " << infoHash );
 
@@ -166,18 +162,22 @@ public:
             }
         }
         
-        addModifyDriveInfo( transactionHash.array(), maxDataSize, clientPublicKey, replicatorList );
+        addModifyDriveInfo( modifyRequest.m_transactionHash.array(),
+                            modifyRequest.m_maxDataSize,
+                            modifyRequest.m_clientPublicKey,
+                            modifyRequest.m_replicatorList );
 
 
         ReplicatorList replicatorList2;
-        for( const auto& it : replicatorList )
+        for( auto it = modifyRequest.m_replicatorList.begin();  it != modifyRequest.m_replicatorList.end(); it++ )
         {
-            if ( it.m_publicKey == publicKey() )
-                continue;
-            //_LOG( "modify: " << dbgOurPeerName() << " " << (int)it.m_publicKey[0] );
-            replicatorList2.push_back( it );
+            if ( it->m_publicKey == publicKey() )
+            {
+                modifyRequest.m_replicatorList.erase( it );
+                break;
+            }
         }
-        pDrive->startModifyDrive( infoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey,
+        pDrive->startModifyDrive( std::move(modifyRequest),
 
              [handler]( modify_status::code     code,
                              const FlatDrive&   drive,
@@ -293,7 +293,7 @@ public:
         message.insert( message.end(), signature.begin(),         signature.end() );
 
         //todo mutex
-        if ( auto it = m_channelMap.find(downloadChannelId); it != m_channelMap.end() )
+        if ( auto it = m_downloadChannelMap.find(downloadChannelId); it != m_downloadChannelMap.end() )
         {
             for( auto replicatorIt = it->second.m_replicatorsList.begin(); replicatorIt != it->second.m_replicatorsList.end(); replicatorIt++ )
             {

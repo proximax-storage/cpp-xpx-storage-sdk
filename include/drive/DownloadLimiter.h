@@ -72,7 +72,7 @@ protected:
     
     std::shared_mutex   m_mutex;
 
-    ChannelMap          m_channelMap;
+    ChannelMap          m_downloadChannelMap;
     ModifyDriveMap      m_modifyDriveMap;
 
     const crypto::KeyPair& m_keyPair;
@@ -90,7 +90,7 @@ public:
     {
         std::shared_lock<std::shared_mutex> lock(m_mutex);
         
-        if ( auto it = m_channelMap.find( transactionHash ); it != m_channelMap.end() )
+        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
             _LOG( "requestedSize=" << it->second.m_requestedSize << "; uploadedSize=" << it->second.m_uploadedSize );
             return;
@@ -105,7 +105,7 @@ public:
     {
         std::shared_lock<std::shared_mutex> lock(m_mutex);
         
-        if ( auto it = m_channelMap.find( transactionHash ); it != m_channelMap.end() )
+        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
             return true;
         }
@@ -128,7 +128,7 @@ public:
         {
 //            _LOG( " :::::::::::::::::::::::::::::::::::: " );
             _LOG( "onDisconnected: " << dbgOurPeerName() << " from client: " << (int)peerPublicKey[0] );
-//            if ( const auto& it = m_channelMap.find( transactionHash ); it != m_channelMap.end() )
+//            if ( const auto& it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
 //            {
 //                _LOG( " requestedSize: " << it->second.m_requestedSize );
 //                _LOG( " uploadedSize: " <<  it->second.m_uploadedSize );
@@ -190,7 +190,7 @@ public:
     {
         std::shared_lock<std::shared_mutex> lock(m_mutex);
         
-        if ( auto it = m_channelMap.find( downloadChannelId ); it != m_channelMap.end() )
+        if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
         {
 //            int delay = int(it->second.m_uploadedSize - downloadedSizeByClient);
 //            static int _dbgMaxDelay = 0;
@@ -211,7 +211,7 @@ public:
     {
         std::shared_lock<std::shared_mutex> lock(m_mutex);
 
-        if ( auto it = m_channelMap.find( downloadChannelId ); it != m_channelMap.end() )
+        if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
         {
             return it->second.m_uploadedSize;
         }
@@ -225,7 +225,7 @@ public:
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
-        if ( auto it = m_channelMap.find(channelId); it != m_channelMap.end() )
+        if ( auto it = m_downloadChannelMap.find(channelId); it != m_downloadChannelMap.end() )
         {
             if ( it->second.m_prepaidDownloadSize <= prepaidDownloadSize )
             {
@@ -246,7 +246,7 @@ public:
             if ( it.m_publicKey.array() != publicKey() )
                 map.insert( { it.m_publicKey.array(), {}} );
         }
-        m_channelMap[channelId] = DownloadChannelInfo{ prepaidDownloadSize, 0, 0, clients, replicatorsList, std::move(map) };
+        m_downloadChannelMap[channelId] = DownloadChannelInfo{ prepaidDownloadSize, 0, 0, clients, replicatorsList, std::move(map) };
     }
 
     void addModifyDriveInfo( const Key&             modifyTransactionHash,
@@ -272,10 +272,10 @@ public:
         
         m_modifyDriveMap[modifyTransactionHash.array()] = ModifyDriveInfo{ dataSize, 0, replicatorsList, trafficMap };
 
-        // we need to add modifyTransactionHash into 'm_channelMap'
+        // we need to add modifyTransactionHash into 'm_downloadChannelMap'
         // because replicators could download pieces from their neighbors
         //
-        m_channelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ dataSize, 0, 0, std::move(clients), replicatorsList, {} };
+        m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ dataSize, 0, 0, std::move(clients), replicatorsList, {} };
         
     }
     
@@ -291,7 +291,7 @@ public:
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
-        if ( auto it = m_channelMap.find( transactionHash ); it != m_channelMap.end() )
+        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
             it->second.m_requestedSize += pieceSize;
             return;
@@ -306,7 +306,7 @@ public:
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
-        if ( auto it = m_channelMap.find( transactionHash ); it != m_channelMap.end() )
+        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
             it->second.m_requestedSize += pieceSize;
             return;
@@ -331,7 +331,7 @@ public:
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
-        if ( auto it = m_channelMap.find( transactionHash ); it != m_channelMap.end() )
+        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
             it->second.m_uploadedSize += pieceSize;
             //return;
@@ -405,7 +405,7 @@ public:
     void removeChannelInfo( const std::array<uint8_t,32>& channelId )
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
-        m_channelMap.erase( channelId );
+        m_downloadChannelMap.erase( channelId );
     }
 
     bool isClient() const override { return false; }

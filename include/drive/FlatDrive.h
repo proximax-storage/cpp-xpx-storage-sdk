@@ -25,6 +25,14 @@ class FlatDrive;
 
     using DriveModifyHandler = std::function<void( modify_status::code, const FlatDrive& drive, const std::string& error )>;
 
+    struct ModifyRequest {
+        InfoHash          m_clientDataInfoHash;
+        Hash256           m_transactionHash;
+        uint64_t          m_maxDataSize;
+        ReplicatorList    m_replicatorList;
+        Key               m_clientPublicKey;
+    };
+
     // Drive
     class FlatDrive {
     public:
@@ -33,12 +41,8 @@ class FlatDrive;
         //virtual void terminate() = 0;
 
         virtual InfoHash rootDriveHash() = 0;
-        virtual void     startModifyDrive( InfoHash             modifyDataInfoHash,
-                                          const Hash256&        transactionHash,
-                                          uint64_t              maxDataSize,
-                                          const ReplicatorList& replicatorList,
-                                          const Key&            clientPublicKey,
-                                          DriveModifyHandler ) = 0;
+
+        virtual void     startModifyDrive( ModifyRequest&& modifyRequest, DriveModifyHandler&& modifyHandler ) = 0;
 
         virtual void     cancelModifyDrive( const Hash256& transactionHash ) = 0;
 

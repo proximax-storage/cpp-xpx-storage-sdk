@@ -384,7 +384,7 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
     std::condition_variable driveCondVar;
     std::mutex              driveMutex;
 
-    replicator->modify( DRIVE_PUB_KEY, clientPublicKey, infoHash, transactionHash, replicatorList, maxDataSize,
+    replicator->modify( DRIVE_PUB_KEY, ModifyRequest{ infoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey },
        [&] ( modify_status::code                            code,
              const std::optional<ApprovalTransactionInfo>&  info,
              const std::string&                             error )
