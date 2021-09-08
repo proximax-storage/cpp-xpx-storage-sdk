@@ -12,9 +12,9 @@
 
 namespace sirius { namespace drive {
 
-//using  tcp = boost::asio::ip::tcp;
+class FlatDrive;
 
-namespace modify_status {
+    namespace modify_status {
         enum code {
             failed = 0,
             sandbox_root_hash = 1, // calculated in sandbox
@@ -23,7 +23,7 @@ namespace modify_status {
         };
     };
 
-    using DriveModifyHandler = std::function<void( modify_status::code, InfoHash resultRootInfoHash, const std::string& error )>;
+    using DriveModifyHandler = std::function<void( modify_status::code, const FlatDrive& drive, const std::string& error )>;
 
     // Drive
     class FlatDrive {
@@ -37,7 +37,12 @@ namespace modify_status {
                                           const Hash256&        transactionHash,
                                           uint64_t              maxDataSize,
                                           const ReplicatorList& replicatorList,
+                                          const Key&            clientPublicKey,
                                           DriveModifyHandler ) = 0;
+
+        virtual void     cancelModifyDrive( const Hash256& transactionHash ) = 0;
+
+        virtual void     approveDriveModification( const Hash256& transactionHash ) = 0;
 
         virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
 

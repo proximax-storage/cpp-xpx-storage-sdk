@@ -4,6 +4,25 @@
 *** license that can be found in the LICENSE file.
 */
 
+/*
+ add DriveId to torrent?
+ 
+ -----------------------------------
+ Modify
+ -----------------------------------
+ 
+ onEndModifyInSandBox()  -> sendMyPercentsToExtension()
+ 
+ onApprovalTransaction() -> move-sandbox-to-drive,  sendSingleApprovalTransaction (if not exist)
+ 
+ onCancel()              -> cancel
+ 
+ onPercents()            -> sendPercentsToExtension() -> timer -> sendApprovalTransaction()
+
+ //onSingleApprovalTransaction() -> nothing to do
+ 
+ */
+
 #include "drive/FlatDrive.h"
 #include "drive/Session.h"
 #include "drive/ActionList.h"
@@ -83,6 +102,17 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     LtSession     m_session;
 
     size_t        m_maxSize;
+    
+    // It has the following statuses: "modification started", "sandbox calculated", mod"ification approved"
+    std::mutex m_mutex;
+    bool m_modificationStarted        = false;
+    bool m_sandboxCalculated          = false;
+    bool m_approveTransactionReceived = false;
+
+    // Additional modify info
+    Hash256         m_modifyTransactionHash;
+    ReplicatorList  m_replicatorList;
+    Key             m_clientPublicKey;
 
     // FsTree
     FsTree        m_fsTree;
@@ -93,9 +123,10 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     InfoHash      m_rootHash;
     InfoHash      m_sandboxRootHash;
 
-    // Client data
+    // Client data (for drive modification)
     InfoHash      m_clientDataInfoHash;
 
+    // Sandbox files
     std::vector<InfoHash> m_toBeAddedFiles;
 
     // Will be called at the end of the sanbox work
@@ -130,7 +161,7 @@ public:
         m_session.reset();
         if ( m_modifyHandler )
         {
-            m_modifyHandler( modify_status::broken, InfoHash(), std::string("DefaultDrive::downloadHandler: internal error: ") );
+            m_modifyHandler( modify_status::broken, *this, std::string("DefaultDrive::downloadHandler: internal error: ") );
             m_modifyHandler = nullptr;
         }
         //m_session->endSession();
@@ -252,6 +283,43 @@ public:
             }
         }
     }
+    
+    void cancelModifyDrive( const Hash256& transactionHash ) override
+    {
+        if ( !(transactionHash == m_modifyTransactionHash) )
+        {
+            LOG_ERR( "cancelModifyDrive(): invalid transactionHash: " << transactionHash );
+            return;
+        }
+        //TODO
+    }
+
+    void approveDriveModification( const Hash256& transactionHash ) override
+    {
+        if ( !(transactionHash == m_modifyTransactionHash) )
+        {
+            LOG_ERR( "approveDriveModification(): invalid transactionHash: " << transactionHash );
+            return;
+        }
+
+        std::unique_lock<std::mutex> lock(m_mutex);
+
+        m_approveTransactionReceived = true;
+        lock.unlock();
+
+        if ( m_modificationStarted )
+        {
+            if ( m_sandboxCalculated )
+            {
+                updateDrive_1();
+            }
+        }
+        else
+        {
+            LOG_ERR( "approveDriveModification(): modification is not started" )
+        }
+    }
+
 
     // startModifyDrive - should be called after client 'modify request'
     //
@@ -259,16 +327,27 @@ public:
                           const Hash256&        transactionHash,
                           uint64_t              maxDataSize,
                           const ReplicatorList& replicatorList,
+                          const Key&            clientPublicKey,
                           DriveModifyHandler    modifyHandler ) override
     {
-        using namespace std::placeholders;  // for _1, _2, _3
+        if ( m_modificationStarted )
+        {
+            LOG_ERR( "startModifyDrive():: prevoius modification is not completed" );
+        }
+        m_modificationStarted = true;
 
         m_clientDataInfoHash = modifyDataInfoHash;
         m_modifyHandler      = modifyHandler;
+        
+        m_modifyTransactionHash = transactionHash;
+        m_replicatorList     = replicatorList;
+        m_clientPublicKey    = clientPublicKey;
 
         // clear client session folder
         fs::remove_all( m_sandboxRootPath );
         fs::create_directories( m_sandboxRootPath);
+
+        using namespace std::placeholders;  // for _1, _2, _3
 
         m_session->download( DownloadContext(
                                             DownloadContext::client_data,
@@ -291,14 +370,14 @@ public:
     {
         if ( m_clientDataInfoHash != infoHash )
         {
-            m_modifyHandler( modify_status::failed, infoHash, std::string("DefaultDrive::downloadHandler: internal error: ") );
+            m_modifyHandler( modify_status::failed, *this, std::string("DefaultDrive::downloadHandler: internal error: ") );
             m_modifyHandler = nullptr;
             return;
         }
 
         if ( code == download_status::failed )
         {
-            m_modifyHandler( modify_status::failed, infoHash, std::string("modify drive: download failed: ") + errorText );
+            m_modifyHandler( modify_status::failed, *this, std::string("modify drive: download failed: ") + errorText );
             m_modifyHandler = nullptr;
             return;
         }
@@ -320,7 +399,7 @@ public:
         if ( !fs::exists(m_clientDataFolder) || !fs::is_directory(m_clientDataFolder) )
         {
             LOG( "m_clientDataFolder=" << m_clientDataFolder );
-            m_modifyHandler( modify_status::failed, InfoHash(), "modify drive: 'client-data' is absent: " );
+            m_modifyHandler( modify_status::failed, *this, "modify drive: 'client-data' is absent: " );
             m_modifyHandler = nullptr;
             return;
         }
@@ -329,7 +408,7 @@ public:
         if ( !fs::exists( m_clientActionListFile ) )
         {
             LOG( "m_clientActionListFile=" << m_clientActionListFile );
-            m_modifyHandler( modify_status::failed, InfoHash(), "modify drive: 'ActionList.bin' is absent: " );
+            m_modifyHandler( modify_status::failed, *this, "modify drive: 'ActionList.bin' is absent: " );
             m_modifyHandler = nullptr;
             return;
         }
@@ -471,10 +550,16 @@ public:
         m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
 
         // Call modify handler
-        m_modifyHandler( modify_status::sandbox_root_hash, m_sandboxRootHash, "" );
+        m_modifyHandler( modify_status::sandbox_root_hash, *this, "" );
 
         // start drive update
-        updateDrive_1();
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_sandboxCalculated = true;
+        if ( m_approveTransactionReceived )
+        {
+            lock.unlock();
+            updateDrive_1();
+        }
     }
 
     // updates drive (1st step after aprove)
@@ -569,9 +654,14 @@ public:
                                                                m_fsTreeTorrent.parent_path(),
                                                                lt::sf_is_replicator );
 
+        m_modificationStarted        = false;
+        m_sandboxCalculated          = false;
+        m_approveTransactionReceived = false;
+
         // Call update handler
-        m_modifyHandler( modify_status::update_completed, InfoHash(), "" );
+        m_modifyHandler( modify_status::update_completed, *this, "" );
         m_modifyHandler = nullptr;
+        
     }
     catch ( const std::exception& ex )
     {

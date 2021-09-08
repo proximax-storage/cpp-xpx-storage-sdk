@@ -23,6 +23,8 @@ namespace sirius::drive {
 //
 class DefaultReplicator : public DownloadLimiter // Replicator
 {
+//todo++
+public:
     std::shared_ptr<Session> m_session;
 
     // Drives
@@ -148,7 +150,7 @@ public:
                         const Hash256&          transactionHash,
                         const ReplicatorList&   replicatorList,
                         uint64_t                maxDataSize,
-                        const DriveModifyHandler&   handler ) override
+                        const ModifyHandler&    handler ) override
     {
         LOG( "drive modification:\ndrive: " << driveKey << "\n info hash: " << infoHash );
 
@@ -175,9 +177,59 @@ public:
             //_LOG( "modify: " << dbgOurPeerName() << " " << (int)it.m_publicKey[0] );
             replicatorList2.push_back( it );
         }
-        pDrive->startModifyDrive( infoHash, transactionHash, maxDataSize, replicatorList, handler );
+        pDrive->startModifyDrive( infoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey,
+
+             [handler]( modify_status::code     code,
+                             const FlatDrive&   drive,
+                             const std::string& error )
+        {
+            if ( code == modify_status::sandbox_root_hash )
+            {
+//                auto trafficInfo = m_modifyDriveMap[ info->m_transactionHash.array() ];
+//                std::vector<float> percents;
+                
+                std::optional<ApprovalTransactionInfo>  info{};
+
+                handler( code, info, error );
+                return;
+            }
+            handler( code, {}, error );
+        });
         return "";
     }
+    
+    std::string cancelModify( const Key&        driveKey,
+                              const Hash256&    transactionHash ) override
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+        {
+            driveIt->second->cancelModifyDrive( transactionHash );
+            return "";
+        }
+
+        LOG_ERR( "unknown drive: " << driveKey );
+        throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
+
+        return "unknown drive";
+    }
+    
+    std::string acceptModifyApprovalTranaction( const Key&        driveKey,
+                                                const Hash256&    transactionHash ) override
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+        {
+            driveIt->second->approveDriveModification( transactionHash );
+            return "";
+        }
+
+        LOG_ERR( "unknown drive: " << driveKey );
+        throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
+
+        return "unknown drive";
+    }
+
 
     std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) override
     {

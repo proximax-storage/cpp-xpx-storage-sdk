@@ -15,6 +15,21 @@
 
 namespace sirius::drive {
 
+struct ApprovalTransactionInfo
+{
+    const Hash256&      m_modifyTransactionHash;
+
+    const InfoHash&     m_RootHash;
+
+    // percents of total data received from client
+    float               m_clientUploadPercents;
+
+    // percents of total data received from other replicators
+    std::vector<float>  m_replicatorsUploadPercents;
+};
+
+using ModifyHandler = std::function<void( modify_status::code, const std::optional<ApprovalTransactionInfo>& info, const std::string& error )>;
+
 //
 // Replicator
 //
@@ -26,6 +41,8 @@ public:
 
     virtual void start() = 0;
 
+    // All of the below functions return error string (or empty string)
+    
     virtual std::string addDrive( const Key& driveKey, size_t driveSize ) = 0;
 
     virtual std::string removeDrive( const Key& driveKey ) = 0;
@@ -36,7 +53,14 @@ public:
                                 const Hash256&          transactionHash,
                                 const ReplicatorList&   replicatorList,
                                 uint64_t                maxDataSize,
-                                const DriveModifyHandler&   handler ) = 0;
+                                const ModifyHandler&    handler ) = 0;
+
+    virtual std::string cancelModify( const Key&        driveKey,
+                                      const Hash256&    transactionHash ) = 0;
+
+    // It will 'move' files from sandbox to drive
+    virtual std::string acceptModifyApprovalTranaction( const Key&        driveKey,
+                                                        const Hash256&    transactionHash ) = 0;
 
     virtual Hash256     getRootHash( const Key& driveKey ) = 0;
 

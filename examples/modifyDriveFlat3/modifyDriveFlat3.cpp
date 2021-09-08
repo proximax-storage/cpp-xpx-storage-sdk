@@ -1,8 +1,3 @@
-/*
- endModify() -> timer -> sendPercents
- onAllConnectionsClosed() -> sendPercents
- onPercents() -> sendApprovalTransaction
- */
 #include "types.h"
 #include "drive/Session.h"
 #include "drive/ClientSession.h"
@@ -148,6 +143,9 @@ std::shared_ptr<InfoHash>   driveRootHash;
 
 ReplicatorList              replicatorList;
 
+std::condition_variable     approveCondVar;
+std::atomic<int>            approveTransactionCounter{0};
+
 
 // Listen (socket) error handle
 //
@@ -255,6 +253,16 @@ int main(int,char**)
     sleep(1);
     gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
+    
+    {
+        std::unique_lock<std::mutex> lock(clientMutex);
+        approveCondVar.wait( lock, [] { return approveTransactionCounter == 3; } );
+        
+        gReplicator->acceptModifyApprovalTranaction( DRIVE_PUB_KEY, modifyTransactionHash1 );
+        gReplicator2->acceptModifyApprovalTranaction( DRIVE_PUB_KEY, modifyTransactionHash1 );
+        gReplicator3->acceptModifyApprovalTranaction( DRIVE_PUB_KEY, modifyTransactionHash1 );
+    }
+
     gReplicatorThread.join();
     gReplicatorThread2.join();
     gReplicatorThread3.join();
@@ -289,9 +297,21 @@ int main(int,char**)
         clientModifyDrive( actionList, replicatorList, modifyTransactionHash2 );
     }
 
+    approveTransactionCounter = 0;
+    
     gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
+
+    {
+        std::unique_lock<std::mutex> lock(clientMutex);
+        approveCondVar.wait( lock, [] { return approveTransactionCounter == 3; } );
+        
+        gReplicator->acceptModifyApprovalTranaction( DRIVE_PUB_KEY, modifyTransactionHash2 );
+        gReplicator2->acceptModifyApprovalTranaction( DRIVE_PUB_KEY, modifyTransactionHash2 );
+        gReplicator3->acceptModifyApprovalTranaction( DRIVE_PUB_KEY, modifyTransactionHash2 );
+    }
+
     gReplicatorThread.join();
     gReplicatorThread2.join();
     gReplicatorThread3.join();
@@ -365,9 +385,9 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
     std::mutex              driveMutex;
 
     replicator->modify( DRIVE_PUB_KEY, clientPublicKey, infoHash, transactionHash, replicatorList, maxDataSize,
-       [&] ( modify_status::code  code,
-           InfoHash               resultRootInfoHash,
-           const std::string&     error )
+       [&] ( modify_status::code                            code,
+             const std::optional<ApprovalTransactionInfo>&  info,
+             const std::string&                             error )
        {
            if ( code == modify_status::update_completed )
            {
@@ -381,6 +401,8 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
            else if ( code == modify_status::sandbox_root_hash )
            {
                EXLOG( "@ sandbox calculated" );
+               approveTransactionCounter++;
+               approveCondVar.notify_all();
            }
            else
            {
