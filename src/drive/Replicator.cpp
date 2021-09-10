@@ -179,21 +179,54 @@ public:
         }
         pDrive->startModifyDrive( std::move(modifyRequest),
 
-             [handler]( modify_status::code     code,
-                             const FlatDrive&   drive,
-                             const std::string& error )
+             [this,handler]( modify_status::code    code,
+                             const FlatDrive&       drive,
+                             const std::string&     error )
         {
             if ( code == modify_status::sandbox_root_hash )
             {
-//                auto trafficInfo = m_modifyDriveMap[ info->m_transactionHash.array() ];
-//                std::vector<float> percents;
+                auto trafficInfo = m_modifyDriveMap[ drive.modifyRequest().m_transactionHash.array() ];
+
+                SingleApprovalTransactionInfo opinion( publicKey() );
+                for( const auto& replicatorIt : drive.modifyRequest().m_replicatorList )
+                {
+                    if ( auto it = trafficInfo.m_modifyTrafficMap.find( replicatorIt.m_publicKey.array() );
+                            it != trafficInfo.m_modifyTrafficMap.end() )
+                    {
+                        opinion.m_replicatorsUploadBytes.push_back( it->second.m_receivedSize );
+                    }
+                    else
+                    {
+                        opinion.m_replicatorsUploadBytes.push_back( 0 );
+                    }
+                }
                 
-                std::optional<ApprovalTransactionInfo>  info{};
+                if ( auto it = trafficInfo.m_modifyTrafficMap.find( drive.modifyRequest().m_clientPublicKey.array() );
+                        it != trafficInfo.m_modifyTrafficMap.end() )
+                {
+                    opinion.m_clientUploadBytes = it->second.m_receivedSize;
+                }
+
+                std::optional<ApprovalTransactionInfo>  info {{ drive.drivePublicKey(),
+                                                                drive.modifyRequest().m_transactionHash,
+                                                                drive.sandboxRootHash(),
+                                                                0, //todo
+                                                                0, //todo
+                                                                0, //todo
+                                                                { std::move(opinion) }}};
 
                 handler( code, info, error );
                 return;
             }
-            handler( code, {}, error );
+            
+            std::optional<ApprovalTransactionInfo>  info {{ drive.drivePublicKey(),
+                                                            drive.modifyRequest().m_transactionHash,
+                                                            drive.rootDriveHash(),
+                                                            0,
+                                                            0,
+                                                            0,
+                                                            {} }};
+            handler( code, info, error );
         });
         return "";
     }
@@ -302,7 +335,8 @@ public:
         }
     }
 
-
+    const char* dbgReplicatorName() const override { return m_dbgReplicatorName; }
+    
 private:
     std::shared_ptr<sirius::drive::Session> session() {
         return m_session;

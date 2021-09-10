@@ -40,7 +40,11 @@ class FlatDrive;
         virtual ~FlatDrive() = default;
         //virtual void terminate() = 0;
 
-        virtual InfoHash rootDriveHash() = 0;
+        virtual const std::string& drivePublicKey() const = 0;
+        
+        virtual InfoHash rootDriveHash() const = 0;
+
+        virtual InfoHash sandboxRootHash() const = 0;
 
         virtual void     startModifyDrive( ModifyRequest&& modifyRequest, DriveModifyHandler&& modifyHandler ) = 0;
 
@@ -49,6 +53,8 @@ class FlatDrive;
         virtual void     approveDriveModification( const Hash256& transactionHash ) = 0;
 
         virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
+
+        virtual const ModifyRequest& modifyRequest() const = 0;
 
         // for testing and debugging
         virtual void printDriveStatus() = 0;

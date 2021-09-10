@@ -385,14 +385,14 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
     std::mutex              driveMutex;
 
     replicator->modify( DRIVE_PUB_KEY, ModifyRequest{ infoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey },
-       [&] ( modify_status::code                            code,
-             const std::optional<ApprovalTransactionInfo>&  info,
-             const std::string&                             error )
+       [&,replicator] ( modify_status::code                            code,
+                        const std::optional<ApprovalTransactionInfo>&  info,
+                        const std::string&                             error )
        {
            if ( code == modify_status::update_completed )
            {
                EXLOG( "" );
-               EXLOG( "@ update_completed" );
+               EXLOG( "@ update_completed:" << replicator->dbgReplicatorName() );
 
                //std::unique_lock<std::mutex> lock(driveMutex);
                isDriveUpdated = true;
@@ -400,7 +400,12 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
            }
            else if ( code == modify_status::sandbox_root_hash )
            {
-               EXLOG( "@ sandbox calculated" );
+               EXLOG( "@ sandbox calculated: " << replicator->dbgReplicatorName() );
+               EXLOG( "@   " << replicator->dbgReplicatorName() << " client: " << info->m_opinions[0].m_clientUploadBytes );
+               for( uint32_t i = 0; i<info->m_opinions[0].m_replicatorsUploadBytes.size(); i++ )
+               {
+                   EXLOG( "@   " << replicator->dbgReplicatorName() << " " << i << ": " << info->m_opinions[0].m_replicatorsUploadBytes[i] );
+               }
                approveTransactionCounter++;
                approveCondVar.notify_all();
            }

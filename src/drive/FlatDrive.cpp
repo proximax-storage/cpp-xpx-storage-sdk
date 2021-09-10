@@ -11,14 +11,20 @@
  Modify
  -----------------------------------
  
- onEndModifyInSandBox()  -> sendMyPercentsToExtension()
+ onSandboxCalculated()   -> sendMyPercentsToExtension() --
+                                                         --> sendApprovalTransaction() or sendSingleApprovalTransaction()
+ onPercents()            -> sendPercentsToExtension()   --
  
- onApprovalTransaction() -> move-sandbox-to-drive,  sendSingleApprovalTransaction (if not exist)
+ onApprovalTransaction() -> move-sandbox-to-drive
  
  onCancel()              -> cancel
  
- onPercents()            -> sendPercentsToExtension() -> timer -> sendApprovalTransaction()
+ -----------------------------------
+ Download Channel
+ -----------------------------------
 
+ getReceipt()
+ 
  //onSingleApprovalTransaction() -> nothing to do
  
  */
@@ -154,6 +160,8 @@ public:
         terminate();
     }
 
+    const std::string& drivePublicKey() const override { return m_drivePubKey; }
+
     void terminate() {
         //TODO 
         m_session.reset();
@@ -165,9 +173,13 @@ public:
         //m_session->endSession();
     }
 
-    virtual InfoHash rootDriveHash() override {
-        LOG( "m_drivePubKey: " << m_drivePubKey );
+    InfoHash rootDriveHash() const override {
+        //LOG( "m_drivePubKey: " << m_drivePubKey );
         return m_rootHash;
+    }
+    
+    InfoHash sandboxRootHash() const override {
+        return m_sandboxRootHash;
     }
 
     // Initialize drive
@@ -715,6 +727,11 @@ public:
     void     loadTorrent( const InfoHash& /*fileHash*/ ) override
     {
         //todo m_session->loadTorrent();
+    }
+    
+    const ModifyRequest& modifyRequest() const override
+    {
+        return m_modifyRequest;
     }
 
     virtual void printDriveStatus() override

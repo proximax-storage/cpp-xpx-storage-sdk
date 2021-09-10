@@ -56,16 +56,19 @@ protected:
         uint64_t m_requestedSize = 0;
         uint64_t m_sentSize = 0;
     };
+
+    // The key is a transaction hash
     using ModifyTrafficMap = std::map<std::array<uint8_t,32>,ModifyTrafficInfo>;
 
     struct ModifyDriveInfo
     {
-        uint64_t                m_dataSize;
-        uint64_t                m_downloadedSize = 0;
+        uint64_t                m_maxDataSize;
         ReplicatorList          m_replicatorsList;
         ModifyTrafficMap        m_modifyTrafficMap;
+        uint64_t                m_totalReceivedSize = 0;
     };
 
+    // The key is a transaction hash
     using ModifyDriveMap    = std::map<std::array<uint8_t,32>, ModifyDriveInfo>;
 
 protected:
@@ -270,7 +273,7 @@ public:
             }
         }
         
-        m_modifyDriveMap[modifyTransactionHash.array()] = ModifyDriveInfo{ dataSize, 0, replicatorsList, trafficMap };
+        m_modifyDriveMap[modifyTransactionHash.array()] = ModifyDriveInfo{ dataSize, replicatorsList, trafficMap, 0 };
 
         // we need to add modifyTransactionHash into 'm_downloadChannelMap'
         // because replicators could download pieces from their neighbors
@@ -360,9 +363,11 @@ public:
         {
             if ( auto peerIt = it->second.m_modifyTrafficMap.find(senderPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
             {
-                peerIt->second.m_receivedSize += pieceSize;
+                peerIt->second.m_receivedSize  += pieceSize;
+                it->second.m_totalReceivedSize += pieceSize;
                 return;
             }
+            
             LOG_ERR( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
         }
 
