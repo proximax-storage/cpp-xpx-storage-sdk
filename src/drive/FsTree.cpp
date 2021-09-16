@@ -5,6 +5,7 @@
 */
 
 #include "drive/FsTree.h"
+#include "drive/Utils.h"
 #include <filesystem>
 #include <iostream>
 #include <fstream>
@@ -159,6 +160,22 @@ catch(...)
 {
     return false;
 }
+
+void Folder::getSizes( const fs::path& driveFolder, const fs::path& torrentFolder, uint64_t& metaFilesSize, uint64_t& filesSize ) const
+{
+    for( auto it = m_childs.begin(); it != m_childs.end(); it++ )
+    {
+        if ( isFolder(*it) ) {
+            getFolder(*it).getSizes( driveFolder, torrentFolder, metaFilesSize, filesSize );
+        }
+        else {
+            const auto& fileHash = getFile(*it).hash();
+            metaFilesSize += fs::file_size( torrentFolder / toString(fileHash) );
+            filesSize += fs::file_size( driveFolder / toString(fileHash) );
+        }
+    }
+}
+
 
 // doSerialize
 void FsTree::doSerialize( std::string fileName ) {

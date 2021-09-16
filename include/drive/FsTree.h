@@ -10,6 +10,7 @@
 #include <list>
 #include <variant>
 #include <functional>
+#include <filesystem>
 
 #include <libtorrent/torrent_handle.hpp>
 #include <cereal/archives/binary.hpp>
@@ -75,6 +76,11 @@ public:
     bool operator==( const Folder& f ) const { return m_name==f.m_name && m_childs==f.m_childs; }
 
     void iterate( const std::function<void(File&)>& func );
+    
+    void getSizes( const std::filesystem::path& driveFolder,
+                   const std::filesystem::path& torrentFolder,
+                   uint64_t& outMetaFilesSize,
+                   uint64_t& outFilesSize ) const;
 
 public:
     // for cereal

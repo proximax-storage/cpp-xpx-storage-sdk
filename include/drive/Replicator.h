@@ -15,74 +15,46 @@
 
 namespace sirius::drive {
 
-struct SingleApprovalTransactionInfo
-{
-    SingleApprovalTransactionInfo( const Key& replicatorKey ) : m_replicatorKey( replicatorKey )
-    {
-    }
-    
-    // Replicator public key
-    Key                     m_replicatorKey;
-
-    // Opinions about how much the Replicators and the Drive Owner have uploaded to this Replicator.
-    std::vector<uint64_t>   m_replicatorsUploadBytes;
-    uint64_t                m_clientUploadBytes = 0;
-    
-    // Signature of { modifyTransactionHash, rootHash, replicatorsUploadBytes, clientUploadBytes }
-    Signature               m_signature;
-    
-    void Sign( const crypto::KeyPair& keyPair, const Hash256& modifyTransactionHash, const InfoHash& rootHash )
-    {
-        crypto::Sign( keyPair,
-                      {
-                        utils::RawBuffer{modifyTransactionHash},
-                        utils::RawBuffer{rootHash},
-                        utils::RawBuffer{ (const uint8_t*) &m_replicatorsUploadBytes[0],
-                                            m_replicatorsUploadBytes.size() * sizeof (m_replicatorsUploadBytes[0]) },
-                        utils::RawBuffer{(const uint8_t*)&m_clientUploadBytes,sizeof(m_clientUploadBytes)}
-                      },
-                      m_signature );
-    }
-
-    bool Verify( const Key& publicKey, const Hash256& modifyTransactionHash, const InfoHash& rootHash )
-    {
-        return crypto::Verify( publicKey,
-                              {
-                                utils::RawBuffer{modifyTransactionHash},
-                                utils::RawBuffer{rootHash},
-                                utils::RawBuffer{ (const uint8_t*) &m_replicatorsUploadBytes[0],
-                                m_replicatorsUploadBytes.size() * sizeof (m_replicatorsUploadBytes[0]) },
-                                utils::RawBuffer{(const uint8_t*)&m_clientUploadBytes,sizeof(m_clientUploadBytes)}
-                              },
-                              m_signature );
-    }
-};
-
-struct ApprovalTransactionInfo
-{
-    // Drive public key
-    const std::string&  m_driveKey;
-
-    // A reference to the transaction that initiated the modification
-    const Hash256&      m_modifyTransactionHash;
-
-    // Content Download Information for the File Structure
-    const InfoHash&     m_rootHash;
-    
-    // The size of the “File Structure” File
-    uint64_t            m_fsTreeFileSize;
-
-    // The size of metafiles (torrents?,folders?) including “File Structure” File
-    uint64_t            m_metaFilesSize;
-
-    // Total used disk space. Must not be more than the Drive Size.
-    uint64_t            m_driveSize;
-
-    // Opinions about how much the Replicators and the Drive Owner have uploaded to this Replicator.
-    std::vector<SingleApprovalTransactionInfo>   m_opinions;
-};
+class Replicator;
 
 using ModifyHandler = std::function<void( modify_status::code, const std::optional<ApprovalTransactionInfo>& info, const std::string& error )>;
+
+// Iterface for storage extension
+class ReplicatorEventHandler
+{
+public:
+
+    virtual ~ReplicatorEventHandler() = default;
+
+    // It will be called before 'replicator' shuts down
+    virtual void willBeTerminated( Replicator& replicator ) = 0;
+
+    // It will be called when transaction could not be completed
+    virtual void modifyTransactionIsCanceled( Replicator& replicator,
+                                             const sirius::Key&             driveKey,
+                                             const sirius::drive::InfoHash& modifyTransactionHash,
+                                             const std::string&             reason,
+                                             int                            errorCode ) = 0;
+    
+    // It will be called when rootHash is calculated in sandbox
+    virtual void rootHashIsCalculated( Replicator&                    replicator,
+                                       const sirius::Key&             driveKey,
+                                       const sirius::drive::InfoHash& modifyTransactionHash,
+                                       const sirius::drive::InfoHash& sandboxRootHash ) = 0;
+    
+    // It will initiate the approving of modify transaction
+    virtual void modifyTransactionIsApproved( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
+    
+    // It will initiate the approving of single modify transaction
+    virtual void singleModifyTransactionIsApproved( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
+    
+    // It will be called after the drive is syncronized with sandbox
+    virtual void driveModificationIsCompleted( Replicator&                    replicator,
+                                               const sirius::Key&             driveKey,
+                                               const sirius::drive::InfoHash& modifyTransactionHash,
+                                               const sirius::drive::InfoHash& rootHash ) = 0;
+};
+
 
 //
 // Replicator
@@ -133,6 +105,13 @@ public:
 //                                                  const ReplicatorList&         replicatorsList,
 //                                                  std::vector<const Key>&&      clients ) = 0;
 
+    // It will be called when other replicator calculated rootHash
+    virtual void        onOpinionReceived( ApprovalTransactionInfo&& anOpinion ) = 0;
+    
+    // It will be called after 'approval transaction' has been published
+    virtual void        onApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) = 0;
+    
+    // Max difference between requested data and signed receipt
     virtual uint64_t    receiptLimit() const = 0;
 
     virtual void        setReceiptLimit( uint64_t newLimitInBytes ) = 0;
@@ -142,7 +121,6 @@ public:
     virtual void        printTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) = 0;
     
     virtual const char* dbgReplicatorName() const = 0;
-
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(

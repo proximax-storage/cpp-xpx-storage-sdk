@@ -85,7 +85,7 @@ public:
         std::unique_lock<std::mutex> lock(m_mutex);
         if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
         {
-            auto rootHash = driveIt->second->rootDriveHash();
+            auto rootHash = driveIt->second->rootHash();
             LOG( "getRootHash of: " << driveKey << " -> " << rootHash );
             return rootHash;
         }
@@ -124,7 +124,7 @@ public:
                 session(),
                 m_storageDirectory,
                 m_sandboxDirectory,
-                arrayToString(driveKey),
+                driveKey,
                 driveSize);
 
         return "";
@@ -187,7 +187,10 @@ public:
             {
                 auto trafficInfo = m_modifyDriveMap[ drive.modifyRequest().m_transactionHash.array() ];
 
-                SingleApprovalTransactionInfo opinion( publicKey() );
+                //
+                // Calculate upload option
+                //
+                SingleOpinion opinion( publicKey() );
                 for( const auto& replicatorIt : drive.modifyRequest().m_replicatorList )
                 {
                     if ( auto it = trafficInfo.m_modifyTrafficMap.find( replicatorIt.m_publicKey.array() );
@@ -206,22 +209,36 @@ public:
                 {
                     opinion.m_clientUploadBytes = it->second.m_receivedSize;
                 }
+                
+                // Calculate size of torrent files and total drive size
+                uint64_t metaFilesSize;
+                uint64_t driveSize;
+                drive.getSandboxDriveSizes( metaFilesSize, driveSize );
 
                 std::optional<ApprovalTransactionInfo>  info {{ drive.drivePublicKey(),
                                                                 drive.modifyRequest().m_transactionHash,
                                                                 drive.sandboxRootHash(),
-                                                                0, //todo
-                                                                0, //todo
-                                                                0, //todo
+                                                                drive.sandboxFsTreeSize(),
+                                                                metaFilesSize,
+                                                                driveSize,
                                                                 { std::move(opinion) }}};
-
-                handler( code, info, error );
+                
+                if ( driveSize <= drive.maxSize() )
+                {
+                    //todo send my opinion to other replicators
+                    handler( code, info, error );
+                }
+                else
+                {
+                    //todo?
+                    handler( modify_status::failed, info, "data size exceeds max drive size" );
+                }
                 return;
             }
             
             std::optional<ApprovalTransactionInfo>  info {{ drive.drivePublicKey(),
                                                             drive.modifyRequest().m_transactionHash,
-                                                            drive.rootDriveHash(),
+                                                            drive.rootHash(),
                                                             0,
                                                             0,
                                                             0,
@@ -334,6 +351,31 @@ public:
             }
         }
     }
+    
+    virtual void onOpinionReceived( ApprovalTransactionInfo&& anOpinion ) override
+    {
+        if ( auto it = m_drives.find( anOpinion.m_driveKey ); it != m_drives.end() )
+        {
+            it->second->onOpinionReceived( std::move(anOpinion) );
+        }
+        else
+        {
+            LOG_ERR( "drive not found" );
+        }
+    }
+    
+    virtual void onApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) override
+    {
+        if ( auto it = m_drives.find( transaction.m_driveKey ); it != m_drives.end() )
+        {
+            it->second->onApprovalTransactionReceived( std::move(transaction) );
+        }
+        else
+        {
+            LOG_ERR( "drive not found" );
+        }
+    }
+
 
     const char* dbgReplicatorName() const override { return m_dbgReplicatorName; }
     

@@ -44,15 +44,12 @@ const bool gUse3Replicators = true;
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111"
 #define REPLICATOR_ROOT_FOLDER          fs::path(getenv("HOME")) / "111" / "replicator_root"
 #define REPLICATOR_SANDBOX_ROOT_FOLDER  fs::path(getenv("HOME")) / "111" / "sandbox_root"
-#define DRIVE_PUB_KEY                   std::array<uint8_t,32>{1,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
 
 #define REPLICATOR_ROOT_FOLDER_2          fs::path(getenv("HOME")) / "111" / "replicator_root_2"
 #define REPLICATOR_SANDBOX_ROOT_FOLDER_2  fs::path(getenv("HOME")) / "111" / "sandbox_root_2"
-#define DRIVE_PUB_KEY_2                   std::array<uint8_t,32>{2,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
 
 #define REPLICATOR_ROOT_FOLDER_3          fs::path(getenv("HOME")) / "111" / "replicator_root_3"
 #define REPLICATOR_SANDBOX_ROOT_FOLDER_3  fs::path(getenv("HOME")) / "111" / "sandbox_root_3"
-#define DRIVE_PUB_KEY_3                   std::array<uint8_t,32>{3,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
 
 #define CLIENT_WORK_FOLDER              fs::path(getenv("HOME")) / "111" / "client_work_folder"
 
@@ -60,6 +57,8 @@ const bool gUse3Replicators = true;
 #define REPLICATOR_PRIVATE_KEY      "1000000000010203040501020304050102030405010203040501020304050102"
 #define REPLICATOR_PRIVATE_KEY_2    "2000000000010203040501020304050102030405010203040501020304050102"
 #define REPLICATOR_PRIVATE_KEY_3    "3000000000010203040501020304050102030405010203040501020304050102"
+
+#define DRIVE_PUB_KEY                   std::array<uint8_t,32>{1,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
 
 const sirius::Key clientPublicKey;
 
@@ -145,6 +144,57 @@ ReplicatorList              replicatorList;
 
 std::condition_variable     approveCondVar;
 std::atomic<int>            approveTransactionCounter{0};
+
+class MyReplicatorEventHandler : public ReplicatorEventHandler
+{
+public:
+
+    // It will be called before 'replicator' shuts down
+    virtual void willBeTerminated( Replicator& replicator ) override
+    {
+        EXLOG( "Replicator will be terminated: " << replicator.dbgReplicatorName() );
+    }
+
+    // It will be called when rootHash is calculated in sandbox
+    virtual void rootHashIsCalculated( Replicator&                    replicator,
+                                       const sirius::Key&             driveKey,
+                                       const sirius::drive::InfoHash& modifyTransactionHash,
+                                       const sirius::drive::InfoHash& sandboxRootHash )  override
+    {
+        EXLOG( "rootHshIsCalculated: " << replicator.dbgReplicatorName() );
+    }
+    
+    // It will be called when transaction could not be completed
+    virtual void modifyTransactionIsCanceled( Replicator& replicator,
+                                             const sirius::Key&             driveKey,
+                                             const sirius::drive::InfoHash& modifyTransactionHash,
+                                             const std::string&             reason,
+                                             int                            errorCode )  override
+    {
+        EXLOG( "modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() );
+    }
+    
+    // It will initiate the approving of modify transaction
+    virtual void modifyTransactionIsApproved( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
+    {
+        EXLOG( "modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() );
+    }
+    
+    // It will initiate the approving of single modify transaction
+    virtual void singleModifyTransactionIsApproved( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
+    {
+        EXLOG( "modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() );
+    }
+
+    // It will be called after the drive is syncronized with sandbox
+    virtual void driveModificationIsCompleted( Replicator&                    replicator,
+                                               const sirius::Key&             driveKey,
+                                               const sirius::drive::InfoHash& modifyTransactionHash,
+                                               const sirius::drive::InfoHash& rootHash ) override
+    {
+        EXLOG( "driveModificationIsCompleted: " << replicator.dbgReplicatorName() );
+    }
+};
 
 
 // Listen (socket) error handle

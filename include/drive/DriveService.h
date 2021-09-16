@@ -77,7 +77,7 @@ public:
             }
         }
 
-        pDrive->rootDriveHash();
+        pDrive->rootHash();
 
         return "";
     }
@@ -111,7 +111,7 @@ public:
             }
         }
 
-        InfoHash rootHash = pDrive->rootDriveHash();
+        InfoHash rootHash = pDrive->rootHash();
         LOG( "getRootHash: " << driveKey << " -> " << rootHash );
 
         return rootHash;

@@ -7,6 +7,7 @@
 
 #include "types.h"
 #include "plugins.h"
+#include "crypto/Signer.h"
 #include <boost/asio/ip/tcp.hpp>
 #include <memory>
 
@@ -33,6 +34,78 @@ class FlatDrive;
         Key               m_clientPublicKey;
     };
 
+    // It is opinition of single replicator about how much data the other peers transferred.
+    // (when it downloads modifyData)
+    struct SingleOpinion
+    {
+        SingleOpinion( const Key& replicatorKey ) : m_replicatorKey( replicatorKey )
+        {
+        }
+        
+        // Replicator public key
+        Key                     m_replicatorKey;
+
+        // Opinions about how much the Replicators and the Drive Owner have uploaded to this Replicator.
+        std::vector<uint64_t>   m_replicatorsUploadBytes;
+        uint64_t                m_clientUploadBytes = 0;
+        
+        // Signature of { modifyTransactionHash, rootHash, replicatorsUploadBytes, clientUploadBytes }
+        Signature               m_signature;
+        
+        void Sign( const crypto::KeyPair& keyPair, const Hash256& modifyTransactionHash, const InfoHash& rootHash )
+        {
+            crypto::Sign( keyPair,
+                          {
+                            utils::RawBuffer{modifyTransactionHash},
+                            utils::RawBuffer{rootHash},
+                            utils::RawBuffer{ (const uint8_t*) &m_replicatorsUploadBytes[0],
+                                                m_replicatorsUploadBytes.size() * sizeof (m_replicatorsUploadBytes[0]) },
+                            utils::RawBuffer{(const uint8_t*)&m_clientUploadBytes,sizeof(m_clientUploadBytes)}
+                          },
+                          m_signature );
+        }
+
+        bool Verify( const Key& publicKey, const Hash256& modifyTransactionHash, const InfoHash& rootHash )
+        {
+            return crypto::Verify( publicKey,
+                                  {
+                                    utils::RawBuffer{modifyTransactionHash},
+                                    utils::RawBuffer{rootHash},
+                                    utils::RawBuffer{ (const uint8_t*) &m_replicatorsUploadBytes[0],
+                                    m_replicatorsUploadBytes.size() * sizeof (m_replicatorsUploadBytes[0]) },
+                                    utils::RawBuffer{(const uint8_t*)&m_clientUploadBytes,sizeof(m_clientUploadBytes)}
+                                  },
+                                  m_signature );
+        }
+    };
+
+    // It is used in 2 cases:
+    // - as 'Modify Approval Transaction'
+    // - as 'Single Modify Approval Transaction' (in this case vector 'm_opinions' has single element)
+    struct ApprovalTransactionInfo
+    {
+        // Drive public key
+        const Key&          m_driveKey;
+
+        // A reference to the transaction that initiated the modification
+        const Hash256&      m_modifyTransactionHash;
+
+        // Content Download Information for the File Structure
+        const InfoHash&     m_rootHash;
+        
+        // The size of the “File Structure” File
+        uint64_t            m_fsTreeFileSize;
+
+        // The size of metafiles (torrents?,folders?) including “File Structure” File
+        uint64_t            m_metaFilesSize;
+
+        // Total used disk space. Must not be more than the Drive Size.
+        uint64_t            m_driveSize;
+
+        // Opinions about how much the Replicators and the Drive Owner have uploaded to this Replicator.
+        std::vector<SingleOpinion>   m_opinions;
+    };
+
     // Drive
     class FlatDrive {
     public:
@@ -40,11 +113,17 @@ class FlatDrive;
         virtual ~FlatDrive() = default;
         //virtual void terminate() = 0;
 
-        virtual const std::string& drivePublicKey() const = 0;
+        virtual const Key& drivePublicKey() const = 0;
         
-        virtual InfoHash rootDriveHash() const = 0;
+        virtual uint64_t maxSize() const = 0;
 
+        virtual InfoHash rootHash() const = 0;
+
+        virtual uint64_t sandboxFsTreeSize() const = 0;
+        
         virtual InfoHash sandboxRootHash() const = 0;
+
+        virtual void     getSandboxDriveSizes( uint64_t& metaFilesSize, uint64_t&  driveSize ) const = 0;
 
         virtual void     startModifyDrive( ModifyRequest&& modifyRequest, DriveModifyHandler&& modifyHandler ) = 0;
 
@@ -55,6 +134,10 @@ class FlatDrive;
         virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
 
         virtual const ModifyRequest& modifyRequest() const = 0;
+        
+        virtual void     onOpinionReceived( ApprovalTransactionInfo&& anOpinion ) = 0;
+
+        virtual void     onApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) = 0;
 
         // for testing and debugging
         virtual void printDriveStatus() = 0;
@@ -65,7 +148,7 @@ class FlatDrive;
     PLUGIN_API std::shared_ptr<FlatDrive> createDefaultFlatDrive( std::shared_ptr<Session> session,
                                                        const std::string&   replicatorRootFolder,
                                                        const std::string&   replicatorSandboxRootFolder,
-                                                       const std::string&   drivePubKey,
+                                                       const Key&           drivePubKey,
                                                        size_t               maxSize
                                                        );
 }}

@@ -54,9 +54,9 @@ namespace sirius { namespace drive {
 //
 class FlatDrivePaths {
 protected:
-    FlatDrivePaths( const std::string& replicatorRootFolder,
-                const std::string& replicatorSandboxRootFolder,
-                const std::string& drivePubKey )
+    FlatDrivePaths( const std::string&  replicatorRootFolder,
+                const std::string&      replicatorSandboxRootFolder,
+                const Key&              drivePubKey )
         :
           m_drivePubKey( drivePubKey ),
           m_replicatorRoot( replicatorRootFolder ),
@@ -66,20 +66,20 @@ protected:
     virtual ~FlatDrivePaths() {}
 
 protected:
-    const std::string m_drivePubKey;
+    const Key       m_drivePubKey;
 
     const fs::path  m_replicatorRoot;
     const fs::path  m_replicatorSandboxRoot;
 
     // Drive paths
-    const fs::path  m_driveRootPath     = m_replicatorRoot / m_drivePubKey;
-    const fs::path  m_driveFolder       = m_driveRootPath / "drive";
-    const fs::path  m_torrentFolder     = fs::path( m_driveRootPath ) / "torrent";
-    const fs::path  m_fsTreeFile        = fs::path( m_driveRootPath ) / "fs_tree" / FS_TREE_FILE_NAME;
-    const fs::path  m_fsTreeTorrent     = fs::path( m_driveRootPath ) / "fs_tree" / FS_TREE_FILE_NAME ".torrent";
+    const fs::path  m_driveRootPath     = m_replicatorRoot / arrayToString(m_drivePubKey.array());
+    const fs::path  m_driveFolder       = m_driveRootPath  / "drive";
+    const fs::path  m_torrentFolder     = m_driveRootPath  / "torrent";
+    const fs::path  m_fsTreeFile        = m_driveRootPath  / "fs_tree" / FS_TREE_FILE_NAME;
+    const fs::path  m_fsTreeTorrent     = m_driveRootPath  / "fs_tree" / FS_TREE_FILE_NAME ".torrent";
 
     // Sandbox paths
-    const fs::path  m_sandboxRootPath       = m_replicatorSandboxRoot / m_drivePubKey;
+    const fs::path  m_sandboxRootPath       = m_replicatorSandboxRoot / arrayToString(m_drivePubKey.array());
     const fs::path  m_sandboxFsTreeFile     = m_sandboxRootPath / FS_TREE_FILE_NAME;
     const fs::path  m_sandboxFsTreeTorrent  = m_sandboxRootPath / FS_TREE_FILE_NAME ".torrent";
 
@@ -145,7 +145,7 @@ public:
     DefaultFlatDrive( std::shared_ptr<Session>  session,
                   const std::string&        replicatorRootFolder,
                   const std::string&        replicatorSandboxRootFolder,
-                  const std::string&        drivePubKey,
+                  const Key&                drivePubKey,
                   size_t                    maxSize )
         :
           FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
@@ -160,7 +160,7 @@ public:
         terminate();
     }
 
-    const std::string& drivePublicKey() const override { return m_drivePubKey; }
+    const Key& drivePublicKey() const override { return m_drivePubKey; }
 
     void terminate() {
         //TODO 
@@ -173,13 +173,28 @@ public:
         //m_session->endSession();
     }
 
-    InfoHash rootDriveHash() const override {
-        //LOG( "m_drivePubKey: " << m_drivePubKey );
+    uint64_t maxSize() const override {
+        return m_maxSize;
+    }
+
+    InfoHash rootHash() const override {
         return m_rootHash;
     }
     
     InfoHash sandboxRootHash() const override {
         return m_sandboxRootHash;
+    }
+    
+    uint64_t sandboxFsTreeSize() const override {
+        return fs::file_size( m_sandboxFsTreeFile );
+    }
+
+    void getSandboxDriveSizes( uint64_t& metaFilesSize, uint64_t& driveSize ) const override
+    {
+        metaFilesSize = fs::file_size( m_sandboxFsTreeTorrent);
+        driveSize = 0;
+        m_sandboxFsTree.getSizes( m_driveFolder, m_torrentFolder, metaFilesSize, driveSize );
+        driveSize += metaFilesSize;
     }
 
     // Initialize drive
@@ -458,7 +473,7 @@ public:
                 }
 
                 // calculate torrent, file hash, and file size
-                InfoHash fileHash = calculateInfoHashAndTorrent( clientFile, m_drivePubKey, m_torrentFolder, "" );
+                InfoHash fileHash = calculateInfoHashAndTorrent( clientFile, arrayToString(m_drivePubKey.array()), m_torrentFolder, "" );
                 size_t fileSize = std::filesystem::file_size( clientFile );
 
                 // rename file and move it into drive folder
@@ -733,6 +748,16 @@ public:
     {
         return m_modifyRequest;
     }
+    
+    virtual void onOpinionReceived( ApprovalTransactionInfo&& anOpinion ) override
+    {
+        
+    }
+
+    virtual void onApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) override
+    {
+        
+    }
 
     virtual void printDriveStatus() override
     {
@@ -748,7 +773,7 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
         std::shared_ptr<Session> session,
         const std::string&       replicatorRootFolder,
         const std::string&       replicatorSandboxRootFolder,
-        const std::string&       drivePubKey,
+        const Key&               drivePubKey,
         size_t                   maxSize )
 {
     return std::make_shared<DefaultFlatDrive>( session,
