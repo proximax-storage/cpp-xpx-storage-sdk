@@ -116,7 +116,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     bool m_approveTransactionReceived = false;
     
     // It is needed if a new 'modifyRequest' is received, but drive is syncing with sandbox
-    std::deque< std::pair<ModifyRequest,DriveModifyHandler>> m_modifyRequestQueue;
+    std::deque<ModifyRequest> m_modifyRequestQueue;
 
     // FsTree
     FsTree        m_fsTree;
@@ -128,10 +128,13 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     InfoHash      m_sandboxRootHash;
 
     // Client data (for drive modification)
-    ModifyRequest           m_modifyRequest;
+    std::optional<ModifyRequest> m_modifyRequest;
 
     // Will be called at the end of the sanbox work
-    DriveModifyHandler      m_modifyHandler;
+    ReplicatorEventHandler& m_eventHandler;
+    
+    // It is as 1-st parameter in functions of ReplicatorEventHandler (for debugging)
+    Replicator&             m_replicator;
 
     // Sandbox files
     std::vector<InfoHash>   m_toBeAddedFiles;
@@ -146,11 +149,15 @@ public:
                   const std::string&        replicatorRootFolder,
                   const std::string&        replicatorSandboxRootFolder,
                   const Key&                drivePubKey,
-                  size_t                    maxSize )
+                  size_t                    maxSize,
+                  ReplicatorEventHandler&   eventHandler,
+                  Replicator&               replicator )
         :
           FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
           m_session(session),
-          m_maxSize(maxSize)
+          m_maxSize(maxSize),
+          m_eventHandler(eventHandler),
+          m_replicator(replicator)
     {
         // Initialize drive
         init();
@@ -165,12 +172,6 @@ public:
     void terminate() {
         //TODO 
         m_session.reset();
-        if ( m_modifyHandler )
-        {
-            m_modifyHandler( modify_status::broken, *this, std::string("DefaultDrive::downloadHandler: internal error: ") );
-            m_modifyHandler = nullptr;
-        }
-        //m_session->endSession();
     }
 
     uint64_t maxSize() const override {
@@ -311,7 +312,7 @@ public:
     
     void cancelModifyDrive( const Hash256& transactionHash ) override
     {
-        if ( !(transactionHash == m_modifyRequest.m_transactionHash) )
+        if ( m_modifyRequest && !(transactionHash == m_modifyRequest->m_transactionHash) )
         {
             LOG_ERR( "cancelModifyDrive(): invalid transactionHash: " << transactionHash );
             return;
@@ -321,7 +322,7 @@ public:
 
     void approveDriveModification( const Hash256& transactionHash ) override
     {
-        if ( !(transactionHash == m_modifyRequest.m_transactionHash) )
+        if ( m_modifyRequest && !(transactionHash == m_modifyRequest->m_transactionHash) )
         {
             LOG_ERR( "approveDriveModification(): invalid transactionHash: " << transactionHash );
             return;
@@ -351,7 +352,7 @@ public:
 
     // startModifyDrive - should be called after client 'modify request'
     //
-    void startModifyDrive( ModifyRequest&& modifyRequest, DriveModifyHandler&& modifyHandler ) override
+    void startModifyDrive( ModifyRequest&& modifyRequest ) override
     {
         {
             std::unique_lock<std::mutex> lock(m_mutex);
@@ -359,7 +360,7 @@ public:
             if ( !m_modificationEnded )
             {
                 //LOG_ERR( "startModifyDrive():: prevoius modification is not completed" );
-                m_modifyRequestQueue.emplace_back( std::move(modifyRequest), std::move(modifyHandler) );
+                m_modifyRequestQueue.emplace_back( std::move(modifyRequest) );
                 return;
             }
 
@@ -369,8 +370,6 @@ public:
         }
         
         m_modifyRequest = std::move( modifyRequest );
-
-        m_modifyHandler = std::move( modifyHandler );
 
         // clear client session folder
         fs::remove_all( m_sandboxRootPath );
@@ -397,17 +396,21 @@ public:
                           size_t /*fileSize*/,
                           const std::string& errorText )
     {
-        if ( m_modifyRequest.m_clientDataInfoHash != infoHash )
+        if ( !m_modifyRequest )
         {
-            m_modifyHandler( modify_status::failed, *this, std::string("DefaultDrive::downloadHandler: internal error: ") );
-            m_modifyHandler = nullptr;
+            m_eventHandler.modifyTransactionIsCanceled( m_replicator, m_drivePubKey, {}, "DefaultDrive::downloadHandler: internal error", 0 );
+            return;
+        }
+
+        if ( m_modifyRequest->m_clientDataInfoHash != infoHash )
+        {
+            m_eventHandler.modifyTransactionIsCanceled( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, "DefaultDrive::downloadHandler: internal error", 0 );
             return;
         }
 
         if ( code == download_status::failed )
         {
-            m_modifyHandler( modify_status::failed, *this, std::string("modify drive: download failed: ") + errorText );
-            m_modifyHandler = nullptr;
+            m_eventHandler.modifyTransactionIsCanceled( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, errorText, 0 );
             return;
         }
 
@@ -428,8 +431,7 @@ public:
         if ( !fs::exists(m_clientDataFolder) || !fs::is_directory(m_clientDataFolder) )
         {
             LOG( "m_clientDataFolder=" << m_clientDataFolder );
-            m_modifyHandler( modify_status::failed, *this, "modify drive: 'client-data' is absent: " );
-            m_modifyHandler = nullptr;
+            m_eventHandler.modifyTransactionIsCanceled( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, "modify drive: 'client-data' is absent", -1 );
             return;
         }
 
@@ -437,8 +439,7 @@ public:
         if ( !fs::exists( m_clientActionListFile ) )
         {
             LOG( "m_clientActionListFile=" << m_clientActionListFile );
-            m_modifyHandler( modify_status::failed, *this, "modify drive: 'ActionList.bin' is absent: " );
-            m_modifyHandler = nullptr;
+            m_eventHandler.modifyTransactionIsCanceled( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, "modify drive: 'ActionList.bin' is absent", -1 );
             return;
         }
 
@@ -579,7 +580,7 @@ public:
         m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
 
         // Call modify handler
-        m_modifyHandler( modify_status::sandbox_root_hash, *this, "" );
+        m_eventHandler.rootHashIsCalculated( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_sandboxRootHash );
 
         // start drive update (if 'approveTransaction' is received)
         {
@@ -594,6 +595,59 @@ public:
             }
         }
     }
+    
+//    void onRootHashIsCalculated()
+//    {
+//        auto trafficInfo = m_modifyDriveMap[ drive.modifyRequest().m_transactionHash.array() ];
+//
+//        //
+//        // Calculate upload option
+//        //
+//        SingleOpinion opinion( publicKey() );
+//        for( const auto& replicatorIt : drive.modifyRequest().m_replicatorList )
+//        {
+//            if ( auto it = trafficInfo.m_modifyTrafficMap.find( replicatorIt.m_publicKey.array() );
+//                    it != trafficInfo.m_modifyTrafficMap.end() )
+//            {
+//                opinion.m_replicatorsUploadBytes.push_back( it->second.m_receivedSize );
+//            }
+//            else
+//            {
+//                opinion.m_replicatorsUploadBytes.push_back( 0 );
+//            }
+//        }
+//
+//        if ( auto it = trafficInfo.m_modifyTrafficMap.find( drive.modifyRequest().m_clientPublicKey.array() );
+//                it != trafficInfo.m_modifyTrafficMap.end() )
+//        {
+//            opinion.m_clientUploadBytes = it->second.m_receivedSize;
+//        }
+//
+//        // Calculate size of torrent files and total drive size
+//        uint64_t metaFilesSize;
+//        uint64_t driveSize;
+//        drive.getSandboxDriveSizes( metaFilesSize, driveSize );
+//
+//        std::optional<ApprovalTransactionInfo>  info {{ drive.drivePublicKey(),
+//                                                        drive.modifyRequest().m_transactionHash,
+//                                                        drive.sandboxRootHash(),
+//                                                        drive.sandboxFsTreeSize(),
+//                                                        metaFilesSize,
+//                                                        driveSize,
+//                                                        { std::move(opinion) }}};
+//
+//        if ( driveSize <= drive.maxSize() )
+//        {
+//            //todo send my opinion to other replicators
+//            handler( code, info, error );
+//        }
+//        else
+//        {
+//            //todo?
+//            handler( modify_status::failed, info, "data size exceeds max drive size" );
+//        }
+//        return;
+//    }
 
     // updates drive (1st step after aprove)
     // - remove torrents from session
@@ -694,8 +748,7 @@ public:
         }
         
         // Call update handler
-        m_modifyHandler( modify_status::update_completed, *this, "" );
-        m_modifyHandler = nullptr;
+        m_eventHandler.driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
 
         {
             std::unique_lock<std::mutex> lock(m_mutex);
@@ -703,7 +756,7 @@ public:
             {
                 auto request = std::move( m_modifyRequestQueue.front() );
                 m_modifyRequestQueue.pop_front();
-                startModifyDrive( std::move(request.first), std::move(request.second) );
+                startModifyDrive( std::move(request) );
             }
         }
     }
@@ -744,9 +797,10 @@ public:
         //todo m_session->loadTorrent();
     }
     
+    // todo (could be removed?)
     const ModifyRequest& modifyRequest() const override
     {
-        return m_modifyRequest;
+        return *m_modifyRequest;
     }
     
     virtual void onOpinionReceived( ApprovalTransactionInfo&& anOpinion ) override
@@ -774,13 +828,18 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
         const std::string&       replicatorRootFolder,
         const std::string&       replicatorSandboxRootFolder,
         const Key&               drivePubKey,
-        size_t                   maxSize )
+        size_t                   maxSize,
+        ReplicatorEventHandler&  eventHandler,
+        Replicator&              replicator )
+
 {
     return std::make_shared<DefaultFlatDrive>( session,
                                            replicatorRootFolder,
                                            replicatorSandboxRootFolder,
                                            drivePubKey,
-                                           maxSize );
+                                           maxSize,
+                                           eventHandler,
+                                           replicator );
 }
 
 }}

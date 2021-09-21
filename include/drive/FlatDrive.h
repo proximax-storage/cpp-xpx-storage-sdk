@@ -14,6 +14,7 @@
 namespace sirius { namespace drive {
 
 class FlatDrive;
+class Replicator;
 
     namespace modify_status {
         enum code {
@@ -106,7 +107,48 @@ class FlatDrive;
         std::vector<SingleOpinion>   m_opinions;
     };
 
+
+    // Iterface for storage extension
+    class ReplicatorEventHandler
+    {
+    public:
+
+        virtual ~ReplicatorEventHandler() = default;
+
+        // It will be called before 'replicator' shuts down
+        virtual void willBeTerminated( Replicator& replicator ) = 0;
+
+        // It will be called when transaction could not be completed
+        virtual void modifyTransactionIsCanceled( Replicator& replicator,
+                                                 const sirius::Key&             driveKey,
+                                                 const sirius::drive::InfoHash& modifyTransactionHash,
+                                                 const std::string&             reason,
+                                                 int                            errorCode ) = 0;
+        
+        // It will be called when rootHash is calculated in sandbox
+        // (TODO it will be removed)
+        virtual void rootHashIsCalculated( Replicator&                    replicator,
+                                           const sirius::Key&             driveKey,
+                                           const sirius::drive::InfoHash& modifyTransactionHash,
+                                           const sirius::drive::InfoHash& sandboxRootHash ) = 0;
+        
+        // It will initiate the approving of modify transaction
+        virtual void modifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
+        
+        // It will initiate the approving of single modify transaction
+        virtual void singleModifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
+        
+        // It will be called after the drive is syncronized with sandbox
+        virtual void driveModificationIsCompleted( Replicator&                    replicator,
+                                                   const sirius::Key&             driveKey,
+                                                   const sirius::drive::InfoHash& modifyTransactionHash,
+                                                   const sirius::drive::InfoHash& rootHash ) = 0;
+    };
+
+
+    //
     // Drive
+    //
     class FlatDrive {
     public:
 
@@ -125,7 +167,7 @@ class FlatDrive;
 
         virtual void     getSandboxDriveSizes( uint64_t& metaFilesSize, uint64_t&  driveSize ) const = 0;
 
-        virtual void     startModifyDrive( ModifyRequest&& modifyRequest, DriveModifyHandler&& modifyHandler ) = 0;
+        virtual void     startModifyDrive( ModifyRequest&& modifyRequest ) = 0;
 
         virtual void     cancelModifyDrive( const Hash256& transactionHash ) = 0;
 
@@ -146,10 +188,11 @@ class FlatDrive;
     class Session;
 
     PLUGIN_API std::shared_ptr<FlatDrive> createDefaultFlatDrive( std::shared_ptr<Session> session,
-                                                       const std::string&   replicatorRootFolder,
-                                                       const std::string&   replicatorSandboxRootFolder,
-                                                       const Key&           drivePubKey,
-                                                       size_t               maxSize
-                                                       );
+                                                       const std::string&       replicatorRootFolder,
+                                                       const std::string&       replicatorSandboxRootFolder,
+                                                       const Key&               drivePubKey,
+                                                       size_t                   maxSize,
+                                                       ReplicatorEventHandler&  eventHandler,
+                                                       Replicator&              replicator );
 }}
 

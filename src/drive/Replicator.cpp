@@ -44,8 +44,10 @@ public:
 
     bool        m_useTcpSocket;
 
-    const char* m_dbgReplicatorName;
+    ReplicatorEventHandler& m_eventHandler;
 
+    const char* m_dbgReplicatorName;
+    
 public:
     DefaultReplicator (
                crypto::KeyPair&& keyPair,
@@ -54,6 +56,7 @@ public:
                std::string&& storageDirectory,
                std::string&& sandboxDirectory,
                bool          useTcpSocket,
+               ReplicatorEventHandler& handler,
                const char*   dbgReplicatorName ) : DownloadLimiter( m_keyPair, dbgReplicatorName ),
 
         m_keyPair( std::move(keyPair) ),
@@ -62,6 +65,7 @@ public:
         m_storageDirectory( std::move(storageDirectory) ),
         m_sandboxDirectory( std::move(sandboxDirectory) ),
         m_useTcpSocket( useTcpSocket ),
+        m_eventHandler(handler),
         m_dbgReplicatorName( dbgReplicatorName )
     {
     }
@@ -110,7 +114,7 @@ public:
     }
 
 
-    std::string addDrive(const Key& driveKey, size_t driveSize) override
+    std::string addDrive(const Key& driveKey, size_t driveSize ) override
     {
         LOG( "adding drive " << driveKey );
 
@@ -125,7 +129,9 @@ public:
                 m_storageDirectory,
                 m_sandboxDirectory,
                 driveKey,
-                driveSize);
+                driveSize,
+                m_eventHandler,
+                *this );
 
         return "";
     }
@@ -144,9 +150,7 @@ public:
     }
 
 
-    std::string modify( const Key&          driveKey,
-                        ModifyRequest&&     modifyRequest,
-                        ModifyHandler&&     handler ) override
+    std::string modify( const Key& driveKey, ModifyRequest&& modifyRequest ) override
     {
         LOG( "drive modification:\ndrive: " << driveKey << "\n info hash: " << infoHash );
 
@@ -177,74 +181,75 @@ public:
                 break;
             }
         }
-        pDrive->startModifyDrive( std::move(modifyRequest),
-
-             [this,handler]( modify_status::code    code,
-                             const FlatDrive&       drive,
-                             const std::string&     error )
-        {
-            if ( code == modify_status::sandbox_root_hash )
-            {
-                auto trafficInfo = m_modifyDriveMap[ drive.modifyRequest().m_transactionHash.array() ];
-
-                //
-                // Calculate upload option
-                //
-                SingleOpinion opinion( publicKey() );
-                for( const auto& replicatorIt : drive.modifyRequest().m_replicatorList )
-                {
-                    if ( auto it = trafficInfo.m_modifyTrafficMap.find( replicatorIt.m_publicKey.array() );
-                            it != trafficInfo.m_modifyTrafficMap.end() )
-                    {
-                        opinion.m_replicatorsUploadBytes.push_back( it->second.m_receivedSize );
-                    }
-                    else
-                    {
-                        opinion.m_replicatorsUploadBytes.push_back( 0 );
-                    }
-                }
-                
-                if ( auto it = trafficInfo.m_modifyTrafficMap.find( drive.modifyRequest().m_clientPublicKey.array() );
-                        it != trafficInfo.m_modifyTrafficMap.end() )
-                {
-                    opinion.m_clientUploadBytes = it->second.m_receivedSize;
-                }
-                
-                // Calculate size of torrent files and total drive size
-                uint64_t metaFilesSize;
-                uint64_t driveSize;
-                drive.getSandboxDriveSizes( metaFilesSize, driveSize );
-
-                std::optional<ApprovalTransactionInfo>  info {{ drive.drivePublicKey(),
-                                                                drive.modifyRequest().m_transactionHash,
-                                                                drive.sandboxRootHash(),
-                                                                drive.sandboxFsTreeSize(),
-                                                                metaFilesSize,
-                                                                driveSize,
-                                                                { std::move(opinion) }}};
-                
-                if ( driveSize <= drive.maxSize() )
-                {
-                    //todo send my opinion to other replicators
-                    handler( code, info, error );
-                }
-                else
-                {
-                    //todo?
-                    handler( modify_status::failed, info, "data size exceeds max drive size" );
-                }
-                return;
-            }
-            
-            std::optional<ApprovalTransactionInfo>  info {{ drive.drivePublicKey(),
-                                                            drive.modifyRequest().m_transactionHash,
-                                                            drive.rootHash(),
-                                                            0,
-                                                            0,
-                                                            0,
-                                                            {} }};
-            handler( code, info, error );
-        });
+        pDrive->startModifyDrive( std::move(modifyRequest)
+//todo+++                                 ,
+//             [this,handler]( modify_status::code    code,
+//                             const FlatDrive&       drive,
+//                             const std::string&     error )
+//        {
+//            if ( code == modify_status::sandbox_root_hash )
+//            {
+//                auto trafficInfo = m_modifyDriveMap[ drive.modifyRequest().m_transactionHash.array() ];
+//
+//                //
+//                // Calculate upload option
+//                //
+//                SingleOpinion opinion( publicKey() );
+//                for( const auto& replicatorIt : drive.modifyRequest().m_replicatorList )
+//                {
+//                    if ( auto it = trafficInfo.m_modifyTrafficMap.find( replicatorIt.m_publicKey.array() );
+//                            it != trafficInfo.m_modifyTrafficMap.end() )
+//                    {
+//                        opinion.m_replicatorsUploadBytes.push_back( it->second.m_receivedSize );
+//                    }
+//                    else
+//                    {
+//                        opinion.m_replicatorsUploadBytes.push_back( 0 );
+//                    }
+//                }
+//
+//                if ( auto it = trafficInfo.m_modifyTrafficMap.find( drive.modifyRequest().m_clientPublicKey.array() );
+//                        it != trafficInfo.m_modifyTrafficMap.end() )
+//                {
+//                    opinion.m_clientUploadBytes = it->second.m_receivedSize;
+//                }
+//
+//                // Calculate size of torrent files and total drive size
+//                uint64_t metaFilesSize;
+//                uint64_t driveSize;
+//                drive.getSandboxDriveSizes( metaFilesSize, driveSize );
+//
+//                std::optional<ApprovalTransactionInfo>  info {{ drive.drivePublicKey(),
+//                                                                drive.modifyRequest().m_transactionHash,
+//                                                                drive.sandboxRootHash(),
+//                                                                drive.sandboxFsTreeSize(),
+//                                                                metaFilesSize,
+//                                                                driveSize,
+//                                                                { std::move(opinion) }}};
+//
+//                if ( driveSize <= drive.maxSize() )
+//                {
+//                    //todo send my opinion to other replicators
+//                    handler( code, info, error );
+//                }
+//                else
+//                {
+//                    //todo?
+//                    handler( modify_status::failed, info, "data size exceeds max drive size" );
+//                }
+//                return;
+//            }
+//
+//            std::optional<ApprovalTransactionInfo>  info {{ drive.drivePublicKey(),
+//                                                            drive.modifyRequest().m_transactionHash,
+//                                                            drive.rootHash(),
+//                                                            0,
+//                                                            0,
+//                                                            0,
+//                                                            {} }};
+//            handler( code, info, error );
+//        }
+                                 );
         return "";
     }
     
@@ -376,6 +381,10 @@ public:
         }
     }
 
+    ReplicatorEventHandler& eventHandler() override
+    {
+        return m_eventHandler;
+    }
 
     const char* dbgReplicatorName() const override { return m_dbgReplicatorName; }
     
@@ -392,6 +401,7 @@ std::shared_ptr<Replicator> createDefaultReplicator(
                                         std::string&&       storageDirectory,
                                         std::string&&       sandboxDirectory,
                                         bool                useTcpSocket,
+                                        ReplicatorEventHandler& handler,
                                         const char*         dbgReplicatorName )
 {
     return std::make_shared<DefaultReplicator>(
@@ -401,6 +411,7 @@ std::shared_ptr<Replicator> createDefaultReplicator(
                                                std::move(storageDirectory),
                                                std::move(sandboxDirectory),
                                                useTcpSocket,
+                                               handler,
                                                dbgReplicatorName );
 }
 

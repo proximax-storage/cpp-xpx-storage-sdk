@@ -91,6 +91,8 @@ std::thread gReplicatorThread2;
 std::shared_ptr<Replicator> gReplicator3;
 std::thread gReplicatorThread3;
 
+class MyReplicatorEventHandler;
+
 static std::shared_ptr<Replicator> createReplicator(
                                         const std::string&  pivateKey,
                                         std::string&&       ipAddr,
@@ -98,8 +100,8 @@ static std::shared_ptr<Replicator> createReplicator(
                                         std::string&&       rootFolder,
                                         std::string&&       sandboxRootFolder,
                                         bool                useTcpSocket,
-                                        const char*         dbgReplicatorName
-                                    );
+                                        MyReplicatorEventHandler& handler,
+                                        const char*         dbgReplicatorName );
 
 static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const sirius::Key&             driveKey,
@@ -145,6 +147,18 @@ ReplicatorList              replicatorList;
 std::condition_variable     approveCondVar;
 std::atomic<int>            approveTransactionCounter{0};
 
+// Listen (socket) error handle
+//
+static void clientSessionErrorHandler( const lt::alert* alert )
+{
+    if ( alert->type() == lt::listen_failed_alert::alert_type )
+    {
+        std::cerr << alert->message() << std::endl << std::flush;
+        exit(-1);
+    }
+}
+
+#pragma mark --MyReplicatorEventHandler--
 class MyReplicatorEventHandler : public ReplicatorEventHandler
 {
 public:
@@ -161,7 +175,10 @@ public:
                                        const sirius::drive::InfoHash& modifyTransactionHash,
                                        const sirius::drive::InfoHash& sandboxRootHash )  override
     {
-        EXLOG( "rootHshIsCalculated: " << replicator.dbgReplicatorName() );
+        //EXLOG( "rootHshIsCalculated: " << replicator.dbgReplicatorName() );
+        EXLOG( "@ sandbox calculated: " << replicator.dbgReplicatorName() );
+        approveTransactionCounter++;
+        approveCondVar.notify_all();
     }
     
     // It will be called when transaction could not be completed
@@ -175,13 +192,13 @@ public:
     }
     
     // It will initiate the approving of modify transaction
-    virtual void modifyTransactionIsApproved( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
+    virtual void modifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
     {
         EXLOG( "modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() );
     }
     
     // It will initiate the approving of single modify transaction
-    virtual void singleModifyTransactionIsApproved( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
+    virtual void singleModifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
     {
         EXLOG( "modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() );
     }
@@ -192,21 +209,26 @@ public:
                                                const sirius::drive::InfoHash& modifyTransactionHash,
                                                const sirius::drive::InfoHash& rootHash ) override
     {
-        EXLOG( "driveModificationIsCompleted: " << replicator.dbgReplicatorName() );
+        //EXLOG( "driveModificationIsCompleted: " << replicator.dbgReplicatorName() );
+        EXLOG( "" );
+        EXLOG( "@ update_completed:" << replicator.dbgReplicatorName() );
+
+        //std::unique_lock<std::mutex> lock(m_driveMutex);
+        m_isDriveUpdated = true;
+        m_driveCondVar.notify_all();
+
     }
+    
+    bool                    m_isDriveUpdated = false;
+    std::condition_variable m_driveCondVar;
+    std::mutex              m_driveMutex;
 };
 
+MyReplicatorEventHandler gMyReplicatorEventHandler;
+MyReplicatorEventHandler gMyReplicatorEventHandler2;
+MyReplicatorEventHandler gMyReplicatorEventHandler3;
+MyReplicatorEventHandler gMyReplicatorEventHandler4;
 
-// Listen (socket) error handle
-//
-static void clientSessionErrorHandler( const lt::alert* alert )
-{
-    if ( alert->type() == lt::listen_failed_alert::alert_type )
-    {
-        std::cerr << alert->message() << std::endl << std::flush;
-        exit(-1);
-    }
-}
 
 #pragma mark --main()--
 //
@@ -242,6 +264,7 @@ int main(int,char**)
                                     std::string( REPLICATOR_ROOT_FOLDER ),
                                     std::string( REPLICATOR_SANDBOX_ROOT_FOLDER ),
                                     TRANSPORT_PROTOCOL,
+                                    gMyReplicatorEventHandler,
                                     "replicator1" );
 
     gReplicator2 = createReplicator( REPLICATOR_PRIVATE_KEY_2,
@@ -250,6 +273,7 @@ int main(int,char**)
                                     std::string( REPLICATOR_ROOT_FOLDER_2 ),
                                     std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_2 ),
                                     TRANSPORT_PROTOCOL,
+                                    gMyReplicatorEventHandler2,
                                     "replicator2" );
 
     gReplicator3 = createReplicator( REPLICATOR_PRIVATE_KEY_3,
@@ -258,6 +282,7 @@ int main(int,char**)
                                     std::string( REPLICATOR_ROOT_FOLDER_3 ),
                                     std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_3 ),
                                     TRANSPORT_PROTOCOL,
+                                    gMyReplicatorEventHandler3,
                                     "replicator3" );
 
     ///
@@ -392,6 +417,7 @@ static std::shared_ptr<Replicator> createReplicator(
                                         std::string&&       rootFolder,
                                         std::string&&       sandboxRootFolder,
                                         bool                useTcpSocket,
+                                        MyReplicatorEventHandler& handler,
                                         const char*         dbgReplicatorName )
 {
     auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
@@ -406,6 +432,7 @@ static std::shared_ptr<Replicator> createReplicator(
                                               std::move( rootFolder ),
                                               std::move( sandboxRootFolder ),
                                               useTcpSocket,
+                                              handler,
                                               dbgReplicatorName );
 
     replicator->start();
@@ -430,46 +457,16 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          uint64_t                       maxDataSize )
 {
         // start drive update
-    bool                    isDriveUpdated = false;
-    std::condition_variable driveCondVar;
-    std::mutex              driveMutex;
+    auto& handler = dynamic_cast<MyReplicatorEventHandler&>( replicator->eventHandler() );
 
-    replicator->modify( DRIVE_PUB_KEY, ModifyRequest{ infoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey },
-       [&,replicator] ( modify_status::code                            code,
-                        const std::optional<ApprovalTransactionInfo>&  info,
-                        const std::string&                             error )
-       {
-           if ( code == modify_status::update_completed )
-           {
-               EXLOG( "" );
-               EXLOG( "@ update_completed:" << replicator->dbgReplicatorName() );
+    handler.m_isDriveUpdated = false;
 
-               //std::unique_lock<std::mutex> lock(driveMutex);
-               isDriveUpdated = true;
-               driveCondVar.notify_all();
-           }
-           else if ( code == modify_status::sandbox_root_hash )
-           {
-               EXLOG( "@ sandbox calculated: " << replicator->dbgReplicatorName() );
-               EXLOG( "@   " << replicator->dbgReplicatorName() << " client: " << info->m_opinions[0].m_clientUploadBytes );
-               for( uint32_t i = 0; i<info->m_opinions[0].m_replicatorsUploadBytes.size(); i++ )
-               {
-                   EXLOG( "@   " << replicator->dbgReplicatorName() << " " << i << ": " << info->m_opinions[0].m_replicatorsUploadBytes[i] );
-               }
-               approveTransactionCounter++;
-               approveCondVar.notify_all();
-           }
-           else
-           {
-               EXLOG( "ERROR: " << error );
-               exit(-1);
-           }
-       } );
+    replicator->modify( DRIVE_PUB_KEY, ModifyRequest{ infoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey } );
 
     // wait the end of drive update
     {
-        std::unique_lock<std::mutex> lock(driveMutex);
-        driveCondVar.wait( lock, [&] { return isDriveUpdated; } );
+        std::unique_lock<std::mutex> lock( handler.m_driveMutex );
+        handler.m_driveCondVar.wait( lock, [&] { return handler.m_isDriveUpdated; } );
     }
 
     replicator->printDriveStatus( DRIVE_PUB_KEY );

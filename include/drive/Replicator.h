@@ -17,45 +17,6 @@ namespace sirius::drive {
 
 class Replicator;
 
-using ModifyHandler = std::function<void( modify_status::code, const std::optional<ApprovalTransactionInfo>& info, const std::string& error )>;
-
-// Iterface for storage extension
-class ReplicatorEventHandler
-{
-public:
-
-    virtual ~ReplicatorEventHandler() = default;
-
-    // It will be called before 'replicator' shuts down
-    virtual void willBeTerminated( Replicator& replicator ) = 0;
-
-    // It will be called when transaction could not be completed
-    virtual void modifyTransactionIsCanceled( Replicator& replicator,
-                                             const sirius::Key&             driveKey,
-                                             const sirius::drive::InfoHash& modifyTransactionHash,
-                                             const std::string&             reason,
-                                             int                            errorCode ) = 0;
-    
-    // It will be called when rootHash is calculated in sandbox
-    virtual void rootHashIsCalculated( Replicator&                    replicator,
-                                       const sirius::Key&             driveKey,
-                                       const sirius::drive::InfoHash& modifyTransactionHash,
-                                       const sirius::drive::InfoHash& sandboxRootHash ) = 0;
-    
-    // It will initiate the approving of modify transaction
-    virtual void modifyTransactionIsApproved( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
-    
-    // It will initiate the approving of single modify transaction
-    virtual void singleModifyTransactionIsApproved( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
-    
-    // It will be called after the drive is syncronized with sandbox
-    virtual void driveModificationIsCompleted( Replicator&                    replicator,
-                                               const sirius::Key&             driveKey,
-                                               const sirius::drive::InfoHash& modifyTransactionHash,
-                                               const sirius::drive::InfoHash& rootHash ) = 0;
-};
-
-
 //
 // Replicator
 //
@@ -72,10 +33,9 @@ public:
     virtual std::string addDrive( const Key& driveKey, size_t driveSize ) = 0;
 
     virtual std::string removeDrive( const Key& driveKey ) = 0;
-
+    
     virtual std::string modify( const Key&          driveKey,
-                                ModifyRequest&&     modifyRequest,
-                                ModifyHandler&&     handler ) = 0;
+                                ModifyRequest&&     modifyRequest ) = 0;
 
     virtual std::string cancelModify( const Key&        driveKey,
                                       const Hash256&    transactionHash ) = 0;
@@ -120,6 +80,8 @@ public:
     
     virtual void        printTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) = 0;
     
+    virtual ReplicatorEventHandler& eventHandler() = 0;
+    
     virtual const char* dbgReplicatorName() const = 0;
 };
 
@@ -130,6 +92,7 @@ PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(
                                                std::string&&  storageDirectory,
                                                std::string&&  sandboxDirectory,
                                                bool           useTcpSocket, // use TCP socket (instead of uTP)
+                                               ReplicatorEventHandler&,
                                                const char*    dbgReplicatorName = ""
 );
 
