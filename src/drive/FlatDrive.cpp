@@ -813,6 +813,11 @@ public:
         
     }
 
+    virtual void onSingleApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) override
+    {
+        
+    }
+
     virtual void printDriveStatus() override
     {
         LOG("Drive Status:")

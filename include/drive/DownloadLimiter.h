@@ -25,54 +25,6 @@ class DownloadLimiter : public Replicator,
 {
 protected:
     
-    // It is used for calculation of total data size, downloaded by 'client'
-    struct ReplicatorUploadInfo
-    {
-        // It is the size uploaded by another replicator
-        uint64_t m_uploadedSize = 0;
-    };
-    using ReplicatorUploadMap = std::map<std::array<uint8_t,32>,ReplicatorUploadInfo>;
-
-    struct DownloadChannelInfo
-    {
-        uint64_t                m_prepaidDownloadSize;
-        uint64_t                m_requestedSize = 0;
-        uint64_t                m_uploadedSize = 0;
-        std::vector<std::array<uint8_t, 32>> m_clients; //todo
-        ReplicatorList          m_replicatorsList;
-        ReplicatorUploadMap     m_replicatorUploadMap;
-    };
-
-    using ChannelMap        = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
-
-    // It is used for mutual calculation of the replicators, when they download 'modify data'
-    // (Note. Replicators could receive 'modify data' from client and from replicators, that already receives some piece)
-    struct ModifyTrafficInfo
-    {
-        // It is the size received from another replicator or client
-        uint64_t m_receivedSize = 0;
-        
-        // It is the size sent to another replicator
-        uint64_t m_requestedSize = 0;
-        uint64_t m_sentSize = 0;
-    };
-
-    // The key is a transaction hash
-    using ModifyTrafficMap = std::map<std::array<uint8_t,32>,ModifyTrafficInfo>;
-
-    struct ModifyDriveInfo
-    {
-        uint64_t                m_maxDataSize;
-        ReplicatorList          m_replicatorsList;
-        ModifyTrafficMap        m_modifyTrafficMap;
-        uint64_t                m_totalReceivedSize = 0;
-    };
-
-    // The key is a transaction hash
-    using ModifyDriveMap    = std::map<std::array<uint8_t,32>, ModifyDriveInfo>;
-
-protected:
-    
     std::shared_mutex   m_mutex;
 
     ChannelMap          m_downloadChannelMap;
@@ -186,6 +138,16 @@ public:
             }
         }
     }
+    
+    virtual const ModifyDriveInfo& getDownloadOpinion( const Hash256& transactionHash ) override
+    {
+        if ( const auto it = m_modifyDriveMap.find( transactionHash.array() ); it != m_modifyDriveMap.end() )
+        {
+            return it->second;
+        }
+        throw std::runtime_error( "unknown modify transaction hash" );
+    }
+
 
     bool checkDownloadLimit( const std::array<uint8_t,64>& /*signature*/,
                              const std::array<uint8_t,32>& downloadChannelId,

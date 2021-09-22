@@ -143,6 +143,9 @@ class Replicator;
                                                    const sirius::Key&             driveKey,
                                                    const sirius::drive::InfoHash& modifyTransactionHash,
                                                    const sirius::drive::InfoHash& rootHash ) = 0;
+        
+        //TODO
+        //virtual DownloadApprovalTransactionInfo& downloadApproveTransactionIsReady() = 0;
     };
 
 
@@ -180,6 +183,8 @@ class Replicator;
         virtual void     onOpinionReceived( ApprovalTransactionInfo&& anOpinion ) = 0;
 
         virtual void     onApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) = 0;
+
+        virtual void     onSingleApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) = 0;
 
         // for testing and debugging
         virtual void printDriveStatus() = 0;

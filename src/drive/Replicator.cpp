@@ -380,6 +380,19 @@ public:
             LOG_ERR( "drive not found" );
         }
     }
+    
+    virtual void onSingleApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) override
+    {
+        if ( auto it = m_drives.find( transaction.m_driveKey ); it != m_drives.end() )
+        {
+            it->second->onSingleApprovalTransactionReceived( std::move(transaction) );
+        }
+        else
+        {
+            LOG_ERR( "drive not found" );
+        }
+
+    }
 
     ReplicatorEventHandler& eventHandler() override
     {

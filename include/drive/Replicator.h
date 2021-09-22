@@ -15,7 +15,52 @@
 
 namespace sirius::drive {
 
-class Replicator;
+// It is used for calculation of total data size, downloaded by 'client'
+struct ReplicatorUploadInfo
+{
+    // It is the size uploaded by another replicator
+    uint64_t m_uploadedSize = 0;
+};
+using ReplicatorUploadMap = std::map<std::array<uint8_t,32>,ReplicatorUploadInfo>;
+
+struct DownloadChannelInfo
+{
+    uint64_t                m_prepaidDownloadSize;
+    uint64_t                m_requestedSize = 0;
+    uint64_t                m_uploadedSize = 0;
+    std::vector<std::array<uint8_t, 32>> m_clients; //todo
+    ReplicatorList          m_replicatorsList;
+    ReplicatorUploadMap     m_replicatorUploadMap;
+};
+
+using ChannelMap        = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
+
+// It is used for mutual calculation of the replicators, when they download 'modify data'
+// (Note. Replicators could receive 'modify data' from client and from replicators, that already receives some piece)
+struct ModifyTrafficInfo
+{
+    // It is the size received from another replicator or client
+    uint64_t m_receivedSize = 0;
+    
+    // It is the size sent to another replicator
+    uint64_t m_requestedSize = 0;
+    uint64_t m_sentSize = 0;
+};
+
+// The key is a transaction hash
+using ModifyTrafficMap = std::map<std::array<uint8_t,32>,ModifyTrafficInfo>;
+
+struct ModifyDriveInfo
+{
+    uint64_t                m_maxDataSize;
+    ReplicatorList          m_replicatorsList;
+    ModifyTrafficMap        m_modifyTrafficMap;
+    uint64_t                m_totalReceivedSize = 0;
+};
+
+// The key is a transaction hash
+using ModifyDriveMap    = std::map<std::array<uint8_t,32>, ModifyDriveInfo>;
+
 
 //
 // Replicator
@@ -45,6 +90,8 @@ public:
                                                         const Hash256&    transactionHash ) = 0;
 
     virtual Hash256     getRootHash( const Key& driveKey ) = 0;
+    
+    virtual const ModifyDriveInfo& getDownloadOpinion( const Hash256&    transactionHash ) = 0;
 
     virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;
 
@@ -57,20 +104,25 @@ public:
 
     virtual void        removeDownloadChannelInfo( const std::array<uint8_t,32>& channelId ) = 0;
 
-    // 'replicatorsList' is used to verify other replictors receipts
-    // (it does not contain its own endpoint)
-//    virtual void        addModifyTransactionInfo( const std::array<uint8_t,32>& hash,
-//                                                  const Key&                    clientPublicKey,
-//                                                  size_t                        prepaidDownloadSize,
-//                                                  const ReplicatorList&         replicatorsList,
-//                                                  std::vector<const Key>&&      clients ) = 0;
+    // TODO
+    // Usually, DownloadApprovalTransactions are made once per 24 hours and paid by the Drive Owner
+    //
+//    virtual void prepareDownloadApprovalTransactionInfo() = 0;
 
-    // It will be called when other replicator calculated rootHash
+    // It will be called when other replicator calculated rootHash and send his opinion
     virtual void        onOpinionReceived( ApprovalTransactionInfo&& anOpinion ) = 0;
     
     // It will be called after 'approval transaction' has been published
     virtual void        onApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) = 0;
-    
+
+    // It will be called after 'single approval transaction' has been published
+    virtual void        onSingleApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) = 0;
+
+    // TODO:
+    // They will be called after 'cancel modify transaction' has been published
+//    virtual void        onTransactionCanceled( ApprovalTransactionInfo&& transaction ) = 0;
+//    virtual void        onTransactionCanceledByClient( ApprovalTransactionInfo&& transaction ) = 0;
+
     // Max difference between requested data and signed receipt
     virtual uint64_t    receiptLimit() const = 0;
 
