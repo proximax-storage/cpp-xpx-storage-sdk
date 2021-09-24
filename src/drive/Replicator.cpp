@@ -11,6 +11,10 @@
 #include "drive/Session.h"
 #include "drive/DownloadLimiter.h"
 
+#include <cereal/types/vector.hpp>
+#include <cereal/types/array.hpp>
+#include <cereal/archives/portable_binary.hpp>
+
 #include <libtorrent/alert_types.hpp>
 #include <filesystem>
 
@@ -200,11 +204,11 @@ public:
 //                    if ( auto it = trafficInfo.m_modifyTrafficMap.find( replicatorIt.m_publicKey.array() );
 //                            it != trafficInfo.m_modifyTrafficMap.end() )
 //                    {
-//                        opinion.m_replicatorsUploadBytes.push_back( it->second.m_receivedSize );
+//                        opinion.m_replicatorUploadBytes.push_back( it->second.m_receivedSize );
 //                    }
 //                    else
 //                    {
-//                        opinion.m_replicatorsUploadBytes.push_back( 0 );
+//                        opinion.m_replicatorUploadBytes.push_back( 0 );
 //                    }
 //                }
 //
@@ -269,21 +273,21 @@ public:
         return "unknown drive";
     }
     
-    std::string acceptModifyApprovalTranaction( const Key&        driveKey,
-                                                const Hash256&    transactionHash ) override
-    {
-        std::unique_lock<std::mutex> lock(m_mutex);
-        if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
-        {
-            driveIt->second->approveDriveModification( transactionHash );
-            return "";
-        }
-
-        LOG_ERR( "unknown drive: " << driveKey );
-        throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
-
-        return "unknown drive";
-    }
+//    std::string acceptModifyApprovalTranaction( const Key&        driveKey,
+//                                                const Hash256&    transactionHash ) override
+//    {
+//        std::unique_lock<std::mutex> lock(m_mutex);
+//        if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+//        {
+//            driveIt->second->approveDriveModification( transactionHash );
+//            return "";
+//        }
+//
+//        LOG_ERR( "unknown drive: " << driveKey );
+//        throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
+//
+//        return "unknown drive";
+//    }
 
 
     std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) override
@@ -357,11 +361,11 @@ public:
         }
     }
     
-    virtual void onOpinionReceived( ApprovalTransactionInfo&& anOpinion ) override
+    virtual void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
         if ( auto it = m_drives.find( anOpinion.m_driveKey ); it != m_drives.end() )
         {
-            it->second->onOpinionReceived( std::move(anOpinion) );
+            it->second->onOpinionReceived( anOpinion );
         }
         else
         {
@@ -369,11 +373,11 @@ public:
         }
     }
     
-    virtual void onApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) override
+    virtual void onApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) override
     {
         if ( auto it = m_drives.find( transaction.m_driveKey ); it != m_drives.end() )
         {
-            it->second->onApprovalTransactionReceived( std::move(transaction) );
+            it->second->onApprovalTransactionReceived( transaction );
         }
         else
         {
@@ -381,11 +385,11 @@ public:
         }
     }
     
-    virtual void onSingleApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) override
+    virtual void onSingleApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) override
     {
         if ( auto it = m_drives.find( transaction.m_driveKey ); it != m_drives.end() )
         {
-            it->second->onSingleApprovalTransactionReceived( std::move(transaction) );
+            it->second->onSingleApprovalTransactionReceived( transaction );
         }
         else
         {
@@ -393,6 +397,37 @@ public:
         }
 
     }
+    
+    virtual void sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint endpoint, const std::string& message ) override
+    {
+        m_session->sendMessage( query, { endpoint.address(), endpoint.port() }, message );
+    }
+    
+    virtual void onMessageReceived( const std::string& query, const std::string& message ) override
+    {
+        //todo
+        if ( query == "opinion" )
+        {
+            std::istringstream is( message, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            ApprovalTransactionInfo info;
+            iarchive( info );
+            
+            _LOG( "onMessageReceived() modifyTransactionHash:" << info.m_modifyTransactionHash[0]  << " driveKey:" << info.m_driveKey[0] );
+            _LOG( "" );
+            
+            
+            if ( auto it = m_drives.find( info.m_driveKey ); it != m_drives.end() )
+            {
+                it->second->onOpinionReceived( info );
+            }
+            else
+            {
+                LOG_ERR( "drive not found" );
+            }
+        }
+    }
+
 
     ReplicatorEventHandler& eventHandler() override
     {

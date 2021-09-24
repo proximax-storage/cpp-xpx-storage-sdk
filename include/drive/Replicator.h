@@ -72,6 +72,8 @@ public:
     virtual ~Replicator() = default;
 
     virtual void start() = 0;
+    
+    virtual const Key& replicatorKey() const = 0;
 
     // All of the below functions return error string (or empty string)
     
@@ -86,8 +88,8 @@ public:
                                       const Hash256&    transactionHash ) = 0;
 
     // It will 'move' files from sandbox to drive
-    virtual std::string acceptModifyApprovalTranaction( const Key&        driveKey,
-                                                        const Hash256&    transactionHash ) = 0;
+//    virtual std::string acceptModifyApprovalTranaction( const Key&        driveKey,
+//                                                        const Hash256&    transactionHash ) = 0;
 
     virtual Hash256     getRootHash( const Key& driveKey ) = 0;
     
@@ -110,13 +112,13 @@ public:
 //    virtual void prepareDownloadApprovalTransactionInfo() = 0;
 
     // It will be called when other replicator calculated rootHash and send his opinion
-    virtual void        onOpinionReceived( ApprovalTransactionInfo&& anOpinion ) = 0;
+    virtual void        onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
     
     // It will be called after 'approval transaction' has been published
-    virtual void        onApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) = 0;
+    virtual void        onApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) = 0;
 
     // It will be called after 'single approval transaction' has been published
-    virtual void        onSingleApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) = 0;
+    virtual void        onSingleApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) = 0;
 
     // TODO:
     // They will be called after 'cancel modify transaction' has been published
@@ -127,6 +129,14 @@ public:
     virtual uint64_t    receiptLimit() const = 0;
 
     virtual void        setReceiptLimit( uint64_t newLimitInBytes ) = 0;
+    
+    
+    // Message exchange
+    virtual void        sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint, const std::string& ) = 0;
+    
+    // It was moveed into ;session_delegate'
+    //virtual void        onMessageReceived( const std::string& query, const std::string& ) = 0;
+
     
     virtual void        printDriveStatus( const Key& driveKey ) = 0;
     

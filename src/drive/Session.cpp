@@ -430,8 +430,8 @@ private:
 #pragma mark --messaging--
     struct DhtRequestPlugin : lt::plugin
     {
-        std::weak_ptr<Replicator> m_replicator;
-        DhtRequestPlugin() {}
+        std::shared_ptr<lt::session_delegate> m_replicator;
+        DhtRequestPlugin( std::shared_ptr<lt::session_delegate> replicator ) : m_replicator(replicator) {}
 
         feature_flags_t implemented_features() override
         {
@@ -447,14 +447,21 @@ private:
             if ( query == "get_peers" || query == "announce_peer" )
                 return false;
 
-//            LOG( "query: " << query );
-//            LOG( "message: " << message );
-//            LOG( "message: " << response );
+            _LOG( "query: " << query );
+            _LOG( "message: " << message );
+            _LOG( "message: " << response );
 
+            if ( query == "opinion" )
+            {
+                auto str = message.dict_find_string_value("x");
+                std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
+
+                m_replicator->onMessageReceived( std::string(query.begin(),query.end()), packet );
+                return true;
+            }
+            
             if ( message.dict_find_string_value("q") == "rcpt" )
             {
-                auto replicator = m_replicator.lock();
-                
                 auto str = message.dict_find_string_value("x");
                 std::vector<uint8_t> packet( (uint8_t*)str.data(), (uint8_t*)str.data()+str.size() );
 //                message.insert( message.end(), downloadChannelId.begin(), downloadChannelId.end() );
@@ -494,7 +501,7 @@ private:
 
     void addDhtRequestPlugin()
     {
-        m_session.add_extension(std::make_shared<DhtRequestPlugin>());
+        m_session.add_extension(std::make_shared<DhtRequestPlugin>(  m_downloadLimiter ));
     }
 
     void  sendMessage( boost::asio::ip::udp::endpoint udp, const std::vector<uint8_t>& ) override
@@ -515,6 +522,15 @@ private:
         entry["x"] = std::string( message.begin(), message.end() );
 
   //      lt::client_data_t client_data(this);
+        m_session.dht_direct_request( endPoint, entry );
+    }
+
+    void sendMessage( const std::string& query, boost::asio::ip::udp::endpoint endPoint, const std::string& message ) override
+    {
+        lt::entry entry;
+        entry["q"] = query;
+        entry["x"] = message;
+
         m_session.dht_direct_request( endPoint, entry );
     }
 

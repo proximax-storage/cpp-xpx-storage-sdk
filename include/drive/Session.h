@@ -26,6 +26,8 @@ namespace sirius::drive {
 
 #define FS_TREE_FILE_NAME "FsTree.bin"
 
+struct ApprovalTransactionInfo;
+
 // It will be used to inform 'client' about download status
 //
 namespace download_status {
@@ -144,14 +146,8 @@ public:
                                 ReplicatorList      list = {} ) = 0;
 
     virtual void      sendMessage( boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
-
     virtual void      sendMessage( const std::string& query, boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
-
-//    virtual void      loadTorrent( const InfoHash& infoHash,
-//                                   std::function<void(bool)> addTorrentNotifier,
-//                                   const std::string& torrentFilename,
-//                                   const std::string& savePath,
-//                                   endpoint_list = {} ) = 0;
+    virtual void      sendMessage( const std::string& query, boost::asio::ip::udp::endpoint, const std::string& ) = 0;
 
     // for testing and debugging
     virtual void      printActiveTorrents() = 0;

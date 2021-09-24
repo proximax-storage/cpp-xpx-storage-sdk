@@ -9,6 +9,7 @@
 #include "plugins.h"
 #include "crypto/Signer.h"
 #include <boost/asio/ip/tcp.hpp>
+#include <cereal/archives/binary.hpp>
 #include <memory>
 
 namespace sirius { namespace drive {
@@ -39,19 +40,23 @@ class Replicator;
     // (when it downloads modifyData)
     struct SingleOpinion
     {
-        SingleOpinion( const Key& replicatorKey ) : m_replicatorKey( replicatorKey )
-        {
-        }
-        
         // Replicator public key
-        Key                     m_replicatorKey;
+        std::array<uint8_t,32>  m_replicatorKey;
 
         // Opinions about how much the Replicators and the Drive Owner have uploaded to this Replicator.
-        std::vector<uint64_t>   m_replicatorsUploadBytes;
+        //TODO
+        std::vector<uint8_t>    m_replicatorKeys;
+        std::vector<uint64_t>   m_replicatorUploadBytes;
         uint64_t                m_clientUploadBytes = 0;
         
         // Signature of { modifyTransactionHash, rootHash, replicatorsUploadBytes, clientUploadBytes }
         Signature               m_signature;
+        
+        SingleOpinion() = default;
+        
+        SingleOpinion( const Key& replicatorKey ) : m_replicatorKey( replicatorKey.array() )
+        {
+        }
         
         void Sign( const crypto::KeyPair& keyPair, const Hash256& modifyTransactionHash, const InfoHash& rootHash )
         {
@@ -59,8 +64,8 @@ class Replicator;
                           {
                             utils::RawBuffer{modifyTransactionHash},
                             utils::RawBuffer{rootHash},
-                            utils::RawBuffer{ (const uint8_t*) &m_replicatorsUploadBytes[0],
-                                                m_replicatorsUploadBytes.size() * sizeof (m_replicatorsUploadBytes[0]) },
+                            utils::RawBuffer{ (const uint8_t*) &m_replicatorUploadBytes[0],
+                                                m_replicatorUploadBytes.size() * sizeof (m_replicatorUploadBytes[0]) },
                             utils::RawBuffer{(const uint8_t*)&m_clientUploadBytes,sizeof(m_clientUploadBytes)}
                           },
                           m_signature );
@@ -72,12 +77,21 @@ class Replicator;
                                   {
                                     utils::RawBuffer{modifyTransactionHash},
                                     utils::RawBuffer{rootHash},
-                                    utils::RawBuffer{ (const uint8_t*) &m_replicatorsUploadBytes[0],
-                                    m_replicatorsUploadBytes.size() * sizeof (m_replicatorsUploadBytes[0]) },
+                                    utils::RawBuffer{ (const uint8_t*) &m_replicatorUploadBytes[0],
+                                    m_replicatorUploadBytes.size() * sizeof (m_replicatorUploadBytes[0]) },
                                     utils::RawBuffer{(const uint8_t*)&m_clientUploadBytes,sizeof(m_clientUploadBytes)}
                                   },
                                   m_signature );
         }
+
+        template <class Archive> void serialize( Archive & arch ) {
+            arch( m_replicatorKey );
+            arch( m_replicatorKeys );
+            arch( m_replicatorUploadBytes );
+            arch( m_clientUploadBytes );
+            arch( cereal::binary_data( m_signature.data(), m_signature.size() ) );
+        }
+
     };
 
     // It is used in 2 cases:
@@ -86,25 +100,36 @@ class Replicator;
     struct ApprovalTransactionInfo
     {
         // Drive public key
-        const Key&          m_driveKey;
+        std::array<uint8_t,32>  m_driveKey;
 
         // A reference to the transaction that initiated the modification
-        const Hash256&      m_modifyTransactionHash;
+        std::array<uint8_t,32>  m_modifyTransactionHash;
 
         // Content Download Information for the File Structure
-        const InfoHash&     m_rootHash;
+        std::array<uint8_t,32>  m_rootHash;
         
         // The size of the “File Structure” File
-        uint64_t            m_fsTreeFileSize;
+        uint64_t                m_fsTreeFileSize;
 
         // The size of metafiles (torrents?,folders?) including “File Structure” File
-        uint64_t            m_metaFilesSize;
+        uint64_t                m_metaFilesSize;
 
         // Total used disk space. Must not be more than the Drive Size.
-        uint64_t            m_driveSize;
+        uint64_t                m_driveSize;
 
         // Opinions about how much the Replicators and the Drive Owner have uploaded to this Replicator.
         std::vector<SingleOpinion>   m_opinions;
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_driveKey );
+            arch( m_modifyTransactionHash );
+            arch( m_rootHash );
+            arch( m_fsTreeFileSize );
+            arch( m_metaFilesSize );
+            arch( m_driveSize );
+            arch( m_opinions );
+        }
     };
 
 
@@ -174,17 +199,15 @@ class Replicator;
 
         virtual void     cancelModifyDrive( const Hash256& transactionHash ) = 0;
 
-        virtual void     approveDriveModification( const Hash256& transactionHash ) = 0;
-
         virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
 
         virtual const ModifyRequest& modifyRequest() const = 0;
         
-        virtual void     onOpinionReceived( ApprovalTransactionInfo&& anOpinion ) = 0;
+        virtual void     onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
 
-        virtual void     onApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) = 0;
+        virtual void     onApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) = 0;
 
-        virtual void     onSingleApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) = 0;
+        virtual void     onSingleApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) = 0;
 
         // for testing and debugging
         virtual void printDriveStatus() = 0;

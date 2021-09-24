@@ -432,6 +432,11 @@ public:
         return m_keyPair.publicKey().array();
     }
 
+    const Key& replicatorKey() const override
+    {
+        return m_keyPair.publicKey();
+    }
+
 //    void setStartReceivedSize( uint64_t /*downloadedSize*/ ) override
 //    {
 //    }

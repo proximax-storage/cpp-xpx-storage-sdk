@@ -225,6 +225,10 @@ protected:
     {
         return m_receivedSize[peerPublicKey];
     }
+    
+    virtual void onMessageReceived( const std::string& query, const std::string& message ) override
+    {
+    }
 
     const char* dbgOurPeerName() override
     {

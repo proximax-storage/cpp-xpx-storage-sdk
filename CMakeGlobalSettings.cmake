@@ -67,7 +67,6 @@ elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
                 -Wall\
                 -Wextra\
                 -Werror\
-                -Werror-deprecated\
                 -Wstrict-aliasing=1\
                 -Wnon-virtual-dtor\
                 -Wno-unused-const-variable\
@@ -75,6 +74,7 @@ elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
                 -Wno-unused-parameter
                 ")
 #            -Wno-error=uninitialized\
+#            -Werror-deprecated\
 
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden")

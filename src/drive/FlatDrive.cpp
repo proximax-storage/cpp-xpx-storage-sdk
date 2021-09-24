@@ -30,15 +30,22 @@
  */
 
 #include "drive/FlatDrive.h"
+#include "drive/Replicator.h"
 #include "drive/Session.h"
 #include "drive/ActionList.h"
 #include "drive/Utils.h"
 #include "drive/FsTree.h"
 #include "drive/log.h"
 
+#include <cereal/types/vector.hpp>
+#include <cereal/types/array.hpp>
+#include <cereal/archives/portable_binary.hpp>
+
 #include <filesystem>
 #include <set>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <thread>
 
 #include <libtorrent/alert.hpp>
@@ -129,6 +136,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     // Client data (for drive modification)
     std::optional<ModifyRequest> m_modifyRequest;
+    
+    std::optional<ApprovalTransactionInfo> m_myOpinion;
 
     // Will be called at the end of the sanbox work
     ReplicatorEventHandler& m_eventHandler;
@@ -320,15 +329,11 @@ public:
         //TODO
     }
 
-    void approveDriveModification( const Hash256& transactionHash ) override
+    void synchronizeDriveWithSandbox()
     {
-        if ( m_modifyRequest && !(transactionHash == m_modifyRequest->m_transactionHash) )
-        {
-            LOG_ERR( "approveDriveModification(): invalid transactionHash: " << transactionHash );
-            return;
-        }
-
-        // complete drive update (if sandbox is calculated)
+        assert( m_sandboxCalculated );
+        
+        // complete drive update
         {
             std::unique_lock<std::mutex> lock(m_mutex);
 
@@ -340,11 +345,8 @@ public:
             }
             else
             {
-                if ( m_sandboxCalculated )
-                {
-                    lock.unlock();
-                    updateDrive_1();
-                }
+                lock.unlock();
+                updateDrive_1();
             }
         }
     }
@@ -579,8 +581,14 @@ public:
         m_sandboxFsTree.doSerialize( m_sandboxFsTreeFile );
         m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
 
-        // Call modify handler
+        // Notify
         m_eventHandler.rootHashIsCalculated( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_sandboxRootHash );
+        
+        // Calculate opinion
+        createMyOpinion();
+        
+        // Send my opinion to other replicators
+        shareMyOpinion();
 
         // start drive update (if 'approveTransaction' is received)
         {
@@ -596,59 +604,64 @@ public:
         }
     }
     
-//    void onRootHashIsCalculated()
-//    {
-//        auto trafficInfo = m_modifyDriveMap[ drive.modifyRequest().m_transactionHash.array() ];
-//
-//        //
-//        // Calculate upload option
-//        //
-//        SingleOpinion opinion( publicKey() );
-//        for( const auto& replicatorIt : drive.modifyRequest().m_replicatorList )
-//        {
-//            if ( auto it = trafficInfo.m_modifyTrafficMap.find( replicatorIt.m_publicKey.array() );
-//                    it != trafficInfo.m_modifyTrafficMap.end() )
-//            {
-//                opinion.m_replicatorsUploadBytes.push_back( it->second.m_receivedSize );
-//            }
-//            else
-//            {
-//                opinion.m_replicatorsUploadBytes.push_back( 0 );
-//            }
-//        }
-//
-//        if ( auto it = trafficInfo.m_modifyTrafficMap.find( drive.modifyRequest().m_clientPublicKey.array() );
-//                it != trafficInfo.m_modifyTrafficMap.end() )
-//        {
-//            opinion.m_clientUploadBytes = it->second.m_receivedSize;
-//        }
-//
-//        // Calculate size of torrent files and total drive size
-//        uint64_t metaFilesSize;
-//        uint64_t driveSize;
-//        drive.getSandboxDriveSizes( metaFilesSize, driveSize );
-//
-//        std::optional<ApprovalTransactionInfo>  info {{ drive.drivePublicKey(),
-//                                                        drive.modifyRequest().m_transactionHash,
-//                                                        drive.sandboxRootHash(),
-//                                                        drive.sandboxFsTreeSize(),
-//                                                        metaFilesSize,
-//                                                        driveSize,
-//                                                        { std::move(opinion) }}};
-//
-//        if ( driveSize <= drive.maxSize() )
-//        {
-//            //todo send my opinion to other replicators
-//            handler( code, info, error );
-//        }
-//        else
-//        {
-//            //todo?
-//            handler( modify_status::failed, info, "data size exceeds max drive size" );
-//        }
-//        return;
-//    }
+    void createMyOpinion()
+    {
+        auto trafficInfo = m_replicator.getDownloadOpinion(  m_modifyRequest->m_transactionHash );
 
+        //
+        // Calculate upload opinion
+        //
+        SingleOpinion opinion( m_drivePubKey );
+        for( const auto& replicatorIt : m_modifyRequest->m_replicatorList )
+        {
+            // get data size received from 'replicatorIt.m_publicKey'
+            if ( auto it = trafficInfo.m_modifyTrafficMap.find( replicatorIt.m_publicKey.array() );
+                    it != trafficInfo.m_modifyTrafficMap.end() )
+            {
+                opinion.m_replicatorUploadBytes.push_back( it->second.m_receivedSize );
+            }
+            else
+            {
+                opinion.m_replicatorUploadBytes.push_back( 0 );
+            }
+            
+            auto& v = opinion.m_replicatorKeys;
+            v.insert( v.end(), replicatorIt.m_publicKey.array().begin(), replicatorIt.m_publicKey.array().end() );
+        }
+
+        if ( auto it = trafficInfo.m_modifyTrafficMap.find( m_modifyRequest->m_clientPublicKey.array() );
+                it != trafficInfo.m_modifyTrafficMap.end() )
+        {
+            opinion.m_clientUploadBytes = it->second.m_receivedSize;
+        }
+
+        // Calculate size of torrent files and total drive size
+        uint64_t metaFilesSize;
+        uint64_t driveSize;
+        getSandboxDriveSizes( metaFilesSize, driveSize );
+
+        m_myOpinion = std::optional<ApprovalTransactionInfo> {{ m_drivePubKey.array(),
+                                                                m_modifyRequest->m_transactionHash.array(),
+                                                                m_sandboxRootHash.array(),
+                                                                sandboxFsTreeSize(),
+                                                                metaFilesSize,
+                                                                driveSize,
+                                                                { std::move(opinion) }}};
+    }
+
+    void shareMyOpinion()
+    {
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( *m_myOpinion );
+
+        
+        for( const auto& replicatorIt : m_modifyRequest->m_replicatorList )
+        {
+            m_replicator.sendMessage( "opinion", replicatorIt.m_endpoint, os.str() );
+        }
+    }
+    
     // updates drive (1st step after aprove)
     // - remove torrents from session
     //
@@ -803,17 +816,46 @@ public:
         return *m_modifyRequest;
     }
     
-    virtual void onOpinionReceived( ApprovalTransactionInfo&& anOpinion ) override
+    virtual void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
         
     }
 
-    virtual void onApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) override
+    virtual void onApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) override
     {
+        if ( m_modifyRequest->m_transactionHash != transaction.m_modifyTransactionHash )
+        {
+            //TODO
+            assert(0);
+        }
         
+        //TODO stop timer
+        
+        if ( !m_sandboxCalculated )
+        {
+            // wait root hash
+            return;
+        }
+        else
+        {
+            const auto& v = transaction.m_opinions;
+            auto it = std::find_if( v.begin(), v.end(), [this] (const auto& opinion) {
+                            return opinion.m_replicatorKey == m_replicator.replicatorKey();
+            });
+            
+            // Is my opinion present
+            if ( it != v.end() )
+            {
+                synchronizeDriveWithSandbox();
+            }
+            else
+            {
+                //TODO Send SingleAproval Transaction
+            }
+        }
     }
 
-    virtual void onSingleApprovalTransactionReceived( ApprovalTransactionInfo&& transaction ) override
+    virtual void onSingleApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) override
     {
         
     }

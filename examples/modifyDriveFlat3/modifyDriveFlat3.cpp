@@ -57,6 +57,8 @@ const bool gUse3Replicators = true;
 #define REPLICATOR_PRIVATE_KEY      "1000000000010203040501020304050102030405010203040501020304050102"
 #define REPLICATOR_PRIVATE_KEY_2    "2000000000010203040501020304050102030405010203040501020304050102"
 #define REPLICATOR_PRIVATE_KEY_3    "3000000000010203040501020304050102030405010203040501020304050102"
+#define REPLICATOR_PRIVATE_KEY_4    "4000000000010203040501020304050102030405010203040501020304050102"
+#define REPLICATOR_PRIVATE_KEY_5    "5000000000010203040501020304050102030405010203040501020304050102"
 
 #define DRIVE_PUB_KEY                   std::array<uint8_t,32>{1,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
 
@@ -90,6 +92,10 @@ std::shared_ptr<Replicator> gReplicator2;
 std::thread gReplicatorThread2;
 std::shared_ptr<Replicator> gReplicator3;
 std::thread gReplicatorThread3;
+std::shared_ptr<Replicator> gReplicator4;
+std::thread gReplicatorThread4;
+std::shared_ptr<Replicator> gReplicator5;
+std::thread gReplicatorThread5;
 
 class MyReplicatorEventHandler;
 
@@ -163,6 +169,9 @@ class MyReplicatorEventHandler : public ReplicatorEventHandler
 {
 public:
 
+    static ApprovalTransactionInfo m_approvalTransactionInfo;
+    static std::mutex              m_transactionInfoMutex;
+
     // It will be called before 'replicator' shuts down
     virtual void willBeTerminated( Replicator& replicator ) override
     {
@@ -194,7 +203,9 @@ public:
     // It will initiate the approving of modify transaction
     virtual void modifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
     {
-        EXLOG( "modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() );
+        EXLOG( "modifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() );
+        const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+        m_approvalTransactionInfo = { std::move(transactionInfo) };
     }
     
     // It will initiate the approving of single modify transaction
@@ -224,10 +235,15 @@ public:
     std::mutex              m_driveMutex;
 };
 
+ApprovalTransactionInfo MyReplicatorEventHandler::m_approvalTransactionInfo;
+std::mutex              MyReplicatorEventHandler::m_transactionInfoMutex;
+
+
 MyReplicatorEventHandler gMyReplicatorEventHandler;
 MyReplicatorEventHandler gMyReplicatorEventHandler2;
 MyReplicatorEventHandler gMyReplicatorEventHandler3;
 MyReplicatorEventHandler gMyReplicatorEventHandler4;
+MyReplicatorEventHandler gMyReplicatorEventHandler5;
 
 
 #pragma mark --main()--
@@ -332,10 +348,10 @@ int main(int,char**)
     {
         std::unique_lock<std::mutex> lock(clientMutex);
         approveCondVar.wait( lock, [] { return approveTransactionCounter == 3; } );
-        
-        gReplicator->acceptModifyApprovalTranaction( DRIVE_PUB_KEY, modifyTransactionHash1 );
-        gReplicator2->acceptModifyApprovalTranaction( DRIVE_PUB_KEY, modifyTransactionHash1 );
-        gReplicator3->acceptModifyApprovalTranaction( DRIVE_PUB_KEY, modifyTransactionHash1 );
+     
+        gReplicator->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
+        gReplicator2->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
+        gReplicator3->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
     }
 
     gReplicatorThread.join();
@@ -382,9 +398,9 @@ int main(int,char**)
         std::unique_lock<std::mutex> lock(clientMutex);
         approveCondVar.wait( lock, [] { return approveTransactionCounter == 3; } );
         
-        gReplicator->acceptModifyApprovalTranaction( DRIVE_PUB_KEY, modifyTransactionHash2 );
-        gReplicator2->acceptModifyApprovalTranaction( DRIVE_PUB_KEY, modifyTransactionHash2 );
-        gReplicator3->acceptModifyApprovalTranaction( DRIVE_PUB_KEY, modifyTransactionHash2 );
+        gReplicator->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
+        gReplicator2->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
+        gReplicator3->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
     }
 
     gReplicatorThread.join();
