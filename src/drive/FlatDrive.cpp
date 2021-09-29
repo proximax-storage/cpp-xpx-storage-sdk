@@ -47,6 +47,7 @@
 #include <fstream>
 #include <sstream>
 #include <thread>
+#include <shared_mutex>
 
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
@@ -117,11 +118,12 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     size_t        m_maxSize;
     
     // It has the following statuses: "modification started", "sandbox calculated", mod"ification approved"
-    std::mutex m_mutex;
+    std::shared_mutex m_mutex;
     bool m_modificationEnded          = true;
     bool m_sandboxCalculated          = false;
     bool m_approveTransactionReceived = false;
-    
+    bool m_approveTransactionSent     = false; // approval transaction has been sent
+
     // It is needed if a new 'modifyRequest' is received, but drive is syncing with sandbox
     std::deque<ModifyRequest> m_modifyRequestQueue;
 
@@ -137,7 +139,17 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     // Client data (for drive modification)
     std::optional<ModifyRequest> m_modifyRequest;
     
-    std::optional<ApprovalTransactionInfo> m_myOpinion;
+    // List of replicators that support this drive
+    ReplicatorList    m_replicatorList;
+    
+    // opinions
+    std::optional<ApprovalTransactionInfo>  m_myOpinion;
+    std::vector<ApprovalTransactionInfo>    m_otherOpinions;
+    
+    // may be they are outstripping opinions
+    std::vector<ApprovalTransactionInfo>    m_unknownOpinions;
+    
+    std::optional<boost::asio::high_resolution_timer> m_opinionTimer;
 
     // Will be called at the end of the sanbox work
     ReplicatorEventHandler& m_eventHandler;
@@ -335,8 +347,9 @@ public:
         
         // complete drive update
         {
-            std::unique_lock<std::mutex> lock(m_mutex);
+            std::unique_lock<std::shared_mutex> lock(m_mutex);
 
+            assert( !m_approveTransactionReceived );
             m_approveTransactionReceived = true;
 
             if ( m_modificationEnded )
@@ -345,8 +358,11 @@ public:
             }
             else
             {
-                lock.unlock();
-                updateDrive_1();
+                if ( m_sandboxCalculated )
+                {
+                    lock.unlock();
+                    updateDrive_1();
+                }
             }
         }
     }
@@ -357,7 +373,9 @@ public:
     void startModifyDrive( ModifyRequest&& modifyRequest ) override
     {
         {
-            std::unique_lock<std::mutex> lock(m_mutex);
+            std::unique_lock<std::shared_mutex> lock(m_mutex);
+            
+            m_replicatorList = modifyRequest.m_replicatorList;
 
             if ( !m_modificationEnded )
             {
@@ -369,8 +387,16 @@ public:
             m_modificationEnded          = false;
             m_sandboxCalculated          = false;
             m_approveTransactionReceived = false;
+            m_approveTransactionSent     = false;
+
+            // remove old opinions
+            std::remove_if( m_otherOpinions.begin(), m_otherOpinions.end(),
+                            [&modifyRequest] (const auto& opinion) { return opinion.m_modifyTransactionHash != modifyRequest.m_transactionHash; });
         }
         
+        // remove my opinion
+        m_myOpinion.reset();
+
         m_modifyRequest = std::move( modifyRequest );
 
         // clear client session folder
@@ -581,18 +607,11 @@ public:
         m_sandboxFsTree.doSerialize( m_sandboxFsTreeFile );
         m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
 
-        // Notify
-        m_eventHandler.rootHashIsCalculated( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_sandboxRootHash );
-        
-        // Calculate opinion
-        createMyOpinion();
-        
-        // Send my opinion to other replicators
-        shareMyOpinion();
+        myRootHashIsCalculated();
 
         // start drive update (if 'approveTransaction' is received)
         {
-            std::unique_lock<std::mutex> lock(m_mutex);
+            std::unique_lock<std::shared_mutex> lock(m_mutex);
         
             m_sandboxCalculated = true;
             
@@ -611,7 +630,7 @@ public:
         //
         // Calculate upload opinion
         //
-        SingleOpinion opinion( m_drivePubKey );
+        SingleOpinion opinion( m_replicator.replicatorKey().array() );
         for( const auto& replicatorIt : m_modifyRequest->m_replicatorList )
         {
             // get data size received from 'replicatorIt.m_publicKey'
@@ -625,20 +644,22 @@ public:
                 opinion.m_replicatorUploadBytes.push_back( 0 );
             }
             
-            auto& v = opinion.m_replicatorKeys;
+            auto& v = opinion.m_uploadReplicatorKeys;
             v.insert( v.end(), replicatorIt.m_publicKey.array().begin(), replicatorIt.m_publicKey.array().end() );
         }
-
         if ( auto it = trafficInfo.m_modifyTrafficMap.find( m_modifyRequest->m_clientPublicKey.array() );
                 it != trafficInfo.m_modifyTrafficMap.end() )
         {
             opinion.m_clientUploadBytes = it->second.m_receivedSize;
         }
+        opinion.Sign( m_replicator.keyPair(), m_modifyRequest->m_transactionHash, m_sandboxRootHash );
 
         // Calculate size of torrent files and total drive size
         uint64_t metaFilesSize;
         uint64_t driveSize;
         getSandboxDriveSizes( metaFilesSize, driveSize );
+
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
 
         m_myOpinion = std::optional<ApprovalTransactionInfo> {{ m_drivePubKey.array(),
                                                                 m_modifyRequest->m_transactionHash.array(),
@@ -649,16 +670,58 @@ public:
                                                                 { std::move(opinion) }}};
     }
 
+#pragma mark --myRootHashIsCalculated--
+    void myRootHashIsCalculated()
+    {
+        // Notify
+        m_eventHandler.rootHashIsCalculated( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_sandboxRootHash );
+        
+        // Calculate my opinion
+        createMyOpinion();
+        
+        {
+            std::unique_lock<std::shared_mutex> lock(m_mutex);
+
+            if ( m_approveTransactionReceived )
+            {
+                lock.unlock();
+                sendSingleAprovalTransaction();
+            }
+            else
+            {
+                // Send my opinion to other replicators
+                shareMyOpinion();
+                
+                // May be send approval transaction
+                checkOpinionNumber();
+            }
+        }
+    }
+    
     void shareMyOpinion()
     {
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
         archive( *m_myOpinion );
-
         
         for( const auto& replicatorIt : m_modifyRequest->m_replicatorList )
         {
             m_replicator.sendMessage( "opinion", replicatorIt.m_endpoint, os.str() );
+        }
+    }
+    
+    void checkOpinionNumber()
+    {
+        // m_replicatorList is the list of other replicators (it does not contain our replicator)
+        auto replicatorNumber = m_modifyRequest->m_replicatorList.size()+1;
+
+        // check opinion number
+        if ( m_myOpinion && m_otherOpinions.size() >= ((replicatorNumber)*2)/3
+            && !m_approveTransactionSent && !m_approveTransactionReceived )
+        {
+            // start timer if it is not started
+            if ( !m_opinionTimer )
+                m_session->startTimer( 10, [this]() { opinionTimerExpired(); } );
         }
     }
     
@@ -667,6 +730,8 @@ public:
     //
     void updateDrive_1()
     {
+        _LOG( "updateDrive_1:" << m_replicator.dbgReplicatorName() );
+        
         // Prepare map (m_isUnused = true) for detecting of used files
         for( auto& it : m_torrentHandleMap )
             it.second.m_isUnused = true;
@@ -755,7 +820,7 @@ public:
                                                                lt::sf_is_replicator );
 
         {
-            std::unique_lock<std::mutex> lock(m_mutex);
+            std::unique_lock<std::shared_mutex> lock(m_mutex);
 
             m_modificationEnded          = true;
         }
@@ -764,7 +829,7 @@ public:
         m_eventHandler.driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
 
         {
-            std::unique_lock<std::mutex> lock(m_mutex);
+            std::unique_lock<std::shared_mutex> lock(m_mutex);
             if ( !m_modifyRequestQueue.empty() )
             {
                 auto request = std::move( m_modifyRequestQueue.front() );
@@ -818,10 +883,75 @@ public:
     
     virtual void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
+        if ( anOpinion.m_opinions.size() != 1 )
+            return; //is it spam?
         
+        // check public key
+        {
+            std::shared_lock<std::shared_mutex> lock(m_mutex);
+            auto count = std::count_if( m_replicatorList.begin(), m_replicatorList.end(),
+                                        [replicatorKey=anOpinion.m_opinions[0].m_replicatorKey] (const auto& r){
+                                            return r.m_publicKey == replicatorKey;} );
+            //todo unknown replicator (or spam)
+            if ( count != 1 )
+                return;
+        }
+        
+        // verify sign
+        if ( !anOpinion.m_opinions[0].Verify( anOpinion.m_modifyTransactionHash, anOpinion.m_rootHash ) )
+        {
+            // invalid ApprovalTransactionInfo
+            //todo
+            return;
+        }
+
+        std::shared_lock<std::shared_mutex> lock(m_mutex);
+
+        if ( !m_modifyRequest || anOpinion.m_modifyTransactionHash != m_modifyRequest->m_transactionHash )
+        {
+            // it seems that our drive is significantly behind
+            // todo remove old opinions from this replicator
+            std::unique_lock<std::shared_mutex> lock(m_mutex);
+            this->m_unknownOpinions.push_back( anOpinion );
+            return;
+        }
+        
+        // todo verify transaction, duplicates ...
+
+        // May be send approval transaction
+        m_otherOpinions.push_back( anOpinion );
+        checkOpinionNumber();
+    }
+    
+    void opinionTimerExpired()
+    {
+        if ( m_approveTransactionSent || m_approveTransactionReceived )
+            return;
+        
+        
+
+        
+        ApprovalTransactionInfo info = {    m_drivePubKey.array(),
+                                            m_myOpinion->m_modifyTransactionHash,
+                                            m_myOpinion->m_rootHash,
+                                            m_myOpinion->m_fsTreeFileSize,
+                                            m_myOpinion->m_metaFilesSize,
+                                            m_myOpinion->m_driveSize,
+                                            {}};
+        
+        info.m_opinions.reserve( m_otherOpinions.size()+1 );
+        info.m_opinions.emplace_back(  m_myOpinion->m_opinions[0] );
+        for( const auto& otherOpinion : m_otherOpinions ) {
+            info.m_opinions.emplace_back( otherOpinion.m_opinions[0] );
+        }
+        
+        // notify event handler
+        m_eventHandler.modifyApproveTransactionIsReady( m_replicator, std::move(info) );
+        
+        m_approveTransactionSent = true;
     }
 
-    virtual void onApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) override
+    virtual void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
         if ( m_modifyRequest->m_transactionHash != transaction.m_modifyTransactionHash )
         {
@@ -829,7 +959,8 @@ public:
             assert(0);
         }
         
-        //TODO stop timer
+        // stop timer
+        m_opinionTimer.reset();
         
         if ( !m_sandboxCalculated )
         {
@@ -850,14 +981,21 @@ public:
             }
             else
             {
-                //TODO Send SingleAproval Transaction
+                // Send Single Aproval Transaction
+                if ( m_myOpinion )
+                    sendSingleAprovalTransaction();
             }
         }
     }
 
-    virtual void onSingleApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) override
+    void sendSingleAprovalTransaction()
     {
-        
+        //todo
+    }
+
+    virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
+    {
+        synchronizeDriveWithSandbox();
     }
 
     virtual void printDriveStatus() override

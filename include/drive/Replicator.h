@@ -75,6 +75,8 @@ public:
     
     virtual const Key& replicatorKey() const = 0;
 
+    virtual const crypto::KeyPair& keyPair() const = 0;
+
     // All of the below functions return error string (or empty string)
     
     virtual std::string addDrive( const Key& driveKey, size_t driveSize ) = 0;
@@ -115,10 +117,10 @@ public:
     virtual void        onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
     
     // It will be called after 'approval transaction' has been published
-    virtual void        onApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) = 0;
+    virtual void        onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
 
     // It will be called after 'single approval transaction' has been published
-    virtual void        onSingleApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) = 0;
+    virtual void        onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
 
     // TODO:
     // They will be called after 'cancel modify transaction' has been published

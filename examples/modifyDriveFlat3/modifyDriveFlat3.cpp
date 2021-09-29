@@ -169,8 +169,8 @@ class MyReplicatorEventHandler : public ReplicatorEventHandler
 {
 public:
 
-    static ApprovalTransactionInfo m_approvalTransactionInfo;
-    static std::mutex              m_transactionInfoMutex;
+    static std::optional<ApprovalTransactionInfo>   m_approvalTransactionInfo;
+    static std::mutex                               m_transactionInfoMutex;
 
     // It will be called before 'replicator' shuts down
     virtual void willBeTerminated( Replicator& replicator ) override
@@ -205,7 +205,14 @@ public:
     {
         EXLOG( "modifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() );
         const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
-        m_approvalTransactionInfo = { std::move(transactionInfo) };
+        if ( !m_approvalTransactionInfo )
+        {
+            m_approvalTransactionInfo = { std::move(transactionInfo) };
+            
+            gReplicator->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo );
+            gReplicator2->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo );
+            gReplicator3->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo );
+        }
     }
     
     // It will initiate the approving of single modify transaction
@@ -235,8 +242,8 @@ public:
     std::mutex              m_driveMutex;
 };
 
-ApprovalTransactionInfo MyReplicatorEventHandler::m_approvalTransactionInfo;
-std::mutex              MyReplicatorEventHandler::m_transactionInfoMutex;
+std::optional<ApprovalTransactionInfo>  MyReplicatorEventHandler::m_approvalTransactionInfo;
+std::mutex                              MyReplicatorEventHandler::m_transactionInfoMutex;
 
 
 MyReplicatorEventHandler gMyReplicatorEventHandler;
@@ -340,6 +347,9 @@ int main(int,char**)
         clientModifyDrive( actionList, replicatorList, modifyTransactionHash1 );
     }
 
+    approveTransactionCounter = 0;
+    MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
+
     gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
     sleep(1);
     gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
@@ -348,10 +358,6 @@ int main(int,char**)
     {
         std::unique_lock<std::mutex> lock(clientMutex);
         approveCondVar.wait( lock, [] { return approveTransactionCounter == 3; } );
-     
-        gReplicator->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
-        gReplicator2->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
-        gReplicator3->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
     }
 
     gReplicatorThread.join();
@@ -375,13 +381,11 @@ int main(int,char**)
     EXLOG( "\n# Client started: 2-st upload" );
     {
         ActionList actionList;
-        //actionList.push_back( Action::move( "fff1/", "fff1/ffff1" ) );
         actionList.push_back( Action::remove( "fff1/" ) );
         actionList.push_back( Action::remove( "fff2/" ) );
 
         actionList.push_back( Action::remove( "a2.txt" ) );
         actionList.push_back( Action::remove( "f1/b2.bin" ) );
-//        actionList.push_back( Action::remove( "f1" ) );
         actionList.push_back( Action::remove( "f2/b2.bin" ) );
         actionList.push_back( Action::move( "f2/", "f2_renamed/" ) );
         actionList.push_back( Action::move( "f2_renamed/a.txt", "f2_renamed/a_renamed.txt" ) );
@@ -389,6 +393,7 @@ int main(int,char**)
     }
 
     approveTransactionCounter = 0;
+    MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
     
     gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
@@ -397,10 +402,6 @@ int main(int,char**)
     {
         std::unique_lock<std::mutex> lock(clientMutex);
         approveCondVar.wait( lock, [] { return approveTransactionCounter == 3; } );
-        
-        gReplicator->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
-        gReplicator2->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
-        gReplicator3->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
     }
 
     gReplicatorThread.join();
@@ -490,7 +491,7 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
     // set root drive hash
     driveRootHash = std::make_shared<InfoHash>( replicator->getRootHash( DRIVE_PUB_KEY ) );
 
-    EXLOG( "@ Drive modified" );
+    EXLOG( "@ Drive modified: " << replicator->dbgReplicatorName() );
 }
 
 //

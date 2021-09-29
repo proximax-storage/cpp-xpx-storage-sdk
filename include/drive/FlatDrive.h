@@ -45,7 +45,7 @@ class Replicator;
 
         // Opinions about how much the Replicators and the Drive Owner have uploaded to this Replicator.
         //TODO
-        std::vector<uint8_t>    m_replicatorKeys;
+        std::vector<uint8_t>    m_uploadReplicatorKeys;
         std::vector<uint64_t>   m_replicatorUploadBytes;
         uint64_t                m_clientUploadBytes = 0;
         
@@ -60,6 +60,8 @@ class Replicator;
         
         void Sign( const crypto::KeyPair& keyPair, const Hash256& modifyTransactionHash, const InfoHash& rootHash )
         {
+//            std::cerr <<  "Sign:" << keyPair.publicKey()[0] << "," << modifyTransactionHash[0] << "," << rootHash[0] << "," << m_replicatorUploadBytes[0] <<
+//            "," << m_clientUploadBytes << "\n\n";
             crypto::Sign( keyPair,
                           {
                             utils::RawBuffer{modifyTransactionHash},
@@ -71,9 +73,11 @@ class Replicator;
                           m_signature );
         }
 
-        bool Verify( const Key& publicKey, const Hash256& modifyTransactionHash, const InfoHash& rootHash )
+        bool Verify( const Hash256& modifyTransactionHash, const InfoHash& rootHash ) const
         {
-            return crypto::Verify( publicKey,
+//            std::cerr <<  "Verify:" << m_replicatorKey[0] << "," << modifyTransactionHash[0] << "," << rootHash[0] << "," << m_replicatorUploadBytes[0] <<
+//            "," << m_clientUploadBytes << "\n\n";
+            return crypto::Verify( m_replicatorKey,
                                   {
                                     utils::RawBuffer{modifyTransactionHash},
                                     utils::RawBuffer{rootHash},
@@ -86,7 +90,7 @@ class Replicator;
 
         template <class Archive> void serialize( Archive & arch ) {
             arch( m_replicatorKey );
-            arch( m_replicatorKeys );
+            arch( m_uploadReplicatorKeys );
             arch( m_replicatorUploadBytes );
             arch( m_clientUploadBytes );
             arch( cereal::binary_data( m_signature.data(), m_signature.size() ) );
@@ -205,9 +209,9 @@ class Replicator;
         
         virtual void     onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
 
-        virtual void     onApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) = 0;
+        virtual void     onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
 
-        virtual void     onSingleApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) = 0;
+        virtual void     onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
 
         // for testing and debugging
         virtual void printDriveStatus() = 0;

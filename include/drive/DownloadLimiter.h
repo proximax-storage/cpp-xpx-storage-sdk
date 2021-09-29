@@ -437,6 +437,11 @@ public:
         return m_keyPair.publicKey();
     }
 
+    virtual const crypto::KeyPair& keyPair() const override
+    {
+        return m_keyPair;
+    }
+
 //    void setStartReceivedSize( uint64_t /*downloadedSize*/ ) override
 //    {
 //    }

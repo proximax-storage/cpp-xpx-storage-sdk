@@ -447,9 +447,9 @@ private:
             if ( query == "get_peers" || query == "announce_peer" )
                 return false;
 
-            _LOG( "query: " << query );
-            _LOG( "message: " << message );
-            _LOG( "message: " << response );
+//            _LOG( "query: " << query );
+//            _LOG( "message: " << message );
+//            _LOG( "response: " << response );
 
             if ( query == "opinion" )
             {
@@ -539,6 +539,19 @@ private:
         LOG( "lt::bdecode_node response: " << response );
         LOG( "lt::bdecode_node response: " << response );
     }
+    
+    virtual std::optional<boost::asio::high_resolution_timer> startTimer( int miliseconds, const std::function<void()>& func ) override
+    {
+        boost::asio::high_resolution_timer timer( m_session.get_context() );
+        
+        timer.expires_after( std::chrono::milliseconds( miliseconds ) );
+        timer.async_wait( [func=func] (boost::system::error_code const& e) {
+            func();
+        });
+        
+        return timer;
+    }
+
 
 private:
 
