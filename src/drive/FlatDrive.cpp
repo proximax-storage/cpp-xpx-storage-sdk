@@ -971,7 +971,7 @@ public:
         {
             const auto& v = transaction.m_opinions;
             auto it = std::find_if( v.begin(), v.end(), [this] (const auto& opinion) {
-                            return opinion.m_replicatorKey == m_replicator.replicatorKey();
+                            return opinion.m_replicatorKey == m_replicator.replicatorKey().array();
             });
             
             // Is my opinion present
