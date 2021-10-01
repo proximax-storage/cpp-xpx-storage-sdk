@@ -349,9 +349,6 @@ public:
         {
             std::unique_lock<std::shared_mutex> lock(m_mutex);
 
-            assert( !m_approveTransactionReceived );
-            m_approveTransactionReceived = true;
-
             if ( m_modificationEnded )
             {
                 LOG_ERR( "approveDriveModification(): modification is not started" )
@@ -693,7 +690,7 @@ public:
                 shareMyOpinion();
                 
                 // May be send approval transaction
-                checkOpinionNumber();
+                checkOpinionNumberAndStartTimer();
             }
         }
     }
@@ -710,7 +707,7 @@ public:
         }
     }
     
-    void checkOpinionNumber()
+    void checkOpinionNumberAndStartTimer()
     {
         // m_replicatorList is the list of other replicators (it does not contain our replicator)
         auto replicatorNumber = m_modifyRequest->m_replicatorList.size()+1;
@@ -905,14 +902,13 @@ public:
             return;
         }
 
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
 
         if ( !m_modifyRequest || anOpinion.m_modifyTransactionHash != m_modifyRequest->m_transactionHash )
         {
             // it seems that our drive is significantly behind
             // todo remove old opinions from this replicator
-            std::unique_lock<std::shared_mutex> lock(m_mutex);
-            this->m_unknownOpinions.push_back( anOpinion );
+            m_unknownOpinions.push_back( anOpinion );
             return;
         }
         
@@ -920,7 +916,7 @@ public:
 
         // May be send approval transaction
         m_otherOpinions.push_back( anOpinion );
-        checkOpinionNumber();
+        checkOpinionNumberAndStartTimer();
     }
     
     void opinionTimerExpired()
@@ -961,6 +957,8 @@ public:
         
         // stop timer
         m_opinionTimer.reset();
+        
+        m_approveTransactionReceived = true;
         
         if ( !m_sandboxCalculated )
         {
