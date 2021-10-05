@@ -373,11 +373,11 @@ public:
         }
     }
     
-    virtual void onDataModificationApprovalTransaction(const ApprovalTransactionInfo& transaction ) override
+    virtual void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
         if ( auto it = m_drives.find( transaction.m_driveKey ); it != m_drives.end() )
         {
-            it->second->onApprovalTransactionReceived( transaction );
+            it->second->onApprovalTransactionHasBeenPublished( transaction );
         }
         else
         {
@@ -385,11 +385,11 @@ public:
         }
     }
     
-    virtual void onSingleApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) override
+    virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
         if ( auto it = m_drives.find( transaction.m_driveKey ); it != m_drives.end() )
         {
-            it->second->onSingleApprovalTransactionReceived( transaction );
+            it->second->onSingleApprovalTransactionHasBeenPublished( transaction );
         }
         else
         {
@@ -413,17 +413,13 @@ public:
             ApprovalTransactionInfo info;
             iarchive( info );
             
-            _LOG( "onMessageReceived() modifyTransactionHash:" << info.m_modifyTransactionHash[0]  << " driveKey:" << info.m_driveKey[0] );
-            _LOG( "" );
-            
-            
             if ( auto it = m_drives.find( info.m_driveKey ); it != m_drives.end() )
             {
                 it->second->onOpinionReceived( info );
             }
             else
             {
-                LOG_ERR( "drive not found" );
+                LOG_ERR( "onMessageReceived(opinion): drive not found" );
             }
         }
     }

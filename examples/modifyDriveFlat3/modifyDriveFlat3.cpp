@@ -150,8 +150,9 @@ std::shared_ptr<InfoHash>   driveRootHash;
 
 ReplicatorList              replicatorList;
 
-std::condition_variable     approveCondVar;
-std::atomic<int>            approveTransactionCounter{0};
+std::condition_variable     modifyCompleteCondVar;
+std::atomic<int>            modifyCompleteCounter{0};
+std::mutex                  modifyCompleteMutex;
 
 // Listen (socket) error handle
 //
@@ -169,8 +170,8 @@ class MyReplicatorEventHandler : public ReplicatorEventHandler
 {
 public:
 
-    static ApprovalTransactionInfo m_approvalTransactionInfo;
-    static std::mutex              m_transactionInfoMutex;
+    static std::optional<ApprovalTransactionInfo>   m_approvalTransactionInfo;
+    static std::mutex                               m_transactionInfoMutex;
 
     // It will be called before 'replicator' shuts down
     virtual void willBeTerminated( Replicator& replicator ) override
@@ -186,8 +187,6 @@ public:
     {
         //EXLOG( "rootHshIsCalculated: " << replicator.dbgReplicatorName() );
         EXLOG( "@ sandbox calculated: " << replicator.dbgReplicatorName() );
-        approveTransactionCounter++;
-        approveCondVar.notify_all();
     }
     
     // It will be called when transaction could not be completed
@@ -205,7 +204,18 @@ public:
     {
         EXLOG( "modifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() );
         const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
-        m_approvalTransactionInfo = { std::move(transactionInfo) };
+        if ( !m_approvalTransactionInfo )
+        {
+            m_approvalTransactionInfo = { std::move(transactionInfo) };
+            
+            std::thread( [] { gReplicator->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
+            std::thread( [] { gReplicator2->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
+            std::thread( [] { gReplicator3->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
+
+//            gReplicator->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo );
+//            gReplicator2->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo );
+//            gReplicator3->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo );
+        }
     }
     
     // It will initiate the approving of single modify transaction
@@ -224,19 +234,17 @@ public:
         EXLOG( "" );
         EXLOG( "@ update_completed:" << replicator.dbgReplicatorName() );
 
-        //std::unique_lock<std::mutex> lock(m_driveMutex);
-        m_isDriveUpdated = true;
-        m_driveCondVar.notify_all();
+        driveRootHash = std::make_shared<InfoHash>( replicator.getRootHash( driveKey ) );
+        EXLOG( "@ Drive modified: " << replicator.dbgReplicatorName() );
+        replicator.printDriveStatus( driveKey );
 
+        modifyCompleteCounter++;
+        modifyCompleteCondVar.notify_all();
     }
-    
-    bool                    m_isDriveUpdated = false;
-    std::condition_variable m_driveCondVar;
-    std::mutex              m_driveMutex;
 };
 
-ApprovalTransactionInfo MyReplicatorEventHandler::m_approvalTransactionInfo;
-std::mutex              MyReplicatorEventHandler::m_transactionInfoMutex;
+std::optional<ApprovalTransactionInfo>  MyReplicatorEventHandler::m_approvalTransactionInfo;
+std::mutex                              MyReplicatorEventHandler::m_transactionInfoMutex;
 
 
 MyReplicatorEventHandler gMyReplicatorEventHandler;
@@ -340,19 +348,17 @@ int main(int,char**)
         clientModifyDrive( actionList, replicatorList, modifyTransactionHash1 );
     }
 
+    modifyCompleteCounter = 0;
+    MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
+
     gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
     sleep(1);
     gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
     
     {
-        std::unique_lock<std::mutex> lock(clientMutex);
-        approveCondVar.wait( lock, [] { return approveTransactionCounter == 3; } );
-
-        // Reaction on a confirmation of the DataModificationApprovalTransaction from BC side
-        gReplicator->onDataModificationApprovalTransaction(MyReplicatorEventHandler::m_approvalTransactionInfo);
-        gReplicator2->onDataModificationApprovalTransaction(MyReplicatorEventHandler::m_approvalTransactionInfo);
-        gReplicator3->onDataModificationApprovalTransaction(MyReplicatorEventHandler::m_approvalTransactionInfo);
+        std::unique_lock<std::mutex> lock(modifyCompleteMutex);
+        modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 3; } );
     }
 
     gReplicatorThread.join();
@@ -376,32 +382,27 @@ int main(int,char**)
     EXLOG( "\n# Client started: 2-st upload" );
     {
         ActionList actionList;
-        //actionList.push_back( Action::move( "fff1/", "fff1/ffff1" ) );
         actionList.push_back( Action::remove( "fff1/" ) );
         actionList.push_back( Action::remove( "fff2/" ) );
 
         actionList.push_back( Action::remove( "a2.txt" ) );
         actionList.push_back( Action::remove( "f1/b2.bin" ) );
-//        actionList.push_back( Action::remove( "f1" ) );
         actionList.push_back( Action::remove( "f2/b2.bin" ) );
         actionList.push_back( Action::move( "f2/", "f2_renamed/" ) );
         actionList.push_back( Action::move( "f2_renamed/a.txt", "f2_renamed/a_renamed.txt" ) );
         clientModifyDrive( actionList, replicatorList, modifyTransactionHash2 );
     }
 
-    approveTransactionCounter = 0;
+    modifyCompleteCounter = 0;
+    MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
     
     gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
 
     {
-        std::unique_lock<std::mutex> lock(clientMutex);
-        approveCondVar.wait( lock, [] { return approveTransactionCounter == 3; } );
-
-        gReplicator->onDataModificationApprovalTransaction(MyReplicatorEventHandler::m_approvalTransactionInfo);
-        gReplicator2->onDataModificationApprovalTransaction(MyReplicatorEventHandler::m_approvalTransactionInfo);
-        gReplicator3->onDataModificationApprovalTransaction(MyReplicatorEventHandler::m_approvalTransactionInfo);
+        std::unique_lock<std::mutex> lock(modifyCompleteMutex);
+        modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 3; } );
     }
 
     gReplicatorThread.join();
@@ -473,30 +474,12 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const ReplicatorList&          replicatorList,
                          uint64_t                       maxDataSize )
 {
-        // start drive update
-    auto& handler = dynamic_cast<MyReplicatorEventHandler&>( replicator->eventHandler() );
-
-    handler.m_isDriveUpdated = false;
-
     replicator->modify( DRIVE_PUB_KEY, ModifyRequest{ infoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey } );
-
-    // wait the end of drive update
-    {
-        std::unique_lock<std::mutex> lock( handler.m_driveMutex );
-        handler.m_driveCondVar.wait( lock, [&] { return handler.m_isDriveUpdated; } );
-    }
-
-    replicator->printDriveStatus( DRIVE_PUB_KEY );
-
-    // set root drive hash
-    driveRootHash = std::make_shared<InfoHash>( replicator->getRootHash( DRIVE_PUB_KEY ) );
-
-    EXLOG( "@ Drive modified" );
 }
 
 //
 // clientDownloadHandler
-//192.168.1.102
+//
 static void clientDownloadHandler( download_status::code code,
                                    const InfoHash& infoHash,
                                    const std::filesystem::path /*filePath*/,
