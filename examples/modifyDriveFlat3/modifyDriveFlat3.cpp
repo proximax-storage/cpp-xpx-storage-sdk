@@ -31,7 +31,7 @@ const bool gUse3Replicators = true;
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_IP_ADDR          "192.168.1.102"
+#define CLIENT_IP_ADDR          "192.168.1.100"
 #define CLIENT_PORT             5000
 
 #define REPLICATOR_IP_ADDR      "127.0.0.1"
@@ -214,7 +214,7 @@ public:
         EXLOG( "modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() );
     }
 
-    // It will be called after the drive is syncronized with sandbox
+    // It will be called after the drive is synchronized with sandbox
     virtual void driveModificationIsCompleted( Replicator&                    replicator,
                                                const sirius::Key&             driveKey,
                                                const sirius::drive::InfoHash& modifyTransactionHash,
@@ -348,10 +348,11 @@ int main(int,char**)
     {
         std::unique_lock<std::mutex> lock(clientMutex);
         approveCondVar.wait( lock, [] { return approveTransactionCounter == 3; } );
-     
-        gReplicator->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
-        gReplicator2->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
-        gReplicator3->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
+
+        // Reaction on a confirmation of the DataModificationApprovalTransaction from BC side
+        gReplicator->onDataModificationApprovalTransaction(MyReplicatorEventHandler::m_approvalTransactionInfo);
+        gReplicator2->onDataModificationApprovalTransaction(MyReplicatorEventHandler::m_approvalTransactionInfo);
+        gReplicator3->onDataModificationApprovalTransaction(MyReplicatorEventHandler::m_approvalTransactionInfo);
     }
 
     gReplicatorThread.join();
@@ -397,10 +398,10 @@ int main(int,char**)
     {
         std::unique_lock<std::mutex> lock(clientMutex);
         approveCondVar.wait( lock, [] { return approveTransactionCounter == 3; } );
-        
-        gReplicator->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
-        gReplicator2->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
-        gReplicator3->onApprovalTransactionReceived( MyReplicatorEventHandler::m_approvalTransactionInfo );
+
+        gReplicator->onDataModificationApprovalTransaction(MyReplicatorEventHandler::m_approvalTransactionInfo);
+        gReplicator2->onDataModificationApprovalTransaction(MyReplicatorEventHandler::m_approvalTransactionInfo);
+        gReplicator3->onDataModificationApprovalTransaction(MyReplicatorEventHandler::m_approvalTransactionInfo);
     }
 
     gReplicatorThread.join();
@@ -495,7 +496,7 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
 
 //
 // clientDownloadHandler
-//
+//192.168.1.102
 static void clientDownloadHandler( download_status::code code,
                                    const InfoHash& infoHash,
                                    const std::filesystem::path /*filePath*/,

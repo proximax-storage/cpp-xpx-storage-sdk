@@ -95,8 +95,8 @@ class Replicator;
     };
 
     // It is used in 2 cases:
-    // - as 'Modify Approval Transaction'
-    // - as 'Single Modify Approval Transaction' (in this case vector 'm_opinions' has single element)
+    // - as 'DataModificationApprovalTransaction '
+    // - as 'DataModificationSingleApprovalTransaction' (in this case vector 'm_opinions' has single element)
     struct ApprovalTransactionInfo
     {
         // Drive public key

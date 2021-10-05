@@ -115,7 +115,7 @@ public:
     virtual void        onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
     
     // It will be called after 'approval transaction' has been published
-    virtual void        onApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) = 0;
+    virtual void        onDataModificationApprovalTransaction(const ApprovalTransactionInfo& transaction ) = 0;
 
     // It will be called after 'single approval transaction' has been published
     virtual void        onSingleApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) = 0;

@@ -31,7 +31,7 @@ int main()
                               REPLICATOR_SANDBOX_ROOT_FOLDER,
                               RPC_PORT );
 
-    replicator.runRpcServer();
+    replicator.run();
 
     return 0;
 }

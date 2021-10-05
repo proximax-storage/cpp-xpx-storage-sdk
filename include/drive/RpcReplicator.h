@@ -16,15 +16,67 @@
 
 #include <future>
 
+#define DRIVE_PUB_KEY                   std::array<uint8_t,32>{1,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
+
 
 namespace sirius::drive {
 //
-// RpcReplicator
+// ReplicatorEventHandler
 //
+class MyReplicatorEventHandler : public ReplicatorEventHandler
+{
+public:
+    // It will be called before 'replicator' shuts down
+    virtual void willBeTerminated( Replicator& replicator ) override
+    {
+        std::cout << "Replicator will be terminated: " << replicator.dbgReplicatorName() << std::endl;
+    }
+
+    // It will be called when rootHash is calculated in sandbox
+    virtual void rootHashIsCalculated( Replicator&                    replicator,
+                                       const sirius::Key&             driveKey,
+                                       const sirius::drive::InfoHash& modifyTransactionHash,
+                                       const sirius::drive::InfoHash& sandboxRootHash )  override
+    {
+        // send DataModificationApprovalTransaction
+        std::cout << "@ send DataModificationApprovalTransaction: " << replicator.dbgReplicatorName() << std::endl;
+    }
+
+    // It will be called when transaction could not be completed
+    virtual void modifyTransactionIsCanceled( Replicator& replicator,
+                                              const sirius::Key&             driveKey,
+                                              const sirius::drive::InfoHash& modifyTransactionHash,
+                                              const std::string&             reason,
+                                              int                            errorCode )  override
+    {
+        std::cout << "modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() << std::endl;
+    }
+
+    // It will initiate the approving of modify transaction
+    virtual void modifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
+    {
+        std::cout << "modifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() << std::endl;
+    }
+
+    // It will initiate the approving of single modify transaction
+    virtual void singleModifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
+    {
+        std::cout << "modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() << std::endl;
+    }
+
+    // It will be called after the drive is synchronized with sandbox
+    virtual void driveModificationIsCompleted( Replicator&                    replicator,
+                                               const sirius::Key&             driveKey,
+                                               const sirius::drive::InfoHash& modifyTransactionHash,
+                                               const sirius::drive::InfoHash& rootHash ) override
+    {
+        std::cout << "@ driveModificationIsCompleted:" << replicator.dbgReplicatorName() << std::endl;
+    }
+};
+
 class RpcReplicator
 {
 public:
-
     RpcReplicator(
             const std::string&  privateKey,
             const std::string&  name,
@@ -32,10 +84,7 @@ public:
             std::string&&       port,
             std::string&&       replicatorRootFolder,
             std::string&&       sandboxRootFolder,
-            const int           rpcPort ) :
-
-            m_replicatorRootFolder( replicatorRootFolder ),
-            m_sandboxRootFolder( sandboxRootFolder ) {
+            const int           rpcPort ) {
 
         _LOG("RPC Replicator name: " + name)
         _LOG("RPC Replicator address: " + address)
@@ -55,179 +104,104 @@ public:
                 std::move(replicatorRootFolder),
                 std::move(sandboxRootFolder),
                 true, // tcp
+                m_replicatorEventHandler,
                 name.c_str()
         );
 
-        m_replicator->start();
-
-        //
-        // addDrive
-        //
-        m_rpcServer->bind( "addDrive", [replicator = m_replicator]( const std::array<uint8_t, 32>& driveKey,
-                                                                        size_t driveSize ) {
-            auto reply = replicator->addDrive( reinterpret_cast<const sirius::Key&>(driveKey), driveSize );
-            return reply;
+        m_rpcServer->bind( "addDrive", [this]( const std::array<uint8_t, 32>& driveKey, const size_t driveSize ) {
+            addDrive(driveKey, driveSize);
         } );
 
-        //
-        // removeDrive
-        //
-        m_rpcServer->bind( "removeDrive", [replicator = m_replicator]( const std::array<uint8_t, 32>& driveKey ) {
-            auto reply = replicator->removeDrive( reinterpret_cast<const sirius::Key&>(driveKey));
-            return reply;
+        m_rpcServer->bind( "removeDrive", [this]( const std::array<uint8_t, 32>& driveKey ) {
+            removeDrive(driveKey);
         } );
 
-        //
-        // openDownloadChannel
-        //
-        m_rpcServer->bind( "openDownloadChannel", [replicator = m_replicator](const types::DownloadChannelInfo& channelInfo) {
-            replicator->addDownloadChannelInfo(
-                    channelInfo.m_channelKey,
-                    channelInfo.m_prepaidDownloadSize,
-                    channelInfo.getReplicators(),
-                    channelInfo.getClientsPublicKeys());
-
-            return "";
+        m_rpcServer->bind( "openDownloadChannel", [this](const types::RpcDownloadChannelInfo& channelInfo) {
+            openDownloadChannel(channelInfo);
         } );
 
-        //
-        // closeDownloadChannel
-        //
-        m_rpcServer->bind( "closeDownloadChannel", [replicator = m_replicator]( std::array<uint8_t, 32> channelKey ) {
-            replicator->removeDownloadChannelInfo(channelKey);
-            return "";
+        m_rpcServer->bind( "closeDownloadChannel", [this](const std::array<uint8_t, 32>& channelKey) {
+            closeDownloadChannel(channelKey);
         } );
 
-        //
-        // getRootHash
-        //
-        m_rpcServer->bind( "getRootHash", [replicator = m_replicator]( const std::array<uint8_t, 32>& driveKey ) {
-            try {
-                InfoHash hash = replicator->getRootHash( reinterpret_cast<const sirius::Key&>(driveKey));
+//        m_rpcServer->bind( "getRootHash", [replicator = m_replicator]( const std::array<uint8_t, 32>& driveKey ) {
+//            try {
+//                InfoHash hash = replicator->getRootHash( reinterpret_cast<const sirius::Key&>(driveKey));
+//
+//                types::ResultWithInfoHash result{hash.array(), ""};
+//
+//                return result;
+//            }
+//            catch ( std::runtime_error& err ) {
+//                types::ResultWithInfoHash result;
+//                result.m_error = err.what();
+//                return result;
+//            }
+//        } );
 
-                types::ResultWithInfoHash result{hash.array(), ""};
-
-                return result;
-            }
-            catch ( std::runtime_error& err ) {
-                types::ResultWithInfoHash result;
-                result.m_error = err.what();
-                return result;
-            }
+        m_rpcServer->bind( "modifyDrive", [this](const types::RpcDataModification& rpcDataModification) {
+            modifyDrive(rpcDataModification);
         } );
 
-        //
-        // modify
-        //
-        m_rpcServer->bind( "modify", [replicator = m_replicator, replicators = m_replicatorList]( const std::array<uint8_t, 32>& driveKey,
-                                                                  const std::array<uint8_t, 32>& hash ) {
-            auto drivePubKey = reinterpret_cast<const sirius::Key&>(driveKey);
-            auto infoHash = reinterpret_cast<const InfoHash&>(hash);
-            std::promise<types::ResultWithModifyStatus> promise;
-            auto future = promise.get_future();
-
-            Hash256 transactionHash;
-            uint64_t maxDataSize = 100;
-
-            // TODO: fix to pass correct client key
-            replicator->modify( drivePubKey, drivePubKey, infoHash, transactionHash, replicators, maxDataSize, [&promise, driveKey = drivePubKey](
-                    sirius::drive::modify_status::code code,
-                    const sirius::drive::InfoHash& rootHash,
-                    const std::string& error ) {
-                switch ( code ) {
-                    case sirius::drive::modify_status::update_completed: {
-                        LOG( " drive update completed:\n drive key: " << driveKey << "\n root hash: "
-                                                                      << sirius::drive::toString(
-                                                                              rootHash ));
-                        types::ResultWithModifyStatus result{sirius::drive::modify_status::update_completed,
-                                                      ""};
-                        promise.set_value( result );
-                        break;
-                    }
-                    case sirius::drive::modify_status::sandbox_root_hash: {
-                        LOG( " drive modified in sandbox:\n drive key: " << driveKey
-                                                                         << "\n root hash: "
-                                                                         << sirius::drive::toString(
-                                                                                 rootHash ));
-                        break;
-                    }
-                    case sirius::drive::modify_status::failed: {
-                        LOG_ERR( " drive modification failed:\n drive key: " << driveKey
-                                                                             << "\n error: "
-                                                                             << error );
-                        types::ResultWithModifyStatus result{sirius::drive::modify_status::failed, error};
-                        promise.set_value( result );
-                        break;
-                    }
-                    case sirius::drive::modify_status::broken: {
-                        LOG_ERR( " drive modification aborted:\n drive key: " << driveKey );
-                        types::ResultWithModifyStatus result{sirius::drive::modify_status::broken, ""};
-                        promise.set_value( result );
-                        return;
-                    }
-                }
-            } );
-
-            rpc::this_handler().respond( future.get());
-        } );
-
-        //
-        // loadTorrent
-        //
-        m_rpcServer->bind( "loadTorrent", [replicator = m_replicator]( const std::array<uint8_t,32>& driveKey,
-                                                                           const std::array<uint8_t,32>& hash )
-        {
-            auto drivePubKey = reinterpret_cast<const sirius::Key&>(driveKey);
-            auto infoHash = reinterpret_cast<const InfoHash&>(hash);
-            try {
-                auto reply = replicator->loadTorrent( drivePubKey, infoHash );
-                return reply;
-            }
-            catch ( std::runtime_error& err ) {
-                return std::string(err.what());
-            }
-        });
+//        //
+//        // loadTorrent
+//        //
+//        m_rpcServer->bind( "loadTorrent", [replicator = m_replicator]( const std::array<uint8_t,32>& driveKey,
+//                                                                           const std::array<uint8_t,32>& hash )
+//        {
+//            auto drivePubKey = reinterpret_cast<const sirius::Key&>(driveKey);
+//            auto infoHash = reinterpret_cast<const InfoHash&>(hash);
+//            try {
+//                auto reply = replicator->loadTorrent( drivePubKey, infoHash );
+//                return reply;
+//            }
+//            catch ( std::runtime_error& err ) {
+//                return std::string(err.what());
+//            }
+//        });
     }
 
-    void runRpcServer()
+public:
+    void run()
     {
-        _LOG("RPC Replicator started")
+        std::cout << "RPC Replicator is started" << std::endl;
+        m_replicator->start();
         m_rpcServer->run();
     }
 
 private:
+    void addDrive(const std::array<uint8_t, 32>& driveKey, const size_t driveSize) {
+        m_replicator->addDrive( reinterpret_cast<const sirius::Key&>(driveKey), driveSize );
+    }
 
-//    void replicatorDownloadHandler ( modify_status::code code, InfoHash /*resultRootInfoHash*/, std::string error )
-//    {
-//        if ( code == modify_status::update_completed )
-//        {
-//            LOG( "@ update_completed: " );
-//        }
-//        else if ( code == modify_status::sandbox_root_hash )
-//        {
-//            LOG( "@ sandbox calculated" );
-//        }
-//        else
-//        {
-//            LOG( "ERROR: " << error );
-//        }
-//    }
+    void removeDrive(const std::array<uint8_t, 32>& driveKey) {
+        m_replicator->removeDrive( reinterpret_cast<const sirius::Key&>(driveKey));
+    }
 
-        static void sessionErrorHandler( const lt::alert* alert)
-        {
-            if ( alert->type() == lt::listen_failed_alert::alert_type )
-            {
-                std::cerr << alert->message() << std::endl << std::flush;
-                exit(-1);
-            }
-        }
+    void modifyDrive(const types::RpcDataModification& rpcDataModification) {
+        m_replicator->modify(DRIVE_PUB_KEY, ModifyRequest{
+                rpcDataModification.m_infoHash,
+                rpcDataModification.m_transactionHash,
+                rpcDataModification.m_maxDataSize,
+                rpcDataModification.getReplicators(),
+                rpcDataModification.m_clientPubKey });
+    }
 
-    private:
+    void openDownloadChannel(const types::RpcDownloadChannelInfo& channelInfo) {
+        m_replicator->addDownloadChannelInfo(
+                channelInfo.m_channelKey,
+                channelInfo.m_prepaidDownloadSize,
+                channelInfo.getReplicators(),
+                channelInfo.getClientsPublicKeys());
+    }
 
-        std::string m_replicatorRootFolder;
-        std::string m_sandboxRootFolder;
-        std::shared_ptr<Replicator> m_replicator;
-        std::shared_ptr<rpc::server> m_rpcServer;
-        ReplicatorList m_replicatorList;
+    void closeDownloadChannel(const std::array<uint8_t, 32>& channelKey) {
+        m_replicator->removeDownloadChannelInfo(channelKey);
+    }
+
+private:
+    std::shared_ptr<Replicator> m_replicator;
+    std::shared_ptr<rpc::server> m_rpcServer;
+    MyReplicatorEventHandler m_replicatorEventHandler;
 };
 }

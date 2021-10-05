@@ -373,7 +373,7 @@ public:
         }
     }
     
-    virtual void onApprovalTransactionReceived( const ApprovalTransactionInfo& transaction ) override
+    virtual void onDataModificationApprovalTransaction(const ApprovalTransactionInfo& transaction ) override
     {
         if ( auto it = m_drives.find( transaction.m_driveKey ); it != m_drives.end() )
         {
