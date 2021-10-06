@@ -388,7 +388,7 @@ public:
 
             // remove old opinions
             std::remove_if( m_otherOpinions.begin(), m_otherOpinions.end(),
-                            [&modifyRequest] (const auto& opinion) { return opinion.m_modifyTransactionHash != modifyRequest.m_transactionHash; });
+                            [&modifyRequest] (const auto& opinion) { return opinion.m_modifyTransactionHash != modifyRequest.m_transactionHash.array(); });
         }
         
         // remove my opinion
@@ -904,7 +904,7 @@ public:
 
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
-        if ( !m_modifyRequest || anOpinion.m_modifyTransactionHash != m_modifyRequest->m_transactionHash )
+        if ( !m_modifyRequest || anOpinion.m_modifyTransactionHash != m_modifyRequest->m_transactionHash.array())
         {
             // it seems that our drive is significantly behind
             // todo remove old opinions from this replicator
