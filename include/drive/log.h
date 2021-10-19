@@ -17,11 +17,11 @@ inline std::mutex gLogMutex;
         std::cerr << expr << std::endl << std::flush; \
     }
 
-//#define LOG_WARN(expr) { \
-//    const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-//    std::cerr << __FILE__ << ":" << __LINE__ << ": "<< expr << std::flush; \
-//    std::cerr << expr << std::flush; \
-//}
+/*#define LOG_WARN(expr) { \
+    const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+    std::cerr << __FILE__ << ":" << __LINE__ << ": "<< expr << std::flush; \
+    std::cerr << expr << std::flush; \
+}*/
 
 #define LOG_ERR(expr) { \
     const std::lock_guard<std::mutex> autolock( gLogMutex ); \
