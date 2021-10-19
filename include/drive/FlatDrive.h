@@ -12,7 +12,7 @@
 #include <cereal/archives/binary.hpp>
 #include <memory>
 
-namespace sirius { namespace drive {
+namespace sirius::drive {
 
 class FlatDrive;
 class Replicator;
@@ -197,6 +197,8 @@ class Replicator;
         
         virtual InfoHash sandboxRootHash() const = 0;
 
+        virtual ReplicatorList getReplicators() = 0;
+
         virtual void     getSandboxDriveSizes( uint64_t& metaFilesSize, uint64_t&  driveSize ) const = 0;
 
         virtual void     startModifyDrive( ModifyRequest&& modifyRequest ) = 0;
@@ -205,7 +207,7 @@ class Replicator;
 
         virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
 
-        virtual const ModifyRequest& modifyRequest() const = 0;
+        virtual const    ModifyRequest& modifyRequest() const = 0;
         
         virtual void     onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
 
@@ -225,6 +227,7 @@ class Replicator;
                                                        const Key&               drivePubKey,
                                                        size_t                   maxSize,
                                                        ReplicatorEventHandler&  eventHandler,
-                                                       Replicator&              replicator );
-}}
+                                                       Replicator&              replicator,
+                                                       const ReplicatorList&    replicators);
+}
 

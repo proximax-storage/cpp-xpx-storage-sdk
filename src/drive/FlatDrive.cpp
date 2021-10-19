@@ -55,7 +55,7 @@
 
 namespace fs = std::filesystem;
 
-namespace sirius { namespace drive {
+namespace sirius::drive {
 
 //
 // DrivePaths - drive paths, used at replicator side
@@ -166,17 +166,20 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
 public:
 
-    DefaultFlatDrive( std::shared_ptr<Session>  session,
+    DefaultFlatDrive(
+                  std::shared_ptr<Session>  session,
                   const std::string&        replicatorRootFolder,
                   const std::string&        replicatorSandboxRootFolder,
                   const Key&                drivePubKey,
                   size_t                    maxSize,
                   ReplicatorEventHandler&   eventHandler,
-                  Replicator&               replicator )
+                  Replicator&               replicator,
+                  const ReplicatorList&     replicatorList )
         :
           FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
           m_session(session),
           m_maxSize(maxSize),
+          m_replicatorList(replicatorList),
           m_eventHandler(eventHandler),
           m_replicator(replicator)
     {
@@ -205,6 +208,11 @@ public:
     
     InfoHash sandboxRootHash() const override {
         return m_sandboxRootHash;
+    }
+
+    ReplicatorList getReplicators() override {
+        std::scoped_lock<std::shared_mutex> lock(m_mutex);
+        return m_replicatorList;
     }
     
     uint64_t sandboxFsTreeSize() const override {
@@ -1013,7 +1021,8 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
         const Key&               drivePubKey,
         size_t                   maxSize,
         ReplicatorEventHandler&  eventHandler,
-        Replicator&              replicator )
+        Replicator&              replicator,
+        const ReplicatorList&    replicators )
 
 {
     return std::make_shared<DefaultFlatDrive>( session,
@@ -1022,7 +1031,8 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
                                            drivePubKey,
                                            maxSize,
                                            eventHandler,
-                                           replicator );
+                                           replicator,
+                                           replicators );
 }
 
-}}
+}
