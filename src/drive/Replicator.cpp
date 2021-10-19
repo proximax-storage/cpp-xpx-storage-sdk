@@ -118,7 +118,7 @@ public:
     }
 
 
-    std::string addDrive(const Key& driveKey, size_t driveSize ) override
+    std::string addDrive(const Key& driveKey, uint64_t driveSize, const ReplicatorList& replicators ) override
     {
         LOG( "adding drive " << driveKey );
 
@@ -135,7 +135,8 @@ public:
                 driveKey,
                 driveSize,
                 m_eventHandler,
-                *this );
+                *this,
+                replicators );
 
         return "";
     }
@@ -153,6 +154,19 @@ public:
         return "";
     }
 
+    std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) override {
+        LOG( "getDrive " << driveKey );
+
+        std::unique_lock<std::mutex> lock(m_mutex);
+
+        if (m_drives.find(driveKey) == m_drives.end())
+        {
+            LOG( "drive not found " << driveKey );
+            return nullptr;
+        }
+
+        return m_drives[driveKey];
+    }
 
     std::string modify( const Key& driveKey, ModifyRequest&& modifyRequest ) override
     {

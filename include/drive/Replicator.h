@@ -79,9 +79,11 @@ public:
 
     // All of the below functions return error string (or empty string)
     
-    virtual std::string addDrive( const Key& driveKey, size_t driveSize ) = 0;
+    virtual std::string addDrive( const Key& driveKey, uint64_t driveSize, const ReplicatorList& replicators ) = 0;
 
     virtual std::string removeDrive( const Key& driveKey ) = 0;
+
+    virtual std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) = 0;
     
     virtual std::string modify( const Key&          driveKey,
                                 ModifyRequest&&     modifyRequest ) = 0;
