@@ -454,7 +454,7 @@ static std::shared_ptr<Replicator> createReplicator(
                                               dbgReplicatorName );
 
     replicator->start();
-    replicator->addDrive( DRIVE_PUB_KEY, 100*1024*1024 );
+    replicator->addDrive( DRIVE_PUB_KEY, 100*1024*1024, replicatorList );
 
     replicator->addDownloadChannelInfo( downloadChannelHash1.array(), 1024*1024,    replicatorList, { clientPublicKey } );
     replicator->addDownloadChannelInfo( downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientPublicKey } );
