@@ -5,25 +5,51 @@
 */
 #pragma once
 
+#include <filesystem>
 #include "types.h"
-#include "DriveService.h"
 #include "RpcTypes.h"
 #include "rpc/client.h"
+#include "ClientSession.h"
+#include "Utils.h"
+#include "FsTree.h"
+#include <libtorrent/alert.hpp>
+#include <libtorrent/alert_types.hpp>
 
 namespace sirius::drive {
-//
-// RpcReplicatorClient
-//
+
 class RpcReplicatorClient
 {
-    std::shared_ptr<rpc::client>                    m_rpcClient;
-
 public:
-
-    RpcReplicatorClient( const std::string& address, int port )
+    RpcReplicatorClient( const std::string& clientPrivateKey,
+                         const std::string& remoteRpcAddress,
+                         const int remoteRpcPort,
+                         const std::string& incomingAddress,
+                         const int incomingPort,
+                         const std::filesystem::path& workFolder,
+                         const std::string& dbgName)
     {
-        m_rpcClient = std::make_shared<rpc::client>( address, port );
+        m_rootFolder = workFolder;
+        m_rpcClient = std::make_shared<rpc::client>( remoteRpcAddress, remoteRpcPort );
         m_rpcClient->wait_all_responses();
+
+        auto keyPair = sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( clientPrivateKey ));
+        m_clientPubKey = keyPair.publicKey();
+
+        auto sessionHandler = []( const lt::alert* alert )
+        {
+            if ( alert->type() == lt::listen_failed_alert::alert_type )
+            {
+                std::cerr << alert->message() << std::endl << std::flush;
+                exit(-1);
+            }
+        };
+
+        m_clientSession = createClientSession(
+                std::move(keyPair),
+                incomingAddress + ":" + std::to_string(incomingPort),
+                sessionHandler,
+                true,
+                dbgName.data() );
 
         bool isConnected = false;
         while (!isConnected) {
@@ -48,76 +74,199 @@ public:
         }
     }
 
-    bool addDrive(const Key& driveKey, size_t driveSize)
+    void addDrive(const Key& driveKey, const uint64_t driveSize)
     {
-        LOG( "RpcReplicatorClient: adding drive " << driveKey );
+        std::cout << "Client. PrepareDriveTransaction: " << driveKey << std::endl;
 
-        auto reply = m_rpcClient->call( "addDrive", driveKey.array(), driveSize ).as<std::string>();
+        types::RpcPrepareDriveTransactionInfo rpcPrepareDriveTransactionInfo;
+        rpcPrepareDriveTransactionInfo.m_clientPubKey = m_clientPubKey.array();
+        rpcPrepareDriveTransactionInfo.m_driveKey = driveKey.array();
+        rpcPrepareDriveTransactionInfo.m_driveSize = driveSize;
+        rpcPrepareDriveTransactionInfo.m_signature = {};
 
-        return reply.empty();
-//            CATAPULT_THROW_INVALID_ARGUMENT_1(reply, driveKey);
+        m_rpcClient->call( "PrepareDriveTransaction", rpcPrepareDriveTransactionInfo );
     }
 
-    bool removeDrive(const Key& driveKey)
+    void removeDrive(const Key& driveKey)
     {
-        LOG( "RpcReplicatorClient: removing drive " << driveKey );
-
-        auto error = m_rpcClient->call( "removeDrive", driveKey.array() ).as<std::string>();
-        return error.empty();
+        std::cout << "Client. DriveClosureTransaction: " << driveKey << std::endl;
+        m_rpcClient->call( "DriveClosureTransaction", driveKey.array());
     }
 
-    bool openDownloadChannel(
+    types::RpcDriveInfo getDrive(const Key& driveKey) {
+        std::cout << "Client. getDrive: " << driveKey << std::endl;
+        return m_rpcClient->call( "drive", driveKey.array()).as<types::RpcDriveInfo>();
+    }
+
+    void openDownloadChannel(
             const std::array<uint8_t,32>&   channelKey,
-            size_t                          prepaidDownloadSize,
-            const ReplicatorList&           replicatorsList,
-            std::vector<Key>&&        		clients) {
-        types::DownloadChannelInfo channelInfo;
-        channelInfo.m_channelKey = channelKey;
-        channelInfo.m_prepaidDownloadSize = prepaidDownloadSize;
-        channelInfo.setReplicators(replicatorsList);
-        channelInfo.setClientsPublicKeys(clients);
+            const size_t                    prepaidDownloadSize,
+            const std::vector<Key>&        	clients,
+            const ReplicatorList&           replicatorList) {
+        std::cout << "Client. openDownloadChannel: " << utils::HexFormat(channelKey) << std::endl;
+        m_clientSession->setDownloadChannel(replicatorList, channelKey);
 
-        auto error = m_rpcClient->call( "openDownloadChannel", channelInfo ).as<std::string>();
-        return error.empty();
+        types::RpcDownloadChannelInfo rpcDownloadChannelInfo;
+        rpcDownloadChannelInfo.m_channelKey = channelKey;
+        rpcDownloadChannelInfo.m_prepaidDownloadSize = prepaidDownloadSize;
+        rpcDownloadChannelInfo.setClientsPublicKeys(clients);
+
+        m_rpcClient->call( "openDownloadChannel", rpcDownloadChannelInfo );
     }
 
-    bool closeDownloadChannel(const std::array<uint8_t,32>& channelKey) {
-        auto error = m_rpcClient->call( "closeDownloadChannel", channelKey ).as<std::string>();
-        return error.empty();
+    void closeDownloadChannel(const std::array<uint8_t,32>& channelKey) {
+        std::cout << "Client. closeDownloadChannel: " << utils::HexFormat(channelKey) << std::endl;
+        m_rpcClient->call( "closeDownloadChannel", channelKey );
     }
 
-    InfoHash getRootHash(const Key& driveKey)
+    void modifyDrive( const Key& driveKey, const ActionList& actionList, const std::array<uint8_t,32>& transactionHash, const uint64_t maxDataSize ) {
+        std::cout << "Client. modifyDrive: " << driveKey << std::endl;
+
+        types::RpcDriveInfo rpcDriveInfo = getDrive(driveKey);
+        if (rpcDriveInfo.m_rpcReplicators.empty()) {
+            std::cout << "Client. modifyDrive. Replicators list is empty: " << driveKey << std::endl;
+            return;
+        }
+
+        // Create empty tmp folder for 'client modify data'
+        //
+        auto tmpFolder = std::filesystem::temp_directory_path() / "modify_drive_data";
+        std::filesystem::remove_all( tmpFolder );
+        std::filesystem::create_directories( tmpFolder );
+
+        // start file uploading
+        const InfoHash infoHash = m_clientSession->addActionListToSession( actionList, rpcDriveInfo.getReplicators(), transactionHash, tmpFolder );
+
+        std::cout << "Client. modifyDrive. New InfoHash: " << infoHash << std::endl;
+
+        types::RpcDataModification rpcDataModification;
+        rpcDataModification.m_drivePubKey = driveKey.array();
+        rpcDataModification.m_clientPubKey = m_clientPubKey.array();
+        rpcDataModification.m_infoHash = infoHash.array();
+        rpcDataModification.m_transactionHash = transactionHash;
+        rpcDataModification.m_maxDataSize = maxDataSize;
+
+        m_rpcClient->call( "DataModificationTransaction", rpcDataModification );
+    }
+
+    void downloadFsTree(const InfoHash& rootHash, const std::array<uint8_t,32>& channelKey, const uint64_t downloadLimit = 0) {
+        std::cout << "Client. downloadFsTree. channelKey: " << utils::HexFormat(channelKey) << std::endl;
+        std::cout << "Client. downloadFsTree. InfoHash: " << rootHash << std::endl;
+
+        auto downloadHandler = [this](download_status::code code,
+                                  const InfoHash& infoHash,
+                                  const std::filesystem::path filePath,
+                                  size_t downloaded,
+                                  size_t fileSize,
+                                  const std::string& errorText) {
+            clientDownloadHandler(code, infoHash, filePath, downloaded, fileSize, errorText);
+        };
+
+        DownloadContext downloadContext( DownloadContext::fs_tree, downloadHandler, rootHash, channelKey, 0 );
+        m_clientSession->download( std::move(downloadContext), m_rootFolder / "fsTree-folder");
+    }
+
+    void downloadData(const Folder& folder) {
+        std::cout << "Client. downloadData. Folder: " << folder.name() << std::endl;
+
+        for( const auto& child: folder.childs() )
+        {
+            if ( isFolder(child) )
+            {
+                downloadData( getFolder(child) );
+            }
+            else
+            {
+                const File& file = getFile(child);
+                std::string folderName = "root";
+                if ( folder.name() != "/" )
+                    folderName = folder.name();
+
+                std::cout << "Client. downloadData. Client started download file " << internalFileName( file.hash() ) << std::endl;
+                std::cout << "Client. downloadData. to " << m_rootFolder / "downloaded_files" / folderName  / file.name() << std::endl;
+
+                auto downloadHandler = [this](download_status::code code,
+                                              const InfoHash& infoHash,
+                                              const std::filesystem::path filePath,
+                                              size_t downloaded,
+                                              size_t fileSize,
+                                              const std::string& errorText) {
+                    clientDownloadHandler(code, infoHash, filePath, downloaded, fileSize, errorText);
+                };
+
+                DownloadContext downloadContext(
+                        DownloadContext::file_from_drive, downloadHandler, file.hash(), {}, 0, m_rootFolder / "downloaded_files" / folderName / file.name() );
+
+                m_clientSession->download( std::move(downloadContext), m_rootFolder / "downloaded_files" );
+            }
+        }
+    }
+
+    void clientDownloadHandler( download_status::code code,
+                                const InfoHash& infoHash,
+                                const std::filesystem::path /*filePath*/,
+                                size_t /*downloaded*/,
+                                size_t /*fileSize*/,
+                                const std::string& /*errorText*/ )
     {
-        LOG( "RpcReplicatorClient: getRootHash for " << driveKey );
+        if ( code == download_status::complete )
+        {
+            std::cout << "Client. clientDownloadHandler. Client received FsTree: " << toString(infoHash) << std::endl;
 
-        auto result = m_rpcClient->call( "getRootHash", driveKey.array() )
-                        .as<types::ResultWithInfoHash>();
-
-        if ( !result.m_error.empty() ) {
-            CATAPULT_THROW_INVALID_ARGUMENT_1(result.m_error, driveKey)
+            FsTree fsTree;
+            fsTree.deserialize( m_rootFolder / "fsTree-folder" / "FsTree.bin" );
+            fsTree.dbgPrint();
         }
-
-        return result.m_rootHash;
-    }
-
-    void modify( const Key& driveKey, const InfoHash& infoHash ) {
-        LOG( "RpcReplicatorClient: drive modification:\n drive: " << driveKey << "\n info hash: " << infoHash );
-
-        auto result = m_rpcClient->call( "modify", driveKey.array(), infoHash.array() ).as<types::ResultWithModifyStatus>();
-
-        if ( !result.m_error.empty() ) {
-            CATAPULT_THROW_INVALID_ARGUMENT_1(result.m_error, driveKey);
+        else if ( code == download_status::failed )
+        {
+            std::cout << "Client. clientDownloadHandler. Error receiving FsTree: " << code << std::endl;
+            exit(-1);
         }
     }
 
-    void loadTorrent( const Key& driveKey, const InfoHash& infoHash ) {
-        LOG( "RpcReplicatorClient: loadTorrent:\n drive: " << driveKey << "\n info hash: " << infoHash );
+    std::filesystem::path createClientFiles( size_t bigFileSize ) {
 
-        auto result = m_rpcClient->call( "loadTorrent", driveKey.array(), infoHash.array() ).as<types::ResultWithModifyStatus>();
+        std::cout << "Client. createClientFiles." << std::endl;
 
-        if ( !result.m_error.empty() ) {
-            CATAPULT_THROW_INVALID_ARGUMENT_1(result.m_error, driveKey);
+        // Create empty tmp folder for testing
+        //
+        auto dataFolder = m_rootFolder / "client_files";
+        std::filesystem::remove_all( dataFolder.parent_path() );
+        std::filesystem::create_directories( dataFolder );
+
+        {
+            std::ofstream file( dataFolder / "a.txt" );
+            file.write( "a_txt", 5 );
+            file.close();
         }
+        {
+            std::filesystem::path b_bin = dataFolder / "b.bin";
+            std::filesystem::create_directories( b_bin.parent_path() );
+            std::vector<uint8_t> data(bigFileSize);
+            std::generate( data.begin(), data.end(), std::rand );
+            std::ofstream file( b_bin );
+            file.write( (char*) data.data(), data.size() );
+            file.close();
+        }
+        {
+            std::ofstream file( dataFolder / "c.txt" );
+            file.write( "c_txt", 5 );
+            file.close();
+        }
+        {
+            std::ofstream file( dataFolder / "d.txt" );
+            file.write( "d_txt", 5 );
+            file.close();
+        }
+
+        // Return path to file
+        return dataFolder.parent_path();
     }
+
+private:
+    std::shared_ptr<ClientSession> m_clientSession;
+    std::shared_ptr<rpc::client> m_rpcClient;
+    Key m_clientPubKey;
+    std::filesystem::path m_rootFolder;
 };
 }
