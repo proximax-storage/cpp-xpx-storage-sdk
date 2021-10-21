@@ -718,7 +718,7 @@ public:
         {
             // start timer if it is not started
             if ( !m_opinionTimer )
-                m_session->startTimer( 10, [this]() { opinionTimerExpired(); } );
+                m_opinionTimer = m_session->startTimer( 10, [this]() { opinionTimerExpired(); } );
         }
     }
     
@@ -872,6 +872,16 @@ public:
         //todo m_session->loadTorrent();
     }
     
+//    void     onDownloadOpinionReceived( const DownloadApprovalTransactionInfo& anOpinion ) override
+//    {
+//        //todo
+//    }
+//
+//    void     prepareDownloadApprovalTransactionInfo() override
+//    {
+//        //todo
+//    }
+    
     // todo (could be removed?)
     const ModifyRequest& modifyRequest() const override
     {
@@ -921,6 +931,8 @@ public:
     
     void opinionTimerExpired()
     {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+
         if ( m_approveTransactionSent || m_approveTransactionReceived )
             return;
         
@@ -942,7 +954,7 @@ public:
         }
         
         // notify event handler
-        m_eventHandler.modifyApproveTransactionIsReady( m_replicator, std::move(info) );
+        m_eventHandler.modifyApprovalTransactionIsReady( m_replicator, std::move(info) );
         
         m_approveTransactionSent = true;
     }

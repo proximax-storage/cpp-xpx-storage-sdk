@@ -28,13 +28,16 @@ protected:
     std::shared_mutex   m_mutex;
 
     ChannelMap          m_downloadChannelMap;
+
+    DownloadOpinionMap  m_downloadOpinionMap;
+
     ModifyDriveMap      m_modifyDriveMap;
 
     const crypto::KeyPair& m_keyPair;
 
-    uint64_t m_receiptLimit = 32*1024; //1024*1024;
+    uint64_t            m_receiptLimit = 32*1024; //1024*1024;
 
-    const char* m_dbgOurPeerName = "unset";
+    const char*         m_dbgOurPeerName = "unset";
 
 public:
     DownloadLimiter( const crypto::KeyPair& keyPair, const char* dbgOurPeerName ) : m_keyPair(keyPair), m_dbgOurPeerName(dbgOurPeerName)
@@ -185,6 +188,7 @@ public:
 
     void addChannelInfo( const std::array<uint8_t,32>&  channelId,
                          uint64_t                       prepaidDownloadSize,
+                         const Key&                     driveKey,
                          const ReplicatorList&          replicatorsList,
                          const std::vector<std::array<uint8_t,32>>&  clients )
     {
@@ -200,7 +204,7 @@ public:
 
             if ( !clients.empty() )
             {
-                //it->second.m_clients = clients; //TODO!!!
+                it->second.m_clients = clients;
             }
             return;
         }
@@ -211,10 +215,11 @@ public:
             if ( it.m_publicKey.array() != publicKey() )
                 map.insert( { it.m_publicKey.array(), {}} );
         }
-        m_downloadChannelMap[channelId] = DownloadChannelInfo{ prepaidDownloadSize, 0, 0, clients, replicatorsList, std::move(map) };
+        m_downloadChannelMap[channelId] = DownloadChannelInfo{ prepaidDownloadSize, 0, 0, driveKey.array(), replicatorsList, map, clients };
     }
 
     void addModifyDriveInfo( const Key&             modifyTransactionHash,
+                             const Key&             driveKey,
                              uint64_t               dataSize,
                              const Key&             clientPublicKey,
                              const ReplicatorList&  replicatorsList )
@@ -240,8 +245,7 @@ public:
         // we need to add modifyTransactionHash into 'm_downloadChannelMap'
         // because replicators could download pieces from their neighbors
         //
-        m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ dataSize, 0, 0, std::move(clients), replicatorsList, {} };
-        
+        m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ dataSize, 0, 0, driveKey.array(), replicatorsList, {}, clients };
     }
     
     void removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash )
@@ -296,12 +300,14 @@ public:
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
+        // May be this piece was sent to client (during data download)
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
             it->second.m_uploadedSize += pieceSize;
-            //return;
+            return;
         }
 
+        // May be this piece was sent to another replicator (during drive modification)
         if ( auto it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
         {
             if ( auto peerIt = it->second.m_modifyTrafficMap.find(receiverPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
@@ -313,6 +319,14 @@ public:
         }
 
         //LOG_ERR( "ERROR(2): unknown transactionHash: " << (int)transactionHash[0] );
+    }
+    
+    void createMyDownloadOpinion( const std::array<uint8_t,32>& downloadChannelId )
+    {
+        if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
+        {
+            //todo
+        }
     }
 
     void onPieceReceived( const std::array<uint8_t,32>&  transactionHash,
@@ -340,13 +354,14 @@ public:
     // will be called when one replicator informs another about downloaded size by client
     virtual void acceptReceiptFromAnotherReplicator( const std::array<uint8_t,32>&  downloadChannelId,
                                                      const std::array<uint8_t,32>&  clientPublicKey,
+                                                     const std::array<uint8_t,32>&  replicatorPublicKey,
                                                      uint64_t                       downloadedSize,
                                                      const std::array<uint8_t,64>&  signature ) override
     {
         // verify receipt
         if ( !verifyReceipt(  downloadChannelId,
                               clientPublicKey,
-                              publicKey(),
+                              replicatorPublicKey,
                               downloadedSize,
                               signature ) )
         {
@@ -358,6 +373,42 @@ public:
         }
 
         //todo accept
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
+        {
+            // check client key
+            const auto& v = it->second.m_clients;
+            if ( std::find_if( v.begin(), v.end(), [&clientPublicKey](const auto& element)
+                              { return element == clientPublicKey; } ) == v.end() )
+            {
+                LOG_ERR( "acceptReceiptFromAnotherReplicator: bad client key; it is ignored" );
+                return;
+            }
+
+            auto replicatorIt = it->second.m_replicatorUploadMap.find( replicatorPublicKey );
+            
+            if ( replicatorIt != it->second.m_replicatorUploadMap.end() )
+            {
+                replicatorIt->second.m_uploadedSize = downloadedSize;
+            }
+            else
+            {
+                // check replicator key
+                const auto& v = it->second.m_replicatorsList;
+                if ( std::find_if( v.begin(), v.end(), [&replicatorPublicKey](const auto& element)
+                                  { return element.m_publicKey.array() == replicatorPublicKey; } ) == v.end() )
+                {
+                    LOG_ERR( "acceptReceiptFromAnotherReplicator: bad replicator key; it is ignored" );
+                    return;
+                }
+                it->second.m_replicatorUploadMap[replicatorPublicKey] = {downloadedSize};
+            }
+        }
+        else
+        {
+            _LOG( "acceptReceiptFromAnotherReplicator: unknown channelId" );
+        }
+
         return;
     }
     
@@ -412,11 +463,6 @@ public:
                          uint64_t                       downloadedSize,
                          const std::array<uint8_t,64>&  signature ) override
     {
-//todo++
-        LOG( "+SSS " << dbgOurPeerName() << " " << int(downloadChannelId[0]) << " " << (int)clientPublicKey[0] << " " << (int) replicatorPublicKey[0] << " " << downloadedSize );
-//
-        LOG( "+SSS: " << int(signature[0]) );
-
         return crypto::Verify( clientPublicKey,
                                {
                                     utils::RawBuffer{downloadChannelId},

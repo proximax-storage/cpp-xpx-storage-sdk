@@ -28,12 +28,24 @@ struct DownloadChannelInfo
     uint64_t                m_prepaidDownloadSize;
     uint64_t                m_requestedSize = 0;
     uint64_t                m_uploadedSize = 0;
-    std::vector<std::array<uint8_t, 32>> m_clients; //todo
-    ReplicatorList          m_replicatorsList;
+    std::array<uint8_t, 32> m_driveKey;
+    ReplicatorList          m_replicatorsList;      //todo must be synchronized with drive.m_replicatorList (in higher versions?)
     ReplicatorUploadMap     m_replicatorUploadMap;
+    std::vector<std::array<uint8_t, 32>> m_clients; //todo
 };
 
-using ChannelMap        = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
+using ChannelMap         = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
+
+struct DownloadOpinionMapValue
+{
+    DownloadApprovalTransactionInfo                     m_info;
+    bool                                                m_approveTransactionSent = false;
+    bool                                                m_approveTransactionReceived = false;
+    std::optional<boost::asio::high_resolution_timer>   m_timer = {};
+    boost::posix_time::ptime                            m_creationTime = boost::posix_time::microsec_clock::universal_time();
+};
+
+using DownloadOpinionMap = std::map<std::array<uint8_t,32>, DownloadOpinionMapValue>;
 
 // It is used for mutual calculation of the replicators, when they download 'modify data'
 // (Note. Replicators could receive 'modify data' from client and from replicators, that already receives some piece)
@@ -103,15 +115,22 @@ public:
     // (it does not contain its own endpoint)
     virtual void        addDownloadChannelInfo( const std::array<uint8_t,32>&   channelKey,
                                                 size_t                          prepaidDownloadSize,
+                                                const Key&                      driveKey,
                                                 const ReplicatorList&           replicatorsList,
-                                                std::vector<Key>&&        		clients ) = 0;
+                                                const std::vector<Key>&         clients ) = 0;
 
+    //
     virtual void        removeDownloadChannelInfo( const std::array<uint8_t,32>& channelId ) = 0;
 
-    // TODO
-    // Usually, DownloadApprovalTransactions are made once per 24 hours and paid by the Drive Owner
     //
-//    virtual void prepareDownloadApprovalTransactionInfo() = 0;
+    virtual void        onDownloadOpinionReceived( DownloadApprovalTransactionInfo&& anOpinion ) = 0;
+    
+    // Usually, DownloadApprovalTransactions are made once per 24 hours and paid by the Drive Owner
+    // (It initiate opinion exchange, and then publishing of 'DownloadApprovalTransaction')
+    virtual void        prepareDownloadApprovalTransactionInfo( const Hash256& blockHash, const Hash256& channelId ) = 0;
+
+    // It will clear opinion map
+    virtual void        onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId ) = 0;
 
     // It will be called when other replicator calculated rootHash and send his opinion
     virtual void        onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;

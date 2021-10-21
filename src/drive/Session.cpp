@@ -147,6 +147,9 @@ private:
             settingsPack.set_bool( lt::settings_pack::enable_incoming_tcp, true );
         }
 
+        //todo 1. is it enough? 2. is it for single peer?
+        settingsPack.set_int( lt::settings_pack::dht_upload_rate_limit, 800000 );
+
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
         settingsPack.set_bool( lt::settings_pack::enable_upnp, false );
@@ -451,32 +454,50 @@ private:
 //            _LOG( "message: " << message );
 //            _LOG( "response: " << response );
 
-            if ( query == "opinion" )
+            if ( query == "opinion" || query == "dnopinion" )
             {
                 auto str = message.dict_find_string_value("x");
                 std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
 
                 m_replicator->onMessageReceived( std::string(query.begin(),query.end()), packet );
+
+                response["r"]["ret"] = "ok";
                 return true;
             }
             
             if ( message.dict_find_string_value("q") == "rcpt" )
             {
                 auto str = message.dict_find_string_value("x");
-                std::vector<uint8_t> packet( (uint8_t*)str.data(), (uint8_t*)str.data()+str.size() );
-//                message.insert( message.end(), downloadChannelId.begin(), downloadChannelId.end() );
-//                message.insert( message.end(), clientPublicKey.begin(),   clientPublicKey.end() );
-//                message.insert( message.end(), (uint8_t*)&downloadedSize, ((uint8_t*)&downloadedSize)+8 );
-//                message.insert( message.end(), signature.begin(),         signature.end() );
-//
-//
 
-//                replicator->acceptReceiptFromAnotherReplicator( const std::array<uint8_t,32>&  downloadChannelId,
-//                                               const std::array<uint8_t,32>&  clientPublicKey,
-//                                               uint64_t                       downloadedSize,
-//                                               const std::array<uint8_t,64>&  signature )
+                std::array<uint8_t,32>  downloadChannelId;
+                std::array<uint8_t,32>  clientPublicKey;
+                std::array<uint8_t,32>  replicatorPublicKey;
+                uint64_t                totalDownloadedSize;
+                Signature               signature;
 
-                //m_session->delegate();
+                //todo ignore invalid packet
+                assert( str.size() == downloadChannelId.size() + clientPublicKey.size() + replicatorPublicKey.size() + 8 + signature.size() );
+                uint8_t* ptr = (uint8_t*)str.data();
+                memcpy( downloadChannelId.data(), ptr, downloadChannelId.size() );
+                ptr += downloadChannelId.size();
+                memcpy( clientPublicKey.data(), ptr, clientPublicKey.size() );
+                ptr += clientPublicKey.size();
+                memcpy( replicatorPublicKey.data(), ptr, clientPublicKey.size() );
+                ptr += replicatorPublicKey.size();
+                memcpy( &totalDownloadedSize, ptr, 8 );
+                ptr += 8;
+                memcpy( signature.data(), ptr, signature.size() );
+                //ptr += signature.size();
+
+                
+                // it will be verifyed in acceptReceiptFromAnotherReplicator()
+                //assert( m_replicator->verifyReceipt( downloadChannelId, clientPublicKey, replicatorPublicKey, totalDownloadedSize, signature.array() ) );
+
+                m_replicator->acceptReceiptFromAnotherReplicator( downloadChannelId,
+                                                                clientPublicKey,
+                                                                replicatorPublicKey,
+                                                                totalDownloadedSize,
+                                                                signature.array() );
             }
             
 //            if ( message.dict_find_string_value("q") == "sirius_message" )
@@ -492,8 +513,8 @@ private:
 //                    }
 //                    return true;
 //                }
-                response["x"] = "sirius_message_response";
-//                return true;
+                response["r"]["ret"] = "ok";
+                return true;
 //            }
             return true;
         }
@@ -512,7 +533,7 @@ private:
         LOG( "lt::entry e: " << e );
 
 //        lt::client_data_t client_data(this);
-        m_session.dht_direct_request( udp, e );
+        m_session.dht_direct_request( udp, e, lt::client_data_t(reinterpret_cast<int*>(12345))  );
     }
 
     void sendMessage( const std::string& query, boost::asio::ip::udp::endpoint endPoint, const std::vector<uint8_t>& message ) override
@@ -563,6 +584,11 @@ private:
 
         // loop by alerts
         for (auto &alert : alerts) {
+
+//            if ( alert->type() == lt::dht_log_alert::alert_type || alert->type() == lt::dht_direct_response_alert::alert_type )
+//            {
+//                    _LOG( ">" << m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
+//            }
 
 //            if ( alert->type() != lt::log_alert::alert_type )
 //            {

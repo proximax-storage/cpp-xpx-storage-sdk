@@ -25,13 +25,13 @@ const bool gUse3Replicators = true;
 // This example shows interaction between 'client' and 'replicator'.
 //
 
-#define BIG_FILE_SIZE 10 * 1024*1024
-#define TRANSPORT_PROTOCOL true // true - TCP, false - uTP
+#define BIG_FILE_SIZE 10 * 1024*1000 //150//4
+#define TRANSPORT_PROTOCOL false // true - TCP, false - uTP
 
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_IP_ADDR          "192.168.1.102"
+#define CLIENT_IP_ADDR          "192.168.1.101"
 #define CLIENT_PORT             5000
 
 #define REPLICATOR_IP_ADDR      "127.0.0.1"
@@ -53,7 +53,10 @@ const bool gUse3Replicators = true;
 
 #define CLIENT_WORK_FOLDER              fs::path(getenv("HOME")) / "111" / "client_work_folder"
 
-#define CLIENT_PRIVATE_KEY          "0000000000010203040501020304050102030405010203040501020304050102"
+auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
+                               sirius::crypto::PrivateKey::FromString( "0000000000010203040501020304050102030405010203040501020304050102" ));
+
+
 #define REPLICATOR_PRIVATE_KEY      "1000000000010203040501020304050102030405010203040501020304050102"
 #define REPLICATOR_PRIVATE_KEY_2    "2000000000010203040501020304050102030405010203040501020304050102"
 #define REPLICATOR_PRIVATE_KEY_3    "3000000000010203040501020304050102030405010203040501020304050102"
@@ -62,11 +65,11 @@ const bool gUse3Replicators = true;
 
 #define DRIVE_PUB_KEY                   std::array<uint8_t,32>{1,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
 
-const sirius::Key clientPublicKey;
-
 const sirius::Hash256 downloadChannelHash1 = std::array<uint8_t,32>{1,1,1,1};
 const sirius::Hash256 downloadChannelHash2 = std::array<uint8_t,32>{2,2,2,2};
 const sirius::Hash256 downloadChannelHash3 = std::array<uint8_t,32>{3,3,3,3};
+
+const sirius::Hash256 initApprovalHash = std::array<uint8_t,32>{0xf,0,0,0};
 
 const sirius::Hash256 modifyTransactionHash1 = std::array<uint8_t,32>{0xa1,0xf,0xf,0xf};
 const sirius::Hash256 modifyTransactionHash2 = std::array<uint8_t,32>{0xa2,0xf,0xf,0xf};
@@ -96,6 +99,9 @@ std::shared_ptr<Replicator> gReplicator4;
 std::thread gReplicatorThread4;
 std::shared_ptr<Replicator> gReplicator5;
 std::thread gReplicatorThread5;
+
+std::map<sirius::Key,std::shared_ptr<Replicator>> gReplicatorMap;
+
 
 class MyReplicatorEventHandler;
 
@@ -170,13 +176,38 @@ class MyReplicatorEventHandler : public ReplicatorEventHandler
 {
 public:
 
-    static std::optional<ApprovalTransactionInfo>   m_approvalTransactionInfo;
-    static std::mutex                               m_transactionInfoMutex;
+    static std::optional<ApprovalTransactionInfo>           m_approvalTransactionInfo;
+    static std::optional<DownloadApprovalTransactionInfo>   m_dnApprovalTransactionInfo;
+    static std::mutex                                       m_transactionInfoMutex;
 
     // It will be called before 'replicator' shuts down
     virtual void willBeTerminated( Replicator& replicator ) override
     {
         EXLOG( "Replicator will be terminated: " << replicator.dbgReplicatorName() );
+    }
+
+    virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& info ) override
+    {
+        EXLOG( "downloadApprovalTransactionIsReady: " << replicator.dbgReplicatorName() );
+
+        const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+        if ( !m_dnApprovalTransactionInfo )
+        {
+            m_dnApprovalTransactionInfo = { std::move(info) };
+            
+            std::thread( [info] { gReplicator->onDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
+            std::thread( [info] { gReplicator2->onDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
+            std::thread( [info] { gReplicator3->onDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
+            
+            for( const auto& opinion : info.m_opinions )
+            {
+                EXLOG( "opinion of: " << gReplicatorMap[opinion.m_replicatorKey]->dbgReplicatorName() );
+                for( const auto& bytes : opinion.m_downloadedBytes )
+                {
+                    EXLOG( "  bytes: " << bytes );
+                }
+            }
+        }
     }
 
     // It will be called when rootHash is calculated in sandbox
@@ -200,9 +231,9 @@ public:
     }
     
     // It will initiate the approving of modify transaction
-    virtual void modifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
+    virtual void modifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
     {
-        EXLOG( "modifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() );
+        EXLOG( "modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName() );
         const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
         if ( !m_approvalTransactionInfo )
         {
@@ -211,15 +242,11 @@ public:
             std::thread( [] { gReplicator->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
             std::thread( [] { gReplicator2->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
             std::thread( [] { gReplicator3->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
-
-//            gReplicator->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo );
-//            gReplicator2->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo );
-//            gReplicator3->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo );
         }
     }
     
     // It will initiate the approving of single modify transaction
-    virtual void singleModifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
+    virtual void singleModifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
     {
         EXLOG( "modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() );
     }
@@ -243,9 +270,9 @@ public:
     }
 };
 
-std::optional<ApprovalTransactionInfo>  MyReplicatorEventHandler::m_approvalTransactionInfo;
-std::mutex                              MyReplicatorEventHandler::m_transactionInfoMutex;
-
+std::optional<ApprovalTransactionInfo>          MyReplicatorEventHandler::m_approvalTransactionInfo;
+std::optional<DownloadApprovalTransactionInfo>  MyReplicatorEventHandler::m_dnApprovalTransactionInfo;
+std::mutex                                      MyReplicatorEventHandler::m_transactionInfoMutex;
 
 MyReplicatorEventHandler gMyReplicatorEventHandler;
 MyReplicatorEventHandler gMyReplicatorEventHandler2;
@@ -267,10 +294,6 @@ int main(int,char**)
     ///
     /// Make the list of replicator addresses
     ///
-    boost::asio::ip::address e3 = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_3);
-    replicatorList.emplace_back( ReplicatorInfo{ {e3, REPLICATOR_PORT_3},
-        sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3)).publicKey() } );
-
     boost::asio::ip::address e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR);
     replicatorList.emplace_back( ReplicatorInfo{ {e, REPLICATOR_PORT},
         sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY)).publicKey() } );
@@ -278,6 +301,15 @@ int main(int,char**)
     boost::asio::ip::address e2 = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_2);
     replicatorList.emplace_back( ReplicatorInfo{ {e2, REPLICATOR_PORT_2},
         sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_2)).publicKey() } );
+
+    boost::asio::ip::address e3 = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_3);
+    replicatorList.emplace_back( ReplicatorInfo{ {e3, REPLICATOR_PORT_3},
+        sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3)).publicKey() } );
+
+    printf( "client key[0] :      0x%x %i\n", clientKeyPair.publicKey().array()[0], clientKeyPair.publicKey().array()[0] );
+    printf( "replicator1 key[0] : 0x%x %i\n", replicatorList[0].m_publicKey[0], replicatorList[0].m_publicKey[0] );
+    printf( "replicator2 key[0] : 0x%x %i\n", replicatorList[1].m_publicKey[0], replicatorList[1].m_publicKey[0] );
+    printf( "replicator3 key[0] : 0x%x %i\n", replicatorList[2].m_publicKey[0], replicatorList[2].m_publicKey[0] );
 
     ///
     /// Create replicators
@@ -290,6 +322,7 @@ int main(int,char**)
                                     TRANSPORT_PROTOCOL,
                                     gMyReplicatorEventHandler,
                                     "replicator1" );
+    gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
 
     gReplicator2 = createReplicator( REPLICATOR_PRIVATE_KEY_2,
                                     REPLICATOR_IP_ADDR_2,
@@ -299,6 +332,7 @@ int main(int,char**)
                                     TRANSPORT_PROTOCOL,
                                     gMyReplicatorEventHandler2,
                                     "replicator2" );
+    gReplicatorMap[gReplicator2->replicatorKey()] = gReplicator2;
 
     gReplicator3 = createReplicator( REPLICATOR_PRIVATE_KEY_3,
                                     REPLICATOR_IP_ADDR_3,
@@ -308,12 +342,11 @@ int main(int,char**)
                                     TRANSPORT_PROTOCOL,
                                     gMyReplicatorEventHandler3,
                                     "replicator3" );
+    gReplicatorMap[gReplicator3->replicatorKey()] = gReplicator3;
 
     ///
     /// Create client session
     ///
-    auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
-                                   sirius::crypto::PrivateKey::FromString( CLIENT_PRIVATE_KEY ));
     gClientFolder  = createClientFiles(BIG_FILE_SIZE);
     gClientSession = createClientSession( std::move(clientKeyPair),
                                          CLIENT_IP_ADDR ":5550",
@@ -377,9 +410,22 @@ int main(int,char**)
 
     /// Client: read files from drive
     clientDownloadFiles( 5, gFsTree );
-
+    
+    ///TODO
+//    sleep(1);
+//    gReplicator->sendMessage( "dnopinion", replicatorList[0].m_endpoint, "str" );
+//    sleep(1);
+//    usleep(1000);
+    //_LOG( "replicatorList[0].m_endpoint" << replicatorList[0].m_endpoint );
+    std::thread( [&]() { gReplicator->prepareDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
+    std::thread( [&]() { gReplicator2->prepareDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
+    std::thread( [&]() { gReplicator3->prepareDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
+    EXLOG( "" );
+    //sleep(1000);
+    
     /// Client: modify drive (2)
-    EXLOG( "\n# Client started: 2-st upload" );
+    EXLOG( "" );
+    EXLOG( "# Client started: 2-st upload/modify" );
     {
         ActionList actionList;
         actionList.push_back( Action::remove( "fff1/" ) );
@@ -438,13 +484,13 @@ static std::shared_ptr<Replicator> createReplicator(
                                         MyReplicatorEventHandler& handler,
                                         const char*         dbgReplicatorName )
 {
-    auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
+    auto replicatorKeyPair = sirius::crypto::KeyPair::FromPrivate(
                                    sirius::crypto::PrivateKey::FromString( privateKey ));
     
-    EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(clientKeyPair.publicKey().array()[0]) );
+    EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(replicatorKeyPair.publicKey().array()[0]) );
 
     auto replicator = createDefaultReplicator(
-                                              std::move( clientKeyPair ),
+                                              std::move( replicatorKeyPair ),
                                               std::move( ipAddr ),
                                               std::to_string(port),
                                               std::move( rootFolder ),
@@ -456,9 +502,9 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->start();
     replicator->addDrive( DRIVE_PUB_KEY, 100*1024*1024 );
 
-    replicator->addDownloadChannelInfo( downloadChannelHash1.array(), 1024*1024,    replicatorList, { clientPublicKey } );
-    replicator->addDownloadChannelInfo( downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientPublicKey } );
-    replicator->addDownloadChannelInfo( downloadChannelHash3.array(), 1024*1024,    replicatorList, { clientPublicKey } );
+    replicator->addDownloadChannelInfo( downloadChannelHash1.array(), 1024*1024,    DRIVE_PUB_KEY, replicatorList, { clientKeyPair.publicKey() } );
+    replicator->addDownloadChannelInfo( downloadChannelHash2.array(), 10*1024*1024, DRIVE_PUB_KEY, replicatorList, { clientKeyPair.publicKey() } );
+    replicator->addDownloadChannelInfo( downloadChannelHash3.array(), 1024*1024,    DRIVE_PUB_KEY, replicatorList, { clientKeyPair.publicKey() } );
 
     // set root drive hash
     driveRootHash = std::make_shared<InfoHash>( replicator->getRootHash( DRIVE_PUB_KEY ) );
