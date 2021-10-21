@@ -16,7 +16,7 @@ namespace sirius::drive::types {
         struct RpcReplicatorInfo
         {
             bool operator==(const RpcReplicatorInfo& replicator) const {
-                return &replicator.m_replicatorPubKey == &m_replicatorPubKey;
+                return replicator.m_replicatorPubKey == m_replicatorPubKey;
             }
 
             std::string             m_replicatorAddress;
@@ -123,9 +123,10 @@ namespace sirius::drive::types {
                 return approvalTransactionInfo;
             }
 
-            static RpcModifyApprovalTransactionInfo getRpcModifyApprovalTransactionInfo(ApprovalTransactionInfo&& transactionInfo) {
+            static RpcModifyApprovalTransactionInfo getRpcModifyApprovalTransactionInfo(const std::array<uint8_t,32>& replicatorPubKey, ApprovalTransactionInfo&& transactionInfo) {
                 types::RpcModifyApprovalTransactionInfo rpcModifyApprovalTransactionInfo;
                 rpcModifyApprovalTransactionInfo.m_drivePubKey = transactionInfo.m_driveKey;
+                rpcModifyApprovalTransactionInfo.m_replicatorPubKey = replicatorPubKey;
                 rpcModifyApprovalTransactionInfo.m_modifyTransactionHash = transactionInfo.m_modifyTransactionHash;
                 rpcModifyApprovalTransactionInfo.m_rootHash = transactionInfo.m_rootHash;
                 rpcModifyApprovalTransactionInfo.m_fsTreeFileSize = transactionInfo.m_fsTreeFileSize;
@@ -151,6 +152,9 @@ namespace sirius::drive::types {
             // Drive public key
             std::array<uint8_t,32>  m_drivePubKey;
 
+            // Replicator public key
+            std::array<uint8_t,32>  m_replicatorPubKey;
+
             // A reference to the transaction that initiated the modification
             std::array<uint8_t,32>  m_modifyTransactionHash;
 
@@ -168,7 +172,7 @@ namespace sirius::drive::types {
 
             // Opinions about how much the Replicators and the Drive Owner have uploaded to this Replicator.
             std::vector<RpcSingleOpinion>   m_opinions;
-            MSGPACK_DEFINE_ARRAY(m_drivePubKey, m_modifyTransactionHash, m_rootHash, m_fsTreeFileSize, m_metaFilesSize, m_driveSize, m_opinions);
+            MSGPACK_DEFINE_ARRAY(m_drivePubKey, m_replicatorPubKey, m_modifyTransactionHash, m_rootHash, m_fsTreeFileSize, m_metaFilesSize, m_driveSize, m_opinions);
         };
 
         struct RpcPrepareDriveTransactionInfo {
