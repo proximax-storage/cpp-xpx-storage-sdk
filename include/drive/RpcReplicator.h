@@ -17,8 +17,6 @@
 #include <future>
 #include <rpc/client.h>
 
-//#define DRIVE_PUB_KEY                   std::array<uint8_t,32>{1,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
-
 
 namespace sirius::drive {
 
@@ -105,8 +103,8 @@ public:
     // It will be called before 'replicator' shuts down
     virtual void willBeTerminated( Replicator& replicator ) override
     {
-        std::cout << "willBeTerminated: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
-        std::cout << "willBeTerminated. Replicator will be terminated: " << replicator.dbgReplicatorName() << std::endl;
+        std::cout << "Replicator. willBeTerminated: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. willBeTerminated. Replicator will be terminated: " << replicator.dbgReplicatorName() << std::endl;
     }
 
     // It will be called when rootHash is calculated in sandbox
@@ -116,8 +114,8 @@ public:
                                        const sirius::drive::InfoHash& sandboxRootHash )  override
     {
         // send DataModificationApprovalTransaction
-        std::cout << "modifyTransactionIsCanceled: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
-        std::cout << "modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() << std::endl;
+        std::cout << "Replicator. modifyTransactionIsCanceled: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() << std::endl;
     }
 
     // It will be called when transaction could not be completed
@@ -127,25 +125,30 @@ public:
                                               const std::string&             reason,
                                               int                            errorCode )  override
     {
-        std::cout << "modifyTransactionIsCanceled: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
-        std::cout << "modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() << std::endl;
+        std::cout << "Replicator. modifyTransactionIsCanceled: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() << std::endl;
     }
 
     // It will initiate the approving of modify transaction
     virtual void modifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) override
     {
-        std::cout << "modifyApproveTransactionIsReady: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
-        std::cout << "modifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() << std::endl;
+        std::cout << "Replicator. modifyApproveTransactionIsReady: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. modifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() << std::endl;
 
         rpc::client emulator(m_emulatorRpcAddress, m_emulatorRpcPort);
-        emulator.call("modifyApproveTransactionIsReady", types::RpcModifyApprovalTransactionInfo::getRpcModifyApprovalTransactionInfo(std::move(transactionInfo)));
+        emulator.call("modifyApproveTransactionIsReady", types::RpcModifyApprovalTransactionInfo::getRpcModifyApprovalTransactionInfo(
+                replicator.keyPair().publicKey().array(), std::move(transactionInfo)));
     }
 
     // It will initiate the approving of single modify transaction
     virtual void singleModifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
     {
-        std::cout << "singleModifyApproveTransactionIsReady: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
-        std::cout << "singleModifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() << std::endl;
+        std::cout << "Replicator. singleModifyApproveTransactionIsReady: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. singleModifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() << std::endl;
+
+        rpc::client emulator(m_emulatorRpcAddress, m_emulatorRpcPort);
+        emulator.call("singleModifyApproveTransactionIsReady", types::RpcModifyApprovalTransactionInfo::getRpcModifyApprovalTransactionInfo(
+                replicator.keyPair().publicKey().array(), std::move(transactionInfo)));
     }
 
     // It will be called after the drive is synchronized with sandbox
@@ -154,14 +157,14 @@ public:
                                                const sirius::drive::InfoHash& modifyTransactionHash,
                                                const sirius::drive::InfoHash& rootHash ) override
     {
-        std::cout << "driveModificationIsCompleted. DriveKey: " << driveKey << std::endl;
-        std::cout << "driveModificationIsCompleted: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. driveModificationIsCompleted. DriveKey: " << driveKey << std::endl;
+        std::cout << "Replicator. driveModificationIsCompleted: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
         replicator.printDriveStatus(driveKey);
     }
 
 private:
     void addDrive(const types::RpcPrepareDriveTransactionInfo& rpcPrepareDriveTransactionInfo) {
-        std::cout << "addDrive: " << utils::HexFormat(rpcPrepareDriveTransactionInfo.m_driveKey) << std::endl;
+        std::cout << "Replicator. addDrive: " << utils::HexFormat(rpcPrepareDriveTransactionInfo.m_driveKey) << std::endl;
         m_replicator->addDrive(
                 rpcPrepareDriveTransactionInfo.m_driveKey,
                 rpcPrepareDriveTransactionInfo.m_driveSize,
@@ -169,16 +172,16 @@ private:
     }
 
     void removeDrive(const std::array<uint8_t, 32>& driveKey) {
-        std::cout << "removeDrive: " << utils::HexFormat(driveKey) << std::endl;
+        std::cout << "Replicator. removeDrive: " << utils::HexFormat(driveKey) << std::endl;
         m_replicator->removeDrive(driveKey);
     }
 
     types::RpcDriveInfo getDrive(const std::array<uint8_t, 32>& driveKey) {
-        std::cout << "getDrive: " << utils::HexFormat(driveKey) << std::endl;
+        std::cout << "Replicator. getDrive: " << utils::HexFormat(driveKey) << std::endl;
 
         std::shared_ptr<sirius::drive::FlatDrive> drive = m_replicator->getDrive(driveKey);
         if (!drive){
-            std::cout << "getDrive. Drive not found: " << utils::HexFormat(driveKey) << std::endl;
+            std::cout << "Replicator. getDrive. Drive not found: " << utils::HexFormat(driveKey) << std::endl;
             return {};
         }
 
@@ -194,7 +197,8 @@ private:
     }
 
     void modifyDrive(const types::RpcDataModification& rpcDataModification) {
-        std::cout << "modifyDrive: " << utils::HexFormat(rpcDataModification.m_drivePubKey) << std::endl;
+        std::cout << "Replicator. modifyDrive: " << m_replicator->dbgReplicatorName() << " : " << utils::HexFormat(rpcDataModification.m_drivePubKey) << std::endl;
+        std::cout << "Replicator. modifyDrive: " << m_replicator->dbgReplicatorName() << " : " << utils::HexFormat(rpcDataModification.m_infoHash) << std::endl;
         m_replicator->modify(rpcDataModification.m_drivePubKey, ModifyRequest{
                 rpcDataModification.m_infoHash,
                 rpcDataModification.m_transactionHash,
@@ -204,7 +208,7 @@ private:
     }
 
     void openDownloadChannel(const types::RpcDownloadChannelInfo& channelInfo) {
-        std::cout << "openDownloadChannel: " << utils::HexFormat(channelInfo.m_channelKey) << std::endl;
+        std::cout << "Replicator. openDownloadChannel: " << utils::HexFormat(channelInfo.m_channelKey) << std::endl;
         m_replicator->addDownloadChannelInfo(
                 channelInfo.m_channelKey,
                 channelInfo.m_prepaidDownloadSize,
@@ -213,19 +217,19 @@ private:
     }
 
     void closeDownloadChannel(const std::array<uint8_t, 32>& channelKey) {
-        std::cout << "closeDownloadChannel: " << utils::HexFormat(channelKey) << std::endl;
+        std::cout << "Replicator. closeDownloadChannel: " << utils::HexFormat(channelKey) << std::endl;
         m_replicator->removeDownloadChannelInfo(channelKey);
     }
 
     void acceptModifyApprovalTransaction(const types::RpcModifyApprovalTransactionInfo& rpcModifyApprovalTransactionInfo) {
-        std::cout << "acceptModifyApprovalTransaction. DriveKey: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_drivePubKey) << std::endl;
-        std::cout << "acceptModifyApprovalTransaction. RootHash: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_rootHash) << std::endl;
+        std::cout << "Replicator. acceptModifyApprovalTransaction. DriveKey: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_drivePubKey) << std::endl;
+        std::cout << "Replicator. acceptModifyApprovalTransaction. RootHash: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_rootHash) << std::endl;
 
         m_replicator->onApprovalTransactionHasBeenPublished(rpcModifyApprovalTransactionInfo.getApprovalTransactionInfo());
     }
 
     void replicatorOnboardingTransaction() {
-        std::cout << "replicatorOnboardingTransaction: " << utils::HexFormat(m_replicator->keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. replicatorOnboardingTransaction: " << utils::HexFormat(m_replicator->keyPair().publicKey().array()) << std::endl;
 
         types::RpcReplicatorInfo rpcReplicatorInfo;
         rpcReplicatorInfo.m_replicatorPubKey = m_replicator->keyPair().publicKey().array();
