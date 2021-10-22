@@ -428,14 +428,16 @@ public:
             opinionInfo.m_opinions.push_back( opinion.m_opinions[0] );
 
             // check opinion number
-            _LOG( "///// " << opinionInfo.m_opinions.size() << " " <<  (opinionInfo.m_replicatorNumber*3)/2 );
-            if ( opinionInfo.m_opinions.size() >= (opinionInfo.m_replicatorNumber*3)/2 )
+            //_LOG( "///// " << opinionInfo.m_opinions.size() << " " <<  (opinionInfo.m_replicatorNumber*2)/3 );
+            //todo not ">=..."!!! - "> (opinionInfo.m_replicatorNumber*2)/3
+            if ( opinionInfo.m_opinions.size() >= (opinionInfo.m_replicatorNumber*2)/3 )
             {
                 // start timer if it is not started
                 if ( !it->second.m_timer )
                 {
                     auto& opinionData = it->second;
-                    it->second.m_timer = m_session->startTimer( 1, [this,&opinionData]() { onDownloadApprovalTimeExipred( opinionData ); } );
+                    //todo 10 miliseconds!!!
+                    it->second.m_timer = m_session->startTimer( 10, [this,&opinionData]() { onDownloadApprovalTimeExipred( opinionData ); } );
                 }
             }
         }
@@ -492,9 +494,8 @@ public:
             {
                 if ( replicatorIt.m_publicKey != publicKey() )
                 {
-                    _LOG( "replicatorIt.m_endpoint: " << replicatorIt.m_endpoint << " " << os.str().length() << " " << dbgReplicatorName() );
-                    //todo++++
-                    sendMessage( "dnopinion", replicatorIt.m_endpoint, "os.str()" );
+                    //_LOG( "replicatorIt.m_endpoint: " << replicatorIt.m_endpoint << " " << os.str().length() << " " << dbgReplicatorName() );
+                    sendMessage( "dnopinion", replicatorIt.m_endpoint, os.str() );
                 }
             }
 
@@ -504,7 +505,7 @@ public:
         {
             LOG_ERR( "channelId not found" );
         }
-        _LOG( "//exit prepareDownloadApprovalTransactionInfo: " << dbgReplicatorName() );
+        //_LOG( "//exit prepareDownloadApprovalTransactionInfo: " << dbgReplicatorName() );
     }
     
     virtual void onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId ) override
@@ -603,7 +604,7 @@ public:
     }
     catch(...)
     {
-        LOG( "onMessageReceived: invalid message format: query=" << query );
+        LOG_ERR( "onMessageReceived: invalid message format: query=" << query );
     }
 
 
