@@ -726,6 +726,7 @@ public:
         {
             // start timer if it is not started
             if ( !m_opinionTimer )
+                //todo 10 miliseconds!!!
                 m_opinionTimer = m_session->startTimer( 10, [this]() { opinionTimerExpired(); } );
         }
     }

@@ -190,9 +190,10 @@ protected:
 //    }
 
     void onPieceRequested( const std::array<uint8_t,32>&  transactionHash,
-                           const std::array<uint8_t,32>&  receiverPublicKey,
+                           const std::array<uint8_t,32>&  senderPublicKey,
                            uint64_t                       pieceSize ) override
     {
+        m_requestedSize[senderPublicKey] += pieceSize;
     }
     
     void onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
