@@ -57,9 +57,10 @@ namespace sirius::drive::types {
 
             std::array<uint8_t, 32>                 m_channelKey;
             size_t                                  m_prepaidDownloadSize;
+            std::array<uint8_t, 32>                 m_drivePubKey;
             RpcReplicatorList                       m_rpcReplicators;
             std::vector<std::array<uint8_t, 32>>    m_clientsPublicKeys;
-            MSGPACK_DEFINE_ARRAY(m_channelKey, m_prepaidDownloadSize, m_rpcReplicators, m_clientsPublicKeys);
+            MSGPACK_DEFINE_ARRAY(m_channelKey, m_prepaidDownloadSize, m_drivePubKey, m_rpcReplicators, m_clientsPublicKeys);
         };
 
         struct RpcDataModification {

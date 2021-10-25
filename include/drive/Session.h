@@ -9,6 +9,10 @@
 #include "ActionList.h"
 #include "log.h"
 
+#include "crypto/Signer.h"
+
+#include <cereal/archives/binary.hpp>
+
 #include <filesystem>
 #include <libtorrent/torrent_handle.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -25,8 +29,6 @@ using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
 namespace sirius::drive {
 
 #define FS_TREE_FILE_NAME "FsTree.bin"
-
-struct ApprovalTransactionInfo;
 
 // It will be used to inform 'client' about download status
 //

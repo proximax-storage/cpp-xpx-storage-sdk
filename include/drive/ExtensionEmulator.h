@@ -140,18 +140,16 @@ namespace sirius::drive {
         void modifyApproveTransactionIsReady(const types::RpcModifyApprovalTransactionInfo& rpcModifyApprovalTransactionInfo) {
             std::cout << "Extension. modifyApproveTransactionIsReady: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_drivePubKey) << std::endl;
 
-            types::RpcReplicatorInfo rpcReplicatorInfo;
-            rpcReplicatorInfo.m_replicatorPubKey = rpcModifyApprovalTransactionInfo.m_replicatorPubKey;
+            if (!m_modifyApproveHashes.contains(rpcModifyApprovalTransactionInfo.m_modifyTransactionHash)) {
+                m_modifyApproveHashes.insert(rpcModifyApprovalTransactionInfo.m_modifyTransactionHash);
 
-            const auto& r = std::find(m_rpcReplicators.begin(), m_rpcReplicators.end(), rpcReplicatorInfo);
-            if(r != m_rpcReplicators.end()) {
-                const std::string address = r->m_replicatorAddress;
-                const unsigned short port = r->m_replicatorPort;
+                for (const types::RpcReplicatorInfo& rpcReplicatorInfo : m_rpcReplicators) {
+                    const std::string address = rpcReplicatorInfo.m_replicatorAddress;
+                    const unsigned short port = rpcReplicatorInfo.m_rpcReplicatorPort;
 
-                rpc::client replicator(address, port);
-                replicator.call("acceptModifyApprovalTransaction", rpcModifyApprovalTransactionInfo);
-            } else {
-                std::cout << "Extension. replicator not found!: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_replicatorPubKey) << std::endl;
+                    rpc::client replicator(address, port);
+                    replicator.call("acceptModifyApprovalTransaction", rpcModifyApprovalTransactionInfo);
+                }
             }
         }
 
@@ -164,7 +162,7 @@ namespace sirius::drive {
             const auto& r = std::find(m_rpcReplicators.begin(), m_rpcReplicators.end(), rpcReplicatorInfo);
             if(r != m_rpcReplicators.end()) {
                 const std::string address = r->m_replicatorAddress;
-                const unsigned short port = r->m_replicatorPort;
+                const unsigned short port = r->m_rpcReplicatorPort;
 
                 rpc::client replicator(address, port);
                 replicator.call("acceptSingleModifyApprovalTransaction", rpcModifyApprovalTransactionInfo);
@@ -244,6 +242,7 @@ namespace sirius::drive {
         }
 
     private:
+        std::set<std::array<uint8_t,32>> m_modifyApproveHashes;
         std::shared_ptr<rpc::server> m_rpcServer;
         types::RpcReplicatorList m_rpcReplicators;
         std::string m_address;

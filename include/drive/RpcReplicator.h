@@ -89,6 +89,10 @@ public:
         m_rpcServer->bind( "acceptModifyApprovalTransaction", [this](const types::RpcModifyApprovalTransactionInfo& rpcModifyApprovalTransactionInfo) {
             acceptModifyApprovalTransaction(rpcModifyApprovalTransactionInfo);
         } );
+
+        m_rpcServer->bind( "acceptSingleModifyApprovalTransaction", [this](const types::RpcModifyApprovalTransactionInfo& rpcModifyApprovalTransactionInfo) {
+            acceptSingleModifyApprovalTransaction(rpcModifyApprovalTransactionInfo);
+        } );
     }
 
 public:
@@ -101,14 +105,14 @@ public:
     }
 
     // It will be called before 'replicator' shuts down
-    virtual void willBeTerminated( Replicator& replicator ) override
+    void willBeTerminated( Replicator& replicator ) override
     {
         std::cout << "Replicator. willBeTerminated: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
         std::cout << "Replicator. willBeTerminated. Replicator will be terminated: " << replicator.dbgReplicatorName() << std::endl;
     }
 
     // It will be called when rootHash is calculated in sandbox
-    virtual void rootHashIsCalculated( Replicator&                    replicator,
+    void rootHashIsCalculated( Replicator&                    replicator,
                                        const sirius::Key&             driveKey,
                                        const sirius::drive::InfoHash& modifyTransactionHash,
                                        const sirius::drive::InfoHash& sandboxRootHash )  override
@@ -119,7 +123,7 @@ public:
     }
 
     // It will be called when transaction could not be completed
-    virtual void modifyTransactionIsCanceled( Replicator& replicator,
+    void modifyTransactionIsCanceled( Replicator& replicator,
                                               const sirius::Key&             driveKey,
                                               const sirius::drive::InfoHash& modifyTransactionHash,
                                               const std::string&             reason,
@@ -130,7 +134,7 @@ public:
     }
 
     // It will initiate the approving of modify transaction
-    virtual void modifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) override
+    void modifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) override
     {
         std::cout << "Replicator. modifyApproveTransactionIsReady: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
         std::cout << "Replicator. modifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() << std::endl;
@@ -141,7 +145,7 @@ public:
     }
 
     // It will initiate the approving of single modify transaction
-    virtual void singleModifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
+    void singleModifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
     {
         std::cout << "Replicator. singleModifyApproveTransactionIsReady: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
         std::cout << "Replicator. singleModifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() << std::endl;
@@ -152,7 +156,7 @@ public:
     }
 
     // It will be called after the drive is synchronized with sandbox
-    virtual void driveModificationIsCompleted( Replicator&                    replicator,
+    void driveModificationIsCompleted( Replicator&                    replicator,
                                                const sirius::Key&             driveKey,
                                                const sirius::drive::InfoHash& modifyTransactionHash,
                                                const sirius::drive::InfoHash& rootHash ) override
@@ -160,6 +164,10 @@ public:
         std::cout << "Replicator. driveModificationIsCompleted. DriveKey: " << driveKey << std::endl;
         std::cout << "Replicator. driveModificationIsCompleted: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
         replicator.printDriveStatus(driveKey);
+    }
+
+    void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) override {
+        std::cout << "Replicator. downloadApprovalTransactionIsReady. DriveKey: " << std::endl;
     }
 
 private:
@@ -212,6 +220,7 @@ private:
         m_replicator->addDownloadChannelInfo(
                 channelInfo.m_channelKey,
                 channelInfo.m_prepaidDownloadSize,
+                channelInfo.m_drivePubKey,
                 channelInfo.getReplicators(),
                 channelInfo.getClientsPublicKeys());
     }
@@ -226,6 +235,13 @@ private:
         std::cout << "Replicator. acceptModifyApprovalTransaction. RootHash: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_rootHash) << std::endl;
 
         m_replicator->onApprovalTransactionHasBeenPublished(rpcModifyApprovalTransactionInfo.getApprovalTransactionInfo());
+    }
+
+    void acceptSingleModifyApprovalTransaction(const types::RpcModifyApprovalTransactionInfo& rpcModifyApprovalTransactionInfo) {
+        std::cout << "Replicator. acceptSingleModifyApprovalTransaction. DriveKey: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_drivePubKey) << std::endl;
+        std::cout << "Replicator. acceptSingleModifyApprovalTransaction. RootHash: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_rootHash) << std::endl;
+
+        m_replicator->onSingleApprovalTransactionHasBeenPublished(rpcModifyApprovalTransactionInfo.getApprovalTransactionInfo());
     }
 
     void replicatorOnboardingTransaction() {

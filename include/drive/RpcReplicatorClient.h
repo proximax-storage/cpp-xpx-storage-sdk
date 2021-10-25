@@ -101,6 +101,7 @@ public:
     void openDownloadChannel(
             const std::array<uint8_t,32>&   channelKey,
             const size_t                    prepaidDownloadSize,
+            const std::array<uint8_t,32>&   drivePubKey,
             const std::vector<Key>&        	clients,
             const ReplicatorList&           replicatorList) {
         std::cout << "Client. openDownloadChannel: " << utils::HexFormat(channelKey) << std::endl;
@@ -109,7 +110,16 @@ public:
         types::RpcDownloadChannelInfo rpcDownloadChannelInfo;
         rpcDownloadChannelInfo.m_channelKey = channelKey;
         rpcDownloadChannelInfo.m_prepaidDownloadSize = prepaidDownloadSize;
+        rpcDownloadChannelInfo.m_drivePubKey = drivePubKey;
         rpcDownloadChannelInfo.setClientsPublicKeys(clients);
+
+        types::RpcDriveInfo rpcDriveInfo = getDrive(drivePubKey);
+        if (rpcDriveInfo.m_rpcReplicators.empty()) {
+            std::cout << "Client. openDownloadChannel. Replicators list is empty: " << utils::HexFormat(drivePubKey) << std::endl;
+            return;
+        }
+
+        rpcDownloadChannelInfo.m_rpcReplicators = rpcDriveInfo.m_rpcReplicators;
 
         m_rpcClient->call( "openDownloadChannel", rpcDownloadChannelInfo );
     }

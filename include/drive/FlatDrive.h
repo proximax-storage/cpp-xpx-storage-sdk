@@ -136,6 +136,76 @@ class Replicator;
         }
     };
 
+    struct DownloadOpinion
+    {
+        // Replicator public key
+        std::array<uint8_t,32>  m_replicatorKey;
+
+        std::vector<uint64_t>   m_downloadedBytes;
+        
+        // Signature of { modifyTransactionHash, rootHash, replicatorsUploadBytes, clientUploadBytes }
+        Signature               m_signature;
+        
+        DownloadOpinion() = default;
+        
+        DownloadOpinion( const Key& replicatorKey ) : m_replicatorKey( replicatorKey.array() )
+        {
+        }
+        
+        void Sign( const crypto::KeyPair& keyPair, const std::array<uint8_t,32>& blockHash, const std::array<uint8_t,32>& downloadChannelId )
+        {
+            crypto::Sign( keyPair,
+                          {
+                            utils::RawBuffer{blockHash},
+                            utils::RawBuffer{downloadChannelId},
+                            utils::RawBuffer{ (const uint8_t*) &m_downloadedBytes[0],
+                                m_downloadedBytes.size() * sizeof (m_downloadedBytes[0]) },
+                          },
+                          m_signature );
+        }
+
+        bool Verify( const std::array<uint8_t,32>& blockHash, const std::array<uint8_t,32>& downloadChannelId ) const
+        {
+            return crypto::Verify( m_replicatorKey,
+                                   {
+                                        utils::RawBuffer{blockHash},
+                                        utils::RawBuffer{downloadChannelId},
+                                        utils::RawBuffer{ (const uint8_t*) &m_downloadedBytes[0],
+                                        m_downloadedBytes.size() * sizeof (m_downloadedBytes[0]) },
+                                   },
+                                   m_signature );
+        }
+
+        template <class Archive> void serialize( Archive & arch ) {
+            arch( m_replicatorKey );
+            arch( m_downloadedBytes );
+            arch( cereal::binary_data( m_signature.data(), m_signature.size() ) );
+        }
+    };
+
+    struct DownloadApprovalTransactionInfo
+    {
+        // Its id
+        std::array<uint8_t,32>  m_blockHash;
+        
+        // Transaction hash
+        std::array<uint8_t,32>  m_downloadChannelId;
+
+        //
+        uint32_t                m_replicatorNumber;
+
+        // Opinions about how much the Replicators and the Drive Owner have uploaded to this Replicator.
+        std::vector<DownloadOpinion>   m_opinions;
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_blockHash );
+            arch( m_downloadChannelId );
+            arch( m_replicatorNumber );
+            arch( m_opinions );
+        }
+    };
+
 
     // Iterface for storage extension
     class ReplicatorEventHandler
@@ -146,6 +216,8 @@ class Replicator;
 
         // It will be called before 'replicator' shuts down
         virtual void willBeTerminated( Replicator& replicator ) = 0;
+
+        virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
 
         // It will be called when transaction could not be completed
         virtual void modifyTransactionIsCanceled( Replicator& replicator,
@@ -162,21 +234,17 @@ class Replicator;
                                            const sirius::drive::InfoHash& sandboxRootHash ) = 0;
         
         // It will initiate the approving of modify transaction
-        virtual void modifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
+        virtual void modifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
         
         // It will initiate the approving of single modify transaction
-        virtual void singleModifyApproveTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
+        virtual void singleModifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
         
         // It will be called after the drive is syncronized with sandbox
         virtual void driveModificationIsCompleted( Replicator&                    replicator,
                                                    const sirius::Key&             driveKey,
                                                    const sirius::drive::InfoHash& modifyTransactionHash,
                                                    const sirius::drive::InfoHash& rootHash ) = 0;
-        
-        //TODO
-        //virtual DownloadApprovalTransactionInfo& downloadApproveTransactionIsReady() = 0;
     };
-
 
     //
     // Drive
@@ -206,8 +274,12 @@ class Replicator;
         virtual void     cancelModifyDrive( const Hash256& transactionHash ) = 0;
 
         virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
-
-        virtual const    ModifyRequest& modifyRequest() const = 0;
+        
+//        virtual void     onDownloadOpinionReceived( const DownloadApprovalTransactionInfo& anOpinion ) = 0;
+//
+//        virtual void     prepareDownloadApprovalTransactionInfo() = 0;
+        
+        virtual const 	 ModifyRequest& modifyRequest() const = 0;
         
         virtual void     onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
 

@@ -185,6 +185,7 @@ public:
         }
         
         addModifyDriveInfo( modifyRequest.m_transactionHash.array(),
+                            driveKey,
                             modifyRequest.m_maxDataSize,
                             modifyRequest.m_clientPublicKey,
                             modifyRequest.m_replicatorList );
@@ -326,13 +327,14 @@ public:
 
     void addDownloadChannelInfo( const std::array<uint8_t,32>&   channelKey,
                                  size_t                          prepaidDownloadSize,
+                                 const Key&                      driveKey,
                                  const ReplicatorList&           replicatorsList,
-                                 std::vector<Key>&&              clients ) override
+                                 const std::vector<Key>&         clients ) override
     {
         std::vector<std::array<uint8_t,32>> clientList;
         for( const auto& it : clients )
             clientList.push_back( it.array() );
-        addChannelInfo( channelKey, prepaidDownloadSize, replicatorsList, std::move(clientList) );
+        addChannelInfo( channelKey, prepaidDownloadSize, driveKey, replicatorsList, clientList );
     }
 
     void removeDownloadChannelInfo( const std::array<uint8_t,32>& channelKey ) override
@@ -345,10 +347,12 @@ public:
                                                 uint64_t                       downloadedSize,
                                                 const std::array<uint8_t,64>&  signature ) override
     {
-        // verify receipt
+        auto replicatorPublicKey = publicKey();
+
+        // check receipt
         if ( !DownloadLimiter::verifyReceipt(  downloadChannelId,
                                                clientPublicKey,
-                                               publicKey(),
+                                               replicatorPublicKey,
                                                downloadedSize,
                                                signature ) )
         {
@@ -358,13 +362,13 @@ public:
             return;
         }
         
-        // todo
         std::vector<uint8_t> message;
-        message.insert( message.end(), downloadChannelId.begin(), downloadChannelId.end() );
-        message.insert( message.end(), clientPublicKey.begin(),   clientPublicKey.end() );
-        message.insert( message.end(), (uint8_t*)&downloadedSize, ((uint8_t*)&downloadedSize)+8 );
-        message.insert( message.end(), signature.begin(),         signature.end() );
-
+        message.insert( message.end(), downloadChannelId.begin(),   downloadChannelId.end() );
+        message.insert( message.end(), clientPublicKey.begin(),     clientPublicKey.end() );
+        message.insert( message.end(), replicatorPublicKey.begin(), replicatorPublicKey.end() );
+        message.insert( message.end(), (uint8_t*)&downloadedSize,   ((uint8_t*)&downloadedSize)+8 );
+        message.insert( message.end(), signature.begin(),           signature.end() );
+        
         //todo mutex
         if ( auto it = m_downloadChannelMap.find(downloadChannelId); it != m_downloadChannelMap.end() )
         {
@@ -372,6 +376,167 @@ public:
             {
                 m_session->sendMessage( "rcpt", { replicatorIt->m_endpoint.address(), replicatorIt->m_endpoint.port() }, message );
             }
+        }
+    }
+    
+    virtual void onDownloadOpinionReceived( DownloadApprovalTransactionInfo&& anOpinion ) override
+    {
+        if ( anOpinion.m_opinions.size() != 1 )
+        {
+            LOG_ERR( "onDownloadOpinionReceived: invalid opinion format: anOpinion.m_opinions.size() != 1" )
+            return;
+        }
+        
+        std::unique_lock<std::mutex> lock(m_mutex);
+        addOpinion( std::move(anOpinion) );
+    }
+    
+    DownloadOpinion createMyOpinion( const DownloadChannelInfo& info )
+    {
+        DownloadOpinion myOpinion( publicKey() );
+
+        for( const auto& replicatorIt : info.m_replicatorsList )
+        {
+            if ( auto downloadedIt = info.m_replicatorUploadMap.find( replicatorIt.m_publicKey.array()); downloadedIt != info.m_replicatorUploadMap.end() )
+            {
+                myOpinion.m_downloadedBytes.push_back( downloadedIt->second.m_uploadedSize );
+            }
+            else if ( replicatorIt.m_publicKey == publicKey() )
+            {
+                myOpinion.m_downloadedBytes.push_back( info.m_uploadedSize );
+            }
+            else
+            {
+                myOpinion.m_downloadedBytes.push_back( 0 );
+            }
+        }
+        
+        return myOpinion;
+    }
+    
+    void addOpinion( DownloadApprovalTransactionInfo&& opinion )
+    {
+        //
+        // remove outdated entries (by m_creationTime)
+        //
+        auto now = boost::posix_time::microsec_clock::universal_time();
+        
+        for( auto it = m_downloadOpinionMap.begin(), last = m_downloadOpinionMap.end(); it != last; )
+        {
+            if ( (now - it->second.m_creationTime).seconds() > 60*60 )
+            {
+                it = m_downloadOpinionMap.erase(it);
+            }
+            else
+            {
+                it++;
+            }
+        }
+        
+        //
+        // add opinion
+        //
+        if ( auto it = m_downloadOpinionMap.find( opinion.m_blockHash ); it != m_downloadOpinionMap.end() )
+        {
+            auto& opinionInfo = it->second.m_info;
+            opinionInfo.m_opinions.push_back( opinion.m_opinions[0] );
+
+            // check opinion number
+            _LOG( "///// " << opinionInfo.m_opinions.size() << " " <<  (opinionInfo.m_replicatorNumber*3)/2 );
+            if ( opinionInfo.m_opinions.size() >= (opinionInfo.m_replicatorNumber*3)/2 )
+            {
+                // start timer if it is not started
+                if ( !it->second.m_timer )
+                {
+                    auto& opinionData = it->second;
+                    it->second.m_timer = m_session->startTimer( 1, [this,&opinionData]() { onDownloadApprovalTimeExipred( opinionData ); } );
+                }
+            }
+        }
+        else
+        {
+            m_downloadOpinionMap.insert( { opinion.m_blockHash, DownloadOpinionMapValue{std::move(opinion)}} );
+        }
+    }
+    
+    void onDownloadApprovalTimeExipred( DownloadOpinionMapValue& mapValue )
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+
+        if ( mapValue.m_approveTransactionSent || mapValue.m_approveTransactionReceived )
+            return;
+
+        // notify
+        m_eventHandler.downloadApprovalTransactionIsReady( *this, mapValue.m_info );
+        mapValue.m_approveTransactionSent = true;
+    }
+    
+    virtual void prepareDownloadApprovalTransactionInfo( const Hash256& blockHash, const Hash256& channelId ) override
+    {
+        _LOG( "prepareDownloadApprovalTransactionInfo: " << dbgReplicatorName() );
+        std::unique_lock<std::mutex> lock(m_mutex);
+
+        //todo make queue for several simultaneous requests of the same channelId
+        
+        if ( auto it = m_downloadChannelMap.find( channelId.array() ); it != m_downloadChannelMap.end() )
+        {
+            const auto& replicatorsList = it->second.m_replicatorsList;
+
+            //
+            // Create my opinion
+            //
+            
+            auto myOpinion = createMyOpinion(it->second);
+            myOpinion.Sign( keyPair(), blockHash.array(), channelId.array() );
+            
+            DownloadApprovalTransactionInfo transactionInfo{  blockHash.array(),
+                                                            channelId.array(),
+                                                            (uint32_t)replicatorsList.size(),
+                                                            { myOpinion }};
+            
+            //
+            // Send my opinion to other replicators
+            //
+
+            std::ostringstream os( std::ios::binary );
+            cereal::PortableBinaryOutputArchive archive( os );
+            archive( transactionInfo );
+
+            for( const auto& replicatorIt : replicatorsList )
+            {
+                if ( replicatorIt.m_publicKey != publicKey() )
+                {
+                    _LOG( "replicatorIt.m_endpoint: " << replicatorIt.m_endpoint << " " << os.str().length() << " " << dbgReplicatorName() );
+                    //todo++++
+                    sendMessage( "dnopinion", replicatorIt.m_endpoint, "os.str()" );
+                }
+            }
+
+            addOpinion( std::move(transactionInfo) );
+        }
+        else
+        {
+            LOG_ERR( "channelId not found" );
+        }
+        _LOG( "//exit prepareDownloadApprovalTransactionInfo: " << dbgReplicatorName() );
+    }
+    
+    virtual void onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId ) override
+    {
+        // clear opinion map
+        if ( auto it = m_downloadOpinionMap.find( blockHash.array() ); it != m_downloadOpinionMap.end() )
+        {
+            if ( it->second.m_timer )
+                it->second.m_timer.reset();
+            
+            it->second.m_approveTransactionReceived = true;
+              
+            //todo remove it after some time?
+            //m_downloadOpinionMap.erase( it );
+        }
+        else
+        {
+            LOG_ERR( "channelId not found" );
         }
     }
     
@@ -417,7 +582,7 @@ public:
         m_session->sendMessage( query, { endpoint.address(), endpoint.port() }, message );
     }
     
-    virtual void onMessageReceived( const std::string& query, const std::string& message ) override
+    virtual void onMessageReceived( const std::string& query, const std::string& message ) override try
     {
         //todo
         if ( query == "opinion" )
@@ -435,7 +600,24 @@ public:
             {
                 LOG_ERR( "onMessageReceived(opinion): drive not found" );
             }
+            return;
         }
+        else if ( query ==  "dnopinion" )
+        {
+            std::istringstream is( message, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            DownloadApprovalTransactionInfo info;
+            iarchive( info );
+
+            onDownloadOpinionReceived( std::move(info) );
+            return;
+        }
+        
+        assert(0);
+    }
+    catch(...)
+    {
+        LOG( "onMessageReceived: invalid message format: query=" << query );
     }
 
 
