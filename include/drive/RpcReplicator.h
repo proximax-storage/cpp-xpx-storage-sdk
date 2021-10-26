@@ -156,7 +156,7 @@ public:
     }
 
     // It will be called after the drive is synchronized with sandbox
-    void driveModificationIsCompleted( Replicator&                    replicator,
+    void driveModificationIsCompleted( Replicator&                            replicator,
                                                const sirius::Key&             driveKey,
                                                const sirius::drive::InfoHash& modifyTransactionHash,
                                                const sirius::drive::InfoHash& rootHash ) override
@@ -234,7 +234,10 @@ private:
         std::cout << "Replicator. acceptModifyApprovalTransaction. DriveKey: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_drivePubKey) << std::endl;
         std::cout << "Replicator. acceptModifyApprovalTransaction. RootHash: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_rootHash) << std::endl;
 
-        m_replicator->onApprovalTransactionHasBeenPublished(rpcModifyApprovalTransactionInfo.getApprovalTransactionInfo());
+        // TODO: thread to avoid deadlock in synchronizeDriveWithSandbox
+        std::thread([this, rpcModifyApprovalTransactionInfo]{
+            m_replicator->onApprovalTransactionHasBeenPublished(rpcModifyApprovalTransactionInfo.getApprovalTransactionInfo());
+        }).detach();
     }
 
     void acceptSingleModifyApprovalTransaction(const types::RpcModifyApprovalTransactionInfo& rpcModifyApprovalTransactionInfo) {

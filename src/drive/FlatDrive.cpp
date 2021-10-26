@@ -117,7 +117,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     size_t        m_maxSize;
     
-    // It has the following statuses: "modification started", "sandbox calculated", mod"ification approved"
+    // It has the following statuses: "modification started", "sandbox calculated", modification approved"
     std::shared_mutex m_mutex;
     bool m_modificationEnded          = true;
     bool m_sandboxCalculated          = false;
