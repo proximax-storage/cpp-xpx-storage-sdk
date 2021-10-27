@@ -45,6 +45,7 @@ struct DownloadOpinionMapValue
     boost::posix_time::ptime                            m_creationTime = boost::posix_time::microsec_clock::universal_time();
 };
 
+// DownloadOpinionMap (key is a blockHash value)
 using DownloadOpinionMap = std::map<std::array<uint8_t,32>, DownloadOpinionMapValue>;
 
 // It is used for mutual calculation of the replicators, when they download 'modify data'
@@ -95,19 +96,16 @@ public:
 
     virtual std::string removeDrive( const Key& driveKey ) = 0;
     
+    // it begins modify operation, that will be performed on session thread
     virtual std::string modify( const Key&          driveKey,
                                 ModifyRequest&&     modifyRequest ) = 0;
 
     virtual std::string cancelModify( const Key&        driveKey,
                                       const Hash256&    transactionHash ) = 0;
 
-    // It will 'move' files from sandbox to drive
-//    virtual std::string acceptModifyApprovalTranaction( const Key&        driveKey,
-//                                                        const Hash256&    transactionHash ) = 0;
-
     virtual Hash256     getRootHash( const Key& driveKey ) = 0;
     
-    virtual const ModifyDriveInfo& getDownloadOpinion( const Hash256&    transactionHash ) = 0;
+    virtual const ModifyDriveInfo& getMyDownloadOpinion( const Hash256&    transactionHash ) = 0;
 
     virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;
 

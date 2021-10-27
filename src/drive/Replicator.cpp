@@ -355,9 +355,11 @@ public:
         message.insert( message.end(), (uint8_t*)&downloadedSize,   ((uint8_t*)&downloadedSize)+8 );
         message.insert( message.end(), signature.begin(),           signature.end() );
         
-        //todo mutex
+        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+
         if ( auto it = m_downloadChannelMap.find(downloadChannelId); it != m_downloadChannelMap.end() )
         {
+            // go throw replictor list
             for( auto replicatorIt = it->second.m_replicatorsList.begin(); replicatorIt != it->second.m_replicatorsList.end(); replicatorIt++ )
             {
                 m_session->sendMessage( "rcpt", { replicatorIt->m_endpoint.address(), replicatorIt->m_endpoint.port() }, message );
@@ -373,7 +375,6 @@ public:
             return;
         }
         
-        std::unique_lock<std::mutex> lock(m_mutex);
         addOpinion( std::move(anOpinion) );
     }
     
@@ -402,6 +403,8 @@ public:
     
     void addOpinion( DownloadApprovalTransactionInfo&& opinion )
     {
+        std::unique_lock<std::shared_mutex> lock(m_downloadOpinionMutex);
+
         //
         // remove outdated entries (by m_creationTime)
         //
@@ -462,7 +465,7 @@ public:
     virtual void prepareDownloadApprovalTransactionInfo( const Hash256& blockHash, const Hash256& channelId ) override
     {
         _LOG( "prepareDownloadApprovalTransactionInfo: " << dbgReplicatorName() );
-        std::unique_lock<std::mutex> lock(m_mutex);
+        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         //todo make queue for several simultaneous requests of the same channelId
         
@@ -475,6 +478,8 @@ public:
             //
             
             auto myOpinion = createMyOpinion(it->second);
+            lock.unlock();
+            
             myOpinion.Sign( keyPair(), blockHash.array(), channelId.array() );
             
             DownloadApprovalTransactionInfo transactionInfo{  blockHash.array(),
@@ -510,16 +515,13 @@ public:
     
     virtual void onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId ) override
     {
+        std::shared_lock<std::shared_mutex> lock(m_downloadOpinionMutex);
+
         // clear opinion map
         if ( auto it = m_downloadOpinionMap.find( blockHash.array() ); it != m_downloadOpinionMap.end() )
         {
             if ( it->second.m_timer )
                 it->second.m_timer.reset();
-            
-            it->second.m_approveTransactionReceived = true;
-              
-            //todo remove it after some time?
-            //m_downloadOpinionMap.erase( it );
         }
         else
         {

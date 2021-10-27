@@ -622,7 +622,7 @@ public:
     
     void createMyOpinion()
     {
-        auto trafficInfo = m_replicator.getDownloadOpinion(  m_modifyRequest->m_transactionHash );
+        auto trafficInfo = m_replicator.getMyDownloadOpinion(  m_modifyRequest->m_transactionHash );
 
         //
         // Calculate upload opinion
@@ -934,11 +934,8 @@ public:
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
-        if ( m_approveTransactionSent || m_approveTransactionReceived )
+        if ( m_approveTransactionSent || m_approveTransactionReceived || m_approveTransactionReceived )
             return;
-        
-        
-
         
         ApprovalTransactionInfo info = {    m_drivePubKey.array(),
                                             m_myOpinion->m_modifyTransactionHash,
