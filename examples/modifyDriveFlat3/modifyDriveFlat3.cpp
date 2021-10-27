@@ -499,6 +499,8 @@ static std::shared_ptr<Replicator> createReplicator(
                                               handler,
                                               dbgReplicatorName );
 
+    replicator->setDownloadApprovalTransactionTimerDelay(1);
+    replicator->setModifyApprovalTransactionTimerDelay(1);
     replicator->start();
     replicator->addDrive( DRIVE_PUB_KEY, 100*1024*1024 );
 

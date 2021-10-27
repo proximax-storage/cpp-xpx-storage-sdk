@@ -13,3 +13,5 @@ Buffer-pool (16KB,32KB ?)
 
 onApprovalTransactionHasBeenPublished and other
 Lock delete drive operation???? (Counter with mutex???)
+
+DeleteApproveTransaction???

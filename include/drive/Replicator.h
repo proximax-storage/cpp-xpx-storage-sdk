@@ -133,10 +133,10 @@ public:
     // It will be called when other replicator calculated rootHash and send his opinion
     virtual void        onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
     
-    // It will be called after 'approval transaction' has been published
+    // It will be called after 'MODIFY approval transaction' has been published
     virtual void        onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
 
-    // It will be called after 'single approval transaction' has been published
+    // It will be called after 'single MODIFY approval transaction' has been published
     virtual void        onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
 
     // TODO:
@@ -148,15 +148,19 @@ public:
     virtual uint64_t    receiptLimit() const = 0;
 
     virtual void        setReceiptLimit( uint64_t newLimitInBytes ) = 0;
-    
+
+    virtual void        setDownloadApprovalTransactionTimerDelay( int miliseconds ) = 0;
+    virtual void        setModifyApprovalTransactionTimerDelay( int miliseconds ) = 0;
+    virtual int         getModifyApprovalTransactionTimerDelay() = 0;
+
     
     // Message exchange
     virtual void        sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint, const std::string& ) = 0;
     
     // It was moveed into ;session_delegate'
     //virtual void        onMessageReceived( const std::string& query, const std::string& ) = 0;
-
     
+
     virtual void        printDriveStatus( const Key& driveKey ) = 0;
     
     virtual void        printTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) = 0;

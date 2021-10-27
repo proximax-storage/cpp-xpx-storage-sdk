@@ -33,7 +33,7 @@ public:
 
     // Drives
     std::map<Key, std::shared_ptr<sirius::drive::FlatDrive>> m_drives;
-    std::mutex  m_mutex;
+    std::shared_mutex  m_driveMutex;
 
     // Replicator's keys
     crypto::KeyPair m_keyPair;
@@ -45,6 +45,9 @@ public:
     // Folders for drives and sandboxes
     std::string m_storageDirectory;
     std::string m_sandboxDirectory;
+    
+    int         m_downloadApprovalTransactionTimerDelayMs = 60*1000;
+    int         m_modifyApprovalTransactionTimerDelayMs   = 60*1000;
 
     bool        m_useTcpSocket;
 
@@ -90,7 +93,7 @@ public:
 
     Hash256 getRootHash( const Key& driveKey ) override
     {
-        std::unique_lock<std::mutex> lock(m_mutex);
+        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
         if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
         {
             auto rootHash = driveIt->second->rootHash();
@@ -106,7 +109,7 @@ public:
 
     void printDriveStatus( const Key& driveKey ) override
     {
-        std::unique_lock<std::mutex> lock(m_mutex);
+        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
         if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
         {
             return driveIt->second->printDriveStatus();
@@ -122,7 +125,7 @@ public:
     {
         LOG( "adding drive " << driveKey );
 
-        std::unique_lock<std::mutex> lock(m_mutex);
+        std::unique_lock<std::shared_mutex> lock(m_driveMutex);
 
         if (m_drives.find(driveKey) != m_drives.end()) {
             return "drive already added";
@@ -144,7 +147,7 @@ public:
     {
         LOG( "removing drive " << driveKey );
 
-        std::unique_lock<std::mutex> lock(m_mutex);
+        std::unique_lock<std::shared_mutex> lock(m_driveMutex);
 
         if (m_drives.find(driveKey) == m_drives.end())
             return "drive not found";
@@ -153,14 +156,14 @@ public:
         return "";
     }
 
-
     std::string modify( const Key& driveKey, ModifyRequest&& modifyRequest ) override
     {
         LOG( "drive modification:\ndrive: " << driveKey << "\n info hash: " << infoHash );
 
+        const std::shared_lock<std::shared_mutex> lock(m_driveMutex);
+
         std::shared_ptr<sirius::drive::FlatDrive> pDrive;
         {
-            const std::unique_lock<std::mutex> lock(m_mutex);
             if ( auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
             {
                 pDrive = driveIt->second;
@@ -186,82 +189,15 @@ public:
                 break;
             }
         }
-        pDrive->startModifyDrive( std::move(modifyRequest)
-//todo+++                                 ,
-//             [this,handler]( modify_status::code    code,
-//                             const FlatDrive&       drive,
-//                             const std::string&     error )
-//        {
-//            if ( code == modify_status::sandbox_root_hash )
-//            {
-//                auto trafficInfo = m_modifyDriveMap[ drive.modifyRequest().m_transactionHash.array() ];
-//
-//                //
-//                // Calculate upload option
-//                //
-//                SingleOpinion opinion( publicKey() );
-//                for( const auto& replicatorIt : drive.modifyRequest().m_replicatorList )
-//                {
-//                    if ( auto it = trafficInfo.m_modifyTrafficMap.find( replicatorIt.m_publicKey.array() );
-//                            it != trafficInfo.m_modifyTrafficMap.end() )
-//                    {
-//                        opinion.m_replicatorUploadBytes.push_back( it->second.m_receivedSize );
-//                    }
-//                    else
-//                    {
-//                        opinion.m_replicatorUploadBytes.push_back( 0 );
-//                    }
-//                }
-//
-//                if ( auto it = trafficInfo.m_modifyTrafficMap.find( drive.modifyRequest().m_clientPublicKey.array() );
-//                        it != trafficInfo.m_modifyTrafficMap.end() )
-//                {
-//                    opinion.m_clientUploadBytes = it->second.m_receivedSize;
-//                }
-//
-//                // Calculate size of torrent files and total drive size
-//                uint64_t metaFilesSize;
-//                uint64_t driveSize;
-//                drive.getSandboxDriveSizes( metaFilesSize, driveSize );
-//
-//                std::optional<ApprovalTransactionInfo>  info {{ drive.drivePublicKey(),
-//                                                                drive.modifyRequest().m_transactionHash,
-//                                                                drive.sandboxRootHash(),
-//                                                                drive.sandboxFsTreeSize(),
-//                                                                metaFilesSize,
-//                                                                driveSize,
-//                                                                { std::move(opinion) }}};
-//
-//                if ( driveSize <= drive.maxSize() )
-//                {
-//                    //todo send my opinion to other replicators
-//                    handler( code, info, error );
-//                }
-//                else
-//                {
-//                    //todo?
-//                    handler( modify_status::failed, info, "data size exceeds max drive size" );
-//                }
-//                return;
-//            }
-//
-//            std::optional<ApprovalTransactionInfo>  info {{ drive.drivePublicKey(),
-//                                                            drive.modifyRequest().m_transactionHash,
-//                                                            drive.rootHash(),
-//                                                            0,
-//                                                            0,
-//                                                            0,
-//                                                            {} }};
-//            handler( code, info, error );
-//        }
-                                 );
+        pDrive->startModifyDrive( std::move(modifyRequest) );
         return "";
     }
     
     std::string cancelModify( const Key&        driveKey,
                               const Hash256&    transactionHash ) override
     {
-        std::unique_lock<std::mutex> lock(m_mutex);
+        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
+        
         if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
         {
             driveIt->second->cancelModifyDrive( transactionHash );
@@ -274,30 +210,13 @@ public:
         return "unknown drive";
     }
     
-//    std::string acceptModifyApprovalTranaction( const Key&        driveKey,
-//                                                const Hash256&    transactionHash ) override
-//    {
-//        std::unique_lock<std::mutex> lock(m_mutex);
-//        if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
-//        {
-//            driveIt->second->approveDriveModification( transactionHash );
-//            return "";
-//        }
-//
-//        LOG_ERR( "unknown drive: " << driveKey );
-//        throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
-//
-//        return "unknown drive";
-//    }
-
-
     std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) override
     {
         LOG( "loadTorrent:\ndrive: " << driveKey << "\n info hash: " << infoHash );
 
         std::shared_ptr<sirius::drive::FlatDrive> pDrive;
         {
-            const std::unique_lock<std::mutex> lock(m_mutex);
+            const std::unique_lock<std::shared_mutex> lock(m_driveMutex);
             if ( auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
             {
                 pDrive = driveIt->second;
@@ -440,7 +359,8 @@ public:
                 {
                     auto& opinionData = it->second;
                     //todo 10 miliseconds!!!
-                    it->second.m_timer = m_session->startTimer( 10, [this,&opinionData]() { onDownloadApprovalTimeExipred( opinionData ); } );
+                    it->second.m_timer = m_session->startTimer( m_downloadApprovalTransactionTimerDelayMs,
+                                            [this,&opinionData]() { onDownloadApprovalTimeExipred( opinionData ); } );
                 }
             }
         }
@@ -452,7 +372,7 @@ public:
     
     void onDownloadApprovalTimeExipred( DownloadOpinionMapValue& mapValue )
     {
-        std::unique_lock<std::mutex> lock(m_mutex);
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
 
         if ( mapValue.m_approveTransactionSent || mapValue.m_approveTransactionReceived )
             return;
@@ -615,6 +535,21 @@ public:
         return m_eventHandler;
     }
 
+    void        setDownloadApprovalTransactionTimerDelay( int miliseconds ) override
+    {
+        m_downloadApprovalTransactionTimerDelayMs = miliseconds;
+    }
+
+    void        setModifyApprovalTransactionTimerDelay( int miliseconds ) override
+    {
+        m_modifyApprovalTransactionTimerDelayMs = miliseconds;
+    }
+    
+    int         getModifyApprovalTransactionTimerDelay() override
+    {
+        return m_modifyApprovalTransactionTimerDelayMs;
+    }
+    
     const char* dbgReplicatorName() const override { return m_dbgReplicatorName; }
     
 private:
