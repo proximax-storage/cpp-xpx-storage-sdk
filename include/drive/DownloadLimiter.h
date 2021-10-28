@@ -28,8 +28,11 @@ protected:
     std::shared_mutex   m_mutex;
 
     ChannelMap          m_downloadChannelMap;
+    std::shared_mutex   m_downloadChannelMutex;
 
     DownloadOpinionMap  m_downloadOpinionMap;
+    std::shared_mutex   m_downloadOpinionMutex;
+
 
     ModifyDriveMap      m_modifyDriveMap;
 
@@ -46,7 +49,7 @@ public:
     
     void printReport( const std::array<uint8_t,32>&  transactionHash )
     {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
+        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
         
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
@@ -61,15 +64,14 @@ public:
     bool acceptConnection( const std::array<uint8_t,32>&  transactionHash,
                            const std::array<uint8_t,32>&  peerPublicKey ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
+        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
         
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
             return true;
         }
-        //todo++
-        _LOG( dbgOurPeerName() << " hash: " << (int)transactionHash[0] );
-        assert(0);
+//        _LOG( dbgOurPeerName() << " hash: " << (int)transactionHash[0] );
+//        assert(0);
         return false;
     }
 
@@ -84,22 +86,10 @@ public:
 
         if ( !(siriusFlags & lt::sf_is_receiver) )
         {
-//            _LOG( " :::::::::::::::::::::::::::::::::::: " );
             _LOG( "onDisconnected: " << dbgOurPeerName() << " from client: " << (int)peerPublicKey[0] );
-//            if ( const auto& it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
-//            {
-//                _LOG( " requestedSize: " << it->second.m_requestedSize );
-//                _LOG( " uploadedSize: " <<  it->second.m_uploadedSize );
-//                for( const auto& replicatorIt : it->second.m_replicatorUploadMap )
-//                {
-//                    _LOG( " uploadedSize: " <<  replicatorIt.second.m_uploadedSize << " by " << (int)replicatorIt.first[0] );
-//                }
-//            }
-//            _LOG( " .................................... " );
         }
         else
         {
-            //_LOG( " :::::::::::::::::::::::::::::::::::: " );
             _LOG( "onDisconnected: " << dbgOurPeerName() << " from peer: " << (int)peerPublicKey[0] );
             for( const auto& i : m_modifyDriveMap ) {
                 _LOG( "m_modifyDriveMap: " << (int)i.first[0] << " " << (int)transactionHash[0]);
@@ -142,7 +132,7 @@ public:
         }
     }
     
-    virtual const ModifyDriveInfo& getDownloadOpinion( const Hash256& transactionHash ) override
+    virtual const ModifyDriveInfo& getMyDownloadOpinion( const Hash256& transactionHash ) override
     {
         if ( const auto it = m_modifyDriveMap.find( transactionHash.array() ); it != m_modifyDriveMap.end() )
         {
@@ -156,18 +146,10 @@ public:
                              const std::array<uint8_t,32>& downloadChannelId,
                             uint64_t                       downloadedSizeByClient ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
+        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
         
         if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
         {
-//            int delay = int(it->second.m_uploadedSize - downloadedSizeByClient);
-//            static int _dbgMaxDelay = 0;
-//            if ( _dbgMaxDelay < delay )
-//                _dbgMaxDelay = delay;
-//
-//            LOG( dbgOurPeerName() << " delay: " << _dbgMaxDelay );
-//            LOG( dbgOurPeerName() << " " << int(downloadChannelId[0]) << " %%%%%%% " << int(it->second.m_uploadedSize - downloadedSizeByClient) << " : " << it->second.m_uploadedSize << " "<< downloadedSizeByClient << "\n");
-
             if ( it->second.m_uploadedSize > downloadedSizeByClient + m_receiptLimit )
                 return false;
             return true;
@@ -177,7 +159,7 @@ public:
 
     uint8_t getUploadedSize( const std::array<uint8_t,32>& downloadChannelId ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
+        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
         {
@@ -192,7 +174,7 @@ public:
                          const ReplicatorList&          replicatorsList,
                          const std::vector<std::array<uint8_t,32>>&  clients )
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         if ( auto it = m_downloadChannelMap.find(channelId); it != m_downloadChannelMap.end() )
         {
@@ -241,11 +223,15 @@ public:
         }
         
         m_modifyDriveMap[modifyTransactionHash.array()] = ModifyDriveInfo{ dataSize, replicatorsList, trafficMap, 0 };
+        lock.unlock();
 
         // we need to add modifyTransactionHash into 'm_downloadChannelMap'
         // because replicators could download pieces from their neighbors
         //
-        m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ dataSize, 0, 0, driveKey.array(), replicatorsList, {}, clients };
+        {
+            std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+            m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ dataSize, 0, 0, driveKey.array(), replicatorsList, {}, clients };
+        }
     }
     
     void removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash )
@@ -254,11 +240,11 @@ public:
         m_modifyDriveMap.erase(modifyTransactionHash);
     }
 
-    void onPieceRequested( const std::array<uint8_t,32>&  transactionHash,
+    void onPieceRequest( const std::array<uint8_t,32>&  transactionHash,
                            const std::array<uint8_t,32>&  receiverPublicKey,
                            uint64_t                       pieceSize ) override
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
@@ -273,7 +259,7 @@ public:
                                  const std::array<uint8_t,32>&  receiverPublicKey,
                                  uint64_t                       pieceSize ) override
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
@@ -298,7 +284,7 @@ public:
                       const std::array<uint8_t,32>&  receiverPublicKey,
                       uint64_t                       pieceSize ) override
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         // May be this piece was sent to client (during data download)
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
@@ -321,14 +307,6 @@ public:
         //LOG_ERR( "ERROR(2): unknown transactionHash: " << (int)transactionHash[0] );
     }
     
-    void createMyDownloadOpinion( const std::array<uint8_t,32>& downloadChannelId )
-    {
-        if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
-        {
-            //todo
-        }
-    }
-
     void onPieceReceived( const std::array<uint8_t,32>&  transactionHash,
                           const std::array<uint8_t,32>&  senderPublicKey,
                           uint64_t                       pieceSize ) override
@@ -373,7 +351,7 @@ public:
         }
 
         //todo accept
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
         if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
         {
             // check client key
@@ -412,17 +390,9 @@ public:
         return;
     }
     
-//    void sendReceiptToOtherReplicators( const std::array<uint8_t,32>&  downloadChannelId,
-//                                 const std::array<uint8_t,32>&  clientPublicKey,
-//                                 uint64_t                       downloadedSize,
-//                                 const std::array<uint8_t,64>&  signature ) override
-//    {
-//        // it should be implemented by DefaultReplicator
-//    }
-
     void removeChannelInfo( const std::array<uint8_t,32>& channelId )
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
         m_downloadChannelMap.erase( channelId );
     }
 

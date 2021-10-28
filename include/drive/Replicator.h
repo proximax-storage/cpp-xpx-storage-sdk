@@ -45,6 +45,7 @@ struct DownloadOpinionMapValue
     boost::posix_time::ptime                            m_creationTime = boost::posix_time::microsec_clock::universal_time();
 };
 
+// DownloadOpinionMap (key is a blockHash value)
 using DownloadOpinionMap = std::map<std::array<uint8_t,32>, DownloadOpinionMapValue>;
 
 // It is used for mutual calculation of the replicators, when they download 'modify data'
@@ -97,19 +98,16 @@ public:
 
     virtual std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) = 0;
     
+    // it begins modify operation, that will be performed on session thread
     virtual std::string modify( const Key&          driveKey,
                                 ModifyRequest&&     modifyRequest ) = 0;
 
     virtual std::string cancelModify( const Key&        driveKey,
                                       const Hash256&    transactionHash ) = 0;
 
-    // It will 'move' files from sandbox to drive
-//    virtual std::string acceptModifyApprovalTranaction( const Key&        driveKey,
-//                                                        const Hash256&    transactionHash ) = 0;
-
     virtual Hash256     getRootHash( const Key& driveKey ) = 0;
     
-    virtual const ModifyDriveInfo& getDownloadOpinion( const Hash256&    transactionHash ) = 0;
+    virtual const ModifyDriveInfo& getMyDownloadOpinion( const Hash256&    transactionHash ) = 0;
 
     virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;
 
@@ -137,10 +135,10 @@ public:
     // It will be called when other replicator calculated rootHash and send his opinion
     virtual void        onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
     
-    // It will be called after 'approval transaction' has been published
+    // It will be called after 'MODIFY approval transaction' has been published
     virtual void        onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
 
-    // It will be called after 'single approval transaction' has been published
+    // It will be called after 'single MODIFY approval transaction' has been published
     virtual void        onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
 
     // TODO:
@@ -152,15 +150,19 @@ public:
     virtual uint64_t    receiptLimit() const = 0;
 
     virtual void        setReceiptLimit( uint64_t newLimitInBytes ) = 0;
-    
+
+    virtual void        setDownloadApprovalTransactionTimerDelay( int miliseconds ) = 0;
+    virtual void        setModifyApprovalTransactionTimerDelay( int miliseconds ) = 0;
+    virtual int         getModifyApprovalTransactionTimerDelay() = 0;
+
     
     // Message exchange
     virtual void        sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint, const std::string& ) = 0;
     
     // It was moveed into ;session_delegate'
     //virtual void        onMessageReceived( const std::string& query, const std::string& ) = 0;
-
     
+
     virtual void        printDriveStatus( const Key& driveKey ) = 0;
     
     virtual void        printTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) = 0;

@@ -127,6 +127,11 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     // It is needed if a new 'modifyRequest' is received, but drive is syncing with sandbox
     std::deque<ModifyRequest> m_modifyRequestQueue;
 
+    // Client data (for drive modification)
+    std::optional<ModifyRequest> m_modifyRequest;
+    bool m_modificationMustBeCanceled = false;
+    bool m_driveMustBeDeleled         = false;
+
     // FsTree
     FsTree        m_fsTree;
     FsTree        m_sandboxFsTree;
@@ -136,9 +141,6 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     InfoHash      m_rootHash;
     InfoHash      m_sandboxRootHash;
 
-    // Client data (for drive modification)
-    std::optional<ModifyRequest> m_modifyRequest;
-    
     // List of replicators that support this drive
     ReplicatorList    m_replicatorList;
     
@@ -630,7 +632,7 @@ public:
     
     void createMyOpinion()
     {
-        auto trafficInfo = m_replicator.getDownloadOpinion(  m_modifyRequest->m_transactionHash );
+        auto trafficInfo = m_replicator.getMyDownloadOpinion(  m_modifyRequest->m_transactionHash );
 
         //
         // Calculate upload opinion
@@ -726,8 +728,8 @@ public:
         {
             // start timer if it is not started
             if ( !m_opinionTimer )
-                //todo 10 miliseconds!!!
-                m_opinionTimer = m_session->startTimer( 10, [this]() { opinionTimerExpired(); } );
+                m_opinionTimer = m_session->startTimer( m_replicator.getModifyApprovalTransactionTimerDelay(),
+                                    [this]() { opinionTimerExpired(); } );
         }
     }
     
@@ -942,11 +944,8 @@ public:
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
-        if ( m_approveTransactionSent || m_approveTransactionReceived )
+        if ( m_approveTransactionSent || m_approveTransactionReceived || m_approveTransactionReceived )
             return;
-        
-        
-
         
         ApprovalTransactionInfo info = {    m_drivePubKey.array(),
                                             m_myOpinion->m_modifyTransactionHash,
