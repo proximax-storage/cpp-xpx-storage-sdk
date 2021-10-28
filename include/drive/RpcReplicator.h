@@ -164,6 +164,13 @@ public:
         std::cout << "Replicator. driveModificationIsCompleted. DriveKey: " << driveKey << std::endl;
         std::cout << "Replicator. driveModificationIsCompleted: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
         replicator.printDriveStatus(driveKey);
+
+        types::RpcEndDriveModificationInfo rpcEndDriveModificationInfo;
+        rpcEndDriveModificationInfo.m_modifyTransactionHash = modifyTransactionHash.array();
+        rpcEndDriveModificationInfo.m_replicatorInfo.m_replicatorPubKey = replicator.keyPair().publicKey().array();
+
+        rpc::client emulator(m_emulatorRpcAddress, m_emulatorRpcPort);
+        emulator.call("driveModificationIsCompleted", rpcEndDriveModificationInfo);
     }
 
     void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) override {
@@ -248,7 +255,7 @@ private:
     }
 
     void replicatorOnboardingTransaction() {
-        std::cout << "Replicator. replicatorOnboardingTransaction: " << utils::HexFormat(m_replicator->keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. replicatorOnboardingTransaction: " << m_replicator->dbgReplicatorName() << " : " << utils::HexFormat(m_replicator->keyPair().publicKey().array()) << std::endl;
 
         types::RpcReplicatorInfo rpcReplicatorInfo;
         rpcReplicatorInfo.m_replicatorPubKey = m_replicator->keyPair().publicKey().array();

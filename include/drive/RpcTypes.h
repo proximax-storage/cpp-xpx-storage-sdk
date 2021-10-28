@@ -26,6 +26,18 @@ namespace sirius::drive::types {
             MSGPACK_DEFINE_ARRAY(m_replicatorAddress, m_replicatorPort, m_replicatorPubKey, m_rpcReplicatorPort);
         };
 
+        struct RpcClientInfo
+        {
+            bool operator==(const RpcClientInfo& client) const {
+                return client.m_clientPubKey == m_clientPubKey;
+            }
+
+            std::string             m_address;
+            unsigned short          m_rpcPort;
+            std::array<uint8_t,32>  m_clientPubKey;
+            MSGPACK_DEFINE_ARRAY(m_address, m_rpcPort, m_clientPubKey);
+        };
+
         using RpcReplicatorList = std::vector<RpcReplicatorInfo>;
 
         struct RpcDownloadChannelInfo {
@@ -229,5 +241,11 @@ namespace sirius::drive::types {
         std::vector<std::array<uint8_t, 32>>    m_clientsPublicKeys;
         RpcReplicatorList                       m_rpcReplicators;
         MSGPACK_DEFINE_ARRAY(m_driveKey, m_rootHash, m_clientsPublicKeys, m_rpcReplicators);
+    };
+
+    struct RpcEndDriveModificationInfo {
+        std::array<uint8_t,32>                  m_modifyTransactionHash;
+        RpcReplicatorInfo                       m_replicatorInfo; // public key only
+        MSGPACK_DEFINE_ARRAY(m_modifyTransactionHash, m_replicatorInfo);
     };
 }

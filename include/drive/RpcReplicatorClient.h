@@ -9,9 +9,11 @@
 #include "types.h"
 #include "RpcTypes.h"
 #include "rpc/client.h"
+#include "rpc/server.h"
 #include "ClientSession.h"
 #include "Utils.h"
 #include "FsTree.h"
+#include "../../rpclib/include/rpc/server.h"
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
 
@@ -25,9 +27,12 @@ public:
                          const int remoteRpcPort,
                          const std::string& incomingAddress,
                          const int incomingPort,
+                         const int incomingRpcPort,
                          const std::filesystem::path& workFolder,
                          const std::string& dbgName)
     {
+        m_address = incomingAddress;
+        m_rpcPort = incomingRpcPort;
         m_rootFolder = workFolder;
         m_rpcClient = std::make_shared<rpc::client>( remoteRpcAddress, remoteRpcPort );
         m_rpcClient->wait_all_responses();
@@ -72,6 +77,16 @@ public:
                 }
             }
         }
+
+        m_rpcServer = std::make_shared<rpc::server>( m_address, m_rpcPort );
+
+        m_rpcServer->bind("driveModificationIsCompleted", [this](const types::RpcEndDriveModificationInfo& rpcEndDriveModificationInfo) {
+            driveModificationIsCompleted(rpcEndDriveModificationInfo);
+        });
+
+        m_rpcServerThread = std::thread([rpcServer = m_rpcServer]{
+            rpcServer->run();
+        });
     }
 
     void addDrive(const Key& driveKey, const uint64_t driveSize)
@@ -129,7 +144,7 @@ public:
         m_rpcClient->call( "closeDownloadChannel", channelKey );
     }
 
-    void modifyDrive( const Key& driveKey, const ActionList& actionList, const std::array<uint8_t,32>& transactionHash, const uint64_t maxDataSize ) {
+    void modifyDrive( const Key& driveKey, const ActionList& actionList, const std::array<uint8_t,32>& transactionHash, const uint64_t maxDataSize, std::function<void()> endDriveModificationCallback) {
         std::cout << "Client. modifyDrive: " << driveKey << std::endl;
 
         types::RpcDriveInfo rpcDriveInfo = getDrive(driveKey);
@@ -156,7 +171,18 @@ public:
         rpcDataModification.m_transactionHash = transactionHash;
         rpcDataModification.m_maxDataSize = maxDataSize;
 
-        m_rpcClient->call( "DataModificationTransaction", rpcDataModification );
+        types::RpcClientInfo rpcClientInfo;
+        rpcClientInfo.m_address = m_address;
+        rpcClientInfo.m_rpcPort = m_rpcPort;
+        rpcClientInfo.m_clientPubKey = rpcDataModification.m_clientPubKey;
+
+        if (m_endDriveModificationHashes.contains(rpcDataModification.m_transactionHash)) {
+            std::cout << "Client. modifyDrive. Hash already exists: " << utils::HexFormat(rpcDataModification.m_transactionHash) << std::endl;
+        } else {
+            m_endDriveModificationHashes.insert(std::pair<std::array<uint8_t,32>, std::function<void()>>(rpcDataModification.m_transactionHash, endDriveModificationCallback));
+        }
+
+        m_rpcClient->call( "DataModificationTransaction", rpcDataModification, rpcClientInfo );
     }
 
     void downloadFsTree(const InfoHash& rootHash, const std::array<uint8_t,32>& channelKey, const uint64_t downloadLimit = 0) {
@@ -273,10 +299,29 @@ public:
         return dataFolder.parent_path();
     }
 
+    void driveModificationIsCompleted(const types::RpcEndDriveModificationInfo& rpcEndDriveModificationInfo) {
+        std::cout << "Client. driveModificationIsCompleted." << std::endl;
+
+        if (m_endDriveModificationHashes.contains(rpcEndDriveModificationInfo.m_modifyTransactionHash)) {
+            m_endDriveModificationHashes[rpcEndDriveModificationInfo.m_modifyTransactionHash]();
+        } else {
+            std::cout << "Client. driveModificationIsCompleted. Hash not found: " << utils::HexFormat(rpcEndDriveModificationInfo.m_modifyTransactionHash) << std::endl;
+        }
+    }
+
+    void wait() {
+        m_rpcServerThread.join();
+    }
+
 private:
+    std::thread m_rpcServerThread;
+    std::map<std::array<uint8_t,32>, std::function<void()>> m_endDriveModificationHashes;
     std::shared_ptr<ClientSession> m_clientSession;
     std::shared_ptr<rpc::client> m_rpcClient;
+    std::shared_ptr<rpc::server> m_rpcServer;
     Key m_clientPubKey;
     std::filesystem::path m_rootFolder;
+    std::string m_address;
+    int m_rpcPort;
 };
 }
