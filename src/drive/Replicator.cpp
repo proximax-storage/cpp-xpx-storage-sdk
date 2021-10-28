@@ -160,7 +160,7 @@ public:
     std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) override {
         LOG( "getDrive " << driveKey );
 
-        std::unique_lock<std::mutex> lock(m_mutex);
+        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
 
         if (m_drives.find(driveKey) == m_drives.end())
         {
