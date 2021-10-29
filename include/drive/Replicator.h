@@ -94,6 +94,7 @@ public:
     
     virtual std::string addDrive( const Key& driveKey, size_t driveSize ) = 0;
 
+    // it starts drive closing
     virtual std::string removeDrive( const Key& driveKey ) = 0;
     
     // it begins modify operation, that will be performed on session thread
@@ -105,7 +106,7 @@ public:
 
     virtual Hash256     getRootHash( const Key& driveKey ) = 0;
     
-    virtual const ModifyDriveInfo& getMyDownloadOpinion( const Hash256&    transactionHash ) = 0;
+    virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256&    transactionHash ) = 0;
 
     virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;
 
@@ -128,7 +129,7 @@ public:
     virtual void        prepareDownloadApprovalTransactionInfo( const Hash256& blockHash, const Hash256& channelId ) = 0;
 
     // It will clear opinion map
-    virtual void        onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId ) = 0;
+    virtual void        onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId, bool driveIsClosed = false ) = 0;
 
     // It will be called when other replicator calculated rootHash and send his opinion
     virtual void        onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;

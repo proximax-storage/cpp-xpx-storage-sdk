@@ -123,6 +123,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     bool m_sandboxCalculated          = false;
     bool m_approveTransactionReceived = false;
     bool m_approveTransactionSent     = false; // approval transaction has been sent
+    
+    bool m_driveIsClosing             = false;
 
     // It is needed if a new 'modifyRequest' is received, but drive is syncing with sandbox
     std::deque<ModifyRequest> m_modifyRequestQueue;
@@ -193,8 +195,7 @@ public:
     const Key& drivePublicKey() const override { return m_drivePubKey; }
 
     void terminate() {
-        //TODO 
-        m_session.reset();
+        //TODO?
     }
 
     uint64_t maxSize() const override {
@@ -282,56 +283,56 @@ public:
 
     // add files to session recursively
     //
-    void addFilesToSession( fs::path folderPath, fs::path torrentFolderPath, Folder& fsTreeFolder )
-    {
-        // Loop by folder childs
-        //
-        for( const auto& child : std::filesystem::directory_iterator( folderPath ) )
-        {
-            // Child name
-            auto name = child.path().filename();
-
-            if ( child.is_directory() )
-            {
-                // Get FsTree child
-                Folder::Child* fsTreeChild = fsTreeFolder.findChild( name );
-
-                if ( fsTreeChild == nullptr ) {
-                    throw std::runtime_error( std::string("internal error, absent folder: ") + name.string() );
-                }
-
-                if ( isFile(*fsTreeChild) ) {
-                    throw std::runtime_error( std::string("internal error, must be folder, filname: ") + name.string() );
-                }
-
-                // Go into subfolder
-                addFilesToSession( folderPath / name,
-                                   torrentFolderPath / name,
-                                   getFolder(*fsTreeChild) );
-            }
-            else if ( child.is_regular_file() )
-            {
-                // Add file to session
-                //
-
-                // Get FsTree child
-                Folder::Child* fsTreeChild = fsTreeFolder.findChild( name );
-
-                if ( fsTreeChild == nullptr ) {
-                    throw std::runtime_error( std::string("internal error absent file: ") + name.string() );
-                }
-
-                if ( isFolder(*fsTreeChild) ) {
-                    throw std::runtime_error( std::string("attempt to create a file with existing folder with same name: ") + name.string() );
-                }
-
-                fs::path torrentFile = torrentFolderPath / name;
-                if ( !fs::exists( torrentFile ) ) {
-                    throw std::runtime_error( std::string("internal error absent torrent file: ") + name.string() );
-                }
-            }
-        }
-    }
+//    void addFilesToSession( fs::path folderPath, fs::path torrentFolderPath, Folder& fsTreeFolder )
+//    {
+//        // Loop by folder childs
+//        //
+//        for( const auto& child : std::filesystem::directory_iterator( folderPath ) )
+//        {
+//            // Child name
+//            auto name = child.path().filename();
+//
+//            if ( child.is_directory() )
+//            {
+//                // Get FsTree child
+//                Folder::Child* fsTreeChild = fsTreeFolder.findChild( name );
+//
+//                if ( fsTreeChild == nullptr ) {
+//                    throw std::runtime_error( std::string("internal error, absent folder: ") + name.string() );
+//                }
+//
+//                if ( isFile(*fsTreeChild) ) {
+//                    throw std::runtime_error( std::string("internal error, must be folder, filname: ") + name.string() );
+//                }
+//
+//                // Go into subfolder
+//                addFilesToSession( folderPath / name,
+//                                   torrentFolderPath / name,
+//                                   getFolder(*fsTreeChild) );
+//            }
+//            else if ( child.is_regular_file() )
+//            {
+//                // Add file to session
+//                //
+//
+//                // Get FsTree child
+//                Folder::Child* fsTreeChild = fsTreeFolder.findChild( name );
+//
+//                if ( fsTreeChild == nullptr ) {
+//                    throw std::runtime_error( std::string("internal error absent file: ") + name.string() );
+//                }
+//
+//                if ( isFolder(*fsTreeChild) ) {
+//                    throw std::runtime_error( std::string("attempt to create a file with existing folder with same name: ") + name.string() );
+//                }
+//
+//                fs::path torrentFile = torrentFolderPath / name;
+//                if ( !fs::exists( torrentFile ) ) {
+//                    throw std::runtime_error( std::string("internal error absent torrent file: ") + name.string() );
+//                }
+//            }
+//        }
+//    }
     
     void cancelModifyDrive( const Hash256& transactionHash ) override
     {
@@ -341,6 +342,18 @@ public:
             return;
         }
         //TODO
+    }
+
+    void startDriveClosing() override
+    {
+        m_driveIsClosing = true;
+        
+        std::shared_lock<std::shared_mutex> lock(m_mutex);
+
+        if ( m_modifyRequest )
+        {
+            //???m_session->removeTorrentsFromSession(<#std::set<lt::torrent_handle> &&torrents#>, <#std::function<void ()> endNotification#>)
+        }
     }
 
     void synchronizeDriveWithSandbox()
@@ -819,21 +832,20 @@ public:
                                                                m_fsTreeTorrent.parent_path(),
                                                                lt::sf_is_replicator );
 
-        {
-            std::unique_lock<std::shared_mutex> lock(m_mutex);
-
-            m_modificationEnded          = true;
-        }
-        
         // Call update handler
         m_eventHandler.driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
 
         {
             std::unique_lock<std::shared_mutex> lock(m_mutex);
+
+            m_modificationEnded = true;
+            m_modifyRequest.reset();
+
             if ( !m_modifyRequestQueue.empty() )
             {
                 auto request = std::move( m_modifyRequestQueue.front() );
                 m_modifyRequestQueue.pop_front();
+                lock.unlock();
                 startModifyDrive( std::move(request) );
             }
         }
@@ -886,10 +898,10 @@ public:
 //    }
     
     // todo (could be removed?)
-    const ModifyRequest& modifyRequest() const override
-    {
-        return *m_modifyRequest;
-    }
+//    const ModifyRequest& modifyRequest() const override
+//    {
+//        return *m_modifyRequest;
+//    }
     
     virtual void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
@@ -961,7 +973,7 @@ public:
 
     virtual void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
-        if ( m_modifyRequest->m_transactionHash != transaction.m_modifyTransactionHash )
+        if ( !m_modifyRequest || m_modifyRequest->m_transactionHash != transaction.m_modifyTransactionHash )
         {
             //TODO
             assert(0);

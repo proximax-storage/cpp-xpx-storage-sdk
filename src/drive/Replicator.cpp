@@ -149,8 +149,14 @@ public:
 
         std::unique_lock<std::shared_mutex> lock(m_driveMutex);
 
-        if (m_drives.find(driveKey) == m_drives.end())
+        if ( auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+        {
+            
+        }
+        else
+        {
             return "drive not found";
+        }
 
         m_drives.erase(driveKey);
         return "";
@@ -433,7 +439,7 @@ public:
         //_LOG( "//exit prepareDownloadApprovalTransactionInfo: " << dbgReplicatorName() );
     }
     
-    virtual void onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId ) override
+    virtual void onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId, bool driveIsClosed ) override
     {
         std::shared_lock<std::shared_mutex> lock(m_downloadOpinionMutex);
 
