@@ -310,7 +310,7 @@ private:
     }
 
     // downloadFile
-    virtual void download( DownloadContext&&    downloadContext,
+    virtual lt_handle download( DownloadContext&&    downloadContext,
                            const std::string&   tmpFolder,
                            ReplicatorList       list  ) override {
 
@@ -386,6 +386,8 @@ private:
 
             m_downloadMap[ tHandle.id() ] = DownloadMapCell{ tmpFolder, {std::move(downloadContext)} };
         }
+        
+        return tHandle;
     }
 
 //    void loadTorrent( const InfoHash& infoHash,
@@ -842,7 +844,7 @@ private:
                         else
                         {
                             fs::path srcFilePath = fs::path(it->second.m_saveFolder) /
-                                                        internalFileName(contextVector[0].m_infoHash);
+                                                        hashToFileName(contextVector[0].m_infoHash);
 
                             for( size_t i=0; i<contextVector.size(); i++ )
                             {
@@ -1091,7 +1093,7 @@ InfoHash createTorrentFile( const std::string& fileOrFolder, const std::string& 
     return infoHash;
 }
 
-InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
+InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
                                       const std::string& drivePublicKey,
                                       const std::string& outputTorrentPath,
                                       const std::string& outputTorrentFileExtension )
@@ -1144,7 +1146,7 @@ InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
     if ( binaryString.size()==32 ) {
         memcpy( infoHash.data(), binaryString.data(), 32 );
     }
-    std::string newFileName = internalFileName(infoHash);
+    std::string newFileName = hashToFileName(infoHash);
 
     // replace file name
     auto& info = entry_info["info"];

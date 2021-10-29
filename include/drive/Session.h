@@ -142,8 +142,8 @@ public:
                                               const std::string& workFolder,
                                               endpoint_list list = {} ) = 0;
 
-    // initiate file downloading (identified by downloadParameters.m_infoHash)
-    virtual void      download( DownloadContext&&   downloadParameters,
+    // It starts downloading of 'modify data' (identified by downloadParameters.m_infoHash)
+    virtual lt_handle download( DownloadContext&&   downloadParameters,
                                 const std::string&  tmpFolder,
                                 ReplicatorList      list = {} ) = 0;
 
@@ -169,7 +169,7 @@ PLUGIN_API InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
 // and creates modified torrent file in 'outputTorrentPath'
 // with name as 'InfoHash' + '.' + 'outputTorrentFileExtension'
 //
-PLUGIN_API InfoHash calculateInfoHashAndTorrent( const std::string& file,
+PLUGIN_API InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& file,
                                       const std::string& drivePublicKey,
                                       const std::string& outputTorrentPath,
                                       const std::string& outputTorrentFileExtension );

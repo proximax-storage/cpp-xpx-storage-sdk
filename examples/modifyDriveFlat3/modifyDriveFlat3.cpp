@@ -656,7 +656,7 @@ static void clientDownloadFilesR( const Folder& folder )
             std::string folderName = "root";
             if ( folder.name() != "/" )
                 folderName = folder.name();
-            EXLOG( "# Client started download file " << internalFileName( file.hash() ) );
+            EXLOG( "# Client started download file " << hashToFileName( file.hash() ) );
             EXLOG( "#  to " << gClientFolder / "downloaded_files" / folderName  / file.name() );
             gClientSession->download( DownloadContext(
                                             DownloadContext::file_from_drive,
