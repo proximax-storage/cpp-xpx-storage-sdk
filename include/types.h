@@ -63,9 +63,14 @@ namespace sirius {
 
         struct ReplicatorInfo
         {
+            bool operator==(const ReplicatorInfo& ri) const {
+                return ri.m_publicKey == m_publicKey;
+            }
+
             boost::asio::ip::tcp::endpoint  m_endpoint;
             Key                             m_publicKey;
         };
+
         using ReplicatorList = std::vector<ReplicatorInfo>;
     }
 
