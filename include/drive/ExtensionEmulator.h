@@ -132,6 +132,7 @@ namespace sirius::drive {
                 std::cout << "Extension. modifyDrive. Hash already exists: " << utils::HexFormat(rpcDataModification.m_transactionHash) << std::endl;
             } else {
                 m_endDriveModificationHashes.insert(std::pair<std::array<uint8_t,32>, types::RpcClientInfo>(rpcDataModification.m_transactionHash, rpcClientInfo));
+                m_endDriveModificationCounter.insert(std::pair<std::array<uint8_t,32>, unsigned long>(rpcDataModification.m_transactionHash, 0L));
             }
 
             for (const types::RpcReplicatorInfo& rpcReplicatorInfo : m_rpcReplicators) {
@@ -182,11 +183,21 @@ namespace sirius::drive {
             std::cout << "Extension. driveModificationIsCompleted: " << utils::HexFormat(rpcEndDriveModificationInfo.m_replicatorInfo.m_replicatorPubKey) << std::endl;
 
             if (m_endDriveModificationHashes.contains(rpcEndDriveModificationInfo.m_modifyTransactionHash)) {
-                const std::string address = m_endDriveModificationHashes[rpcEndDriveModificationInfo.m_modifyTransactionHash].m_address;
-                const unsigned short port = m_endDriveModificationHashes[rpcEndDriveModificationInfo.m_modifyTransactionHash].m_rpcPort;
 
-                rpc::client client(address, port);
-                client.call("driveModificationIsCompleted", rpcEndDriveModificationInfo);
+                m_endDriveModificationCounter[rpcEndDriveModificationInfo.m_modifyTransactionHash] += 1;
+                if (m_endDriveModificationCounter[rpcEndDriveModificationInfo.m_modifyTransactionHash] == m_rpcReplicators.size()) {
+                    const std::string address = m_endDriveModificationHashes[rpcEndDriveModificationInfo.m_modifyTransactionHash].m_address;
+                    const unsigned short port = m_endDriveModificationHashes[rpcEndDriveModificationInfo.m_modifyTransactionHash].m_rpcPort;
+
+                    std::thread t([address, port, rpcEndDriveModificationInfo]{
+                        rpc::client client(address, port);
+                        client.call("driveModificationIsCompleted", rpcEndDriveModificationInfo);
+                    });
+                    t.detach();
+
+                    m_endDriveModificationHashes.erase(rpcEndDriveModificationInfo.m_modifyTransactionHash);
+                    m_endDriveModificationCounter.erase(rpcEndDriveModificationInfo.m_modifyTransactionHash);
+                }
             } else {
                 std::cout << "Extension. driveModificationIsCompleted. Hash not found" << utils::HexFormat(rpcEndDriveModificationInfo.m_modifyTransactionHash) << std::endl;
             }
@@ -260,6 +271,7 @@ namespace sirius::drive {
 
     private:
         std::map<std::array<uint8_t,32>, types::RpcClientInfo> m_endDriveModificationHashes;
+        std::map<std::array<uint8_t,32>, unsigned long> m_endDriveModificationCounter;
         std::set<std::array<uint8_t,32>> m_modifyApproveHashes;
         std::shared_ptr<rpc::server> m_rpcServer;
         types::RpcReplicatorList m_rpcReplicators;
