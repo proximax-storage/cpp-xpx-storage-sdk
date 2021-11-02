@@ -104,6 +104,14 @@ public:
         m_rpcServer->run();
     }
 
+    void setModifyApprovalTransactionTimerDelay(int milliseconds) {
+        m_replicator->setModifyApprovalTransactionTimerDelay(milliseconds);
+    }
+
+    void setDownloadApprovalTransactionTimerDelay(int milliseconds) {
+        m_replicator->setDownloadApprovalTransactionTimerDelay(milliseconds);
+    }
+
     // It will be called before 'replicator' shuts down
     void willBeTerminated( Replicator& replicator ) override
     {
@@ -156,6 +164,7 @@ public:
     }
 
     // It will be called after the drive is synchronized with sandbox
+    // DataModificationApproval send to BC 2/3 of replicators
     void driveModificationIsCompleted( Replicator&                            replicator,
                                                const sirius::Key&             driveKey,
                                                const sirius::drive::InfoHash& modifyTransactionHash,
@@ -214,6 +223,7 @@ private:
     void modifyDrive(const types::RpcDataModification& rpcDataModification) {
         std::cout << "Replicator. modifyDrive: " << m_replicator->dbgReplicatorName() << " : " << utils::HexFormat(rpcDataModification.m_drivePubKey) << std::endl;
         std::cout << "Replicator. modifyDrive: " << m_replicator->dbgReplicatorName() << " : " << utils::HexFormat(rpcDataModification.m_infoHash) << std::endl;
+
         m_replicator->modify(rpcDataModification.m_drivePubKey, ModifyRequest{
                 rpcDataModification.m_infoHash,
                 rpcDataModification.m_transactionHash,

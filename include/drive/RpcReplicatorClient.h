@@ -22,6 +22,17 @@ namespace sirius::drive {
 class RpcReplicatorClient
 {
 public:
+    using DownloadDataCallabck = std::function<void(download_status::code code,
+                                                    const InfoHash& infoHash,
+                                                    const std::filesystem::path filePath,
+                                                    size_t downloaded,
+                                                    size_t fileSize,
+                                                    const std::string& errorText)>;
+
+    using DownloadFsTreeCallback = std::function<void(const FsTree& fsTree,
+                                                      download_status::code code)>;
+
+public:
     RpcReplicatorClient( const std::string& clientPrivateKey,
                          const std::string& remoteRpcAddress,
                          const int remoteRpcPort,
@@ -117,16 +128,8 @@ public:
             const std::array<uint8_t,32>&   channelKey,
             const size_t                    prepaidDownloadSize,
             const std::array<uint8_t,32>&   drivePubKey,
-            const std::vector<Key>&        	clients,
-            const ReplicatorList&           replicatorList) {
+            const std::vector<Key>&        	clients) {
         std::cout << "Client. openDownloadChannel: " << utils::HexFormat(channelKey) << std::endl;
-        m_clientSession->setDownloadChannel(replicatorList, channelKey);
-
-        types::RpcDownloadChannelInfo rpcDownloadChannelInfo;
-        rpcDownloadChannelInfo.m_channelKey = channelKey;
-        rpcDownloadChannelInfo.m_prepaidDownloadSize = prepaidDownloadSize;
-        rpcDownloadChannelInfo.m_drivePubKey = drivePubKey;
-        rpcDownloadChannelInfo.setClientsPublicKeys(clients);
 
         types::RpcDriveInfo rpcDriveInfo = getDrive(drivePubKey);
         if (rpcDriveInfo.m_rpcReplicators.empty()) {
@@ -134,6 +137,13 @@ public:
             return;
         }
 
+        m_clientSession->setDownloadChannel(rpcDriveInfo.getReplicators(), channelKey);
+
+        types::RpcDownloadChannelInfo rpcDownloadChannelInfo;
+        rpcDownloadChannelInfo.m_channelKey = channelKey;
+        rpcDownloadChannelInfo.m_prepaidDownloadSize = prepaidDownloadSize;
+        rpcDownloadChannelInfo.m_drivePubKey = drivePubKey;
+        rpcDownloadChannelInfo.setClientsPublicKeys(clients);
         rpcDownloadChannelInfo.m_rpcReplicators = rpcDriveInfo.m_rpcReplicators;
 
         m_rpcClient->call( "openDownloadChannel", rpcDownloadChannelInfo );
@@ -170,6 +180,7 @@ public:
         rpcDataModification.m_infoHash = infoHash.array();
         rpcDataModification.m_transactionHash = transactionHash;
         rpcDataModification.m_maxDataSize = maxDataSize;
+        rpcDataModification.m_rpcReplicators = rpcDriveInfo.m_rpcReplicators;
 
         types::RpcClientInfo rpcClientInfo;
         rpcClientInfo.m_address = m_address;
@@ -185,31 +196,55 @@ public:
         m_rpcClient->call( "DataModificationTransaction", rpcDataModification, rpcClientInfo );
     }
 
-    void downloadFsTree(const InfoHash& rootHash, const std::array<uint8_t,32>& channelKey, const uint64_t downloadLimit = 0) {
-        std::cout << "Client. downloadFsTree. channelKey: " << utils::HexFormat(channelKey) << std::endl;
-        std::cout << "Client. downloadFsTree. InfoHash: " << rootHash << std::endl;
+    void downloadFsTree(const Key& drivePubKey,
+                        const std::array<uint8_t,32>& channelKey,
+                        DownloadFsTreeCallback callback,
+                        const uint64_t downloadLimit = 0) {
 
-        auto downloadHandler = [this](download_status::code code,
+        types::RpcDriveInfo rpcDriveInfo = getDrive(drivePubKey);
+        if (rpcDriveInfo.m_rpcReplicators.empty()) {
+            std::cout << "Client. downloadFsTree. Replicators list is empty: " << drivePubKey << std::endl;
+            return;
+        }
+
+        std::cout << "Client. downloadFsTree. channelKey: " << utils::HexFormat(channelKey) << std::endl;
+        std::cout << "Client. downloadFsTree. InfoHash: " << utils::HexFormat(rpcDriveInfo.m_rootHash) << std::endl;
+
+        auto handler = [this, callback](download_status::code code,
                                   const InfoHash& infoHash,
                                   const std::filesystem::path filePath,
                                   size_t downloaded,
                                   size_t fileSize,
                                   const std::string& errorText) {
-            clientDownloadHandler(code, infoHash, filePath, downloaded, fileSize, errorText);
+            FsTree fsTree;
+            if ( code == download_status::complete )
+            {
+                std::cout << "Client. downloadHandler. Client received FsTree: " << toString(infoHash) << std::endl;
+
+                fsTree.deserialize( m_rootFolder / "fsTree-folder" / "FsTree.bin" );
+                fsTree.dbgPrint();
+
+                callback(fsTree, code);
+            }
+            else if ( code == download_status::failed )
+            {
+                std::cout << "Client. downloadHandler. Error receiving FsTree: " << code << std::endl;
+                callback(fsTree, code);
+            }
         };
 
-        DownloadContext downloadContext( DownloadContext::fs_tree, downloadHandler, rootHash, channelKey, 0 );
+        DownloadContext downloadContext( DownloadContext::fs_tree, handler, rpcDriveInfo.m_rootHash, channelKey, 0 );
         m_clientSession->download( std::move(downloadContext), m_rootFolder / "fsTree-folder");
     }
 
-    void downloadData(const Folder& folder) {
+    void downloadData(const Folder& folder, DownloadDataCallabck callback) {
         std::cout << "Client. downloadData. Folder: " << folder.name() << std::endl;
 
         for( const auto& child: folder.childs() )
         {
             if ( isFolder(child) )
             {
-                downloadData( getFolder(child) );
+                downloadData( getFolder(child), callback );
             }
             else
             {
@@ -221,42 +256,20 @@ public:
                 std::cout << "Client. downloadData. Client started download file " << internalFileName( file.hash() ) << std::endl;
                 std::cout << "Client. downloadData. to " << m_rootFolder / "downloaded_files" / folderName  / file.name() << std::endl;
 
-                auto downloadHandler = [this](download_status::code code,
+                auto handler = [callback](download_status::code code,
                                               const InfoHash& infoHash,
                                               const std::filesystem::path filePath,
                                               size_t downloaded,
                                               size_t fileSize,
                                               const std::string& errorText) {
-                    clientDownloadHandler(code, infoHash, filePath, downloaded, fileSize, errorText);
+                    callback(code, infoHash, filePath, downloaded, fileSize, errorText);
                 };
 
                 DownloadContext downloadContext(
-                        DownloadContext::file_from_drive, downloadHandler, file.hash(), {}, 0, m_rootFolder / "downloaded_files" / folderName / file.name() );
+                        DownloadContext::file_from_drive, handler, file.hash(), {}, 0, m_rootFolder / "downloaded_files" / folderName / file.name() );
 
                 m_clientSession->download( std::move(downloadContext), m_rootFolder / "downloaded_files" );
             }
-        }
-    }
-
-    void clientDownloadHandler( download_status::code code,
-                                const InfoHash& infoHash,
-                                const std::filesystem::path /*filePath*/,
-                                size_t /*downloaded*/,
-                                size_t /*fileSize*/,
-                                const std::string& /*errorText*/ )
-    {
-        if ( code == download_status::complete )
-        {
-            std::cout << "Client. clientDownloadHandler. Client received FsTree: " << toString(infoHash) << std::endl;
-
-            FsTree fsTree;
-            fsTree.deserialize( m_rootFolder / "fsTree-folder" / "FsTree.bin" );
-            fsTree.dbgPrint();
-        }
-        else if ( code == download_status::failed )
-        {
-            std::cout << "Client. clientDownloadHandler. Error receiving FsTree: " << code << std::endl;
-            exit(-1);
         }
     }
 
@@ -311,6 +324,10 @@ public:
 
     void wait() {
         m_rpcServerThread.join();
+    }
+
+    const Key &getPubKey() const {
+        return m_clientPubKey;
     }
 
 private:
