@@ -216,6 +216,23 @@ public:
         std::scoped_lock<std::shared_mutex> lock(m_mutex);
         return m_replicatorList;
     }
+
+    void updateReplicators(const ReplicatorList& replicators) override {
+        if (replicators.empty()) {
+            LOG_ERR( "ReplicatorList is empty!");
+            return;
+        }
+
+        std::scoped_lock<std::shared_mutex> lock(m_mutex);
+        for (const ReplicatorInfo& ri : replicators) {
+            const auto& r = std::find(m_replicatorList.begin(), m_replicatorList.end(), ri);
+            if(r != m_replicatorList.end()) {
+                *r = ri;
+            } else {
+                m_replicatorList.push_back(ri);
+            }
+        }
+    }
     
     uint64_t sandboxFsTreeSize() const override {
         return fs::file_size( m_sandboxFsTreeFile );

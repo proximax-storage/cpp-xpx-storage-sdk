@@ -267,6 +267,8 @@ class Replicator;
 
         virtual ReplicatorList getReplicators() = 0;
 
+        virtual void updateReplicators(const ReplicatorList& replicators) = 0;
+
         virtual void     getSandboxDriveSizes( uint64_t& metaFilesSize, uint64_t&  driveSize ) const = 0;
 
         virtual void     startModifyDrive( ModifyRequest&& modifyRequest ) = 0;
