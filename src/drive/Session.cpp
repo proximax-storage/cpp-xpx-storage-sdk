@@ -413,7 +413,7 @@ private:
             throw std::runtime_error("connectPeers: libtorrent session is not valid");
 
         //TODO check if not set m_lastTorrentFileHandle
-        for( auto endpoint : list ) {
+        for( const auto& endpoint : list ) {
             tHandle.connect_peer(endpoint);
         }
     }
@@ -759,7 +759,7 @@ private:
                 case lt::torrent_error_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_error_alert *>(alert);
 
-                    LOG(  m_addressAndPort << ": torrent error: " << theAlert->message())
+                    LOG(  m_addressAndPort << ": ERROR!!!: torrent error: " << theAlert->message())
 
                     if ( auto downloadConextIt  = m_downloadMap.find(theAlert->handle.id());
                               downloadConextIt != m_downloadMap.end() )
@@ -770,7 +770,7 @@ private:
                         std::lock_guard<std::mutex> locker(m_downloadMapMutex);
                         m_downloadMap.erase( downloadConextIt->first );
 
-                        for( auto context : contexts )
+                        for( const auto& context : contexts )
                         {
                             context.m_downloadNotification( download_status::code::failed,
                                                             context.m_infoHash,
@@ -815,6 +815,7 @@ private:
                                 //               [](auto const& torrent) { return !torrent.is_valid(); } );
 
                                 // try to remove 'context'
+                                // todo calculate valid torrents!
                                 if ( removeContext.m_torrentSet.empty() )
                                 {
                                     auto endRemoveNotification = removeContext.m_endRemoveNotification;
@@ -896,7 +897,7 @@ private:
 //                        std::lock_guard<std::mutex> locker(m_downloadMapMutex);
 //                        m_downloadMap.erase( downloadConextIt->first );
 
-//                        for( auto context : contexts )
+//                        for( auto& context : contexts )
 //                        {
 //                            context.m_downloadNotification( context, download_status::complete, 100.0, "" );
 //                        }

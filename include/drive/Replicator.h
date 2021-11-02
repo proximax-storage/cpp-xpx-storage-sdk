@@ -95,7 +95,7 @@ public:
     virtual std::string addDrive( const Key& driveKey, size_t driveSize ) = 0;
 
     // it starts drive closing
-    virtual std::string removeDrive( const Key& driveKey ) = 0;
+    virtual std::string removeDrive( const Key& driveKey, const Hash256& transactionHash ) = 0;
     
     // it begins modify operation, that will be performed on session thread
     virtual std::string modify( const Key&          driveKey,
@@ -106,7 +106,7 @@ public:
 
     virtual Hash256     getRootHash( const Key& driveKey ) = 0;
     
-    virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256&    transactionHash ) = 0;
+    virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) = 0;
 
     virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;
 
@@ -140,6 +140,9 @@ public:
     // It will be called after 'single MODIFY approval transaction' has been published
     virtual void        onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
 
+    // It continues drive closing (initiates DownloadApprovalTransaction and than removes drive)
+    virtual void        closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) = 0;
+    
     // TODO:
     // They will be called after 'cancel modify transaction' has been published
 //    virtual void        onTransactionCanceled( ApprovalTransactionInfo&& transaction ) = 0;

@@ -271,7 +271,7 @@ class Replicator;
 
         virtual void     cancelModifyDrive( const Hash256& transactionHash ) = 0;
 
-        virtual void     startDriveClosing() = 0;
+        virtual void     startDriveClosing( const Hash256& transactionHash ) = 0;
 
         virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
         

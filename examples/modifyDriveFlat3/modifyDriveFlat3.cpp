@@ -25,7 +25,7 @@ const bool gUse3Replicators = true;
 // This example shows interaction between 'client' and 'replicator'.
 //
 
-#define BIG_FILE_SIZE 10 * 1024*1000 //150//4
+#define BIG_FILE_SIZE 10 * 1024*1024 //150//4
 #define TRANSPORT_PROTOCOL false // true - TCP, false - uTP
 
 // !!!
@@ -385,7 +385,6 @@ int main(int,char**)
     MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
 
     gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
-    sleep(1);
     gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
     

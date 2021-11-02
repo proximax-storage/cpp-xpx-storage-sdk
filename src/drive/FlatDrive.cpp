@@ -336,7 +336,7 @@ public:
         //TODO
     }
 
-    void startDriveClosing() override
+    void startDriveClosing( const Hash256& transactionHash ) override
     {
         m_driveIsClosing = true;
         
@@ -344,8 +344,27 @@ public:
 
         if ( m_modifyRequest )
         {
-            m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [](){});
+            m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this,transactionHash](){
+                continueDriveClosing( transactionHash );
+            });
         }
+    }
+
+    void continueDriveClosing( const Hash256& transactionHash )
+    {
+        std::shared_lock<std::shared_mutex> lock(m_mutex);
+
+        std::set<lt_handle> tobeRemovedTorrents;
+
+        for( auto& [key,value]: m_torrentHandleMap )
+        {
+            if ( value.m_isUsed )
+                tobeRemovedTorrents.insert( value.m_ltHandle );
+        }
+
+        m_session->removeTorrentsFromSession( std::move(tobeRemovedTorrents), [this,transactionHash](){
+            m_replicator.closeDriveChannels( transactionHash, *this );
+        });
     }
 
     void synchronizeDriveWithSandbox()
