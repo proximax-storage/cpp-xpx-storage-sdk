@@ -197,7 +197,9 @@ private:
 
     void removeDrive(const std::array<uint8_t, 32>& driveKey) {
         std::cout << "Replicator. removeDrive: " << utils::HexFormat(driveKey) << std::endl;
-        m_replicator->removeDrive(driveKey);
+
+        // TODO: Pass correct transaction hash
+        m_replicator->removeDrive(driveKey, driveKey);
     }
 
     types::RpcDriveInfo getDrive(const std::array<uint8_t, 32>& driveKey) {

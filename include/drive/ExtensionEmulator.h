@@ -226,6 +226,7 @@ namespace sirius::drive {
             }
         }
 
+        // TODO: Pass correct transaction hash
         void driveClosureTransaction(const std::array<uint8_t, 32>& driveKey) {
             std::cout << "Extension. driveClosureTransaction. Drive key: " << utils::HexFormat(driveKey) << std::endl;
 
@@ -239,6 +240,7 @@ namespace sirius::drive {
                 const unsigned short port = rpcReplicatorInfo.m_rpcReplicatorPort;
 
                 rpc::client replicator(address, port);
+                // TODO: Pass correct transaction hash
                 replicator.call("DriveClosureTransaction", driveKey);
             }
         }

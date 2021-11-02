@@ -94,12 +94,10 @@ public:
     
     virtual std::string addDrive( const Key& driveKey, uint64_t driveSize, const ReplicatorList& replicators ) = 0;
 
-    virtual std::string removeDrive( const Key& driveKey ) = 0;
-
-    virtual std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) = 0;
-
     // it starts drive closing
     virtual std::string removeDrive( const Key& driveKey, const Hash256& transactionHash ) = 0;
+
+    virtual std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) = 0;
     
     // it begins modify operation, that will be performed on session thread
     virtual std::string modify( const Key&          driveKey,

@@ -113,9 +113,12 @@ public:
         m_rpcClient->call( "PrepareDriveTransaction", rpcPrepareDriveTransactionInfo );
     }
 
+    // TODO: Pass correct transaction hash
     void removeDrive(const Key& driveKey)
     {
         std::cout << "Client. DriveClosureTransaction: " << driveKey << std::endl;
+
+        // TODO: Pass correct transaction hash
         m_rpcClient->call( "DriveClosureTransaction", driveKey.array());
     }
 
@@ -253,7 +256,7 @@ public:
                 if ( folder.name() != "/" )
                     folderName = folder.name();
 
-                std::cout << "Client. downloadData. Client started download file " << internalFileName( file.hash() ) << std::endl;
+                std::cout << "Client. downloadData. Client started download file " << hashToFileName( file.hash() ) << std::endl;
                 std::cout << "Client. downloadData. to " << m_rootFolder / "downloaded_files" / folderName  / file.name() << std::endl;
 
                 auto handler = [callback](download_status::code code,
