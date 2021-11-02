@@ -151,8 +151,8 @@ public:
 
     virtual void        setReceiptLimit( uint64_t newLimitInBytes ) = 0;
 
-    virtual void        setDownloadApprovalTransactionTimerDelay( int miliseconds ) = 0;
-    virtual void        setModifyApprovalTransactionTimerDelay( int miliseconds ) = 0;
+    virtual void        setDownloadApprovalTransactionTimerDelay( int milliseconds ) = 0;
+    virtual void        setModifyApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual int         getModifyApprovalTransactionTimerDelay() = 0;
 
     

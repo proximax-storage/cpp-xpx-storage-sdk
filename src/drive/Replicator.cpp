@@ -168,6 +168,15 @@ public:
             return nullptr;
         }
 
+        // Add itself back to replicators list
+        ReplicatorInfo ri;
+        ri.m_publicKey = m_keyPair.publicKey();
+
+        boost::asio::ip::address address = boost::asio::ip::address::from_string(m_address);
+        ri.m_endpoint = {address, static_cast<unsigned short>(std::stoi(m_port))};
+
+        m_drives[driveKey]->updateReplicators({ ri });
+
         return m_drives[driveKey];
     }
 
@@ -194,8 +203,6 @@ public:
                             modifyRequest.m_clientPublicKey,
                             modifyRequest.m_replicatorList );
 
-
-        ReplicatorList replicatorList2;
         for( auto it = modifyRequest.m_replicatorList.begin();  it != modifyRequest.m_replicatorList.end(); it++ )
         {
             if ( it->m_publicKey == publicKey() )
