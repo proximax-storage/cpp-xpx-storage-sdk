@@ -68,6 +68,7 @@ public:
         
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
+            //todo check peerPublicKey
             return true;
         }
 //        _LOG( dbgOurPeerName() << " hash: " << (int)transactionHash[0] );
@@ -132,8 +133,10 @@ public:
         }
     }
     
-    virtual const ModifyDriveInfo& getMyDownloadOpinion( const Hash256& transactionHash ) override
+    virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) override
     {
+        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+
         if ( const auto it = m_modifyDriveMap.find( transactionHash.array() ); it != m_modifyDriveMap.end() )
         {
             return it->second;
@@ -259,7 +262,7 @@ public:
                                  const std::array<uint8_t,32>&  receiverPublicKey,
                                  uint64_t                       pieceSize ) override
     {
-        std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
@@ -284,7 +287,7 @@ public:
                       const std::array<uint8_t,32>&  receiverPublicKey,
                       uint64_t                       pieceSize ) override
     {
-        std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         // May be this piece was sent to client (during data download)
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
@@ -311,7 +314,7 @@ public:
                           const std::array<uint8_t,32>&  senderPublicKey,
                           uint64_t                       pieceSize ) override
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        std::shared_lock<std::shared_mutex> lock(m_mutex);
 
         if ( auto it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
         {

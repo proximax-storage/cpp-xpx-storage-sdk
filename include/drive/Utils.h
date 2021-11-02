@@ -23,8 +23,8 @@ PLUGIN_API std::string arrayToString( const Key& key );
 
 PLUGIN_API std::string toString( const std::array<uint8_t,32>& key );
 
-// internalFileName
-PLUGIN_API std::string internalFileName( const InfoHash& key );
+// hashToFileName
+PLUGIN_API std::string hashToFileName( const InfoHash& key );
 
 PLUGIN_API bool isPathInsideFolder( const fs::path& path, const fs::path& folder );
 

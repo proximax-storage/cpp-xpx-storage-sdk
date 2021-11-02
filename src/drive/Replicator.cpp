@@ -144,14 +144,20 @@ public:
         return "";
     }
 
-    std::string removeDrive(const Key& driveKey) override
+    std::string removeDrive( const Key& driveKey, const Hash256& transactionHash ) override
     {
         LOG( "removing drive " << driveKey );
 
         std::unique_lock<std::shared_mutex> lock(m_driveMutex);
 
-        if (m_drives.find(driveKey) == m_drives.end())
+        if ( auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+        {
+            driveIt->second->startDriveClosing( transactionHash );
+        }
+        else
+        {
             return "drive not found";
+        }
 
         m_drives.erase(driveKey);
         return "";
@@ -380,7 +386,7 @@ public:
                 if ( !it->second.m_timer )
                 {
                     auto& opinionData = it->second;
-                    //todo 10 miliseconds!!!
+                    //todo check
                     it->second.m_timer = m_session->startTimer( m_downloadApprovalTransactionTimerDelayMs,
                                             [this,&opinionData]() { onDownloadApprovalTimeExipred( opinionData ); } );
                 }
@@ -455,7 +461,13 @@ public:
         //_LOG( "//exit prepareDownloadApprovalTransactionInfo: " << dbgReplicatorName() );
     }
     
-    virtual void onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId ) override
+    virtual void closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) override
+    {
+        
+    }
+
+    
+    virtual void onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId, bool driveIsClosed ) override
     {
         std::shared_lock<std::shared_mutex> lock(m_downloadOpinionMutex);
 

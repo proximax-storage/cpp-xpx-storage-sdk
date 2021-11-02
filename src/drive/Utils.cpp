@@ -76,7 +76,7 @@ std::string arrayToString( const Key& key ) {
     return std::string( hashStr, hashStr+64 );
 }
 
-std::string internalFileName( const InfoHash& key ) {
+std::string hashToFileName( const InfoHash& key ) {
 
     char hashStr[64];
 

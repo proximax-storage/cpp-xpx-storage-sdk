@@ -310,7 +310,7 @@ private:
     }
 
     // downloadFile
-    virtual void download( DownloadContext&&    downloadContext,
+    virtual lt_handle download( DownloadContext&&    downloadContext,
                            const std::string&   tmpFolder,
                            ReplicatorList       list  ) override {
 
@@ -386,6 +386,8 @@ private:
 
             m_downloadMap[ tHandle.id() ] = DownloadMapCell{ tmpFolder, {std::move(downloadContext)} };
         }
+        
+        return tHandle;
     }
 
 //    void loadTorrent( const InfoHash& infoHash,
@@ -411,7 +413,7 @@ private:
             throw std::runtime_error("connectPeers: libtorrent session is not valid");
 
         //TODO check if not set m_lastTorrentFileHandle
-        for( auto endpoint : list ) {
+        for( const auto& endpoint : list ) {
             tHandle.connect_peer(endpoint);
         }
     }
@@ -757,7 +759,7 @@ private:
                 case lt::torrent_error_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_error_alert *>(alert);
 
-                    LOG(  m_addressAndPort << ": torrent error: " << theAlert->message())
+                    LOG(  m_addressAndPort << ": ERROR!!!: torrent error: " << theAlert->message())
 
                     if ( auto downloadConextIt  = m_downloadMap.find(theAlert->handle.id());
                               downloadConextIt != m_downloadMap.end() )
@@ -768,7 +770,7 @@ private:
                         std::lock_guard<std::mutex> locker(m_downloadMapMutex);
                         m_downloadMap.erase( downloadConextIt->first );
 
-                        for( auto context : contexts )
+                        for( const auto& context : contexts )
                         {
                             context.m_downloadNotification( download_status::code::failed,
                                                             context.m_infoHash,
@@ -813,6 +815,7 @@ private:
                                 //               [](auto const& torrent) { return !torrent.is_valid(); } );
 
                                 // try to remove 'context'
+                                // todo calculate valid torrents!
                                 if ( removeContext.m_torrentSet.empty() )
                                 {
                                     auto endRemoveNotification = removeContext.m_endRemoveNotification;
@@ -842,7 +845,7 @@ private:
                         else
                         {
                             fs::path srcFilePath = fs::path(it->second.m_saveFolder) /
-                                                        internalFileName(contextVector[0].m_infoHash);
+                                                        hashToFileName(contextVector[0].m_infoHash);
 
                             for( size_t i=0; i<contextVector.size(); i++ )
                             {
@@ -894,7 +897,7 @@ private:
 //                        std::lock_guard<std::mutex> locker(m_downloadMapMutex);
 //                        m_downloadMap.erase( downloadConextIt->first );
 
-//                        for( auto context : contexts )
+//                        for( auto& context : contexts )
 //                        {
 //                            context.m_downloadNotification( context, download_status::complete, 100.0, "" );
 //                        }
@@ -1091,7 +1094,7 @@ InfoHash createTorrentFile( const std::string& fileOrFolder, const std::string& 
     return infoHash;
 }
 
-InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
+InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
                                       const std::string& drivePublicKey,
                                       const std::string& outputTorrentPath,
                                       const std::string& outputTorrentFileExtension )
@@ -1144,7 +1147,7 @@ InfoHash calculateInfoHashAndTorrent( const std::string& pathToFile,
     if ( binaryString.size()==32 ) {
         memcpy( infoHash.data(), binaryString.data(), 32 );
     }
-    std::string newFileName = internalFileName(infoHash);
+    std::string newFileName = hashToFileName(infoHash);
 
     // replace file name
     auto& info = entry_info["info"];

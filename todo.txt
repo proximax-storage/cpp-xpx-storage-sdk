@@ -15,3 +15,7 @@ onApprovalTransactionHasBeenPublished and other
 Lock delete drive operation???? (Counter with mutex???)
 
 DeleteApproveTransaction???
+
+Раздача файлов из песочницы (streaming: каждый кусочек - это торрент)
+
+Много клиентов на одном канале
