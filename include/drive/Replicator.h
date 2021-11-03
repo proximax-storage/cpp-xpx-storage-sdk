@@ -92,7 +92,7 @@ public:
 
     // All of the below functions return error string (or empty string)
     
-    virtual std::string addDrive( const Key& driveKey, uint64_t driveSize, const ReplicatorList& replicators ) = 0;
+    virtual std::string addDrive( const Key& driveKey, uint64_t driveSize, ReplicatorList replicators ) = 0;
 
     // it starts drive closing
     virtual std::string removeDrive( const Key& driveKey, const Hash256& transactionHash ) = 0;
