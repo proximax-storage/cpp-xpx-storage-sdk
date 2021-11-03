@@ -432,7 +432,10 @@ private:
         }
     }
 
+#ifdef __APPLE__
 #pragma mark --messaging--
+#endif
+    
     struct DhtRequestPlugin : lt::plugin
     {
         std::shared_ptr<lt::session_delegate> m_replicator;
@@ -599,7 +602,9 @@ private:
 ////                }
 //            }
 
+#ifdef __APPLE__
 #pragma mark --alerts--
+#endif
             switch (alert->type()) {
                 case lt::add_torrent_alert::        alert_type:
                 case lt::dht_announce_alert::       alert_type:

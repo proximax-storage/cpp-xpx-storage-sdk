@@ -728,7 +728,7 @@ public:
             if ( m_approveTransactionReceived )
             {
                 lock.unlock();
-                sendSingleAprovalTransaction();
+                sendSingleApprovalTransaction();
             }
             else
             {
@@ -1028,12 +1028,12 @@ public:
             {
                 // Send Single Aproval Transaction
                 if ( m_myOpinion )
-                    sendSingleAprovalTransaction();
+                    sendSingleApprovalTransaction();
             }
         }
     }
 
-    void sendSingleAprovalTransaction()
+    void sendSingleApprovalTransaction()
     {
         //todo
     }
