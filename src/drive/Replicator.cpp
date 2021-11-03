@@ -121,7 +121,7 @@ public:
     }
 
 
-    std::string addDrive(const Key& driveKey, uint64_t driveSize, const ReplicatorList& replicators ) override
+    std::string addDrive(const Key& driveKey, uint64_t driveSize, ReplicatorList replicators ) override
     {
         LOG( "adding drive " << driveKey );
 
@@ -131,6 +131,17 @@ public:
             return "drive already added";
         }
 
+        // Exclude itself from replicators
+        for( auto it = replicators.begin();  it != replicators.end(); it++ )
+        {
+            if ( it->m_publicKey == publicKey() )
+            {
+                replicators.erase( it );
+                break;
+            }
+        }
+
+        // TODO: exclude itself from replicators !
         m_drives[driveKey] = sirius::drive::createDefaultFlatDrive(
                 session(),
                 m_storageDirectory,
@@ -173,15 +184,6 @@ public:
             LOG( "drive not found " << driveKey );
             return nullptr;
         }
-
-        // Add itself back to replicators list
-        ReplicatorInfo ri;
-        ri.m_publicKey = m_keyPair.publicKey();
-
-        boost::asio::ip::address address = boost::asio::ip::address::from_string(m_address);
-        ri.m_endpoint = {address, static_cast<unsigned short>(std::stoi(m_port))};
-
-        m_drives[driveKey]->updateReplicators({ ri });
 
         return m_drives[driveKey];
     }

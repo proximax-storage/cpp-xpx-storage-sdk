@@ -217,7 +217,17 @@ private:
 
         // TODO: fix it
         //rpcDriveInfo.m_clientsPublicKeys = drive->;
+
         rpcDriveInfo.setReplicators(drive->getReplicators());
+
+        // Add itself back to replicators list
+        types::RpcReplicatorInfo ri;
+        ri.m_replicatorPubKey = m_replicator->replicatorKey().array();
+        ri.m_replicatorAddress = m_replicatorAddress;
+        ri.m_replicatorPort = m_replicatorPort;
+        ri.m_rpcReplicatorPort = m_rpcReplicatorPort;
+
+        rpcDriveInfo.m_rpcReplicators.push_back(ri);
 
         return rpcDriveInfo;
     }
