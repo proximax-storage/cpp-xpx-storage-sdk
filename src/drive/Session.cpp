@@ -156,7 +156,7 @@ private:
         settingsPack.set_str(  lt::settings_pack::dht_bootstrap_nodes, "" );
 
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
-        settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, true );
+        settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, false );
 
         m_session.apply_settings(settingsPack);
         m_session.set_alert_notify( [this] { alertHandler(); } );
