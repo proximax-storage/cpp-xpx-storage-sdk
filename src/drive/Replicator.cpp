@@ -53,7 +53,7 @@ public:
 
     ReplicatorEventHandler& m_eventHandler;
 
-    const char* m_dbgReplicatorName;
+    const std::string m_dbgReplicatorName;
     
 public:
     DefaultReplicator (
@@ -88,7 +88,7 @@ public:
             },
             weak_from_this(),
             m_useTcpSocket );
-        m_session->lt_session().m_dbgOurPeerName = m_dbgReplicatorName;
+        m_session->lt_session().m_dbgOurPeerName = m_dbgReplicatorName.c_str();
     }
 
     Hash256 getRootHash( const Key& driveKey ) override
@@ -586,7 +586,7 @@ public:
         return m_modifyApprovalTransactionTimerDelayMs;
     }
     
-    const char* dbgReplicatorName() const override { return m_dbgReplicatorName; }
+    const char* dbgReplicatorName() const override { return m_dbgReplicatorName.c_str(); }
     
 private:
     std::shared_ptr<sirius::drive::Session> session() {
