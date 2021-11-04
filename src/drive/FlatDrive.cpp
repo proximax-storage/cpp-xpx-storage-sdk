@@ -1022,8 +1022,8 @@ public:
             auto it = std::find_if( v.begin(), v.end(), [this] (const auto& opinion) {
                             return opinion.m_replicatorKey == m_replicator.replicatorKey().array();
             });
-            
             // Is my opinion present
+            std::cout << "ITERATOR " << (it == v.end()) << std::endl;
             if ( it != v.end() )
             {
                 synchronizeDriveWithSandbox();
@@ -1045,6 +1045,7 @@ public:
 
     virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
+        std::cout << "single" << std::endl;
         synchronizeDriveWithSandbox();
     }
 
