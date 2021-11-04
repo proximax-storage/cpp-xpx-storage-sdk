@@ -25,3 +25,5 @@ DeleteApproveTransaction???
 Удаление и добавление в список репликаторов
 
 m_otherOpinions as map or set
+
+Modify before my Modify ended
