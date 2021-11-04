@@ -656,9 +656,7 @@ public:
 
         // start drive update (if 'approveTransaction' is received)
         {
-            std::unique_lock<std::shared_mutex> lock(m_mutex);
-        
-            m_sandboxCalculated = true;
+            std::shared_lock<std::shared_mutex> lock(m_mutex);
             
             if ( m_approveTransactionReceived )
             {
@@ -726,7 +724,9 @@ public:
         
         {
             std::unique_lock<std::shared_mutex> lock(m_mutex);
-
+            
+            m_sandboxCalculated = true;
+            
             if ( m_approveTransactionReceived )
             {
                 lock.unlock();
