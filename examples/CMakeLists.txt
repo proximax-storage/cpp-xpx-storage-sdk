@@ -21,6 +21,8 @@ include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/libtorrent/include)
 ### modify flat drive example
 add_subdirectory(modifyDriveFlat3)
 add_subdirectory(modifyDriveFlat4)
+add_subdirectory(modifyDriveFlat5)
+add_subdirectory(modifyDriveFlat6)
 add_subdirectory(extensionEmulator)
 #add_subdirectory(modifyDriveFlat2)
 add_subdirectory(replicator2)
