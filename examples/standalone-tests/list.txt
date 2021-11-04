@@ -1,0 +1,5 @@
+- late replicator
+- opinion received when rootHash is calculated
+- opinion received when rootHash is not calculated 
+- approval transaction received when rootHash is calculated
+- approval transaction when rootHash is not calculated 

@@ -141,8 +141,11 @@ namespace sirius::drive {
                 const std::string address = rpcReplicatorInfo.m_replicatorAddress;
                 const unsigned short port = rpcReplicatorInfo.m_rpcReplicatorPort;
 
-                rpc::client replicator(address, port);
-                replicator.call("modifyDrive", rpcDataModification);
+                std::thread t([address, port, rpcDataModification]{
+                    rpc::client replicator(address, port);
+                    replicator.call("modifyDrive", rpcDataModification);
+                });
+                t.detach();
             }
         }
 
@@ -156,8 +159,11 @@ namespace sirius::drive {
                     const std::string address = rpcReplicatorInfo.m_replicatorAddress;
                     const unsigned short port = rpcReplicatorInfo.m_rpcReplicatorPort;
 
-                    rpc::client replicator(address, port);
-                    replicator.call("acceptModifyApprovalTransaction", rpcModifyApprovalTransactionInfo);
+                    std::thread t([address, port, rpcModifyApprovalTransactionInfo]{
+                        rpc::client replicator(address, port);
+                        replicator.call("acceptModifyApprovalTransaction", rpcModifyApprovalTransactionInfo);
+                    });
+                    t.detach();
                 }
             }
         }
@@ -173,8 +179,11 @@ namespace sirius::drive {
                 const std::string address = r->m_replicatorAddress;
                 const unsigned short port = r->m_rpcReplicatorPort;
 
-                rpc::client replicator(address, port);
-                replicator.call("acceptSingleModifyApprovalTransaction", rpcModifyApprovalTransactionInfo);
+                std::thread t([address, port, rpcModifyApprovalTransactionInfo]{
+                    rpc::client replicator(address, port);
+                    replicator.call("acceptSingleModifyApprovalTransaction", rpcModifyApprovalTransactionInfo);
+                });
+                t.detach();
             } else {
                 std::cout << "Extension. replicator not found!: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_replicatorPubKey) << std::endl;
             }

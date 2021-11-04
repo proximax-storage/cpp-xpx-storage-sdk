@@ -1,26 +1,176 @@
-#include "types.h"
-#include "drive/Session.h"
-#include "drive/ClientSession.h"
-#include "drive/Replicator.h"
-#include "drive/FlatDrive.h"
-#include "drive/FsTree.h"
-#include "drive/Utils.h"
-#include "crypto/Signer.h"
+//#include "types.h"
+//#include "drive/Session.h"
+//#include "drive/ClientSession.h"
+//#include "drive/Replicator.h"
+//#include "drive/FlatDrive.h"
+//#include "drive/FsTree.h"
+//#include "drive/Utils.h"
+//#include "crypto/Signer.h"
+//
+//#include <fstream>
+//#include <filesystem>
+//#include <future>
+//#include <condition_variable>
+//#include "boost/date_time/posix_time/posix_time.hpp"
+//
+//#include <libtorrent/alert.hpp>
+//#include <libtorrent/alert_types.hpp>
+//#include <libtorrent/kademlia/ed25519.hpp>
+//
+//#include <sirius_drive/session_delegate.h>
 
-#include <fstream>
-#include <filesystem>
-#include <future>
-#include <condition_variable>
-#include "boost/date_time/posix_time/posix_time.hpp"
+namespace sirius::drive {
 
-#include <libtorrent/alert.hpp>
-#include <libtorrent/alert_types.hpp>
-#include <libtorrent/kademlia/ed25519.hpp>
+static std::string intToString02( int n )
+{
+    char str[10];
+    snprintf (str, 7, "%02d", n);
+    return str;
+}
 
-#include <sirius_drive/session_delegate.h>
+class TestEnvironment : public ReplicatorEventHandler
+{
+public:
 
-const bool gUse3Replicators = true;
+    std::vector<std::shared_ptr<Replicator>> m_replicators;
+    ReplicatorList                           m_addrList;
+    std::vector<std::thread>                 m_threads;
 
+    std::condition_variable     modifyCompleteCondVar;
+    std::atomic<int>            modifyCompleteCounter{0};
+    std::mutex                  modifyCompleteMutex;
+
+public:
+    TestEnvironment(    int         numberOfReplicators,
+                        std::string ipAddr0,
+                        int         port0,
+                        std::string rootFolder0,
+                        std::string sandboxRootFolder0,
+                        bool        useTcpSocket,
+                        bool        startReplicator = true )
+    {
+        for( int i=1; i<=numberOfReplicators; i++ )
+        {
+            std::string         privateKey = intToString02(i) + "00000000010203040501020304050102030405010203040501020304050102";
+            std::string         ipAddr = ipAddr0 + intToString02(i);
+            int                 port = port0 + i;
+            std::string         rootFolder = rootFolder0 + "_" + intToString02(i);
+            std::string         sandboxRootFolder = sandboxRootFolder0 + "_" + intToString02(i);
+            std::string         dbgReplicatorName = std::string("replicator_") + intToString02(i);
+
+            auto replicatorKeyPair = sirius::crypto::KeyPair::FromPrivate(
+                                           sirius::crypto::PrivateKey::FromString( privateKey ));
+            
+            //EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(replicatorKeyPair.publicKey().array()[0]) );
+
+            auto replicator = createDefaultReplicator(
+                                                      std::move( replicatorKeyPair ),
+                                                      std::move( ipAddr ),
+                                                      std::to_string(port),
+                                                      std::move( rootFolder ),
+                                                      std::move( sandboxRootFolder ),
+                                                      useTcpSocket,
+                                                      (ReplicatorEventHandler&)*this,
+                                                      dbgReplicatorName.c_str() );
+
+            replicator->setDownloadApprovalTransactionTimerDelay(1);
+            replicator->setModifyApprovalTransactionTimerDelay(1);
+            
+            if ( startReplicator )
+                replicator->start();
+
+            m_replicators.push_back( replicator );
+
+            boost::asio::ip::address e = boost::asio::ip::address::from_string( ipAddr );
+            m_addrList.emplace_back( ReplicatorInfo{ {e, static_cast<boost::asio::ip::port_type>(port)}, replicatorKeyPair.publicKey() } );
+
+            m_threads.push_back({});
+        }
+    }
+    
+    void addDrive( const Key& driveKey, uint64_t driveSize )
+    {
+        for( auto& replicator: m_replicators )
+        {
+            auto result = replicator->addDrive( driveKey, driveSize, m_addrList );
+            assert( result.empty() );
+        }
+    }
+
+#pragma mark --ReplicatorEventHandler methods and variables
+    
+    static std::optional<ApprovalTransactionInfo>           m_approvalTransactionInfo;
+    static std::optional<DownloadApprovalTransactionInfo>   m_dnApprovalTransactionInfo;
+    static std::mutex                                       m_transactionInfoMutex;
+
+    // It will be called before 'replicator' shuts down
+    virtual void willBeTerminated( Replicator& replicator ) override
+    {
+    }
+
+    virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& info ) override
+    {
+        const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+//        if ( !m_dnApprovalTransactionInfo )
+//        {
+//            m_dnApprovalTransactionInfo = { std::move(info) };
+//
+//            std::thread( [info] { gReplicator->onDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
+//            std::thread( [info] { gReplicator2->onDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
+//            std::thread( [info] { gReplicator3->onDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
+//        }
+    }
+
+    // It will be called when rootHash is calculated in sandbox
+    virtual void rootHashIsCalculated( Replicator&                    replicator,
+                                       const sirius::Key&             driveKey,
+                                       const sirius::drive::InfoHash& modifyTransactionHash,
+                                       const sirius::drive::InfoHash& sandboxRootHash )  override
+    {
+    }
+    
+    // It will be called when transaction could not be completed
+    virtual void modifyTransactionIsCanceled( Replicator& replicator,
+                                             const sirius::Key&             driveKey,
+                                             const sirius::drive::InfoHash& modifyTransactionHash,
+                                             const std::string&             reason,
+                                             int                            errorCode )  override
+    {
+    }
+    
+    // It will initiate the approving of modify transaction
+    virtual void modifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
+    {
+        const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+//        if ( !m_approvalTransactionInfo )
+//        {
+//            m_approvalTransactionInfo = { std::move(transactionInfo) };
+//
+//            std::thread( [] { gReplicator->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
+//            std::thread( [] { gReplicator2->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
+//            std::thread( [] { gReplicator3->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
+//        }
+    }
+    
+    // It will initiate the approving of single modify transaction
+    virtual void singleModifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
+    {
+    }
+
+    // It will be called after the drive is synchronized with sandbox
+    virtual void driveModificationIsCompleted( Replicator&                    replicator,
+                                               const sirius::Key&             driveKey,
+                                               const sirius::drive::InfoHash& modifyTransactionHash,
+                                               const sirius::drive::InfoHash& rootHash ) override
+    {
+        modifyCompleteCounter++;
+        modifyCompleteCondVar.notify_all();
+    }
+};
+
+}
+
+#if 0
 //
 // This example shows interaction between 'client' and 'replicator'.
 //
@@ -171,10 +321,7 @@ static void clientSessionErrorHandler( const lt::alert* alert )
     }
 }
 
-#ifdef __APPLE__
 #pragma mark --MyReplicatorEventHandler--
-#endif
-
 class MyReplicatorEventHandler : public ReplicatorEventHandler
 {
 public:
@@ -202,10 +349,9 @@ public:
             std::thread( [info] { gReplicator2->onDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
             std::thread( [info] { gReplicator3->onDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
             
-            
             for( const auto& opinion : info.m_opinions )
             {
-                EXLOG( "download opinion of: " << gReplicatorMap[opinion.m_replicatorKey]->dbgReplicatorName() );
+                EXLOG( "opinion of: " << gReplicatorMap[opinion.m_replicatorKey]->dbgReplicatorName() );
                 for( const auto& bytes : opinion.m_downloadedBytes )
                 {
                     EXLOG( "  bytes: " << bytes );
@@ -239,17 +385,6 @@ public:
     {
         EXLOG( "modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName() );
         const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
-        
-        for( const auto& opinion: transactionInfo.m_opinions )
-        {
-            std::cout << " key:" << int(opinion.m_replicatorKey[0]) << " ";
-            for( size_t i=0; i<opinion.m_uploadReplicatorKeys.size(); i+=32  )
-            {
-                std::cout << int(opinion.m_uploadReplicatorKeys[i]) << ":" << opinion.m_replicatorUploadBytes[i/32] << " ";
-            }
-            std::cout << "client:" <<opinion.m_clientUploadBytes << std::endl;
-        }
-        
         if ( !m_approvalTransactionInfo )
         {
             m_approvalTransactionInfo = { std::move(transactionInfo) };
@@ -296,10 +431,7 @@ MyReplicatorEventHandler gMyReplicatorEventHandler4;
 MyReplicatorEventHandler gMyReplicatorEventHandler5;
 
 
-#ifdef __APPLE__
 #pragma mark --main()--
-#endif
-
 //
 // main
 //
@@ -490,10 +622,7 @@ int main(int,char**)
 //
 // replicator
 //
-#ifdef __APPLE__
 #pragma mark --replicator--
-#endif
-
 static std::shared_ptr<Replicator> createReplicator(
                                         const std::string&  privateKey,
                                         std::string&&       ipAddr,
@@ -805,3 +934,4 @@ static std::string now_str()
     return buf;
 }
 
+#endif

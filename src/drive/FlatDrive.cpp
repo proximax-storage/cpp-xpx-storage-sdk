@@ -145,12 +145,15 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     // List of replicators that support this drive
     ReplicatorList    m_replicatorList;
     
-    // opinions
+    // opinion
     std::optional<ApprovalTransactionInfo>  m_myOpinion;
-    std::vector<ApprovalTransactionInfo>    m_otherOpinions;
+
+    // opinions from other replicators
+    // (key is a replicator key, one replicator one opinion)
+    std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>    m_otherOpinions;
     
-    // may be they are outstripping opinions
-    std::vector<ApprovalTransactionInfo>    m_unknownOpinions;
+    //todo may be they are outstripping opinions
+    //std::vector<ApprovalTransactionInfo>    m_unknownOpinions;
     
     std::optional<boost::asio::high_resolution_timer> m_opinionTimer;
 
@@ -437,8 +440,7 @@ public:
             m_approveTransactionSent     = false;
 
             // remove old opinions
-            std::remove_if( m_otherOpinions.begin(), m_otherOpinions.end(),
-                            [&modifyRequest] (const auto& opinion) { return opinion.m_modifyTransactionHash != modifyRequest.m_transactionHash.array(); });
+            m_otherOpinions.clear();
         }
         
         // remove my opinion
@@ -728,7 +730,7 @@ public:
             if ( m_approveTransactionReceived )
             {
                 lock.unlock();
-                sendSingleAprovalTransaction();
+                sendSingleApprovalTransaction();
             }
             else
             {
@@ -931,11 +933,13 @@ public:
         if ( anOpinion.m_opinions.size() != 1 )
             return; //is it spam?
         
+        auto& replicatorKey = anOpinion.m_opinions[0].m_replicatorKey;
+        
         // check public key
         {
             std::shared_lock<std::shared_mutex> lock(m_mutex);
             auto count = std::count_if( m_replicatorList.begin(), m_replicatorList.end(),
-                                        [replicatorKey=anOpinion.m_opinions[0].m_replicatorKey] (const auto& r){
+                                        [&replicatorKey] (const auto& r){
                                             return r.m_publicKey == replicatorKey;} );
             //todo unknown replicator (or spam)
             if ( count != 1 )
@@ -956,14 +960,14 @@ public:
         {
             // it seems that our drive is significantly behind
             // todo remove old opinions from this replicator
-            m_unknownOpinions.push_back( anOpinion );
+            //todo m_unknownOpinions.push_back( anOpinion );
             return;
         }
         
         // todo verify transaction, duplicates ...
 
         // May be send approval transaction
-        m_otherOpinions.push_back( anOpinion );
+        m_otherOpinions[replicatorKey] = anOpinion;
         checkOpinionNumberAndStartTimer();
     }
     
@@ -985,7 +989,7 @@ public:
         info.m_opinions.reserve( m_otherOpinions.size()+1 );
         info.m_opinions.emplace_back(  m_myOpinion->m_opinions[0] );
         for( const auto& otherOpinion : m_otherOpinions ) {
-            info.m_opinions.emplace_back( otherOpinion.m_opinions[0] );
+            info.m_opinions.emplace_back( otherOpinion.second.m_opinions[0] );
         }
         
         // notify event handler
@@ -1028,14 +1032,15 @@ public:
             {
                 // Send Single Aproval Transaction
                 if ( m_myOpinion )
-                    sendSingleAprovalTransaction();
+                    sendSingleApprovalTransaction();
             }
         }
     }
 
-    void sendSingleAprovalTransaction()
+    void sendSingleApprovalTransaction()
     {
-        //todo
+        auto copy = *m_myOpinion;
+        m_eventHandler.singleModifyApprovalTransactionIsReady( m_replicator, std::move(copy) );
     }
 
     virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override

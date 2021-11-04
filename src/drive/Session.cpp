@@ -156,7 +156,7 @@ private:
         settingsPack.set_str(  lt::settings_pack::dht_bootstrap_nodes, "" );
 
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
-        settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, true );
+        settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, false );
 
         m_session.apply_settings(settingsPack);
         m_session.set_alert_notify( [this] { alertHandler(); } );
@@ -432,7 +432,10 @@ private:
         }
     }
 
+#ifdef __APPLE__
 #pragma mark --messaging--
+#endif
+    
     struct DhtRequestPlugin : lt::plugin
     {
         std::shared_ptr<lt::session_delegate> m_replicator;
@@ -599,7 +602,9 @@ private:
 ////                }
 //            }
 
+#ifdef __APPLE__
 #pragma mark --alerts--
+#endif
             switch (alert->type()) {
                 case lt::add_torrent_alert::        alert_type:
                 case lt::dht_announce_alert::       alert_type:
