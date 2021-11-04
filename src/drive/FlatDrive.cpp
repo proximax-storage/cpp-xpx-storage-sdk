@@ -1039,7 +1039,8 @@ public:
 
     void sendSingleApprovalTransaction()
     {
-        //todo
+        auto copy = *m_myOpinion;
+        m_eventHandler.singleModifyApprovalTransactionIsReady( m_replicator, std::move(copy) );
     }
 
     virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
