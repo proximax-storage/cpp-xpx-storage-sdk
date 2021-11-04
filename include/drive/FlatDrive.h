@@ -45,7 +45,7 @@ class Replicator;
 
         // Opinions about how much the Replicators and the Drive Owner have uploaded to this Replicator.
         //TODO
-        std::vector<uint8_t>    m_uploadReplicatorKeys;
+        std::vector<uint8_t>    m_uploadReplicatorKeys; // all keys are concatenated into 1 array
         std::vector<uint64_t>   m_replicatorUploadBytes;
         uint64_t                m_clientUploadBytes = 0;
         

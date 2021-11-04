@@ -205,7 +205,7 @@ public:
             
             for( const auto& opinion : info.m_opinions )
             {
-                EXLOG( "opinion of: " << gReplicatorMap[opinion.m_replicatorKey]->dbgReplicatorName() );
+                EXLOG( "download opinion of: " << gReplicatorMap[opinion.m_replicatorKey]->dbgReplicatorName() );
                 for( const auto& bytes : opinion.m_downloadedBytes )
                 {
                     EXLOG( "  bytes: " << bytes );
@@ -239,6 +239,17 @@ public:
     {
         EXLOG( "modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName() );
         const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+        
+        for( const auto& opinion: transactionInfo.m_opinions )
+        {
+            std::cout << " key:" << int(opinion.m_replicatorKey[0]) << " ";
+            for( size_t i=0; i<opinion.m_uploadReplicatorKeys.size(); i+=32  )
+            {
+                std::cout << int(opinion.m_uploadReplicatorKeys[i]) << ":" << opinion.m_replicatorUploadBytes[i/32] << " ";
+            }
+            std::cout << "client:" <<opinion.m_clientUploadBytes << std::endl;
+        }
+        
         if ( !m_approvalTransactionInfo )
         {
             m_approvalTransactionInfo = { std::move(transactionInfo) };
