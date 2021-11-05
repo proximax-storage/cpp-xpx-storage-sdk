@@ -123,7 +123,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     bool m_approveTransactionReceived = false;
     bool m_approveTransactionSent     = false; // approval transaction has been sent
     
-    bool m_driveIsClosing             = false;
+    // It is used when drive is closing
+    std::optional<Hash256> m_closingBlockHash = {};
 
     // It is needed if a new 'modifyRequest' is received, but drive is syncing with sandbox
     std::deque<ModifyRequest> m_modifyRequestQueue;
@@ -366,13 +367,13 @@ public:
 
     void startDriveClosing( const Hash256& transactionHash ) override
     {
-        m_driveIsClosing = true;
+        m_closingBlockHash = {transactionHash};
         
         std::shared_lock<std::shared_mutex> lock(m_mutex);
 
         if ( m_modifyRequest )
         {
-            m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this,transactionHash](){
+            m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this,transactionHash] {
                 continueDriveClosing( transactionHash );
             });
         }
@@ -1047,6 +1048,11 @@ public:
     {
         std::cout << "single" << std::endl;
         synchronizeDriveWithSandbox();
+    }
+
+    const std::optional<Hash256>& closingBlockHash() const override
+    {
+        return m_closingBlockHash;
     }
 
     virtual void printDriveStatus() override

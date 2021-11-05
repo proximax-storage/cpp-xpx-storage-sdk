@@ -32,8 +32,12 @@ struct DownloadChannelInfo
     ReplicatorList          m_replicatorsList;      //todo must be synchronized with drive.m_replicatorList (in higher versions?)
     ReplicatorUploadMap     m_replicatorUploadMap;
     std::vector<std::array<uint8_t, 32>> m_clients; //todo
+    
+    // it is used when drive is closing
+    bool                    m_isClosed = false;
 };
 
+// key is a channel hash
 using ChannelMap         = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
 
 struct DownloadOpinionMapValue
