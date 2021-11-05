@@ -32,7 +32,7 @@ public:
     std::shared_ptr<Session> m_session;
 
     // Drives
-    std::map<Key, std::shared_ptr<sirius::drive::FlatDrive>> m_drives;
+    std::map<Key, std::shared_ptr<sirius::drive::FlatDrive>> m_driveMap;
     std::shared_mutex  m_driveMutex;
 
     // Replicator's keys
@@ -94,7 +94,7 @@ public:
     Hash256 getRootHash( const Key& driveKey ) override
     {
         std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-        if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+        if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
         {
             auto rootHash = driveIt->second->rootHash();
             LOG( "getRootHash of: " << driveKey << " -> " << rootHash );
@@ -110,7 +110,7 @@ public:
     void printDriveStatus( const Key& driveKey ) override
     {
         std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-        if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+        if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
         {
             return driveIt->second->printDriveStatus();
         }
@@ -127,7 +127,7 @@ public:
 
         std::unique_lock<std::shared_mutex> lock(m_driveMutex);
 
-        if (m_drives.find(driveKey) != m_drives.end()) {
+        if (m_driveMap.find(driveKey) != m_driveMap.end()) {
             return "drive already added";
         }
 
@@ -142,7 +142,7 @@ public:
         }
 
         // TODO: exclude itself from replicators !
-        m_drives[driveKey] = sirius::drive::createDefaultFlatDrive(
+        m_driveMap[driveKey] = sirius::drive::createDefaultFlatDrive(
                 session(),
                 m_storageDirectory,
                 m_sandboxDirectory,
@@ -161,7 +161,7 @@ public:
 
         std::unique_lock<std::shared_mutex> lock(m_driveMutex);
 
-        if ( auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+        if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
         {
             driveIt->second->startDriveClosing( transactionHash );
         }
@@ -170,7 +170,7 @@ public:
             return "drive not found";
         }
 
-        m_drives.erase(driveKey);
+        m_driveMap.erase(driveKey);
         return "";
     }
 
@@ -179,13 +179,13 @@ public:
 
         std::shared_lock<std::shared_mutex> lock(m_driveMutex);
 
-        if (m_drives.find(driveKey) == m_drives.end())
+        if (m_driveMap.find(driveKey) == m_driveMap.end())
         {
             LOG( "drive not found " << driveKey );
             return nullptr;
         }
 
-        return m_drives[driveKey];
+        return m_driveMap[driveKey];
     }
 
     std::string modify( const Key& driveKey, ModifyRequest&& modifyRequest ) override
@@ -196,7 +196,7 @@ public:
 
         std::shared_ptr<sirius::drive::FlatDrive> pDrive;
         {
-            if ( auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+            if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
             {
                 pDrive = driveIt->second;
             }
@@ -228,7 +228,7 @@ public:
     {
         std::shared_lock<std::shared_mutex> lock(m_driveMutex);
         
-        if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+        if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
         {
             driveIt->second->cancelModifyDrive( transactionHash );
             return "";
@@ -247,7 +247,7 @@ public:
         std::shared_ptr<sirius::drive::FlatDrive> pDrive;
         {
             const std::unique_lock<std::shared_mutex> lock(m_driveMutex);
-            if ( auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+            if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
             {
                 pDrive = driveIt->second;
             }
@@ -465,9 +465,16 @@ public:
     
     virtual void closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) override
     {
-        
-    }
+        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
+        for( auto& [channelId,channelInfo] : m_downloadChannelMap )
+        {
+            if ( channelInfo.m_driveKey == drive.drivePublicKey() )
+            {
+                prepareDownloadApprovalTransactionInfo( blockHash, channelId );
+            }
+        }
+    }
     
     virtual void onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId, bool driveIsClosed ) override
     {
@@ -483,11 +490,24 @@ public:
         {
             LOG_ERR( "channelId not found" );
         }
+
+        if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end() )
+        {
+            if ( auto driveIt = m_driveMap.find( channelIt->second.m_driveKey ); driveIt != m_driveMap.end() )
+            {
+                if ( driveIt->second->closingBlockHash() == blockHash )
+                {
+                    //todo...
+                    
+                }
+            }
+            //if ( it->second.m_driveKey )
+        }
     }
     
     virtual void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
-        if ( auto it = m_drives.find( anOpinion.m_driveKey ); it != m_drives.end() )
+        if ( auto it = m_driveMap.find( anOpinion.m_driveKey ); it != m_driveMap.end() )
         {
             it->second->onOpinionReceived( anOpinion );
         }
@@ -499,7 +519,7 @@ public:
     
     virtual void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
-        if ( auto it = m_drives.find( transaction.m_driveKey ); it != m_drives.end() )
+        if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
         {
             it->second->onApprovalTransactionHasBeenPublished( transaction );
         }
@@ -511,7 +531,7 @@ public:
     
     virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
-        if ( auto it = m_drives.find( transaction.m_driveKey ); it != m_drives.end() )
+        if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
         {
             it->second->onSingleApprovalTransactionHasBeenPublished( transaction );
         }
@@ -537,7 +557,7 @@ public:
             ApprovalTransactionInfo info;
             iarchive( info );
             
-            if ( auto it = m_drives.find( info.m_driveKey ); it != m_drives.end() )
+            if ( auto it = m_driveMap.find( info.m_driveKey ); it != m_driveMap.end() )
             {
                 it->second->onOpinionReceived( info );
             }

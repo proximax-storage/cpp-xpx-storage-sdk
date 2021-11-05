@@ -290,6 +290,10 @@ class Replicator;
         virtual void     onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
 
         virtual void     onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
+        
+        // It will be called by replicator
+        virtual const std::optional<Hash256>& closingBlockHash() const = 0;
+
 
         // for testing and debugging
         virtual void printDriveStatus() = 0;
