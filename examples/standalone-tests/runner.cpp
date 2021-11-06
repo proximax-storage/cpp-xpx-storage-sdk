@@ -2,6 +2,7 @@
 #include "opinionReceivedRootNotCalculated.h"
 #include "approvalReceivedRootCalculated.h"
 #include "approvalReceivedRootNotCalculated.h"
+#include "slowClient.h"
 
 #include <iostream>
 
@@ -24,6 +25,9 @@ int main(int argc, char *argv[]) {
             break;
         case 4:
             opinionReceivedRootCalculatedTest();
+            break;
+        case 5:
+            slowClient();
             break;
     }
 }

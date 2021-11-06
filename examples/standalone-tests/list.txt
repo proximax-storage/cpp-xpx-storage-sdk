@@ -3,3 +3,4 @@
 - one replicator is slow - approval transaction received when rootHash is not calculated
 - one replicator is slow - opinion received when rootHash is not calculated
 - opinion received when rootHash is calculated
+- slow client - replicators
