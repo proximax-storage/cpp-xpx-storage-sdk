@@ -655,16 +655,16 @@ public:
 
         myRootHashIsCalculated();
 
-        // start drive update (if 'approveTransaction' is received)
-        {
-            std::shared_lock<std::shared_mutex> lock(m_mutex);
-            
-            if ( m_approveTransactionReceived )
-            {
-                lock.unlock();
-                updateDrive_1();
-            }
-        }
+//        // start drive update (if 'approveTransaction' is received)
+//        {
+//            std::shared_lock<std::shared_mutex> lock(m_mutex);
+//
+//            if ( m_approveTransactionReceived )
+//            {
+//                lock.unlock();
+//                updateDrive_1();
+//            }
+//        }
     }
     
     void createMyOpinion()
@@ -730,6 +730,7 @@ public:
             
             if ( m_approveTransactionReceived )
             {
+//                std::cout << "RECEIVED" << std::endl;
                 lock.unlock();
                 sendSingleApprovalTransaction();
             }
@@ -1014,7 +1015,6 @@ public:
         
         if ( !m_sandboxCalculated )
         {
-            // wait root hash
             return;
         }
         else
@@ -1023,7 +1023,6 @@ public:
             auto it = std::find_if( v.begin(), v.end(), [this] (const auto& opinion) {
                             return opinion.m_replicatorKey == m_replicator.replicatorKey().array();
             });
-            
             // Is my opinion present
             if ( it != v.end() )
             {
@@ -1046,6 +1045,7 @@ public:
 
     virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
+        std::cout << "single" << std::endl;
         synchronizeDriveWithSandbox();
     }
 

@@ -24,7 +24,7 @@ namespace sirius::drive {
             bindOperations();
         }
 
-        ~ExtensionEmulator() = default;
+        virtual ~ExtensionEmulator() = default;
 
     public:
         void run() {
@@ -82,7 +82,8 @@ namespace sirius::drive {
             });
         }
 
-        void openDownloadChannel(types::RpcDownloadChannelInfo& channelInfo) {
+    protected:
+        virtual void openDownloadChannel(types::RpcDownloadChannelInfo& channelInfo) {
             std::cout << "Extension. openDownloadChannel: " << utils::HexFormat(channelInfo) << std::endl;
 
             if(m_rpcReplicators.empty()){
@@ -100,7 +101,7 @@ namespace sirius::drive {
             }
         }
 
-        void closeDownloadChannel(const std::array<uint8_t,32>& channelKey) {
+        virtual void closeDownloadChannel(const std::array<uint8_t,32>& channelKey) {
             std::cout << "Extension. closeDownloadChannel: " << utils::HexFormat(channelKey) << std::endl;
 
             if(m_rpcReplicators.empty()){
@@ -118,7 +119,7 @@ namespace sirius::drive {
             }
         }
 
-        void modifyDrive(types::RpcDataModification& rpcDataModification, const types::RpcClientInfo& rpcClientInfo) {
+        virtual void modifyDrive(types::RpcDataModification& rpcDataModification, const types::RpcClientInfo& rpcClientInfo) {
             std::cout << "Extension. modifyDrive: " << utils::HexFormat(rpcDataModification.m_drivePubKey) << std::endl;
 
             if(m_rpcReplicators.empty()){
@@ -148,7 +149,7 @@ namespace sirius::drive {
             }
         }
 
-        void modifyApproveTransactionIsReady(const types::RpcModifyApprovalTransactionInfo& rpcModifyApprovalTransactionInfo) {
+        virtual void modifyApproveTransactionIsReady(const types::RpcModifyApprovalTransactionInfo& rpcModifyApprovalTransactionInfo) {
             std::cout << "Extension. modifyApproveTransactionIsReady: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_drivePubKey) << std::endl;
 
             if (!m_modifyApproveHashes.contains(rpcModifyApprovalTransactionInfo.m_modifyTransactionHash)) {
@@ -167,7 +168,7 @@ namespace sirius::drive {
             }
         }
 
-        void singleModifyApproveTransactionIsReady(const types::RpcModifyApprovalTransactionInfo& rpcModifyApprovalTransactionInfo) {
+        virtual void singleModifyApproveTransactionIsReady(const types::RpcModifyApprovalTransactionInfo& rpcModifyApprovalTransactionInfo) {
             std::cout << "Extension. singleModifyApproveTransactionIsReady: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_drivePubKey) << std::endl;
 
             types::RpcReplicatorInfo rpcReplicatorInfo;
@@ -188,7 +189,7 @@ namespace sirius::drive {
             }
         }
 
-        void driveModificationIsCompleted(const types::RpcEndDriveModificationInfo& rpcEndDriveModificationInfo) {
+        virtual void driveModificationIsCompleted(const types::RpcEndDriveModificationInfo& rpcEndDriveModificationInfo) {
             std::cout << "Extension. driveModificationIsCompleted: " << utils::HexFormat(rpcEndDriveModificationInfo.m_replicatorInfo.m_replicatorPubKey) << std::endl;
 
             if (m_endDriveModificationHashes.contains(rpcEndDriveModificationInfo.m_modifyTransactionHash)) {
@@ -212,10 +213,10 @@ namespace sirius::drive {
             }
         }
 
-        void downloadApproveTransactionIsReady() {
+        virtual void downloadApproveTransactionIsReady() {
         }
 
-        void prepareDriveTransaction(types::RpcPrepareDriveTransactionInfo& rpcPrepareDriveTransactionInfo) {
+        virtual void prepareDriveTransaction(types::RpcPrepareDriveTransactionInfo& rpcPrepareDriveTransactionInfo) {
             std::cout << "Extension. prepareDriveTransaction. Drive key: " << utils::HexFormat(rpcPrepareDriveTransactionInfo.m_driveKey) << std::endl;
 
             if(m_rpcReplicators.empty()){
@@ -236,7 +237,7 @@ namespace sirius::drive {
         }
 
         // TODO: Pass correct transaction hash
-        void driveClosureTransaction(const std::array<uint8_t, 32>& driveKey) {
+        virtual void driveClosureTransaction(const std::array<uint8_t, 32>& driveKey) {
             std::cout << "Extension. driveClosureTransaction. Drive key: " << utils::HexFormat(driveKey) << std::endl;
 
             if(m_rpcReplicators.empty()){
@@ -254,7 +255,7 @@ namespace sirius::drive {
             }
         }
 
-        void replicatorOnboardingTransaction(const types::RpcReplicatorInfo& rpcReplicatorInfo) {
+        virtual void replicatorOnboardingTransaction(const types::RpcReplicatorInfo& rpcReplicatorInfo) {
             std::cout << "Extension. replicatorOnboardingTransaction. Replicator key: " << utils::HexFormat(rpcReplicatorInfo.m_replicatorPubKey) << std::endl;
 
             if(std::find(m_rpcReplicators.begin(), m_rpcReplicators.end(), rpcReplicatorInfo) != m_rpcReplicators.end()) {
@@ -280,7 +281,7 @@ namespace sirius::drive {
             return {};
         }
 
-    private:
+    protected:
         std::map<std::array<uint8_t,32>, types::RpcClientInfo> m_endDriveModificationHashes;
         std::map<std::array<uint8_t,32>, unsigned long> m_endDriveModificationCounter;
         std::set<std::array<uint8_t,32>> m_modifyApproveHashes;

@@ -10,7 +10,7 @@ using namespace sirius::drive;
 int main() {
     // Run emulator
     std::thread emulator([]{
-        ExtensionEmulator extensionEmulator("192.168.0.101", 5510);
+        ExtensionEmulator extensionEmulator("192.168.2.101", 5510);
         extensionEmulator.run();
     });
     emulator.detach();
@@ -21,12 +21,12 @@ int main() {
     std::thread replicator1([]{
         RpcReplicator replicator( "1000000000000000000000000000000000000000000000000000000000000000",
                                   "replicator1",
-                                  "192.168.0.102",
+                                  "192.168.2.102",
                                   "5550",
                                   (std::string(getenv("HOME"))+"/111/replicator1/replicator_root"),
                                   (std::string(getenv("HOME"))+"/111/replicator1/sandbox_root"),
                                   5510,
-                                  "192.168.0.101",
+                                  "192.168.2.101",
                                   5510);
         replicator.setModifyApprovalTransactionTimerDelay(1);
         replicator.setDownloadApprovalTransactionTimerDelay(1);
@@ -37,12 +37,12 @@ int main() {
     std::thread replicator2([]{
         RpcReplicator replicator( "2000000000000000000000000000000000000000000000000000000000000000",
                                   "replicator2",
-                                  "192.168.0.103",
+                                  "192.168.2.103",
                                   "5550",
                                   (std::string(getenv("HOME"))+"/111/replicator2/replicator_root"),
                                   (std::string(getenv("HOME"))+"/111/replicator2/sandbox_root"),
                                   5510,
-                                  "192.168.0.101",
+                                  "192.168.2.101",
                                   5510);
         replicator.setModifyApprovalTransactionTimerDelay(1);
         replicator.setDownloadApprovalTransactionTimerDelay(1);
@@ -53,12 +53,12 @@ int main() {
     std::thread replicator3([]{
         RpcReplicator replicator( "3000000000000000000000000000000000000000000000000000000000000000",
                                   "replicator3",
-                                  "192.168.0.104",
+                                  "192.168.2.104",
                                   "5550",
                                   (std::string(getenv("HOME"))+"/111/replicator3/replicator_root"),
                                   (std::string(getenv("HOME"))+"/111/replicator3/sandbox_root"),
                                   5510,
-                                  "192.168.0.101",
+                                  "192.168.2.101",
                                   5510);
         replicator.setModifyApprovalTransactionTimerDelay(1);
         replicator.setDownloadApprovalTransactionTimerDelay(1);
@@ -69,12 +69,12 @@ int main() {
     std::thread replicator4([]{
         RpcReplicator replicator( "4000000000000000000000000000000000000000000000000000000000000000",
                                   "replicator4",
-                                  "192.168.0.105",
+                                  "192.168.2.105",
                                   "5550",
                                   (std::string(getenv("HOME"))+"/111/replicator4/replicator_root"),
                                   (std::string(getenv("HOME"))+"/111/replicator4/sandbox_root"),
                                   5510,
-                                  "192.168.0.101",
+                                  "192.168.2.101",
                                   5510);
         replicator.setModifyApprovalTransactionTimerDelay(1);
         replicator.setDownloadApprovalTransactionTimerDelay(1);
@@ -85,12 +85,12 @@ int main() {
     std::thread replicator5([]{
         RpcReplicator replicator( "5000000000000000000000000000000000000000000000000000000000000000",
                                   "replicator5",
-                                  "192.168.0.106",
+                                  "192.168.2.106",
                                   "5550",
                                   (std::string(getenv("HOME"))+"/111/replicator5/replicator_root"),
                                   (std::string(getenv("HOME"))+"/111/replicator5/sandbox_root"),
                                   5510,
-                                  "192.168.0.101",
+                                  "192.168.2.101",
                                   5510);
         replicator.setModifyApprovalTransactionTimerDelay(1);
         replicator.setDownloadApprovalTransactionTimerDelay(1);
@@ -103,9 +103,9 @@ int main() {
     // Client
     std::thread client([]{
         const std::string clientPrivateKey = "0000000000010203040501020304050102030405010203040501020304050102";
-        const std::string remoteRpcAddress = "192.168.0.101";
+        const std::string remoteRpcAddress = "192.168.2.101";
         const int remoteRpcPort = 5510;
-        const std::string incomingAddress = "192.168.0.100";
+        const std::string incomingAddress = "192.168.2.100";
         const int incomingPort = 5550;
         const int incomingRpcPort = 5510;
         const std::filesystem::path workFolder = std::filesystem::path(getenv("HOME")) / "111" / "client_work_folder";

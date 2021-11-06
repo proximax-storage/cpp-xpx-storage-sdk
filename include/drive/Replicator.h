@@ -164,6 +164,7 @@ public:
     virtual void        setDownloadApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual void        setModifyApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual int         getModifyApprovalTransactionTimerDelay() = 0;
+    virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
 
     
     // Message exchange

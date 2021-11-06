@@ -470,7 +470,7 @@ public:
 
         for( auto& [channelId,channelInfo] : m_downloadChannelMap )
         {
-            if ( channelInfo.m_driveKey == drive.drivePublicKey() )
+            if ( channelInfo.m_driveKey == drive.drivePublicKey().array() )
             {
                 prepareDownloadApprovalTransactionInfo( blockHash, channelId );
             }
@@ -633,6 +633,17 @@ public:
     int         getModifyApprovalTransactionTimerDelay() override
     {
         return m_modifyApprovalTransactionTimerDelayMs;
+    }
+
+    void        setSessionSettings(const lt::settings_pack& settings, bool localNodes) override
+    {
+        m_session->lt_session().apply_settings(settings);
+        if (localNodes) {
+            std::uint32_t const mask = 1 << lt::session::global_peer_class_id;
+            lt::ip_filter f;
+            f.add_rule(lt::make_address("0.0.0.0"), lt::make_address("255.255.255.255"), mask);
+            m_session->lt_session().set_peer_class_filter(f);
+        }
     }
     
     const char* dbgReplicatorName() const override { return m_dbgReplicatorName.c_str(); }
