@@ -106,6 +106,17 @@ public:
         return m_downloadChannelId;
     }
 
+    void setSessionSettings(const lt::settings_pack& settings, bool localNodes)
+    {
+        m_session->lt_session().apply_settings(settings);
+        if (localNodes) {
+            std::uint32_t const mask = 1 << lt::session::global_peer_class_id;
+            lt::ip_filter f;
+            f.add_rule(lt::make_address("0.0.0.0"), lt::make_address("255.255.255.255"), mask);
+            m_session->lt_session().set_peer_class_filter(f);
+        }
+    }
+
     // The next functions are called in libtorrent
 protected:
 

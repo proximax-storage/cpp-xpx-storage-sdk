@@ -1,5 +1,5 @@
-- late replicator
+- extremely fast transaction approval - needs refactoring
+- dropping someone's opinion - approval transaction received when rootHash is calculated
+- one replicator is slow - approval transaction received when rootHash is not calculated
+- one replicator is slow - opinion received when rootHash is not calculated
 - opinion received when rootHash is calculated
-- opinion received when rootHash is not calculated 
-- approval transaction received when rootHash is calculated
-- approval transaction when rootHash is not calculated 
