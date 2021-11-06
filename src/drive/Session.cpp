@@ -671,6 +671,10 @@ private:
                         // TODO: better to use piece_granularity
                         std::vector<int64_t> fp = theAlert->handle.file_progress();
 
+                        bool calculatePercents = false;//true;
+                        uint64_t dnBytes = 0;
+                        uint64_t totalBytes = 0;
+
                         // check completeness
                         bool isAllComplete = true;
                         for( uint32_t i=0; i<fp.size(); i++ ) {
@@ -679,10 +683,16 @@ private:
                             bool const complete = ( fp[i] == fsize );
 
                             isAllComplete = isAllComplete && complete;
+                            
+                            if ( calculatePercents )
+                            {
+                                dnBytes    += fp[i];
+                                totalBytes += fsize;
+                            }
 
                             //dbg/////////////////////////
 //                            const std::string filePath = theAlert->handle.torrent_file()->files().file_path(i);
-//                            LOG( m_addressAndPort << ": " << filePath << ": alert: progress: " << fp[i] << " of " << fsize );
+//                            _LOG( m_addressAndPort << ": " << filePath << ": alert: progress: " << fp[i] << " of " << fsize );
                             //dbg/////////////////////////
 
                             if ( auto it =  m_downloadMap.find(theAlert->handle.id());
@@ -701,6 +711,11 @@ private:
 
                         }
 
+                        if ( calculatePercents )
+                        {
+                            _LOG( m_addressAndPort << ":  progress: " << 100.*double(dnBytes)/double(totalBytes) );
+                        }
+                        
                         if ( isAllComplete )
                         {
                             auto it = m_downloadMap.find(theAlert->handle.id());
