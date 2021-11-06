@@ -200,7 +200,8 @@ public:
             if ( it.m_publicKey.array() != publicKey() )
                 map.insert( { it.m_publicKey.array(), {}} );
         }
-        m_downloadChannelMap[channelId] = DownloadChannelInfo{ prepaidDownloadSize, 0, 0, driveKey.array(), replicatorsList, map, clients };
+        
+        m_downloadChannelMap[channelId] = DownloadChannelInfo{ false, prepaidDownloadSize, 0, 0, driveKey.array(), replicatorsList, map, clients };
     }
 
     void addModifyDriveInfo( const Key&             modifyTransactionHash,
@@ -233,7 +234,7 @@ public:
         //
         {
             std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
-            m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ dataSize, 0, 0, driveKey.array(), replicatorsList, {}, clients };
+            m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, dataSize, 0, 0, driveKey.array(), replicatorsList, {}, clients };
         }
     }
     
@@ -358,12 +359,15 @@ public:
         if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
         {
             // check client key
-            const auto& v = it->second.m_clients;
-            if ( std::find_if( v.begin(), v.end(), [&clientPublicKey](const auto& element)
-                              { return element == clientPublicKey; } ) == v.end() )
+            if ( !it->second.m_isModifyTx )
             {
-                LOG_ERR( "acceptReceiptFromAnotherReplicator: bad client key; it is ignored" );
-                return;
+                const auto& v = it->second.m_clients;
+                if ( std::find_if( v.begin(), v.end(), [&clientPublicKey](const auto& element)
+                                  { return element == clientPublicKey; } ) == v.end() )
+                {
+                    LOG_ERR( "acceptReceiptFromAnotherReplicator: bad client key; it is ignored" );
+                    return;
+                }
             }
 
             auto replicatorIt = it->second.m_replicatorUploadMap.find( replicatorPublicKey );

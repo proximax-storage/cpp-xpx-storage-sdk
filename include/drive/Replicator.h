@@ -25,10 +25,12 @@ using ReplicatorUploadMap = std::map<std::array<uint8_t,32>,ReplicatorUploadInfo
 
 struct DownloadChannelInfo
 {
+    bool                    m_isModifyTx;
+    
     uint64_t                m_prepaidDownloadSize;
     uint64_t                m_requestedSize = 0;
     uint64_t                m_uploadedSize = 0;
-    std::array<uint8_t, 32> m_driveKey;
+    std::array<uint8_t,32>  m_driveKey;
     ReplicatorList          m_replicatorsList;      //todo must be synchronized with drive.m_replicatorList (in higher versions?)
     ReplicatorUploadMap     m_replicatorUploadMap;
     std::vector<std::array<uint8_t, 32>> m_clients; //todo

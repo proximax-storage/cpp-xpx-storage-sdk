@@ -32,7 +32,7 @@ public:
     std::shared_ptr<Session> m_session;
 
     // Drives
-    std::map<Key, std::shared_ptr<sirius::drive::FlatDrive>> m_driveMap;
+    std::map<Key, std::shared_ptr<FlatDrive>> m_driveMap;
     std::shared_mutex  m_driveMutex;
 
     // Replicator's keys
@@ -463,6 +463,7 @@ public:
         //_LOG( "//exit prepareDownloadApprovalTransactionInfo: " << dbgReplicatorName() );
     }
     
+    // It is called when drive is closing
     virtual void closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) override
     {
         std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
@@ -491,18 +492,46 @@ public:
             LOG_ERR( "channelId not found" );
         }
 
+        // Is it happened on drive closing?
         if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end() )
         {
-            if ( auto driveIt = m_driveMap.find( channelIt->second.m_driveKey ); driveIt != m_driveMap.end() )
+            const auto& driveKey = channelIt->second.m_driveKey;
+            
+            if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
             {
+                bool deleteDrive = false;
+
                 if ( driveIt->second->closingBlockHash() == blockHash )
                 {
-                    //todo...
+                    channelIt->second.m_isClosed = true;
                     
+                    for( const auto& [key,channelInfo] : m_downloadChannelMap )
+                    {
+                        if ( channelInfo.m_driveKey == driveKey && !channelInfo.m_isClosed )
+                            break;
+                    }
+                    
+                    deleteDrive = true;
+                }
+                lock.unlock();
+
+                if ( deleteDrive )
+                {
+                    std::unique_lock<std::shared_mutex> lock(m_downloadOpinionMutex);
+
+                    std::erase_if( m_downloadChannelMap, [&driveKey] (const auto& item) {
+                        return item.second.m_driveKey == driveKey;
+                    });
+                    
+                    //todo++++
+                    //driveIt->second->removeAllDriveData();
+                    
+                    m_driveMap.erase( driveIt );
                 }
             }
-            //if ( it->second.m_driveKey )
+
         }
+        
     }
     
     virtual void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
