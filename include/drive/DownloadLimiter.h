@@ -226,7 +226,7 @@ public:
             }
         }
         
-        m_modifyDriveMap[modifyTransactionHash.array()] = ModifyDriveInfo{ dataSize, replicatorsList, trafficMap, 0 };
+        m_modifyDriveMap[modifyTransactionHash.array()] = ModifyDriveInfo{ driveKey.array(), dataSize, replicatorsList, trafficMap, 0 };
         lock.unlock();
 
         // we need to add modifyTransactionHash into 'm_downloadChannelMap'
@@ -238,7 +238,7 @@ public:
         }
     }
     
-    void removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash )
+    void removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash ) override
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
         m_modifyDriveMap.erase(modifyTransactionHash);

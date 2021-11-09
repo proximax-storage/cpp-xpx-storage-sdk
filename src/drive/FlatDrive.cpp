@@ -371,6 +371,12 @@ public:
         
         std::shared_lock<std::shared_mutex> lock(m_mutex);
 
+        {
+            std::ofstream filestream( m_driveFolder / "is_closing" );
+            filestream << "1";
+            filestream.close();
+        }
+
         if ( m_modifyRequest )
         {
             m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this,transactionHash] {
@@ -654,17 +660,6 @@ public:
         m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
 
         myRootHashIsCalculated();
-
-//        // start drive update (if 'approveTransaction' is received)
-//        {
-//            std::shared_lock<std::shared_mutex> lock(m_mutex);
-//
-//            if ( m_approveTransactionReceived )
-//            {
-//                lock.unlock();
-//                updateDrive_1();
-//            }
-//        }
     }
     
     void createMyOpinion()
@@ -997,6 +992,8 @@ public:
         // notify event handler
         m_eventHandler.modifyApprovalTransactionIsReady( m_replicator, std::move(info) );
         
+        m_replicator.removeModifyDriveInfo( m_myOpinion->m_modifyTransactionHash );
+        
         m_approveTransactionSent = true;
     }
 
@@ -1045,7 +1042,7 @@ public:
 
     virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
-        std::cout << "single" << std::endl;
+        //std::cout << "single" << std::endl;
         synchronizeDriveWithSandbox();
     }
 
@@ -1053,6 +1050,24 @@ public:
     {
         return m_closingBlockHash;
     }
+    
+    virtual void removeAllDriveData() override
+    {
+        {
+            // When node is restaring and file "is_closing" exists, but file "approval_tx_has_been_bulished" is not exists,
+            // then drive should approve all download channels
+            //todo : where replicator will find channels ids???
+            std::ofstream filestream( m_driveFolder / "approval_tx_has_been_bulished" );
+            filestream << "1";
+            filestream.close();
+        }
+
+        fs::remove_all( m_driveRootPath );
+        fs::remove_all( m_sandboxRootPath );
+        
+        m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_closingBlockHash );
+    }
+
 
     virtual void printDriveStatus() override
     {

@@ -492,7 +492,7 @@ public:
             LOG_ERR( "channelId not found" );
         }
 
-        // Is it happened on drive closing?
+        // Is it happened while drive is closing?
         if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end() )
         {
             const auto& driveKey = channelIt->second.m_driveKey;
@@ -522,9 +522,12 @@ public:
                     std::erase_if( m_downloadChannelMap, [&driveKey] (const auto& item) {
                         return item.second.m_driveKey == driveKey;
                     });
-                    
-                    //todo++++
-                    //driveIt->second->removeAllDriveData();
+
+                    std::erase_if( m_modifyDriveMap, [&driveKey] (const auto& item) {
+                        return item.second.m_driveKey == driveKey;
+                    });
+
+                    driveIt->second->removeAllDriveData();
                     
                     m_driveMap.erase( driveIt );
                 }

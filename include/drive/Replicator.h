@@ -71,6 +71,7 @@ using ModifyTrafficMap = std::map<std::array<uint8_t,32>,ModifyTrafficInfo>;
 
 struct ModifyDriveInfo
 {
+    std::array<uint8_t,32>  m_driveKey;
     uint64_t                m_maxDataSize;
     ReplicatorList          m_replicatorsList;
     ModifyTrafficMap        m_modifyTrafficMap;
@@ -150,6 +151,9 @@ public:
 
     // It continues drive closing (initiates DownloadApprovalTransaction and than removes drive)
     virtual void        closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) = 0;
+    
+    virtual void        removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash ) = 0;
+
     
     // TODO:
     // They will be called after 'cancel modify transaction' has been published

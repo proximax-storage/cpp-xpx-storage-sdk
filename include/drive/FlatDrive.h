@@ -220,9 +220,10 @@ class Replicator;
         virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
 
         // It will be called when transaction could not be completed
+        //todo rename it to modifyTransactionEndedWithError()
         virtual void modifyTransactionIsCanceled( Replicator& replicator,
                                                  const sirius::Key&             driveKey,
-                                                 const sirius::drive::InfoHash& modifyTransactionHash,
+                                                 const Hash256&                 modifyTransactionHash,
                                                  const std::string&             reason,
                                                  int                            errorCode ) = 0;
         
@@ -230,7 +231,7 @@ class Replicator;
         // (TODO it will be removed)
         virtual void rootHashIsCalculated( Replicator&                    replicator,
                                            const sirius::Key&             driveKey,
-                                           const sirius::drive::InfoHash& modifyTransactionHash,
+                                           const Hash256&                 modifyTransactionHash,
                                            const sirius::drive::InfoHash& sandboxRootHash ) = 0;
         
         // It will initiate the approving of modify transaction
@@ -242,8 +243,23 @@ class Replicator;
         // It will be called after the drive is syncronized with sandbox
         virtual void driveModificationIsCompleted( Replicator&                    replicator,
                                                    const sirius::Key&             driveKey,
-                                                   const sirius::drive::InfoHash& modifyTransactionHash,
+                                                   const Hash256&                 modifyTransactionHash,
                                                    const sirius::drive::InfoHash& rootHash ) = 0;
+
+        // It will be called after the drive is syncronized with sandbox
+        virtual void driveModificationIsCancaled(  Replicator&                  replicator,
+                                                   const sirius::Key&           driveKey,
+                                                   const Hash256&               modifyTransactionHash )
+        {
+            //todo make it pure virtual function?
+        }
+
+        virtual void driveIsClosed(  Replicator&                replicator,
+                                     const sirius::Key&         driveKey,
+                                     const Hash256&             transactionHash )
+        {
+            //todo make it pure virtual function?
+        }
     };
 
     //
@@ -293,6 +309,8 @@ class Replicator;
         
         // It will be called by replicator
         virtual const std::optional<Hash256>& closingBlockHash() const = 0;
+        
+        virtual void removeAllDriveData() = 0;
 
 
         // for testing and debugging
