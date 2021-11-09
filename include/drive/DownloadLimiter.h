@@ -23,8 +23,10 @@ class DownloadLimiter : public Replicator,
                         public lt::session_delegate,
                         public std::enable_shared_from_this<DownloadLimiter>
 {
-protected:
-    
+protected:    
+    // Replicator's keys
+    const crypto::KeyPair& m_keyPair;
+
     std::shared_mutex   m_mutex;
 
     ChannelMap          m_downloadChannelMap;
@@ -35,8 +37,6 @@ protected:
 
 
     ModifyDriveMap      m_modifyDriveMap;
-
-    const crypto::KeyPair& m_keyPair;
 
     uint64_t            m_receiptLimit = 32*1024; //1024*1024;
 

@@ -35,9 +35,6 @@ public:
     std::map<Key, std::shared_ptr<FlatDrive>> m_driveMap;
     std::shared_mutex  m_driveMutex;
 
-    // Replicator's keys
-    crypto::KeyPair m_keyPair;
-
     // Session listen interface
     std::string m_address;
     std::string m_port;
@@ -57,16 +54,15 @@ public:
     
 public:
     DefaultReplicator (
-               crypto::KeyPair&& keyPair,
+               const crypto::KeyPair& keyPair,
                std::string&& address,
                std::string&& port,
                std::string&& storageDirectory,
                std::string&& sandboxDirectory,
                bool          useTcpSocket,
                ReplicatorEventHandler& handler,
-               const char*   dbgReplicatorName ) : DownloadLimiter( m_keyPair, dbgReplicatorName ),
+               const char*   dbgReplicatorName ) : DownloadLimiter( keyPair, dbgReplicatorName ),
 
-        m_keyPair( std::move(keyPair) ),
         m_address( std::move(address) ),
         m_port( std::move(port) ),
         m_storageDirectory( std::move(storageDirectory) ),
@@ -658,7 +654,7 @@ private:
 };
 
 std::shared_ptr<Replicator> createDefaultReplicator(
-                                        crypto::KeyPair&&   keyPair,
+                                        const crypto::KeyPair& keyPair,
                                         std::string&&       address,
                                         std::string&&       port,
                                         std::string&&       storageDirectory,
@@ -668,7 +664,7 @@ std::shared_ptr<Replicator> createDefaultReplicator(
                                         const char*         dbgReplicatorName )
 {
     return std::make_shared<DefaultReplicator>(
-                                               std::move(keyPair),
+                                               keyPair,
                                                std::move(address),
                                                std::move(port),
                                                std::move(storageDirectory),

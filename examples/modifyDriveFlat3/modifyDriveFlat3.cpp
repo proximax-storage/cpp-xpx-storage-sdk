@@ -106,7 +106,7 @@ std::map<sirius::Key,std::shared_ptr<Replicator>> gReplicatorMap;
 class MyReplicatorEventHandler;
 
 static std::shared_ptr<Replicator> createReplicator(
-                                        const std::string&  pivateKey,
+                                        const sirius::crypto::KeyPair&  keyPair,
                                         std::string&&       ipAddr,
                                         int                 port,
                                         std::string&&       rootFolder,
@@ -332,7 +332,14 @@ int main(int,char**)
     ///
     /// Create replicators
     ///
-    gReplicator = createReplicator( REPLICATOR_PRIVATE_KEY,
+    auto replicatorKeyPair   = sirius::crypto::KeyPair::FromPrivate(
+                                       sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY ));
+    auto replicatorKeyPair_2 = sirius::crypto::KeyPair::FromPrivate(
+                                       sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_2 ));
+    auto replicatorKeyPair_3 = sirius::crypto::KeyPair::FromPrivate(
+                                       sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3 ));
+
+    gReplicator = createReplicator( replicatorKeyPair,
                                     REPLICATOR_IP_ADDR,
                                     REPLICATOR_PORT,
                                     std::string( REPLICATOR_ROOT_FOLDER ),
@@ -342,7 +349,7 @@ int main(int,char**)
                                     "replicator1" );
     gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
 
-    gReplicator2 = createReplicator( REPLICATOR_PRIVATE_KEY_2,
+    gReplicator2 = createReplicator( replicatorKeyPair_2,
                                     REPLICATOR_IP_ADDR_2,
                                     REPLICATOR_PORT_2,
                                     std::string( REPLICATOR_ROOT_FOLDER_2 ),
@@ -352,7 +359,7 @@ int main(int,char**)
                                     "replicator2" );
     gReplicatorMap[gReplicator2->replicatorKey()] = gReplicator2;
 
-    gReplicator3 = createReplicator( REPLICATOR_PRIVATE_KEY_3,
+    gReplicator3 = createReplicator( replicatorKeyPair_3,
                                     REPLICATOR_IP_ADDR_3,
                                     REPLICATOR_PORT_3,
                                     std::string( REPLICATOR_ROOT_FOLDER_3 ),
@@ -495,7 +502,7 @@ int main(int,char**)
 #endif
 
 static std::shared_ptr<Replicator> createReplicator(
-                                        const std::string&  privateKey,
+                                        const sirius::crypto::KeyPair&  keyPair,
                                         std::string&&       ipAddr,
                                         int                 port,
                                         std::string&&       rootFolder,
@@ -504,13 +511,10 @@ static std::shared_ptr<Replicator> createReplicator(
                                         MyReplicatorEventHandler& handler,
                                         const char*         dbgReplicatorName )
 {
-    auto replicatorKeyPair = sirius::crypto::KeyPair::FromPrivate(
-                                   sirius::crypto::PrivateKey::FromString( privateKey ));
-    
-    EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(replicatorKeyPair.publicKey().array()[0]) );
+    EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(keyPair.publicKey().array()[0]) );
 
     auto replicator = createDefaultReplicator(
-                                              std::move( replicatorKeyPair ),
+                                              std::move( keyPair ),
                                               std::move( ipAddr ),
                                               std::to_string(port),
                                               std::move( rootFolder ),

@@ -188,7 +188,7 @@ public:
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(
-                                               crypto::KeyPair&&,
+                                               const crypto::KeyPair&,
                                                std::string&&  address,
                                                std::string&&  port,
                                                std::string&&  storageDirectory,
