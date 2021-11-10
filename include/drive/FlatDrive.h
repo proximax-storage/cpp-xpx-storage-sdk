@@ -248,7 +248,7 @@ class Replicator;
                                                    const sirius::drive::InfoHash& rootHash ) = 0;
 
         // It will be called after the drive is syncronized with sandbox
-        virtual void driveModificationIsCancaled(  Replicator&                  replicator,
+        virtual void driveModificationIsCanceled(  Replicator&                  replicator,
                                                    const sirius::Key&           driveKey,
                                                    const Hash256&               modifyTransactionHash )
         {

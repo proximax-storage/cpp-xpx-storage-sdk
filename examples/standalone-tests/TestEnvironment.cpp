@@ -24,8 +24,8 @@ namespace sirius::drive::test {
         EXLOG("rootHashIsCalculated: " << replicator.dbgReplicatorName());
     }
 
-    void TestEnvironment::modifyTransactionIsCanceled(Replicator &replicator, const sirius::Key &driveKey,
-                                                      const sirius::drive::InfoHash &modifyTransactionHash,
+    void TestEnvironment::modifyTransactionEndedWithError(Replicator &replicator, const sirius::Key &driveKey,
+                                                      const ModifyRequest& modifyRequest,
                                                       const std::string &reason, int errorCode) {}
 
     void TestEnvironment::modifyApprovalTransactionIsReady(Replicator &replicator,

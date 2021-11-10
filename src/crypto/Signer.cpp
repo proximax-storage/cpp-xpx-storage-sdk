@@ -18,7 +18,7 @@
 *** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#include "Signer.h"
+#include "crypto/Signer.h"
 #include "CryptoUtils.h"
 #include "Hashes.h"
 #include "utils/RawBuffer.h"

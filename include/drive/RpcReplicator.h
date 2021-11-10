@@ -131,14 +131,14 @@ public:
     }
 
     // It will be called when transaction could not be completed
-    void modifyTransactionEndedWithError( Replicator& replicator,
+    virtual void modifyTransactionEndedWithError( Replicator& replicator,
                                               const sirius::Key&             driveKey,
-                                              const sirius::drive::InfoHash& modifyTransactionHash,
+                                              const ModifyRequest&           modifyRequest,
                                               const std::string&             reason,
                                               int                            errorCode )  override
     {
-        std::cout << "Replicator. modifyTransactionIsCanceled: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
-        std::cout << "Replicator. modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() << std::endl;
+        std::cout << "Replicator. modifyTransactionEndedWithError: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. modifyTransactionEndedWithError: " << replicator.dbgReplicatorName() << std::endl;
     }
 
     // It will initiate the approving of modify transaction

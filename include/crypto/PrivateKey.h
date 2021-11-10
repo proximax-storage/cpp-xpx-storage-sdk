@@ -21,6 +21,7 @@
 #pragma once
 #include "functions.h"
 #include "types.h"
+#include "plugins.h"
 
 namespace sirius { namespace crypto {
 
@@ -29,7 +30,7 @@ namespace sirius { namespace crypto {
 #endif
 
 	/// Represents a private key.
-	class PrivateKey final {
+	class PLUGIN_API PrivateKey final {
 	public:
 		/// Creates a private key.
 		PrivateKey() = default;

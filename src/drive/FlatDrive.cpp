@@ -389,14 +389,11 @@ public:
                     startModifyDrive( std::move(request) );
                 }
                 
-                m_eventHandler.driveModificationIsCancaled( m_replicator, drivePublicKey(), transactionHash );
+                m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), transactionHash );
             });
         }
         else
         {
-            lock.unlock();
-            std::shared_lock<std::shared_mutex> lock(m_mutex);
-            
             auto it = std::find_if( m_defferedModifyRequests.begin(), m_defferedModifyRequests.end(), [&transactionHash](const auto& item)
                                 { return item.m_transactionHash == transactionHash; });
             

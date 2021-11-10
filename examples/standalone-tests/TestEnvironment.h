@@ -69,9 +69,9 @@ namespace sirius::drive::test {
                                           const sirius::drive::InfoHash &sandboxRootHash) override;
 
         // It will be called when transaction could not be completed
-        virtual void modifyTransactionIsCanceled(Replicator &replicator,
+        virtual void modifyTransactionEndedWithError(Replicator &replicator,
                                                  const sirius::Key &driveKey,
-                                                 const sirius::drive::InfoHash &modifyTransactionHash,
+                                                 const ModifyRequest& modifyRequest,
                                                  const std::string &reason,
                                                  int errorCode) override;
 

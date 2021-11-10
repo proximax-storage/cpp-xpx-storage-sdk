@@ -31,7 +31,7 @@ namespace sirius { namespace crypto {
 #endif
 
 	/// Represents a pair of private key with associated public key.
-    class KeyPair final {
+    class PLUGIN_API KeyPair final {
 	private:
 		explicit KeyPair(PrivateKey&& privateKey) : m_privateKey(std::move(privateKey)) {
 			ExtractPublicKeyFromPrivateKey(m_privateKey, m_publicKey);

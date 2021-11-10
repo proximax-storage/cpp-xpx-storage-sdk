@@ -231,7 +231,7 @@ public:
                                              const std::string&             reason,
                                              int                            errorCode )  override
     {
-        EXLOG( "modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() );
+        EXLOG( "modifyTransactionEndedWithError: " << replicator.dbgReplicatorName() );
     }
     
     // It will initiate the approving of modify transaction
@@ -263,7 +263,7 @@ public:
     // It will initiate the approving of single modify transaction
     virtual void singleModifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
     {
-        EXLOG( "modifyTransactionIsCanceled: " << replicator.dbgReplicatorName() );
+        EXLOG( "singleModifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName() );
     }
 
     // It will be called after the drive is synchronized with sandbox
