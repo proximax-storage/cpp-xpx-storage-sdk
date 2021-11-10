@@ -131,7 +131,7 @@ public:
     }
 
     // It will be called when transaction could not be completed
-    void modifyTransactionIsCanceled( Replicator& replicator,
+    void modifyTransactionEndedWithError( Replicator& replicator,
                                               const sirius::Key&             driveKey,
                                               const sirius::drive::InfoHash& modifyTransactionHash,
                                               const std::string&             reason,

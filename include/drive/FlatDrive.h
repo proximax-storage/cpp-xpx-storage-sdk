@@ -34,6 +34,8 @@ class Replicator;
         uint64_t          m_maxDataSize;
         ReplicatorList    m_replicatorList;
         Key               m_clientPublicKey;
+        
+        bool              m_isCanceled = false;
     };
 
     // It is opinition of single replicator about how much data the other peers transferred.
@@ -220,12 +222,11 @@ class Replicator;
         virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
 
         // It will be called when transaction could not be completed
-        //todo rename it to modifyTransactionEndedWithError()
-        virtual void modifyTransactionIsCanceled( Replicator& replicator,
-                                                 const sirius::Key&             driveKey,
-                                                 const Hash256&                 modifyTransactionHash,
-                                                 const std::string&             reason,
-                                                 int                            errorCode ) = 0;
+        virtual void modifyTransactionEndedWithError( Replicator&               replicator,
+                                                     const sirius::Key&         driveKey,
+                                                     const ModifyRequest&       modifyRequest,
+                                                     const std::string&         reason,
+                                                     int                        errorCode ) = 0;
         
         // It will be called when rootHash is calculated in sandbox
         // (TODO it will be removed)

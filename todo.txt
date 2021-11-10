@@ -27,3 +27,6 @@ DeleteApproveTransaction???
 Modify before my Modify ended (очередь?)
 
 !!!modify() -> onModifyTxPublished() + add rootHash!!!
+
+Replicator exchange & checkDownloadLimit()
+

@@ -152,6 +152,7 @@ public:
     // It continues drive closing (initiates DownloadApprovalTransaction and than removes drive)
     virtual void        closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) = 0;
     
+    // It will be used while drive closing
     virtual void        removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash ) = 0;
 
     

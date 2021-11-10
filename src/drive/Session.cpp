@@ -148,7 +148,7 @@ private:
         }
 
         //todo 1. is it enough? 2. is it for single peer?
-        settingsPack.set_int( lt::settings_pack::dht_upload_rate_limit, 800000 );
+        settingsPack.set_int( lt::settings_pack::dht_upload_rate_limit, 8000000 );
 
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
@@ -590,7 +590,7 @@ private:
         // loop by alerts
         for (auto &alert : alerts) {
 
-//            if ( alert->type() == lt::dht_log_alert::alert_type || alert->type() == lt::dht_direct_response_alert::alert_type )
+////            if ( alert->type() == lt::dht_log_alert::alert_type || alert->type() == lt::dht_direct_response_alert::alert_type )
 //            {
 //                    _LOG( ">" << m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
 //            }
@@ -645,7 +645,7 @@ private:
                 case lt::peer_snubbed_alert::alert_type: {
                     auto* theAlert = dynamic_cast<lt::peer_snubbed_alert*>(alert);
 
-                    _LOG( "#!!!peer_snubbed_alert!!!: " << theAlert->endpoint << "\n" );
+                    _LOG( "#!!!peer_snubbed_alert!!!: "  << m_downloadLimiter->dbgOurPeerName() << " " << theAlert->endpoint << "\n" );
                     break;
                 }
 
