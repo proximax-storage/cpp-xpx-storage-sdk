@@ -27,4 +27,5 @@ inline std::mutex gLogMutex;
     const std::lock_guard<std::mutex> autolock( gLogMutex ); \
     std::cerr << __FILE__ << ":" << __LINE__ << ": "<< expr << std::flush; \
     std::cerr << expr << std::flush; \
+    assert(0); \
 }

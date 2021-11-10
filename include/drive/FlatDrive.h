@@ -309,7 +309,7 @@ class Replicator;
         virtual void     onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
         
         // It will be called by replicator
-        virtual const std::optional<Hash256>& closingBlockHash() const = 0;
+        virtual const std::optional<Hash256>& closingTxHash() const = 0;
         
         virtual void removeAllDriveData() = 0;
 
