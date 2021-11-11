@@ -20,11 +20,12 @@
 
 #pragma once
 #include "types.h"
+#include "plugins.h"
 
 namespace sirius { namespace crypto { class PrivateKey; } }
 
 namespace sirius { namespace crypto {
 
 	/// Extracts a public key (\a publicKey) from a private key (\a)
-	void ExtractPublicKeyFromPrivateKey(const PrivateKey& privateKey, Key& publicKey);
+	PLUGIN_API void ExtractPublicKeyFromPrivateKey(const PrivateKey& privateKey, Key& publicKey);
 }}

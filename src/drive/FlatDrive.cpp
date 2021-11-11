@@ -124,7 +124,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     bool m_approveTransactionSent     = false; // approval transaction has been sent
     
     // It is used when drive is closing
-    std::optional<Hash256> m_closingBlockHash = {};
+    std::optional<Hash256> m_closingTxHash = {};
 
     // Client data (for drive modification)
     std::optional<ModifyRequest> m_modifyRequest;
@@ -389,14 +389,11 @@ public:
                     startModifyDrive( std::move(request) );
                 }
                 
-                m_eventHandler.driveModificationIsCancaled( m_replicator, drivePublicKey(), transactionHash );
+                m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), transactionHash );
             });
         }
         else
         {
-            lock.unlock();
-            std::shared_lock<std::shared_mutex> lock(m_mutex);
-            
             auto it = std::find_if( m_defferedModifyRequests.begin(), m_defferedModifyRequests.end(), [&transactionHash](const auto& item)
                                 { return item.m_transactionHash == transactionHash; });
             
@@ -429,7 +426,7 @@ public:
 
     void startDriveClosing( const Hash256& transactionHash ) override
     {
-        m_closingBlockHash = {transactionHash};
+        m_closingTxHash = {transactionHash};
         
         std::shared_lock<std::shared_mutex> lock(m_mutex);
 
@@ -444,6 +441,10 @@ public:
             m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this,transactionHash] {
                 continueDriveClosing( transactionHash );
             });
+        }
+        else
+        {
+            continueDriveClosing( transactionHash );
         }
     }
 
@@ -1120,9 +1121,9 @@ public:
         }
     }
 
-    const std::optional<Hash256>& closingBlockHash() const override
+    const std::optional<Hash256>& closingTxHash() const override
     {
-        return m_closingBlockHash;
+        return m_closingTxHash;
     }
     
     virtual void removeAllDriveData() override
@@ -1139,7 +1140,7 @@ public:
         fs::remove_all( m_driveRootPath );
         fs::remove_all( m_sandboxRootPath );
         
-        m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_closingBlockHash );
+        m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_closingTxHash );
     }
 
 

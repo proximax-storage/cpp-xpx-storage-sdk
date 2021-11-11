@@ -166,7 +166,6 @@ public:
             return "drive not found";
         }
 
-        m_driveMap.erase(driveKey);
         return "";
     }
 
@@ -465,12 +464,22 @@ public:
     {
         std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
+        bool deleteDriveImmediately = true;
+        
         for( auto& [channelId,channelInfo] : m_downloadChannelMap )
         {
             if ( channelInfo.m_driveKey == drive.drivePublicKey().array() )
             {
                 prepareDownloadApprovalTransactionInfo( blockHash, channelId );
+                
+                // drive will be deleted in 'onDownloadApprovalTransactionHasBeenPublished()'
+                deleteDriveImmediately = false;
             }
+        }
+        
+        if ( deleteDriveImmediately )
+        {
+            deleteDrive( drive.drivePublicKey().array() );
         }
     }
     
@@ -496,9 +505,9 @@ public:
             
             if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
             {
-                bool deleteDrive = false;
+                bool driveWillBeDeleted = false;
 
-                if ( driveIt->second->closingBlockHash() == blockHash )
+                if ( driveIt->second->closingTxHash() == blockHash )
                 {
                     channelIt->second.m_isClosed = true;
                     
@@ -508,30 +517,37 @@ public:
                             break;
                     }
                     
-                    deleteDrive = true;
+                    driveWillBeDeleted = true;
                 }
                 lock.unlock();
 
-                if ( deleteDrive )
+                if ( driveWillBeDeleted )
                 {
-                    std::unique_lock<std::shared_mutex> lock(m_downloadOpinionMutex);
-
-                    std::erase_if( m_downloadChannelMap, [&driveKey] (const auto& item) {
-                        return item.second.m_driveKey == driveKey;
-                    });
-
-                    std::erase_if( m_modifyDriveMap, [&driveKey] (const auto& item) {
-                        return item.second.m_driveKey == driveKey;
-                    });
-
-                    driveIt->second->removeAllDriveData();
-                    
-                    m_driveMap.erase( driveIt );
+                    deleteDrive( driveKey );
                 }
             }
 
         }
+    }
+    
+    void deleteDrive( const std::array<uint8_t,32>& driveKey )
+    {
+        std::unique_lock<std::shared_mutex> lock(m_downloadOpinionMutex);
+
+        std::erase_if( m_downloadChannelMap, [&driveKey] (const auto& item) {
+            return item.second.m_driveKey == driveKey;
+        });
+
+        std::erase_if( m_modifyDriveMap, [&driveKey] (const auto& item) {
+            return item.second.m_driveKey == driveKey;
+        });
+
+        auto driveIt = m_driveMap.find( driveKey );
+        assert( driveIt != m_driveMap.end() );
+
+        driveIt->second->removeAllDriveData();
         
+        m_driveMap.erase( driveIt );
     }
     
     virtual void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override

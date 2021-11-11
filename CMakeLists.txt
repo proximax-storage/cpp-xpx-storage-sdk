@@ -17,6 +17,7 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 
 include_directories(SYSTEM "cereal/include")
 include_directories(SYSTEM "libtorrent/include")
+include_directories(SYSTEM "rpclib/include")
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # boost from brew has an issue linking to -licudata

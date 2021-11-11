@@ -21,6 +21,7 @@
 #pragma once
 #include "utils/HexFormatter.h"
 #include "types.h"
+#include "plugins.h"
 #include <sstream>
 
 namespace sirius { namespace crypto { class PrivateKey; } }
@@ -28,23 +29,23 @@ namespace sirius { namespace crypto { class PrivateKey; } }
 namespace sirius { namespace crypto {
 
 	/// Formats a public \a key for printing.
-	utils::ContainerHexFormatter<Key::const_iterator> FormatKey(const Key& key);
+	PLUGIN_API utils::ContainerHexFormatter<Key::const_iterator> FormatKey(const Key& key);
 
 	/// Formats a private \a key for printing.
-	utils::ContainerHexFormatter<Key::const_iterator> FormatKey(const PrivateKey& key);
+	PLUGIN_API utils::ContainerHexFormatter<Key::const_iterator> FormatKey(const PrivateKey& key);
 
 	/// Formats a string \a key for printing.
-	utils::ContainerHexFormatter<const uint8_t*> FormatKey(const std::string& key);
+	PLUGIN_API utils::ContainerHexFormatter<const uint8_t*> FormatKey(const std::string& key);
 
 	/// Parses a key from a string (\a keyString) and returns the result.
-	Key ParseKey(const std::string& keyString);
+	PLUGIN_API Key ParseKey(const std::string& keyString);
 
 	/// Returns \c true if \a str represents a valid public key, \c false otherwise.
-	bool IsValidKeyString(const std::string& str);
+	PLUGIN_API bool IsValidKeyString(const std::string& str);
 
 	/// Returns string representation of Key.
 	template<typename T>
-	std::string FormatKeyAsString(const T& key) {
+	PLUGIN_API std::string FormatKeyAsString(const T& key) {
 		std::ostringstream out;
 		out << FormatKey(key);
 		return out.str();
