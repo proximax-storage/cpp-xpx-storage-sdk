@@ -216,12 +216,10 @@ class Replicator;
 
         virtual ~ReplicatorEventHandler() = default;
 
-        // It will be called before 'replicator' shuts down
-        virtual void willBeTerminated( Replicator& replicator ) = 0;
-
+        // It will be called when transaction could not be completed
         virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
 
-        // It will be called when transaction could not be completed
+        // It will be called when modification ended with error (for example small disc space)
         virtual void modifyTransactionEndedWithError( Replicator&               replicator,
                                                      const sirius::Key&         driveKey,
                                                      const ModifyRequest&       modifyRequest,
@@ -261,6 +259,12 @@ class Replicator;
         {
             //todo make it pure virtual function?
         }
+
+        // It will be called before 'replicator' shuts down
+        virtual void willBeTerminated( Replicator& replicator )
+        {
+        }
+
     };
 
     //

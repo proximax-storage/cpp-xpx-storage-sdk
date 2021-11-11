@@ -14,8 +14,6 @@ Buffer-pool (16KB,32KB ?)
 onApprovalTransactionHasBeenPublished and other
 Lock delete drive operation???? (Counter with mutex???)
 
-DeleteApproveTransaction???
-
 Раздача файлов из песочницы для streaming: каждый кусочек - это торрент
 
 Много клиентов на одном канале
@@ -23,8 +21,6 @@ DeleteApproveTransaction???
 Отставший репликатор (+ очередь модификаций?)
 
 Удаление и добавление в список репликаторов
-
-Modify before my Modify ended (очередь?)
 
 !!!modify() -> onModifyTxPublished() + add rootHash!!!
 

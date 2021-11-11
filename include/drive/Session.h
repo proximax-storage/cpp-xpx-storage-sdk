@@ -34,7 +34,7 @@ namespace sirius::drive {
 //
 namespace download_status {
     enum code {
-        complete = 0,
+        download_complete = 0,
         downloading = 1,
         failed = 2
     };
@@ -109,8 +109,6 @@ struct RemoveTorrentContext
     // This handler will be called after all torrents have been removed
     std::function<void()>        m_endRemoveNotification;
 };
-
-using  RemoveContextPtr = std::shared_ptr<RemoveTorrentContext>;
 
 //
 // It provides the ability to exchange files

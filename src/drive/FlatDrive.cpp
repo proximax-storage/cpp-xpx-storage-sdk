@@ -403,7 +403,7 @@ public:
                 return;
             }
             
-            it->m_isCanceled = true;
+            m_defferedModifyRequests.erase( it );
         }
     }
     
@@ -456,9 +456,10 @@ public:
 
         for( auto& [key,value]: m_torrentHandleMap )
         {
-            if ( value.m_isUsed )
-                tobeRemovedTorrents.insert( value.m_ltHandle );
+            tobeRemovedTorrents.insert( value.m_ltHandle );
         }
+        
+        tobeRemovedTorrents.insert( m_fsTreeLtHandle );
 
         m_session->removeTorrentsFromSession( std::move(tobeRemovedTorrents), [this,transactionHash](){
             m_replicator.closeDriveChannels( transactionHash, *this );
@@ -570,7 +571,7 @@ public:
             return;
         }
 
-        if ( code == download_status::complete )
+        if ( code == download_status::download_complete )
         {
             std::thread( [this] { this->modifyDriveInSandbox(); } ).detach();
         }
@@ -711,8 +712,8 @@ public:
 
                 if ( m_sandboxFsTree.getEntryPtr( action.m_param1 ) == nullptr )
                 {
-                    LOG( "invalid 'remove' action: src not exists (in FsTree): " << action.m_param1  );
-                    m_sandboxFsTree.dbgPrint();
+                    _LOG( "invalid 'remove' action: src not exists (in FsTree): " << action.m_param1  );
+                    //m_sandboxFsTree.dbgPrint();
                     action.m_isInvalid = true;
                     break;
                 }
@@ -1080,6 +1081,7 @@ public:
         
         m_approveTransactionReceived = true;
         
+        _LOG( "onApprovalTransactionHasBeenPublished(): m_sandboxCalculated=" << m_sandboxCalculated )
         if ( !m_sandboxCalculated )
         {
             return;

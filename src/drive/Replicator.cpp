@@ -117,9 +117,11 @@ public:
     }
 
 
-    std::string addDrive(const Key& driveKey, uint64_t driveSize, ReplicatorList replicators ) override
+    std::string addDrive(const Key& driveKey, uint64_t driveSize, const ReplicatorList& replicatorsRef ) override
     {
         LOG( "adding drive " << driveKey );
+        
+        ReplicatorList replicators(replicatorsRef);
 
         std::unique_lock<std::shared_mutex> lock(m_driveMutex);
 
@@ -169,19 +171,19 @@ public:
         return "";
     }
 
-    std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) override {
-        LOG( "getDrive " << driveKey );
-
-        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-
-        if (m_driveMap.find(driveKey) == m_driveMap.end())
-        {
-            LOG( "drive not found " << driveKey );
-            return nullptr;
-        }
-
-        return m_driveMap[driveKey];
-    }
+//todo    std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) override {
+//        LOG( "getDrive " << driveKey );
+//
+//        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
+//
+//        if (m_driveMap.find(driveKey) == m_driveMap.end())
+//        {
+//            LOG( "drive not found " << driveKey );
+//            return nullptr;
+//        }
+//
+//        return m_driveMap[driveKey];
+//    }
 
     std::string modify( const Key& driveKey, ModifyRequest&& modifyRequest ) override
     {
@@ -466,9 +468,14 @@ public:
 
         bool deleteDriveImmediately = true;
         
+        std::erase_if( m_downloadChannelMap, [](const auto& channelInfo )
+        {
+            return channelInfo.second.m_isModifyTx;
+        });
+
         for( auto& [channelId,channelInfo] : m_downloadChannelMap )
         {
-            if ( channelInfo.m_driveKey == drive.drivePublicKey().array() )
+            if ( channelInfo.m_driveKey == drive.drivePublicKey().array() && !channelInfo.m_isModifyTx )
             {
                 prepareDownloadApprovalTransactionInfo( blockHash, channelId );
                 
@@ -476,6 +483,7 @@ public:
                 deleteDriveImmediately = false;
             }
         }
+        
         
         if ( deleteDriveImmediately )
         {

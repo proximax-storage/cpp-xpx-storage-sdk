@@ -26,19 +26,19 @@ const bool gUse3Replicators = true;
 //
 
 #define BIG_FILE_SIZE 10 * 1024*1024 //150//4
-#define TRANSPORT_PROTOCOL false // true - TCP, false - uTP
+#define TRANSPORT_PROTOCOL true // true - TCP, false - uTP
 
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_IP_ADDR          "192.168.2.101"
+#define CLIENT_IP_ADDR          "192.168.2.200"
 #define CLIENT_PORT             5000
 
-#define REPLICATOR_IP_ADDR      "192.168.2.102"
+#define REPLICATOR_IP_ADDR      "192.168.2.101"
 #define REPLICATOR_PORT         5001
-#define REPLICATOR_IP_ADDR_2    "192.168.2.103"
+#define REPLICATOR_IP_ADDR_2    "192.168.2.102"
 #define REPLICATOR_PORT_2       5002
-#define REPLICATOR_IP_ADDR_3    "192.168.2.104"
+#define REPLICATOR_IP_ADDR_3    "192.168.2.103"
 #define REPLICATOR_PORT_3       5003
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111"
@@ -83,8 +83,13 @@ inline std::mutex gExLogMutex;
 static std::string now_str();
 
 #define EXLOG(expr) { \
-        const std::lock_guard<std::mutex> autolock( gExLogMutex ); \
+        std::lock_guard<std::mutex> autolock( gExLogMutex ); \
         std::cout << now_str() << ": " << expr << std::endl << std::flush; \
+    }
+
+#define _EXLOG(expr) { \
+        std::lock_guard<std::mutex> autolock( gExLogMutex ); \
+        std::cout << ": " << expr << std::endl << std::flush; \
     }
 
 // Replicators
@@ -277,7 +282,9 @@ public:
         EXLOG( "@ update_completed:" << replicator.dbgReplicatorName() );
 
         driveRootHash = std::make_shared<InfoHash>( replicator.getRootHash( driveKey ) );
-        EXLOG( "@ Drive modified: " << replicator.dbgReplicatorName() );
+        EXLOG( "@ Drive modified: " << replicator.dbgReplicatorName() << "      rootHash:" << rootHash );
+        
+        std::lock_guard<std::mutex> autolock( gExLogMutex );
         replicator.printDriveStatus( driveKey );
 
         modifyCompleteCounter++;
@@ -374,11 +381,11 @@ int main(int,char**)
     ///
     gClientFolder  = createClientFiles(BIG_FILE_SIZE);
     gClientSession = createClientSession( std::move(clientKeyPair),
-                                         CLIENT_IP_ADDR ":5550",
+                                         CLIENT_IP_ADDR ":5000",
                                          clientSessionErrorHandler,
                                          TRANSPORT_PROTOCOL,
                                          "client" );
-    _LOG("");
+    _EXLOG("");
 
     fs::path clientFolder = gClientFolder / "client_files";
 
@@ -440,7 +447,7 @@ int main(int,char**)
 //    gReplicator->sendMessage( "dnopinion", replicatorList[0].m_endpoint, "str" );
 //    sleep(1);
 //    usleep(1000);
-    //_LOG( "replicatorList[0].m_endpoint" << replicatorList[0].m_endpoint );
+    //_EXLOG( "replicatorList[0].m_endpoint" << replicatorList[0].m_endpoint );
     std::thread( [&]() { gReplicator->prepareDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
     std::thread( [&]() { gReplicator2->prepareDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
     std::thread( [&]() { gReplicator3->prepareDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
@@ -489,7 +496,7 @@ int main(int,char**)
     gReplicator2.reset();
     gReplicator3.reset();
 
-    _LOG( "\ntotal time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
+    _EXLOG( "\ntotal time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
 
     return 0;
 }
@@ -559,14 +566,17 @@ static void clientDownloadHandler( download_status::code code,
                                    size_t /*fileSize*/,
                                    const std::string& /*errorText*/ )
 {
-    if ( code == download_status::complete )
+    if ( code == download_status::download_complete )
     {
         EXLOG( "# Client received FsTree: " << toString(infoHash) );
         EXLOG( "# FsTree file path: " << gClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
         gFsTree.deserialize( gClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
 
         // print FsTree
-        gFsTree.dbgPrint();
+        {
+            std::lock_guard<std::mutex> autolock( gExLogMutex );
+            gFsTree.dbgPrint();
+        }
 
         isDownloadCompleted = true;
         clientCondVar.notify_all();
@@ -611,7 +621,10 @@ static void clientModifyDrive( const ActionList& actionList,
                                const ReplicatorList& replicatorList,
                                const sirius::Hash256& transactionHash )
 {
-    actionList.dbgPrint();
+    {
+        std::lock_guard<std::mutex> autolock( gExLogMutex );
+        actionList.dbgPrint();
+    }
 
     // Create empty tmp folder for 'client modify data'
     //
@@ -640,7 +653,7 @@ static void clientDownloadFilesHandler( download_status::code code,
                                         size_t fileSize,
                                         const std::string& errorText )
 {
-    if ( code == download_status::complete )
+    if ( code == download_status::download_complete )
     {
 //        LOG( "@ hash: " << toString(context.m_infoHash) );
 //        LOG( "@ renameAs: " << context.m_renameAs );

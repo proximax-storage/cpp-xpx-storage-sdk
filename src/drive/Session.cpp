@@ -95,6 +95,8 @@ private:
 #ifdef SIRIUS_DRIVE_MULTI
     std::shared_ptr<lt::session_delegate> m_downloadLimiter;
 #endif
+    
+    int m_dbgPieceCounter = 0;
 
         public:
 
@@ -662,93 +664,101 @@ private:
                 }
 
                 // piece_finished_alert
-                case lt::piece_finished_alert::alert_type: {
-
-                    auto *theAlert = dynamic_cast<lt::piece_finished_alert *>(alert);
-
-                    if ( theAlert ) {
-
-                        // TODO: better to use piece_granularity
-                        std::vector<int64_t> fp = theAlert->handle.file_progress();
-
-                        bool calculatePercents = false;//true;
-                        uint64_t dnBytes = 0;
-                        uint64_t totalBytes = 0;
-
-                        // check completeness
-                        bool isAllComplete = true;
-                        for( uint32_t i=0; i<fp.size(); i++ ) {
-
-                            auto fsize = theAlert->handle.torrent_file()->files().file_size(i);
-                            bool const complete = ( fp[i] == fsize );
-
-                            isAllComplete = isAllComplete && complete;
-                            
-                            if ( calculatePercents )
-                            {
-                                dnBytes    += fp[i];
-                                totalBytes += fsize;
-                            }
-
-                            //dbg/////////////////////////
-//                            const std::string filePath = theAlert->handle.torrent_file()->files().file_path(i);
-//                            _LOG( m_addressAndPort << ": " << filePath << ": alert: progress: " << fp[i] << " of " << fsize );
-                            //dbg/////////////////////////
-
-                            if ( auto it =  m_downloadMap.find(theAlert->handle.id());
-                                      it != m_downloadMap.end() )
-                            {
-                                for( auto& context : it->second.m_contexts )
-                                {
-                                    context.m_downloadNotification( download_status::code::downloading,
-                                                                    context.m_infoHash,
-                                                                    context.m_saveAs,
-                                                                    fp[i],
-                                                                    fsize,
-                                                                    "" );
-                                }
-                            }
-
-                        }
-
-                        if ( calculatePercents )
-                        {
-                            _LOG( m_addressAndPort << ":  progress: " << 100.*double(dnBytes)/double(totalBytes) );
-                        }
-                        
-                        if ( isAllComplete )
-                        {
-                            auto it = m_downloadMap.find(theAlert->handle.id());
-
-                            if ( it != m_downloadMap.end() )
-                            {
-                                // get peers info
-                                std::vector<lt::peer_info> peers;
-                                theAlert->handle.get_peer_info(peers);
-
-                                for (const lt::peer_info &pi : peers)
-                                {
-                                    LOG("Peer ip: " << pi.ip.address().to_string())
-                                    LOG("Peer id: " << pi.pid.to_string())
-
-                                    // the total number of bytes downloaded from and uploaded to this peer.
-                                    // These numbers do not include the protocol chatter, but only the
-                                    // payload data.
-                                    _LOG("Total download: " << pi.total_download)
-                                    _LOG("Total upload: " << pi.total_upload)
-                                }
-
-                                // remove torrent
-                                m_session.remove_torrent( theAlert->handle, lt::session::delete_partfile );
-                            }
-                        }
-                    }
+                case lt::piece_finished_alert::alert_type:
+                {
+//                    auto *theAlert = dynamic_cast<lt::piece_finished_alert *>(alert);
+//
+//                    if ( theAlert ) {
+//
+//                        // TODO: better to use piece_granularity
+//                        std::vector<int64_t> fp = theAlert->handle.file_progress();// lt::torrent_handle::piece_granularity );
+//
+//#ifdef __APPLE__
+//#pragma mark --download-progress--
+//#endif
+//                        //todo++++
+//                        bool calculatePercents = true;//false;//true;
+//                        uint64_t dnBytes = 0;
+//                        uint64_t totalBytes = 0;
+//
+//                        // check completeness
+//                        bool isAllComplete = true;
+//                        for( uint32_t i=0; i<fp.size(); i++ ) {
+//
+//                            auto fsize = theAlert->handle.torrent_file()->files().file_size(i);
+//                            bool const complete = ( fp[i] == fsize );
+//
+//                            isAllComplete = isAllComplete && complete;
+//
+//                            if ( calculatePercents )
+//                            {
+//                                dnBytes    += fp[i];
+//                                totalBytes += fsize;
+//                            }
+//
+//                            //dbg/////////////////////////
+////                            const std::string filePath = theAlert->handle.torrent_file()->files().file_path(i);
+////                            _LOG( m_addressAndPort << ": " << filePath << ": alert: progress: " << fp[i] << " of " << fsize );
+//                            //dbg/////////////////////////
+//
+////todo++++                            if ( auto it =  m_downloadMap.find(theAlert->handle.id());
+////                                      it != m_downloadMap.end() )
+////                            {
+////                                for( auto& context : it->second.m_contexts )
+////                                {
+////                                    context.m_downloadNotification( download_status::code::downloading,
+////                                                                    context.m_infoHash,
+////                                                                    context.m_saveAs,
+////                                                                    fp[i],
+////                                                                    fsize,
+////                                                                    "" );
+////                                }
+////                            }
+//
+//                        }
+//
+//                        if ( calculatePercents )
+//                        {
+//                            m_dbgPieceCounter++;
+//                            _LOG( m_addressAndPort << ":  progress: " << 100.*double(dnBytes)/double(totalBytes) << "   " << dnBytes << "/" << totalBytes << "  piece_index=" << theAlert->piece_index << "  piece_count=" << m_dbgPieceCounter );
+//                        }
+//
+//                        if ( isAllComplete )
+//                        {
+//                            _LOG( m_addressAndPort << ": all complete" )
+////
+////                            auto it = m_downloadMap.find(theAlert->handle.id());
+////
+////                            if ( it != m_downloadMap.end() )
+////                            {
+////                                // get peers info
+////                                std::vector<lt::peer_info> peers;
+////                                theAlert->handle.get_peer_info(peers);
+////
+////                                for (const lt::peer_info &pi : peers)
+////                                {
+////                                    //_LOG("Peer ip: " << pi.ip.address().to_string())
+////                                    //_LOG("Peer id: " << pi.pid.to_string())
+////
+////                                    // the total number of bytes downloaded from and uploaded to this peer.
+////                                    // These numbers do not include the protocol chatter, but only the
+////                                    // payload data.
+////                                    _LOG( m_addressAndPort << ": " << m_downloadLimiter->dbgOurPeerName() << " Total downloaded: " << pi.total_download << " from: " << pi.ip.address().to_string() )
+////                                    _LOG( m_addressAndPort << ": " << "Total uploaded: " << pi.total_upload)
+////                                }
+////
+////                                // remove torrent
+////                                //todo++++
+////                                m_session.remove_torrent( theAlert->handle, lt::session::delete_partfile );
+////                            }
+//                        }
+//                    }
                     break;
                 }
 
                 case lt::file_completed_alert::alert_type: {
-//                    auto *theAlert = dynamic_cast<lt::file_completed_alert *>(alert);
-//                    //LOG( "!!!!!! file_completed_alert !!!!" );
+                    auto *theAlert = dynamic_cast<lt::file_completed_alert *>(alert);
+                    _LOG( "*** lt::file_completed_alert:" << m_downloadLimiter->dbgOurPeerName() << " " << theAlert->index );
 
 //                    auto it = m_downloadMap.find(theAlert->handle.id());
 
@@ -775,6 +785,7 @@ private:
 //                    }
                     break;
                 }
+
 
                 case lt::torrent_error_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_error_alert *>(alert);
@@ -805,10 +816,42 @@ private:
                     break;
                 }
 
+                case lt::torrent_finished_alert::alert_type: {
+                    auto *theAlert = dynamic_cast<lt::torrent_finished_alert*>(alert);
+                    _LOG( "*** lt::torrent_finished_alert:" << m_downloadLimiter->dbgOurPeerName() << " " << theAlert->handle.info_hashes().v2 );
 
+                    auto it = m_downloadMap.find(theAlert->handle.id());
+
+                    if ( it != m_downloadMap.end() )
+                    {
+                        _LOG( m_addressAndPort << " " << m_downloadLimiter->dbgOurPeerName() << ": all complete" )
+
+                        // get peers info
+                        std::vector<lt::peer_info> peers;
+                        theAlert->handle.get_peer_info(peers);
+
+//                        for (const lt::peer_info &pi : peers)
+//                        {
+//                            //_LOG("Peer ip: " << pi.ip.address().to_string())
+//                            //_LOG("Peer id: " << pi.pid.to_string())
+//
+//                            // the total number of bytes downloaded from and uploaded to this peer.
+//                            // These numbers do not include the protocol chatter, but only the
+//                            // payload data.
+////                            _LOG( m_addressAndPort << ": " << m_downloadLimiter->dbgOurPeerName() << " Total downloaded: " << pi.total_download << " from: " << pi.ip.address().to_string() )
+////                            _LOG( m_addressAndPort << ": " << "Total uploaded: " << pi.total_upload)
+//                        }
+
+                        // remove torrent
+                        //todo++++
+                        m_session.remove_torrent( theAlert->handle, lt::session::delete_partfile );
+                    }
+                    break;
+                }
+                    
                 case lt::torrent_deleted_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_deleted_alert*>(alert);
-                    //LOG( "*** lt::torrent_deleted_alert:" << theAlert->handle.info_hashes().v2 );
+                    _LOG( "*** lt::torrent_deleted_alert:" << theAlert->handle.info_hashes().v2 );
                     //LOG( "*** lt::torrent_deleted_alert:" << theAlert->handle.torrent_file()->files().file_name(0) );
                     //LOG( "*** lt::torrent_deleted_alert:" << theAlert->handle.torrent_file()->files().file_path(0) );
                     //LOG( "*** get_torrents().size()=" << m_session.get_torrents().size() );
@@ -893,7 +936,7 @@ private:
                                     }
                                 }
 
-                                context.m_downloadNotification( download_status::code::complete,
+                                context.m_downloadNotification( download_status::code::download_complete,
                                                                 context.m_infoHash,
                                                                 context.m_saveAs,
                                                                 0,
