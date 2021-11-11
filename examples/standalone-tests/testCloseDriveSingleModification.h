@@ -14,9 +14,16 @@
 using namespace sirius::drive::test;
 
 namespace sirius::drive::test {
-    class SlowClientTestEnvironment : public TestEnvironment {
+
+/// change this macro for your test
+#define TEST_NAME CloseDriveSingleModification
+
+#define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
+#define RUN_TEST void JOIN(run, TEST_NAME)()
+
+class ENVIRONMENT_CLASS : public TestEnvironment {
     public:
-        SlowClientTestEnvironment(
+    ENVIRONMENT_CLASS(
                 int numberOfReplicators,
                 const std::string &ipAddr0,
                 int port0,
@@ -39,18 +46,18 @@ namespace sirius::drive::test {
         {}
     };
 
-    void slowClient() {
+    RUN_TEST {
         fs::remove_all(ROOT_FOLDER);
 
         auto startTime = std::clock();
 
         lt::settings_pack pack;
-        pack.set_int(lt::settings_pack::upload_rate_limit, 1024 * 1024);
+        pack.set_int(lt::settings_pack::upload_rate_limit, 0);
         TestClient client(pack);
 
         _LOG("");
 
-        SlowClientTestEnvironment env(
+        ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
                 SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1);
 
@@ -67,5 +74,12 @@ namespace sirius::drive::test {
 
         _LOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         env.waitModificationEnd();
+
+        EXLOG("\n# Client asked to close drive");
+
+        env.closeDrive(DRIVE_PUB_KEY);
+        env.waitDriveClosure();
     }
 }
+
+#undef TEST_NAME

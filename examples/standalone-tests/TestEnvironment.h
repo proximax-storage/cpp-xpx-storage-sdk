@@ -126,6 +126,14 @@ namespace sirius::drive::test {
             }
         }
 
+        void cancelModification(const Key& driveKey, const Hash256& transactionHash) {
+            for (auto &replicator: m_replicators) {
+                std::thread([replicator, driveKey, transactionHash] {
+                    replicator->cancelModify(driveKey, transactionHash);
+                }).detach();
+            }
+        }
+
 #pragma mark --ReplicatorEventHandler methods and variables
 
 // It will be called before 'replicator' shuts down
@@ -212,6 +220,12 @@ namespace sirius::drive::test {
             EXLOG("driveIsClosed: " << replicator.dbgReplicatorName());
             driveClosedCounter++;
             driveClosedCondVar.notify_all();
+        }
+
+        void driveModificationIsCanceled(Replicator &replicator, const Key &driveKey,
+                                         const Hash256 &modifyTransactionHash) override {
+            EXLOG("modificationIsCanceled: " << replicator.dbgReplicatorName());
+
         }
 
         void waitModificationEnd() {

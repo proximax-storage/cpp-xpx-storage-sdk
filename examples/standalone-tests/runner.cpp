@@ -1,9 +1,10 @@
-//#include "opinionReceivedRootCalculated.h"
-//#include "opinionReceivedRootNotCalculated.h"
-//#include "approvalReceivedRootCalculated.h"
-//#include "approvalReceivedRootNotCalculated.h"
-#include "slowClient.h"
-#include "closeDrive.h"
+#include "testOpinionReceivedRootCalculated.h"
+#include "testOpinionReceivedRootNotCalculated.h"
+#include "testApprovalReceivedRootCalculated.h"
+#include "testApprovalReceivedRootNotCalculated.h"
+#include "testSlowClient.h"
+#include "testCloseDriveSingleModification.h"
+#include "testCloseDriveNoModification.h"
 
 #include <iostream>
 
@@ -15,23 +16,28 @@ int main(int argc, char *argv[]) {
     }
     int test = std::atoi(argv[1]);
     switch (test) {
-//        case 1:
-//            approvalReceivedRootCalculated();
-//            break;
-//        case 2:
-//            approvalReceivedRootNotCalculated();
-//            break;
-//        case 3:
-//            opinionReceivedRootNotCalculatedTest();
-//            break;
-//        case 4:
-//            opinionReceivedRootCalculatedTest();
-//            break;
+        case 1:
+            runApprovalReceivedRootCalculated();
+            break;
+        case 2:
+            runApprovalReceivedRootNotCalculated();
+            break;
+        case 3:
+            runOpinionReceivedRootNotCalculated();
+            break;
+        case 4:
+            runOpinionReceivedRootCalculated();
+            break;
         case 5:
-            slowClient();
+            runSlowClientModification();
             break;
         case 6:
-            closeDrive();
+            runCloseDriveSingleModification();
+            break;
+        case 7:
+            runCloseDriveNoModification();
             break;
     }
+
+    return 0;
 }

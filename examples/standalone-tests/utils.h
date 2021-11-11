@@ -25,6 +25,9 @@ using namespace sirius::drive;
 #define DRIVE_PUB_KEY std::array<uint8_t,32>{1,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
 #define BIG_FILE_SIZE (10 * 1024 * 1024)
 
+#define JOIN(x, y) JOIN_AGAIN(x, y)
+#define JOIN_AGAIN(x, y) x ## y
+
     extern std::mutex gExLogMutex;
 
 #define EXLOG(expr) { \
