@@ -149,7 +149,7 @@ public:
     // It will be called after 'single MODIFY approval transaction' has been published
     virtual void        onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
 
-    // It continues drive closing (initiates DownloadApprovalTransaction and than removes drive)
+    // It continues drive closing (initiates DownloadApprovalTransaction and then removes drive)
     virtual void        closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) = 0;
     
     // It will be used while drive closing

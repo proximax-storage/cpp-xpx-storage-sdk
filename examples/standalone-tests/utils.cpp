@@ -1,88 +1,10 @@
 #include "utils.h"
+#include <libtorrent/alert.hpp>
+#include <libtorrent/alert_types.hpp>
 
 namespace sirius::drive::test {
 
-    const sirius::Hash256 modifyTransactionHash1 = std::array<uint8_t,32>{0xa1,0xf,0xf,0xf};
-    sirius::crypto::KeyPair clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
-            sirius::crypto::PrivateKey::FromString("0000000000010203040501020304050102030405010203040501020304050102"));
-    fs::path gClientFolder;
-    std::shared_ptr<ClientSession> gClientSession;
-    InfoHash clientModifyHash;
     std::mutex gExLogMutex;
-
-    void clientSessionErrorHandler(const lt::alert *alert) {
-        if (alert->type() == lt::listen_failed_alert::alert_type) {
-            std::cerr << alert->message() << std::endl << std::flush;
-            exit(-1);
-        }
-    }
-
-    void clientModifyDrive(const ActionList &actionList,
-                           const ReplicatorList &replicatorList,
-                           const sirius::Hash256 &transactionHash) {
-        actionList.dbgPrint();
-
-        // Create empty tmp folder for 'client modify data'
-        //
-        auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
-        // start file uploading
-        InfoHash hash = gClientSession->addActionListToSession(actionList, replicatorList, transactionHash, tmpFolder);
-
-        // inform replicator
-        clientModifyHash = hash;
-
-        EXLOG("# Client is waiting the end of replicator update");
-    }
-
-    fs::path createClientFiles( size_t bigFileSize ) {
-
-        // Create empty tmp folder for testing
-        //
-        auto dataFolder = CLIENT_WORK_FOLDER / "client_files";
-        fs::remove_all( dataFolder.parent_path() );
-        fs::create_directories( dataFolder );
-        //fs::create_directories( dataFolder/"empty_folder" );
-
-        {
-            std::ofstream file( dataFolder / "a.txt" );
-            file.write( "a_txt", 5 );
-        }
-        {
-            fs::path b_bin = dataFolder / "b.bin";
-            fs::create_directories( b_bin.parent_path() );
-            //        std::vector<uint8_t> data(10*1024*1024);
-            std::vector<uint8_t> data(bigFileSize);
-            std::generate( data.begin(), data.end(), std::rand );
-            std::ofstream file( b_bin );
-            file.write( (char*) data.data(), data.size() );
-        }
-        {
-            std::ofstream file( dataFolder / "c.txt" );
-            file.write( "c_txt", 5 );
-        }
-        {
-            std::ofstream file( dataFolder / "d.txt" );
-            file.write( "d_txt", 5 );
-        }
-
-        // Return path to file
-        return dataFolder.parent_path();
-    }
-
-    ActionList createActionList() {
-        fs::path clientFolder = gClientFolder / "client_files";
-        ActionList actionList;
-        actionList.push_back(Action::newFolder("fff1/"));
-        actionList.push_back(Action::newFolder("fff1/ffff1"));
-        actionList.push_back(Action::upload(clientFolder / "a.txt", "fff2/a.txt"));
-
-        //actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
-        actionList.push_back(Action::upload(clientFolder / "a.txt", "a2.txt"));
-        actionList.push_back(Action::upload(clientFolder / "b.bin", "f1/b1.bin"));
-        actionList.push_back(Action::upload(clientFolder / "b.bin", "f2/b2.bin"));
-        actionList.push_back(Action::upload(clientFolder / "a.txt", "f2/a.txt"));
-        return actionList;
-    }
 
     std::string now_str()
     {
@@ -125,5 +47,62 @@ namespace sirius::drive::test {
                 hours, minutes, seconds, milliseconds);
 
         return buf;
+    }
+
+    void clientSessionErrorHandler(const lt::alert *alert) {
+        if (alert->type() == lt::listen_failed_alert::alert_type) {
+            std::cerr << alert->message() << std::endl << std::flush;
+            exit(-1);
+        }
+    }
+
+    fs::path createClientFiles(const fs::path& clientFolder, size_t bigFileSize ) {
+
+        // Create empty tmp folder for testing
+        //
+        fs::remove_all(clientFolder.parent_path() );
+        fs::create_directories(clientFolder );
+        //fs::create_directories( dataFolder/"empty_folder" );
+
+        {
+            std::ofstream file(clientFolder / "a.txt" );
+            file.write( "a_txt", 5 );
+        }
+        {
+            fs::path b_bin = clientFolder / "b.bin";
+            fs::create_directories( b_bin.parent_path() );
+            //        std::vector<uint8_t> data(10*1024*1024);
+            std::vector<uint8_t> data(bigFileSize);
+            std::generate( data.begin(), data.end(), std::rand );
+            std::ofstream file( b_bin );
+            file.write( (char*) data.data(), data.size() );
+        }
+        {
+            std::ofstream file(clientFolder / "c.txt" );
+            file.write( "c_txt", 5 );
+        }
+        {
+            std::ofstream file(clientFolder / "d.txt" );
+            file.write( "d_txt", 5 );
+        }
+
+        // Return path to file
+        return clientFolder.parent_path();
+    }
+
+    ActionList createActionList(const fs::path& clientRootFolder) {
+        fs::path clientFolder = clientRootFolder / "client_files";
+        createClientFiles(clientFolder, BIG_FILE_SIZE);
+        ActionList actionList;
+        actionList.push_back(Action::newFolder("fff1/"));
+        actionList.push_back(Action::newFolder("fff1/ffff1"));
+        actionList.push_back(Action::upload(clientFolder / "a.txt", "fff2/a.txt"));
+
+        //actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
+        actionList.push_back(Action::upload(clientFolder / "a.txt", "a2.txt"));
+        actionList.push_back(Action::upload(clientFolder / "b.bin", "f1/b1.bin"));
+        actionList.push_back(Action::upload(clientFolder / "b.bin", "f2/b2.bin"));
+        actionList.push_back(Action::upload(clientFolder / "a.txt", "f2/a.txt"));
+        return actionList;
     }
 }

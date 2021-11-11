@@ -8,7 +8,7 @@ file(GLOB SOURCES ../../src/drive/*.cpp ../../src/crypto/*.cpp)
 find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
 
-add_executable(standalone-tests runner.cpp utils.h TestEnvironment.h opinionReceivedRootCalculated.h opinionReceivedRootNotCalculated.h approvalReceivedRootCalculated.h approvalReceivedRootNotCalculated.h ${SOURCES} utils.cpp slowClient.h TestEnvironment.cpp)
+add_executable(standalone-tests runner.cpp utils.h utils.cpp closeDrive.h TestEnvironment.h ${SOURCES} slowClient.h TestEnvironment.cpp)
 
 #target_precompile_headers(modifyDriveFlat PRIVATE pch.h)
 

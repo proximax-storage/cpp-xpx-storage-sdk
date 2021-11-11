@@ -14,9 +14,9 @@
 using namespace sirius::drive::test;
 
 namespace sirius::drive::test {
-    class SlowClientTestEnvironment : public TestEnvironment {
+    class CloseDriveTestEnvironment : public TestEnvironment {
     public:
-        SlowClientTestEnvironment(
+        CloseDriveTestEnvironment(
                 int numberOfReplicators,
                 const std::string &ipAddr0,
                 int port0,
@@ -39,7 +39,7 @@ namespace sirius::drive::test {
         {}
     };
 
-    void slowClient() {
+    void closeDrive() {
         fs::remove_all(ROOT_FOLDER);
 
         auto startTime = std::clock();
@@ -67,5 +67,10 @@ namespace sirius::drive::test {
 
         _LOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         env.waitModificationEnd();
+
+        EXLOG("\n# Client asked to close drive");
+
+        env.closeDrive(DRIVE_PUB_KEY);
+        env.waitDriveClosure();
     }
 }
