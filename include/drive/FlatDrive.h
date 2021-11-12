@@ -216,9 +216,6 @@ class Replicator;
 
         virtual ~ReplicatorEventHandler() = default;
 
-        // It will be called when transaction could not be completed
-        virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
-
         // It will be called when modification ended with error (for example small disc space)
         virtual void modifyTransactionEndedWithError( Replicator&               replicator,
                                                      const sirius::Key&         driveKey,
@@ -226,31 +223,20 @@ class Replicator;
                                                      const std::string&         reason,
                                                      int                        errorCode ) = 0;
         
-        // It will be called when rootHash is calculated in sandbox
-        // (TODO it will be removed)
-        virtual void rootHashIsCalculated( Replicator&                    replicator,
-                                           const sirius::Key&             driveKey,
-                                           const Hash256&                 modifyTransactionHash,
-                                           const sirius::drive::InfoHash& sandboxRootHash ) = 0;
-        
         // It will initiate the approving of modify transaction
         virtual void modifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
         
         // It will initiate the approving of single modify transaction
         virtual void singleModifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
         
-        // It will be called after the drive is syncronized with sandbox
-        virtual void driveModificationIsCompleted( Replicator&                    replicator,
-                                                   const sirius::Key&             driveKey,
-                                                   const Hash256&                 modifyTransactionHash,
-                                                   const sirius::drive::InfoHash& rootHash ) = 0;
+        // It will be called when transaction could not be completed
+        virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
 
         // It will be called after the drive is syncronized with sandbox
         virtual void driveModificationIsCanceled(  Replicator&                  replicator,
                                                    const sirius::Key&           driveKey,
                                                    const Hash256&               modifyTransactionHash )
         {
-            //todo make it pure virtual function?
         }
 
         virtual void driveIsClosed(  Replicator&                replicator,
@@ -260,11 +246,29 @@ class Replicator;
             //todo make it pure virtual function?
         }
 
+        // It will be called after the drive is syncronized with sandbox
+        virtual void driveModificationIsCompleted( Replicator&                    replicator,
+                                                   const sirius::Key&             driveKey,
+                                                   const Hash256&                 modifyTransactionHash,
+                                                   const sirius::drive::InfoHash& rootHash )
+        {
+            // for debugging?
+        }
+
+        // It will be called when rootHash is calculated in sandbox
+        // (TODO it will be removed)
+        virtual void rootHashIsCalculated( Replicator&                    replicator,
+                                           const sirius::Key&             driveKey,
+                                           const Hash256&                 modifyTransactionHash,
+                                           const sirius::drive::InfoHash& sandboxRootHash )
+        {
+            // for debugging?
+        }
+        
         // It will be called before 'replicator' shuts down
         virtual void willBeTerminated( Replicator& replicator )
         {
         }
-
     };
 
     //

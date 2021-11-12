@@ -608,6 +608,15 @@ private:
 #pragma mark --alerts--
 #endif
             switch (alert->type()) {
+                    
+                //todo++++
+//                case lt::torrent_log_alert::alert_type:
+//                {
+//                    auto* theAlert = dynamic_cast<lt::torrent_log_alert*>(alert);
+//                    _LOG( "debug_alert:" << m_addressAndPort << ": " <<  theAlert->message() );
+//                    break;
+//                }
+
                 case lt::add_torrent_alert::        alert_type:
                 case lt::dht_announce_alert::       alert_type:
                 //case lt::torrent_log_alert::        alert_type:
