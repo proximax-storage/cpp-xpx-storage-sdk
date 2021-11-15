@@ -220,7 +220,7 @@ public:
                                   size_t fileSize,
                                   const std::string& errorText) {
             FsTree fsTree;
-            if ( code == download_status::complete )
+            if ( code == download_status::download_complete )
             {
                 std::cout << "Client. downloadHandler. Client received FsTree: " << toString(infoHash) << std::endl;
 

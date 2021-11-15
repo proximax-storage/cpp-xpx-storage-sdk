@@ -40,7 +40,7 @@ protected:
 
     uint64_t            m_receiptLimit = 32*1024; //1024*1024;
 
-    const char*         m_dbgOurPeerName = "unset";
+    std::string         m_dbgOurPeerName = "unset";
 
 public:
     DownloadLimiter( const crypto::KeyPair& keyPair, const char* dbgOurPeerName ) : m_keyPair(keyPair), m_dbgOurPeerName(dbgOurPeerName)
@@ -481,7 +481,7 @@ public:
 
     const char* dbgOurPeerName() override
     {
-        return m_dbgOurPeerName;
+        return m_dbgOurPeerName.c_str();
     }
 
     uint64_t receiptLimit() const override
