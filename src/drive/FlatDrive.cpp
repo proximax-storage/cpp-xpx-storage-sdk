@@ -159,8 +159,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     
     std::optional<boost::asio::high_resolution_timer> m_opinionTimer;
 
-    // Will be called at the end of the sanbox work
-    ReplicatorEventHandler& m_eventHandler;
+    ReplicatorEventHandler&     m_eventHandler;
+    DbgReplicatorEventHandler*  m_dbgEventHandler = nullptr;
     
     // It is as 1-st parameter in functions of ReplicatorEventHandler (for debugging)
     Replicator&             m_replicator;
@@ -179,13 +179,15 @@ public:
                   size_t                    maxSize,
                   ReplicatorEventHandler&   eventHandler,
                   Replicator&               replicator,
-                  const ReplicatorList&     replicatorList )
+                  const ReplicatorList&     replicatorList,
+                  DbgReplicatorEventHandler* dbgEventHandler )
         :
           FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
           m_session(session),
           m_maxSize(maxSize),
           m_replicatorList(replicatorList),
           m_eventHandler(eventHandler),
+          m_dbgEventHandler(dbgEventHandler),
           m_replicator(replicator)
     {
         // Initialize drive
@@ -795,7 +797,8 @@ public:
             return;
         
         // Notify
-        m_eventHandler.rootHashIsCalculated( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_sandboxRootHash );
+        if ( m_dbgEventHandler )
+            m_dbgEventHandler->rootHashIsCalculated( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_sandboxRootHash );
         
         // Calculate my opinion
         createMyOpinion();
@@ -938,7 +941,8 @@ public:
                                                                lt::sf_is_replicator );
 
         // Call update handler
-        m_eventHandler.driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
+        if ( m_dbgEventHandler )
+            m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
 
         LOG( "drive is synchronized" );
 
@@ -1168,7 +1172,8 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
         size_t                   maxSize,
         ReplicatorEventHandler&  eventHandler,
         Replicator&              replicator,
-        const ReplicatorList&    replicators )
+        const ReplicatorList&    replicators,
+        DbgReplicatorEventHandler* dbgEventHandler )
 
 {
     return std::make_shared<DefaultFlatDrive>( session,
@@ -1178,7 +1183,8 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
                                            maxSize,
                                            eventHandler,
                                            replicator,
-                                           replicators );
+                                           replicators,
+                                           dbgEventHandler );
 }
 
 }

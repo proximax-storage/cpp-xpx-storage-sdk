@@ -198,6 +198,7 @@ PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(
                                                std::string&&  sandboxDirectory,
                                                bool           useTcpSocket, // use TCP socket (instead of uTP)
                                                ReplicatorEventHandler&,
+                                               DbgReplicatorEventHandler*  dbgEventHandler = nullptr,
                                                const char*    dbgReplicatorName = ""
 );
 

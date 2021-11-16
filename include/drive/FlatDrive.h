@@ -35,6 +35,7 @@ class Replicator;
         ReplicatorList    m_replicatorList;
         Key               m_clientPublicKey;
         
+        InfoHash          m_rootHashBeforeModify;
         bool              m_isCanceled = false;
     };
 
@@ -111,7 +112,7 @@ class Replicator;
         // A reference to the transaction that initiated the modification
         std::array<uint8_t,32>  m_modifyTransactionHash;
 
-        // Content Download Information for the File Structure
+        // New root hash (hash of the File Structure)
         std::array<uint8_t,32>  m_rootHash;
         
         // The size of the “File Structure” File
@@ -232,19 +233,29 @@ class Replicator;
         // It will be called when transaction could not be completed
         virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
 
-        // It will be called after the drive is syncronized with sandbox
+        // It will be called in response on CancelModifyTransaction
         virtual void driveModificationIsCanceled(  Replicator&                  replicator,
                                                    const sirius::Key&           driveKey,
                                                    const Hash256&               modifyTransactionHash )
         {
         }
 
+        // It will be called in response on CloseDriveTransaction
+        // It is needed to remove 'drive' from drive list (by Storage Extension)
+        // (If this method has not been not called, then the disk has not yet been removed from the HDD - operation is not comapleted)
         virtual void driveIsClosed(  Replicator&                replicator,
                                      const sirius::Key&         driveKey,
                                      const Hash256&             transactionHash )
         {
             //todo make it pure virtual function?
         }
+    };
+
+    class DbgReplicatorEventHandler
+    {
+    public:
+
+        virtual ~DbgReplicatorEventHandler() = default;
 
         // It will be called after the drive is syncronized with sandbox
         virtual void driveModificationIsCompleted( Replicator&                    replicator,
@@ -268,6 +279,7 @@ class Replicator;
         // It will be called before 'replicator' shuts down
         virtual void willBeTerminated( Replicator& replicator )
         {
+            //?
         }
     };
 
@@ -335,6 +347,7 @@ class Replicator;
                                                        size_t                   maxSize,
                                                        ReplicatorEventHandler&  eventHandler,
                                                        Replicator&              replicator,
-                                                       const ReplicatorList&    replicators);
+                                                       const ReplicatorList&    replicators,
+                                                       DbgReplicatorEventHandler* dbgEventHandler = nullptr );
 }
 

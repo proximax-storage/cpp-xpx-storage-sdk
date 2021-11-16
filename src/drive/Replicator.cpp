@@ -49,6 +49,7 @@ public:
     bool        m_useTcpSocket;
 
     ReplicatorEventHandler& m_eventHandler;
+    DbgReplicatorEventHandler*  m_dbgEventHandler;
 
     const std::string m_dbgReplicatorName;
     
@@ -61,6 +62,7 @@ public:
                std::string&& sandboxDirectory,
                bool          useTcpSocket,
                ReplicatorEventHandler& handler,
+               DbgReplicatorEventHandler*  dbgEventHandler,
                const char*   dbgReplicatorName ) : DownloadLimiter( keyPair, dbgReplicatorName ),
 
         m_address( std::move(address) ),
@@ -68,7 +70,8 @@ public:
         m_storageDirectory( std::move(storageDirectory) ),
         m_sandboxDirectory( std::move(sandboxDirectory) ),
         m_useTcpSocket( useTcpSocket ),
-        m_eventHandler(handler),
+        m_eventHandler( handler ),
+        m_dbgEventHandler( dbgEventHandler ),
         m_dbgReplicatorName( dbgReplicatorName )
     {
     }
@@ -148,7 +151,8 @@ public:
                 driveSize,
                 m_eventHandler,
                 *this,
-                replicators );
+                replicators,
+                m_dbgEventHandler );
 
         return "";
     }
@@ -685,7 +689,8 @@ std::shared_ptr<Replicator> createDefaultReplicator(
                                         std::string&&       storageDirectory,
                                         std::string&&       sandboxDirectory,
                                         bool                useTcpSocket,
-                                        ReplicatorEventHandler& handler,
+                                        ReplicatorEventHandler&     handler,
+                                        DbgReplicatorEventHandler*  dbgEventHandler,
                                         const char*         dbgReplicatorName )
 {
     return std::make_shared<DefaultReplicator>(
@@ -696,6 +701,7 @@ std::shared_ptr<Replicator> createDefaultReplicator(
                                                std::move(sandboxDirectory),
                                                useTcpSocket,
                                                handler,
+                                               dbgEventHandler,
                                                dbgReplicatorName );
 }
 

@@ -25,7 +25,7 @@ const bool gUse3Replicators = true;
 // This example shows interaction between 'client' and 'replicator'.
 //
 
-#define BIG_FILE_SIZE 10 * 1024*1024 //150//4
+#define BIG_FILE_SIZE 1 * 1024*1024 //150//4
 #define TRANSPORT_PROTOCOL true // true - TCP, false - uTP
 
 // !!!
@@ -125,6 +125,7 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const sirius::Key&             clientPublicKey,
                          const InfoHash&                hash,
                          const sirius::Hash256&         transactionHash,
+                         const InfoHash&                rootHashBeforeModification,
                          const ReplicatorList&          replicatorList,
                          uint64_t                       maxDataSize );
 
@@ -180,7 +181,7 @@ static void clientSessionErrorHandler( const lt::alert* alert )
 #pragma mark --MyReplicatorEventHandler--
 #endif
 
-class MyReplicatorEventHandler : public ReplicatorEventHandler
+class MyReplicatorEventHandler : public ReplicatorEventHandler, public DbgReplicatorEventHandler
 {
 public:
 
@@ -416,9 +417,9 @@ int main(int,char**)
     modifyCompleteCounter = 0;
     MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
 
-    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
-    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
-    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, gReplicator->getRootHash(DRIVE_PUB_KEY), replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, gReplicator->getRootHash(DRIVE_PUB_KEY), replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, gReplicator->getRootHash(DRIVE_PUB_KEY), replicatorList, BIG_FILE_SIZE+1024 );
     
     {
         std::unique_lock<std::mutex> lock(modifyCompleteMutex);
@@ -473,9 +474,9 @@ int main(int,char**)
     modifyCompleteCounter = 0;
     MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
     
-    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
-    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
-    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, gReplicator->getRootHash(DRIVE_PUB_KEY), replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, gReplicator->getRootHash(DRIVE_PUB_KEY), replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, gReplicator->getRootHash(DRIVE_PUB_KEY), replicatorList, BIG_FILE_SIZE+1024 );
 
     {
         std::unique_lock<std::mutex> lock(modifyCompleteMutex);
@@ -528,6 +529,7 @@ static std::shared_ptr<Replicator> createReplicator(
                                               std::move( sandboxRootFolder ),
                                               useTcpSocket,
                                               handler,
+                                              &handler,
                                               dbgReplicatorName );
 
     replicator->setDownloadApprovalTransactionTimerDelay(1);
@@ -548,12 +550,13 @@ static std::shared_ptr<Replicator> createReplicator(
 static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const sirius::Key&             driveKey,
                          const sirius::Key&             clientPublicKey,
-                         const InfoHash&                infoHash,
+                         const InfoHash&                clientDataInfoHash,
                          const sirius::Hash256&         transactionHash,
+                         const InfoHash&                rootHashBeforeModification,
                          const ReplicatorList&          replicatorList,
                          uint64_t                       maxDataSize )
 {
-    replicator->modify( DRIVE_PUB_KEY, ModifyRequest{ infoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey } );
+    replicator->modify( DRIVE_PUB_KEY, ModifyRequest{ clientDataInfoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey, rootHashBeforeModification } );
 }
 
 //
