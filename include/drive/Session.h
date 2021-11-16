@@ -95,7 +95,7 @@ struct DownloadContext {
 struct RemoveTorrentContext
 {
     RemoveTorrentContext(
-            std::set<lt::torrent_handle>&& torrentSet,
+            std::set<lt::torrent_handle> torrentSet,
             const std::function<void()>&   endRemoveNotification )
         :
             m_torrentSet(torrentSet),
@@ -133,7 +133,7 @@ public:
     // It removes torrents from session.
     // After removing 'endNotification' will be called.
     // And only after that the 'client' could move/remove files and torrnet file.
-    virtual void      removeTorrentsFromSession( std::set<lt::torrent_handle>&& torrents,
+    virtual bool      removeTorrentsFromSession( std::set<lt::torrent_handle>&& torrents,
                                                  std::function<void()>          endNotification ) = 0;
 
     virtual InfoHash  addActionListToSession( const ActionList&,

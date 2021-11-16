@@ -187,13 +187,17 @@ public:
             }
             it->second.m_prepaidDownloadSize = prepaidDownloadSize;
 
-            if ( !clients.empty() )
-            {
-                it->second.m_clients = clients;
-            }
+//            Possible problem with receipts
+//            /// Change client list of existing clients
+//            if ( !clients.empty() )
+//            {
+//                it->second.m_clients = clients;
+//            }
             return;
         }
 
+        // Libtorrent has no access to sirius::Key.
+        // We prepare upload map that contains information about how much each Replicator has uploaded
         ReplicatorUploadMap map;
         for( const auto& it : replicatorsList )
         {

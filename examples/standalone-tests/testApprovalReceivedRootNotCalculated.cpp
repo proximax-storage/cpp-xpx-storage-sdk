@@ -1,16 +1,14 @@
-#include <drive/RpcReplicatorClient.h>
 #include <drive/ExtensionEmulator.h>
+#include <gtest/gtest.h>
+#include <numeric>
 #include "TestEnvironment.h"
 #include "utils.h"
 
 #include "types.h"
 #include "drive/Session.h"
-#include "drive/ClientSession.h"
 #include "drive/Replicator.h"
 #include "drive/FlatDrive.h"
-#include "drive/FsTree.h"
 #include "drive/Utils.h"
-#include "crypto/Signer.h"
 
 namespace sirius::drive::test {
 
@@ -49,15 +47,46 @@ namespace sirius::drive::test {
 
         void
         modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override {
-            TestEnvironment::modifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
+            TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
+
+            ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size() - 1);
+            auto it = std::find_if(transactionInfo.m_opinions.begin(), transactionInfo.m_opinions.end(),
+                                   [this] (const SingleOpinion& opinion) {
+                return opinion.m_replicatorKey == m_replicators.back()->keyPair().publicKey().array();
+            });
+            ASSERT_EQ(it, transactionInfo.m_opinions.end());
+
+            for (const auto& opinion: transactionInfo.m_opinions) {
+                auto size =
+                        std::accumulate(opinion.m_uploadReplicatorKeys.begin(),
+                                        opinion.m_uploadReplicatorKeys.end(),
+                                        opinion.m_clientUploadBytes);
+                m_modificationSizes.insert(size);
+            }
+
+            ASSERT_EQ(m_modificationSizes.size(), 1);
         }
+
+        virtual void singleModifyApprovalTransactionIsReady(Replicator &replicator,
+                                                            ApprovalTransactionInfo &&transactionInfo) override {
+
+            TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
+            ASSERT_EQ(replicator.keyPair().publicKey(), m_replicators.back()->keyPair().publicKey());
+
+            const auto& opinion = transactionInfo.m_opinions.front();
+            auto size =
+                    std::accumulate(opinion.m_uploadReplicatorKeys.begin(),
+                                    opinion.m_uploadReplicatorKeys.end(),
+                                    opinion.m_clientUploadBytes);
+            m_modificationSizes.insert(size);
+
+            ASSERT_EQ(m_modificationSizes.size(), 1);
+        };
+
+        std::set<uint64_t> m_modificationSizes;
     };
 
-    /**
-     * Expected result: approval transaction contains opinions
-     * of all Replicators except for the last one which signs single approval transaction
-     */
-    RUN_TEST {
+    TEST(ModificationTest, TEST_NAME) {
         fs::remove_all(ROOT_FOLDER);
 
         auto startTime = std::clock();

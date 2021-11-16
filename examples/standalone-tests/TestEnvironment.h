@@ -22,7 +22,7 @@
 
 namespace sirius::drive::test {
 
-    std::string intToString02(int n) {
+    inline std::string intToString02(int n) {
         char str[10];
         snprintf(str, 7, "%02d", n);
         return str;
@@ -117,6 +117,21 @@ namespace sirius::drive::test {
             }
         }
 
+        void downloadFromDrive(const std::array<uint8_t,32>&   channelKey,
+                               size_t                          prepaidDownloadSize,
+                               const Key&                      driveKey,
+                               const std::vector<Key>&         clients) {
+            for (auto &replicator: m_replicators) {
+                std::thread([=, this] {
+                    replicator->addDownloadChannelInfo(channelKey,
+                                                       prepaidDownloadSize,
+                                                       driveKey,
+                                                       m_addrList,
+                                                       clients);
+                }).detach();
+            }
+        }
+
         void closeDrive(const Key& driveKey) {
             auto transactionHash = randomByteArray<Hash256>();
             for (auto &replicator: m_replicators) {
@@ -143,15 +158,19 @@ namespace sirius::drive::test {
 
         virtual void downloadApprovalTransactionIsReady(Replicator &replicator,
                                                         const DownloadApprovalTransactionInfo &info) override {
+            std::cout << "downloadApproved" << std::endl;
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
-            //        if ( !m_dnApprovalTransactionInfo )
-            //        {
-            //            m_dnApprovalTransactionInfo = { std::move(info) };
-            //
-            //            std::thread( [info] { gReplicator->onDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
-            //            std::thread( [info] { gReplicator2->onDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
-            //            std::thread( [info] { gReplica+tor3->onDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
-            //        }
+            if ( !m_dnApprovalTransactionInfo )
+            {
+                m_dnApprovalTransactionInfo = { std::move(info) };
+                for (auto &r: m_replicators) {
+                    std::thread([=, this] {
+                        r->onDownloadApprovalTransactionHasBeenPublished(m_dnApprovalTransactionInfo->m_blockHash,
+                                                                         m_dnApprovalTransactionInfo->m_downloadChannelId,
+                                                                         true);
+                    }).detach();
+                }
+            }
         }
 
 // It will be called when rootHash is calculated in sandbox
@@ -238,7 +257,7 @@ namespace sirius::drive::test {
         void waitDriveClosure() {
             std::unique_lock<std::mutex> lock(driveClosedMutex);
             driveClosedCondVar.wait(lock, [this] {
-                return driveClosedCounter == m_replicators.size();
+                return driveClosedCounter == m_replicators.size() + 1;
             });
         }
     };

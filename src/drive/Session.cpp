@@ -172,19 +172,25 @@ private:
         m_session.abort();
     }
 
-    virtual void removeTorrentsFromSession( std::set<lt::torrent_handle>&& torrents,
+    virtual bool removeTorrentsFromSession( std::set<lt::torrent_handle>&& torrents,
                                             std::function<void()>          endNotification ) override
     {
-        {
-            std::lock_guard locker( m_removeMutex );
-            m_removeContexts.push_back( std::make_unique<RemoveTorrentContext>( std::move(torrents), endNotification ) );
-        }
+        std::lock_guard locker( m_removeMutex );
+        auto toBeRemoved = std::set<lt::torrent_handle>();
 
         for( const auto& torrentHandle : torrents )
         {
-            //LOG( "remove_torrent: " << torrentHandle.info_hashes().v2 )
+//                            _LOG( "remove_torrent: " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
             m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
+            if (torrentHandle.status().state > 2) {
+                toBeRemoved.insert(torrentHandle);
+            }
         }
+        if ( !toBeRemoved.empty() ) {
+            m_removeContexts.push_back( std::make_unique<RemoveTorrentContext>( toBeRemoved, endNotification ) );
+            return true;
+        }
+        return false;
     }
 
     virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
@@ -617,7 +623,10 @@ private:
 //                    break;
 //                }
 
-                case lt::add_torrent_alert::        alert_type:
+                case lt::add_torrent_alert::        alert_type: {
+                    auto* theAlert = dynamic_cast<lt::add_torrent_alert*>(alert);
+                    _LOG("add torrent " << theAlert->message());
+                }
                 case lt::dht_announce_alert::       alert_type:
                 //case lt::torrent_log_alert::        alert_type:
                 case lt::incoming_connection_alert::alert_type: {
@@ -766,8 +775,8 @@ private:
                 }
 
                 case lt::file_completed_alert::alert_type: {
-                    auto *theAlert = dynamic_cast<lt::file_completed_alert *>(alert);
-                    _LOG( "*** lt::file_completed_alert:" << m_downloadLimiter->dbgOurPeerName() << " " << theAlert->index );
+//                    auto *theAlert = dynamic_cast<lt::file_completed_alert *>(alert);
+//                    _LOG( "*** lt::file_completed_alert:" << m_downloadLimiter->dbgOurPeerName() << " " << theAlert->index );
 
 //                    auto it = m_downloadMap.find(theAlert->handle.id());
 

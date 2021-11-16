@@ -1,16 +1,16 @@
-#include <drive/RpcReplicatorClient.h>
 #include <drive/ExtensionEmulator.h>
+#include <numeric>
+#include <set>
 #include "TestEnvironment.h"
 #include "utils.h"
+#include "gtest/gtest.h"
+
 
 #include "types.h"
 #include "drive/Session.h"
-#include "drive/ClientSession.h"
 #include "drive/Replicator.h"
 #include "drive/FlatDrive.h"
-#include "drive/FsTree.h"
 #include "drive/Utils.h"
-#include "crypto/Signer.h"
 
 namespace sirius::drive::test {
 
@@ -18,7 +18,6 @@ namespace sirius::drive::test {
 #define TEST_NAME OpinionReceivedRootNotCalculated
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
-#define RUN_TEST void JOIN(run, TEST_NAME)()
 
     namespace {
         class ENVIRONMENT_CLASS : public TestEnvironment {
@@ -43,14 +42,11 @@ namespace sirius::drive::test {
                     useTcpSocket,
                     modifyApprovalDelay,
                     downloadApprovalDelay,
-                    startReplicator),
-                      m_approveEfforts(0) {
+                    startReplicator) {
                 lt::settings_pack pack;
                 pack.set_int(lt::settings_pack::download_rate_limit, backDownloadRate);
                 m_replicators.back()->setSessionSettings(pack, true);
             }
-
-            unsigned int m_approveEfforts;
 
             void modifyApprovalTransactionIsReady(Replicator &replicator,
                                                   ApprovalTransactionInfo &&transactionInfo) override {
@@ -65,8 +61,22 @@ namespace sirius::drive::test {
                     }
                     std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
                 }
-                m_approveEfforts++;
-                if (m_approveEfforts == m_replicators.size()) {
+
+                if (replicator.keyPair().publicKey() == m_replicators.back()->replicatorKey()) {
+
+                    ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size());
+
+                    std::set<uint64_t> sizes;
+                    for (const auto& opinion: transactionInfo.m_opinions) {
+                        auto size =
+                                std::accumulate(opinion.m_uploadReplicatorKeys.begin(),
+                                                opinion.m_uploadReplicatorKeys.end(),
+                                                opinion.m_clientUploadBytes);
+                        sizes.insert(size);
+                    }
+
+                    ASSERT_EQ(sizes.size(), 1);
+
                     m_approvalTransactionInfo = {std::move(transactionInfo)};
 
                     for (const auto &r: m_replicators) {
@@ -79,10 +89,7 @@ namespace sirius::drive::test {
         };
     }
 
-    /**
-     * Expected result: modification is signed by the last Replicator and contains opinions of all Replicators
-     */
-    RUN_TEST {
+    TEST(ModificationTest, TEST_NAME) {
         fs::remove_all(ROOT_FOLDER);
 
         auto startTime = std::clock();
@@ -108,6 +115,10 @@ namespace sirius::drive::test {
                                         client.m_clientKeyPair.publicKey()});
 
         _LOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
+        std::thread([] {
+            std::this_thread::sleep_for(std::chrono::seconds(60));
+            ASSERT_EQ(true, false);
+        }).detach();
         env.waitModificationEnd();
     }
 

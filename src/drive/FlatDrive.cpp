@@ -438,9 +438,13 @@ public:
 
         if ( m_modifyRequest )
         {
-            m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this,transactionHash] {
+            bool notEmptyRemoved = m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this,transactionHash] {
                 continueDriveClosing( transactionHash );
             });
+
+            if ( !notEmptyRemoved ) {
+                continueDriveClosing( transactionHash );
+            }
         }
         else
         {
