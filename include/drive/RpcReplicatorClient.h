@@ -6,6 +6,7 @@
 #pragma once
 
 #include <filesystem>
+#include <fstream>
 #include "types.h"
 #include "RpcTypes.h"
 #include "rpc/client.h"
