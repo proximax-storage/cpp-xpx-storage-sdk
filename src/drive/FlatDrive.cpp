@@ -545,7 +545,7 @@ public:
                                             0, //todo
                                             ""),
                                         m_sandboxRootPath,
-                                        modifyRequest.m_replicatorList );
+                                        m_modifyRequest->m_replicatorList );
     }
 
     // will be called by Session
@@ -1153,6 +1153,10 @@ public:
         m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_closingTxHash );
     }
 
+    virtual const ReplicatorList&  replicatorList() const override
+    {
+        return m_replicatorList;
+    }
 
     virtual void printDriveStatus() override
     {
