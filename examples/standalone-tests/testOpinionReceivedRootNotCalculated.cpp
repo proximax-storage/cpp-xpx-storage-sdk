@@ -69,8 +69,8 @@ namespace sirius::drive::test {
                     std::set<uint64_t> sizes;
                     for (const auto& opinion: transactionInfo.m_opinions) {
                         auto size =
-                                std::accumulate(opinion.m_uploadReplicatorKeys.begin(),
-                                                opinion.m_uploadReplicatorKeys.end(),
+                                std::accumulate(opinion.m_replicatorUploadBytes.begin(),
+                                                opinion.m_replicatorUploadBytes.end(),
                                                 opinion.m_clientUploadBytes);
                         sizes.insert(size);
                     }
@@ -112,7 +112,8 @@ namespace sirius::drive::test {
                                         client.m_modificationTransactionHashes.back(),
                                         BIG_FILE_SIZE + 1024,
                                         env.m_addrList,
-                                        client.m_clientKeyPair.publicKey()});
+                                        client.m_clientKeyPair.publicKey(),
+                                        InfoHash()});
 
         _LOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         std::thread([] {

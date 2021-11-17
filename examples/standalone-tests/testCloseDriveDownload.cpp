@@ -65,10 +65,11 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
         client.modifyDrive(actionList, env.m_addrList);
 
         env.addDrive(DRIVE_PUB_KEY, 100 * 1024 * 1024);
-        env.downloadFromDrive(randomByteArray<Key>().array(),
+        env.downloadFromDrive(DRIVE_PUB_KEY,
+                              { randomByteArray<Key>().array(),
                               100 * 1024 * 1024,
-                              DRIVE_PUB_KEY,
-                              { client.m_clientKeyPair.publicKey() });
+                              env.m_addrList,
+                              { client.m_clientKeyPair.publicKey() }});
 
         EXLOG("\n# Client asked to close drive");
 

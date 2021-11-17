@@ -26,6 +26,13 @@ class Replicator;
         };
     };
 
+    struct DriveRequest {
+        uint64_t          driveSize;
+        uint64_t          usedDriveSizeExcludingMetafiles;
+        bool              anyModificationsApproved;
+        ReplicatorList    replicators;
+    };
+
     using DriveModifyHandler = std::function<void( modify_status::code, const FlatDrive& drive, const std::string& error )>;
 
     struct ModifyRequest {
@@ -37,6 +44,13 @@ class Replicator;
         
         InfoHash          m_rootHashBeforeModify;
         bool              m_isCanceled = false;
+    };
+
+    struct DownloadRequest {
+        Key                  m_channelKey;
+        uint64_t             m_prepaidDownloadSize;
+        ReplicatorList       m_addrList;
+        std::vector<Key>     m_clients;
     };
 
     // It is opinition of single replicator about how much data the other peers transferred.
@@ -345,6 +359,8 @@ class Replicator;
                                                        const std::string&       replicatorSandboxRootFolder,
                                                        const Key&               drivePubKey,
                                                        size_t                   maxSize,
+                                                       size_t                   usedDriveSizeExcludingMetafiles,
+                                                       bool                     anyModificationsApproved,
                                                        ReplicatorEventHandler&  eventHandler,
                                                        Replicator&              replicator,
                                                        const ReplicatorList&    replicators,

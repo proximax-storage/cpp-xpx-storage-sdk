@@ -58,12 +58,12 @@ namespace sirius::drive::test {
 
             for (const auto& opinion: transactionInfo.m_opinions) {
                 auto size =
-                        std::accumulate(opinion.m_uploadReplicatorKeys.begin(),
-                                        opinion.m_uploadReplicatorKeys.end(),
+                        std::accumulate(opinion.m_replicatorUploadBytes.begin(),
+                                        opinion.m_replicatorUploadBytes.end(),
                                         opinion.m_clientUploadBytes);
+                std::cout << "SIZE " << size << std::endl;
                 m_modificationSizes.insert(size);
             }
-
             ASSERT_EQ(m_modificationSizes.size(), 1);
         }
 
@@ -75,8 +75,8 @@ namespace sirius::drive::test {
 
             const auto& opinion = transactionInfo.m_opinions.front();
             auto size =
-                    std::accumulate(opinion.m_uploadReplicatorKeys.begin(),
-                                    opinion.m_uploadReplicatorKeys.end(),
+                    std::accumulate(opinion.m_replicatorUploadBytes.begin(),
+                                    opinion.m_replicatorUploadBytes.end(),
                                     opinion.m_clientUploadBytes);
             m_modificationSizes.insert(size);
 
@@ -98,7 +98,7 @@ namespace sirius::drive::test {
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
-                SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 1000 * 1024);
+                SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 512 * 1024);
 
         EXLOG("\n# Client started: 1-st upload");
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
@@ -109,7 +109,8 @@ namespace sirius::drive::test {
                                         client.m_modificationTransactionHashes.back(),
                                         BIG_FILE_SIZE + 1024,
                                         env.m_addrList,
-                                        client.m_clientKeyPair.publicKey()});
+                                        client.m_clientKeyPair.publicKey(),
+                                        InfoHash()});
 
         _LOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         env.waitModificationEnd();

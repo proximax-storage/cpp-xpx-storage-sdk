@@ -52,6 +52,8 @@
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
 
+#include <boost/multiprecision/cpp_int.hpp>
+#include <numeric>
 
 namespace fs = std::filesystem;
 
@@ -105,6 +107,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     using LtSession = std::shared_ptr<Session>;
     using lt_handle  = Session::lt_handle;
+    using uint128_t = boost::multiprecision::uint128_t;
 
     // UseTorrentInfo is used to avoid adding torrents into session with the same hash
     // and for deleting unused files and torrents from session
@@ -116,6 +119,10 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     LtSession     m_session;
 
     size_t        m_maxSize;
+
+    size_t        m_initSize;
+
+    bool          m_anyModificationsApproved;
     
     // It has the following statuses: "modification started", "sandbox calculated", modification approved"
     std::shared_mutex m_mutex;
@@ -177,6 +184,8 @@ public:
                   const std::string&        replicatorSandboxRootFolder,
                   const Key&                drivePubKey,
                   size_t                    maxSize,
+                  size_t                    usedDriveSizeExcludingMetafiles,
+                  bool                      anyModificationsApproved,
                   ReplicatorEventHandler&   eventHandler,
                   Replicator&               replicator,
                   const ReplicatorList&     replicatorList,
@@ -185,6 +194,8 @@ public:
           FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
           m_session(session),
           m_maxSize(maxSize),
+          m_initSize(usedDriveSizeExcludingMetafiles),
+          m_anyModificationsApproved(anyModificationsApproved),
           m_replicatorList(replicatorList),
           m_eventHandler(eventHandler),
           m_dbgEventHandler(dbgEventHandler),
@@ -742,6 +753,21 @@ public:
 
         myRootHashIsCalculated();
     }
+
+    void normalizeOpinion(SingleOpinion &opinion, uint64_t targetSum)
+    {
+        uint128_t longTargetSum = targetSum;
+        uint128_t sumBefore = std::accumulate(opinion.m_replicatorUploadBytes.begin(),
+                                   opinion.m_replicatorUploadBytes.end(),
+                                   opinion.m_clientUploadBytes);
+        uint64_t sumAfter = 0;
+        for (auto& uploadBytes: opinion.m_replicatorUploadBytes) {
+            auto longUploadBytes = (uploadBytes * longTargetSum) / sumBefore;
+            uploadBytes = longUploadBytes.convert_to<uint64_t>();
+            sumAfter += uploadBytes;
+        }
+        opinion.m_clientUploadBytes = targetSum - sumAfter;
+    }
     
     void createMyOpinion()
     {
@@ -772,6 +798,15 @@ public:
         {
             opinion.m_clientUploadBytes = it->second.m_receivedSize;
         }
+
+        uint64_t targetSize = m_modifyRequest->m_maxDataSize;
+        if ( !m_anyModificationsApproved )
+        {
+            targetSize += m_initSize;
+            m_anyModificationsApproved = true;
+        }
+        normalizeOpinion(opinion, targetSize);
+
         opinion.Sign( m_replicator.keyPair(), m_modifyRequest->m_transactionHash, m_sandboxRootHash );
 
         // Calculate size of torrent files and total drive size
@@ -1153,10 +1188,10 @@ public:
         m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_closingTxHash );
     }
 
-    virtual const ReplicatorList&  replicatorList() const override
-    {
-        return m_replicatorList;
-    }
+//    virtual const ReplicatorList&  replicatorList() const override
+//    {
+//        return m_replicatorList;
+//    }
 
     virtual void printDriveStatus() override
     {
@@ -1174,6 +1209,8 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
         const std::string&       replicatorSandboxRootFolder,
         const Key&               drivePubKey,
         size_t                   maxSize,
+        size_t                   usedDriveSizeExcludingMetafiles,
+        bool                     anyModificationsApproved,
         ReplicatorEventHandler&  eventHandler,
         Replicator&              replicator,
         const ReplicatorList&    replicators,
@@ -1185,6 +1222,8 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
                                            replicatorSandboxRootFolder,
                                            drivePubKey,
                                            maxSize,
+                                           usedDriveSizeExcludingMetafiles,
+                                           anyModificationsApproved,
                                            eventHandler,
                                            replicator,
                                            replicators,

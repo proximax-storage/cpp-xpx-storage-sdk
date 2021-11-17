@@ -99,7 +99,7 @@ public:
 
     // All of the below functions return error string (or empty string)
     
-    virtual std::string addDrive( const Key& driveKey, uint64_t driveSize, const ReplicatorList& replicators ) = 0;
+    virtual std::string addDrive( const Key& driveKey,  DriveRequest&& driveRequest) = 0;
 
     // it starts drive closing
     virtual std::string removeDrive( const Key& driveKey, const Hash256& transactionHash ) = 0;
@@ -123,11 +123,8 @@ public:
 
     // 'replicatorsList' is used to notify other replictors
     // (it does not contain its own endpoint)
-    virtual void        addDownloadChannelInfo( const std::array<uint8_t,32>&   channelKey,
-                                                size_t                          prepaidDownloadSize,
-                                                const Key&                      driveKey,
-                                                const ReplicatorList&           replicatorsList,
-                                                const std::vector<Key>&         clients ) = 0;
+    virtual void        addDownloadChannelInfo( const Key&          driveKey,
+                                                DownloadRequest&&   downloadRequest ) = 0;
 
     //
     virtual void        removeDownloadChannelInfo( const std::array<uint8_t,32>& channelId ) = 0;

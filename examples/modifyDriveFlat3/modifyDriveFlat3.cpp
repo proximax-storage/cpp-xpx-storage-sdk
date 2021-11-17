@@ -535,11 +535,11 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->setDownloadApprovalTransactionTimerDelay(1);
     replicator->setModifyApprovalTransactionTimerDelay(1);
     replicator->start();
-    replicator->addDrive( DRIVE_PUB_KEY, 100*1024*1024, replicatorList );
+    replicator->addDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, false, replicatorList} );
 
-    replicator->addDownloadChannelInfo( downloadChannelHash1.array(), 1024*1024,    DRIVE_PUB_KEY, replicatorList, { clientKeyPair.publicKey() } );
-    replicator->addDownloadChannelInfo( downloadChannelHash2.array(), 10*1024*1024, DRIVE_PUB_KEY, replicatorList, { clientKeyPair.publicKey() } );
-    replicator->addDownloadChannelInfo( downloadChannelHash3.array(), 1024*1024,    DRIVE_PUB_KEY, replicatorList, { clientKeyPair.publicKey() } );
+    replicator->addDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash1.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
+    replicator->addDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
+    replicator->addDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash3.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
 
     // set root drive hash
     driveRootHash = std::make_shared<InfoHash>( replicator->getRootHash( DRIVE_PUB_KEY ) );

@@ -28,7 +28,7 @@ namespace sirius::drive::test {
         return str;
     }
 
-    class TestEnvironment : public ReplicatorEventHandler {
+    class TestEnvironment : public ReplicatorEventHandler, DbgReplicatorEventHandler {
     public:
 
         std::vector<std::shared_ptr<Replicator>> m_replicators;
@@ -84,7 +84,8 @@ namespace sirius::drive::test {
                             std::move(rootFolder),
                             std::move(sandboxRootFolder),
                             useTcpSocket,
-                            (ReplicatorEventHandler &) *this,
+                            *this,
+                            this,
                             dbgReplicatorName.c_str());
 
                     replicator->setDownloadApprovalTransactionTimerDelay(modifyApprovalDelay);
@@ -103,7 +104,7 @@ namespace sirius::drive::test {
 
         void addDrive(const Key &driveKey, uint64_t driveSize) {
             for (auto &replicator: m_replicators) {
-                auto result = replicator->addDrive(driveKey, driveSize, m_addrList);
+                auto result = replicator->addDrive(driveKey, { driveSize, 0, false, m_addrList });
                 assert(result.empty());
             }
         }
@@ -117,17 +118,10 @@ namespace sirius::drive::test {
             }
         }
 
-        void downloadFromDrive(const std::array<uint8_t,32>&   channelKey,
-                               size_t                          prepaidDownloadSize,
-                               const Key&                      driveKey,
-                               const std::vector<Key>&         clients) {
+        void downloadFromDrive(const Key& driveKey, const DownloadRequest& request) {
             for (auto &replicator: m_replicators) {
-                std::thread([=, this] {
-                    replicator->addDownloadChannelInfo(channelKey,
-                                                       prepaidDownloadSize,
-                                                       driveKey,
-                                                       m_addrList,
-                                                       clients);
+                std::thread([=] {
+                    replicator->addDownloadChannelInfo(driveKey, DownloadRequest(request));
                 }).detach();
             }
         }
@@ -257,7 +251,7 @@ namespace sirius::drive::test {
         void waitDriveClosure() {
             std::unique_lock<std::mutex> lock(driveClosedMutex);
             driveClosedCondVar.wait(lock, [this] {
-                return driveClosedCounter == m_replicators.size() + 1;
+                return driveClosedCounter == m_replicators.size();
             });
         }
     };

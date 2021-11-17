@@ -71,7 +71,8 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
                                         client.m_modificationTransactionHashes.back(),
                                         BIG_FILE_SIZE + 1024,
                                         env.m_addrList,
-                                        client.m_clientKeyPair.publicKey()});
+                                        client.m_clientKeyPair.publicKey(),
+                                        InfoHash()});
 
         EXLOG("\n# Client asked to close drive");
 

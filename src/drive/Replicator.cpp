@@ -120,12 +120,10 @@ public:
     }
 
 
-    std::string addDrive(const Key& driveKey, uint64_t driveSize, const ReplicatorList& replicatorsRef ) override
+    std::string addDrive(const Key& driveKey, DriveRequest&& driveRequest ) override
     {
         LOG( "adding drive " << driveKey );
         
-        ReplicatorList replicators(replicatorsRef);
-
         std::unique_lock<std::shared_mutex> lock(m_driveMutex);
 
         if (m_driveMap.find(driveKey) != m_driveMap.end()) {
@@ -133,11 +131,11 @@ public:
         }
 
         // Exclude itself from replicators
-        for( auto it = replicators.begin();  it != replicators.end(); it++ )
+        for( auto it = driveRequest.replicators.begin();  it != driveRequest.replicators.end(); it++ )
         {
             if ( it->m_publicKey == publicKey() )
             {
-                replicators.erase( it );
+                driveRequest.replicators.erase( it );
                 break;
             }
         }
@@ -148,10 +146,12 @@ public:
                 m_storageDirectory,
                 m_sandboxDirectory,
                 driveKey,
-                driveSize,
+                driveRequest.driveSize,
+                driveRequest.usedDriveSizeExcludingMetafiles,
+                driveRequest.anyModificationsApproved,
                 m_eventHandler,
                 *this,
-                replicators,
+                driveRequest.replicators,
                 m_dbgEventHandler );
 
         return "";
@@ -261,16 +261,17 @@ public:
         return "";
     }
 
-    void addDownloadChannelInfo( const std::array<uint8_t,32>&   channelKey,
-                                 size_t                          prepaidDownloadSize,
-                                 const Key&                      driveKey,
-                                 const ReplicatorList&           replicatorsList,
-                                 const std::vector<Key>&         clients ) override
+    void addDownloadChannelInfo( const Key&             driveKey,
+                                 DownloadRequest&&      request ) override
     {
         std::vector<std::array<uint8_t,32>> clientList;
-        for( const auto& it : clients )
+        for( const auto& it : request.m_clients )
             clientList.push_back( it.array() );
-        addChannelInfo( channelKey, prepaidDownloadSize, driveKey, replicatorsList, clientList );
+        addChannelInfo( request.m_channelKey.array(),
+                        request.m_prepaidDownloadSize,
+                        driveKey,
+                        request.m_addrList,
+                        clientList);
     }
 
     void removeDownloadChannelInfo( const std::array<uint8_t,32>& channelKey ) override

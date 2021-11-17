@@ -20,7 +20,7 @@
 
 namespace sirius::drive {
 
-class RpcReplicator : public ReplicatorEventHandler
+class RpcReplicator : public ReplicatorEventHandler, DbgReplicatorEventHandler
 {
 public:
     RpcReplicator(
@@ -59,6 +59,7 @@ public:
                 std::move(sandboxRootFolder),
                 true, // tcp
                 *this,
+                this,
                 name.c_str()
         );
 
@@ -247,11 +248,13 @@ private:
     void openDownloadChannel(const types::RpcDownloadChannelInfo& channelInfo) {
         std::cout << "Replicator. openDownloadChannel: " << utils::HexFormat(channelInfo.m_channelKey) << std::endl;
         m_replicator->addDownloadChannelInfo(
-                channelInfo.m_channelKey,
-                channelInfo.m_prepaidDownloadSize,
                 channelInfo.m_drivePubKey,
-                channelInfo.getReplicators(),
-                channelInfo.getClientsPublicKeys());
+                {
+                    channelInfo.m_channelKey,
+                    channelInfo.m_prepaidDownloadSize,
+                    channelInfo.getReplicators(),
+                    channelInfo.getClientsPublicKeys()
+                });
     }
 
     void closeDownloadChannel(const std::array<uint8_t, 32>& channelKey) {
