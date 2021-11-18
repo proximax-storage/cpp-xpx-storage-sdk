@@ -18,8 +18,12 @@ include_directories(${GTEST_INCLUDE_DIRS})
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     target_link_libraries(standalone-tests
             ${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
+            #${CMAKE_SOURCE_DIR}/cpp-xpx-storage-sdk/libtorrent/_build/Debug/libtorrent-sirius.dylib
             #${CMAKE_SOURCE_DIR}/libtorrent/cmake-build-debug/libtorrent-sirius.dylib
+            drive
             crypto
+            ${GTEST_LIBRARIES}
+            /usr/local/lib/libgtest_main.a
             )
     #        /usr/local/opt/openssl/lib/libssl.dylib
     #        /usr/local/opt/openssl/lib/libcrypto.dylib

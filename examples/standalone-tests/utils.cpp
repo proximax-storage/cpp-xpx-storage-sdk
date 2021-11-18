@@ -1,6 +1,7 @@
 #include "utils.h"
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
+#include <fstream>
 
 namespace sirius::drive::test {
 

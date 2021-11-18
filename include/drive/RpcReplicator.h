@@ -206,7 +206,7 @@ private:
     types::RpcDriveInfo getDrive(const std::array<uint8_t, 32>& driveKey) {
         std::cout << "Replicator. getDrive: " << utils::HexFormat(driveKey) << std::endl;
 
-        std::shared_ptr<sirius::drive::FlatDrive> drive = m_replicator->getDrive(driveKey);
+        std::shared_ptr<sirius::drive::FlatDrive> drive = m_replicator->dbgGetDrive(driveKey);
         if (!drive){
             std::cout << "Replicator. getDrive. Drive not found: " << utils::HexFormat(driveKey) << std::endl;
             return {};
@@ -242,7 +242,9 @@ private:
                 rpcDataModification.m_transactionHash,
                 rpcDataModification.m_maxDataSize,
                 rpcDataModification.getReplicators(),
-                rpcDataModification.m_clientPubKey });
+                rpcDataModification.m_clientPubKey,
+            {}
+        });
     }
 
     void openDownloadChannel(const types::RpcDownloadChannelInfo& channelInfo) {

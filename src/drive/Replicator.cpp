@@ -673,9 +673,74 @@ public:
             m_session->lt_session().set_peer_class_filter(f);
         }
     }
+
+    bool isPeerReplicator( const FlatDrive& drive, const std::array<uint8_t,32>&  peerPublicKey )
+    {
+        auto& replicatorList = drive.replicatorList();
+        auto replicatorIt = std::find_if( replicatorList.begin(), replicatorList.end(), [&peerPublicKey] (const auto& it) {
+            return it.m_publicKey.array() == peerPublicKey;
+        });
+        
+        return replicatorIt != replicatorList.end();
+    }
+    
+    bool acceptConnection( const std::array<uint8_t,32>&  transactionHash,
+                           const std::array<uint8_t,32>&  peerPublicKey,
+                           bool*                          outIsDownloadUnlimited ) override
+    {
+        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        
+        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
+        {
+            if ( it->second.m_isModifyTx )
+            {
+                if ( auto driveIt = m_driveMap.find( it->second.m_driveKey ); driveIt != m_driveMap.end() )
+                {
+                    if ( isPeerReplicator( *driveIt->second, peerPublicKey) )
+                    {
+                        *outIsDownloadUnlimited = true;
+                        return true;
+                    }
+                    else
+                    {
+                        //LOG_ERR( "acceptConnection: unknown peerPublicKey: " << sirius::Key(peerPublicKey) );
+                        return false;
+                    }
+                }
+                else
+                {
+                    LOG_ERR( "acceptConnection: unknown drive: " << sirius::Key(it->second.m_driveKey) );
+                    return false;
+                }
+            }
+            else // it is connection for download channel
+            {
+                auto& clients = it->second.m_clients;
+                auto clientIt = std::find( clients.begin(), clients.end(), peerPublicKey);
+                return clientIt != clients.end();
+            }
+            
+            return false;
+        }
+        
+//        _LOG( dbgOurPeerName() << " hash: " << (int)transactionHash[0] );
+//        assert(0);
+        return false;
+    }
+
+
     
     const char* dbgReplicatorName() const override { return m_dbgReplicatorName.c_str(); }
     
+    virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) override
+    {
+        if ( auto it = m_driveMap.find(driveKey); it != m_driveMap.end() )
+        {
+            return it->second;
+        }
+        assert(0);
+    }
+
 private:
     std::shared_ptr<sirius::drive::Session> session() {
         return m_session;

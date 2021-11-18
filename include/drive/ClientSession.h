@@ -122,8 +122,9 @@ protected:
 
     bool isClient() const override { return true; }
     
-    bool acceptConnection( const std::array<uint8_t,32>&  transactionHash,
-                           const std::array<uint8_t,32>&  peerPublicKey ) override
+    bool acceptConnection( const std::array<uint8_t,32>&  /*transactionHash*/,
+                           const std::array<uint8_t,32>&  /*peerPublicKey*/,
+                           bool*                          /*outIsDownloadUnlimited*/ ) override
     {
         return true;
     }
