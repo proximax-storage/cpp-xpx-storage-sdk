@@ -148,7 +148,6 @@ public:
                 driveKey,
                 driveRequest.driveSize,
                 driveRequest.usedDriveSizeExcludingMetafiles,
-                driveRequest.anyModificationsApproved,
                 m_eventHandler,
                 *this,
                 driveRequest.replicators,

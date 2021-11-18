@@ -29,7 +29,6 @@ class Replicator;
     struct DriveRequest {
         uint64_t          driveSize;
         uint64_t          usedDriveSizeExcludingMetafiles;
-        bool              anyModificationsApproved;
         ReplicatorList    replicators;
     };
 
@@ -360,7 +359,6 @@ class Replicator;
                                                        const Key&               drivePubKey,
                                                        size_t                   maxSize,
                                                        size_t                   usedDriveSizeExcludingMetafiles,
-                                                       bool                     anyModificationsApproved,
                                                        ReplicatorEventHandler&  eventHandler,
                                                        Replicator&              replicator,
                                                        const ReplicatorList&    replicators,

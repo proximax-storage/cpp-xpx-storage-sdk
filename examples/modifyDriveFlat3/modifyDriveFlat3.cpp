@@ -535,7 +535,7 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->setDownloadApprovalTransactionTimerDelay(1);
     replicator->setModifyApprovalTransactionTimerDelay(1);
     replicator->start();
-    replicator->addDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, false, replicatorList} );
+    replicator->addDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, replicatorList} );
 
     replicator->addDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash1.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
     replicator->addDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
