@@ -185,6 +185,9 @@ public:
     virtual ReplicatorEventHandler& eventHandler() = 0;
     
     virtual const char* dbgReplicatorName() const = 0;
+    
+    virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) = 0;
+
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(

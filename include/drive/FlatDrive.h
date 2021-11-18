@@ -42,7 +42,6 @@ class Replicator;
         ReplicatorList    m_replicatorList;
         Key               m_clientPublicKey;
         
-        InfoHash          m_rootHashBeforeModify;
         bool              m_isCanceled = false;
     };
 
@@ -347,6 +346,7 @@ class Replicator;
         
         virtual void removeAllDriveData() = 0;
 
+        virtual const ReplicatorList&  replicatorList() const = 0;
 
         // for testing and debugging
         virtual void printDriveStatus() = 0;

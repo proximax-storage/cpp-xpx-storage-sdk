@@ -237,15 +237,13 @@ private:
         std::cout << "Replicator. modifyDrive: " << m_replicator->dbgReplicatorName() << " : " << utils::HexFormat(rpcDataModification.m_drivePubKey) << std::endl;
         std::cout << "Replicator. modifyDrive: " << m_replicator->dbgReplicatorName() << " : " << utils::HexFormat(rpcDataModification.m_infoHash) << std::endl;
 
-        // fix below : m_rootHashBeforeModify
-        assert(0);
         m_replicator->modify(rpcDataModification.m_drivePubKey, ModifyRequest{
                 rpcDataModification.m_infoHash,
                 rpcDataModification.m_transactionHash,
                 rpcDataModification.m_maxDataSize,
                 rpcDataModification.getReplicators(),
                 rpcDataModification.m_clientPubKey,
-            {} //todo: m_rootHashBeforeModify
+            {}
         });
     }
 

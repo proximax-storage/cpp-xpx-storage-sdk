@@ -61,21 +61,6 @@ public:
         assert(0);
     }
 
-    bool acceptConnection( const std::array<uint8_t,32>&  transactionHash,
-                           const std::array<uint8_t,32>&  peerPublicKey ) override
-    {
-        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
-        
-        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
-        {
-            //todo check peerPublicKey
-            return true;
-        }
-//        _LOG( dbgOurPeerName() << " hash: " << (int)transactionHash[0] );
-//        assert(0);
-        return false;
-    }
-
     void onDisconnected( const std::array<uint8_t,32>&  transactionHash,
                          const std::array<uint8_t,32>&  peerPublicKey,
                          int                            siriusFlags ) override

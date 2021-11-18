@@ -342,6 +342,8 @@ private:
 
         // create torrent_handle
         lt::torrent_handle tHandle = m_session.add_torrent(params,ec);
+        //TODO m_session.m_dht_storage.ann
+        
         if (ec) {
             throw std::runtime_error( std::string("downloadFile error: ") + ec.message() );
         }
@@ -355,6 +357,7 @@ private:
         // connect to peers
         for( const auto& it : list ) {
             //LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
+            _LOG( m_session.delegate().lock()->dbgOurPeerName() << ": download: connect: " << it.m_endpoint );
             tHandle.connect_peer( it.m_endpoint );
         }
 
@@ -422,6 +425,7 @@ private:
 
         //TODO check if not set m_lastTorrentFileHandle
         for( const auto& endpoint : list ) {
+            _LOG( m_session.delegate().lock()->dbgOurPeerName() << ": connectPeers: " << endpoint);
             tHandle.connect_peer(endpoint);
         }
     }
@@ -461,7 +465,10 @@ private:
             lt::entry&                              response ) override
         {
             if ( query == "get_peers" || query == "announce_peer" )
+            {
+//                _LOG( "???????: " << message );
                 return false;
+            }
 
 //            _LOG( "query: " << query );
 //            _LOG( "message: " << message );
@@ -529,7 +536,7 @@ private:
                 response["r"]["ret"] = "ok";
                 return true;
 //            }
-            return true;
+            return false;
         }
     };
 
@@ -623,9 +630,14 @@ private:
 //                    break;
 //                }
 
+//                case lt::peer_log_alert::alert_type: {
+//                    _LOG(  m_addressAndPort << ": peer_log_alert: " << alert->message())
+//                    break;
+//                }
+
                 case lt::add_torrent_alert::        alert_type: {
                     auto* theAlert = dynamic_cast<lt::add_torrent_alert*>(alert);
-                    _LOG("add torrent " << theAlert->message());
+                    _LOG( m_addressAndPort << " add_torrent_alert: " << theAlert->message() << " " << theAlert->handle.info_hashes().v2 );
                 }
                 case lt::dht_announce_alert::       alert_type:
                 //case lt::torrent_log_alert::        alert_type:
@@ -674,11 +686,6 @@ private:
 //
 //                    LOG( "#peer_disconnected_alert: " << theAlert->error.category().name() << " " << theAlert->error << " " << theAlert->endpoint << "\n" );
 //                    break;
-                }
-
-                case lt::peer_log_alert::alert_type: {
-//                    _LOG(  m_addressAndPort << ": peer_log_alert: " << alert->message())
-                    break;
                 }
 
                 // piece_finished_alert

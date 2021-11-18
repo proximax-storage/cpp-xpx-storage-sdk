@@ -26,7 +26,7 @@ const bool gUse3Replicators = true;
 //
 
 #define BIG_FILE_SIZE 1 * 1024*1024 //150//4
-#define TRANSPORT_PROTOCOL true // true - TCP, false - uTP
+#define TRANSPORT_PROTOCOL false // true - TCP, false - uTP
 
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
@@ -125,7 +125,6 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const sirius::Key&             clientPublicKey,
                          const InfoHash&                hash,
                          const sirius::Hash256&         transactionHash,
-                         const InfoHash&                rootHashBeforeModification,
                          const ReplicatorList&          replicatorList,
                          uint64_t                       maxDataSize );
 
@@ -256,6 +255,10 @@ public:
             std::cout << "client:" <<opinion.m_clientUploadBytes << std::endl;
         }
         
+        gReplicator3->printTrafficDistribution( modifyTransactionHash1.array() );
+        gReplicator->printTrafficDistribution( modifyTransactionHash1.array() );
+        gReplicator2->printTrafficDistribution( modifyTransactionHash1.array() );
+
         if ( !m_approvalTransactionInfo )
         {
             m_approvalTransactionInfo = { std::move(transactionInfo) };
@@ -417,9 +420,9 @@ int main(int,char**)
     modifyCompleteCounter = 0;
     MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
 
-    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, gReplicator->getRootHash(DRIVE_PUB_KEY), replicatorList, BIG_FILE_SIZE+1024 );
-    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, gReplicator->getRootHash(DRIVE_PUB_KEY), replicatorList, BIG_FILE_SIZE+1024 );
-    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, gReplicator->getRootHash(DRIVE_PUB_KEY), replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
     
     {
         std::unique_lock<std::mutex> lock(modifyCompleteMutex);
@@ -430,11 +433,6 @@ int main(int,char**)
     gReplicatorThread2.join();
     gReplicatorThread3.join();
     
-    /// Print traffic distribution (for modify drive operation)
-    gReplicator3->printTrafficDistribution( modifyTransactionHash1.array() );
-    gReplicator->printTrafficDistribution( modifyTransactionHash1.array() );
-    gReplicator2->printTrafficDistribution( modifyTransactionHash1.array() );
-
     /// Client: read changed fsTree (2)
     ///
     gClientSession->setDownloadChannel( replicatorList, downloadChannelHash2 );
@@ -473,10 +471,10 @@ int main(int,char**)
 
     modifyCompleteCounter = 0;
     MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
-    
-    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, gReplicator->getRootHash(DRIVE_PUB_KEY), replicatorList, BIG_FILE_SIZE+1024 );
-    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, gReplicator->getRootHash(DRIVE_PUB_KEY), replicatorList, BIG_FILE_SIZE+1024 );
-    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, gReplicator->getRootHash(DRIVE_PUB_KEY), replicatorList, BIG_FILE_SIZE+1024 );
+
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
 
     {
         std::unique_lock<std::mutex> lock(modifyCompleteMutex);
@@ -552,11 +550,10 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const sirius::Key&             clientPublicKey,
                          const InfoHash&                clientDataInfoHash,
                          const sirius::Hash256&         transactionHash,
-                         const InfoHash&                rootHashBeforeModification,
                          const ReplicatorList&          replicatorList,
                          uint64_t                       maxDataSize )
 {
-    replicator->modify( DRIVE_PUB_KEY, ModifyRequest{ clientDataInfoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey, rootHashBeforeModification } );
+    replicator->modify( DRIVE_PUB_KEY, ModifyRequest{ clientDataInfoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey } );
 }
 
 //
