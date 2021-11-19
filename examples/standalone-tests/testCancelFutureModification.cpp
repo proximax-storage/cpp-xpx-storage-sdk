@@ -5,22 +5,16 @@
 
 #include "types.h"
 #include "drive/Session.h"
-#include "drive/ClientSession.h"
-#include "drive/Replicator.h"
-#include "drive/FlatDrive.h"
-#include "drive/FsTree.h"
 #include "drive/Utils.h"
-#include "crypto/Signer.h"
 
 using namespace sirius::drive::test;
 
 namespace sirius::drive::test {
 
 /// change this macro for your test
-#define TEST_NAME CloseDriveSingleModification
+#define TEST_NAME CancelFutureModification
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
-#define RUN_TEST void JOIN(run, TEST_NAME)()
 
 class ENVIRONMENT_CLASS : public TestEnvironment {
     public:
@@ -33,6 +27,7 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
                 bool useTcpSocket,
                 int modifyApprovalDelay,
                 int downloadApprovalDelay,
+                int downloadRateLimit,
                 bool startReplicator = true)
                 : TestEnvironment(
                         numberOfReplicators,
@@ -44,13 +39,26 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
                         modifyApprovalDelay,
                         downloadApprovalDelay,
                         startReplicator)
-        {}
+        {
+            lt::settings_pack pack;
+            pack.set_int(lt::settings_pack::download_rate_limit, downloadRateLimit);
+            for (auto& replicator: m_replicators) {
+                replicator->setSessionSettings(pack, true);
+            }
+        }
+
+        std:: optional<Hash256> m_forbiddenTransaction;
+
+        void
+        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override {
+            if ( m_forbiddenTransaction and m_forbiddenTransaction->array() == transactionInfo.m_modifyTransactionHash) {
+                ASSERT_EQ(true, false);
+            }
+        }
     };
 
-    TEST(ModificationTest, TEST_NAME) {
+    TEST(ModificationTest, TEST_NAME){
         fs::remove_all(ROOT_FOLDER);
-
-        auto startTime = std::clock();
 
         lt::settings_pack pack;
         pack.set_int(lt::settings_pack::upload_rate_limit, 0);
@@ -60,10 +68,11 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
-                SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1);
+                SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 1024 * 1024);
 
         EXLOG("\n# Client started: 1-st upload");
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
+        client.modifyDrive(actionList, env.m_addrList);
         client.modifyDrive(actionList, env.m_addrList);
 
         env.addDrive(DRIVE_PUB_KEY, 100 * 1024 * 1024);
@@ -73,18 +82,20 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        _LOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
-        env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);
+        env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes.back(),
+                                        client.m_modificationTransactionHashes.back(),
+                                        BIG_FILE_SIZE + 1024,
+                                        env.m_addrList,
+                                        client.m_clientKeyPair.publicKey()});
 
-        EXLOG("\n# Client asked to close drive");
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-        std::thread([] {
-            std::this_thread::sleep_for(std::chrono::seconds(10));
-            ASSERT_EQ(true, false);
-        }).detach();
+        env.cancelModification(DRIVE_PUB_KEY, client.m_modificationTransactionHashes.back());
 
-        env.closeDrive(DRIVE_PUB_KEY);
-        env.waitDriveClosure();
+        env.waitModificationEnd(client.m_modificationTransactionHashes.front(), NUMBER_OF_REPLICATORS);
+//        env.closeDrive(DRIVE_PUB_KEY);
+        std::this_thread::sleep_for(std::chrono::seconds (60));
+        ASSERT_EQ(env.driveClosedCounter, NUMBER_OF_REPLICATORS);
     }
 }
 

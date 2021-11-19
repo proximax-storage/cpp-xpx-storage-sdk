@@ -62,7 +62,13 @@ namespace sirius::drive::test {
                     std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
                 }
 
-                if (replicator.keyPair().publicKey() == m_replicators.back()->replicatorKey()) {
+                if (m_pendingModifications.front().array() != transactionInfo.m_modifyTransactionHash)
+                {
+                    return;
+                }
+
+                if (replicator.keyPair().publicKey() == m_replicators.back()->replicatorKey())
+                {
 
                     ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size());
 
@@ -77,11 +83,12 @@ namespace sirius::drive::test {
 
                     ASSERT_EQ(sizes.size(), 1);
 
-                    m_approvalTransactionInfo = {std::move(transactionInfo)};
+                    m_pendingModifications.pop_front();
+                    m_lastApprovedModification = transactionInfo.m_modifyTransactionHash;
 
                     for (const auto &r: m_replicators) {
-                        std::thread([r, this] {
-                            r->onApprovalTransactionHasBeenPublished(*m_approvalTransactionInfo);
+                        std::thread([r, transactionInfo] {
+                            r->onApprovalTransactionHasBeenPublished(transactionInfo);
                         }).detach();
                     }
                 }
@@ -101,7 +108,7 @@ namespace sirius::drive::test {
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
-                SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 1000 * 1024);
+                SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 100 * 1024 * 1024);
 
         EXLOG("\n# Client started: 1-st upload");
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
@@ -112,15 +119,14 @@ namespace sirius::drive::test {
                                         client.m_modificationTransactionHashes.back(),
                                         BIG_FILE_SIZE + 1024,
                                         env.m_addrList,
-                                        client.m_clientKeyPair.publicKey(),
-                                        InfoHash()});
+                                        client.m_clientKeyPair.publicKey()});
 
         _LOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         std::thread([] {
             std::this_thread::sleep_for(std::chrono::seconds(60));
             ASSERT_EQ(true, false);
         }).detach();
-        env.waitModificationEnd();
+        env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);
     }
 
 #undef TEST_NAME

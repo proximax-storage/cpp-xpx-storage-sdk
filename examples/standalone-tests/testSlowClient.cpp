@@ -93,15 +93,14 @@ namespace sirius::drive::test {
                                         client.m_modificationTransactionHashes.back(),
                                         BIG_FILE_SIZE + 1024,
                                         env.m_addrList,
-                                        client.m_clientKeyPair.publicKey(),
-                                        InfoHash()});
+                                        client.m_clientKeyPair.publicKey()});
 
         _LOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         std::thread([] {
             std::this_thread::sleep_for(std::chrono::seconds(120));
             ASSERT_EQ(true, false);
         }).detach();
-        env.waitModificationEnd();
+        env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);
     }
 
 #undef TEST_NAME

@@ -36,17 +36,20 @@ namespace sirius::drive::test {
         ReplicatorList m_addrList;
         std::vector<std::thread> m_threads;
 
-        std::condition_variable modifyCompleteCondVar;
-        std::atomic<unsigned int> modifyCompleteCounter{0};
+        std::map<Hash256, std::condition_variable> modifyCompleteCondVars;
+        std::map<Hash256, int> modifyCompleteCounters;
         std::mutex modifyCompleteMutex;
 
         std::condition_variable driveClosedCondVar;
         std::atomic<unsigned int> driveClosedCounter{0};
         std::mutex driveClosedMutex;
 
-        std::optional<ApprovalTransactionInfo> m_approvalTransactionInfo;
+//        std::optional<ApprovalTransactionInfo> m_approvalTransactionInfo;
         std::optional<DownloadApprovalTransactionInfo> m_dnApprovalTransactionInfo;
         std::mutex m_transactionInfoMutex;
+
+        std::deque<Hash256> m_pendingModifications;
+        Hash256 m_lastApprovedModification;
 
     public:
         TestEnvironment(int numberOfReplicators,
@@ -104,12 +107,14 @@ namespace sirius::drive::test {
 
         void addDrive(const Key &driveKey, uint64_t driveSize) {
             for (auto &replicator: m_replicators) {
-                auto result = replicator->addDrive(driveKey, { driveSize, 0, false, m_addrList });
+                auto result = replicator->addDrive(driveKey, { driveSize, 0, m_addrList });
                 assert(result.empty());
             }
         }
 
         void modifyDrive(const Key &driveKey, const ModifyRequest &request) {
+            const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+            m_pendingModifications.push_back(request.m_transactionHash);
             for (auto &replicator: m_replicators) {
                 std::thread([replicator, driveKey, request] {
                     auto result = replicator->modify(driveKey, ModifyRequest(request));
@@ -136,6 +141,8 @@ namespace sirius::drive::test {
         }
 
         void cancelModification(const Key& driveKey, const Hash256& transactionHash) {
+            const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+            std::erase(m_pendingModifications, transactionHash);
             for (auto &replicator: m_replicators) {
                 std::thread([replicator, driveKey, transactionHash] {
                     replicator->cancelModify(driveKey, transactionHash);
@@ -198,12 +205,15 @@ namespace sirius::drive::test {
                 std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
             }
 
-            if (!m_approvalTransactionInfo) {
-                m_approvalTransactionInfo = {std::move(transactionInfo)};
+            if (m_pendingModifications.front() == transactionInfo.m_modifyTransactionHash) {
+
+                m_pendingModifications.pop_front();
+                m_lastApprovedModification = transactionInfo.m_modifyTransactionHash;
 
                 for (const auto &r: m_replicators) {
-                    std::thread([r, this] {
-                        r->onApprovalTransactionHasBeenPublished(*m_approvalTransactionInfo);
+                    std::thread([=] {
+                        r->onApprovalTransactionHasBeenPublished(
+                                ApprovalTransactionInfo(transactionInfo));
                     }).detach();
                 }
             }
@@ -212,11 +222,14 @@ namespace sirius::drive::test {
         // It will initiate the approving of single modify transaction
         virtual void singleModifyApprovalTransactionIsReady(Replicator &replicator,
                                                             ApprovalTransactionInfo &&transactionInfo) override {
-            EXLOG("modifySingleApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
-            auto approval = transactionInfo;
-            std::thread([&replicator, approval] {
-                replicator.onSingleApprovalTransactionHasBeenPublished(approval);
-            }).detach();
+            const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+            if (transactionInfo.m_modifyTransactionHash == m_lastApprovedModification.array())
+            {
+                EXLOG("modifySingleApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
+                std::thread([&replicator, transactionInfo] {
+                    replicator.onSingleApprovalTransactionHasBeenPublished(transactionInfo);
+                }).detach();
+            }
         };
 
         // It will be called after the drive is synchronized with sandbox
@@ -225,8 +238,11 @@ namespace sirius::drive::test {
                                                   const sirius::drive::InfoHash &modifyTransactionHash,
                                                   const sirius::drive::InfoHash &rootHash) override {
             EXLOG("Completed modification " << replicator.dbgReplicatorName());
-            modifyCompleteCounter++;
-            modifyCompleteCondVar.notify_all();
+            {
+                std::unique_lock<std::mutex> lock(modifyCompleteMutex);
+                modifyCompleteCounters[modifyTransactionHash] ++;
+            }
+            modifyCompleteCondVars[modifyTransactionHash].notify_all();
         }
 
         void driveIsClosed(Replicator &replicator, const Key &driveKey, const Hash256 &transactionHash) override {
@@ -241,10 +257,11 @@ namespace sirius::drive::test {
 
         }
 
-        void waitModificationEnd() {
+        void waitModificationEnd(const Hash256& modification, int number) {
             std::unique_lock<std::mutex> lock(modifyCompleteMutex);
-            modifyCompleteCondVar.wait(lock, [this] {
-                return modifyCompleteCounter == m_replicators.size();
+            modifyCompleteCondVars[modification].wait(lock, [this, modification, number] {
+                std::unique_lock<std::mutex> lock(modifyCompleteMutex);
+                return modifyCompleteCounters[modification] == number;
             });
         }
 

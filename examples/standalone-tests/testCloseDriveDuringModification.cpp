@@ -47,6 +47,11 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
                 replicator->setSessionSettings(pack, true);
             }
         }
+
+        void
+        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override {
+            ASSERT_EQ(true, false);
+        }
     };
 
     TEST(ModificationTest, TEST_NAME){
@@ -71,14 +76,13 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
                                         client.m_modificationTransactionHashes.back(),
                                         BIG_FILE_SIZE + 1024,
                                         env.m_addrList,
-                                        client.m_clientKeyPair.publicKey(),
-                                        InfoHash()});
+                                        client.m_clientKeyPair.publicKey()});
 
         EXLOG("\n# Client asked to close drive");
-
-//        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+//        env.waitModificationEnd();
         env.closeDrive(DRIVE_PUB_KEY);
-        env.waitDriveClosure();
+        std::this_thread::sleep_for(std::chrono::seconds (60));
+        ASSERT_EQ(env.driveClosedCounter, NUMBER_OF_REPLICATORS);
     }
 }
 
