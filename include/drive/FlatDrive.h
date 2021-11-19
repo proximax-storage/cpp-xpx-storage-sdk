@@ -26,7 +26,7 @@ class Replicator;
         };
     };
 
-    struct DriveRequest {
+    struct AddDriveRequest {
         uint64_t          driveSize;
         uint64_t          usedDriveSizeExcludingMetafiles;
         bool              anyModificationsApproved;
@@ -328,12 +328,6 @@ class Replicator;
         virtual void     startDriveClosing( const Hash256& transactionHash ) = 0;
 
         virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
-        
-//        virtual void     onDownloadOpinionReceived( const DownloadApprovalTransactionInfo& anOpinion ) = 0;
-//
-//        virtual void     prepareDownloadApprovalTransactionInfo() = 0;
-        
-//        virtual const ModifyRequest& modifyRequest() const = 0;
         
         virtual void     onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
 

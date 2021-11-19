@@ -99,7 +99,7 @@ public:
 
     // All of the below functions return error string (or empty string)
     
-    virtual std::string addDrive( const Key& driveKey,  DriveRequest&& driveRequest) = 0;
+    virtual void addDrive( Key driveKey,  AddDriveRequest driveRequest ) = 0;
 
     // it starts drive closing
     virtual std::string removeDrive( const Key& driveKey, const Hash256& transactionHash ) = 0;
@@ -109,8 +109,7 @@ public:
 #endif
     
     // it begins modify operation, that will be performed on session thread
-    virtual std::string modify( const Key&          driveKey,
-                                ModifyRequest&&     modifyRequest ) = 0;
+    virtual void startModify( Key driveKey, ModifyRequest  modifyRequest ) = 0;
 
     virtual std::string cancelModify( const Key&        driveKey,
                                       const Hash256&    transactionHash ) = 0;
@@ -123,8 +122,7 @@ public:
 
     // 'replicatorsList' is used to notify other replictors
     // (it does not contain its own endpoint)
-    virtual void        addDownloadChannelInfo( const Key&          driveKey,
-                                                DownloadRequest&&   downloadRequest ) = 0;
+    virtual void        addDownloadChannelInfo( Key driveKey, DownloadRequest&&  downloadRequest ) = 0;
 
     //
     virtual void        removeDownloadChannelInfo( const std::array<uint8_t,32>& channelId ) = 0;
@@ -134,7 +132,7 @@ public:
     
     // Usually, DownloadApprovalTransactions are made once per 24 hours and paid by the Drive Owner
     // (It initiate opinion exchange, and then publishing of 'DownloadApprovalTransaction')
-    virtual void        prepareDownloadApprovalTransactionInfo( const Hash256& blockHash, const Hash256& channelId ) = 0;
+    virtual void        initiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) = 0;
 
     // It will clear opinion map
     virtual void        onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId, bool driveIsClosed = false ) = 0;
@@ -143,7 +141,7 @@ public:
     virtual void        onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
     
     // It will be called after 'MODIFY approval transaction' has been published
-    virtual void        onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
+    virtual void        onApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) = 0;
 
     // It will be called after 'single MODIFY approval transaction' has been published
     virtual void        onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;

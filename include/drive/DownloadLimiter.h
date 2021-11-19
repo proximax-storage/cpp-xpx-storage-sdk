@@ -162,8 +162,6 @@ public:
                          const ReplicatorList&          replicatorsList,
                          const std::vector<std::array<uint8_t,32>>&  clients )
     {
-        std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
-
         if ( auto it = m_downloadChannelMap.find(channelId); it != m_downloadChannelMap.end() )
         {
             if ( it->second.m_prepaidDownloadSize <= prepaidDownloadSize )
