@@ -159,22 +159,21 @@ public:
         });
     }
 
-    std::string removeDrive( const Key& driveKey, const Hash256& transactionHash ) override
+    void removeDrive( Key driveKey, Hash256 transactionHash ) override
     {
-        LOG( "removing drive " << driveKey );
-
-        std::unique_lock<std::shared_mutex> lock(m_driveMutex);
-
-        if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
+        m_session->lt_session().get_context().post( [=,this]() mutable
         {
-            driveIt->second->startDriveClosing( transactionHash );
-        }
-        else
-        {
-            return "drive not found";
-        }
 
-        return "";
+            if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
+            {
+                driveIt->second->startDriveClosing( transactionHash );
+            }
+            else
+            {
+                _LOG( "removeDrive: drive not found: " << driveKey );
+                return;
+            }
+        });
     }
 
 //todo    std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) override {
@@ -229,21 +228,18 @@ public:
         });
     }
     
-    std::string cancelModify( const Key&        driveKey,
-                              const Hash256&    transactionHash ) override
+    void cancelModify( Key driveKey, Hash256 transactionHash ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-        
-        if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
+        m_session->lt_session().get_context().post( [=,this]() mutable
         {
-            driveIt->second->cancelModifyDrive( transactionHash );
-            return "";
-        }
+            if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
+            {
+                driveIt->second->cancelModifyDrive( transactionHash );
+                return;
+            }
 
-        LOG_ERR( "unknown drive: " << driveKey );
-        throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
-
-        return "unknown drive";
+            _LOG( "cancelModify: unknown drive: " << driveKey );
+        });
     }
     
     std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) override

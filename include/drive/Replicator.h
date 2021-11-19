@@ -99,10 +99,10 @@ public:
 
     // All of the below functions return error string (or empty string)
     
-    virtual void addDrive( Key driveKey,  AddDriveRequest driveRequest ) = 0;
+    virtual void addDrive( Key driveKey, AddDriveRequest driveRequest ) = 0;
 
     // it starts drive closing
-    virtual std::string removeDrive( const Key& driveKey, const Hash256& transactionHash ) = 0;
+    virtual void removeDrive( Key driveKey, Hash256 transactionHash ) = 0;
 
 #ifdef __FOR_DEBUGGING__
     //virtual std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) = 0;
@@ -111,23 +111,16 @@ public:
     // it begins modify operation, that will be performed on session thread
     virtual void startModify( Key driveKey, ModifyRequest  modifyRequest ) = 0;
 
-    virtual std::string cancelModify( const Key&        driveKey,
-                                      const Hash256&    transactionHash ) = 0;
-
-    virtual Hash256     getRootHash( const Key& driveKey ) = 0;
-    
-    virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) = 0;
-
-    virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;
+    virtual void cancelModify( Key driveKey, Hash256  transactionHash ) = 0;
 
     // 'replicatorsList' is used to notify other replictors
     // (it does not contain its own endpoint)
     virtual void        addDownloadChannelInfo( Key driveKey, DownloadRequest&&  downloadRequest ) = 0;
 
-    //
+    //todo is it needed??
     virtual void        removeDownloadChannelInfo( const std::array<uint8_t,32>& channelId ) = 0;
 
-    //
+    // it will be called when dht message is received
     virtual void        onDownloadOpinionReceived( DownloadApprovalTransactionInfo&& anOpinion ) = 0;
     
     // Usually, DownloadApprovalTransactions are made once per 24 hours and paid by the Drive Owner
@@ -175,6 +168,13 @@ public:
     // It was moveed into ;session_delegate'
     //virtual void        onMessageReceived( const std::string& query, const std::string& ) = 0;
     
+    virtual Hash256     getRootHash( const Key& driveKey ) = 0;
+    
+    virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) = 0;
+
+    virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;
+
+
 
     virtual void        printDriveStatus( const Key& driveKey ) = 0;
     
