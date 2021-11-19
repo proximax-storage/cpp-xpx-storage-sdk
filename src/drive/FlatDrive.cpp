@@ -1020,22 +1020,6 @@ public:
         //todo m_session->loadTorrent();
     }
     
-//    void     onDownloadOpinionReceived( const DownloadApprovalTransactionInfo& anOpinion ) override
-//    {
-//        //todo
-//    }
-//
-//    void     prepareDownloadApprovalTransactionInfo() override
-//    {
-//        //todo
-//    }
-    
-    // todo (could be removed?)
-//    const ModifyRequest& modifyRequest() const override
-//    {
-//        return *m_modifyRequest;
-//    }
-    
     virtual void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
         if ( anOpinion.m_opinions.size() != 1 )

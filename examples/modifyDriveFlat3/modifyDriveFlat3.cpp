@@ -25,7 +25,7 @@ const bool gUse3Replicators = true;
 // This example shows interaction between 'client' and 'replicator'.
 //
 
-#define BIG_FILE_SIZE 1 * 1024*1024 //150//4
+#define BIG_FILE_SIZE 10 * 1024*1024 //150//4
 #define TRANSPORT_PROTOCOL false // true - TCP, false - uTP
 
 // !!!
@@ -210,6 +210,9 @@ public:
             
             for( const auto& opinion : info.m_opinions )
             {
+                EXLOG( "---------------------------------------------------------" );
+                EXLOG( "----  DownloadApprovalTransactionHasBeenPublished  ------" );
+                EXLOG( "---------------------------------------------------------" );
                 EXLOG( "download opinion of: " << gReplicatorMap[opinion.m_replicatorKey]->dbgReplicatorName() );
                 for( const auto& bytes : opinion.m_downloadedBytes )
                 {
@@ -390,6 +393,9 @@ int main(int,char**)
                                          TRANSPORT_PROTOCOL,
                                          "client" );
     _EXLOG("");
+    
+    // set root drive hash
+    driveRootHash = std::make_shared<InfoHash>( gReplicator->getRootHash( DRIVE_PUB_KEY ) );
 
     fs::path clientFolder = gClientFolder / "client_files";
 
@@ -447,9 +453,9 @@ int main(int,char**)
 //    sleep(1);
 //    usleep(1000);
     //_EXLOG( "replicatorList[0].m_endpoint" << replicatorList[0].m_endpoint );
-    std::thread( [&]() { gReplicator->prepareDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
-    std::thread( [&]() { gReplicator2->prepareDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
-    std::thread( [&]() { gReplicator3->prepareDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
+    std::thread( [&]() { gReplicator->initiateDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
+    std::thread( [&]() { gReplicator2->initiateDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
+    std::thread( [&]() { gReplicator3->initiateDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
     EXLOG( "" );
     //sleep(1000);
     
@@ -539,9 +545,6 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->addDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
     replicator->addDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash3.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
 
-    // set root drive hash
-    driveRootHash = std::make_shared<InfoHash>( replicator->getRootHash( DRIVE_PUB_KEY ) );
-
     return replicator;
 }
 
@@ -553,7 +556,7 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const ReplicatorList&          replicatorList,
                          uint64_t                       maxDataSize )
 {
-    replicator->modify( DRIVE_PUB_KEY, ModifyRequest{ clientDataInfoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey } );
+    replicator->startModify( DRIVE_PUB_KEY, ModifyRequest{ clientDataInfoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey } );
 }
 
 //

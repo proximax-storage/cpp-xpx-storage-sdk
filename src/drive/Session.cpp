@@ -178,11 +178,15 @@ private:
         std::lock_guard locker( m_removeMutex );
         auto toBeRemoved = std::set<lt::torrent_handle>();
 
+        _LOG( m_addressAndPort << ":removeTorrentsFromSession: " << torrents.size() )
+
         for( const auto& torrentHandle : torrents )
         {
-//                            _LOG( "remove_torrent: " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
+            //_LOG( m_addressAndPort << ":remove_torrent: " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state << " " << lt::torrent_status::seeding )
             m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
-            if (torrentHandle.status().state > 2) {
+            //_LOG( m_addressAndPort << ":remove_torrent(2): " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
+            if (torrentHandle.status().state > 2 ) // torrentHandle.status().state == lt::torrent_status::seeding )
+            {
                 toBeRemoved.insert(torrentHandle);
             }
         }
@@ -867,7 +871,7 @@ private:
                     
                 case lt::torrent_deleted_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_deleted_alert*>(alert);
-                    _LOG( "*** lt::torrent_deleted_alert:" << theAlert->handle.info_hashes().v2 );
+                    _LOG( m_addressAndPort << " *** lt::torrent_deleted_alert:" << theAlert->handle.info_hashes().v2 );
                     //LOG( "*** lt::torrent_deleted_alert:" << theAlert->handle.torrent_file()->files().file_name(0) );
                     //LOG( "*** lt::torrent_deleted_alert:" << theAlert->handle.torrent_file()->files().file_path(0) );
                     //LOG( "*** get_torrents().size()=" << m_session.get_torrents().size() );
@@ -876,11 +880,14 @@ private:
                     //
                     {
                         std::lock_guard<std::mutex> locker(m_removeMutex);
+                        _LOG( m_addressAndPort << " *** lt::torrent_deleted_alert: removeContext.Size: " << m_removeContexts.size() );
 
                         // loop by set
                         for ( auto removeContextIt  = m_removeContexts.begin(); removeContextIt != m_removeContexts.end(); )
                         {
                             auto& removeContext = *removeContextIt->get();
+
+                            _LOG( m_addressAndPort << "  removeContext.Size" << m_removeContexts.size() );
 
                             // skip not-ordered torrents
                             if ( auto torrentIt  = removeContext.m_torrentSet.find(theAlert->handle);
@@ -895,10 +902,12 @@ private:
 
                                 // try to remove 'context'
                                 // todo calculate valid torrents!
+                                _LOG( m_addressAndPort << " removeContext.m_torrentSet.size=" << removeContext.m_torrentSet.size() );
                                 if ( removeContext.m_torrentSet.empty() )
                                 {
                                     auto endRemoveNotification = removeContext.m_endRemoveNotification;
                                     m_removeContexts.erase( removeContextIt );
+                                    _LOG( m_addressAndPort << " endRemoveNotification() called");
                                     endRemoveNotification();
                                 }
                                 else
