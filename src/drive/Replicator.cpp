@@ -120,41 +120,43 @@ public:
     }
 
 
-    std::string addDrive(const Key& driveKey, DriveRequest&& driveRequest ) override
+    void addDrive( Key driveKey, AddDriveRequest driveRequest ) override
     {
-        LOG( "adding drive " << driveKey );
-        
-        std::unique_lock<std::shared_mutex> lock(m_driveMutex);
-
-        if (m_driveMap.find(driveKey) != m_driveMap.end()) {
-            return "drive already added";
-        }
-
-        // Exclude itself from replicators
-        for( auto it = driveRequest.replicators.begin();  it != driveRequest.replicators.end(); it++ )
+        m_session->lt_session().get_context().post( [=,this]() mutable
         {
-            if ( it->m_publicKey == publicKey() )
-            {
-                driveRequest.replicators.erase( it );
-                break;
+            LOG( "adding drive " << driveKey );
+            
+            std::unique_lock<std::shared_mutex> lock(m_driveMutex);
+
+            if (m_driveMap.find(driveKey) != m_driveMap.end()) {
+                return;
+                _LOG( "drive already added" );
             }
-        }
 
-        // TODO: exclude itself from replicators !
-        m_driveMap[driveKey] = sirius::drive::createDefaultFlatDrive(
-                session(),
-                m_storageDirectory,
-                m_sandboxDirectory,
-                driveKey,
-                driveRequest.driveSize,
-                driveRequest.usedDriveSizeExcludingMetafiles,
-                driveRequest.anyModificationsApproved,
-                m_eventHandler,
-                *this,
-                driveRequest.replicators,
-                m_dbgEventHandler );
+            // Exclude itself from replicators
+            for( auto it = driveRequest.replicators.begin();  it != driveRequest.replicators.end(); it++ )
+            {
+                if ( it->m_publicKey == publicKey() )
+                {
+                    driveRequest.replicators.erase( it );
+                    break;
+                }
+            }
 
-        return "";
+            // TODO: exclude itself from replicators !
+            m_driveMap[driveKey] = sirius::drive::createDefaultFlatDrive(
+                    session(),
+                    m_storageDirectory,
+                    m_sandboxDirectory,
+                    driveKey,
+                    driveRequest.driveSize,
+                    driveRequest.usedDriveSizeExcludingMetafiles,
+                    driveRequest.anyModificationsApproved,
+                    m_eventHandler,
+                    *this,
+                    driveRequest.replicators,
+                    m_dbgEventHandler );
+        });
     }
 
     std::string removeDrive( const Key& driveKey, const Hash256& transactionHash ) override
@@ -189,39 +191,42 @@ public:
 //        return m_driveMap[driveKey];
 //    }
 
-    std::string modify( const Key& driveKey, ModifyRequest&& modifyRequest ) override
+    void startModify( Key driveKey, ModifyRequest modifyRequest ) override
     {
-        LOG( "drive modification:\ndrive: " << driveKey << "\n info hash: " << infoHash );
-
-        const std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-
-        std::shared_ptr<sirius::drive::FlatDrive> pDrive;
+        m_session->lt_session().get_context().post( [=,this]() mutable
         {
-            if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
-            {
-                pDrive = driveIt->second;
-            }
-            else {
-                return "drive not found";
-            }
-        }
-        
-        addModifyDriveInfo( modifyRequest.m_transactionHash.array(),
-                            driveKey,
-                            modifyRequest.m_maxDataSize,
-                            modifyRequest.m_clientPublicKey,
-                            modifyRequest.m_replicatorList );
+            LOG( "drive modification:\ndrive: " << driveKey << "\n info hash: " << infoHash );
 
-        for( auto it = modifyRequest.m_replicatorList.begin();  it != modifyRequest.m_replicatorList.end(); it++ )
-        {
-            if ( it->m_publicKey == publicKey() )
+            std::shared_ptr<sirius::drive::FlatDrive> pDrive;
             {
-                modifyRequest.m_replicatorList.erase( it );
-                break;
+                if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
+                {
+                    pDrive = driveIt->second;
+                }
+                else {
+                    _LOG( "startModify(): drive not found: " << driveKey );
+                    return;
+                }
             }
-        }
-        pDrive->startModifyDrive( std::move(modifyRequest) );
-        return "";
+            
+            // Add ModifyDriveInfo to DownloadLimiter
+            addModifyDriveInfo( modifyRequest.m_transactionHash.array(),
+                                driveKey,
+                                modifyRequest.m_maxDataSize,
+                                modifyRequest.m_clientPublicKey,
+                                modifyRequest.m_replicatorList );
+
+            for( auto it = modifyRequest.m_replicatorList.begin();  it != modifyRequest.m_replicatorList.end(); it++ )
+            {
+                if ( it->m_publicKey == publicKey() )
+                {
+                    modifyRequest.m_replicatorList.erase( it );
+                    break;
+                }
+            }
+            
+            pDrive->startModifyDrive( std::move(modifyRequest) );
+        });
     }
     
     std::string cancelModify( const Key&        driveKey,
@@ -261,17 +266,19 @@ public:
         return "";
     }
 
-    void addDownloadChannelInfo( const Key&             driveKey,
-                                 DownloadRequest&&      request ) override
+    void addDownloadChannelInfo( Key driveKey, DownloadRequest&& request ) override
     {
-        std::vector<std::array<uint8_t,32>> clientList;
-        for( const auto& it : request.m_clients )
-            clientList.push_back( it.array() );
-        addChannelInfo( request.m_channelKey.array(),
-                        request.m_prepaidDownloadSize,
-                        driveKey,
-                        request.m_addrList,
-                        clientList);
+        m_session->lt_session().get_context().post( [=,this]() mutable
+        {
+            std::vector<std::array<uint8_t,32>> clientList;
+            for( const auto& it : request.m_clients )
+                clientList.push_back( it.array() );
+            addChannelInfo( request.m_channelKey.array(),
+                            request.m_prepaidDownloadSize,
+                            driveKey,
+                            request.m_addrList,
+                            clientList);
+        });
     }
 
     void removeDownloadChannelInfo( const std::array<uint8_t,32>& channelKey ) override
@@ -415,11 +422,18 @@ public:
         mapValue.m_approveTransactionSent = true;
     }
     
-    virtual void prepareDownloadApprovalTransactionInfo( const Hash256& blockHash, const Hash256& channelId ) override
+    virtual void initiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) override
     {
-        _LOG( "prepareDownloadApprovalTransactionInfo: " << dbgReplicatorName() );
-        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
-
+        //todo make queue for several simultaneous requests of the same channelId
+        
+        m_session->lt_session().get_context().post( [=,this]() mutable
+        {
+            doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
+        });
+    }
+    
+    void doInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId )
+    {
         //todo make queue for several simultaneous requests of the same channelId
         
         if ( auto it = m_downloadChannelMap.find( channelId.array() ); it != m_downloadChannelMap.end() )
@@ -431,7 +445,6 @@ public:
             //
             
             auto myOpinion = createMyOpinion(it->second);
-            lock.unlock();
             
             myOpinion.Sign( keyPair(), blockHash.array(), channelId.array() );
             
@@ -463,7 +476,6 @@ public:
         {
             LOG_ERR( "channelId not found" );
         }
-        //_LOG( "//exit prepareDownloadApprovalTransactionInfo: " << dbgReplicatorName() );
     }
     
     // It is called when drive is closing
@@ -482,7 +494,7 @@ public:
         {
             if ( channelInfo.m_driveKey == drive.drivePublicKey().array() && !channelInfo.m_isModifyTx )
             {
-                prepareDownloadApprovalTransactionInfo( blockHash, channelId );
+                doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
                 
                 // drive will be deleted in 'onDownloadApprovalTransactionHasBeenPublished()'
                 deleteDriveImmediately = false;
@@ -575,16 +587,19 @@ public:
         }
     }
     
-    virtual void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
+    virtual void onApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) override
     {
-        if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
+        m_session->lt_session().get_context().post( [=,this]() mutable
         {
-            it->second->onApprovalTransactionHasBeenPublished( transaction );
-        }
-        else
-        {
-            LOG_ERR( "drive not found" );
-        }
+            if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
+            {
+                it->second->onApprovalTransactionHasBeenPublished( transaction );
+            }
+            else
+            {
+                LOG_ERR( "drive not found" );
+            }
+        });
     }
     
     virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
