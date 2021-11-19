@@ -107,8 +107,7 @@ namespace sirius::drive::test {
 
         void addDrive(const Key &driveKey, uint64_t driveSize) {
             for (auto &replicator: m_replicators) {
-                auto result = replicator->addDrive(driveKey, { driveSize, 0, m_addrList });
-                assert(result.empty());
+                replicator->addDrive(driveKey, { driveSize, 0, m_addrList });
             }
         }
 
@@ -117,8 +116,7 @@ namespace sirius::drive::test {
             m_pendingModifications.push_back(request.m_transactionHash);
             for (auto &replicator: m_replicators) {
                 std::thread([replicator, driveKey, request] {
-                    auto result = replicator->modify(driveKey, ModifyRequest(request));
-                    assert(result.empty());
+                    replicator->startModify(driveKey, ModifyRequest(request));
                 }).detach();
             }
         }
@@ -219,7 +217,6 @@ namespace sirius::drive::test {
             }
         }
 
-        // It will initiate the approving of single modify transaction
         virtual void singleModifyApprovalTransactionIsReady(Replicator &replicator,
                                                             ApprovalTransactionInfo &&transactionInfo) override {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
@@ -260,7 +257,6 @@ namespace sirius::drive::test {
         void waitModificationEnd(const Hash256& modification, int number) {
             std::unique_lock<std::mutex> lock(modifyCompleteMutex);
             modifyCompleteCondVars[modification].wait(lock, [this, modification, number] {
-                std::unique_lock<std::mutex> lock(modifyCompleteMutex);
                 return modifyCompleteCounters[modification] == number;
             });
         }

@@ -847,7 +847,11 @@ public:
             {
 //                std::cout << "RECEIVED" << std::endl;
                 lock.unlock();
-                sendSingleApprovalTransaction();
+                auto transactionHash = m_modifyRequest->m_transactionHash;
+                if ( !synchronizeDriveWithSandbox() )
+                {
+                    LOG_ERR( "onMyRootHashCalculated(): cannot synchronize drive with sandbox: " << transactionHash );
+                }
             }
             else
             {
@@ -1117,21 +1121,19 @@ public:
         {
             const auto& v = transaction.m_opinions;
             auto it = std::find_if( v.begin(), v.end(), [this] (const auto& opinion) {
-                            return opinion.m_replicatorKey == m_replicator.replicatorKey().array();
+                return opinion.m_replicatorKey == m_replicator.replicatorKey().array();
             });
+
             // Is my opinion present
-            if ( it != v.end() )
-            {
-                if ( !synchronizeDriveWithSandbox() )
-                {
-                    LOG_ERR( "onApprovalTransactionHasBeenPublished(): cannot synchronize drive with sandbox: " << Hash256(transaction.m_modifyTransactionHash) );
-                }
-            }
-            else
+            if ( it == v.end() )
             {
                 // Send Single Aproval Transaction
-                if ( m_myOpinion )
-                    sendSingleApprovalTransaction();
+                sendSingleApprovalTransaction();
+            }
+
+            if ( !synchronizeDriveWithSandbox() )
+            {
+                LOG_ERR( "onApprovalTransactionHasBeenPublished(): cannot synchronize drive with sandbox: " << Hash256(transaction.m_modifyTransactionHash) );
             }
         }
     }
@@ -1144,10 +1146,7 @@ public:
 
     virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
-        if ( !synchronizeDriveWithSandbox() )
-        {
-            LOG_ERR( "onSingleApprovalTransactionHasBeenPublished(): cannot synchronize drive with sandbox: " << Hash256(transaction.m_modifyTransactionHash) );
-        }
+        _LOG( "onSingleApprovalTransactionHasBeenPublished()" );
     }
 
     const std::optional<Hash256>& closingTxHash() const override

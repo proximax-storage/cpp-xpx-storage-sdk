@@ -183,12 +183,13 @@ private:
         for( const auto& torrentHandle : torrents )
         {
             //_LOG( m_addressAndPort << ":remove_torrent: " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state << " " << lt::torrent_status::seeding )
-            m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
             //_LOG( m_addressAndPort << ":remove_torrent(2): " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
-            if (torrentHandle.status().state > 2 ) // torrentHandle.status().state == lt::torrent_status::seeding )
+            assert(torrentHandle.is_valid());
+            if ( torrentHandle.is_valid() && torrentHandle.status().state > 2 ) // torrentHandle.status().state == lt::torrent_status::seeding )
             {
                 toBeRemoved.insert(torrentHandle);
             }
+            m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
         }
         if ( !toBeRemoved.empty() ) {
             m_removeContexts.push_back( std::make_unique<RemoveTorrentContext>( toBeRemoved, endNotification ) );
@@ -681,7 +682,7 @@ private:
                 }
 
                 case lt::peer_log_alert::alert_type: {
-                    _LOG(  m_addressAndPort << ": peer_log_alert: " << alert->message())
+//                    _LOG(  m_addressAndPort << ": peer_log_alert: " << alert->message())
                     break;
                 }
 

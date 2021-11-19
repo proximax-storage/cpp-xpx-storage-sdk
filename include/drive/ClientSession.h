@@ -7,6 +7,7 @@
 
 #include "drive/Session.h"
 #include "drive/log.h"
+#include "drive/Utils.h"
 #include "crypto/Signer.h"
 #include <sirius_drive/session_delegate.h>
 
@@ -27,8 +28,8 @@ class ClientSession : public lt::session_delegate, std::enable_shared_from_this<
     ReplicatorTraficMap         m_requestedSize;
     ReplicatorTraficMap         m_receivedSize;
 
-    ModifyTransactionHash       m_modifyTransactionHash;
-    ReplicatorList              m_modifyReplicatorList;
+//    ModifyTransactionHash       m_modifyTransactionHash;
+//    ReplicatorList              m_modifyReplicatorList;
 
     const char*                 m_dbgOurPeerName;
 
@@ -86,19 +87,22 @@ public:
                                      const sirius::Hash256& transactionHash,
                                      const std::string& workFolder )
     {
-        m_modifyReplicatorList = replicatorList;
-        m_modifyTransactionHash = transactionHash.array();
+//        m_modifyReplicatorList = replicatorList;
+//        m_modifyTransactionHash = transactionHash.array();
         
         // check that replicator list is not empty
-        if ( m_modifyReplicatorList.empty() )
-            throw std::runtime_error("modifyReplicatorList is empty");
+//        if ( replicatorList.empty() )
+//            throw std::runtime_error("modifyReplicatorList is empty");
 
         // create endpoint list for libtorrent
         endpoint_list endpointList;
         for( const auto& it : replicatorList )
             endpointList.emplace_back( it.m_endpoint );
 
-        return m_session->addActionListToSession( actionList, workFolder, endpointList );
+        auto modificationWorkFolder = workFolder + "/" + drive::toString(transactionHash);
+
+        auto hash = m_session->addActionListToSession( actionList, modificationWorkFolder, endpointList );
+        return hash;
     }
 
     const std::optional<std::array<uint8_t,32>> downloadChannelId()
