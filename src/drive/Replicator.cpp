@@ -508,51 +508,51 @@ public:
         }
     }
     
-    virtual void onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId, bool driveIsClosed ) override
+    virtual void onDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_downloadOpinionMutex);
-
-        // clear opinion map
-        if ( auto it = m_downloadOpinionMap.find( blockHash.array() ); it != m_downloadOpinionMap.end() )
+        m_session->lt_session().get_context().post( [=,this]() mutable
         {
-            if ( it->second.m_timer )
-                it->second.m_timer.reset();
-        }
-        else
-        {
-            LOG_ERR( "channelId not found" );
-        }
-
-        // Is it happened while drive is closing?
-        if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end() )
-        {
-            const auto& driveKey = channelIt->second.m_driveKey;
-            
-            if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+            // clear opinion map
+            if ( auto it = m_downloadOpinionMap.find( blockHash.array() ); it != m_downloadOpinionMap.end() )
             {
-                bool driveWillBeDeleted = false;
-
-                if ( driveIt->second->closingTxHash() == blockHash )
-                {
-                    channelIt->second.m_isClosed = true;
-                    
-                    for( const auto& [key,channelInfo] : m_downloadChannelMap )
-                    {
-                        if ( channelInfo.m_driveKey == driveKey && !channelInfo.m_isClosed )
-                            break;
-                    }
-                    
-                    driveWillBeDeleted = true;
-                }
-                lock.unlock();
-
-                if ( driveWillBeDeleted )
-                {
-                    deleteDrive( driveKey );
-                }
+                if ( it->second.m_timer )
+                    it->second.m_timer.reset();
+            }
+            else
+            {
+                LOG_ERR( "channelId not found" );
             }
 
-        }
+            // Is it happened while drive is closing?
+            if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end() )
+            {
+                const auto& driveKey = channelIt->second.m_driveKey;
+                
+                if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+                {
+                    bool driveWillBeDeleted = false;
+
+                    if ( driveIt->second->closingTxHash() == blockHash )
+                    {
+                        channelIt->second.m_isClosed = true;
+                        
+                        for( const auto& [key,channelInfo] : m_downloadChannelMap )
+                        {
+                            if ( channelInfo.m_driveKey == driveKey && !channelInfo.m_isClosed )
+                                break;
+                        }
+                        
+                        driveWillBeDeleted = true;
+                    }
+
+                    if ( driveWillBeDeleted )
+                    {
+                        deleteDrive( driveKey );
+                    }
+                }
+
+            }
+        });
     }
     
     void deleteDrive( const std::array<uint8_t,32>& driveKey )
@@ -602,17 +602,19 @@ public:
         });
     }
     
-    virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
+    virtual void onSingleApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) override
     {
-        if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
+        m_session->lt_session().get_context().post( [=,this]() mutable
         {
-            it->second->onSingleApprovalTransactionHasBeenPublished( transaction );
-        }
-        else
-        {
-            LOG_ERR( "drive not found" );
-        }
-
+            if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
+            {
+                it->second->onSingleApprovalTransactionHasBeenPublished( transaction );
+            }
+            else
+            {
+                LOG_ERR( "drive not found" );
+            }
+        });
     }
     
     virtual void sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint endpoint, const std::string& message ) override

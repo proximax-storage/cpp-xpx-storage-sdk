@@ -135,7 +135,7 @@ public:
     virtual void        initiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) = 0;
 
     // It will clear opinion map
-    virtual void        onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId, bool driveIsClosed = false ) = 0;
+    virtual void        onDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed = false ) = 0;
 
     // It will be called when other replicator calculated rootHash and send his opinion
     virtual void        onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
@@ -144,7 +144,7 @@ public:
     virtual void        onApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) = 0;
 
     // It will be called after 'single MODIFY approval transaction' has been published
-    virtual void        onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
+    virtual void        onSingleApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) = 0;
 
     // It continues drive closing (initiates DownloadApprovalTransaction and then removes drive)
     virtual void        closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) = 0;
