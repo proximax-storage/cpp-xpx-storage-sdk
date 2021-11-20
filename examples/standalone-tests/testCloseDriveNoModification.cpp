@@ -57,7 +57,7 @@ namespace sirius::drive::test {
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
         client.modifyDrive(actionList, env.m_addrList);
 
-        env.asyncAddDrive(DRIVE_PUB_KEY, 100 * 1024 * 1024);
+        env.addDrive(DRIVE_PUB_KEY, 100 * 1024 * 1024);
 
         EXLOG("\n# Client asked to close drive");
 

@@ -105,7 +105,7 @@ namespace sirius::drive::test {
             }
         }
 
-        void asyncAddDrive(const Key &driveKey, uint64_t driveSize, std::optional<InfoHash> actualRootHash = {}) {
+        void addDrive(const Key &driveKey, uint64_t driveSize, std::optional<InfoHash> actualRootHash = {}) {
             for (auto &replicator: m_replicators) {
                 replicator->asyncAddDrive(driveKey, { driveSize, 0, m_addrList }, actualRootHash);
             }
