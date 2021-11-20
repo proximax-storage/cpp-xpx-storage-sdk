@@ -189,6 +189,10 @@ private:
             {
                 toBeRemoved.insert(torrentHandle);
             }
+//            else
+//            {
+//                _LOG( m_addressAndPort << "********:remove_torrent(3): " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
+//            }
             m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
         }
         if ( !toBeRemoved.empty() ) {
@@ -526,7 +530,7 @@ private:
 //
 //                    if ( auto replicator = m_replicator.lock(); replicator )
 //                    {
-//                        InfoHash hash = replicator->getRootHash( std::string(drivePublicKey) );
+//                        InfoHash hash = replicator->dbgGetRootHash( std::string(drivePublicKey) );
 //                        response["root_hash"] = toString( hash );
 //                    }
 //                    return true;

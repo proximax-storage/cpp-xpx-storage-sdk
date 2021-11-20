@@ -14,6 +14,8 @@
 #include <map>
 #include <shared_mutex>
 
+#define DBG_SINGLE_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
+
 namespace sirius::drive {
 
 //
@@ -42,6 +44,8 @@ protected:
 
     std::string         m_dbgOurPeerName = "unset";
 
+    std::thread::id          m_dbgThreadId;
+
 public:
     DownloadLimiter( const crypto::KeyPair& keyPair, const char* dbgOurPeerName ) : m_keyPair(keyPair), m_dbgOurPeerName(dbgOurPeerName)
     {
@@ -65,6 +69,8 @@ public:
                          const std::array<uint8_t,32>&  peerPublicKey,
                          int                            siriusFlags ) override
     {
+        DBG_SINGLE_THREAD
+        
         //TODO++
         return;
         
@@ -118,9 +124,12 @@ public:
         }
     }
     
-    virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) override
+    //TODO return const ModifyDriveInfo getMyDownloadOpinion& ???
+    //TODO make it async !!!
+    virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) const override
     {
-        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        //DBG_SINGLE_THREAD
+        //std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         if ( const auto it = m_modifyDriveMap.find( transactionHash.array() ); it != m_modifyDriveMap.end() )
         {
@@ -134,7 +143,8 @@ public:
                              const std::array<uint8_t,32>& downloadChannelId,
                             uint64_t                       downloadedSizeByClient ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        DBG_SINGLE_THREAD
+        //std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
         
         if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
         {
@@ -147,7 +157,8 @@ public:
 
     uint8_t getUploadedSize( const std::array<uint8_t,32>& downloadChannelId ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        DBG_SINGLE_THREAD
+        //std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
         {
@@ -162,6 +173,8 @@ public:
                          const ReplicatorList&          replicatorsList,
                          const std::vector<std::array<uint8_t,32>>&  clients )
     {
+        DBG_SINGLE_THREAD
+        
         if ( auto it = m_downloadChannelMap.find(channelId); it != m_downloadChannelMap.end() )
         {
             if ( it->second.m_prepaidDownloadSize <= prepaidDownloadSize )
@@ -197,7 +210,8 @@ public:
                              const Key&             clientPublicKey,
                              const ReplicatorList&  replicatorsList )
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        DBG_SINGLE_THREAD
+        //std::unique_lock<std::shared_mutex> lock(m_mutex);
 
         ModifyTrafficMap trafficMap;
         trafficMap.insert( { clientPublicKey.array(), {0,0}} );
@@ -214,7 +228,7 @@ public:
         }
         
         m_modifyDriveMap[modifyTransactionHash.array()] = ModifyDriveInfo{ driveKey.array(), dataSize, replicatorsList, trafficMap, 0 };
-        lock.unlock();
+        //lock.unlock();
 
         // we need to add modifyTransactionHash into 'm_downloadChannelMap'
         // because replicators could download pieces from their neighbors
@@ -227,7 +241,8 @@ public:
     
     void removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash ) override
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        DBG_SINGLE_THREAD
+        //std::unique_lock<std::shared_mutex> lock(m_mutex);
         m_modifyDriveMap.erase(modifyTransactionHash);
     }
 
@@ -235,7 +250,8 @@ public:
                            const std::array<uint8_t,32>&  receiverPublicKey,
                            uint64_t                       pieceSize ) override
     {
-        std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        //std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        DBG_SINGLE_THREAD
 
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
@@ -250,7 +266,8 @@ public:
                                  const std::array<uint8_t,32>&  receiverPublicKey,
                                  uint64_t                       pieceSize ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        DBG_SINGLE_THREAD
+        //std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
@@ -275,7 +292,8 @@ public:
                       const std::array<uint8_t,32>&  receiverPublicKey,
                       uint64_t                       pieceSize ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        DBG_SINGLE_THREAD
+        //std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         // May be this piece was sent to client (during data download)
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
@@ -302,7 +320,8 @@ public:
                           const std::array<uint8_t,32>&  senderPublicKey,
                           uint64_t                       pieceSize ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
+        DBG_SINGLE_THREAD
+        //std::shared_lock<std::shared_mutex> lock(m_mutex);
 
         if ( auto it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
         {
@@ -327,6 +346,8 @@ public:
                                                      uint64_t                       downloadedSize,
                                                      const std::array<uint8_t,64>&  signature ) override
     {
+        DBG_SINGLE_THREAD
+        
         // verify receipt
         if ( !verifyReceipt(  downloadChannelId,
                               clientPublicKey,
@@ -386,7 +407,8 @@ public:
     
     void removeChannelInfo( const std::array<uint8_t,32>& channelId )
     {
-        std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        DBG_SINGLE_THREAD
+        //std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
         m_downloadChannelMap.erase( channelId );
     }
 
@@ -394,6 +416,7 @@ public:
 
     void signHandshake( const uint8_t* bytes, size_t size, std::array<uint8_t,64>& signature ) override
     {
+        DBG_SINGLE_THREAD
         crypto::Sign( m_keyPair, utils::RawBuffer{bytes,size}, reinterpret_cast<Signature&>(signature) );
     }
 
@@ -402,6 +425,7 @@ public:
                           const std::array<uint8_t,32>&  publicKey,
                           const std::array<uint8_t,64>&  signature ) override
     {
+        DBG_SINGLE_THREAD
         return crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
     }
     
@@ -410,6 +434,7 @@ public:
                       uint64_t                      downloadedSize,
                       std::array<uint8_t,64>&       outSignature ) override
     {
+        DBG_SINGLE_THREAD
         // not used
         crypto::Sign( m_keyPair,
                       {
@@ -427,6 +452,7 @@ public:
                          uint64_t                       downloadedSize,
                          const std::array<uint8_t,64>&  signature ) override
     {
+        DBG_SINGLE_THREAD
         return crypto::Verify( clientPublicKey,
                                {
                                     utils::RawBuffer{downloadChannelId},
@@ -458,11 +484,13 @@ public:
 
     uint64_t receivedSize( const std::array<uint8_t,32>&  peerPublicKey ) override
     {
+        DBG_SINGLE_THREAD
         return 0;
     }
 
     uint64_t requestedSize( const std::array<uint8_t,32>&  peerPublicKey ) override
     {
+        DBG_SINGLE_THREAD
         return 0;
     }
 

@@ -114,7 +114,7 @@ int main() {
         rpcReplicatorClient.createClientFiles(10 * 1024*1024);
 
         const std::array<uint8_t,32> drivePubKey{0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,1};
-        rpcReplicatorClient.addDrive(drivePubKey, 100*1024*1024);
+        rpcReplicatorClient.asyncAddDrive(drivePubKey, 100*1024*1024);
 
         ActionList actionList;
         actionList.push_back( Action::newFolder( "fff1/" ) );

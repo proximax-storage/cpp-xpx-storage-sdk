@@ -203,9 +203,9 @@ public:
         {
             m_dnApprovalTransactionInfo = { std::move(info) };
             
-            std::thread( [info] { gReplicator->onDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
-            std::thread( [info] { gReplicator2->onDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
-            std::thread( [info] { gReplicator3->onDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
+            std::thread( [info] { gReplicator->asyncDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
+            std::thread( [info] { gReplicator2->asyncDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
+            std::thread( [info] { gReplicator3->asyncDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
             
             
             for( const auto& opinion : info.m_opinions )
@@ -266,9 +266,9 @@ public:
         {
             m_approvalTransactionInfo = { std::move(transactionInfo) };
             
-            std::thread( [] { gReplicator->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
-            std::thread( [] { gReplicator2->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
-            std::thread( [] { gReplicator3->onApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
+            std::thread( [] { gReplicator->asyncApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
+            std::thread( [] { gReplicator2->asyncApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
+            std::thread( [] { gReplicator3->asyncApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
         }
     }
     
@@ -288,7 +288,7 @@ public:
         EXLOG( "" );
         EXLOG( "@ update_completed:" << replicator.dbgReplicatorName() );
 
-        driveRootHash = std::make_shared<InfoHash>( replicator.getRootHash( driveKey ) );
+        driveRootHash = std::make_shared<InfoHash>( replicator.dbgGetRootHash( driveKey ) );
         EXLOG( "@ Drive modified: " << replicator.dbgReplicatorName() << "      rootHash:" << rootHash );
         
         std::lock_guard<std::mutex> autolock( gExLogMutex );
@@ -395,7 +395,7 @@ int main(int,char**)
     _EXLOG("");
     
     // set root drive hash
-    driveRootHash = std::make_shared<InfoHash>( gReplicator->getRootHash( DRIVE_PUB_KEY ) );
+    driveRootHash = std::make_shared<InfoHash>( gReplicator->dbgGetRootHash( DRIVE_PUB_KEY ) );
 
     fs::path clientFolder = gClientFolder / "client_files";
 
@@ -453,9 +453,9 @@ int main(int,char**)
 //    sleep(1);
 //    usleep(1000);
     //_EXLOG( "replicatorList[0].m_endpoint" << replicatorList[0].m_endpoint );
-    std::thread( [&]() { gReplicator->initiateDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
-    std::thread( [&]() { gReplicator2->initiateDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
-    std::thread( [&]() { gReplicator3->initiateDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
+    std::thread( [&]() { gReplicator->asyncInitiateDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
+    std::thread( [&]() { gReplicator2->asyncInitiateDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
+    std::thread( [&]() { gReplicator3->asyncInitiateDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
     EXLOG( "" );
     //sleep(1000);
     
@@ -539,11 +539,14 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->setDownloadApprovalTransactionTimerDelay(1);
     replicator->setModifyApprovalTransactionTimerDelay(1);
     replicator->start();
-    replicator->addDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, replicatorList} );
+    replicator->asyncAddDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, replicatorList} );
+//    replicator->asyncAddDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, false, replicatorList} );
+    
+//todo    smart_unique_ptr<AddDriveRequest> x = { 100*1024*1024u, 0u, false, replicatorList };
 
-    replicator->addDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash1.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
-    replicator->addDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
-    replicator->addDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash3.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash1.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash3.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
 
     return replicator;
 }
@@ -556,7 +559,7 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const ReplicatorList&          replicatorList,
                          uint64_t                       maxDataSize )
 {
-    replicator->startModify( DRIVE_PUB_KEY, ModifyRequest{ clientDataInfoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey } );
+    replicator->asyncModify( DRIVE_PUB_KEY, ModifyRequest{ clientDataInfoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey } );
 }
 
 //

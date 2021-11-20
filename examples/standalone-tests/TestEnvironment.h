@@ -105,9 +105,9 @@ namespace sirius::drive::test {
             }
         }
 
-        void addDrive(const Key &driveKey, uint64_t driveSize) {
+        void asyncAddDrive(const Key &driveKey, uint64_t driveSize, std::optional<InfoHash> actualRootHash = {}) {
             for (auto &replicator: m_replicators) {
-                replicator->addDrive(driveKey, { driveSize, 0, m_addrList });
+                replicator->asyncAddDrive(driveKey, { driveSize, 0, m_addrList }, actualRootHash);
             }
         }
 
@@ -116,7 +116,7 @@ namespace sirius::drive::test {
             m_pendingModifications.push_back(request.m_transactionHash);
             for (auto &replicator: m_replicators) {
                 std::thread([replicator, driveKey, request] {
-                    replicator->startModify(driveKey, ModifyRequest(request));
+                    replicator->asyncModify(driveKey, ModifyRequest(request));
                 }).detach();
             }
         }
@@ -124,7 +124,7 @@ namespace sirius::drive::test {
         void downloadFromDrive(const Key& driveKey, const DownloadRequest& request) {
             for (auto &replicator: m_replicators) {
                 std::thread([=] {
-                    replicator->addDownloadChannelInfo(driveKey, DownloadRequest(request));
+                    replicator->asyncAddDownloadChannelInfo(driveKey, DownloadRequest(request));
                 }).detach();
             }
         }
@@ -133,7 +133,7 @@ namespace sirius::drive::test {
             auto transactionHash = randomByteArray<Hash256>();
             for (auto &replicator: m_replicators) {
                 std::thread([replicator, driveKey, transactionHash] {
-                    replicator->removeDrive(driveKey, transactionHash);
+                    replicator->asyncCloseDrive(driveKey, transactionHash);
                 }).detach();
             }
         }
@@ -143,7 +143,7 @@ namespace sirius::drive::test {
             std::erase(m_pendingModifications, transactionHash);
             for (auto &replicator: m_replicators) {
                 std::thread([replicator, driveKey, transactionHash] {
-                    replicator->cancelModify(driveKey, transactionHash);
+                    replicator->asyncCancelModify(driveKey, transactionHash);
                 }).detach();
             }
         }
@@ -164,7 +164,7 @@ namespace sirius::drive::test {
                 m_dnApprovalTransactionInfo = { std::move(info) };
                 for (auto &r: m_replicators) {
                     std::thread([=, this] {
-                        r->onDownloadApprovalTransactionHasBeenPublished(m_dnApprovalTransactionInfo->m_blockHash,
+                        r->asyncDownloadApprovalTransactionHasBeenPublished(m_dnApprovalTransactionInfo->m_blockHash,
                                                                          m_dnApprovalTransactionInfo->m_downloadChannelId,
                                                                          true);
                     }).detach();
@@ -210,7 +210,7 @@ namespace sirius::drive::test {
 
                 for (const auto &r: m_replicators) {
                     std::thread([=] {
-                        r->onApprovalTransactionHasBeenPublished(
+                        r->asyncApprovalTransactionHasBeenPublished(
                                 ApprovalTransactionInfo(transactionInfo));
                     }).detach();
                 }
@@ -224,7 +224,7 @@ namespace sirius::drive::test {
             {
                 EXLOG("modifySingleApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
                 std::thread([&replicator, transactionInfo] {
-                    replicator.onSingleApprovalTransactionHasBeenPublished(transactionInfo);
+                    replicator.asyncSingleApprovalTransactionHasBeenPublished(transactionInfo);
                 }).detach();
             }
         };

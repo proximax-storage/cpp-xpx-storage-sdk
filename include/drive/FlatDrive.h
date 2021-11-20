@@ -326,13 +326,18 @@ class Replicator;
 
         virtual void     startDriveClosing( const Hash256& transactionHash ) = 0;
 
-        virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
+//        virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
         
         virtual void     onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
 
         virtual void     onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
 
         virtual void     onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
+        
+        // actualRootHash should not be empty
+        virtual void     startDriveSyncWithSwarm( std::optional<InfoHash>&& actualRootHash ) = 0;
+        
+        virtual bool     isOutOfSync() const = 0;
         
         // It will be called by replicator
         virtual const std::optional<Hash256>& closingTxHash() const = 0;

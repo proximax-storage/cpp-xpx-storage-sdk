@@ -88,7 +88,7 @@ namespace sirius::drive::test {
 
                     for (const auto &r: m_replicators) {
                         std::thread([r, transactionInfo] {
-                            r->onApprovalTransactionHasBeenPublished(transactionInfo);
+                            r->asyncApprovalTransactionHasBeenPublished(transactionInfo);
                         }).detach();
                     }
                 }
@@ -114,7 +114,7 @@ namespace sirius::drive::test {
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
         client.modifyDrive(actionList, env.m_addrList);
 
-        env.addDrive(DRIVE_PUB_KEY, 100 * 1024 * 1024);
+        env.asyncAddDrive(DRIVE_PUB_KEY, 100 * 1024 * 1024);
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes.back(),
                                         client.m_modificationTransactionHashes.back(),
                                         BIG_FILE_SIZE + 1024,

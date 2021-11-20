@@ -73,7 +73,7 @@ protected:
           m_replicatorSandboxRoot( replicatorSandboxRootFolder )
     {}
 
-    virtual ~FlatDrivePaths() {}
+    virtual~FlatDrivePaths() {}
 
 protected:
     const Key       m_drivePubKey;
@@ -129,6 +129,9 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     bool m_sandboxCalculated          = false;
     bool m_approveTransactionReceived = false;
     bool m_approveTransactionSent     = false; // approval transaction has been sent
+    
+    // It will be not empty while drive is syncronizing with swarm
+    std::optional<InfoHash> m_syncRootHash;
     
     // It is used when drive is closing
     std::optional<Hash256> m_closingTxHash = {};
@@ -204,7 +207,7 @@ public:
         init();
     }
 
-    virtual ~DefaultFlatDrive() {
+    virtual~DefaultFlatDrive() {
         terminate();
     }
 
@@ -1019,12 +1022,7 @@ public:
         }
     }
 
-    void     loadTorrent( const InfoHash& /*fileHash*/ ) override
-    {
-        //todo m_session->loadTorrent();
-    }
-    
-    virtual void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
+    void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
         if ( anOpinion.m_opinions.size() != 1 )
             return; //is it spam?
@@ -1099,7 +1097,7 @@ public:
         m_approveTransactionSent = true;
     }
 
-    virtual void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
+    void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
         if ( !m_modifyRequest || m_modifyRequest->m_transactionHash != transaction.m_modifyTransactionHash )
         {
@@ -1144,9 +1142,20 @@ public:
         m_eventHandler.singleModifyApprovalTransactionIsReady( m_replicator, std::move(copy) );
     }
 
-    virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
+    void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
         _LOG( "onSingleApprovalTransactionHasBeenPublished()" );
+    }
+    
+    void startDriveSyncWithSwarm( std::optional<InfoHash>&& actualRootHash ) override
+    {
+        m_syncRootHash = std::move( actualRootHash );
+        //todo
+    }
+    
+    bool isOutOfSync() const override
+    {
+        return m_syncRootHash.has_value();
     }
 
     const std::optional<Hash256>& closingTxHash() const override
@@ -1154,7 +1163,7 @@ public:
         return m_closingTxHash;
     }
     
-    virtual void removeAllDriveData() override
+    void removeAllDriveData() override
     {
         {
             // When node is restaring and file "is_closing" exists, but file "approval_tx_has_been_bulished" is not exists,
@@ -1171,12 +1180,12 @@ public:
         m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_closingTxHash );
     }
 
-    virtual const ReplicatorList&  replicatorList() const override
+    const ReplicatorList&  replicatorList() const override
     {
         return m_replicatorList;
     }
 
-    virtual void printDriveStatus() override
+    void printDriveStatus() override
     {
         LOG("Drive Status:")
         m_fsTree.dbgPrint();

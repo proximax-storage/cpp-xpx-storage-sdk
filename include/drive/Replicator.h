@@ -12,6 +12,22 @@
 #include "crypto/Signer.h"
 #include "Session.h"
 
+//todo
+//template< class T >
+//class smart_unique_ptr : public std::unique_ptr<T>
+//{
+//public:
+//    template <typename... Args>
+//    smart_unique_ptr( Args... args ) : std::unique_ptr<T>( new T{args...} )
+//    {
+//    }
+//
+//    smart_unique_ptr( std::unique_ptr<T> ptr ) : std::unique_ptr<T>( ptr )
+//    {
+//    }
+//
+//    operator std::unique_ptr<T>() { return static_cast<std::unique_ptr<T>>(*this); }
+//};
 
 namespace sirius::drive {
 
@@ -99,23 +115,27 @@ public:
 
     // All of the below functions return error string (or empty string)
     
-    virtual void addDrive( Key driveKey, AddDriveRequest driveRequest ) = 0;
+    // It will be called in 2 cases:
+    // - when received transaction about drive creation (in this case 'actualRootHash' should be empty)
+    // - when storage-extension restarts and initiates the drive (that already was created)
+    //
+    virtual void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest, std::optional<InfoHash> actualRootHash = {} ) = 0;
 
     // it starts drive closing
-    virtual void removeDrive( Key driveKey, Hash256 transactionHash ) = 0;
+    virtual void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) = 0;
 
 #ifdef __FOR_DEBUGGING__
     //virtual std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) = 0;
 #endif
     
     // it begins modify operation, that will be performed on session thread
-    virtual void startModify( Key driveKey, ModifyRequest  modifyRequest ) = 0;
+    virtual void asyncModify( Key driveKey, ModifyRequest  modifyRequest ) = 0;
 
-    virtual void cancelModify( Key driveKey, Hash256  transactionHash ) = 0;
+    virtual void asyncCancelModify( Key driveKey, Hash256  transactionHash ) = 0;
 
     // 'replicatorsList' is used to notify other replictors
     // (it does not contain its own endpoint)
-    virtual void        addDownloadChannelInfo( Key driveKey, DownloadRequest&&  downloadRequest ) = 0;
+    virtual void        asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&&  downloadRequest ) = 0;
 
     //todo is it needed??
     virtual void        removeDownloadChannelInfo( const std::array<uint8_t,32>& channelId ) = 0;
@@ -125,19 +145,19 @@ public:
     
     // Usually, DownloadApprovalTransactions are made once per 24 hours and paid by the Drive Owner
     // (It initiate opinion exchange, and then publishing of 'DownloadApprovalTransaction')
-    virtual void        initiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) = 0;
+    virtual void        asyncInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) = 0;
 
     // It will clear opinion map
-    virtual void        onDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed = false ) = 0;
+    virtual void        asyncDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed = false ) = 0;
 
     // It will be called when other replicator calculated rootHash and send his opinion
     virtual void        onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
     
     // It will be called after 'MODIFY approval transaction' has been published
-    virtual void        onApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) = 0;
+    virtual void        asyncApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) = 0;
 
     // It will be called after 'single MODIFY approval transaction' has been published
-    virtual void        onSingleApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) = 0;
+    virtual void        asyncSingleApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) = 0;
 
     // It continues drive closing (initiates DownloadApprovalTransaction and then removes drive)
     virtual void        closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) = 0;
@@ -168,11 +188,11 @@ public:
     // It was moveed into ;session_delegate'
     //virtual void        onMessageReceived( const std::string& query, const std::string& ) = 0;
     
-    virtual Hash256     getRootHash( const Key& driveKey ) = 0;
+    virtual Hash256     dbgGetRootHash( const Key& driveKey ) = 0;
     
-    virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) = 0;
+    virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) const = 0;
 
-    virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;
+    //virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;
 
 
 

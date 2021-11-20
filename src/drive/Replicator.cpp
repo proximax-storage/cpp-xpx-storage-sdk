@@ -20,6 +20,9 @@
 
 #include <mutex>
 
+//#define DBG_SINGLE_THREAD { std::cout << m_dbgThreadId << "==" << std::this_thread::get_id() << std::endl; \
+//                            assert( m_dbgThreadId == std::this_thread::get_id() ); }
+
 namespace sirius::drive {
 
 //
@@ -27,7 +30,6 @@ namespace sirius::drive {
 //
 class DefaultReplicator : public DownloadLimiter // Replicator
 {
-//todo++
 public:
     std::shared_ptr<Session> m_session;
 
@@ -88,11 +90,19 @@ public:
             weak_from_this(),
             m_useTcpSocket );
         m_session->lt_session().m_dbgOurPeerName = m_dbgReplicatorName.c_str();
+        
+        std::mutex waitMutex;
+        waitMutex.lock();
+        m_session->lt_session().get_context().post( [=,&waitMutex,this]() mutable {
+            m_dbgThreadId = std::this_thread::get_id();
+            waitMutex.unlock();
+        });
+        waitMutex.lock();
+
     }
 
-    Hash256 getRootHash( const Key& driveKey ) override
+    Hash256 dbgGetRootHash( const Key& driveKey ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
         if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
         {
             auto rootHash = driveIt->second->rootHash();
@@ -120,10 +130,12 @@ public:
     }
 
 
-    void addDrive( Key driveKey, AddDriveRequest driveRequest ) override
+    void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest, std::optional<InfoHash> actualRootHash ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable
         {
+            DBG_SINGLE_THREAD
+            
             LOG( "adding drive " << driveKey );
 
             std::unique_lock<std::shared_mutex> lock(m_driveMutex);
@@ -133,7 +145,7 @@ public:
                 _LOG( "drive already added" );
             }
 
-            // Exclude itself from replicators
+            // Exclude itself from replicator list
             for( auto it = driveRequest.replicators.begin();  it != driveRequest.replicators.end(); it++ )
             {
                 if ( it->m_publicKey == publicKey() )
@@ -143,8 +155,7 @@ public:
                 }
             }
 
-            // TODO: exclude itself from replicators !
-            m_driveMap[driveKey] = sirius::drive::createDefaultFlatDrive(
+            auto drive = sirius::drive::createDefaultFlatDrive(
                     session(),
                     m_storageDirectory,
                     m_sandboxDirectory,
@@ -155,13 +166,20 @@ public:
                     *this,
                     driveRequest.replicators,
                     m_dbgEventHandler );
+
+            m_driveMap[driveKey] = drive;
+            if ( actualRootHash && drive->rootHash() != actualRootHash )
+            {
+                drive->startDriveSyncWithSwarm( std::move(actualRootHash) );
+            }
         });
     }
 
-    void removeDrive( Key driveKey, Hash256 transactionHash ) override
+    void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable
         {
+            DBG_SINGLE_THREAD
 
             if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
             {
@@ -189,11 +207,11 @@ public:
 //        return m_driveMap[driveKey];
 //    }
 
-    void startModify( Key driveKey, ModifyRequest modifyRequest ) override
+    void asyncModify( Key driveKey, ModifyRequest modifyRequest ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable
         {
-            LOG( "drive modification:\ndrive: " << driveKey << "\n info hash: " << infoHash );
+            DBG_SINGLE_THREAD
 
             std::shared_ptr<sirius::drive::FlatDrive> pDrive;
             {
@@ -202,7 +220,7 @@ public:
                     pDrive = driveIt->second;
                 }
                 else {
-                    _LOG( "startModify(): drive not found: " << driveKey );
+                    _LOG( "asyncModify(): drive not found: " << driveKey );
                     return;
                 }
             }
@@ -227,10 +245,12 @@ public:
         });
     }
     
-    void cancelModify( Key driveKey, Hash256 transactionHash ) override
+    void asyncCancelModify( Key driveKey, Hash256 transactionHash ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable
         {
+            DBG_SINGLE_THREAD
+            
             if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
             {
                 driveIt->second->cancelModifyDrive( transactionHash );
@@ -241,30 +261,33 @@ public:
         });
     }
     
-    std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) override
-    {
-        LOG( "loadTorrent:\ndrive: " << driveKey << "\n info hash: " << infoHash );
+//    std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) override
+//    {
+//        DBG_SINGLE_THREAD
+//
+//        std::shared_ptr<sirius::drive::FlatDrive> pDrive;
+//        {
+//
+//            const std::unique_lock<std::shared_mutex> lock(m_driveMutex);
+//            if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
+//            {
+//                pDrive = driveIt->second;
+//            }
+//            else {
+//                return "drive not found";
+//            }
+//        }
+//
+//        pDrive->loadTorrent( infoHash );
+//        return "";
+//    }
 
-        std::shared_ptr<sirius::drive::FlatDrive> pDrive;
-        {
-            const std::unique_lock<std::shared_mutex> lock(m_driveMutex);
-            if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
-            {
-                pDrive = driveIt->second;
-            }
-            else {
-                return "drive not found";
-            }
-        }
-
-        pDrive->loadTorrent( infoHash );
-        return "";
-    }
-
-    void addDownloadChannelInfo( Key driveKey, DownloadRequest&& request ) override
+    void asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&& request ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable
         {
+            DBG_SINGLE_THREAD
+
             std::vector<std::array<uint8_t,32>> clientList;
             for( const auto& it : request.m_clients )
                 clientList.push_back( it.array() );
@@ -278,6 +301,8 @@ public:
 
     void removeDownloadChannelInfo( const std::array<uint8_t,32>& channelKey ) override
     {
+        DBG_SINGLE_THREAD
+        
         removeChannelInfo(channelKey);
     }
 
@@ -286,6 +311,8 @@ public:
                                                 uint64_t                       downloadedSize,
                                                 const std::array<uint8_t,64>&  signature ) override
     {
+        DBG_SINGLE_THREAD
+        
         auto replicatorPublicKey = publicKey();
 
         // check receipt
@@ -315,7 +342,6 @@ public:
             // go throw replictor list
             for( auto replicatorIt = it->second.m_replicatorsList.begin(); replicatorIt != it->second.m_replicatorsList.end(); replicatorIt++ )
             {
-                //todo++++
                 m_session->sendMessage( "rcpt", { replicatorIt->m_endpoint.address(), replicatorIt->m_endpoint.port() }, message );
             }
         }
@@ -323,6 +349,8 @@ public:
     
     virtual void onDownloadOpinionReceived( DownloadApprovalTransactionInfo&& anOpinion ) override
     {
+        DBG_SINGLE_THREAD
+
         if ( anOpinion.m_opinions.size() != 1 )
         {
             LOG_ERR( "onDownloadOpinionReceived: invalid opinion format: anOpinion.m_opinions.size() != 1" )
@@ -334,6 +362,8 @@ public:
     
     DownloadOpinion createMyOpinion( const DownloadChannelInfo& info )
     {
+        DBG_SINGLE_THREAD
+
         DownloadOpinion myOpinion( publicKey() );
 
         for( const auto& replicatorIt : info.m_replicatorsList )
@@ -357,8 +387,8 @@ public:
     
     void addOpinion( DownloadApprovalTransactionInfo&& opinion )
     {
-        std::unique_lock<std::shared_mutex> lock(m_downloadOpinionMutex);
-
+        DBG_SINGLE_THREAD
+        
         //
         // remove outdated entries (by m_creationTime)
         //
@@ -407,8 +437,8 @@ public:
     
     void onDownloadApprovalTimeExipred( DownloadOpinionMapValue& mapValue )
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
-
+        DBG_SINGLE_THREAD
+        
         if ( mapValue.m_approveTransactionSent || mapValue.m_approveTransactionReceived )
             return;
 
@@ -417,18 +447,21 @@ public:
         mapValue.m_approveTransactionSent = true;
     }
     
-    virtual void initiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) override
+    virtual void asyncInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) override
     {
         //todo make queue for several simultaneous requests of the same channelId
 
         m_session->lt_session().get_context().post( [=,this]() mutable
         {
+            DBG_SINGLE_THREAD
             doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
         });
     }
 
     void doInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId )
     {
+        DBG_SINGLE_THREAD
+        
         //todo make queue for several simultaneous requests of the same channelId
         
         if ( auto it = m_downloadChannelMap.find( channelId.array() ); it != m_downloadChannelMap.end() )
@@ -476,7 +509,7 @@ public:
     // It is called when drive is closing
     virtual void closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        DBG_SINGLE_THREAD
 
         bool deleteDriveImmediately = true;
         
@@ -491,7 +524,7 @@ public:
             {
                 doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
                 
-                // drive will be deleted in 'onDownloadApprovalTransactionHasBeenPublished()'
+                // drive will be deleted in 'asyncDownloadApprovalTransactionHasBeenPublished()'
                 deleteDriveImmediately = false;
             }
         }
@@ -503,10 +536,12 @@ public:
         }
     }
     
-    virtual void onDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed ) override
+    virtual void asyncDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable
         {
+            DBG_SINGLE_THREAD
+            
             // clear opinion map
             if ( auto it = m_downloadOpinionMap.find( blockHash.array() ); it != m_downloadOpinionMap.end() )
             {
@@ -552,7 +587,7 @@ public:
     
     void deleteDrive( const std::array<uint8_t,32>& driveKey )
     {
-        std::unique_lock<std::shared_mutex> lock(m_downloadOpinionMutex);
+        DBG_SINGLE_THREAD
 
         std::erase_if( m_downloadChannelMap, [&driveKey] (const auto& item) {
             return item.second.m_driveKey == driveKey;
@@ -572,6 +607,8 @@ public:
     
     virtual void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
+        DBG_SINGLE_THREAD
+        
         if ( auto it = m_driveMap.find( anOpinion.m_driveKey ); it != m_driveMap.end() )
         {
             it->second->onOpinionReceived( anOpinion );
@@ -582,10 +619,12 @@ public:
         }
     }
     
-    virtual void onApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) override
+    virtual void asyncApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable
         {
+            DBG_SINGLE_THREAD
+
             if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
             {
                 it->second->onApprovalTransactionHasBeenPublished( transaction );
@@ -597,10 +636,12 @@ public:
         });
     }
     
-    virtual void onSingleApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) override
+    virtual void asyncSingleApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable
         {
+            DBG_SINGLE_THREAD
+            
             if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
             {
                 it->second->onSingleApprovalTransactionHasBeenPublished( transaction );
@@ -614,11 +655,14 @@ public:
     
     virtual void sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint endpoint, const std::string& message ) override
     {
+        //todo? DBG_SINGLE_THREAD
         m_session->sendMessage( query, { endpoint.address(), endpoint.port() }, message );
     }
     
     virtual void onMessageReceived( const std::string& query, const std::string& message ) override try
     {
+        DBG_SINGLE_THREAD
+        
         //todo
         if ( query == "opinion" )
         {
@@ -689,6 +733,8 @@ public:
 
     bool isPeerReplicator( const FlatDrive& drive, const std::array<uint8_t,32>&  peerPublicKey )
     {
+        DBG_SINGLE_THREAD
+        
         auto& replicatorList = drive.replicatorList();
         auto replicatorIt = std::find_if( replicatorList.begin(), replicatorList.end(), [&peerPublicKey] (const auto& it) {
             return it.m_publicKey.array() == peerPublicKey;
@@ -701,7 +747,7 @@ public:
                            const std::array<uint8_t,32>&  peerPublicKey,
                            bool*                          outIsDownloadUnlimited ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        DBG_SINGLE_THREAD
         
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
