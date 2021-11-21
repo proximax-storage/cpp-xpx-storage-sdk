@@ -195,7 +195,11 @@ function(storage_sdk_shared_library TARGET_NAME)
                 set_win_version_definitions(${TARGET_NAME} VFT_DLL)
         endif()
 
-        add_library(${TARGET_NAME} SHARED ${${TARGET_NAME}_FILES} ${VERSION_RESOURCES})
+        if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+           add_library(${TARGET_NAME} ${${TARGET_NAME}_FILES} ${VERSION_RESOURCES})
+        else()
+            add_library(${TARGET_NAME} SHARED ${${TARGET_NAME}_FILES} ${VERSION_RESOURCES})
+        endif()
 endfunction()
 
 # combines storage_sdk_shared_library and storage_sdk_target

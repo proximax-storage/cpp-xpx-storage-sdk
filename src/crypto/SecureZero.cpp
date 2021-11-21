@@ -27,7 +27,7 @@
 #ifdef _WIN32
 #define CATAPULT_ZEROMEM(PTR, SIZE) SecureZeroMemory(PTR, SIZE)
 #elif defined(__APPLE__) || defined(__STDC_LIB_EXT1__)
-#define CATAPULT_ZEROMEM(PTR, SIZE) memset_s(PTR, SIZE, 0, SIZE)
+#define CATAPULT_ZEROMEM(PTR, SIZE) memset(PTR, 0, SIZE)
 #else
 #define CATAPULT_ZEROMEM(PTR, SIZE) \
 	do { \

@@ -96,7 +96,7 @@ public:
         m_session->lt_session().get_context().post( [=,&waitMutex,this]() mutable {
             m_dbgThreadId = std::this_thread::get_id();
             waitMutex.unlock();
-        });
+        });//post
         waitMutex.lock();
 
     }
@@ -132,8 +132,8 @@ public:
 
     void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest, std::optional<InfoHash> actualRootHash ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable
-        {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
             DBG_SINGLE_THREAD
             
             LOG( "adding drive " << driveKey );
@@ -172,13 +172,13 @@ public:
             {
                 drive->startDriveSyncWithSwarm( std::move(actualRootHash) );
             }
-        });
+        });//post
     }
 
     void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable
-        {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
             DBG_SINGLE_THREAD
 
             if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
@@ -190,7 +190,7 @@ public:
                 _LOG( "removeDrive: drive not found: " << driveKey );
                 return;
             }
-        });
+        });//post
     }
 
 //todo    std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) override {
@@ -209,8 +209,8 @@ public:
 
     void asyncModify( Key driveKey, ModifyRequest modifyRequest ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable
-        {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
             DBG_SINGLE_THREAD
 
             std::shared_ptr<sirius::drive::FlatDrive> pDrive;
@@ -242,13 +242,13 @@ public:
             }
 
             pDrive->startModifyDrive( std::move(modifyRequest) );
-        });
+        });//post
     }
     
     void asyncCancelModify( Key driveKey, Hash256 transactionHash ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable
-        {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
             DBG_SINGLE_THREAD
             
             if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
@@ -258,7 +258,7 @@ public:
             }
 
             _LOG( "cancelModify: unknown drive: " << driveKey );
-        });
+        });//post
     }
     
 //    std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) override
@@ -284,8 +284,8 @@ public:
 
     void asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&& request ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable
-        {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
             DBG_SINGLE_THREAD
 
             std::vector<std::array<uint8_t,32>> clientList;
@@ -296,7 +296,7 @@ public:
                             driveKey,
                             request.m_addrList,
                             clientList);
-        });
+        });//post
     }
 
     void removeDownloadChannelInfo( const std::array<uint8_t,32>& channelKey ) override
@@ -451,11 +451,11 @@ public:
     {
         //todo make queue for several simultaneous requests of the same channelId
 
-        m_session->lt_session().get_context().post( [=,this]() mutable
-        {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
             DBG_SINGLE_THREAD
             doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
-        });
+        });//post
     }
 
     void doInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId )
@@ -538,8 +538,8 @@ public:
     
     virtual void asyncDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable
-        {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
             DBG_SINGLE_THREAD
             
             // clear opinion map
@@ -582,7 +582,7 @@ public:
                 }
 
             }
-        });
+        });//post
     }
     
     void deleteDrive( const std::array<uint8_t,32>& driveKey )
@@ -621,8 +621,8 @@ public:
     
     virtual void asyncApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable
-        {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
             DBG_SINGLE_THREAD
 
             if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
@@ -633,13 +633,13 @@ public:
             {
                 LOG_ERR( "drive not found" );
             }
-        });
+        });//post
     }
     
     virtual void asyncSingleApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable
-        {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
             DBG_SINGLE_THREAD
             
             if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
@@ -650,7 +650,7 @@ public:
             {
                 LOG_ERR( "drive not found" );
             }
-        });
+        });//post
     }
     
     virtual void sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint endpoint, const std::string& message ) override
