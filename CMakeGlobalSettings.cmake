@@ -71,7 +71,7 @@ elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
                 -Wnon-virtual-dtor\
                 -Wno-unused-const-variable\
                 -Wno-unused-private-field\
-                -Wno-unused-parameter
+                -Wno-unused-parameter\
                 ")
 #            -Wno-error=uninitialized\
 #            -Werror-deprecated\
