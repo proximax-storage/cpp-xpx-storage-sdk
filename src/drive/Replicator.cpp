@@ -20,6 +20,9 @@
 
 #include <mutex>
 
+//#define DBG_SINGLE_THREAD { std::cout << m_dbgThreadId << "==" << std::this_thread::get_id() << std::endl; \
+//                            assert( m_dbgThreadId == std::this_thread::get_id() ); }
+
 namespace sirius::drive {
 
 //
@@ -27,7 +30,6 @@ namespace sirius::drive {
 //
 class DefaultReplicator : public DownloadLimiter // Replicator
 {
-//todo++
 public:
     std::shared_ptr<Session> m_session;
 
@@ -49,6 +51,7 @@ public:
     bool        m_useTcpSocket;
 
     ReplicatorEventHandler& m_eventHandler;
+    DbgReplicatorEventHandler*  m_dbgEventHandler;
 
     const std::string m_dbgReplicatorName;
     
@@ -61,6 +64,7 @@ public:
                std::string&& sandboxDirectory,
                bool          useTcpSocket,
                ReplicatorEventHandler& handler,
+               DbgReplicatorEventHandler*  dbgEventHandler,
                const char*   dbgReplicatorName ) : DownloadLimiter( keyPair, dbgReplicatorName ),
 
         m_address( std::move(address) ),
@@ -68,7 +72,8 @@ public:
         m_storageDirectory( std::move(storageDirectory) ),
         m_sandboxDirectory( std::move(sandboxDirectory) ),
         m_useTcpSocket( useTcpSocket ),
-        m_eventHandler(handler),
+        m_eventHandler( handler ),
+        m_dbgEventHandler( dbgEventHandler ),
         m_dbgReplicatorName( dbgReplicatorName )
     {
     }
@@ -85,11 +90,19 @@ public:
             weak_from_this(),
             m_useTcpSocket );
         m_session->lt_session().m_dbgOurPeerName = m_dbgReplicatorName.c_str();
+        
+        std::mutex waitMutex;
+        waitMutex.lock();
+        m_session->lt_session().get_context().post( [=,&waitMutex,this]() mutable {
+            m_dbgThreadId = std::this_thread::get_id();
+            waitMutex.unlock();
+        });//post
+        waitMutex.lock();
+
     }
 
-    Hash256 getRootHash( const Key& driveKey ) override
+    Hash256 dbgGetRootHash( const Key& driveKey ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
         if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
         {
             auto rootHash = driveIt->second->rootHash();
@@ -117,159 +130,179 @@ public:
     }
 
 
-    std::string addDrive(const Key& driveKey, uint64_t driveSize, ReplicatorList replicators ) override
+    void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest, std::optional<InfoHash> actualRootHash ) override
     {
-        LOG( "adding drive " << driveKey );
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
+            DBG_SINGLE_THREAD
+            
+            LOG( "adding drive " << driveKey );
 
-        std::unique_lock<std::shared_mutex> lock(m_driveMutex);
+            std::unique_lock<std::shared_mutex> lock(m_driveMutex);
 
-        if (m_driveMap.find(driveKey) != m_driveMap.end()) {
-            return "drive already added";
-        }
-
-        // Exclude itself from replicators
-        for( auto it = replicators.begin();  it != replicators.end(); it++ )
-        {
-            if ( it->m_publicKey == publicKey() )
-            {
-                replicators.erase( it );
-                break;
+            if (m_driveMap.find(driveKey) != m_driveMap.end()) {
+                return;
+                _LOG( "drive already added" );
             }
-        }
 
-        // TODO: exclude itself from replicators !
-        m_driveMap[driveKey] = sirius::drive::createDefaultFlatDrive(
-                session(),
-                m_storageDirectory,
-                m_sandboxDirectory,
-                driveKey,
-                driveSize,
-                m_eventHandler,
-                *this,
-                replicators );
+            // Exclude itself from replicator list
+            for( auto it = driveRequest.replicators.begin();  it != driveRequest.replicators.end(); it++ )
+            {
+                if ( it->m_publicKey == publicKey() )
+                {
+                    driveRequest.replicators.erase( it );
+                    break;
+                }
+            }
 
-        return "";
+            auto drive = sirius::drive::createDefaultFlatDrive(
+                    session(),
+                    m_storageDirectory,
+                    m_sandboxDirectory,
+                    driveKey,
+                    driveRequest.driveSize,
+                    driveRequest.usedDriveSizeExcludingMetafiles,
+                    m_eventHandler,
+                    *this,
+                    driveRequest.replicators,
+                    m_dbgEventHandler );
+
+            m_driveMap[driveKey] = drive;
+            if ( actualRootHash && drive->rootHash() != actualRootHash )
+            {
+                drive->startDriveSyncWithSwarm( std::move(actualRootHash) );
+            }
+        });//post
     }
 
-    std::string removeDrive( const Key& driveKey, const Hash256& transactionHash ) override
+    void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {
-        LOG( "removing drive " << driveKey );
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
+            DBG_SINGLE_THREAD
 
-        std::unique_lock<std::shared_mutex> lock(m_driveMutex);
-
-        if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
-        {
-            driveIt->second->startDriveClosing( transactionHash );
-        }
-        else
-        {
-            return "drive not found";
-        }
-
-        m_driveMap.erase(driveKey);
-        return "";
-    }
-
-    std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) override {
-        LOG( "getDrive " << driveKey );
-
-        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-
-        if (m_driveMap.find(driveKey) == m_driveMap.end())
-        {
-            LOG( "drive not found " << driveKey );
-            return nullptr;
-        }
-
-        return m_driveMap[driveKey];
-    }
-
-    std::string modify( const Key& driveKey, ModifyRequest&& modifyRequest ) override
-    {
-        LOG( "drive modification:\ndrive: " << driveKey << "\n info hash: " << infoHash );
-
-        const std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-
-        std::shared_ptr<sirius::drive::FlatDrive> pDrive;
-        {
             if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
             {
-                pDrive = driveIt->second;
+                driveIt->second->startDriveClosing( transactionHash );
             }
-            else {
-                return "drive not found";
+            else
+            {
+                _LOG( "removeDrive: drive not found: " << driveKey );
+                return;
             }
-        }
+        });//post
+    }
+
+//todo    std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) override {
+//        LOG( "getDrive " << driveKey );
+//
+//        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
+//
+//        if (m_driveMap.find(driveKey) == m_driveMap.end())
+//        {
+//            LOG( "drive not found " << driveKey );
+//            return nullptr;
+//        }
+//
+//        return m_driveMap[driveKey];
+//    }
+
+    void asyncModify( Key driveKey, ModifyRequest modifyRequest ) override
+    {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
         
-        addModifyDriveInfo( modifyRequest.m_transactionHash.array(),
+            DBG_SINGLE_THREAD
+
+            std::shared_ptr<sirius::drive::FlatDrive> pDrive;
+            {
+                if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
+                {
+                    pDrive = driveIt->second;
+                }
+                else {
+                    _LOG( "asyncModify(): drive not found: " << driveKey );
+                    return;
+                }
+            }
+
+            // Add ModifyDriveInfo to DownloadLimiter
+            addModifyDriveInfo( modifyRequest.m_transactionHash.array(),
+                                driveKey,
+                                modifyRequest.m_maxDataSize,
+                                modifyRequest.m_clientPublicKey,
+                                modifyRequest.m_replicatorList );
+
+            for( auto it = modifyRequest.m_replicatorList.begin();  it != modifyRequest.m_replicatorList.end(); it++ )
+            {
+                if ( it->m_publicKey == publicKey() )
+                {
+                    modifyRequest.m_replicatorList.erase( it );
+                    break;
+                }
+            }
+
+            pDrive->startModifyDrive( std::move(modifyRequest) );
+        });//post
+    }
+    
+    void asyncCancelModify( Key driveKey, Hash256 transactionHash ) override
+    {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
+            DBG_SINGLE_THREAD
+            
+            if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
+            {
+                driveIt->second->cancelModifyDrive( transactionHash );
+                return;
+            }
+
+            _LOG( "cancelModify: unknown drive: " << driveKey );
+        });//post
+    }
+    
+//    std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) override
+//    {
+//        DBG_SINGLE_THREAD
+//
+//        std::shared_ptr<sirius::drive::FlatDrive> pDrive;
+//        {
+//
+//            const std::unique_lock<std::shared_mutex> lock(m_driveMutex);
+//            if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
+//            {
+//                pDrive = driveIt->second;
+//            }
+//            else {
+//                return "drive not found";
+//            }
+//        }
+//
+//        pDrive->loadTorrent( infoHash );
+//        return "";
+//    }
+
+    void asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&& request ) override
+    {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
+            DBG_SINGLE_THREAD
+
+            std::vector<std::array<uint8_t,32>> clientList;
+            for( const auto& it : request.m_clients )
+                clientList.push_back( it.array() );
+            addChannelInfo( request.m_channelKey.array(),
+                            request.m_prepaidDownloadSize,
                             driveKey,
-                            modifyRequest.m_maxDataSize,
-                            modifyRequest.m_clientPublicKey,
-                            modifyRequest.m_replicatorList );
-
-        for( auto it = modifyRequest.m_replicatorList.begin();  it != modifyRequest.m_replicatorList.end(); it++ )
-        {
-            if ( it->m_publicKey == publicKey() )
-            {
-                modifyRequest.m_replicatorList.erase( it );
-                break;
-            }
-        }
-        pDrive->startModifyDrive( std::move(modifyRequest) );
-        return "";
-    }
-    
-    std::string cancelModify( const Key&        driveKey,
-                              const Hash256&    transactionHash ) override
-    {
-        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-        
-        if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
-        {
-            driveIt->second->cancelModifyDrive( transactionHash );
-            return "";
-        }
-
-        LOG_ERR( "unknown drive: " << driveKey );
-        throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
-
-        return "unknown drive";
-    }
-    
-    std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) override
-    {
-        LOG( "loadTorrent:\ndrive: " << driveKey << "\n info hash: " << infoHash );
-
-        std::shared_ptr<sirius::drive::FlatDrive> pDrive;
-        {
-            const std::unique_lock<std::shared_mutex> lock(m_driveMutex);
-            if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
-            {
-                pDrive = driveIt->second;
-            }
-            else {
-                return "drive not found";
-            }
-        }
-
-        pDrive->loadTorrent( infoHash );
-        return "";
-    }
-
-    void addDownloadChannelInfo( const std::array<uint8_t,32>&   channelKey,
-                                 size_t                          prepaidDownloadSize,
-                                 const Key&                      driveKey,
-                                 const ReplicatorList&           replicatorsList,
-                                 const std::vector<Key>&         clients ) override
-    {
-        std::vector<std::array<uint8_t,32>> clientList;
-        for( const auto& it : clients )
-            clientList.push_back( it.array() );
-        addChannelInfo( channelKey, prepaidDownloadSize, driveKey, replicatorsList, clientList );
+                            request.m_addrList,
+                            clientList);
+        });//post
     }
 
     void removeDownloadChannelInfo( const std::array<uint8_t,32>& channelKey ) override
     {
+        DBG_SINGLE_THREAD
+        
         removeChannelInfo(channelKey);
     }
 
@@ -278,6 +311,8 @@ public:
                                                 uint64_t                       downloadedSize,
                                                 const std::array<uint8_t,64>&  signature ) override
     {
+        DBG_SINGLE_THREAD
+        
         auto replicatorPublicKey = publicKey();
 
         // check receipt
@@ -307,7 +342,6 @@ public:
             // go throw replictor list
             for( auto replicatorIt = it->second.m_replicatorsList.begin(); replicatorIt != it->second.m_replicatorsList.end(); replicatorIt++ )
             {
-                //todo++++
                 m_session->sendMessage( "rcpt", { replicatorIt->m_endpoint.address(), replicatorIt->m_endpoint.port() }, message );
             }
         }
@@ -315,6 +349,8 @@ public:
     
     virtual void onDownloadOpinionReceived( DownloadApprovalTransactionInfo&& anOpinion ) override
     {
+        DBG_SINGLE_THREAD
+
         if ( anOpinion.m_opinions.size() != 1 )
         {
             LOG_ERR( "onDownloadOpinionReceived: invalid opinion format: anOpinion.m_opinions.size() != 1" )
@@ -326,6 +362,8 @@ public:
     
     DownloadOpinion createMyOpinion( const DownloadChannelInfo& info )
     {
+        DBG_SINGLE_THREAD
+
         DownloadOpinion myOpinion( publicKey() );
 
         for( const auto& replicatorIt : info.m_replicatorsList )
@@ -349,8 +387,8 @@ public:
     
     void addOpinion( DownloadApprovalTransactionInfo&& opinion )
     {
-        std::unique_lock<std::shared_mutex> lock(m_downloadOpinionMutex);
-
+        DBG_SINGLE_THREAD
+        
         //
         // remove outdated entries (by m_creationTime)
         //
@@ -399,8 +437,8 @@ public:
     
     void onDownloadApprovalTimeExipred( DownloadOpinionMapValue& mapValue )
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
-
+        DBG_SINGLE_THREAD
+        
         if ( mapValue.m_approveTransactionSent || mapValue.m_approveTransactionReceived )
             return;
 
@@ -409,11 +447,21 @@ public:
         mapValue.m_approveTransactionSent = true;
     }
     
-    virtual void prepareDownloadApprovalTransactionInfo( const Hash256& blockHash, const Hash256& channelId ) override
+    virtual void asyncInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) override
     {
-        _LOG( "prepareDownloadApprovalTransactionInfo: " << dbgReplicatorName() );
-        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        //todo make queue for several simultaneous requests of the same channelId
 
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
+            DBG_SINGLE_THREAD
+            doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
+        });//post
+    }
+
+    void doInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId )
+    {
+        DBG_SINGLE_THREAD
+        
         //todo make queue for several simultaneous requests of the same channelId
         
         if ( auto it = m_downloadChannelMap.find( channelId.array() ); it != m_downloadChannelMap.end() )
@@ -425,7 +473,6 @@ public:
             //
             
             auto myOpinion = createMyOpinion(it->second);
-            lock.unlock();
             
             myOpinion.Sign( keyPair(), blockHash.array(), channelId.array() );
             
@@ -457,85 +504,111 @@ public:
         {
             LOG_ERR( "channelId not found" );
         }
-        //_LOG( "//exit prepareDownloadApprovalTransactionInfo: " << dbgReplicatorName() );
     }
     
     // It is called when drive is closing
     virtual void closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        DBG_SINGLE_THREAD
+
+        bool deleteDriveImmediately = true;
+        
+        std::erase_if( m_downloadChannelMap, [](const auto& channelInfo )
+        {
+            return channelInfo.second.m_isModifyTx;
+        });
 
         for( auto& [channelId,channelInfo] : m_downloadChannelMap )
         {
-            if ( channelInfo.m_driveKey == drive.drivePublicKey().array() )
+            if ( channelInfo.m_driveKey == drive.drivePublicKey().array() && !channelInfo.m_isModifyTx )
             {
-                prepareDownloadApprovalTransactionInfo( blockHash, channelId );
+                doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
+                
+                // drive will be deleted in 'asyncDownloadApprovalTransactionHasBeenPublished()'
+                deleteDriveImmediately = false;
             }
+        }
+        
+        
+        if ( deleteDriveImmediately )
+        {
+            deleteDrive( drive.drivePublicKey().array() );
         }
     }
     
-    virtual void onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId, bool driveIsClosed ) override
+    virtual void asyncDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_downloadOpinionMutex);
-
-        // clear opinion map
-        if ( auto it = m_downloadOpinionMap.find( blockHash.array() ); it != m_downloadOpinionMap.end() )
-        {
-            if ( it->second.m_timer )
-                it->second.m_timer.reset();
-        }
-        else
-        {
-            LOG_ERR( "channelId not found" );
-        }
-
-        // Is it happened while drive is closing?
-        if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end() )
-        {
-            const auto& driveKey = channelIt->second.m_driveKey;
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
+            DBG_SINGLE_THREAD
             
-            if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+            // clear opinion map
+            if ( auto it = m_downloadOpinionMap.find( blockHash.array() ); it != m_downloadOpinionMap.end() )
             {
-                bool deleteDrive = false;
-
-                if ( driveIt->second->closingBlockHash() == blockHash )
-                {
-                    channelIt->second.m_isClosed = true;
-                    
-                    for( const auto& [key,channelInfo] : m_downloadChannelMap )
-                    {
-                        if ( channelInfo.m_driveKey == driveKey && !channelInfo.m_isClosed )
-                            break;
-                    }
-                    
-                    deleteDrive = true;
-                }
-                lock.unlock();
-
-                if ( deleteDrive )
-                {
-                    std::unique_lock<std::shared_mutex> lock(m_downloadOpinionMutex);
-
-                    std::erase_if( m_downloadChannelMap, [&driveKey] (const auto& item) {
-                        return item.second.m_driveKey == driveKey;
-                    });
-
-                    std::erase_if( m_modifyDriveMap, [&driveKey] (const auto& item) {
-                        return item.second.m_driveKey == driveKey;
-                    });
-
-                    driveIt->second->removeAllDriveData();
-                    
-                    m_driveMap.erase( driveIt );
-                }
+                if ( it->second.m_timer )
+                    it->second.m_timer.reset();
+            }
+            else
+            {
+                LOG_ERR( "channelId not found" );
             }
 
-        }
+            // Is it happened while drive is closing?
+            if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end() )
+            {
+                const auto& driveKey = channelIt->second.m_driveKey;
+
+                if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+                {
+                    bool driveWillBeDeleted = false;
+
+                    if ( driveIt->second->closingTxHash() == blockHash )
+                    {
+                        channelIt->second.m_isClosed = true;
+
+                        for( const auto& [key,channelInfo] : m_downloadChannelMap )
+                        {
+                            if ( channelInfo.m_driveKey == driveKey && !channelInfo.m_isClosed )
+                                break;
+                        }
+
+                        driveWillBeDeleted = true;
+                    }
+
+                    if ( driveWillBeDeleted )
+                    {
+                        deleteDrive( driveKey );
+                    }
+                }
+
+            }
+        });//post
+    }
+    
+    void deleteDrive( const std::array<uint8_t,32>& driveKey )
+    {
+        DBG_SINGLE_THREAD
+
+        std::erase_if( m_downloadChannelMap, [&driveKey] (const auto& item) {
+            return item.second.m_driveKey == driveKey;
+        });
+
+        std::erase_if( m_modifyDriveMap, [&driveKey] (const auto& item) {
+            return item.second.m_driveKey == driveKey;
+        });
+
+        auto driveIt = m_driveMap.find( driveKey );
+        assert( driveIt != m_driveMap.end() );
+
+        driveIt->second->removeAllDriveData();
         
+        m_driveMap.erase( driveIt );
     }
     
     virtual void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
+        DBG_SINGLE_THREAD
+        
         if ( auto it = m_driveMap.find( anOpinion.m_driveKey ); it != m_driveMap.end() )
         {
             it->second->onOpinionReceived( anOpinion );
@@ -546,38 +619,50 @@ public:
         }
     }
     
-    virtual void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
+    virtual void asyncApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) override
     {
-        if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
-        {
-            it->second->onApprovalTransactionHasBeenPublished( transaction );
-        }
-        else
-        {
-            LOG_ERR( "drive not found" );
-        }
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
+            DBG_SINGLE_THREAD
+
+            if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
+            {
+                it->second->onApprovalTransactionHasBeenPublished( transaction );
+            }
+            else
+            {
+                LOG_ERR( "drive not found" );
+            }
+        });//post
     }
     
-    virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
+    virtual void asyncSingleApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) override
     {
-        if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
-        {
-            it->second->onSingleApprovalTransactionHasBeenPublished( transaction );
-        }
-        else
-        {
-            LOG_ERR( "drive not found" );
-        }
-
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
+            DBG_SINGLE_THREAD
+            
+            if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
+            {
+                it->second->onSingleApprovalTransactionHasBeenPublished( transaction );
+            }
+            else
+            {
+                LOG_ERR( "drive not found" );
+            }
+        });//post
     }
     
     virtual void sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint endpoint, const std::string& message ) override
     {
+        //todo? DBG_SINGLE_THREAD
         m_session->sendMessage( query, { endpoint.address(), endpoint.port() }, message );
     }
     
     virtual void onMessageReceived( const std::string& query, const std::string& message ) override try
     {
+        DBG_SINGLE_THREAD
+        
         //todo
         if ( query == "opinion" )
         {
@@ -645,9 +730,76 @@ public:
             m_session->lt_session().set_peer_class_filter(f);
         }
     }
+
+    bool isPeerReplicator( const FlatDrive& drive, const std::array<uint8_t,32>&  peerPublicKey )
+    {
+        DBG_SINGLE_THREAD
+        
+        auto& replicatorList = drive.replicatorList();
+        auto replicatorIt = std::find_if( replicatorList.begin(), replicatorList.end(), [&peerPublicKey] (const auto& it) {
+            return it.m_publicKey.array() == peerPublicKey;
+        });
+        
+        return replicatorIt != replicatorList.end();
+    }
+    
+    bool acceptConnection( const std::array<uint8_t,32>&  transactionHash,
+                           const std::array<uint8_t,32>&  peerPublicKey,
+                           bool*                          outIsDownloadUnlimited ) override
+    {
+        DBG_SINGLE_THREAD
+        
+        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
+        {
+            if ( it->second.m_isModifyTx )
+            {
+                if ( auto driveIt = m_driveMap.find( it->second.m_driveKey ); driveIt != m_driveMap.end() )
+                {
+                    if ( isPeerReplicator( *driveIt->second, peerPublicKey) )
+                    {
+                        *outIsDownloadUnlimited = true;
+                        return true;
+                    }
+                    else
+                    {
+                        //LOG_ERR( "acceptConnection: unknown peerPublicKey: " << sirius::Key(peerPublicKey) );
+                        return false;
+                    }
+                }
+                else
+                {
+                    LOG_ERR( "acceptConnection: unknown drive: " << sirius::Key(it->second.m_driveKey) );
+                    return false;
+                }
+            }
+            else // it is connection for download channel
+            {
+                auto& clients = it->second.m_clients;
+                auto clientIt = std::find( clients.begin(), clients.end(), peerPublicKey);
+                return clientIt != clients.end();
+            }
+            
+            return false;
+        }
+        
+//        _LOG( dbgOurPeerName() << " hash: " << (int)transactionHash[0] );
+//        assert(0);
+        return false;
+    }
+
+
     
     const char* dbgReplicatorName() const override { return m_dbgReplicatorName.c_str(); }
     
+    virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) override
+    {
+        if ( auto it = m_driveMap.find(driveKey); it != m_driveMap.end() )
+        {
+            return it->second;
+        }
+        assert(0);
+    }
+
 private:
     std::shared_ptr<sirius::drive::Session> session() {
         return m_session;
@@ -661,7 +813,8 @@ std::shared_ptr<Replicator> createDefaultReplicator(
                                         std::string&&       storageDirectory,
                                         std::string&&       sandboxDirectory,
                                         bool                useTcpSocket,
-                                        ReplicatorEventHandler& handler,
+                                        ReplicatorEventHandler&     handler,
+                                        DbgReplicatorEventHandler*  dbgEventHandler,
                                         const char*         dbgReplicatorName )
 {
     return std::make_shared<DefaultReplicator>(
@@ -672,6 +825,7 @@ std::shared_ptr<Replicator> createDefaultReplicator(
                                                std::move(sandboxDirectory),
                                                useTcpSocket,
                                                handler,
+                                               dbgEventHandler,
                                                dbgReplicatorName );
 }
 

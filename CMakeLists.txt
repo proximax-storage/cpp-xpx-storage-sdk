@@ -20,13 +20,24 @@ include_directories(SYSTEM "libtorrent/include")
 include_directories(SYSTEM "rpclib/include")
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(CMAKE_VERBOSE_MAKEFILE ON)
+    
     # boost from brew has an issue linking to -licudata
     # https://stackoverflow.com/questions/65380307/os-x-library-not-found-for-licudata
     # this needs to be defined before add_library
     #link_directories(/usr/local/opt/icu4c/lib/)
+    #set(CMAKE_CXX_FLAGS "--sysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.0.sdk ${CMAKE_CXX_FLAGS}")
+    #set(CMAKE_CXX_FLAGS "-std=c++20 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.0.sdk ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-std=c++20 -isysroot                                             /Library/Developer/CommandLineTools/SDKs/MacOSX12.0.sdk ${CMAKE_CXX_FLAGS}")
+
+#    set(CMAKE_OSX_SYSROOT /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.0.sdk )
+#
+#    set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0")
 
     #link_directories(/usr/local/opt/openssl@1.1/lib)
-    #include_directories(SYSTEM "/usr/local/include/" )
+    #include_directories(SYSTEM "/usr/local/include/" "/Library/Developer/CommandLineTools/SDKs/MacOSX12.0.sdk/usr/include/")
+    #include_directories(SYSTEM "/Library/Developer/CommandLineTools/SDKs/MacOSX12.0.sdk/usr/include/")
+
 endif()
 
 add_subdirectory(src)

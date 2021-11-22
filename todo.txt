@@ -14,8 +14,6 @@ Buffer-pool (16KB,32KB ?)
 onApprovalTransactionHasBeenPublished and other
 Lock delete drive operation???? (Counter with mutex???)
 
-DeleteApproveTransaction???
-
 Раздача файлов из песочницы для streaming: каждый кусочек - это торрент
 
 Много клиентов на одном канале
@@ -24,9 +22,30 @@ DeleteApproveTransaction???
 
 Удаление и добавление в список репликаторов
 
-Modify before my Modify ended (очередь?)
+//////////
+   !!!modify() -> onModifyTxPublished() + add rootHash!!! 
+//////////
 
-!!!modify() -> onModifyTxPublished() + add rootHash!!!
-
+//////
 Replicator exchange & checkDownloadLimit()
+//////
 
+Как только в блокчейне опубликовна транзакция DriveClosure, репликаторы будут пытаться назначить этого репликатора на другой Драйв. При этом на публикацию downloadApprovalTransactions может понадобиться достаточно много времени.Поэтому лучше сначала очищать содержимое Драйва - и быть готовым обслуживать другой Драйв, а потом уже заниматься утверждением транзакций
+
+вы последние дни поднимали вопрос, что делать если узел перезагружается в разрере drive closure transaction. Если узел перезагружается, то есть еще одна проблема - будут потеряны рецепты
+
+!!!LocalDataBase!!!
+Рецепты для DownloadChannel (и для ModifyDrive?)
+
+если мы у репликаторов перешли на константные ссылки вместо rvalue, не имеет смысл у клиента тоже на них перейти для единообразия?
+
+- почистить мусор перед driveModificationIsCanceled() modifyTransactionEndedWithError()
+
+- чистить мусор после перезагрузки
+
+
+//////////////
+Остановить закачку если юзер-data-block превышает размер либо драйва либо предоплаченные
+Послать невалидную Tx если превышен размер драйва после вычисления нового FsTree
+Либо невалидные акт лист
+//////////////

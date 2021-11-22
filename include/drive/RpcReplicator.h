@@ -20,7 +20,7 @@
 
 namespace sirius::drive {
 
-class RpcReplicator : public ReplicatorEventHandler
+class RpcReplicator : public ReplicatorEventHandler, DbgReplicatorEventHandler
 {
 public:
     RpcReplicator(
@@ -59,6 +59,7 @@ public:
                 std::move(sandboxRootFolder),
                 true, // tcp
                 *this,
+                this,
                 name.c_str()
         );
 
@@ -205,7 +206,7 @@ private:
     types::RpcDriveInfo getDrive(const std::array<uint8_t, 32>& driveKey) {
         std::cout << "Replicator. getDrive: " << utils::HexFormat(driveKey) << std::endl;
 
-        std::shared_ptr<sirius::drive::FlatDrive> drive = m_replicator->getDrive(driveKey);
+        std::shared_ptr<sirius::drive::FlatDrive> drive = m_replicator->dbgGetDrive(driveKey);
         if (!drive){
             std::cout << "Replicator. getDrive. Drive not found: " << utils::HexFormat(driveKey) << std::endl;
             return {};
@@ -241,17 +242,21 @@ private:
                 rpcDataModification.m_transactionHash,
                 rpcDataModification.m_maxDataSize,
                 rpcDataModification.getReplicators(),
-                rpcDataModification.m_clientPubKey });
+                rpcDataModification.m_clientPubKey,
+            {}
+        });
     }
 
     void openDownloadChannel(const types::RpcDownloadChannelInfo& channelInfo) {
         std::cout << "Replicator. openDownloadChannel: " << utils::HexFormat(channelInfo.m_channelKey) << std::endl;
         m_replicator->addDownloadChannelInfo(
-                channelInfo.m_channelKey,
-                channelInfo.m_prepaidDownloadSize,
                 channelInfo.m_drivePubKey,
-                channelInfo.getReplicators(),
-                channelInfo.getClientsPublicKeys());
+                {
+                    channelInfo.m_channelKey,
+                    channelInfo.m_prepaidDownloadSize,
+                    channelInfo.getReplicators(),
+                    channelInfo.getClientsPublicKeys()
+                });
     }
 
     void closeDownloadChannel(const std::array<uint8_t, 32>& channelKey) {

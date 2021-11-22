@@ -52,6 +52,8 @@
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
 
+#include <boost/multiprecision/cpp_int.hpp>
+#include <numeric>
 
 namespace fs = std::filesystem;
 
@@ -71,7 +73,7 @@ protected:
           m_replicatorSandboxRoot( replicatorSandboxRootFolder )
     {}
 
-    virtual ~FlatDrivePaths() {}
+    virtual~FlatDrivePaths() {}
 
 protected:
     const Key       m_drivePubKey;
@@ -105,6 +107,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     using LtSession = std::shared_ptr<Session>;
     using lt_handle  = Session::lt_handle;
+    using uint128_t = boost::multiprecision::uint128_t;
 
     // UseTorrentInfo is used to avoid adding torrents into session with the same hash
     // and for deleting unused files and torrents from session
@@ -116,6 +119,10 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     LtSession     m_session;
 
     size_t        m_maxSize;
+
+    size_t        m_initSize;
+
+    bool          m_anyModificationsApproved;
     
     // It has the following statuses: "modification started", "sandbox calculated", modification approved"
     std::shared_mutex m_mutex;
@@ -123,8 +130,11 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     bool m_approveTransactionReceived = false;
     bool m_approveTransactionSent     = false; // approval transaction has been sent
     
+    // It will be not empty while drive is syncronizing with swarm
+    std::optional<InfoHash> m_syncRootHash;
+    
     // It is used when drive is closing
-    std::optional<Hash256> m_closingBlockHash = {};
+    std::optional<Hash256> m_closingTxHash = {};
 
     // Client data (for drive modification)
     std::optional<ModifyRequest> m_modifyRequest;
@@ -159,8 +169,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     
     std::optional<boost::asio::high_resolution_timer> m_opinionTimer;
 
-    // Will be called at the end of the sanbox work
-    ReplicatorEventHandler& m_eventHandler;
+    ReplicatorEventHandler&     m_eventHandler;
+    DbgReplicatorEventHandler*  m_dbgEventHandler = nullptr;
     
     // It is as 1-st parameter in functions of ReplicatorEventHandler (for debugging)
     Replicator&             m_replicator;
@@ -177,22 +187,27 @@ public:
                   const std::string&        replicatorSandboxRootFolder,
                   const Key&                drivePubKey,
                   size_t                    maxSize,
+                  size_t                    usedDriveSizeExcludingMetafiles,
                   ReplicatorEventHandler&   eventHandler,
                   Replicator&               replicator,
-                  const ReplicatorList&     replicatorList )
+                  const ReplicatorList&     replicatorList,
+                  DbgReplicatorEventHandler* dbgEventHandler )
         :
           FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
           m_session(session),
           m_maxSize(maxSize),
+          m_initSize(usedDriveSizeExcludingMetafiles),
+          m_anyModificationsApproved(false),
           m_replicatorList(replicatorList),
           m_eventHandler(eventHandler),
+          m_dbgEventHandler(dbgEventHandler),
           m_replicator(replicator)
     {
         // Initialize drive
         init();
     }
 
-    virtual ~DefaultFlatDrive() {
+    virtual~DefaultFlatDrive() {
         terminate();
     }
 
@@ -403,7 +418,7 @@ public:
                 return;
             }
             
-            it->m_isCanceled = true;
+            m_defferedModifyRequests.erase( it );
         }
     }
     
@@ -426,7 +441,7 @@ public:
 
     void startDriveClosing( const Hash256& transactionHash ) override
     {
-        m_closingBlockHash = {transactionHash};
+        m_closingTxHash = {transactionHash};
         
         std::shared_lock<std::shared_mutex> lock(m_mutex);
 
@@ -438,9 +453,17 @@ public:
 
         if ( m_modifyRequest )
         {
-            m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this,transactionHash] {
+            bool notEmptyRemoved = m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this,transactionHash] {
                 continueDriveClosing( transactionHash );
             });
+
+            if ( !notEmptyRemoved ) {
+                continueDriveClosing( transactionHash );
+            }
+        }
+        else
+        {
+            continueDriveClosing( transactionHash );
         }
     }
 
@@ -452,9 +475,10 @@ public:
 
         for( auto& [key,value]: m_torrentHandleMap )
         {
-            if ( value.m_isUsed )
-                tobeRemovedTorrents.insert( value.m_ltHandle );
+            tobeRemovedTorrents.insert( value.m_ltHandle );
         }
+        
+        tobeRemovedTorrents.insert( m_fsTreeLtHandle );
 
         m_session->removeTorrentsFromSession( std::move(tobeRemovedTorrents), [this,transactionHash](){
             m_replicator.closeDriveChannels( transactionHash, *this );
@@ -533,8 +557,9 @@ public:
                                             modifyRequest.m_transactionHash,
                                             0, //todo
                                             ""),
-                                        m_sandboxRootPath,
-                                        modifyRequest.m_replicatorList );
+                                                   m_sandboxRootPath,
+                                                   //{} );
+                                            m_replicatorList );
     }
 
     // will be called by Session
@@ -566,7 +591,7 @@ public:
             return;
         }
 
-        if ( code == download_status::complete )
+        if ( code == download_status::download_complete )
         {
             std::thread( [this] { this->modifyDriveInSandbox(); } ).detach();
         }
@@ -707,8 +732,8 @@ public:
 
                 if ( m_sandboxFsTree.getEntryPtr( action.m_param1 ) == nullptr )
                 {
-                    LOG( "invalid 'remove' action: src not exists (in FsTree): " << action.m_param1  );
-                    m_sandboxFsTree.dbgPrint();
+                    _LOG( "invalid 'remove' action: src not exists (in FsTree): " << action.m_param1  );
+                    //m_sandboxFsTree.dbgPrint();
                     action.m_isInvalid = true;
                     break;
                 }
@@ -730,6 +755,21 @@ public:
         m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
 
         myRootHashIsCalculated();
+    }
+
+    void normalizeOpinion(SingleOpinion &opinion, uint64_t targetSum)
+    {
+        uint128_t longTargetSum = targetSum;
+        uint128_t sumBefore = std::accumulate(opinion.m_replicatorUploadBytes.begin(),
+                                   opinion.m_replicatorUploadBytes.end(),
+                                   opinion.m_clientUploadBytes);
+        uint64_t sumAfter = 0;
+        for (auto& uploadBytes: opinion.m_replicatorUploadBytes) {
+            auto longUploadBytes = (uploadBytes * longTargetSum) / sumBefore;
+            uploadBytes = longUploadBytes.convert_to<uint64_t>();
+            sumAfter += uploadBytes;
+        }
+        opinion.m_clientUploadBytes = targetSum - sumAfter;
     }
     
     void createMyOpinion()
@@ -761,6 +801,15 @@ public:
         {
             opinion.m_clientUploadBytes = it->second.m_receivedSize;
         }
+
+        uint64_t targetSize = m_modifyRequest->m_maxDataSize;
+        if ( !m_anyModificationsApproved )
+        {
+            targetSize += m_initSize;
+            m_anyModificationsApproved = true;
+        }
+        normalizeOpinion(opinion, targetSize);
+
         opinion.Sign( m_replicator.keyPair(), m_modifyRequest->m_transactionHash, m_sandboxRootHash );
 
         // Calculate size of torrent files and total drive size
@@ -786,7 +835,8 @@ public:
             return;
         
         // Notify
-        m_eventHandler.rootHashIsCalculated( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_sandboxRootHash );
+        if ( m_dbgEventHandler )
+            m_dbgEventHandler->rootHashIsCalculated( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_sandboxRootHash );
         
         // Calculate my opinion
         createMyOpinion();
@@ -800,7 +850,11 @@ public:
             {
 //                std::cout << "RECEIVED" << std::endl;
                 lock.unlock();
-                sendSingleApprovalTransaction();
+                auto transactionHash = m_modifyRequest->m_transactionHash;
+                if ( !synchronizeDriveWithSandbox() )
+                {
+                    LOG_ERR( "onMyRootHashCalculated(): cannot synchronize drive with sandbox: " << transactionHash );
+                }
             }
             else
             {
@@ -929,7 +983,8 @@ public:
                                                                lt::sf_is_replicator );
 
         // Call update handler
-        m_eventHandler.driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
+        if ( m_dbgEventHandler )
+            m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
 
         LOG( "drive is synchronized" );
 
@@ -967,28 +1022,7 @@ public:
         }
     }
 
-    void     loadTorrent( const InfoHash& /*fileHash*/ ) override
-    {
-        //todo m_session->loadTorrent();
-    }
-    
-//    void     onDownloadOpinionReceived( const DownloadApprovalTransactionInfo& anOpinion ) override
-//    {
-//        //todo
-//    }
-//
-//    void     prepareDownloadApprovalTransactionInfo() override
-//    {
-//        //todo
-//    }
-    
-    // todo (could be removed?)
-//    const ModifyRequest& modifyRequest() const override
-//    {
-//        return *m_modifyRequest;
-//    }
-    
-    virtual void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
+    void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
         if ( anOpinion.m_opinions.size() != 1 )
             return; //is it spam?
@@ -1063,7 +1097,7 @@ public:
         m_approveTransactionSent = true;
     }
 
-    virtual void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
+    void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
         if ( !m_modifyRequest || m_modifyRequest->m_transactionHash != transaction.m_modifyTransactionHash )
         {
@@ -1076,6 +1110,7 @@ public:
         
         m_approveTransactionReceived = true;
         
+        _LOG( "onApprovalTransactionHasBeenPublished(): m_sandboxCalculated=" << m_sandboxCalculated )
         if ( !m_sandboxCalculated )
         {
             return;
@@ -1084,21 +1119,19 @@ public:
         {
             const auto& v = transaction.m_opinions;
             auto it = std::find_if( v.begin(), v.end(), [this] (const auto& opinion) {
-                            return opinion.m_replicatorKey == m_replicator.replicatorKey().array();
+                return opinion.m_replicatorKey == m_replicator.replicatorKey().array();
             });
+
             // Is my opinion present
-            if ( it != v.end() )
-            {
-                if ( !synchronizeDriveWithSandbox() )
-                {
-                    LOG_ERR( "onApprovalTransactionHasBeenPublished(): cannot synchronize drive with sandbox: " << Hash256(transaction.m_modifyTransactionHash) );
-                }
-            }
-            else
+            if ( it == v.end() )
             {
                 // Send Single Aproval Transaction
-                if ( m_myOpinion )
-                    sendSingleApprovalTransaction();
+                sendSingleApprovalTransaction();
+            }
+
+            if ( !synchronizeDriveWithSandbox() )
+            {
+                LOG_ERR( "onApprovalTransactionHasBeenPublished(): cannot synchronize drive with sandbox: " << Hash256(transaction.m_modifyTransactionHash) );
             }
         }
     }
@@ -1109,20 +1142,28 @@ public:
         m_eventHandler.singleModifyApprovalTransactionIsReady( m_replicator, std::move(copy) );
     }
 
-    virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
+    void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
-        if ( !synchronizeDriveWithSandbox() )
-        {
-            LOG_ERR( "onSingleApprovalTransactionHasBeenPublished(): cannot synchronize drive with sandbox: " << Hash256(transaction.m_modifyTransactionHash) );
-        }
-    }
-
-    const std::optional<Hash256>& closingBlockHash() const override
-    {
-        return m_closingBlockHash;
+        _LOG( "onSingleApprovalTransactionHasBeenPublished()" );
     }
     
-    virtual void removeAllDriveData() override
+    void startDriveSyncWithSwarm( std::optional<InfoHash>&& actualRootHash ) override
+    {
+        m_syncRootHash = std::move( actualRootHash );
+        //todo
+    }
+    
+    bool isOutOfSync() const override
+    {
+        return m_syncRootHash.has_value();
+    }
+
+    const std::optional<Hash256>& closingTxHash() const override
+    {
+        return m_closingTxHash;
+    }
+    
+    void removeAllDriveData() override
     {
         {
             // When node is restaring and file "is_closing" exists, but file "approval_tx_has_been_bulished" is not exists,
@@ -1136,11 +1177,15 @@ public:
         fs::remove_all( m_driveRootPath );
         fs::remove_all( m_sandboxRootPath );
         
-        m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_closingBlockHash );
+        m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_closingTxHash );
     }
 
+    const ReplicatorList&  replicatorList() const override
+    {
+        return m_replicatorList;
+    }
 
-    virtual void printDriveStatus() override
+    void printDriveStatus() override
     {
         LOG("Drive Status:")
         m_fsTree.dbgPrint();
@@ -1156,9 +1201,11 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
         const std::string&       replicatorSandboxRootFolder,
         const Key&               drivePubKey,
         size_t                   maxSize,
+        size_t                   usedDriveSizeExcludingMetafiles,
         ReplicatorEventHandler&  eventHandler,
         Replicator&              replicator,
-        const ReplicatorList&    replicators )
+        const ReplicatorList&    replicators,
+        DbgReplicatorEventHandler* dbgEventHandler )
 
 {
     return std::make_shared<DefaultFlatDrive>( session,
@@ -1166,9 +1213,11 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
                                            replicatorSandboxRootFolder,
                                            drivePubKey,
                                            maxSize,
+                                           usedDriveSizeExcludingMetafiles,
                                            eventHandler,
                                            replicator,
-                                           replicators );
+                                           replicators,
+                                           dbgEventHandler );
 }
 
 }

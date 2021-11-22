@@ -26,6 +26,12 @@ class Replicator;
         };
     };
 
+    struct AddDriveRequest {
+        uint64_t          driveSize;
+        uint64_t          usedDriveSizeExcludingMetafiles;
+        ReplicatorList    replicators;
+    };
+
     using DriveModifyHandler = std::function<void( modify_status::code, const FlatDrive& drive, const std::string& error )>;
 
     struct ModifyRequest {
@@ -36,6 +42,13 @@ class Replicator;
         Key               m_clientPublicKey;
         
         bool              m_isCanceled = false;
+    };
+
+    struct DownloadRequest {
+        Key                  m_channelKey;
+        uint64_t             m_prepaidDownloadSize;
+        ReplicatorList       m_addrList;
+        std::vector<Key>     m_clients;
     };
 
     // It is opinition of single replicator about how much data the other peers transferred.
@@ -111,7 +124,7 @@ class Replicator;
         // A reference to the transaction that initiated the modification
         std::array<uint8_t,32>  m_modifyTransactionHash;
 
-        // Content Download Information for the File Structure
+        // New root hash (hash of the File Structure)
         std::array<uint8_t,32>  m_rootHash;
         
         // The size of the “File Structure” File
@@ -216,24 +229,12 @@ class Replicator;
 
         virtual ~ReplicatorEventHandler() = default;
 
-        // It will be called before 'replicator' shuts down
-        virtual void willBeTerminated( Replicator& replicator ) = 0;
-
-        virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
-
-        // It will be called when transaction could not be completed
+        // It will be called when modification ended with error (for example small disc space)
         virtual void modifyTransactionEndedWithError( Replicator&               replicator,
                                                      const sirius::Key&         driveKey,
                                                      const ModifyRequest&       modifyRequest,
                                                      const std::string&         reason,
                                                      int                        errorCode ) = 0;
-        
-        // It will be called when rootHash is calculated in sandbox
-        // (TODO it will be removed)
-        virtual void rootHashIsCalculated( Replicator&                    replicator,
-                                           const sirius::Key&             driveKey,
-                                           const Hash256&                 modifyTransactionHash,
-                                           const sirius::drive::InfoHash& sandboxRootHash ) = 0;
         
         // It will initiate the approving of modify transaction
         virtual void modifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
@@ -241,25 +242,56 @@ class Replicator;
         // It will initiate the approving of single modify transaction
         virtual void singleModifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
         
-        // It will be called after the drive is syncronized with sandbox
-        virtual void driveModificationIsCompleted( Replicator&                    replicator,
-                                                   const sirius::Key&             driveKey,
-                                                   const Hash256&                 modifyTransactionHash,
-                                                   const sirius::drive::InfoHash& rootHash ) = 0;
+        // It will be called when transaction could not be completed
+        virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
 
-        // It will be called after the drive is syncronized with sandbox
+        // It will be called in response on CancelModifyTransaction
         virtual void driveModificationIsCanceled(  Replicator&                  replicator,
                                                    const sirius::Key&           driveKey,
                                                    const Hash256&               modifyTransactionHash )
         {
-            //todo make it pure virtual function?
         }
 
+        // It will be called in response on CloseDriveTransaction
+        // It is needed to remove 'drive' from drive list (by Storage Extension)
+        // (If this method has not been not called, then the disk has not yet been removed from the HDD - operation is not comapleted)
         virtual void driveIsClosed(  Replicator&                replicator,
                                      const sirius::Key&         driveKey,
                                      const Hash256&             transactionHash )
         {
             //todo make it pure virtual function?
+        }
+    };
+
+    class DbgReplicatorEventHandler
+    {
+    public:
+
+        virtual ~DbgReplicatorEventHandler() = default;
+
+        // It will be called after the drive is syncronized with sandbox
+        virtual void driveModificationIsCompleted( Replicator&                    replicator,
+                                                   const sirius::Key&             driveKey,
+                                                   const Hash256&                 modifyTransactionHash,
+                                                   const sirius::drive::InfoHash& rootHash )
+        {
+            // for debugging?
+        }
+
+        // It will be called when rootHash is calculated in sandbox
+        // (TODO it will be removed)
+        virtual void rootHashIsCalculated( Replicator&                    replicator,
+                                           const sirius::Key&             driveKey,
+                                           const Hash256&                 modifyTransactionHash,
+                                           const sirius::drive::InfoHash& sandboxRootHash )
+        {
+            // for debugging?
+        }
+        
+        // It will be called before 'replicator' shuts down
+        virtual void willBeTerminated( Replicator& replicator )
+        {
+            //?
         }
     };
 
@@ -294,13 +326,7 @@ class Replicator;
 
         virtual void     startDriveClosing( const Hash256& transactionHash ) = 0;
 
-        virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
-        
-//        virtual void     onDownloadOpinionReceived( const DownloadApprovalTransactionInfo& anOpinion ) = 0;
-//
-//        virtual void     prepareDownloadApprovalTransactionInfo() = 0;
-        
-//        virtual const ModifyRequest& modifyRequest() const = 0;
+//        virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
         
         virtual void     onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
 
@@ -308,11 +334,17 @@ class Replicator;
 
         virtual void     onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
         
+        // actualRootHash should not be empty
+        virtual void     startDriveSyncWithSwarm( std::optional<InfoHash>&& actualRootHash ) = 0;
+        
+        virtual bool     isOutOfSync() const = 0;
+        
         // It will be called by replicator
-        virtual const std::optional<Hash256>& closingBlockHash() const = 0;
+        virtual const std::optional<Hash256>& closingTxHash() const = 0;
         
         virtual void removeAllDriveData() = 0;
 
+        virtual const ReplicatorList&  replicatorList() const = 0;
 
         // for testing and debugging
         virtual void printDriveStatus() = 0;
@@ -325,8 +357,10 @@ class Replicator;
                                                        const std::string&       replicatorSandboxRootFolder,
                                                        const Key&               drivePubKey,
                                                        size_t                   maxSize,
+                                                       size_t                   usedDriveSizeExcludingMetafiles,
                                                        ReplicatorEventHandler&  eventHandler,
                                                        Replicator&              replicator,
-                                                       const ReplicatorList&    replicators);
+                                                       const ReplicatorList&    replicators,
+                                                       DbgReplicatorEventHandler* dbgEventHandler = nullptr );
 }
 
