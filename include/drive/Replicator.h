@@ -25,15 +25,21 @@ using ReplicatorUploadMap = std::map<std::array<uint8_t,32>,ReplicatorUploadInfo
 
 struct DownloadChannelInfo
 {
+    bool                    m_isModifyTx;
+    
     uint64_t                m_prepaidDownloadSize;
     uint64_t                m_requestedSize = 0;
     uint64_t                m_uploadedSize = 0;
-    std::array<uint8_t, 32> m_driveKey;
+    std::array<uint8_t,32>  m_driveKey;
     ReplicatorList          m_replicatorsList;      //todo must be synchronized with drive.m_replicatorList (in higher versions?)
     ReplicatorUploadMap     m_replicatorUploadMap;
     std::vector<std::array<uint8_t, 32>> m_clients; //todo
+    
+    // it is used when drive is closing
+    bool                    m_isClosed = false;
 };
 
+// key is a channel hash
 using ChannelMap         = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
 
 struct DownloadOpinionMapValue
@@ -65,6 +71,7 @@ using ModifyTrafficMap = std::map<std::array<uint8_t,32>,ModifyTrafficInfo>;
 
 struct ModifyDriveInfo
 {
+    std::array<uint8_t,32>  m_driveKey;
     uint64_t                m_maxDataSize;
     ReplicatorList          m_replicatorsList;
     ModifyTrafficMap        m_modifyTrafficMap;
@@ -145,6 +152,10 @@ public:
     // It continues drive closing (initiates DownloadApprovalTransaction and than removes drive)
     virtual void        closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) = 0;
     
+    // It will be used while drive closing
+    virtual void        removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash ) = 0;
+
+    
     // TODO:
     // They will be called after 'cancel modify transaction' has been published
 //    virtual void        onTransactionCanceled( ApprovalTransactionInfo&& transaction ) = 0;
@@ -158,6 +169,7 @@ public:
     virtual void        setDownloadApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual void        setModifyApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual int         getModifyApprovalTransactionTimerDelay() = 0;
+    virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
 
     
     // Message exchange
@@ -177,7 +189,7 @@ public:
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(
-                                               crypto::KeyPair&&,
+                                               const crypto::KeyPair&,
                                                std::string&&  address,
                                                std::string&&  port,
                                                std::string&&  storageDirectory,

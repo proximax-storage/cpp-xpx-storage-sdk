@@ -23,8 +23,10 @@ class DownloadLimiter : public Replicator,
                         public lt::session_delegate,
                         public std::enable_shared_from_this<DownloadLimiter>
 {
-protected:
-    
+protected:    
+    // Replicator's keys
+    const crypto::KeyPair& m_keyPair;
+
     std::shared_mutex   m_mutex;
 
     ChannelMap          m_downloadChannelMap;
@@ -35,8 +37,6 @@ protected:
 
 
     ModifyDriveMap      m_modifyDriveMap;
-
-    const crypto::KeyPair& m_keyPair;
 
     uint64_t            m_receiptLimit = 32*1024; //1024*1024;
 
@@ -69,6 +69,7 @@ public:
                          uint64_t                       prepaidDownloadSize,
                          const Key&                     driveKey,
                          const ReplicatorList&          replicatorsList,
+
                          const std::vector<std::array<uint8_t,32>>&  clients );
 
     void addModifyDriveInfo( const Key&             modifyTransactionHash,
@@ -76,8 +77,8 @@ public:
                              uint64_t               dataSize,
                              const Key&             clientPublicKey,
                              const ReplicatorList&  replicatorsList );
-    
-    void removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash );
+
+    void removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash ) override;
 
     void onPieceRequest( const std::array<uint8_t,32>&  transactionHash,
                            const std::array<uint8_t,32>&  receiverPublicKey,
@@ -94,7 +95,6 @@ public:
     void onPieceReceived( const std::array<uint8_t,32>&  transactionHash,
                           const std::array<uint8_t,32>&  senderPublicKey,
                           uint64_t                       pieceSize ) override;
-
 
     // will be called when one replicator informs another about downloaded size by client
     virtual void acceptReceiptFromAnotherReplicator( const std::array<uint8_t,32>&  downloadChannelId,

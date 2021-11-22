@@ -164,8 +164,8 @@ namespace sirius::drive {
             if ( it.m_publicKey.array() != publicKey() )
                 map.insert( { it.m_publicKey.array(), {}} );
         }
-        
-        m_downloadChannelMap[channelId] = DownloadChannelInfo{ prepaidDownloadSize, 0, 0, driveKey.array(), replicatorsList, map, clients };
+
+        m_downloadChannelMap[channelId] = DownloadChannelInfo{ false, prepaidDownloadSize, 0, 0, driveKey.array(), replicatorsList, map, clients };
     }
 
     void DownloadLimiter::addModifyDriveInfo( const Key&             modifyTransactionHash,
@@ -178,7 +178,7 @@ namespace sirius::drive {
 
         ModifyTrafficMap trafficMap;
         trafficMap.insert( { clientPublicKey.array(), {0,0}} );
-        
+
         std::vector<std::array<uint8_t,32>> clients;
         for( const auto& it : replicatorsList )
         {
@@ -189,8 +189,8 @@ namespace sirius::drive {
                 clients.emplace_back( it.m_publicKey.array() );
             }
         }
-        
-        m_modifyDriveMap[modifyTransactionHash.array()] = ModifyDriveInfo{ dataSize, replicatorsList, trafficMap, 0 };
+
+        m_modifyDriveMap[modifyTransactionHash.array()] = ModifyDriveInfo{ driveKey.array(), dataSize, replicatorsList, trafficMap, 0 };
         lock.unlock();
 
         // we need to add modifyTransactionHash into 'm_downloadChannelMap'
@@ -198,7 +198,7 @@ namespace sirius::drive {
         //
         {
             std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
-            m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ dataSize, 0, 0, driveKey.array(), replicatorsList, {}, clients };
+            m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, dataSize, 0, 0, driveKey.array(), replicatorsList, {}, clients };
         }
     }
 
@@ -289,7 +289,7 @@ namespace sirius::drive {
                 it->second.m_totalReceivedSize += pieceSize;
                 return;
             }
-            
+
             LOG_ERR( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
         }
 
@@ -323,16 +323,19 @@ namespace sirius::drive {
         if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
         {
             // check client key
-            const auto& v = it->second.m_clients;
-            if ( std::find_if( v.begin(), v.end(), [&clientPublicKey](const auto& element)
-                              { return element == clientPublicKey; } ) == v.end() )
+            if ( !it->second.m_isModifyTx )
             {
-                LOG_ERR( "acceptReceiptFromAnotherReplicator: bad client key; it is ignored" );
-                return;
+                const auto& v = it->second.m_clients;
+                if ( std::find_if( v.begin(), v.end(), [&clientPublicKey](const auto& element)
+                { return element == clientPublicKey; } ) == v.end() )
+                {
+                    LOG_ERR( "acceptReceiptFromAnotherReplicator: bad client key; it is ignored" );
+                    return;
+                }
             }
 
             auto replicatorIt = it->second.m_replicatorUploadMap.find( replicatorPublicKey );
-            
+
             if ( replicatorIt != it->second.m_replicatorUploadMap.end() )
             {
                 replicatorIt->second.m_uploadedSize = downloadedSize;
@@ -342,7 +345,7 @@ namespace sirius::drive {
                 // check replicator key
                 const auto& v = it->second.m_replicatorsList;
                 if ( std::find_if( v.begin(), v.end(), [&replicatorPublicKey](const auto& element)
-                                  { return element.m_publicKey.array() == replicatorPublicKey; } ) == v.end() )
+                { return element.m_publicKey.array() == replicatorPublicKey; } ) == v.end() )
                 {
                     LOG_ERR( "acceptReceiptFromAnotherReplicator: bad replicator key; it is ignored" );
                     return;
@@ -388,14 +391,14 @@ namespace sirius::drive {
                                        std::array<uint8_t,64>&       outSignature )
     {
         // not used
-//        crypto::Sign( m_keyPair,
-//                      {
-//                        utils::RawBuffer{downloadChannelId},
-//                        utils::RawBuffer{m_keyPair.publicKey()},
-//                        utils::RawBuffer{replicatorPublicKey},
-//                        utils::RawBuffer{(const uint8_t*)&downloadedSize,8}
-//                      },
-//                      reinterpret_cast<Signature&>(outSignature) );
+        crypto::Sign( m_keyPair,
+                      {
+                              utils::RawBuffer{downloadChannelId},
+                              utils::RawBuffer{m_keyPair.publicKey()},
+                              utils::RawBuffer{replicatorPublicKey},
+                              utils::RawBuffer{(const uint8_t*)&downloadedSize,8}
+                      },
+                      reinterpret_cast<Signature&>(outSignature) );
     }
 
     bool DownloadLimiter::verifyReceipt(  const std::array<uint8_t,32>&  downloadChannelId,
@@ -406,10 +409,10 @@ namespace sirius::drive {
     {
         return crypto::Verify( clientPublicKey,
                                {
-                                    utils::RawBuffer{downloadChannelId},
-                                    utils::RawBuffer{clientPublicKey},
-                                    utils::RawBuffer{replicatorPublicKey},
-                                    utils::RawBuffer{(const uint8_t*)&downloadedSize,8}
+                                       utils::RawBuffer{downloadChannelId},
+                                       utils::RawBuffer{clientPublicKey},
+                                       utils::RawBuffer{replicatorPublicKey},
+                                       utils::RawBuffer{(const uint8_t*)&downloadedSize,8}
                                },
                                reinterpret_cast<const Signature&>(signature) );
     }

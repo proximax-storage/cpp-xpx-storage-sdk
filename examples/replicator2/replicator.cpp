@@ -12,8 +12,8 @@
 #define REPLICATOR_ADDRESS              "192.168.0.102"
 #define REPLICATOR_PORT                 "5550"
 #define RPC_PORT                        5510
-#define REPLICATOR_ROOT_FOLDER          (std::string(getenv("HOME"))+"/111/replicator_root")
-#define REPLICATOR_SANDBOX_ROOT_FOLDER  (std::string(getenv("HOME"))+"/111/sandbox_root")
+#define REPLICATOR_ROOT_FOLDER          (std::string(getenv("HOME"))+"/111/replicator1/replicator_root")
+#define REPLICATOR_SANDBOX_ROOT_FOLDER  (std::string(getenv("HOME"))+"/111/replicator1/sandbox_root")
 #define EMULATOR_RPC_ADDRESS            "192.168.0.101"
 #define EMULATOR_RPC_PORT               5510
 

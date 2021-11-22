@@ -32,11 +32,8 @@ public:
     std::shared_ptr<Session> m_session;
 
     // Drives
-    std::map<Key, std::shared_ptr<sirius::drive::FlatDrive>> m_drives;
+    std::map<Key, std::shared_ptr<FlatDrive>> m_driveMap;
     std::shared_mutex  m_driveMutex;
-
-    // Replicator's keys
-    crypto::KeyPair m_keyPair;
 
     // Session listen interface
     std::string m_address;
@@ -53,20 +50,19 @@ public:
 
     ReplicatorEventHandler& m_eventHandler;
 
-    const char* m_dbgReplicatorName;
+    const std::string m_dbgReplicatorName;
     
 public:
     DefaultReplicator (
-               crypto::KeyPair&& keyPair,
+               const crypto::KeyPair& keyPair,
                std::string&& address,
                std::string&& port,
                std::string&& storageDirectory,
                std::string&& sandboxDirectory,
                bool          useTcpSocket,
                ReplicatorEventHandler& handler,
-               const char*   dbgReplicatorName ) : DownloadLimiter( m_keyPair, dbgReplicatorName ),
+               const char*   dbgReplicatorName ) : DownloadLimiter( keyPair, dbgReplicatorName ),
 
-        m_keyPair( std::move(keyPair) ),
         m_address( std::move(address) ),
         m_port( std::move(port) ),
         m_storageDirectory( std::move(storageDirectory) ),
@@ -88,13 +84,13 @@ public:
             },
             weak_from_this(),
             m_useTcpSocket );
-        m_session->lt_session().m_dbgOurPeerName = m_dbgReplicatorName;
+        m_session->lt_session().m_dbgOurPeerName = m_dbgReplicatorName.c_str();
     }
 
     Hash256 getRootHash( const Key& driveKey ) override
     {
         std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-        if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+        if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
         {
             auto rootHash = driveIt->second->rootHash();
             LOG( "getRootHash of: " << driveKey << " -> " << rootHash );
@@ -110,7 +106,7 @@ public:
     void printDriveStatus( const Key& driveKey ) override
     {
         std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-        if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+        if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
         {
             return driveIt->second->printDriveStatus();
         }
@@ -127,7 +123,7 @@ public:
 
         std::unique_lock<std::shared_mutex> lock(m_driveMutex);
 
-        if (m_drives.find(driveKey) != m_drives.end()) {
+        if (m_driveMap.find(driveKey) != m_driveMap.end()) {
             return "drive already added";
         }
 
@@ -142,7 +138,7 @@ public:
         }
 
         // TODO: exclude itself from replicators !
-        m_drives[driveKey] = sirius::drive::createDefaultFlatDrive(
+        m_driveMap[driveKey] = sirius::drive::createDefaultFlatDrive(
                 session(),
                 m_storageDirectory,
                 m_sandboxDirectory,
@@ -161,7 +157,7 @@ public:
 
         std::unique_lock<std::shared_mutex> lock(m_driveMutex);
 
-        if ( auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+        if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
         {
             driveIt->second->startDriveClosing( transactionHash );
         }
@@ -170,7 +166,7 @@ public:
             return "drive not found";
         }
 
-        m_drives.erase(driveKey);
+        m_driveMap.erase(driveKey);
         return "";
     }
 
@@ -179,13 +175,13 @@ public:
 
         std::shared_lock<std::shared_mutex> lock(m_driveMutex);
 
-        if (m_drives.find(driveKey) == m_drives.end())
+        if (m_driveMap.find(driveKey) == m_driveMap.end())
         {
             LOG( "drive not found " << driveKey );
             return nullptr;
         }
 
-        return m_drives[driveKey];
+        return m_driveMap[driveKey];
     }
 
     std::string modify( const Key& driveKey, ModifyRequest&& modifyRequest ) override
@@ -196,7 +192,7 @@ public:
 
         std::shared_ptr<sirius::drive::FlatDrive> pDrive;
         {
-            if ( auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+            if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
             {
                 pDrive = driveIt->second;
             }
@@ -228,7 +224,7 @@ public:
     {
         std::shared_lock<std::shared_mutex> lock(m_driveMutex);
         
-        if ( const auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+        if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
         {
             driveIt->second->cancelModifyDrive( transactionHash );
             return "";
@@ -247,7 +243,7 @@ public:
         std::shared_ptr<sirius::drive::FlatDrive> pDrive;
         {
             const std::unique_lock<std::shared_mutex> lock(m_driveMutex);
-            if ( auto driveIt = m_drives.find(driveKey); driveIt != m_drives.end() )
+            if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
             {
                 pDrive = driveIt->second;
             }
@@ -311,6 +307,7 @@ public:
             // go throw replictor list
             for( auto replicatorIt = it->second.m_replicatorsList.begin(); replicatorIt != it->second.m_replicatorsList.end(); replicatorIt++ )
             {
+                //todo++++
                 m_session->sendMessage( "rcpt", { replicatorIt->m_endpoint.address(), replicatorIt->m_endpoint.port() }, message );
             }
         }
@@ -463,11 +460,19 @@ public:
         //_LOG( "//exit prepareDownloadApprovalTransactionInfo: " << dbgReplicatorName() );
     }
     
+    // It is called when drive is closing
     virtual void closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) override
     {
-        
-    }
+        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
+        for( auto& [channelId,channelInfo] : m_downloadChannelMap )
+        {
+            if ( channelInfo.m_driveKey == drive.drivePublicKey().array() )
+            {
+                prepareDownloadApprovalTransactionInfo( blockHash, channelId );
+            }
+        }
+    }
     
     virtual void onDownloadApprovalTransactionHasBeenPublished( const Hash256& blockHash, const Hash256& channelId, bool driveIsClosed ) override
     {
@@ -483,11 +488,55 @@ public:
         {
             LOG_ERR( "channelId not found" );
         }
+
+        // Is it happened while drive is closing?
+        if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end() )
+        {
+            const auto& driveKey = channelIt->second.m_driveKey;
+            
+            if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+            {
+                bool deleteDrive = false;
+
+                if ( driveIt->second->closingBlockHash() == blockHash )
+                {
+                    channelIt->second.m_isClosed = true;
+                    
+                    for( const auto& [key,channelInfo] : m_downloadChannelMap )
+                    {
+                        if ( channelInfo.m_driveKey == driveKey && !channelInfo.m_isClosed )
+                            break;
+                    }
+                    
+                    deleteDrive = true;
+                }
+                lock.unlock();
+
+                if ( deleteDrive )
+                {
+                    std::unique_lock<std::shared_mutex> lock(m_downloadOpinionMutex);
+
+                    std::erase_if( m_downloadChannelMap, [&driveKey] (const auto& item) {
+                        return item.second.m_driveKey == driveKey;
+                    });
+
+                    std::erase_if( m_modifyDriveMap, [&driveKey] (const auto& item) {
+                        return item.second.m_driveKey == driveKey;
+                    });
+
+                    driveIt->second->removeAllDriveData();
+                    
+                    m_driveMap.erase( driveIt );
+                }
+            }
+
+        }
+        
     }
     
     virtual void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
-        if ( auto it = m_drives.find( anOpinion.m_driveKey ); it != m_drives.end() )
+        if ( auto it = m_driveMap.find( anOpinion.m_driveKey ); it != m_driveMap.end() )
         {
             it->second->onOpinionReceived( anOpinion );
         }
@@ -499,7 +548,7 @@ public:
     
     virtual void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
-        if ( auto it = m_drives.find( transaction.m_driveKey ); it != m_drives.end() )
+        if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
         {
             it->second->onApprovalTransactionHasBeenPublished( transaction );
         }
@@ -511,7 +560,7 @@ public:
     
     virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
-        if ( auto it = m_drives.find( transaction.m_driveKey ); it != m_drives.end() )
+        if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
         {
             it->second->onSingleApprovalTransactionHasBeenPublished( transaction );
         }
@@ -537,7 +586,7 @@ public:
             ApprovalTransactionInfo info;
             iarchive( info );
             
-            if ( auto it = m_drives.find( info.m_driveKey ); it != m_drives.end() )
+            if ( auto it = m_driveMap.find( info.m_driveKey ); it != m_driveMap.end() )
             {
                 it->second->onOpinionReceived( info );
             }
@@ -585,8 +634,19 @@ public:
     {
         return m_modifyApprovalTransactionTimerDelayMs;
     }
+
+    void        setSessionSettings(const lt::settings_pack& settings, bool localNodes) override
+    {
+        m_session->lt_session().apply_settings(settings);
+        if (localNodes) {
+            std::uint32_t const mask = 1 << lt::session::global_peer_class_id;
+            lt::ip_filter f;
+            f.add_rule(lt::make_address("0.0.0.0"), lt::make_address("255.255.255.255"), mask);
+            m_session->lt_session().set_peer_class_filter(f);
+        }
+    }
     
-    const char* dbgReplicatorName() const override { return m_dbgReplicatorName; }
+    const char* dbgReplicatorName() const override { return m_dbgReplicatorName.c_str(); }
     
 private:
     std::shared_ptr<sirius::drive::Session> session() {
@@ -595,7 +655,7 @@ private:
 };
 
 std::shared_ptr<Replicator> createDefaultReplicator(
-                                        crypto::KeyPair&&   keyPair,
+                                        const crypto::KeyPair& keyPair,
                                         std::string&&       address,
                                         std::string&&       port,
                                         std::string&&       storageDirectory,
@@ -605,7 +665,7 @@ std::shared_ptr<Replicator> createDefaultReplicator(
                                         const char*         dbgReplicatorName )
 {
     return std::make_shared<DefaultReplicator>(
-                                               std::move(keyPair),
+                                               keyPair,
                                                std::move(address),
                                                std::move(port),
                                                std::move(storageDirectory),

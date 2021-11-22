@@ -18,7 +18,7 @@ namespace sirius::drive {
     class ExtensionEmulator {
     public:
         ExtensionEmulator(const std::string& address, const unsigned short& port);
-        ~ExtensionEmulator() = default;
+        virtual ~ExtensionEmulator() = default;
 
     public:
         void run();
@@ -26,30 +26,31 @@ namespace sirius::drive {
     private:
         void bindOperations();
 
-        void openDownloadChannel(types::RpcDownloadChannelInfo& channelInfo);
+    protected:
 
-        void closeDownloadChannel(const std::array<uint8_t,32>& channelKey);
+        virtual void openDownloadChannel(types::RpcDownloadChannelInfo& channelInfo);
 
-        void modifyDrive(types::RpcDataModification& rpcDataModification, const types::RpcClientInfo& rpcClientInfo);
+        virtual void closeDownloadChannel(const std::array<uint8_t,32>& channelKey);
 
-        void modifyApproveTransactionIsReady(const types::RpcModifyApprovalTransactionInfo& rpcModifyApprovalTransactionInfo);
+        virtual void modifyDrive(types::RpcDataModification& rpcDataModification, const types::RpcClientInfo& rpcClientInfo);
 
-        void singleModifyApproveTransactionIsReady(const types::RpcModifyApprovalTransactionInfo& rpcModifyApprovalTransactionInfo);
+        virtual void modifyApproveTransactionIsReady(const types::RpcModifyApprovalTransactionInfo& rpcModifyApprovalTransactionInfo);
 
-        void driveModificationIsCompleted(const types::RpcEndDriveModificationInfo& rpcEndDriveModificationInfo);
+        virtual void singleModifyApproveTransactionIsReady(const types::RpcModifyApprovalTransactionInfo& rpcModifyApprovalTransactionInfo);
 
-        void downloadApproveTransactionIsReady() ;
+        virtual void driveModificationIsCompleted(const types::RpcEndDriveModificationInfo& rpcEndDriveModificationInfo);
 
-        void prepareDriveTransaction(types::RpcPrepareDriveTransactionInfo& rpcPrepareDriveTransactionInfo);
+        virtual void downloadApproveTransactionIsReady();
 
-        // TODO: Pass correct transaction hash
-        void driveClosureTransaction(const std::array<uint8_t, 32>& driveKey);
+        virtual void prepareDriveTransaction(types::RpcPrepareDriveTransactionInfo& rpcPrepareDriveTransactionInfo);
 
-        void replicatorOnboardingTransaction(const types::RpcReplicatorInfo& rpcReplicatorInfo);
+        virtual void driveClosureTransaction(const std::array<uint8_t, 32>& driveKey);
+
+        virtual void replicatorOnboardingTransaction(const types::RpcReplicatorInfo& rpcReplicatorInfo);
 
         types::RpcDriveInfo getDrive(const std::array<uint8_t,32>& drivePubKey);
 
-    private:
+    protected:
         std::map<std::array<uint8_t,32>, types::RpcClientInfo> m_endDriveModificationHashes;
         std::map<std::array<uint8_t,32>, unsigned long> m_endDriveModificationCounter;
         std::set<std::array<uint8_t,32>> m_modifyApproveHashes;

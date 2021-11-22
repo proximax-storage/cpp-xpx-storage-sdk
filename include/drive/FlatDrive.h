@@ -34,6 +34,8 @@ class Replicator;
         uint64_t          m_maxDataSize;
         ReplicatorList    m_replicatorList;
         Key               m_clientPublicKey;
+        
+        bool              m_isCanceled = false;
     };
 
     // It is opinition of single replicator about how much data the other peers transferred.
@@ -220,17 +222,17 @@ class Replicator;
         virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
 
         // It will be called when transaction could not be completed
-        virtual void modifyTransactionIsCanceled( Replicator& replicator,
-                                                 const sirius::Key&             driveKey,
-                                                 const sirius::drive::InfoHash& modifyTransactionHash,
-                                                 const std::string&             reason,
-                                                 int                            errorCode ) = 0;
+        virtual void modifyTransactionEndedWithError( Replicator&               replicator,
+                                                     const sirius::Key&         driveKey,
+                                                     const ModifyRequest&       modifyRequest,
+                                                     const std::string&         reason,
+                                                     int                        errorCode ) = 0;
         
         // It will be called when rootHash is calculated in sandbox
         // (TODO it will be removed)
         virtual void rootHashIsCalculated( Replicator&                    replicator,
                                            const sirius::Key&             driveKey,
-                                           const sirius::drive::InfoHash& modifyTransactionHash,
+                                           const Hash256&                 modifyTransactionHash,
                                            const sirius::drive::InfoHash& sandboxRootHash ) = 0;
         
         // It will initiate the approving of modify transaction
@@ -242,8 +244,23 @@ class Replicator;
         // It will be called after the drive is syncronized with sandbox
         virtual void driveModificationIsCompleted( Replicator&                    replicator,
                                                    const sirius::Key&             driveKey,
-                                                   const sirius::drive::InfoHash& modifyTransactionHash,
+                                                   const Hash256&                 modifyTransactionHash,
                                                    const sirius::drive::InfoHash& rootHash ) = 0;
+
+        // It will be called after the drive is syncronized with sandbox
+        virtual void driveModificationIsCanceled(  Replicator&                  replicator,
+                                                   const sirius::Key&           driveKey,
+                                                   const Hash256&               modifyTransactionHash )
+        {
+            //todo make it pure virtual function?
+        }
+
+        virtual void driveIsClosed(  Replicator&                replicator,
+                                     const sirius::Key&         driveKey,
+                                     const Hash256&             transactionHash )
+        {
+            //todo make it pure virtual function?
+        }
     };
 
     //
@@ -290,6 +307,12 @@ class Replicator;
         virtual void     onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
 
         virtual void     onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
+        
+        // It will be called by replicator
+        virtual const std::optional<Hash256>& closingBlockHash() const = 0;
+        
+        virtual void removeAllDriveData() = 0;
+
 
         // for testing and debugging
         virtual void printDriveStatus() = 0;

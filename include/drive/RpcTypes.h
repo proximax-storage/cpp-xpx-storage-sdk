@@ -13,7 +13,7 @@
 
 namespace sirius::drive::types {
 
-    struct RpcReplicatorInfo
+    struct PLUGIN_API RpcReplicatorInfo
     {
         bool operator==(const RpcReplicatorInfo& replicator) const ;
 
@@ -24,7 +24,7 @@ namespace sirius::drive::types {
         MSGPACK_DEFINE_ARRAY(m_replicatorAddress, m_replicatorPort, m_replicatorPubKey, m_rpcReplicatorPort);
     };
 
-    struct RpcClientInfo
+    struct PLUGIN_API RpcClientInfo
     {
         bool operator==(const RpcClientInfo& client) const;
 
@@ -36,7 +36,7 @@ namespace sirius::drive::types {
 
     using RpcReplicatorList = std::vector<RpcReplicatorInfo>;
 
-    struct RpcDownloadChannelInfo {
+    struct PLUGIN_API RpcDownloadChannelInfo {
         std::vector<Key> getClientsPublicKeys() const;
 
         void setClientsPublicKeys(const std::vector<Key>& clientsPublicKeys);
@@ -51,7 +51,7 @@ namespace sirius::drive::types {
         MSGPACK_DEFINE_ARRAY(m_channelKey, m_prepaidDownloadSize, m_drivePubKey, m_rpcReplicators, m_clientsPublicKeys);
     };
 
-    struct RpcDataModification {
+    struct PLUGIN_API RpcDataModification {
         ReplicatorList getReplicators() const;
 
         std::array<uint8_t,32>  m_drivePubKey;
@@ -63,7 +63,7 @@ namespace sirius::drive::types {
         MSGPACK_DEFINE_ARRAY(m_drivePubKey, m_clientPubKey, m_infoHash, m_transactionHash, m_maxDataSize, m_rpcReplicators);
     };
 
-    struct RpcSingleOpinion {
+    struct PLUGIN_API RpcSingleOpinion {
         // Replicator public key
         std::array<uint8_t,32>  m_replicatorKey;
 
@@ -78,7 +78,7 @@ namespace sirius::drive::types {
         MSGPACK_DEFINE_ARRAY(m_replicatorKey, m_uploadReplicatorKeys, m_replicatorUploadBytes, m_clientUploadBytes, m_signature);
     };
 
-    struct RpcModifyApprovalTransactionInfo {
+    struct PLUGIN_API RpcModifyApprovalTransactionInfo {
         ApprovalTransactionInfo getApprovalTransactionInfo() const;
 
         static RpcModifyApprovalTransactionInfo getRpcModifyApprovalTransactionInfo(const std::array<uint8_t,32>& replicatorPubKey, ApprovalTransactionInfo&& transactionInfo);
@@ -111,7 +111,7 @@ namespace sirius::drive::types {
         MSGPACK_DEFINE_ARRAY(m_drivePubKey, m_replicatorPubKey, m_modifyTransactionHash, m_rootHash, m_fsTreeFileSize, m_metaFilesSize, m_driveSize, m_opinions);
     };
 
-    struct RpcPrepareDriveTransactionInfo {
+    struct PLUGIN_API RpcPrepareDriveTransactionInfo {
         ReplicatorList getReplicators() const;
 
         std::array<uint8_t,32>  m_clientPubKey;
@@ -122,7 +122,7 @@ namespace sirius::drive::types {
         MSGPACK_DEFINE_ARRAY(m_clientPubKey, m_driveKey, m_driveSize, m_signature, m_rpcReplicators);
     };
 
-    struct RpcDriveInfo {
+    struct PLUGIN_API RpcDriveInfo {
         void setReplicators(const ReplicatorList& replicators);
 
         ReplicatorList getReplicators() const;
@@ -134,7 +134,7 @@ namespace sirius::drive::types {
         MSGPACK_DEFINE_ARRAY(m_driveKey, m_rootHash, m_clientsPublicKeys, m_rpcReplicators);
     };
 
-    struct RpcEndDriveModificationInfo {
+    struct PLUGIN_API RpcEndDriveModificationInfo {
         std::array<uint8_t,32>                  m_modifyTransactionHash;
         RpcReplicatorInfo                       m_replicatorInfo; // public key only
         MSGPACK_DEFINE_ARRAY(m_modifyTransactionHash, m_replicatorInfo);

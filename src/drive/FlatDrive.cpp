@@ -123,15 +123,17 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     bool m_approveTransactionReceived = false;
     bool m_approveTransactionSent     = false; // approval transaction has been sent
     
-    bool m_driveIsClosing             = false;
-
-    // It is needed if a new 'modifyRequest' is received, but drive is syncing with sandbox
-    std::deque<ModifyRequest> m_modifyRequestQueue;
+    // It is used when drive is closing
+    std::optional<Hash256> m_closingBlockHash = {};
 
     // Client data (for drive modification)
     std::optional<ModifyRequest> m_modifyRequest;
     lt_handle                    m_modifyDataLtHandle; // used for removing torrent from session
     bool m_modificationIsCanceling = false;
+
+    // It is needed if a new 'modifyRequest' is received, but drive could not start it immediately
+    // (is syncing with sandbox?)
+    std::deque<ModifyRequest> m_defferedModifyRequests;
 
     // FsTree
     FsTree        m_fsTree;
@@ -356,23 +358,87 @@ public:
     
     void cancelModifyDrive( const Hash256& transactionHash ) override
     {
-        if ( m_modifyRequest && !(transactionHash == m_modifyRequest->m_transactionHash) )
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+
+        if ( m_modifyRequest && transactionHash == m_modifyRequest->m_transactionHash )
         {
-            LOG_ERR( "cancelModifyDrive(): invalid transactionHash: " << transactionHash );
-            return;
+            if ( m_approveTransactionReceived )
+            {
+                LOG_ERR( "cancelModifyDrive(): m_approveTransactionReceived == true" )
+                return;
+            }
+            
+            m_modifyRequest->m_isCanceled = true;
+            
+            m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this]
+            {
+                std::unique_lock<std::shared_mutex> lock(m_mutex);
+                
+                auto transactionHash = m_modifyRequest->m_transactionHash;
+                m_modifyRequest.reset();
+
+                // clear sandbox folder
+                fs::remove_all( m_sandboxRootPath );
+                fs::create_directories( m_sandboxRootPath);
+                
+                if ( !m_defferedModifyRequests.empty() )
+                {
+                    auto request = std::move( m_defferedModifyRequests.front() );
+                    m_defferedModifyRequests.pop_front();
+                    lock.unlock();
+                    startModifyDrive( std::move(request) );
+                }
+                
+                m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), transactionHash );
+            });
         }
-        //TODO
+        else
+        {
+            auto it = std::find_if( m_defferedModifyRequests.begin(), m_defferedModifyRequests.end(), [&transactionHash](const auto& item)
+                                { return item.m_transactionHash == transactionHash; });
+            
+            if ( it == m_defferedModifyRequests.end() )
+            {
+                LOG_ERR( "cancelModifyDrive(): invalid transactionHash: " << transactionHash );
+                return;
+            }
+            
+            it->m_isCanceled = true;
+        }
     }
+    
+    // It tries to start next modify
+    void modifyIsCompleted()
+    {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+
+        m_modifyRequest.reset();
+
+        if ( !m_defferedModifyRequests.empty() )
+        {
+            auto request = std::move( m_defferedModifyRequests.front() );
+            m_defferedModifyRequests.pop_front();
+            lock.unlock();
+            startModifyDrive( std::move(request) );
+        }
+    }
+
 
     void startDriveClosing( const Hash256& transactionHash ) override
     {
-        m_driveIsClosing = true;
+        m_closingBlockHash = {transactionHash};
         
         std::shared_lock<std::shared_mutex> lock(m_mutex);
 
+        {
+            std::ofstream filestream( m_driveFolder / "is_closing" );
+            filestream << "1";
+            filestream.close();
+        }
+
         if ( m_modifyRequest )
         {
-            m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this,transactionHash](){
+            m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this,transactionHash] {
                 continueDriveClosing( transactionHash );
             });
         }
@@ -395,9 +461,15 @@ public:
         });
     }
 
-    void synchronizeDriveWithSandbox()
+    bool synchronizeDriveWithSandbox()
     {
         assert( m_sandboxCalculated );
+        
+        if ( m_modifyRequest->m_isCanceled )
+        {
+            LOG_ERR( "synchronizeDriveWithSandbox(): modification is canceled" );
+            return false;
+        }
         
         // complete drive update
         {
@@ -405,17 +477,17 @@ public:
 
             if ( !m_modifyRequest )
             {
-                LOG_ERR( "approveDriveModification(): modification is not started" )
+                LOG_ERR( "synchronizeDriveWithSandbox(): modification is not started" );
+                return false;
             }
             else
             {
-                if ( m_sandboxCalculated )
-                {
-                    lock.unlock();
-                    updateDrive_1();
-                }
+                lock.unlock();
+                updateDrive_1();
             }
         }
+        
+        return true;
     }
 
 
@@ -431,7 +503,7 @@ public:
             if ( m_modifyRequest )
             {
                 //LOG_ERR( "startModifyDrive():: prevoius modification is not completed" );
-                m_modifyRequestQueue.emplace_back( std::move(modifyRequest) );
+                m_defferedModifyRequests.emplace_back( std::move(modifyRequest) );
                 return;
             }
 
@@ -475,19 +547,22 @@ public:
     {
         if ( !m_modifyRequest )
         {
-            m_eventHandler.modifyTransactionIsCanceled( m_replicator, m_drivePubKey, {}, "DefaultDrive::downloadHandler: internal error", 0 );
+            m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, {}, "DefaultDrive::downloadHandler: internal error", 0 );
+            modifyIsCompleted();
             return;
         }
 
         if ( m_modifyRequest->m_clientDataInfoHash != infoHash )
         {
-            m_eventHandler.modifyTransactionIsCanceled( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, "DefaultDrive::downloadHandler: internal error", 0 );
+            m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "DefaultDrive::downloadHandler: internal error", 0 );
+            modifyIsCompleted();
             return;
         }
 
         if ( code == download_status::failed )
         {
-            m_eventHandler.modifyTransactionIsCanceled( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, errorText, 0 );
+            m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, errorText, 0 );
+            modifyIsCompleted();
             return;
         }
 
@@ -506,7 +581,8 @@ public:
         if ( !fs::exists(m_clientDataFolder) || !fs::is_directory(m_clientDataFolder) )
         {
             LOG( "m_clientDataFolder=" << m_clientDataFolder );
-            m_eventHandler.modifyTransactionIsCanceled( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, "modify drive: 'client-data' is absent", -1 );
+            m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'client-data' is absent", -1 );
+            modifyIsCompleted();
             return;
         }
 
@@ -514,7 +590,8 @@ public:
         if ( !fs::exists( m_clientActionListFile ) )
         {
             LOG( "m_clientActionListFile=" << m_clientActionListFile );
-            m_eventHandler.modifyTransactionIsCanceled( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, "modify drive: 'ActionList.bin' is absent", -1 );
+            m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'ActionList.bin' is absent", -1 );
+            modifyIsCompleted();
             return;
         }
 
@@ -653,19 +730,6 @@ public:
         m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
 
         myRootHashIsCalculated();
-
-        // start drive update (if 'approveTransaction' is received)
-        {
-            std::unique_lock<std::shared_mutex> lock(m_mutex);
-        
-            m_sandboxCalculated = true;
-            
-            if ( m_approveTransactionReceived )
-            {
-                lock.unlock();
-                updateDrive_1();
-            }
-        }
     }
     
     void createMyOpinion()
@@ -718,6 +782,9 @@ public:
 #pragma mark --myRootHashIsCalculated--
     void myRootHashIsCalculated()
     {
+        if ( m_modificationIsCanceling )
+            return;
+        
         // Notify
         m_eventHandler.rootHashIsCalculated( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_sandboxRootHash );
         
@@ -726,9 +793,12 @@ public:
         
         {
             std::unique_lock<std::shared_mutex> lock(m_mutex);
-
+            
+            m_sandboxCalculated = true;
+            
             if ( m_approveTransactionReceived )
             {
+//                std::cout << "RECEIVED" << std::endl;
                 lock.unlock();
                 sendSingleApprovalTransaction();
             }
@@ -771,7 +841,7 @@ public:
         }
     }
     
-    // updates drive (1st step after aprove)
+    // updates drive (1st step after approve)
     // - remove torrents from session
     //
     void updateDrive_1()
@@ -861,19 +931,9 @@ public:
         // Call update handler
         m_eventHandler.driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
 
-        {
-            std::unique_lock<std::shared_mutex> lock(m_mutex);
+        LOG( "drive is synchronized" );
 
-            m_modifyRequest.reset();
-
-            if ( !m_modifyRequestQueue.empty() )
-            {
-                auto request = std::move( m_modifyRequestQueue.front() );
-                m_modifyRequestQueue.pop_front();
-                lock.unlock();
-                startModifyDrive( std::move(request) );
-            }
-        }
+        modifyIsCompleted();
     }
     catch ( const std::exception& ex )
     {
@@ -978,6 +1038,9 @@ public:
         if ( m_approveTransactionSent || m_approveTransactionReceived || m_approveTransactionReceived )
             return;
         
+        if ( m_modificationIsCanceling )
+            return;
+        
         ApprovalTransactionInfo info = {    m_drivePubKey.array(),
                                             m_myOpinion->m_modifyTransactionHash,
                                             m_myOpinion->m_rootHash,
@@ -994,6 +1057,8 @@ public:
         
         // notify event handler
         m_eventHandler.modifyApprovalTransactionIsReady( m_replicator, std::move(info) );
+        
+        m_replicator.removeModifyDriveInfo( m_myOpinion->m_modifyTransactionHash );
         
         m_approveTransactionSent = true;
     }
@@ -1013,7 +1078,6 @@ public:
         
         if ( !m_sandboxCalculated )
         {
-            // wait root hash
             return;
         }
         else
@@ -1022,11 +1086,13 @@ public:
             auto it = std::find_if( v.begin(), v.end(), [this] (const auto& opinion) {
                             return opinion.m_replicatorKey == m_replicator.replicatorKey().array();
             });
-            
             // Is my opinion present
             if ( it != v.end() )
             {
-                synchronizeDriveWithSandbox();
+                if ( !synchronizeDriveWithSandbox() )
+                {
+                    LOG_ERR( "onApprovalTransactionHasBeenPublished(): cannot synchronize drive with sandbox: " << Hash256(transaction.m_modifyTransactionHash) );
+                }
             }
             else
             {
@@ -1045,8 +1111,34 @@ public:
 
     virtual void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
-        synchronizeDriveWithSandbox();
+        if ( !synchronizeDriveWithSandbox() )
+        {
+            LOG_ERR( "onSingleApprovalTransactionHasBeenPublished(): cannot synchronize drive with sandbox: " << Hash256(transaction.m_modifyTransactionHash) );
+        }
     }
+
+    const std::optional<Hash256>& closingBlockHash() const override
+    {
+        return m_closingBlockHash;
+    }
+    
+    virtual void removeAllDriveData() override
+    {
+        {
+            // When node is restaring and file "is_closing" exists, but file "approval_tx_has_been_bulished" is not exists,
+            // then drive should approve all download channels
+            //todo : where replicator will find channels ids???
+            std::ofstream filestream( m_driveFolder / "approval_tx_has_been_bulished" );
+            filestream << "1";
+            filestream.close();
+        }
+
+        fs::remove_all( m_driveRootPath );
+        fs::remove_all( m_sandboxRootPath );
+        
+        m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_closingBlockHash );
+    }
+
 
     virtual void printDriveStatus() override
     {

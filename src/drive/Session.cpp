@@ -148,7 +148,7 @@ private:
         }
 
         //todo 1. is it enough? 2. is it for single peer?
-        settingsPack.set_int( lt::settings_pack::dht_upload_rate_limit, 800000 );
+        settingsPack.set_int( lt::settings_pack::dht_upload_rate_limit, 8000000 );
 
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
@@ -590,7 +590,7 @@ private:
         // loop by alerts
         for (auto &alert : alerts) {
 
-//            if ( alert->type() == lt::dht_log_alert::alert_type || alert->type() == lt::dht_direct_response_alert::alert_type )
+////            if ( alert->type() == lt::dht_log_alert::alert_type || alert->type() == lt::dht_direct_response_alert::alert_type )
 //            {
 //                    _LOG( ">" << m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
 //            }
@@ -645,7 +645,7 @@ private:
                 case lt::peer_snubbed_alert::alert_type: {
                     auto* theAlert = dynamic_cast<lt::peer_snubbed_alert*>(alert);
 
-                    _LOG( "#!!!peer_snubbed_alert!!!: " << theAlert->endpoint << "\n" );
+                    _LOG( "#!!!peer_snubbed_alert!!!: "  << m_downloadLimiter->dbgOurPeerName() << " " << theAlert->endpoint << "\n" );
                     break;
                 }
 
@@ -671,6 +671,10 @@ private:
                         // TODO: better to use piece_granularity
                         std::vector<int64_t> fp = theAlert->handle.file_progress();
 
+                        bool calculatePercents = false;//true;
+                        uint64_t dnBytes = 0;
+                        uint64_t totalBytes = 0;
+
                         // check completeness
                         bool isAllComplete = true;
                         for( uint32_t i=0; i<fp.size(); i++ ) {
@@ -679,10 +683,16 @@ private:
                             bool const complete = ( fp[i] == fsize );
 
                             isAllComplete = isAllComplete && complete;
+                            
+                            if ( calculatePercents )
+                            {
+                                dnBytes    += fp[i];
+                                totalBytes += fsize;
+                            }
 
                             //dbg/////////////////////////
 //                            const std::string filePath = theAlert->handle.torrent_file()->files().file_path(i);
-//                            LOG( m_addressAndPort << ": " << filePath << ": alert: progress: " << fp[i] << " of " << fsize );
+//                            _LOG( m_addressAndPort << ": " << filePath << ": alert: progress: " << fp[i] << " of " << fsize );
                             //dbg/////////////////////////
 
                             if ( auto it =  m_downloadMap.find(theAlert->handle.id());
@@ -701,6 +711,11 @@ private:
 
                         }
 
+                        if ( calculatePercents )
+                        {
+                            _LOG( m_addressAndPort << ":  progress: " << 100.*double(dnBytes)/double(totalBytes) );
+                        }
+                        
                         if ( isAllComplete )
                         {
                             auto it = m_downloadMap.find(theAlert->handle.id());
