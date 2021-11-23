@@ -293,6 +293,10 @@ class Replicator;
         {
             //?
         }
+
+        virtual void driveAdded(const sirius::Key& driveKey) {
+
+        }
     };
 
     //

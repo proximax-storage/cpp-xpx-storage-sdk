@@ -69,6 +69,10 @@ namespace sirius::drive {
         m_rpcServer->bind("ReplicatorOnboardingTransaction", [this](const types::RpcReplicatorInfo& rpcReplicatorInfo) {
             replicatorOnboardingTransaction(rpcReplicatorInfo);
         });
+
+        m_rpcServer->bind("driveAdded", [this](const std::array<uint8_t,32>& drivePubKey) {
+            driveAdded(drivePubKey);
+        });
     }
 
     void ExtensionEmulator::openDownloadChannel(types::RpcDownloadChannelInfo& channelInfo)
@@ -217,6 +221,14 @@ namespace sirius::drive {
 
         if(m_rpcReplicators.empty()){
             std::cout << "Extension. prepareDriveTransaction. No replicators found! " << utils::HexFormat(rpcPrepareDriveTransactionInfo.m_driveKey) << std::endl;
+            return;
+        }
+
+        if (m_addedDrives.contains(rpcPrepareDriveTransactionInfo.m_driveKey)) {
+            std::cout << "Extension. prepareDriveTransaction. Hash already exists: " << utils::HexFormat(rpcPrepareDriveTransactionInfo.m_driveKey) << std::endl;
+        } else {
+            m_addedDrives.insert(std::pair<std::array<uint8_t,32>, types::RpcClientInfo>(rpcPrepareDriveTransactionInfo.m_driveKey, rpcPrepareDriveTransactionInfo.m_rpcClientInfo));
+            m_addedDrivesCounter.insert(std::pair<std::array<uint8_t,32>, unsigned long>(rpcPrepareDriveTransactionInfo.m_driveKey, 0L));
         }
 
         // TODO: random choose a replicators group
@@ -227,8 +239,11 @@ namespace sirius::drive {
             const std::string address = rpcReplicatorInfo.m_replicatorAddress;
             const unsigned short port = rpcReplicatorInfo.m_rpcReplicatorPort;
 
-            rpc::client replicator(address, port);
-            replicator.call("PrepareDriveTransaction", rpcPrepareDriveTransactionInfo);
+            std::thread t([address, port, rpcPrepareDriveTransactionInfo]{
+                rpc::client replicator(address, port);
+                replicator.call("PrepareDriveTransaction", rpcPrepareDriveTransactionInfo);
+            });
+            t.detach();
         }
     }
 
@@ -278,5 +293,31 @@ namespace sirius::drive {
         }
 
         return {};
+    }
+
+    void ExtensionEmulator::driveAdded(const std::array<uint8_t,32>& drivePubKey) {
+        std::cout << "Extension. driveAdded: " << utils::HexFormat(drivePubKey) << std::endl;
+
+        if (m_addedDrives.contains(drivePubKey)) {
+
+            m_addedDrivesCounter[drivePubKey] += 1;
+            if (m_addedDrivesCounter[drivePubKey] == 1) {
+                const std::string address = m_addedDrives[drivePubKey].m_address;
+                const unsigned short port = m_addedDrives[drivePubKey].m_rpcPort;
+
+                std::thread t([address, port, drivePubKey]{
+                    rpc::client client(address, port);
+                    client.call("driveAdded", drivePubKey);
+                });
+                t.detach();
+            }
+
+            if (m_addedDrivesCounter[drivePubKey] == m_rpcReplicators.size()) {
+                m_addedDrives.erase(drivePubKey);
+                m_addedDrivesCounter.erase(drivePubKey);
+            }
+        } else {
+            std::cout << "Extension. driveAdded. Hash not found" << utils::HexFormat(drivePubKey) << std::endl;
+        }
     }
 }

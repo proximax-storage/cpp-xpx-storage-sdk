@@ -119,7 +119,8 @@ namespace sirius::drive::types {
         uint64_t                m_driveSize;
         std::array<uint8_t,64>  m_signature;
         RpcReplicatorList       m_rpcReplicators; // add on extension side
-        MSGPACK_DEFINE_ARRAY(m_clientPubKey, m_driveKey, m_driveSize, m_signature, m_rpcReplicators);
+        RpcClientInfo           m_rpcClientInfo;
+        MSGPACK_DEFINE_ARRAY(m_clientPubKey, m_driveKey, m_driveSize, m_signature, m_rpcReplicators, m_rpcClientInfo);
     };
 
     struct PLUGIN_API RpcDriveInfo {

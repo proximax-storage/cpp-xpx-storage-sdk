@@ -3,44 +3,21 @@
 *** Use of this source code is governed by the Apache 2.0
 *** license that can be found in the LICENSE file.
 */
-#pragma once
 
-#include <filesystem>
-#include "types.h"
-#include "RpcTypes.h"
-#include "rpc/client.h"
-#include "rpc/server.h"
-#include "ClientSession.h"
-#include "Utils.h"
-#include "FsTree.h"
-#include "../../rpclib/include/rpc/server.h"
-#include <libtorrent/alert.hpp>
-#include <libtorrent/alert_types.hpp>
-
+#include "drive/RpcReplicatorClient.h"
 namespace sirius::drive {
+    RpcReplicatorClient::RpcReplicatorClient()
+    {
+    }
 
-class RpcReplicatorClient
-{
-public:
-    using DownloadDataCallabck = std::function<void(download_status::code code,
-                                                    const InfoHash& infoHash,
-                                                    const std::filesystem::path filePath,
-                                                    size_t downloaded,
-                                                    size_t fileSize,
-                                                    const std::string& errorText)>;
-
-    using DownloadFsTreeCallback = std::function<void(const FsTree& fsTree,
-                                                      download_status::code code)>;
-
-public:
-    RpcReplicatorClient( const std::string& clientPrivateKey,
-                         const std::string& remoteRpcAddress,
-                         const int remoteRpcPort,
-                         const std::string& incomingAddress,
-                         const int incomingPort,
-                         const int incomingRpcPort,
-                         const std::filesystem::path& workFolder,
-                         const std::string& dbgName)
+    RpcReplicatorClient::RpcReplicatorClient( const std::string& clientPrivateKey,
+                                              const std::string& remoteRpcAddress,
+                                              const int remoteRpcPort,
+                                              const std::string& incomingAddress,
+                                              const int incomingPort,
+                                              const int incomingRpcPort,
+                                              const std::filesystem::path& workFolder,
+                                              const std::string& dbgName)
     {
         m_address = incomingAddress;
         m_rpcPort = incomingRpcPort;
@@ -95,12 +72,16 @@ public:
             driveModificationIsCompleted(rpcEndDriveModificationInfo);
         });
 
+        m_rpcServer->bind("driveAdded", [this](const std::array<uint8_t,32>& drivePubKey) {
+            driveAdded(drivePubKey);
+        });
+
         m_rpcServerThread = std::thread([rpcServer = m_rpcServer]{
             rpcServer->run();
         });
     }
 
-    void addDrive(const Key& driveKey, const uint64_t driveSize)
+    void RpcReplicatorClient::addDrive(const Key& driveKey, const uint64_t driveSize, AddDriveCallback callback)
     {
         std::cout << "Client. PrepareDriveTransaction: " << driveKey << std::endl;
 
@@ -110,11 +91,24 @@ public:
         rpcPrepareDriveTransactionInfo.m_driveSize = driveSize;
         rpcPrepareDriveTransactionInfo.m_signature = {};
 
+        types::RpcClientInfo rpcClientInfo;
+        rpcClientInfo.m_address = m_address;
+        rpcClientInfo.m_rpcPort = m_rpcPort;
+        rpcClientInfo.m_clientPubKey = m_clientPubKey.array();
+
+        rpcPrepareDriveTransactionInfo.m_rpcClientInfo = rpcClientInfo;
+
+        if (m_addedDrives.contains(driveKey.array())) {
+            std::cout << "Client. addDrive. Hash already exists: " << driveKey << std::endl;
+        } else {
+            m_addedDrives.insert(std::pair<std::array<uint8_t,32>, std::function<void(const std::array<uint8_t,32>& drivePubKey)>>(driveKey.array(), callback));
+        }
+
         m_rpcClient->call( "PrepareDriveTransaction", rpcPrepareDriveTransactionInfo );
     }
 
     // TODO: Pass correct transaction hash
-    void removeDrive(const Key& driveKey)
+    void RpcReplicatorClient::removeDrive(const Key& driveKey)
     {
         std::cout << "Client. DriveClosureTransaction: " << driveKey << std::endl;
 
@@ -122,12 +116,12 @@ public:
         m_rpcClient->call( "DriveClosureTransaction", driveKey.array());
     }
 
-    types::RpcDriveInfo getDrive(const Key& driveKey) {
+    types::RpcDriveInfo RpcReplicatorClient::getDrive(const Key& driveKey) {
         std::cout << "Client. getDrive: " << driveKey << std::endl;
         return m_rpcClient->call( "drive", driveKey.array()).as<types::RpcDriveInfo>();
     }
 
-    void openDownloadChannel(
+    void RpcReplicatorClient::openDownloadChannel(
             const std::array<uint8_t,32>&   channelKey,
             const size_t                    prepaidDownloadSize,
             const std::array<uint8_t,32>&   drivePubKey,
@@ -152,12 +146,16 @@ public:
         m_rpcClient->call( "openDownloadChannel", rpcDownloadChannelInfo );
     }
 
-    void closeDownloadChannel(const std::array<uint8_t,32>& channelKey) {
+    void RpcReplicatorClient::closeDownloadChannel(const std::array<uint8_t,32>& channelKey) {
         std::cout << "Client. closeDownloadChannel: " << utils::HexFormat(channelKey) << std::endl;
         m_rpcClient->call( "closeDownloadChannel", channelKey );
     }
 
-    void modifyDrive( const Key& driveKey, const ActionList& actionList, const std::array<uint8_t,32>& transactionHash, const uint64_t maxDataSize, std::function<void()> endDriveModificationCallback) {
+    void RpcReplicatorClient::modifyDrive( const Key& driveKey,
+                                           const ActionList& actionList,
+                                           const std::array<uint8_t,32>& transactionHash,
+                                           const uint64_t maxDataSize,
+                                           std::function<void()> endDriveModificationCallback) {
         std::cout << "Client. modifyDrive: " << driveKey << std::endl;
 
         types::RpcDriveInfo rpcDriveInfo = getDrive(driveKey);
@@ -199,10 +197,10 @@ public:
         m_rpcClient->call( "DataModificationTransaction", rpcDataModification, rpcClientInfo );
     }
 
-    void downloadFsTree(const Key& drivePubKey,
-                        const std::array<uint8_t,32>& channelKey,
-                        DownloadFsTreeCallback callback,
-                        const uint64_t downloadLimit = 0) {
+    void RpcReplicatorClient::downloadFsTree(const Key& drivePubKey,
+                                             const std::array<uint8_t,32>& channelKey,
+                                             DownloadFsTreeCallback callback,
+                                             const uint64_t downloadLimit) {
 
         types::RpcDriveInfo rpcDriveInfo = getDrive(drivePubKey);
         if (rpcDriveInfo.m_rpcReplicators.empty()) {
@@ -213,18 +211,18 @@ public:
         std::cout << "Client. downloadFsTree. channelKey: " << utils::HexFormat(channelKey) << std::endl;
         std::cout << "Client. downloadFsTree. InfoHash: " << utils::HexFormat(rpcDriveInfo.m_rootHash) << std::endl;
 
-        auto handler = [this, callback](download_status::code code,
+        auto handler = [this, drivePubKey, callback](download_status::code code,
                                   const InfoHash& infoHash,
                                   const std::filesystem::path filePath,
                                   size_t downloaded,
                                   size_t fileSize,
                                   const std::string& errorText) {
             FsTree fsTree;
-            if ( code == download_status::complete )
+            if ( code == download_status::download_complete )
             {
                 std::cout << "Client. downloadHandler. Client received FsTree: " << toString(infoHash) << std::endl;
 
-                fsTree.deserialize( m_rootFolder / "fsTree-folder" / "FsTree.bin" );
+                fsTree.deserialize( m_rootFolder / "drives" / std::string(drivePubKey.begin(), drivePubKey.end()) / "fsTree-folder" / "FsTree.bin" );
                 fsTree.dbgPrint();
 
                 callback(fsTree, code);
@@ -237,10 +235,10 @@ public:
         };
 
         DownloadContext downloadContext( DownloadContext::fs_tree, handler, rpcDriveInfo.m_rootHash, channelKey, 0 );
-        m_clientSession->download( std::move(downloadContext), m_rootFolder / "fsTree-folder");
+        m_clientSession->download( std::move(downloadContext), m_rootFolder / "drives" / std::string(drivePubKey.begin(), drivePubKey.end()) / "fsTree-folder");
     }
 
-    void downloadData(const Folder& folder, DownloadDataCallabck callback) {
+    void RpcReplicatorClient::downloadData(const Folder& folder, DownloadDataCallabck callback) {
         std::cout << "Client. downloadData. Folder: " << folder.name() << std::endl;
 
         for( const auto& child: folder.childs() )
@@ -276,7 +274,7 @@ public:
         }
     }
 
-    std::filesystem::path createClientFiles( size_t bigFileSize ) {
+    std::filesystem::path RpcReplicatorClient::createClientFiles( size_t bigFileSize ) {
 
         std::cout << "Client. createClientFiles." << std::endl;
 
@@ -315,8 +313,8 @@ public:
         return dataFolder.parent_path();
     }
 
-    void driveModificationIsCompleted(const types::RpcEndDriveModificationInfo& rpcEndDriveModificationInfo) {
-        std::cout << "Client. driveModificationIsCompleted." << std::endl;
+    void RpcReplicatorClient::driveModificationIsCompleted(const types::RpcEndDriveModificationInfo& rpcEndDriveModificationInfo) {
+        std::cout << "Client. driveModificationIsCompleted: " << utils::HexFormat(rpcEndDriveModificationInfo.m_modifyTransactionHash) << std::endl;
 
         if (m_endDriveModificationHashes.contains(rpcEndDriveModificationInfo.m_modifyTransactionHash)) {
             m_endDriveModificationHashes[rpcEndDriveModificationInfo.m_modifyTransactionHash]();
@@ -325,23 +323,25 @@ public:
         }
     }
 
-    void wait() {
+    void RpcReplicatorClient::driveAdded(const std::array<uint8_t,32>& drivePubKey) {
+        std::cout << "Client. driveAdded." << utils::HexFormat(drivePubKey) << std::endl;
+
+        if (m_addedDrives.contains(drivePubKey)) {
+            m_addedDrives[drivePubKey](drivePubKey);
+        } else {
+            std::cout << "Client. driveAdded. Hash not found: " << utils::HexFormat(drivePubKey) << std::endl;
+        }
+    }
+
+    void RpcReplicatorClient::async() {
+        m_rpcServerThread.detach();
+    }
+
+    void RpcReplicatorClient::sync() {
         m_rpcServerThread.join();
     }
 
-    const Key &getPubKey() const {
+    const Key& RpcReplicatorClient::getPubKey() const {
         return m_clientPubKey;
     }
-
-private:
-    std::thread m_rpcServerThread;
-    std::map<std::array<uint8_t,32>, std::function<void()>> m_endDriveModificationHashes;
-    std::shared_ptr<ClientSession> m_clientSession;
-    std::shared_ptr<rpc::client> m_rpcClient;
-    std::shared_ptr<rpc::server> m_rpcServer;
-    Key m_clientPubKey;
-    std::filesystem::path m_rootFolder;
-    std::string m_address;
-    int m_rpcPort;
-};
 }

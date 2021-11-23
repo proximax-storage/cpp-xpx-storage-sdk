@@ -15,7 +15,7 @@
 #include "rpc/this_handler.h"
 
 namespace sirius::drive {
-    class ExtensionEmulator {
+    class PLUGIN_API ExtensionEmulator {
     public:
         ExtensionEmulator(const std::string& address, const unsigned short& port);
         virtual ~ExtensionEmulator() = default;
@@ -48,11 +48,15 @@ namespace sirius::drive {
 
         virtual void replicatorOnboardingTransaction(const types::RpcReplicatorInfo& rpcReplicatorInfo);
 
+        virtual void driveAdded(const std::array<uint8_t,32>& drivePubKey);
+
         types::RpcDriveInfo getDrive(const std::array<uint8_t,32>& drivePubKey);
 
     protected:
         std::map<std::array<uint8_t,32>, types::RpcClientInfo> m_endDriveModificationHashes;
         std::map<std::array<uint8_t,32>, unsigned long> m_endDriveModificationCounter;
+        std::map<std::array<uint8_t,32>, types::RpcClientInfo> m_addedDrives;
+        std::map<std::array<uint8_t,32>, unsigned long> m_addedDrivesCounter;
         std::set<std::array<uint8_t,32>> m_modifyApproveHashes;
         std::shared_ptr<rpc::server> m_rpcServer;
         types::RpcReplicatorList m_rpcReplicators;

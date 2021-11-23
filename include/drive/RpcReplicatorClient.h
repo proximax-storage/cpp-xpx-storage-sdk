@@ -33,6 +33,8 @@ public:
     using DownloadFsTreeCallback = std::function<void(const FsTree& fsTree,
                                                       download_status::code code)>;
 
+    using AddDriveCallback = std::function<void(const std::array<uint8_t,32>& drivePubKey)>;
+
 public:
     RpcReplicatorClient();
 
@@ -45,7 +47,7 @@ public:
                          const std::filesystem::path& workFolder,
                          const std::string& dbgName);
 
-    void addDrive(const Key& driveKey, const uint64_t driveSize);
+    void addDrive(const Key& driveKey, const uint64_t driveSize, AddDriveCallback callback);
 
     // TODO: Pass correct transaction hash
     void removeDrive(const Key& driveKey);
@@ -77,6 +79,8 @@ public:
 
     void driveModificationIsCompleted(const types::RpcEndDriveModificationInfo& rpcEndDriveModificationInfo);
 
+    void driveAdded(const std::array<uint8_t,32>& drivePubKey);
+
     void async();
     void sync();
 
@@ -85,6 +89,7 @@ public:
 private:
     std::thread m_rpcServerThread;
     std::map<std::array<uint8_t,32>, std::function<void()>> m_endDriveModificationHashes;
+    std::map<std::array<uint8_t,32>, std::function<void(const std::array<uint8_t,32>& drivePubKey)>> m_addedDrives;
     std::shared_ptr<ClientSession> m_clientSession;
     std::shared_ptr<rpc::client> m_rpcClient;
     std::shared_ptr<rpc::server> m_rpcServer;
