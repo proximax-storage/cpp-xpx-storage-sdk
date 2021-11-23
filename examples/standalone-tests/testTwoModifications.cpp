@@ -57,6 +57,7 @@ namespace sirius::drive::test
             if (transactionInfo.m_opinions.size() == m_replicators.size()) {
                 transactionInfo.m_opinions.pop_back();
             }
+            TestEnvironment::modifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
         }
 
         virtual void singleModifyApprovalTransactionIsReady(Replicator &replicator,
@@ -87,7 +88,7 @@ namespace sirius::drive::test
         client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList);
         client.modifyDrive(createActionList_2(CLIENT_WORK_FOLDER), env.m_addrList);
 
-//        env.m_forbiddenTransaction.emplace(client.m_modificationTransactionHashes[1]);
+        env.m_forbiddenTransaction.emplace(client.m_modificationTransactionHashes[0]);
 
         env.addDrive(DRIVE_PUB_KEY, 100 * 1024 * 1024);
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[0],
@@ -96,13 +97,13 @@ namespace sirius::drive::test
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-//        env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[1],
-//                                        client.m_modificationTransactionHashes[1],
-//                                        BIG_FILE_SIZE + 1024,
-//                                        env.m_addrList,
-//                                        client.m_clientKeyPair.publicKey()});
+        env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[1],
+                                        client.m_modificationTransactionHashes[1],
+                                        BIG_FILE_SIZE + 1024,
+                                        env.m_addrList,
+                                        client.m_clientKeyPair.publicKey()});
 
-        env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS);
+        env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS);
     }
 }
 

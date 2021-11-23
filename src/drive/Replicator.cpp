@@ -20,7 +20,7 @@
 
 #include <mutex>
 
-//#define DBG_SINGLE_THREAD { std::cout << m_dbgThreadId << "==" << std::this_thread::get_id() << std::endl; \
+//#define DBG_SINGLE_THREAD { std::cout << m_dbgThreadId << "==" << std::this_thread::get_id() << std::endl;
 //                            assert( m_dbgThreadId == std::this_thread::get_id() ); }
 
 namespace sirius::drive {

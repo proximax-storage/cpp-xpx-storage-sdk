@@ -109,7 +109,7 @@ namespace sirius::drive::test {
 
     ActionList createActionList_2(const fs::path& clientRootFolder) {
         fs::path clientFolder = clientRootFolder / "client_files";
-        createClientFiles(clientFolder, BIG_FILE_SIZE);
+//        createClientFiles(clientFolder, BIG_FILE_SIZE);
         ActionList actionList;
         actionList.push_back(Action::upload(clientFolder / "b.bin", "f1/b3.bin"));
         return actionList;

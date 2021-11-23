@@ -30,5 +30,16 @@ PLUGIN_API bool isPathInsideFolder( const fs::path& path, const fs::path& folder
 
 PLUGIN_API Hash256 stringToHash( const boost::string_view& str );
 
+template<class T>
+PLUGIN_API T randomByteArray()
+{
+    T data;
+    for (auto it = data.begin(); it != data.end(); it++)
+    {
+        *it = static_cast<uint8_t>(rand() % 256);
+    }
+    return data;
+}
+
 }}
 
