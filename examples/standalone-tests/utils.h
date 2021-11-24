@@ -37,15 +37,6 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
 
     std::string now_str();
 
-    template<class T>
-    T randomByteArray() {
-        T data;
-        for (auto it = data.begin(); it != data.end(); it++) {
-            *it = static_cast<uint8_t>(rand() % 256);
-        }
-        return data;
-    }
-
     void clientSessionErrorHandler(const lt::alert *alert);
 
     class TestClient {
@@ -72,12 +63,11 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
         void modifyDrive(const ActionList &actionList,
                                const ReplicatorList &replicatorList) {
             actionList.dbgPrint();
-            auto transactionHash = randomByteArray<Hash256>();
             // Create empty tmp folder for 'client modify data'
             //
             auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
             // start file uploading
-            InfoHash hash = m_clientSession->addActionListToSession(actionList, replicatorList, transactionHash, tmpFolder);
+            InfoHash hash = m_clientSession->addActionListToSession(actionList, replicatorList, tmpFolder);
 
             // inform replicator
             m_actionListHashes.push_back(hash);

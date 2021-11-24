@@ -179,6 +179,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     // and for deleting unused files and torrents from session
     std::map<InfoHash,UseTorrentInfo> m_torrentHandleMap;
 
+    std::map<Key, uint64_t> m_cumulativeUploads;
+
 public:
 
     DefaultFlatDrive(
@@ -757,24 +759,77 @@ public:
         myRootHashIsCalculated();
     }
 
-    void normalizeOpinion(SingleOpinion &opinion, uint64_t targetSum)
+    void normalizeUploads(std::map<Key, uint64_t>& modificationUploads, uint64_t targetSum)
     {
         uint128_t longTargetSum = targetSum;
-        uint128_t sumBefore = std::accumulate(opinion.m_replicatorUploadBytes.begin(),
-                                   opinion.m_replicatorUploadBytes.end(),
-                                   opinion.m_clientUploadBytes);
+        uint128_t sumBefore = std::accumulate(modificationUploads.begin(),
+                                              modificationUploads.end(),
+                                              0,
+                                              [] (const uint64_t& value, const std::pair<Key, int>& p)
+                                              { return value + p.second; }
+                                              );
         uint64_t sumAfter = 0;
-        for (auto& uploadBytes: opinion.m_replicatorUploadBytes) {
-            auto longUploadBytes = (uploadBytes * longTargetSum) / sumBefore;
-            uploadBytes = longUploadBytes.convert_to<uint64_t>();
-            sumAfter += uploadBytes;
+        for ( auto& [key, uploadBytes]: modificationUploads ) {
+            if ( key != m_modifyRequest->m_clientPublicKey )
+            {
+                auto longUploadBytes = (uploadBytes * longTargetSum) / sumBefore;
+                uploadBytes = longUploadBytes.convert_to<uint64_t>();
+                sumAfter += uploadBytes;
+            }
         }
-        opinion.m_clientUploadBytes = targetSum - sumAfter;
+        modificationUploads[m_modifyRequest->m_clientPublicKey] = targetSum - sumAfter;
+    }
+
+    void updateCumulativeUploads()
+    {
+        const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(m_modifyRequest->m_transactionHash)
+                .m_modifyTrafficMap;
+
+        std::map <Key, uint64_t> modificationUploads;
+
+        for (const auto &replicatorIt : m_modifyRequest->m_replicatorList)
+        {
+            // get data size received from 'replicatorIt.m_publicKey'
+            if (auto it = modifyTrafficMap.find(replicatorIt.m_publicKey.array());
+                    it != modifyTrafficMap.end())
+            {
+                modificationUploads[it->first] = it->second.m_receivedSize;
+            } else
+            {
+                modificationUploads[it->first] = 0;
+            }
+        }
+
+        if (auto it = modifyTrafficMap.find(m_modifyRequest->m_clientPublicKey.array());
+                it != modifyTrafficMap.end())
+        {
+            modificationUploads[it->first] = it->second.m_receivedSize;
+        } else
+        {
+            modificationUploads[it->first] = 0;
+        }
+
+        uint64_t targetSize = m_modifyRequest->m_maxDataSize;
+        if (!m_anyModificationsApproved)
+        {
+            targetSize += m_initSize;
+            m_anyModificationsApproved = true;
+        }
+        normalizeUploads(modificationUploads, targetSize);
+
+        for (const auto&[uploaderKey, bytes]: modificationUploads)
+        {
+            if (m_cumulativeUploads.find(uploaderKey) == m_cumulativeUploads.end())
+            {
+                m_cumulativeUploads[uploaderKey] = 0;
+            }
+            m_cumulativeUploads[uploaderKey] += bytes;
+        }
     }
     
     void createMyOpinion()
     {
-        auto trafficInfo = m_replicator.getMyDownloadOpinion(  m_modifyRequest->m_transactionHash );
+        updateCumulativeUploads();
 
         //
         // Calculate upload opinion
@@ -782,33 +837,17 @@ public:
         SingleOpinion opinion( m_replicator.replicatorKey().array() );
         for( const auto& replicatorIt : m_modifyRequest->m_replicatorList )
         {
-            // get data size received from 'replicatorIt.m_publicKey'
-            if ( auto it = trafficInfo.m_modifyTrafficMap.find( replicatorIt.m_publicKey.array() );
-                    it != trafficInfo.m_modifyTrafficMap.end() )
-            {
-                opinion.m_replicatorUploadBytes.push_back( it->second.m_receivedSize );
-            }
-            else
-            {
-                opinion.m_replicatorUploadBytes.push_back( 0 );
-            }
+            auto it = m_cumulativeUploads.find( replicatorIt.m_publicKey.array() );
+            opinion.m_replicatorUploadBytes.push_back( it->second );
             
             auto& v = opinion.m_uploadReplicatorKeys;
             v.insert( v.end(), replicatorIt.m_publicKey.array().begin(), replicatorIt.m_publicKey.array().end() );
         }
-        if ( auto it = trafficInfo.m_modifyTrafficMap.find( m_modifyRequest->m_clientPublicKey.array() );
-                it != trafficInfo.m_modifyTrafficMap.end() )
-        {
-            opinion.m_clientUploadBytes = it->second.m_receivedSize;
-        }
 
-        uint64_t targetSize = m_modifyRequest->m_maxDataSize;
-        if ( !m_anyModificationsApproved )
         {
-            targetSize += m_initSize;
-            m_anyModificationsApproved = true;
+            auto it = m_cumulativeUploads.find( m_modifyRequest->m_clientPublicKey.array() );
+            opinion.m_clientUploadBytes = it->second;
         }
-        normalizeOpinion(opinion, targetSize);
 
         opinion.Sign( m_replicator.keyPair(), m_modifyRequest->m_transactionHash, m_sandboxRootHash );
 
@@ -849,8 +888,9 @@ public:
             if ( m_approveTransactionReceived )
             {
 //                std::cout << "RECEIVED" << std::endl;
-                lock.unlock();
                 auto transactionHash = m_modifyRequest->m_transactionHash;
+                sendSingleApprovalTransaction();
+                lock.unlock();
                 if ( !synchronizeDriveWithSandbox() )
                 {
                     LOG_ERR( "onMyRootHashCalculated(): cannot synchronize drive with sandbox: " << transactionHash );
@@ -1069,7 +1109,7 @@ public:
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
-        if ( m_approveTransactionSent || m_approveTransactionReceived || m_approveTransactionReceived )
+        if ( m_approveTransactionSent || m_approveTransactionReceived )
             return;
         
         if ( m_modificationIsCanceling )

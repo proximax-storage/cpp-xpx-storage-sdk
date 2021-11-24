@@ -98,7 +98,7 @@ namespace sirius::drive::test {
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
-                SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 512 * 1024);
+                SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 1024 * 1024);
 
         EXLOG("\n# Client started: 1-st upload");
         auto actionList = createActionList(CLIENT_WORK_FOLDER);

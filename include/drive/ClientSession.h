@@ -83,7 +83,6 @@ public:
     // prepare session to modify action
     InfoHash addActionListToSession( const ActionList&  actionList,
                                      const ReplicatorList& replicatorList,
-                                     const sirius::Hash256& transactionHash,
                                      const std::string& workFolder )
     {
 //        m_modifyReplicatorList = replicatorList;
@@ -98,7 +97,7 @@ public:
         for( const auto& it : replicatorList )
             endpointList.emplace_back( it.m_endpoint );
 
-        auto modificationWorkFolder = workFolder + "/" + drive::toString(transactionHash);
+        auto modificationWorkFolder = workFolder + "/" + drive::toString(drive::randomByteArray<Hash256>());
 
         auto hash = m_session->addActionListToSession( actionList, modificationWorkFolder, endpointList );
         return hash;
