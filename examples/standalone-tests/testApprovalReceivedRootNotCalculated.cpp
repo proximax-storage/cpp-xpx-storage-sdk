@@ -61,7 +61,6 @@ namespace sirius::drive::test {
                         std::accumulate(opinion.m_replicatorUploadBytes.begin(),
                                         opinion.m_replicatorUploadBytes.end(),
                                         opinion.m_clientUploadBytes);
-                std::cout << "SIZE " << size << std::endl;
                 m_modificationSizes.insert(size);
             }
             ASSERT_EQ(m_modificationSizes.size(), 1);

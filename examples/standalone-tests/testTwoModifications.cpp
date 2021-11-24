@@ -1,4 +1,5 @@
 #include <drive/ExtensionEmulator.h>
+#include <numeric>
 #include "TestEnvironment.h"
 #include "utils.h"
 #include "gtest/gtest.h"
@@ -51,13 +52,23 @@ namespace sirius::drive::test
         }
 
         std::optional<Hash256> m_forbiddenTransaction;
+        std::map<Key, std::set<uint64_t>> m_modificationSizes;
 
         virtual void
         modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override {
             if (transactionInfo.m_opinions.size() == m_replicators.size()) {
                 transactionInfo.m_opinions.pop_back();
             }
-            TestEnvironment::modifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
+            TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
+
+            for (const auto& opinion: transactionInfo.m_opinions) {
+                auto size =
+                        std::accumulate(opinion.m_replicatorUploadBytes.begin(),
+                                        opinion.m_replicatorUploadBytes.end(),
+                                        opinion.m_clientUploadBytes);
+                m_modificationSizes[transactionInfo.m_modifyTransactionHash].insert(size);
+            }
+            ASSERT_EQ(m_modificationSizes[transactionInfo.m_modifyTransactionHash].size(), 1);
         }
 
         virtual void singleModifyApprovalTransactionIsReady(Replicator &replicator,
@@ -65,7 +76,19 @@ namespace sirius::drive::test
         {
             if (m_forbiddenTransaction != transactionInfo.m_modifyTransactionHash)
             {
-                TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
+                TestEnvironment::singleModifyApprovalTransactionIsReady(replicator,
+                                                                        ApprovalTransactionInfo(transactionInfo));
+
+                ASSERT_EQ(transactionInfo.m_opinions.size(), 1);
+
+                for (const auto& opinion: transactionInfo.m_opinions) {
+                    auto size =
+                            std::accumulate(opinion.m_replicatorUploadBytes.begin(),
+                                            opinion.m_replicatorUploadBytes.end(),
+                                            opinion.m_clientUploadBytes);
+                    m_modificationSizes[transactionInfo.m_modifyTransactionHash].insert(size);
+                }
+                ASSERT_EQ(m_modificationSizes[transactionInfo.m_modifyTransactionHash].size(), 1);
             }
         };
     };
