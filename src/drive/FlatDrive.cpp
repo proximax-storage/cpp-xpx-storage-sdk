@@ -126,12 +126,15 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     
     // It has the following statuses: "modification started", "sandbox calculated", modification approved"
     std::shared_mutex m_mutex;
+    bool m_modifyUserDataReceived     = false;
     bool m_sandboxCalculated          = false;
     bool m_approveTransactionReceived = false;
     bool m_approveTransactionSent     = false; // approval transaction has been sent
-    
-    // It will be not empty while drive is syncronizing with swarm
-    std::optional<InfoHash> m_syncRootHash;
+    bool m_modificationIsCanceling    = false;
+
+    // It will be not empty while drive is catching-up (syncronizing with swarm)
+    std::optional<InfoHash>     m_catchingUpRootHash;
+    std::optional<lt_handle>    m_actualFsTreeLtHandle;
     
     // It is used when drive is closing
     std::optional<Hash256> m_closingTxHash = {};
@@ -139,7 +142,6 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     // Client data (for drive modification)
     std::optional<ModifyRequest> m_modifyRequest;
     lt_handle                    m_modifyDataLtHandle; // used for removing torrent from session
-    bool m_modificationIsCanceling = false;
 
     // It is needed if a new 'modifyRequest' is received, but drive could not start it immediately
     // (is syncing with sandbox?)
@@ -385,6 +387,7 @@ public:
                 return;
             }
             
+            m_modificationIsCanceling = true;
             m_modifyRequest->m_isCanceled = true;
             
             m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this]
@@ -521,6 +524,9 @@ public:
     //
     void startModifyDrive( ModifyRequest&& modifyRequest ) override
     {
+        m_modifyUserDataReceived  = false;
+        m_modificationIsCanceling = false;
+
         {
             std::unique_lock<std::shared_mutex> lock(m_mutex);
             
@@ -572,6 +578,7 @@ public:
                           size_t /*fileSize*/,
                           const std::string& errorText )
     {
+    
         if ( !m_modifyRequest )
         {
             m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, {}, "DefaultDrive::downloadHandler: internal error", 0 );
@@ -595,6 +602,7 @@ public:
 
         if ( code == download_status::download_complete )
         {
+            m_modifyUserDataReceived = true;
             std::thread( [this] { this->modifyDriveInSandbox(); } ).detach();
         }
     }
@@ -1139,17 +1147,36 @@ public:
 
     void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
-        if ( !m_modifyRequest || m_modifyRequest->m_transactionHash != transaction.m_modifyTransactionHash )
-        {
-            //TODO
-            assert(0);
-        }
+        m_approveTransactionReceived = true;
         
         // stop timer
         m_opinionTimer.reset();
         
-        m_approveTransactionReceived = true;
-        
+        // check actual root hash
+        if ( m_modificationIsCanceling )
+        {
+            // wait the end of 'Cancel Modification'
+            // and then start 'CatchingUp'
+            m_catchingUpRootHash = transaction.m_rootHash;
+            return;
+        }
+        else if ( !m_modifyRequest && transaction.m_modifyTransactionHash != m_rootHash )
+        {
+            // we have outdated rootHash
+            m_catchingUpRootHash = transaction.m_rootHash;
+            startDriveSyncWithSwarm( {} );
+            return;
+        }
+        else if ( m_modifyRequest && !m_modifyUserDataReceived )
+        {
+            // we have not received the whole user blob!
+            m_catchingUpRootHash = transaction.m_rootHash;
+            m_session->removeTorrentsFromSession( { m_modifyDataLtHandle }, [this] {
+                startDriveSyncWithSwarm( {} );
+            });
+            return;
+        }
+
         _LOG( "onApprovalTransactionHasBeenPublished(): m_sandboxCalculated=" << m_sandboxCalculated )
         if ( !m_sandboxCalculated )
         {
@@ -1189,13 +1216,68 @@ public:
     
     void startDriveSyncWithSwarm( std::optional<InfoHash>&& actualRootHash ) override
     {
-        m_syncRootHash = std::move( actualRootHash );
-        //todo
+        if ( m_actualFsTreeLtHandle && actualRootHash && *m_catchingUpRootHash != actualRootHash )
+        {
+            m_catchingUpRootHash = std::move( actualRootHash );
+            //todo remove torrent and startDriveSyncWithSwarm() again
+            return;
+        }
+
+        if ( actualRootHash )
+            m_catchingUpRootHash = std::move( actualRootHash );
+        
+        //
+        // Start download fsTree
+        //
+        using namespace std::placeholders;  // for _1, _2, _3
+
+        m_actualFsTreeLtHandle = m_session->download( DownloadContext(
+                                            DownloadContext::client_data,
+                                            std::bind( &DefaultFlatDrive::actualFsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
+                                            *m_catchingUpRootHash,
+                                            {},
+                                            0,
+                                            //TODO!!! "CatchingUpFsTree"
+                                            toString( *m_catchingUpRootHash ) ),
+                                            m_sandboxRootPath,
+                                                   //{} );
+                                            m_replicatorList );
+    }
+    
+    // it will be called by Session
+    void actualFsTreeDownloadHandler( download_status::code code,
+                          const InfoHash& infoHash,
+                          const std::filesystem::path /*filePath*/,
+                          size_t /*downloaded*/,
+                          size_t /*fileSize*/,
+                          const std::string& errorText )
+    {
+    
+        if ( *m_catchingUpRootHash != infoHash )
+            return;
+
+        if ( code == download_status::failed )
+        {
+            //todo??
+            startDriveSyncWithSwarm( {} );
+            return;
+        }
+
+        if ( code == download_status::download_complete )
+        {
+            startDownloadMissingFiles();
+        }
+    }
+
+    void startDownloadMissingFiles()
+    {
+        // prepare list
+        
     }
     
     bool isOutOfSync() const override
     {
-        return m_syncRootHash.has_value();
+        return m_catchingUpRootHash.has_value();
     }
 
     const std::optional<Hash256>& closingTxHash() const override

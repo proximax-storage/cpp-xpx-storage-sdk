@@ -25,7 +25,7 @@ const bool gUse3Replicators = true;
 // This example shows interaction between 'client' and 'replicator'.
 //
 
-#define BIG_FILE_SIZE 10 * 1024*1024 //150//4
+#define BIG_FILE_SIZE 1 * 1024*1024 //150//4
 #define TRANSPORT_PROTOCOL false // true - TCP, false - uTP
 
 // !!!
@@ -639,7 +639,7 @@ static void clientModifyDrive( const ActionList& actionList,
     fs::create_directories( tmpFolder );
 
     // start file uploading
-    InfoHash hash = gClientSession->addActionListToSession( actionList, replicatorList, transactionHash, tmpFolder );
+    InfoHash hash = gClientSession->addActionListToSession( actionList, replicatorList, tmpFolder );
 
     // inform replicator
     clientModifyHash = hash;
