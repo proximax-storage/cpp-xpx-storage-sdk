@@ -20,8 +20,8 @@
 
 #include <mutex>
 
-//#define DBG_SINGLE_THREAD { std::cout << m_dbgThreadId << "==" << std::this_thread::get_id() << std::endl;
-//                            assert( m_dbgThreadId == std::this_thread::get_id() ); }
+/*#define DBG_SINGLE_THREAD { std::cout << m_dbgThreadId << "==" << std::this_thread::get_id() << std::endl; \
+                            assert( m_dbgThreadId == std::this_thread::get_id() ); }*/
 
 namespace sirius::drive {
 
@@ -168,9 +168,15 @@ public:
                     m_dbgEventHandler );
 
             m_driveMap[driveKey] = drive;
+
             if ( actualRootHash && drive->rootHash() != actualRootHash )
             {
                 drive->startDriveSyncWithSwarm( std::move(actualRootHash) );
+            }
+
+            // Notify
+            if ( m_dbgEventHandler ) {
+                m_dbgEventHandler->driveAdded(drive->drivePublicKey());
             }
         });//post
     }

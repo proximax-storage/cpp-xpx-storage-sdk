@@ -25,6 +25,6 @@ add_subdirectory(standalone-tests)
 add_subdirectory(extensionEmulator)
 #add_subdirectory(modifyDriveFlat2)
 add_subdirectory(replicator2)
-add_subdirectory(client2)
+#add_subdirectory(client2)
 #add_subdirectory(sendMessage)
 

@@ -20,7 +20,7 @@
 
 namespace sirius::drive {
 
-class RpcReplicator : public ReplicatorEventHandler, DbgReplicatorEventHandler
+class PLUGIN_API RpcReplicator : public ReplicatorEventHandler, DbgReplicatorEventHandler
 {
 public:
     RpcReplicator(
@@ -52,12 +52,12 @@ public:
         m_rpcServer = std::make_shared<rpc::server>( address, rpcPort );
 
         m_replicator = createDefaultReplicator(
-                std::move(keyPair),
+                keyPair,
                 std::move(address),
                 std::move(port),
                 std::move(replicatorRootFolder),
                 std::move(sandboxRootFolder),
-                true, // tcp
+                false, // udp
                 *this,
                 this,
                 name.c_str()
@@ -99,7 +99,6 @@ public:
 public:
     void run()
     {
-        std::cout << "RPC Replicator is started. Replicator key: " << utils::HexFormat(m_replicator->keyPair().publicKey().array()) << std::endl;
         m_replicator->start();
         replicatorOnboardingTransaction();
         m_rpcServer->run();
@@ -187,20 +186,28 @@ public:
         std::cout << "Replicator. downloadApprovalTransactionIsReady. DriveKey: " << std::endl;
     }
 
+    void driveAdded(const sirius::Key& driveKey) override {
+        rpc::client emulator(m_emulatorRpcAddress, m_emulatorRpcPort);
+        emulator.call("driveAdded", driveKey.array());
+    }
+
 private:
     void addDrive(const types::RpcPrepareDriveTransactionInfo& rpcPrepareDriveTransactionInfo) {
         std::cout << "Replicator. addDrive: " << utils::HexFormat(rpcPrepareDriveTransactionInfo.m_driveKey) << std::endl;
-        m_replicator->addDrive(
-                rpcPrepareDriveTransactionInfo.m_driveKey,
-                rpcPrepareDriveTransactionInfo.m_driveSize,
-                rpcPrepareDriveTransactionInfo.getReplicators() );
+
+        AddDriveRequest addDriveRequest;
+        addDriveRequest.driveSize = rpcPrepareDriveTransactionInfo.m_driveSize;
+        addDriveRequest.usedDriveSizeExcludingMetafiles = 0;
+        addDriveRequest.replicators = rpcPrepareDriveTransactionInfo.getReplicators();
+
+        m_replicator->asyncAddDrive(rpcPrepareDriveTransactionInfo.m_driveKey, addDriveRequest );
     }
 
     void removeDrive(const std::array<uint8_t, 32>& driveKey) {
         std::cout << "Replicator. removeDrive: " << utils::HexFormat(driveKey) << std::endl;
 
         // TODO: Pass correct transaction hash
-        m_replicator->removeDrive(driveKey, driveKey);
+        m_replicator->asyncCloseDrive(driveKey, driveKey);
     }
 
     types::RpcDriveInfo getDrive(const std::array<uint8_t, 32>& driveKey) {
@@ -234,28 +241,28 @@ private:
     }
 
     void modifyDrive(const types::RpcDataModification& rpcDataModification) {
-        std::cout << "Replicator. modifyDrive: " << m_replicator->dbgReplicatorName() << " : " << utils::HexFormat(rpcDataModification.m_drivePubKey) << std::endl;
-        std::cout << "Replicator. modifyDrive: " << m_replicator->dbgReplicatorName() << " : " << utils::HexFormat(rpcDataModification.m_infoHash) << std::endl;
+        std::cout << "Replicator. modifyDrive: " << m_replicator->dbgReplicatorName() << " : "
+                  << utils::HexFormat(rpcDataModification.m_drivePubKey) << " Info hash: "
+                  << utils::HexFormat(rpcDataModification.m_infoHash) << std::endl;
 
-        m_replicator->modify(rpcDataModification.m_drivePubKey, ModifyRequest{
+        m_replicator->asyncModify(rpcDataModification.m_drivePubKey, ModifyRequest{
                 rpcDataModification.m_infoHash,
                 rpcDataModification.m_transactionHash,
                 rpcDataModification.m_maxDataSize,
                 rpcDataModification.getReplicators(),
-                rpcDataModification.m_clientPubKey,
-            {}
+                rpcDataModification.m_clientPubKey
         });
     }
 
     void openDownloadChannel(const types::RpcDownloadChannelInfo& channelInfo) {
         std::cout << "Replicator. openDownloadChannel: " << utils::HexFormat(channelInfo.m_channelKey) << std::endl;
-        m_replicator->addDownloadChannelInfo(
+        m_replicator->asyncAddDownloadChannelInfo(
                 channelInfo.m_drivePubKey,
                 {
-                    channelInfo.m_channelKey,
-                    channelInfo.m_prepaidDownloadSize,
-                    channelInfo.getReplicators(),
-                    channelInfo.getClientsPublicKeys()
+                        channelInfo.m_channelKey,
+                        channelInfo.m_prepaidDownloadSize,
+                        channelInfo.getReplicators(),
+                        channelInfo.getClientsPublicKeys()
                 });
     }
 
@@ -270,7 +277,7 @@ private:
 
         // TODO: thread to avoid deadlock in synchronizeDriveWithSandbox
         std::thread([this, rpcModifyApprovalTransactionInfo]{
-            m_replicator->onApprovalTransactionHasBeenPublished(rpcModifyApprovalTransactionInfo.getApprovalTransactionInfo());
+            m_replicator->asyncApprovalTransactionHasBeenPublished(rpcModifyApprovalTransactionInfo.getApprovalTransactionInfo());
         }).detach();
     }
 
@@ -278,11 +285,11 @@ private:
         std::cout << "Replicator. acceptSingleModifyApprovalTransaction. DriveKey: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_drivePubKey) << std::endl;
         std::cout << "Replicator. acceptSingleModifyApprovalTransaction. RootHash: " << utils::HexFormat(rpcModifyApprovalTransactionInfo.m_rootHash) << std::endl;
 
-        m_replicator->onSingleApprovalTransactionHasBeenPublished(rpcModifyApprovalTransactionInfo.getApprovalTransactionInfo());
+        m_replicator->asyncSingleApprovalTransactionHasBeenPublished(rpcModifyApprovalTransactionInfo.getApprovalTransactionInfo());
     }
 
     void replicatorOnboardingTransaction() {
-        std::cout << "Replicator. replicatorOnboardingTransaction: " << m_replicator->dbgReplicatorName() << " : " << utils::HexFormat(m_replicator->keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. replicatorOnboardingTransaction: " << m_replicator->dbgReplicatorName() << " : " << m_replicator->replicatorKey() << std::endl;
 
         types::RpcReplicatorInfo rpcReplicatorInfo;
         rpcReplicatorInfo.m_replicatorPubKey = m_replicator->keyPair().publicKey().array();

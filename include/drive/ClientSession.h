@@ -17,7 +17,6 @@ class ClientSession : public lt::session_delegate, std::enable_shared_from_this<
 {
     using DownloadChannelId     = std::optional<std::array<uint8_t,32>>;
     using ModifyTransactionHash = std::optional<std::array<uint8_t,32>>;
-
     using ReplicatorTraficMap   = std::map<std::array<uint8_t,32>,uint64_t>;
 
     std::shared_ptr<Session>    m_session;

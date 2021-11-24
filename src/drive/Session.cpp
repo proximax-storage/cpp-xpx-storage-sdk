@@ -328,8 +328,8 @@ private:
 
     // downloadFile
     virtual lt_handle download( DownloadContext&&    downloadContext,
-                           const std::string&   tmpFolder,
-                           ReplicatorList       list  ) override {
+                                const std::string&   tmpFolder,
+                                ReplicatorList       list  ) override {
 
         // create add_torrent_params
         lt::error_code ec;
@@ -686,7 +686,7 @@ private:
                 }
 
                 case lt::peer_log_alert::alert_type: {
-//                    _LOG(  m_addressAndPort << ": peer_log_alert: " << alert->message())
+                    _LOG(  m_addressAndPort << ": peer_log_alert: " << alert->message())
                     break;
                 }
 
