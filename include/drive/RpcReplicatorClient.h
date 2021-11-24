@@ -64,7 +64,6 @@ public:
 
     void modifyDrive( const Key& driveKey,
                       const ActionList& actionList,
-                      const std::array<uint8_t,32>& transactionHash,
                       const uint64_t maxDataSize,
                       std::function<void()> endDriveModificationCallback);
 

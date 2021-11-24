@@ -12,6 +12,7 @@ namespace fs = std::filesystem;
 
 using namespace sirius::drive;
 
+#define ROOT_FOLDER fs::path(getenv("HOME")) / "111"
 #define NUMBER_OF_REPLICATORS 4
 #define REPLICATOR_ADDRESS "192.168.2.1"
 #define PORT 5550
@@ -19,7 +20,6 @@ using namespace sirius::drive;
 #define SANDBOX_ROOT_FOLDER (ROOT_FOLDER / "Sandbox")
 #define USE_TCP false
 
-#define ROOT_FOLDER fs::path(getenv("HOME")) / "111"
 #define CLIENT_ADDRESS "192.168.2.200"
 #define CLIENT_WORK_FOLDER (ROOT_FOLDER / "client_work_folder")
 #define DRIVE_PUB_KEY std::array<uint8_t,32>{1,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}

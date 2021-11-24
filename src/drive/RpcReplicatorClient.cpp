@@ -41,7 +41,7 @@ namespace sirius::drive {
                 std::move(keyPair),
                 incomingAddress + ":" + std::to_string(incomingPort),
                 sessionHandler,
-                true,
+                false,
                 dbgName.data() );
 
         bool isConnected = false;
@@ -153,7 +153,6 @@ namespace sirius::drive {
 
     void RpcReplicatorClient::modifyDrive( const Key& driveKey,
                                            const ActionList& actionList,
-                                           const std::array<uint8_t,32>& transactionHash,
                                            const uint64_t maxDataSize,
                                            std::function<void()> endDriveModificationCallback) {
         std::cout << "Client. modifyDrive: " << driveKey << std::endl;
@@ -171,7 +170,7 @@ namespace sirius::drive {
         std::filesystem::create_directories( tmpFolder );
 
         // start file uploading
-        const InfoHash infoHash = m_clientSession->addActionListToSession( actionList, rpcDriveInfo.getReplicators(), transactionHash, tmpFolder );
+        const InfoHash infoHash = m_clientSession->addActionListToSession( actionList, rpcDriveInfo.getReplicators(), tmpFolder );
 
         std::cout << "Client. modifyDrive. New InfoHash: " << infoHash << std::endl;
 
@@ -179,7 +178,6 @@ namespace sirius::drive {
         rpcDataModification.m_drivePubKey = driveKey.array();
         rpcDataModification.m_clientPubKey = m_clientPubKey.array();
         rpcDataModification.m_infoHash = infoHash.array();
-        rpcDataModification.m_transactionHash = transactionHash;
         rpcDataModification.m_maxDataSize = maxDataSize;
         rpcDataModification.m_rpcReplicators = rpcDriveInfo.m_rpcReplicators;
 

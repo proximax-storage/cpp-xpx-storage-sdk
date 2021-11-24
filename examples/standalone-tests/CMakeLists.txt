@@ -31,6 +31,8 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     add_test(standalone-tests "./standalone-tests")
 
 else()
-    target_link_libraries(standalone-tests drive crypto ${CMAKE_SOURCE_DIR}/libtorrent/_build/libtorrent-sirius.so Threads::Threads ${GTEST_LIBRARIES} gtest_main)
+    enable_testing()
+    add_test(standalone-tests "./standalone-tests")
+    target_link_libraries(standalone-tests drive crypto torrent-sirius Threads::Threads ${GTEST_LIBRARIES} gtest_main)
 endif()
 

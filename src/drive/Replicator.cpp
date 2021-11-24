@@ -169,14 +169,14 @@ public:
 
             m_driveMap[driveKey] = drive;
 
-            // Notify
-            if ( m_dbgEventHandler ) {
-                m_dbgEventHandler->driveAdded(drive->drivePublicKey());
-            }
-
             if ( actualRootHash && drive->rootHash() != actualRootHash )
             {
                 drive->startDriveSyncWithSwarm( std::move(actualRootHash) );
+            }
+
+            // Notify
+            if ( m_dbgEventHandler ) {
+                m_dbgEventHandler->driveAdded(drive->drivePublicKey());
             }
         });//post
     }

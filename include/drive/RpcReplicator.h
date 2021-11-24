@@ -52,12 +52,12 @@ public:
         m_rpcServer = std::make_shared<rpc::server>( address, rpcPort );
 
         m_replicator = createDefaultReplicator(
-                std::move(keyPair),
+                keyPair,
                 std::move(address),
                 std::move(port),
                 std::move(replicatorRootFolder),
                 std::move(sandboxRootFolder),
-                true, // tcp
+                false, // udp
                 *this,
                 this,
                 name.c_str()
@@ -99,7 +99,6 @@ public:
 public:
     void run()
     {
-        std::cout << "RPC Replicator is started. Replicator key: " << utils::HexFormat(m_replicator->keyPair().publicKey().array()) << std::endl;
         m_replicator->start();
         replicatorOnboardingTransaction();
         m_rpcServer->run();
@@ -198,7 +197,7 @@ private:
 
         AddDriveRequest addDriveRequest;
         addDriveRequest.driveSize = rpcPrepareDriveTransactionInfo.m_driveSize;
-        addDriveRequest.usedDriveSizeExcludingMetafiles = rpcPrepareDriveTransactionInfo.m_driveSize;
+        addDriveRequest.usedDriveSizeExcludingMetafiles = 0;
         addDriveRequest.replicators = rpcPrepareDriveTransactionInfo.getReplicators();
 
         m_replicator->asyncAddDrive(rpcPrepareDriveTransactionInfo.m_driveKey, addDriveRequest );
@@ -242,16 +241,16 @@ private:
     }
 
     void modifyDrive(const types::RpcDataModification& rpcDataModification) {
-        std::cout << "Replicator. modifyDrive: " << m_replicator->dbgReplicatorName() << " : " << utils::HexFormat(rpcDataModification.m_drivePubKey) << std::endl;
-        std::cout << "Replicator. modifyDrive: " << m_replicator->dbgReplicatorName() << " : " << utils::HexFormat(rpcDataModification.m_infoHash) << std::endl;
+        std::cout << "Replicator. modifyDrive: " << m_replicator->dbgReplicatorName() << " : "
+                  << utils::HexFormat(rpcDataModification.m_drivePubKey) << " Info hash: "
+                  << utils::HexFormat(rpcDataModification.m_infoHash) << std::endl;
 
         m_replicator->asyncModify(rpcDataModification.m_drivePubKey, ModifyRequest{
                 rpcDataModification.m_infoHash,
                 rpcDataModification.m_transactionHash,
                 rpcDataModification.m_maxDataSize,
                 rpcDataModification.getReplicators(),
-                rpcDataModification.m_clientPubKey,
-                false
+                rpcDataModification.m_clientPubKey
         });
     }
 
@@ -260,10 +259,10 @@ private:
         m_replicator->asyncAddDownloadChannelInfo(
                 channelInfo.m_drivePubKey,
                 {
-                    channelInfo.m_channelKey,
-                    channelInfo.m_prepaidDownloadSize,
-                    channelInfo.getReplicators(),
-                    channelInfo.getClientsPublicKeys()
+                        channelInfo.m_channelKey,
+                        channelInfo.m_prepaidDownloadSize,
+                        channelInfo.getReplicators(),
+                        channelInfo.getClientsPublicKeys()
                 });
     }
 
@@ -290,7 +289,7 @@ private:
     }
 
     void replicatorOnboardingTransaction() {
-        std::cout << "Replicator. replicatorOnboardingTransaction: " << m_replicator->dbgReplicatorName() << " : " << utils::HexFormat(m_replicator->keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. replicatorOnboardingTransaction: " << m_replicator->dbgReplicatorName() << " : " << m_replicator->replicatorKey() << std::endl;
 
         types::RpcReplicatorInfo rpcReplicatorInfo;
         rpcReplicatorInfo.m_replicatorPubKey = m_replicator->keyPair().publicKey().array();
