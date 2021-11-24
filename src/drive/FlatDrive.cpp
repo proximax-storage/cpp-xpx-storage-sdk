@@ -1160,7 +1160,7 @@ public:
             m_catchingUpRootHash = transaction.m_rootHash;
             return;
         }
-        else if ( !m_modifyRequest && transaction.m_modifyTransactionHash != m_rootHash )
+        else if ( !m_modifyRequest && transaction.m_modifyTransactionHash != m_rootHash.array() )
         {
             // we have outdated rootHash
             m_catchingUpRootHash = transaction.m_rootHash;
