@@ -390,27 +390,16 @@ public:
             m_modificationIsCanceling = true;
             m_modifyRequest->m_isCanceled = true;
             
-            m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this]
+            bool notEmptyRemoved = m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this]
             {
-                std::unique_lock<std::shared_mutex> lock(m_mutex);
-                
-                auto transactionHash = m_modifyRequest->m_transactionHash;
-                m_modifyRequest.reset();
-
-                // clear sandbox folder
-                fs::remove_all( m_sandboxRootPath );
-                fs::create_directories( m_sandboxRootPath);
-                
-                if ( !m_defferedModifyRequests.empty() )
-                {
-                    auto request = std::move( m_defferedModifyRequests.front() );
-                    m_defferedModifyRequests.pop_front();
-                    lock.unlock();
-                    startModifyDrive( std::move(request) );
-                }
-                
-                m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), transactionHash );
+                continueCancelModifyDrive();
             });
+
+            if ( !notEmptyRemoved )
+            {
+                lock.unlock();
+                continueCancelModifyDrive();
+            }
         }
         else
         {
@@ -425,6 +414,28 @@ public:
             
             m_defferedModifyRequests.erase( it );
         }
+    }
+
+    void continueCancelModifyDrive()
+    {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+
+        auto transactionHash = m_modifyRequest->m_transactionHash;
+        m_modifyRequest.reset();
+
+        // clear sandbox folder
+        fs::remove_all( m_sandboxRootPath );
+        fs::create_directories( m_sandboxRootPath);
+
+        if ( !m_defferedModifyRequests.empty() )
+        {
+            auto request = std::move( m_defferedModifyRequests.front() );
+            m_defferedModifyRequests.pop_front();
+            lock.unlock();
+            startModifyDrive( std::move(request) );
+        }
+
+        m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), transactionHash );
     }
     
     // It tries to start next modify
@@ -1160,7 +1171,7 @@ public:
             m_catchingUpRootHash = transaction.m_rootHash;
             return;
         }
-        else if ( !m_modifyRequest && transaction.m_modifyTransactionHash != m_rootHash )
+        else if ( !m_modifyRequest && transaction.m_modifyTransactionHash != m_rootHash.array() )
         {
             // we have outdated rootHash
             m_catchingUpRootHash = transaction.m_rootHash;
