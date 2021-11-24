@@ -59,7 +59,7 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
-                SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 5 * 1024 * 1024);
+                SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 2 * 1024 * 1024);
 
         client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList);
         client.modifyDrive(createActionList_2(CLIENT_WORK_FOLDER), env.m_addrList);

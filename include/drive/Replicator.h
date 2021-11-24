@@ -141,7 +141,7 @@ public:
     virtual void        removeDownloadChannelInfo( const std::array<uint8_t,32>& channelId ) = 0;
 
     // it will be called when dht message is received
-    virtual void        onDownloadOpinionReceived( DownloadApprovalTransactionInfo&& anOpinion ) = 0;
+    virtual void        asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) = 0;
     
     // Usually, DownloadApprovalTransactions are made once per 24 hours and paid by the Drive Owner
     // (It initiate opinion exchange, and then publishing of 'DownloadApprovalTransaction')
@@ -151,10 +151,16 @@ public:
     virtual void        asyncDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed = false ) = 0;
 
     // It will be called when other replicator calculated rootHash and send his opinion
-    virtual void        onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
+    virtual void        asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) = 0;
+
+    // It will be called when a new opinion should be verified
+    virtual void        processOpinion( const ApprovalTransactionInfo& anOpinion ) = 0;
     
     // It will be called after 'MODIFY approval transaction' has been published
     virtual void        asyncApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) = 0;
+
+    // It will be called if transaction sent by the Replicator has failed because of invalid Replicators list
+    virtual void        asyncApprovalTransactionHasFailedInvalidSignatures( Key driveKey, Hash256 transactionHash ) = 0;
 
     // It will be called after 'single MODIFY approval transaction' has been published
     virtual void        asyncSingleApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) = 0;

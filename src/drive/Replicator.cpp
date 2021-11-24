@@ -352,18 +352,21 @@ public:
             }
         }
     }
-    
-    virtual void onDownloadOpinionReceived( DownloadApprovalTransactionInfo&& anOpinion ) override
-    {
-        DBG_SINGLE_THREAD
 
-        if ( anOpinion.m_opinions.size() != 1 )
-        {
-            LOG_ERR( "onDownloadOpinionReceived: invalid opinion format: anOpinion.m_opinions.size() != 1" )
-            return;
-        }
+    virtual void asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) override
+    {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+
+            DBG_SINGLE_THREAD
+
+            if ( anOpinion.m_opinions.size() != 1 )
+            {
+                LOG_ERR( "onDownloadOpinionReceived: invalid opinion format: anOpinion.m_opinions.size() != 1" )
+                return;
+            }
         
-        addOpinion( std::move(anOpinion) );
+            addOpinion( std::move(anOpinion) );
+        });
     }
     
     DownloadOpinion createMyOpinion( const DownloadChannelInfo& info )
@@ -590,7 +593,7 @@ public:
             }
         });//post
     }
-    
+
     void deleteDrive( const std::array<uint8_t,32>& driveKey )
     {
         DBG_SINGLE_THREAD
@@ -611,18 +614,26 @@ public:
         m_driveMap.erase( driveIt );
     }
     
-    virtual void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
+    virtual void asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) override
     {
-        DBG_SINGLE_THREAD
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+            DBG_SINGLE_THREAD
         
-        if ( auto it = m_driveMap.find( anOpinion.m_driveKey ); it != m_driveMap.end() )
-        {
-            it->second->onOpinionReceived( anOpinion );
-        }
-        else
-        {
-            LOG_ERR( "drive not found" );
-        }
+            if ( auto it = m_driveMap.find( anOpinion.m_driveKey ); it != m_driveMap.end() )
+            {
+                it->second->onOpinionReceived( anOpinion );
+            }
+            else
+            {
+                LOG_ERR( "drive not found" );
+            }
+        });
+    }
+
+
+    void processOpinion( const ApprovalTransactionInfo& anOpinion ) override
+    {
+        m_eventHandler.opinionHasBeenReceived(*this, anOpinion);
     }
     
     virtual void asyncApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) override
@@ -634,6 +645,23 @@ public:
             if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
             {
                 it->second->onApprovalTransactionHasBeenPublished( transaction );
+            }
+            else
+            {
+                LOG_ERR( "drive not found" );
+            }
+        });//post
+    }
+
+    void asyncApprovalTransactionHasFailedInvalidSignatures(Key driveKey, Hash256 transactionHash) override
+    {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+
+            DBG_SINGLE_THREAD
+
+            if ( auto it = m_driveMap.find( driveKey ); it != m_driveMap.end() )
+            {
+                it->second->onApprovalTransactionHasFailedInvalidSignatures( transactionHash );
             }
             else
             {
@@ -676,15 +704,8 @@ public:
             cereal::PortableBinaryInputArchive iarchive(is);
             ApprovalTransactionInfo info;
             iarchive( info );
-            
-            if ( auto it = m_driveMap.find( info.m_driveKey ); it != m_driveMap.end() )
-            {
-                it->second->onOpinionReceived( info );
-            }
-            else
-            {
-                LOG_ERR( "onMessageReceived(opinion): drive not found" );
-            }
+
+            processOpinion(info);
             return;
         }
         else if ( query ==  "dnopinion" )
@@ -694,7 +715,7 @@ public:
             DownloadApprovalTransactionInfo info;
             iarchive( info );
 
-            onDownloadOpinionReceived( std::move(info) );
+            m_eventHandler.downloadOpinionHasBeenReceived(*this, info);
             return;
         }
         

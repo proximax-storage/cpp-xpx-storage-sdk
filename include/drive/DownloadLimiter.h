@@ -426,6 +426,10 @@ public:
                           const std::array<uint8_t,64>&  signature ) override
     {
         DBG_SINGLE_THREAD
+        bool ok = crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );;
+        if ( !ok ) {
+            std::cout << "PROOBLEMS " << std::endl;
+        }
         return crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
     }
     

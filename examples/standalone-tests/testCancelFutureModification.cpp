@@ -54,6 +54,7 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
             if ( m_forbiddenTransaction and m_forbiddenTransaction->array() == transactionInfo.m_modifyTransactionHash) {
                 ASSERT_EQ(true, false);
             }
+            TestEnvironment::modifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
         }
     };
 

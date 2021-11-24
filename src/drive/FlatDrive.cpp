@@ -1083,6 +1083,7 @@ public:
 
     void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
+        // TODO move validation to extension
         if ( anOpinion.m_opinions.size() != 1 )
             return; //is it spam?
         
@@ -1210,6 +1211,23 @@ public:
             if ( !synchronizeDriveWithSandbox() )
             {
                 LOG_ERR( "onApprovalTransactionHasBeenPublished(): cannot synchronize drive with sandbox: " << Hash256(transaction.m_modifyTransactionHash) );
+            }
+        }
+    }
+
+    void onApprovalTransactionHasFailedInvalidSignatures(const Hash256 &transactionHash) override
+    {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+
+        if ( m_modifyRequest &&
+             m_modifyRequest->m_transactionHash == transactionHash &&
+             !m_modifyRequest->m_isCanceled &&
+             m_approveTransactionReceived)
+        {
+            auto opinions = m_otherOpinions;
+            m_otherOpinions.clear();
+            for (const auto& [key, opinion]: opinions) {
+                m_replicator.processOpinion(opinion);
             }
         }
     }

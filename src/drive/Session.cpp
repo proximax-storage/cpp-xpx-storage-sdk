@@ -686,7 +686,7 @@ private:
                 }
 
                 case lt::peer_log_alert::alert_type: {
-                    _LOG(  m_addressAndPort << ": peer_log_alert: " << alert->message())
+//                    _LOG(  m_addressAndPort << ": peer_log_alert: " << alert->message())
                     break;
                 }
 

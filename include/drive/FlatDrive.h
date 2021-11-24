@@ -261,6 +261,12 @@ class Replicator;
         {
             //todo make it pure virtual function?
         }
+
+        virtual void opinionHasBeenReceived(  Replicator& replicator,
+                                              const ApprovalTransactionInfo& ) = 0;
+
+        virtual void downloadOpinionHasBeenReceived(  Replicator& replicator,
+                                                      const DownloadApprovalTransactionInfo& ) = 0;
     };
 
     class DbgReplicatorEventHandler
@@ -335,6 +341,8 @@ class Replicator;
         virtual void     onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
 
         virtual void     onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
+
+        virtual void     onApprovalTransactionHasFailedInvalidSignatures( const Hash256& transactionHash) = 0;
 
         virtual void     onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
         

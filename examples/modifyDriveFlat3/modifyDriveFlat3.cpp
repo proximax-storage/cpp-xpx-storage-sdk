@@ -31,14 +31,14 @@ const bool gUse3Replicators = true;
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_IP_ADDR          "192.168.0.100"
+#define CLIENT_IP_ADDR          "192.168.2.100"
 #define CLIENT_PORT             5000
 
-#define REPLICATOR_IP_ADDR      "192.168.0.101"
+#define REPLICATOR_IP_ADDR      "192.168.2.101"
 #define REPLICATOR_PORT         5001
-//#define REPLICATOR_IP_ADDR_2    "192.168.0.102"
+//#define REPLICATOR_IP_ADDR_2    "192.168.2.102"
 //#define REPLICATOR_PORT_2       5002
-//#define REPLICATOR_IP_ADDR_3    "192.168.0.103"
+//#define REPLICATOR_IP_ADDR_3    "192.168.2.103"
 //#define REPLICATOR_PORT_3       5003
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111"
