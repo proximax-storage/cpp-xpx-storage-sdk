@@ -822,7 +822,7 @@ private:
                     if ( auto downloadConextIt  = m_downloadMap.find(theAlert->handle.id());
                               downloadConextIt != m_downloadMap.end() )
                     {
-                        auto contexts = downloadConextIt->second.m_contexts;
+                        const auto& contexts = downloadConextIt->second.m_contexts;
 
                         // remove entry from downloadHandlerMap
                         std::lock_guard<std::mutex> locker(m_downloadMapMutex);
