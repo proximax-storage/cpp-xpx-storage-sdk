@@ -141,8 +141,8 @@ public:
             std::unique_lock<std::shared_mutex> lock(m_driveMutex);
 
             if (m_driveMap.find(driveKey) != m_driveMap.end()) {
-                return;
                 _LOG( "drive already added" );
+                return;
             }
 
             // Exclude itself from replicator list
