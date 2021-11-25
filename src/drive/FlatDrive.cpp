@@ -1167,15 +1167,15 @@ public:
             startDriveSyncWithSwarm( {} );
             return;
         }
-        else if ( m_modifyRequest && !m_modifyUserDataReceived )
-        {
-            // we have not received the whole user blob!
-            m_catchingUpRootHash = transaction.m_rootHash;
-            m_session->removeTorrentsFromSession( { m_modifyDataLtHandle }, [this] {
-                startDriveSyncWithSwarm( {} );
-            });
-            return;
-        }
+//        else if ( m_modifyRequest && !m_modifyUserDataReceived )
+//        {
+//            // we have not received the whole user blob!
+//            m_catchingUpRootHash = transaction.m_rootHash;
+//            m_session->removeTorrentsFromSession( { m_modifyDataLtHandle }, [this] {
+//                startDriveSyncWithSwarm( {} );
+//            });
+//            return;
+//        }
 
         _LOG( "onApprovalTransactionHasBeenPublished(): m_sandboxCalculated=" << m_sandboxCalculated )
         if ( !m_sandboxCalculated )
