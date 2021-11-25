@@ -77,10 +77,10 @@ namespace sirius::drive {
 
     void ExtensionEmulator::openDownloadChannel(types::RpcDownloadChannelInfo& channelInfo)
     {
-        std::cout << "Extension. openDownloadChannel: " << utils::HexFormat(channelInfo) << std::endl;
+        std::cout << "Extension. openDownloadChannel: " << utils::HexFormat(channelInfo.m_channelKey) << std::endl;
 
         if(m_rpcReplicators.empty()){
-            std::cout << "Extension. openDownloadChannel. No replicators found! " << utils::HexFormat(channelInfo) << std::endl;
+            std::cout << "Extension. openDownloadChannel. No replicators found! " << utils::HexFormat(channelInfo.m_channelKey) << std::endl;
         }
 
         // TODO: random choose a replicators group
