@@ -686,7 +686,7 @@ private:
                 }
 
                 case lt::peer_log_alert::alert_type: {
-                    _LOG(  m_addressAndPort << ": peer_log_alert: " << alert->message())
+                    //_LOG(  m_addressAndPort << ": peer_log_alert: " << alert->message())
                     break;
                 }
 
@@ -822,7 +822,7 @@ private:
                     if ( auto downloadConextIt  = m_downloadMap.find(theAlert->handle.id());
                               downloadConextIt != m_downloadMap.end() )
                     {
-                        const auto& contexts = downloadConextIt->second.m_contexts;
+                        const auto contexts = downloadConextIt->second.m_contexts;
 
                         // remove entry from downloadHandlerMap
                         std::lock_guard<std::mutex> locker(m_downloadMapMutex);

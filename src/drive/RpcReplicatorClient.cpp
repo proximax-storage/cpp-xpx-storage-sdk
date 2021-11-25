@@ -6,11 +6,7 @@
 
 #include "drive/RpcReplicatorClient.h"
 namespace sirius::drive {
-    RpcReplicatorClient::RpcReplicatorClient()
-    {
-    }
-
-    RpcReplicatorClient::RpcReplicatorClient( const std::string& clientPrivateKey,
+    RpcReplicatorClient::RpcReplicatorClient( const crypto::KeyPair& keyPair,
                                               const std::string& remoteRpcAddress,
                                               const int remoteRpcPort,
                                               const std::string& incomingAddress,
@@ -18,15 +14,13 @@ namespace sirius::drive {
                                               const int incomingRpcPort,
                                               const std::filesystem::path& workFolder,
                                               const std::string& dbgName)
+                                              : m_keyPair(keyPair)
     {
         m_address = incomingAddress;
         m_rpcPort = incomingRpcPort;
         m_rootFolder = workFolder;
         m_rpcClient = std::make_shared<rpc::client>( remoteRpcAddress, remoteRpcPort );
         m_rpcClient->wait_all_responses();
-
-        auto keyPair = sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( clientPrivateKey ));
-        m_clientPubKey = keyPair.publicKey();
 
         auto sessionHandler = []( const lt::alert* alert )
         {
@@ -38,11 +32,13 @@ namespace sirius::drive {
         };
 
         m_clientSession = createClientSession(
-                std::move(keyPair),
+                m_keyPair,
                 incomingAddress + ":" + std::to_string(incomingPort),
                 sessionHandler,
                 false,
                 dbgName.data() );
+
+        std::cout << "Client. Public key: " << utils::HexFormat(m_keyPair.publicKey().array()) << std::endl;
 
         bool isConnected = false;
         while (!isConnected) {
@@ -86,7 +82,7 @@ namespace sirius::drive {
         std::cout << "Client. PrepareDriveTransaction: " << driveKey << std::endl;
 
         types::RpcPrepareDriveTransactionInfo rpcPrepareDriveTransactionInfo;
-        rpcPrepareDriveTransactionInfo.m_clientPubKey = m_clientPubKey.array();
+        rpcPrepareDriveTransactionInfo.m_clientPubKey = getPubKey();
         rpcPrepareDriveTransactionInfo.m_driveKey = driveKey.array();
         rpcPrepareDriveTransactionInfo.m_driveSize = driveSize;
         rpcPrepareDriveTransactionInfo.m_signature = {};
@@ -94,7 +90,7 @@ namespace sirius::drive {
         types::RpcClientInfo rpcClientInfo;
         rpcClientInfo.m_address = m_address;
         rpcClientInfo.m_rpcPort = m_rpcPort;
-        rpcClientInfo.m_clientPubKey = m_clientPubKey.array();
+        rpcClientInfo.m_clientPubKey = rpcPrepareDriveTransactionInfo.m_clientPubKey;
 
         rpcPrepareDriveTransactionInfo.m_rpcClientInfo = rpcClientInfo;
 
@@ -176,7 +172,7 @@ namespace sirius::drive {
 
         types::RpcDataModification rpcDataModification;
         rpcDataModification.m_drivePubKey = driveKey.array();
-        rpcDataModification.m_clientPubKey = m_clientPubKey.array();
+        rpcDataModification.m_clientPubKey = getPubKey();
         rpcDataModification.m_infoHash = infoHash.array();
         rpcDataModification.m_maxDataSize = maxDataSize;
         rpcDataModification.m_rpcReplicators = rpcDriveInfo.m_rpcReplicators;
@@ -339,7 +335,7 @@ namespace sirius::drive {
         m_rpcServerThread.join();
     }
 
-    const Key& RpcReplicatorClient::getPubKey() const {
-        return m_clientPubKey;
+    const std::array<uint8_t,32>& RpcReplicatorClient::getPubKey() const {
+        return m_keyPair.publicKey().array();
     }
 }

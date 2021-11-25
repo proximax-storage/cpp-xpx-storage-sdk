@@ -36,9 +36,7 @@ public:
     using AddDriveCallback = std::function<void(const std::array<uint8_t,32>& drivePubKey)>;
 
 public:
-    RpcReplicatorClient();
-
-    RpcReplicatorClient( const std::string& clientPrivateKey,
+    RpcReplicatorClient( const crypto::KeyPair& keyPair,
                          const std::string& remoteRpcAddress,
                          const int remoteRpcPort,
                          const std::string& incomingAddress,
@@ -83,16 +81,16 @@ public:
     void async();
     void sync();
 
-    const Key &getPubKey() const;
+    const std::array<uint8_t,32>& getPubKey() const;
 
 private:
+    const crypto::KeyPair& m_keyPair;
     std::thread m_rpcServerThread;
     std::map<std::array<uint8_t,32>, std::function<void()>> m_endDriveModificationHashes;
     std::map<std::array<uint8_t,32>, std::function<void(const std::array<uint8_t,32>& drivePubKey)>> m_addedDrives;
     std::shared_ptr<ClientSession> m_clientSession;
     std::shared_ptr<rpc::client> m_rpcClient;
     std::shared_ptr<rpc::server> m_rpcServer;
-    Key m_clientPubKey;
     std::filesystem::path m_rootFolder;
     std::string m_address;
     int m_rpcPort;

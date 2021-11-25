@@ -20,7 +20,7 @@ class ClientSession : public lt::session_delegate, std::enable_shared_from_this<
     using ReplicatorTraficMap   = std::map<std::array<uint8_t,32>,uint64_t>;
 
     std::shared_ptr<Session>    m_session;
-    crypto::KeyPair             m_keyPair;
+    const crypto::KeyPair&      m_keyPair;
 
     DownloadChannelId           m_downloadChannelId;
     ReplicatorList              m_downloadReplicatorList;
@@ -33,9 +33,9 @@ class ClientSession : public lt::session_delegate, std::enable_shared_from_this<
     const char*                 m_dbgOurPeerName;
 
 public:
-    ClientSession( crypto::KeyPair&& keyPair, const char* dbgOurPeerName )
+    ClientSession( const crypto::KeyPair& keyPair, const char* dbgOurPeerName )
     :
-        m_keyPair( std::move(keyPair) ),
+        m_keyPair(keyPair),
         m_dbgOurPeerName(dbgOurPeerName)
     {}
 
@@ -251,7 +251,7 @@ protected:
     }
 
 private:
-    friend std::shared_ptr<ClientSession> createClientSession( crypto::KeyPair&&,
+    friend std::shared_ptr<ClientSession> createClientSession( const crypto::KeyPair&,
                                                                const std::string&,
                                                                const LibTorrentErrorHandler&,
                                                                bool,
@@ -261,7 +261,7 @@ private:
 };
 
 // ClientSession creator
-inline std::shared_ptr<ClientSession> createClientSession(  crypto::KeyPair&&             keyPair,
+inline std::shared_ptr<ClientSession> createClientSession(  const crypto::KeyPair&        keyPair,
                                                             const std::string&            address,
                                                             const LibTorrentErrorHandler& errorHandler,
                                                             bool                          useTcpSocket, // instead of uTP
@@ -269,7 +269,7 @@ inline std::shared_ptr<ClientSession> createClientSession(  crypto::KeyPair&&   
 {
     _LOG( "creating: " << dbgClientName << " with key: " <<  int(keyPair.publicKey().array()[0]) )
 
-    std::shared_ptr<ClientSession> clientSession = std::make_shared<ClientSession>( std::move(keyPair), dbgClientName );
+    std::shared_ptr<ClientSession> clientSession = std::make_shared<ClientSession>( keyPair, dbgClientName );
     clientSession->m_session = createDefaultSession( address, errorHandler, clientSession, useTcpSocket );
     clientSession->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     return clientSession;

@@ -24,7 +24,7 @@ class PLUGIN_API RpcReplicator : public ReplicatorEventHandler, DbgReplicatorEve
 {
 public:
     RpcReplicator(
-            const std::string&      privateKey,
+            const crypto::KeyPair&  keyPair,
             const std::string&      name,
             std::string&&           address,
             std::string&&           port,
@@ -32,7 +32,8 @@ public:
             std::string&&           sandboxRootFolder,
             const unsigned short    rpcPort,
             const std::string&      emulatorRpcAddress,
-            const unsigned short    emulatorRpcPort) {
+            const unsigned short    emulatorRpcPort)
+            : m_keyPair(keyPair){
 
         _LOG("RPC Replicator name: " + name)
         _LOG("RPC Replicator address: " + address)
@@ -47,12 +48,10 @@ public:
         m_emulatorRpcAddress = emulatorRpcAddress;
         m_emulatorRpcPort = emulatorRpcPort;
 
-        auto keyPair = sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( privateKey ));
-
         m_rpcServer = std::make_shared<rpc::server>( address, rpcPort );
 
         m_replicator = createDefaultReplicator(
-                keyPair,
+                m_keyPair,
                 std::move(address),
                 std::move(port),
                 std::move(replicatorRootFolder),
@@ -289,7 +288,8 @@ private:
     }
 
     void replicatorOnboardingTransaction() {
-        std::cout << "Replicator. replicatorOnboardingTransaction: " << m_replicator->dbgReplicatorName() << " : " << m_replicator->replicatorKey() << std::endl;
+        std::cout << "Replicator. replicatorOnboardingTransaction: " << m_replicator->dbgReplicatorName() << " : "
+                  << utils::HexFormat(m_replicator->replicatorKey().array()) << std::endl;
 
         types::RpcReplicatorInfo rpcReplicatorInfo;
         rpcReplicatorInfo.m_replicatorPubKey = m_replicator->keyPair().publicKey().array();
@@ -302,6 +302,7 @@ private:
     }
 
 private:
+    const crypto::KeyPair& m_keyPair;
     std::shared_ptr<Replicator> m_replicator;
     std::shared_ptr<rpc::server> m_rpcServer;
     std::string m_replicatorAddress;
