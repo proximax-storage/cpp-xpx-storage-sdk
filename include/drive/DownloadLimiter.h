@@ -31,6 +31,11 @@ protected:
 
     std::shared_mutex   m_mutex;
 
+    // Drives
+    std::map<Key, std::shared_ptr<FlatDrive>> m_driveMap;
+    std::shared_mutex  m_driveMutex;
+
+
     ChannelMap          m_downloadChannelMap;
     std::shared_mutex   m_downloadChannelMutex;
 
@@ -39,6 +44,8 @@ protected:
     uint64_t            m_receiptLimit = 32*1024; //1024*1024;
 
     std::string         m_dbgOurPeerName = "unset";
+    
+
 
     std::thread::id          m_dbgThreadId;
 
@@ -197,7 +204,9 @@ public:
                 map.insert( { it.m_publicKey.array(), {}} );
         }
         
-        m_downloadChannelMap[channelId] = DownloadChannelInfo{ false, prepaidDownloadSize, 0, 0, driveKey.array(), replicatorsList, map, clients, {}};
+//        _LOG( m_dbgOurPeerName <<  " addChInfo: " << int(channelId[0]) );
+        
+        m_downloadChannelMap[channelId] = DownloadChannelInfo{ false, prepaidDownloadSize, 0, 0, driveKey.array(), replicatorsList, map, clients, {} };
     }
 
     void addModifyDriveInfo( const Key&             modifyTransactionHash,
@@ -242,9 +251,76 @@ public:
         m_modifyDriveMap.erase(modifyTransactionHash);
     }
 
+    bool isPeerReplicator( const FlatDrive& drive, const std::array<uint8_t,32>&  peerPublicKey )
+    {
+        DBG_SINGLE_THREAD
+        
+        auto& replicatorList = drive.replicatorList();
+        auto replicatorIt = std::find_if( replicatorList.begin(), replicatorList.end(), [&peerPublicKey] (const auto& it) {
+            return it.m_publicKey.array() == peerPublicKey;
+        });
+        
+        //_LOG( m_dbgOurPeerName << ": isPeerReplicator(): peerPublicKey: " << Key(peerPublicKey) );
+
+        return replicatorIt != replicatorList.end();
+    }
+    
+    bool acceptConnection( const std::array<uint8_t,32>&  transactionHash,
+                           const std::array<uint8_t,32>&  peerPublicKey,
+                           bool*                          outIsDownloadUnlimited ) override
+    {
+        DBG_SINGLE_THREAD
+        
+        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
+        {
+            if ( it->second.m_isModifyTx )
+            {
+                if ( auto driveIt = m_driveMap.find( it->second.m_driveKey ); driveIt != m_driveMap.end() )
+                {
+                    if ( isPeerReplicator( *driveIt->second, peerPublicKey) )
+                    {
+                        *outIsDownloadUnlimited = true;
+                        return true;
+                    }
+                    else
+                    {
+                        //LOG_ERR( "acceptConnection: unknown peerPublicKey: " << sirius::Key(peerPublicKey) );
+                        return false;
+                    }
+                }
+                else
+                {
+                    LOG_ERR( "acceptConnection: unknown drive: " << sirius::Key(it->second.m_driveKey) );
+                    return false;
+                }
+            }
+            else // it is connection for download channel
+            {
+                auto& clients = it->second.m_clients;
+                auto clientIt = std::find( clients.begin(), clients.end(), peerPublicKey);
+                return clientIt != clients.end();
+            }
+            
+            return false;
+        }
+        
+        if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
+        {
+            if ( isPeerReplicator( *driveIt->second, peerPublicKey) )
+            {
+                *outIsDownloadUnlimited = true;
+                return true;
+            }
+        }
+        
+        _LOG( "bad connection? to: " << dbgOurPeerName() << " from: " << int(peerPublicKey[0]) << " hash: " << (int)transactionHash[0] );
+//        assert(0);
+        return false;
+    }
+
     void onPieceRequest( const std::array<uint8_t,32>&  transactionHash,
-                           const std::array<uint8_t,32>&  receiverPublicKey,
-                           uint64_t                       pieceSize ) override
+                         const std::array<uint8_t,32>&  receiverPublicKey,
+                         uint64_t                       pieceSize ) override
     {
         //std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
         DBG_SINGLE_THREAD
@@ -253,6 +329,15 @@ public:
         {
             it->second.m_requestedSize += pieceSize;
             return;
+        }
+
+        if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
+        {
+            if ( isPeerReplicator( *driveIt->second, receiverPublicKey) )
+            {
+                //todo it is a late replicator
+                return;
+            }
         }
 
         LOG_ERR( "ERROR: unknown transactionHash: " << (int)transactionHash[0] );
@@ -280,8 +365,17 @@ public:
             }
             LOG_ERR( "ERROR: unknown peer: " << (int)receiverPublicKey[0] );
         }
+        
+        if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
+        {
+            if ( isPeerReplicator( *driveIt->second, receiverPublicKey) )
+            {
+                //todo it is a late replicator
+                return;
+            }
+        }
 
-        LOG_ERR( "ERROR: unknown transactionHash(onPieceRequestReceived): " << (int)transactionHash[0] );
+        LOG_ERR( "ERROR: unknown transactionHash(onPieceRequestReceived): " << (int)transactionHash[0] << " from: " );
     }
 
     void onPieceSent( const std::array<uint8_t,32>&  transactionHash,
@@ -331,6 +425,16 @@ public:
             LOG_ERR( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
         }
 
+        if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
+        {
+            if ( isPeerReplicator( *driveIt->second, senderPublicKey ) )
+            {
+                //todo it is a late replicator
+                return;
+            }
+        }
+        
+        _LOG( "unknown transactionHash: " << (int)transactionHash[0] );
         LOG_ERR( "ERROR(3): unknown transactionHash: " << (int)transactionHash[0] );
     }
 
@@ -395,7 +499,7 @@ public:
         }
         else
         {
-            _LOG( "acceptReceiptFromAnotherReplicator: unknown channelId" );
+            _LOG( dbgOurPeerName() << ": acceptReceiptFromAnotherReplicator: unknown channelId (maybe we are late): " << int(downloadChannelId[0]) << " " << int(replicatorPublicKey[0]) );
         }
 
         return;

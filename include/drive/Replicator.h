@@ -12,23 +12,6 @@
 #include "crypto/Signer.h"
 #include "Session.h"
 
-//todo
-//template< class T >
-//class smart_unique_ptr : public std::unique_ptr<T>
-//{
-//public:
-//    template <typename... Args>
-//    smart_unique_ptr( Args... args ) : std::unique_ptr<T>( new T{args...} )
-//    {
-//    }
-//
-//    smart_unique_ptr( std::unique_ptr<T> ptr ) : std::unique_ptr<T>( ptr )
-//    {
-//    }
-//
-//    operator std::unique_ptr<T>() { return static_cast<std::unique_ptr<T>>(*this); }
-//};
-
 namespace sirius::drive {
 
 // It is used for calculation of total data size, downloaded by 'client'

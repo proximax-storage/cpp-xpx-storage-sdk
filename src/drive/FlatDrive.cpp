@@ -137,7 +137,9 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     // It will be not empty while drive is catching-up (syncronizing with swarm)
     std::optional<InfoHash>     m_catchingUpRootHash;
     std::optional<lt_handle>    m_actualFsTreeLtHandle;
-    
+    std::optional<lt_handle>    m_missingFileLtHandle;
+    std::vector<smart_uptr<InfoHash>> m_catchingUpFileHashes;
+
     // It is used when drive is closing
     std::optional<Hash256> m_closingTxHash = {};
 
@@ -184,6 +186,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     std::map<InfoHash,UseTorrentInfo> m_torrentHandleMap;
 
     std::map<Key, uint64_t> m_cumulativeUploads;
+    
+    const char*             m_dbgOurPeerName = "";
 
 public:
 
@@ -207,7 +211,8 @@ public:
           m_replicatorList(replicatorList),
           m_eventHandler(eventHandler),
           m_dbgEventHandler(dbgEventHandler),
-          m_replicator(replicator)
+          m_replicator(replicator),
+          m_dbgOurPeerName(replicator.dbgReplicatorName())
     {
         // Initialize drive
         init();
@@ -943,7 +948,7 @@ public:
     void checkOpinionNumberAndStartTimer()
     {
         // m_replicatorList is the list of other replicators (it does not contain our replicator)
-        auto replicatorNumber = m_modifyRequest->m_replicatorList.size()+1;
+        auto replicatorNumber = m_modifyRequest->m_replicatorList.size();//todo++++ +1;
 
         // check opinion number
         if ( m_myOpinion && m_otherOpinions.size() >= ((replicatorNumber)*2)/3
@@ -1039,6 +1044,7 @@ public:
         }
 
         // Add FsTree torrent to session
+        _LOG( "Add FsTree torrent to session: " << toString(m_rootHash) );
         m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
                                                                m_fsTreeTorrent.parent_path(),
                                                                lt::sf_is_replicator );
@@ -1263,14 +1269,16 @@ public:
         //
         using namespace std::placeholders;  // for _1, _2, _3
 
+        _LOG( "Late: download FsTree:" << *m_catchingUpRootHash )
+        
         m_actualFsTreeLtHandle = m_session->download( DownloadContext(
-                                            DownloadContext::client_data,
+                                            DownloadContext::missing_files,
                                             std::bind( &DefaultFlatDrive::actualFsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
                                             *m_catchingUpRootHash,
-                                            {},
+                                            drivePublicKey().array(),
                                             0,
-                                            //TODO!!! "CatchingUpFsTree"
-                                            toString( *m_catchingUpRootHash ) ),
+                                            "CatchingUpFsTree" ),
+                                            //toString( *m_catchingUpRootHash ) ),
                                             m_sandboxRootPath,
                                                    //{} );
                                             m_replicatorList );
@@ -1303,8 +1311,90 @@ public:
 
     void startDownloadMissingFiles()
     {
-        // prepare list
-        
+        m_session->removeTorrentsFromSession( {*m_actualFsTreeLtHandle}, [this]
+        {
+            FsTree actualFsTree;
+
+            try {
+                actualFsTree.deserialize( "CatchingUpFsTree" );
+                m_actualFsTreeLtHandle.reset();
+            } catch(...) {
+                LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
+                fs::remove( "CatchingUpFsTree" );
+            }
+            
+            // prepare missing list
+            m_catchingUpFileHashes.clear();
+            createMissingList( actualFsTree );
+            
+            downloadMissingFiles();
+        });
+    }
+    
+    void createMissingList( const Folder& folder )
+    {
+        for( const auto& child : folder.m_childs )
+        {
+            if ( isFolder(child) )
+            {
+                createMissingList( getFolder(child) );
+            }
+            else
+            {
+                auto& hash = getFile(child).m_hash;
+                
+                if ( !fs::exists( m_driveFolder / toString(hash) ) )
+                {
+                    m_catchingUpFileHashes.emplace_back( hash );
+                }
+            }
+        }
+    }
+
+    void downloadMissingFiles()
+    {
+        if ( m_catchingUpFileHashes.size() == 0 )
+        {
+            // it is the end of list
+            //todo
+            //todo remove unused files
+            //todo send  (single?) approval modify tx
+        }
+        else
+        {
+            auto missingFileHash = std::move( m_catchingUpFileHashes.back() );
+            m_catchingUpFileHashes.pop_back();
+            
+            m_missingFileLtHandle = m_session->download( DownloadContext(
+                                                                         
+                                                 DownloadContext::missing_files,
+
+                                                 [this] ( download_status::code code,
+                                                           const InfoHash& infoHash,
+                                                           const std::filesystem::path filePath,
+                                                           size_t /*downloaded*/,
+                                                           size_t /*fileSize*/,
+                                                           const std::string& errorText )
+                                                 {
+                                                     if ( code == download_status::download_complete )
+                                                     {
+                                                         _LOG( "catchedUp: " << filePath );
+                                                         downloadMissingFiles();
+                                                     }
+                                                     else if ( code == download_status::failed )
+                                                     {
+                                                         //todo
+                                                         LOG_ERR("");
+                                                     }
+                                                 },
+
+                                                 *missingFileHash,
+                                                 drivePublicKey().array(),
+                                                 0,
+                                                 ""),
+                                                 m_sandboxRootPath,
+                                                 m_replicatorList );
+        }
     }
     
     bool isOutOfSync() const override

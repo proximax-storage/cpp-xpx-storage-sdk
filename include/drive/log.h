@@ -14,7 +14,7 @@ inline std::mutex gLogMutex;
 
 #define _LOG(expr) { \
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        std::cerr << expr << std::endl << std::flush; \
+        std::cerr << m_dbgOurPeerName << ": " << expr << std::endl << std::flush; \
     }
 
 /*#define LOG_WARN(expr) { \

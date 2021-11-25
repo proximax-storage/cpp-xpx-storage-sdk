@@ -47,7 +47,8 @@ struct DownloadContext {
     enum download_type {
         fs_tree = 0,
         file_from_drive = 1,
-        client_data = 3
+        client_data = 3,
+        missing_files = 4,
     };
 
     using Notification = std::function<void( download_status::code,
@@ -125,8 +126,9 @@ public:
 
     virtual void      endSession() = 0;
 
+    // It loads existing file from disk
     virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
-                                               const std::string& savePath,
+                                               const std::string& folderWhereFileIsLocated,
                                                uint32_t           siriusFlags,
                                                endpoint_list = {} ) = 0;
 

@@ -346,7 +346,7 @@ class Replicator;
 
         virtual void     onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
         
-        // actualRootHash should not be empty
+        // actualRootHash should not be empty if it is called from replicator::asyncAddDrive()
         virtual void     startDriveSyncWithSwarm( std::optional<InfoHash>&& actualRootHash ) = 0;
         
         virtual bool     isOutOfSync() const = 0;

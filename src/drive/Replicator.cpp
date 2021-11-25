@@ -33,10 +33,6 @@ class DefaultReplicator : public DownloadLimiter // Replicator
 public:
     std::shared_ptr<Session> m_session;
 
-    // Drives
-    std::map<Key, std::shared_ptr<FlatDrive>> m_driveMap;
-    std::shared_mutex  m_driveMutex;
-
     // Session listen interface
     std::string m_address;
     std::string m_port;
@@ -53,8 +49,6 @@ public:
     ReplicatorEventHandler& m_eventHandler;
     DbgReplicatorEventHandler*  m_dbgEventHandler;
 
-    const std::string m_dbgReplicatorName;
-    
 public:
     DefaultReplicator (
                const crypto::KeyPair& keyPair,
@@ -73,8 +67,7 @@ public:
         m_sandboxDirectory( std::move(sandboxDirectory) ),
         m_useTcpSocket( useTcpSocket ),
         m_eventHandler( handler ),
-        m_dbgEventHandler( dbgEventHandler ),
-        m_dbgReplicatorName( dbgReplicatorName )
+        m_dbgEventHandler( dbgEventHandler )
     {
     }
 
@@ -89,7 +82,7 @@ public:
             },
             weak_from_this(),
             m_useTcpSocket );
-        m_session->lt_session().m_dbgOurPeerName = m_dbgReplicatorName.c_str();
+        m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName.c_str();
         
         std::mutex waitMutex;
         waitMutex.lock();
@@ -348,6 +341,7 @@ public:
             // go throw replictor list
             for( auto replicatorIt = it->second.m_replicatorsList.begin(); replicatorIt != it->second.m_replicatorsList.end(); replicatorIt++ )
             {
+                //_LOG( "todo++++ sendMessage(rcpt) " << m_dbgOurPeerName << " " << int(downloadChannelId[0]) );
                 m_session->sendMessage( "rcpt", { replicatorIt->m_endpoint.address(), replicatorIt->m_endpoint.port() }, message );
             }
         }
@@ -844,65 +838,8 @@ public:
         }
     }
 
-    bool isPeerReplicator( const FlatDrive& drive, const std::array<uint8_t,32>&  peerPublicKey )
-    {
-        DBG_SINGLE_THREAD
-        
-        auto& replicatorList = drive.replicatorList();
-        auto replicatorIt = std::find_if( replicatorList.begin(), replicatorList.end(), [&peerPublicKey] (const auto& it) {
-            return it.m_publicKey.array() == peerPublicKey;
-        });
-        
-        return replicatorIt != replicatorList.end();
-    }
     
-    bool acceptConnection( const std::array<uint8_t,32>&  transactionHash,
-                           const std::array<uint8_t,32>&  peerPublicKey,
-                           bool*                          outIsDownloadUnlimited ) override
-    {
-        DBG_SINGLE_THREAD
-        
-        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
-        {
-            if ( it->second.m_isModifyTx )
-            {
-                if ( auto driveIt = m_driveMap.find( it->second.m_driveKey ); driveIt != m_driveMap.end() )
-                {
-                    if ( isPeerReplicator( *driveIt->second, peerPublicKey) )
-                    {
-                        *outIsDownloadUnlimited = true;
-                        return true;
-                    }
-                    else
-                    {
-                        //LOG_ERR( "acceptConnection: unknown peerPublicKey: " << sirius::Key(peerPublicKey) );
-                        return false;
-                    }
-                }
-                else
-                {
-                    LOG_ERR( "acceptConnection: unknown drive: " << sirius::Key(it->second.m_driveKey) );
-                    return false;
-                }
-            }
-            else // it is connection for download channel
-            {
-                auto& clients = it->second.m_clients;
-                auto clientIt = std::find( clients.begin(), clients.end(), peerPublicKey);
-                return clientIt != clients.end();
-            }
-            
-            return false;
-        }
-        
-//        _LOG( dbgOurPeerName() << " hash: " << (int)transactionHash[0] );
-//        assert(0);
-        return false;
-    }
-
-
-    
-    const char* dbgReplicatorName() const override { return m_dbgReplicatorName.c_str(); }
+    const char* dbgReplicatorName() const override { return m_dbgOurPeerName.c_str(); }
     
     virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) override
     {
