@@ -34,10 +34,6 @@ protected:
     ChannelMap          m_downloadChannelMap;
     std::shared_mutex   m_downloadChannelMutex;
 
-    DownloadOpinionMap  m_downloadOpinionMap;
-    std::shared_mutex   m_downloadOpinionMutex;
-
-
     ModifyDriveMap      m_modifyDriveMap;
 
     uint64_t            m_receiptLimit = 32*1024; //1024*1024;
@@ -201,7 +197,7 @@ public:
                 map.insert( { it.m_publicKey.array(), {}} );
         }
         
-        m_downloadChannelMap[channelId] = DownloadChannelInfo{ false, prepaidDownloadSize, 0, 0, driveKey.array(), replicatorsList, map, clients };
+        m_downloadChannelMap[channelId] = DownloadChannelInfo{ false, prepaidDownloadSize, 0, 0, driveKey.array(), replicatorsList, map, clients, {}};
     }
 
     void addModifyDriveInfo( const Key&             modifyTransactionHash,
@@ -235,7 +231,7 @@ public:
         //
         {
             std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
-            m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, dataSize, 0, 0, driveKey.array(), replicatorsList, {}, clients };
+            m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, dataSize, 0, 0, driveKey.array(), replicatorsList, {}, clients, {}};
         }
     }
     

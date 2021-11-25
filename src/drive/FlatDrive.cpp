@@ -120,6 +120,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     size_t        m_maxSize;
 
+    // If the Replicator is added to existing Drive,
+    // it downloads its content are then receives rewards for the downloading
     size_t        m_initSize;
 
     bool          m_anyModificationsApproved;
@@ -1179,15 +1181,15 @@ public:
             startDriveSyncWithSwarm( {} );
             return;
         }
-        else if ( m_modifyRequest && !m_modifyUserDataReceived )
-        {
-            // we have not received the whole user blob!
-            m_catchingUpRootHash = transaction.m_rootHash;
-            m_session->removeTorrentsFromSession( { m_modifyDataLtHandle }, [this] {
-                startDriveSyncWithSwarm( {} );
-            });
-            return;
-        }
+//        else if ( m_modifyRequest && !m_modifyUserDataReceived )
+//        {
+//            // we have not received the whole user blob!
+//            m_catchingUpRootHash = transaction.m_rootHash;
+//            m_session->removeTorrentsFromSession( { m_modifyDataLtHandle }, [this] {
+//                startDriveSyncWithSwarm( {} );
+//            });
+//            return;
+//        }
 
         _LOG( "onApprovalTransactionHasBeenPublished(): m_sandboxCalculated=" << m_sandboxCalculated )
         if ( !m_sandboxCalculated )
@@ -1222,8 +1224,9 @@ public:
         if ( m_modifyRequest &&
              m_modifyRequest->m_transactionHash == transactionHash &&
              !m_modifyRequest->m_isCanceled &&
-             m_approveTransactionReceived)
+             !m_approveTransactionReceived)
         {
+            m_approveTransactionSent = false;
             auto opinions = m_otherOpinions;
             m_otherOpinions.clear();
             for (const auto& [key, opinion]: opinions) {

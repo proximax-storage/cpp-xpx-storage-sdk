@@ -50,6 +50,7 @@ namespace sirius::drive::test {
 
         std::deque<Hash256> m_pendingModifications;
         Hash256 m_lastApprovedModification;
+        std::map<Hash256, InfoHash> m_rootHashes;
 
     public:
         TestEnvironment(int numberOfReplicators,
@@ -207,7 +208,7 @@ namespace sirius::drive::test {
 
                 m_pendingModifications.pop_front();
                 m_lastApprovedModification = transactionInfo.m_modifyTransactionHash;
-
+                m_rootHashes[m_lastApprovedModification] = transactionInfo.m_rootHash;
                 for (const auto &r: m_replicators) {
                     std::thread([=] {
                         r->asyncApprovalTransactionHasBeenPublished(
@@ -252,6 +253,16 @@ namespace sirius::drive::test {
                                          const Hash256 &modifyTransactionHash) override {
             EXLOG("modificationIsCanceled: " << replicator.dbgReplicatorName());
 
+        }
+
+        void opinionHasBeenReceived(Replicator &replicator, const ApprovalTransactionInfo &info) override
+        {
+            replicator.asyncOnOpinionReceived(info);
+        }
+
+        void downloadOpinionHasBeenReceived(Replicator &replicator, const DownloadApprovalTransactionInfo &info) override
+        {
+            replicator.asyncOnDownloadOpinionReceived(info);
         }
 
         void waitModificationEnd(const Hash256& modification, int number) {

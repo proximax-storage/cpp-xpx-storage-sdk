@@ -39,28 +39,11 @@ struct ReplicatorUploadInfo
 };
 using ReplicatorUploadMap = std::map<std::array<uint8_t,32>,ReplicatorUploadInfo>;
 
-struct DownloadChannelInfo
-{
-    bool                    m_isModifyTx;
-    
-    uint64_t                m_prepaidDownloadSize;
-    uint64_t                m_requestedSize = 0;
-    uint64_t                m_uploadedSize = 0;
-    std::array<uint8_t,32>  m_driveKey;
-    ReplicatorList          m_replicatorsList;      //todo must be synchronized with drive.m_replicatorList (in higher versions?)
-    ReplicatorUploadMap     m_replicatorUploadMap;
-    std::vector<std::array<uint8_t, 32>> m_clients; //todo
-    
-    // it is used when drive is closing
-    bool                    m_isClosed = false;
-};
-
-// key is a channel hash
-using ChannelMap         = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
-
 struct DownloadOpinionMapValue
 {
-    DownloadApprovalTransactionInfo                     m_info;
+    std::array<uint8_t,32>                              m_eventHash;
+    std::array<uint8_t,32>                              m_downloadChannelId;
+    std::map<Key, DownloadOpinion>                      m_opinions;
     bool                                                m_approveTransactionSent = false;
     bool                                                m_approveTransactionReceived = false;
     std::optional<boost::asio::high_resolution_timer>   m_timer = {};
@@ -69,6 +52,26 @@ struct DownloadOpinionMapValue
 
 // DownloadOpinionMap (key is a blockHash value)
 using DownloadOpinionMap = std::map<std::array<uint8_t,32>, DownloadOpinionMapValue>;
+
+struct DownloadChannelInfo
+{
+    bool m_isModifyTx;
+
+    uint64_t m_prepaidDownloadSize;
+    uint64_t m_requestedSize = 0;
+    uint64_t m_uploadedSize = 0;
+    std::array<uint8_t, 32> m_driveKey;
+    ReplicatorList m_replicatorsList;      //todo must be synchronized with drive.m_replicatorList (in higher versions?)
+    ReplicatorUploadMap m_replicatorUploadMap;
+    std::vector<std::array<uint8_t, 32>> m_clients; //todo
+    DownloadOpinionMap m_downloadOpinionMap;
+
+    // it is used when drive is closing
+    bool m_isClosed = false;
+};
+
+// key is a channel hash
+using ChannelMap         = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
 
 // It is used for mutual calculation of the replicators, when they download 'modify data'
 // (Note. Replicators could receive 'modify data' from client and from replicators, that already receives some piece)
@@ -147,11 +150,16 @@ public:
     // (It initiate opinion exchange, and then publishing of 'DownloadApprovalTransaction')
     virtual void        asyncInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) = 0;
 
-    // It will clear opinion map
+    // It will
     virtual void        asyncDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed = false ) = 0;
+
+    virtual void asyncDownloadApprovalTransactionHasFailedInvalidSignatures( Hash256 eventHash, Hash256 channelId ) = 0;
 
     // It will be called when other replicator calculated rootHash and send his opinion
     virtual void        asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) = 0;
+
+    // It will be called when a new opinion should be verified
+    virtual void        processDownloadOpinion( const DownloadApprovalTransactionInfo& anOpinion ) = 0;
 
     // It will be called when a new opinion should be verified
     virtual void        processOpinion( const ApprovalTransactionInfo& anOpinion ) = 0;

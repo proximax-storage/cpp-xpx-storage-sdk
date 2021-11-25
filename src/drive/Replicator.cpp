@@ -368,6 +368,11 @@ public:
             addOpinion( std::move(anOpinion) );
         });
     }
+
+    void processDownloadOpinion( const DownloadApprovalTransactionInfo& anOpinion ) override
+    {
+        m_eventHandler.downloadOpinionHasBeenReceived(*this, anOpinion);
+    }
     
     DownloadOpinion createMyOpinion( const DownloadChannelInfo& info )
     {
@@ -393,54 +398,66 @@ public:
         
         return myOpinion;
     }
-    
-    void addOpinion( DownloadApprovalTransactionInfo&& opinion )
+
+    void addOpinion(DownloadApprovalTransactionInfo &&opinion)
     {
         DBG_SINGLE_THREAD
-        
+
         //
         // remove outdated entries (by m_creationTime)
         //
         auto now = boost::posix_time::microsec_clock::universal_time();
-        
-        for( auto it = m_downloadOpinionMap.begin(), last = m_downloadOpinionMap.end(); it != last; )
+
+        for (auto &[downloadChannelId, downloadChannel]: m_downloadChannelMap)
         {
-            if ( (now - it->second.m_creationTime).seconds() > 60*60 )
+            std::erase_if(downloadChannel.m_downloadOpinionMap, [&now](const auto &item)
             {
-                it = m_downloadOpinionMap.erase(it);
-            }
-            else
-            {
-                it++;
-            }
+                const auto&[key, value] = item;
+                return (now - value.m_creationTime).seconds() > 60 * 60;
+            });
         }
-        
+
         //
         // add opinion
         //
-        if ( auto it = m_downloadOpinionMap.find( opinion.m_blockHash ); it != m_downloadOpinionMap.end() )
-        {
-            auto& opinionInfo = it->second.m_info;
-            opinionInfo.m_opinions.push_back( opinion.m_opinions[0] );
+        auto channelIt = m_downloadChannelMap.find(opinion.m_downloadChannelId);
 
-            // check opinion number
-            //_LOG( "///// " << opinionInfo.m_opinions.size() << " " <<  (opinionInfo.m_replicatorNumber*2)/3 );
-            //todo not ">=..."!!! - "> (opinionInfo.m_replicatorNumber*2)/3
-            if ( opinionInfo.m_opinions.size() >= (opinionInfo.m_replicatorNumber*2)/3 )
-            {
-                // start timer if it is not started
-                if ( !it->second.m_timer )
-                {
-                    auto& opinionData = it->second;
-                    //todo check
-                    it->second.m_timer = m_session->startTimer( m_downloadApprovalTransactionTimerDelayMs,
-                                            [this,&opinionData]() { onDownloadApprovalTimeExipred( opinionData ); } );
-                }
-            }
-        }
-        else
+        if (channelIt == m_downloadChannelMap.end())
         {
-            m_downloadOpinionMap.insert( { opinion.m_blockHash, DownloadOpinionMapValue{std::move(opinion)}} );
+            LOG_ERR("Attempt to add opinion for a non-existing channel");
+            return;
+        }
+
+        auto &channel = channelIt->second;
+        auto blockHash = opinion.m_blockHash;
+
+        if (channel.m_downloadOpinionMap.find(opinion.m_blockHash) == channel.m_downloadOpinionMap.end())
+        {
+            channel.m_downloadOpinionMap[blockHash] = DownloadOpinionMapValue
+                    {
+                            opinion.m_blockHash,
+                            opinion.m_downloadChannelId,
+                            {}
+                    };
+        }
+
+        auto &opinionInfo = channel.m_downloadOpinionMap[blockHash];
+        auto &opinions = opinionInfo.m_opinions;
+        opinions[opinion.m_opinions[0].m_replicatorKey] = opinion.m_opinions[0];
+
+        // check opinion number
+        //_LOG( "///// " << opinionInfo.m_opinions.size() << " " <<  (opinionInfo.m_replicatorNumber*2)/3 );
+        //todo not ">=..."!!! - "> (opinionInfo.m_replicatorNumber*2)/3
+        if (opinions.size() >= (channel.m_replicatorsList.size() * 2) / 3)
+        {
+            // start timer if it is not started
+            if (!opinionInfo.m_timer)
+            {
+                //todo check
+                opinionInfo.m_timer = m_session->startTimer(m_downloadApprovalTransactionTimerDelayMs,
+                                                            [this, &opinionInfo]()
+                                                            { onDownloadApprovalTimeExipred(opinionInfo); });
+            }
         }
     }
     
@@ -452,7 +469,13 @@ public:
             return;
 
         // notify
-        m_eventHandler.downloadApprovalTransactionIsReady( *this, mapValue.m_info );
+        std::vector<DownloadOpinion> opinions;
+        for (const auto& [replicatorId, opinion]: mapValue.m_opinions)
+        {
+            opinions.push_back(opinion);
+        }
+        auto transactionInfo = DownloadApprovalTransactionInfo{mapValue.m_eventHash, mapValue.m_downloadChannelId, 0, std::move(opinions)};
+        m_eventHandler.downloadApprovalTransactionIsReady( *this, transactionInfo );
         mapValue.m_approveTransactionSent = true;
     }
     
@@ -544,22 +567,88 @@ public:
             deleteDrive( drive.drivePublicKey().array() );
         }
     }
+
+    void asyncDownloadApprovalTransactionHasFailedInvalidSignatures( Hash256 eventHash, Hash256 channelId ) override
+    {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+
+            DBG_SINGLE_THREAD
+
+            if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end())
+            {
+                if ( channelIt->second.m_isClosed )
+                {
+                    return;
+                }
+
+                auto& opinions = channelIt->second.m_downloadOpinionMap;
+                if ( auto opinionInfoIt = opinions.find( eventHash.array() ); opinionInfoIt != opinions.end() )
+                {
+                    auto& opinionInfo = opinionInfoIt->second;
+                    if ( opinionInfo.m_approveTransactionReceived )
+                    {
+                        return;
+                    }
+                    if ( opinionInfo.m_timer )
+                    {
+                        opinionInfo.m_timer.reset();
+                    }
+                    auto receivedOpinions = opinionInfo.m_opinions;
+                    opinionInfo.m_opinions.clear();
+                    opinionInfo.m_approveTransactionSent=false;
+                    for (const auto& [key, opinion]: receivedOpinions)
+                    {
+                        processDownloadOpinion(DownloadApprovalTransactionInfo
+                        {
+                            opinionInfo.m_eventHash,
+                            opinionInfo.m_downloadChannelId,
+                            0,
+                            {opinion}
+                        });
+                    }
+                }
+                else
+                {
+                    LOG_ERR( "eventHash not found" );
+                }
+            }
+            else {
+                LOG_ERR( "channelId not found" );
+            }
+        });//post
+    }
     
-    virtual void asyncDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed ) override
+    virtual void asyncDownloadApprovalTransactionHasBeenPublished( Hash256 eventHash, Hash256 channelId, bool driveIsClosed ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
             DBG_SINGLE_THREAD
             
             // clear opinion map
-            if ( auto it = m_downloadOpinionMap.find( blockHash.array() ); it != m_downloadOpinionMap.end() )
+            if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end())
             {
-                if ( it->second.m_timer )
-                    it->second.m_timer.reset();
+                auto& opinions = channelIt->second.m_downloadOpinionMap;
+                if ( auto it = opinions.find( eventHash.array() ); it != opinions.end() )
+                {
+                    if ( it->second.m_timer )
+                    {
+                        it->second.m_timer.reset();
+                    }
+                    it->second.m_approveTransactionReceived = true;
+                }
+                else
+                {
+                    LOG_ERR( "eventHash not found" );
+                }
             }
             else
             {
                 LOG_ERR( "channelId not found" );
+            }
+
+            if ( !driveIsClosed )
+            {
+                return;
             }
 
             // Is it happened while drive is closing?
@@ -571,17 +660,14 @@ public:
                 {
                     bool driveWillBeDeleted = false;
 
-                    if ( driveIt->second->closingTxHash() == blockHash )
+                    if ( driveIt->second->closingTxHash() == eventHash )
                     {
                         channelIt->second.m_isClosed = true;
 
-                        for( const auto& [key,channelInfo] : m_downloadChannelMap )
-                        {
-                            if ( channelInfo.m_driveKey == driveKey && !channelInfo.m_isClosed )
-                                break;
-                        }
-
-                        driveWillBeDeleted = true;
+                        driveWillBeDeleted = std::find_if(m_downloadChannelMap.begin(), m_downloadChannelMap.end(),[&driveKey] (const auto& value)
+                              {
+                                  return value.second.m_driveKey == driveKey && !value.second.m_isClosed;
+                              }) == m_downloadChannelMap.end();
                     }
 
                     if ( driveWillBeDeleted )
@@ -715,7 +801,7 @@ public:
             DownloadApprovalTransactionInfo info;
             iarchive( info );
 
-            m_eventHandler.downloadOpinionHasBeenReceived(*this, info);
+            processDownloadOpinion(info);
             return;
         }
         
