@@ -25,7 +25,8 @@ inline std::mutex gExLogMutex;
 
 int main()
 {
-    RpcReplicator replicator( REPLICATOR_PRIVATE_KEY,
+    const auto keyPair = sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY ));
+    RpcReplicator replicator( keyPair,
                               REPLICATOR_NAME,
                               REPLICATOR_ADDRESS,
                               REPLICATOR_PORT,
