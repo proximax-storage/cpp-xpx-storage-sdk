@@ -343,7 +343,7 @@ public:
         LOG_ERR( "ERROR: unknown transactionHash: " << (int)transactionHash[0] );
     }
     
-    void onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
+    bool onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
                                  const std::array<uint8_t,32>&  receiverPublicKey,
                                  uint64_t                       pieceSize ) override
     {
@@ -353,7 +353,7 @@ public:
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
             it->second.m_requestedSize += pieceSize;
-            return;
+            return true;
         }
 
         if ( auto it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
@@ -361,9 +361,10 @@ public:
             if ( auto peerIt = it->second.m_modifyTrafficMap.find(receiverPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
             {
                 peerIt->second.m_requestedSize += pieceSize;
-                return;
+                return true;
             }
             LOG_ERR( "ERROR: unknown peer: " << (int)receiverPublicKey[0] );
+            return false;
         }
         
         if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
@@ -371,11 +372,12 @@ public:
             if ( isPeerReplicator( *driveIt->second, receiverPublicKey) )
             {
                 //todo it is a late replicator
-                return;
+                return true;
             }
         }
 
-        LOG_ERR( "ERROR: unknown transactionHash(onPieceRequestReceived): " << (int)transactionHash[0] << " from: " );
+        _LOG( "!!!ERROR: unknown transactionHash(onPieceRequestReceived): " << (int)transactionHash[0] << " from: " );
+        return false;
     }
 
     void onPieceSent( const std::array<uint8_t,32>&  transactionHash,
