@@ -223,7 +223,7 @@ namespace sirius::drive {
             }
             else if ( code == download_status::failed )
             {
-                std::cout << "Client. downloadHandler. Error receiving FsTree: " << code << std::endl;
+                std::cout << "Client. downloadHandler. Error receiving FsTree: " << code << " errorText: " << errorText <<std::endl;
                 callback(fsTree, code);
             }
         };
