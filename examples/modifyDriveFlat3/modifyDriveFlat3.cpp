@@ -355,6 +355,17 @@ int main(int,char**)
     printf( "replicator2 key[0] : 0x%x %i\n", replicatorList[1].m_publicKey[0], replicatorList[1].m_publicKey[0] );
     printf( "replicator3 key[0] : 0x%x %i\n", replicatorList[2].m_publicKey[0], replicatorList[2].m_publicKey[0] );
 
+
+    ///
+    /// Create client session
+    ///
+    gClientFolder  = createClientFiles(BIG_FILE_SIZE);
+    gClientSession = createClientSession( std::move(clientKeyPair),
+                                         CLIENT_IP_ADDR ":5000",
+                                         clientSessionErrorHandler,
+                                         TRANSPORT_PROTOCOL,
+                                         "client" );
+
     ///
     /// Create replicators
     ///
@@ -374,6 +385,23 @@ int main(int,char**)
                                     gMyReplicatorEventHandler,
                                     "replicator1" );
     gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
+
+#if 0
+    sleep(1);
+    driveRootHash = std::make_shared<InfoHash>( gReplicator->dbgGetRootHash( DRIVE_PUB_KEY ) );
+    gReplicator.reset();
+    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
+    clientDownloadFsTree();
+
+    gReplicator = createReplicator( replicatorKeyPair,
+                                    REPLICATOR_IP_ADDR,
+                                    REPLICATOR_PORT,
+                                    std::string( REPLICATOR_ROOT_FOLDER ),
+                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER ),
+                                    TRANSPORT_PROTOCOL,
+                                    gMyReplicatorEventHandler,
+                                    "replicator1" );
+#endif
 
     gReplicator2 = createReplicator( replicatorKeyPair_2,
                                     REPLICATOR_IP_ADDR_2,
@@ -395,15 +423,15 @@ int main(int,char**)
                                     "replicator3" );
     gReplicatorMap[gReplicator3->replicatorKey()] = gReplicator3;
 
-    ///
-    /// Create client session
-    ///
-    gClientFolder  = createClientFiles(BIG_FILE_SIZE);
-    gClientSession = createClientSession( std::move(clientKeyPair),
-                                         CLIENT_IP_ADDR ":5000",
-                                         clientSessionErrorHandler,
-                                         TRANSPORT_PROTOCOL,
-                                         "client" );
+//    ///
+//    /// Create client session
+//    ///
+//    gClientFolder  = createClientFiles(BIG_FILE_SIZE);
+//    gClientSession = createClientSession( std::move(clientKeyPair),
+//                                         CLIENT_IP_ADDR ":5000",
+//                                         clientSessionErrorHandler,
+//                                         TRANSPORT_PROTOCOL,
+//                                         "client" );
     _EXLOG("");
     
     // set root drive hash
@@ -438,6 +466,7 @@ int main(int,char**)
     modifyCompleteCounter = 0;
     MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
 
+#if 1 // NOT LATE
     gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
@@ -450,6 +479,22 @@ int main(int,char**)
     gReplicatorThread.join();
     gReplicatorThread2.join();
     gReplicatorThread3.join();
+#else
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
+    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
+    sleep(10);
+//    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
+    
+    {
+        std::unique_lock<std::mutex> lock(modifyCompleteMutex);
+//        modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 3; } );
+        modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 2; } );
+    }
+
+    gReplicatorThread.join();
+    gReplicatorThread2.join();
+//    gReplicatorThread3.join();
+#endif
     
     /// Client: read changed fsTree (2)
     ///
@@ -552,10 +597,7 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->setModifyApprovalTransactionTimerDelay(1);
     replicator->start();
     replicator->asyncAddDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, replicatorList} );
-//    replicator->asyncAddDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, false, replicatorList} );
     
-//todo    smart_unique_ptr<AddDriveRequest> x = { 100*1024*1024u, 0u, false, replicatorList };
-
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash1.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash3.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
@@ -651,7 +693,7 @@ static void clientModifyDrive( const ActionList& actionList,
     fs::create_directories( tmpFolder );
 
     // start file uploading
-    InfoHash hash = gClientSession->addActionListToSession( actionList, replicatorList, tmpFolder );
+    InfoHash hash = gClientSession->addActionListToSession( actionList, clientKeyPair.publicKey(), replicatorList, tmpFolder );
 
     // inform replicator
     clientModifyHash = hash;

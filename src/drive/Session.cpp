@@ -182,8 +182,8 @@ public:
 
         for( const auto& torrentHandle : torrents )
         {
-            //_LOG( m_addressAndPort << ":remove_torrent: " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state << " " << lt::torrent_status::seeding )
-            //_LOG( m_addressAndPort << ":remove_torrent(2): " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
+            _LOG( ":remove_torrent: " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state << " " << lt::torrent_status::seeding )
+            _LOG(":remove_torrent(2): " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
             assert(torrentHandle.is_valid());
             if ( torrentHandle.is_valid() && torrentHandle.status().state > 2 ) // torrentHandle.status().state == lt::torrent_status::seeding )
             {
@@ -257,6 +257,7 @@ public:
     }
 
     InfoHash addActionListToSession( const ActionList& actionList,
+                                     const Key& clientPublicKey,
                                      const std::string& workFolder,
                                      endpoint_list list ) override {
 
@@ -315,7 +316,7 @@ public:
         actionList.serialize( fs::path(sandboxFolder)/"actionList.bin" );
 
         // create torrent file
-        InfoHash infoHash = createTorrentFile( fs::path(sandboxFolder), workFolder, fs::path(sandboxFolder)/"root.torrent" );
+        InfoHash infoHash = createTorrentFile( fs::path(sandboxFolder), clientPublicKey, workFolder, fs::path(sandboxFolder)/"root.torrent" );
 
         // add torrent file
         addTorrentFileToSession( fs::path(sandboxFolder)/"root.torrent",
@@ -938,13 +939,14 @@ private:
 
                         if ( contextVector.empty() )
                         {
-                            LOG( "Internal error: " << contextVector.empty() );
+                            _LOG( "Internal error: " << contextVector.empty() );
                         }
                         else
                         {
                             fs::path srcFilePath = fs::path(it->second.m_saveFolder) /
                                                         hashToFileName(contextVector[0].m_infoHash);
 
+                            //_LOG( "contextVector.size(): " << contextVector.size() );
                             for( size_t i=0; i<contextVector.size(); i++ )
                             {
                                 auto& context = contextVector[i];
@@ -1142,7 +1144,10 @@ private:
 //
 // ('static') createTorrentFile
 //
-InfoHash createTorrentFile( const std::string& fileOrFolder, const std::string& rootFolder, const std::string& outputTorrentFilename )
+InfoHash createTorrentFile( const std::string& fileOrFolder,
+                            const Key&         drivePublicKey, // or client public key
+                            const std::string& rootFolder,
+                            const std::string& outputTorrentFilename )
 {
     // setup file storage
     lt::file_storage fStorage;
@@ -1163,6 +1168,9 @@ InfoHash createTorrentFile( const std::string& fileOrFolder, const std::string& 
 
     // generate metadata
     lt::entry entry_info = createInfo.generate();
+
+    // add public key of drive
+    entry_info["info"].dict()["sirius drive"]=lt::entry( toString(drivePublicKey.array()) );
 
     // convert to bencoding
     std::vector<char> torrentFileBytes;
@@ -1197,10 +1205,10 @@ InfoHash createTorrentFile( const std::string& fileOrFolder, const std::string& 
 }
 
 InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
-                                      const std::string& drivePublicKey,
-                                      const std::string& outputTorrentPath,
-                                      const std::string& outputTorrentFileExtension )
-{
+                                                const Key&         drivePublicKey, // or client public key
+                                                const std::string& outputTorrentPath,
+                                                const std::string& outputTorrentFileExtension )
+        {
     if ( fs::is_directory(pathToFile) )
     {
         throw std::runtime_error( std::string("moveFileToFlatDrive: 1-st parameter cannot be a folder: ") + pathToFile );
@@ -1230,7 +1238,7 @@ InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
     lt::entry entry_info = createInfo.generate();
 
     // add public key of drive
-    entry_info["info"].dict()["sirius drive"]=lt::entry( drivePublicKey );
+    entry_info["info"].dict()["sirius drive"]=lt::entry( toString(drivePublicKey.array()) );
 
     // convert to bencoding
     std::vector<char> torrentFileBytes;

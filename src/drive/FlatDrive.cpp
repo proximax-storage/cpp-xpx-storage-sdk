@@ -43,6 +43,7 @@
 
 #include <filesystem>
 #include <set>
+#include <functional>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -136,9 +137,14 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     // It will be not empty while drive is catching-up (syncronizing with swarm)
     std::optional<InfoHash>     m_catchingUpRootHash;
-    std::optional<lt_handle>    m_actualFsTreeLtHandle;
-    std::optional<lt_handle>    m_missingFileLtHandle;
-    std::vector<smart_uptr<InfoHash>> m_catchingUpFileHashes;
+    std::optional<InfoHash>     m_newCatchingUpRootHash;
+    std::thread                 m_catchingUpThread;
+
+    std::optional<lt_handle>            m_catchingUpFsTreeLtHandle;
+    std::optional<lt_handle>            m_missingFileLtHandle;
+    
+    std::set<InfoHash>                  m_catchingUpFileSet;
+    std::set<InfoHash>::iterator        m_catchingUpFileIt = m_catchingUpFileSet.end();
 
     // It is used when drive is closing
     std::optional<Hash256> m_closingTxHash = {};
@@ -224,8 +230,12 @@ public:
 
     const Key& drivePublicKey() const override { return m_drivePubKey; }
 
-    void terminate() {
-        //TODO?
+    void terminate()
+    {
+        if ( m_catchingUpThread.get_id() != std::thread::id{} )
+            m_catchingUpThread.join();
+
+        //TODO
     }
 
     uint64_t maxSize() const override {
@@ -312,7 +322,10 @@ public:
 
         // Calculate torrent and root hash
         m_fsTree.deserialize( m_fsTreeFile );
-        m_rootHash = createTorrentFile( m_fsTreeFile, m_fsTreeFile.parent_path(), m_fsTreeTorrent );
+        m_rootHash = createTorrentFile( m_fsTreeFile,
+                                        m_drivePubKey,
+                                        m_fsTreeFile.parent_path(),
+                                        m_fsTreeTorrent );
 
         //TODO compare rootHash with blockchain?
 
@@ -679,7 +692,7 @@ public:
                 }
 
                 // calculate torrent, file hash, and file size
-                InfoHash fileHash = calculateInfoHashAndCreateTorrentFile( clientFile, arrayToString(m_drivePubKey.array()), m_torrentFolder, "" );
+                InfoHash fileHash = calculateInfoHashAndCreateTorrentFile( clientFile, m_drivePubKey, m_torrentFolder, "" );
                 size_t fileSize = std::filesystem::file_size( clientFile );
 
                 // rename file and move it into drive folder
@@ -780,7 +793,10 @@ public:
 
         // calculate new rootHash
         m_sandboxFsTree.doSerialize( m_sandboxFsTreeFile );
-        m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
+        m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile,
+                                               m_drivePubKey,
+                                               m_sandboxRootPath,
+                                               m_sandboxFsTreeTorrent );
 
         myRootHashIsCalculated();
     }
@@ -1177,22 +1193,44 @@ public:
         {
             // wait the end of 'Cancel Modification'
             // and then start 'CatchingUp'
+            m_newCatchingUpRootHash.reset();
             m_catchingUpRootHash = transaction.m_rootHash;
             return;
         }
         else if ( !m_modifyRequest && transaction.m_modifyTransactionHash != m_rootHash.array() )
         {
-            // we have outdated rootHash
-            m_catchingUpRootHash = transaction.m_rootHash;
-            startDriveSyncWithSwarm( {} );
+            // we do NOT MODIFY and we have OUTDATED rootHash
+            
+            // do we catching up now?
+            if ( m_catchingUpRootHash )
+            {
+                if ( m_catchingUpRootHash == transaction.m_rootHash )
+                {
+                    _ASSERT(m_catchingUpRootHash != transaction.m_rootHash);
+                    return;
+                }
+                
+                m_newCatchingUpRootHash = transaction.m_rootHash;
+                
+                if ( m_catchingUpFsTreeLtHandle )
+                {
+                    m_session->removeTorrentsFromSession( {*m_catchingUpFsTreeLtHandle}, [this]
+                    {
+                        startCatchingUp( *m_newCatchingUpRootHash );
+                    });
+                }
+            }
+            else
+            {
+                startCatchingUp( transaction.m_rootHash );
+            }
             return;
         }
 //        else if ( m_modifyRequest && !m_modifyUserDataReceived )
 //        {
 //            // we have not received the whole user blob!
-//            m_catchingUpRootHash = transaction.m_rootHash;
 //            m_session->removeTorrentsFromSession( { m_modifyDataLtHandle }, [this] {
-//                startDriveSyncWithSwarm( {} );
+//                startCatchingUp( m_catchingUpRootHash );
 //            });
 //            return;
 //        }
@@ -1252,17 +1290,14 @@ public:
         _LOG( "onSingleApprovalTransactionHasBeenPublished()" );
     }
     
-    void startDriveSyncWithSwarm( std::optional<InfoHash>&& actualRootHash ) override
+    void startCatchingUp( std::optional<InfoHash>&& actualRootHash ) override
     {
-        if ( m_actualFsTreeLtHandle && actualRootHash && *m_catchingUpRootHash != actualRootHash )
-        {
-            m_catchingUpRootHash = std::move( actualRootHash );
-            //todo remove torrent and startDriveSyncWithSwarm() again
-            return;
-        }
-
+        // actualRootHash could be empty when internal error ONLY
         if ( actualRootHash )
+        {
+            m_newCatchingUpRootHash.reset();
             m_catchingUpRootHash = std::move( actualRootHash );
+        }
         
         //
         // Start download fsTree
@@ -1271,13 +1306,13 @@ public:
 
         _LOG( "Late: download FsTree:" << *m_catchingUpRootHash )
         
-        m_actualFsTreeLtHandle = m_session->download( DownloadContext(
+        m_catchingUpFsTreeLtHandle = m_session->download( DownloadContext(
                                             DownloadContext::missing_files,
-                                            std::bind( &DefaultFlatDrive::actualFsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
+                                            std::bind( &DefaultFlatDrive::catchingUpFsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
                                             *m_catchingUpRootHash,
                                             drivePublicKey().array(),
                                             0,
-                                            "CatchingUpFsTree" ),
+                                            "" ),
                                             //toString( *m_catchingUpRootHash ) ),
                                             m_sandboxRootPath,
                                                    //{} );
@@ -1285,85 +1320,118 @@ public:
     }
     
     // it will be called by Session
-    void actualFsTreeDownloadHandler( download_status::code code,
-                          const InfoHash& infoHash,
-                          const std::filesystem::path /*filePath*/,
-                          size_t /*downloaded*/,
-                          size_t /*fileSize*/,
-                          const std::string& errorText )
+    void catchingUpFsTreeDownloadHandler( download_status::code code,
+                                          const InfoHash& infoHash,
+                                          const std::filesystem::path /*filePath*/,
+                                          size_t /*downloaded*/,
+                                          size_t /*fileSize*/,
+                                          const std::string& errorText )
     {
     
-        if ( *m_catchingUpRootHash != infoHash )
+        if ( m_newCatchingUpRootHash && m_newCatchingUpRootHash != m_catchingUpRootHash )
+        {
+            // start download new fsTree (current is outdated)
+            startCatchingUp( std::move(m_newCatchingUpRootHash) );
             return;
+        }
 
         if ( code == download_status::failed )
         {
-            //todo??
-            startDriveSyncWithSwarm( {} );
+            //todo download again?
+            startCatchingUp( {} );
             return;
         }
 
         if ( code == download_status::download_complete )
         {
+            //todo++++
+//            _LOG("infoHash: " << infoHash  << " " << m_catchingUpFsTreeLtHandle->torrent_file()->files().file_path(0) );
+//            _LOG("m_catchingUpRootHash: " << *m_catchingUpRootHash );
+//            //m_sandboxFsTree.doSerialize( m_sandboxFsTreeFile );
+//            m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile,
+//                                                   m_drivePubKey,
+//                                                   m_sandboxRootPath,
+//                                                   m_sandboxFsTreeTorrent );
+//            _LOG("m_sandboxRootHash: " << m_sandboxRootHash );
+
+
             startDownloadMissingFiles();
         }
     }
 
     void startDownloadMissingFiles()
     {
-        m_session->removeTorrentsFromSession( {*m_actualFsTreeLtHandle}, [this]
-        {
-            FsTree actualFsTree;
+        _LOG( "startDownloadMissingFiles: removeTorrentsFromSession: " << m_catchingUpFsTreeLtHandle->id()  << " " << m_catchingUpFsTreeLtHandle->info_hashes().v2  );
 
-            try {
-                actualFsTree.deserialize( "CatchingUpFsTree" );
-                m_actualFsTreeLtHandle.reset();
-            } catch(...) {
-                LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
-                fs::remove( "CatchingUpFsTree" );
-            }
-            
-            // prepare missing list
-            m_catchingUpFileHashes.clear();
-            createMissingList( actualFsTree );
-            
+        //
+        // Deserialize FsTree
+        //
+
+        try {
+            m_sandboxFsTree.deserialize( m_sandboxFsTreeFile );
+            m_catchingUpFsTreeLtHandle.reset();
+        } catch(...) {
+            LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
+            fs::remove( m_sandboxFsTreeFile );
+        }
+        
+        //
+        // Prepare missing list and start download
+        //
+        m_catchingUpFileSet.clear();
+        createCatchingUpFileList( m_sandboxFsTree );
+        
+        if ( m_catchingUpFileSet.size() == 0 )
+        {
+            LOG_ERR( "m_catchingUpFileSet.size() == 0" );
+        }
+        else
+        {
+            m_catchingUpFileIt = m_catchingUpFileSet.begin();
             downloadMissingFiles();
-        });
+        }
     }
     
-    void createMissingList( const Folder& folder )
+    void createCatchingUpFileList( const Folder& folder )
     {
         for( const auto& child : folder.m_childs )
         {
             if ( isFolder(child) )
             {
-                createMissingList( getFolder(child) );
+                createCatchingUpFileList( getFolder(child) );
             }
             else
             {
-                auto& hash = getFile(child).m_hash;
+                const auto& hash = getFile(child).m_hash;
                 
                 if ( !fs::exists( m_driveFolder / toString(hash) ) )
                 {
-                    m_catchingUpFileHashes.emplace_back( hash );
+                    m_catchingUpFileSet.emplace( hash );
                 }
             }
         }
     }
-
+    
     void downloadMissingFiles()
     {
-        if ( m_catchingUpFileHashes.size() == 0 )
+        m_missingFileLtHandle.reset();
+        
+        if ( m_catchingUpFileIt == m_catchingUpFileSet.end() )
         {
             // it is the end of list
-            //todo
-            //todo remove unused files
-            //todo send  (single?) approval modify tx
+            _LOG( "m_catchingUpFileHashes.size() == 0 ")
+            m_catchingUpThread = std::thread( [this] { completeCatchingUp();} );
         }
         else
         {
-            auto missingFileHash = std::move( m_catchingUpFileHashes.back() );
-            m_catchingUpFileHashes.pop_back();
+            if ( m_newCatchingUpRootHash && *m_newCatchingUpRootHash == *m_catchingUpRootHash )
+            {
+                completeCatchingUp();
+                return;
+            }
+
+            auto missingFileHash = *m_catchingUpFileIt;
+            m_catchingUpFileIt++;
             
             m_missingFileLtHandle = m_session->download( DownloadContext(
                                                                          
@@ -1371,24 +1439,23 @@ public:
 
                                                  [this] ( download_status::code code,
                                                            const InfoHash& infoHash,
-                                                           const std::filesystem::path filePath,
+                                                           const std::filesystem::path saveAs,
                                                            size_t /*downloaded*/,
                                                            size_t /*fileSize*/,
                                                            const std::string& errorText )
                                                  {
                                                      if ( code == download_status::download_complete )
                                                      {
-                                                         _LOG( "catchedUp: " << filePath );
+                                                         _LOG( "catchedUp: " << toString(infoHash) );
                                                          downloadMissingFiles();
                                                      }
                                                      else if ( code == download_status::failed )
                                                      {
-                                                         //todo
-                                                         LOG_ERR("");
+                                                         LOG_ERR("???");
                                                      }
                                                  },
 
-                                                 *missingFileHash,
+                                                 missingFileHash,
                                                  drivePublicKey().array(),
                                                  0,
                                                  ""),
@@ -1397,6 +1464,109 @@ public:
         }
     }
     
+    void completeCatchingUp()
+    {
+        //todo remove unused files
+        removeUnusedFiles( m_sandboxFsTree );
+        
+        //todo move sandbox files to drive
+        for( const auto& fileHash : m_catchingUpFileSet )
+        {
+            fs::rename(  m_sandboxRootPath / toString( fileHash ), m_driveFolder / toString( fileHash ) );
+            
+            // calculate torrent, file hash, and file size
+            calculateInfoHashAndCreateTorrentFile( m_driveFolder / toString( fileHash ), m_drivePubKey, m_torrentFolder, "" );
+            _LOG("fileHash:" << fileHash );
+        }
+        
+        //
+        // Check RootHash
+        //
+        m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile,
+                                               m_drivePubKey,
+                                               m_sandboxRootPath,
+                                               m_sandboxFsTreeTorrent );
+
+        _LOG("m_sandboxRootHash: " << m_sandboxRootHash );
+        _LOG("m_catchingUpRootHash: " << *m_catchingUpRootHash );
+        _ASSERT( m_sandboxRootHash == *m_catchingUpRootHash );
+        
+        m_session->lt_session().get_context().post( [this]() mutable
+        {
+            // check if RootHash has been published
+            if ( m_newCatchingUpRootHash )
+            {
+                startCatchingUp( std::move(m_newCatchingUpRootHash) );
+                return;
+            }
+
+            m_session->removeTorrentsFromSession( {m_fsTreeLtHandle}, [this]
+            {
+                fs::rename(  m_sandboxFsTreeFile, m_fsTreeFile );
+                fs::rename(  m_sandboxFsTreeTorrent, m_fsTreeTorrent );
+
+                createMyOpinion();
+                sendSingleApprovalTransaction();
+                m_catchingUpRootHash.reset();
+            });
+        });
+    }
+    
+    struct InfoHashPtrCompare {
+        bool operator() ( const InfoHash* l, const InfoHash* r) const { return *l < *r; }
+    };
+
+    void fillUsedFileList( const Folder& folder, InfoHashPtrSet& usedFileList )
+    {
+        for( const auto& child : folder.m_childs )
+        {
+            if ( isFolder(child) )
+            {
+                fillUsedFileList( getFolder(child), usedFileList );
+            }
+            else
+            {
+                auto& hash = getFile(child).m_hash;
+
+                if ( !fs::exists( m_driveFolder / toString(hash) ) )
+                {
+                    usedFileList.emplace( &hash );
+                }
+                if ( !fs::exists( m_torrentFolder / toString(hash) ) )
+                {
+                    usedFileList.emplace( &hash );
+                }
+            }
+        }
+    }
+    
+    void removeUnusedFiles( const FsTree& fsTree )
+    {
+        InfoHashPtrSet usedFileList;
+        fillUsedFileList( fsTree, usedFileList );
+        
+        std::set<fs::path> tobeRemovedFileList;
+        for( const auto& entry: std::filesystem::directory_iterator{m_driveFolder} )
+        {
+            if ( entry.is_directory() )
+            {
+                //??
+            }
+            else
+            {
+                // stem() - filename without extension
+                const InfoHash hash = stringToHash( entry.path().stem().string() );
+                if ( usedFileList.find( &hash ) == usedFileList.end() )
+                    tobeRemovedFileList.insert( entry.path().stem() );
+            }
+        }
+        
+        for( const auto& file : tobeRemovedFileList )
+        {
+            fs::remove( file );
+        }
+    }
+
     bool isOutOfSync() const override
     {
         return m_catchingUpRootHash.has_value();

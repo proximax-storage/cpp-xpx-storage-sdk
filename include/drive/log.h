@@ -26,6 +26,12 @@ inline std::mutex gLogMutex;
 #define LOG_ERR(expr) { \
     const std::lock_guard<std::mutex> autolock( gLogMutex ); \
     std::cerr << __FILE__ << ":" << __LINE__ << ": "<< expr << std::flush; \
-    std::cerr << expr << std::flush; \
-    assert(0); \
+}
+
+#define _ASSERT(expr) { \
+    if (!(expr)) {\
+        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::cerr << __FILE__ << ":" << __LINE__ << " failed: " << #expr << std::flush; \
+        assert(0); \
+    }\
 }

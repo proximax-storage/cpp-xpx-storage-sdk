@@ -82,6 +82,7 @@ public:
 
     // prepare session to modify action
     InfoHash addActionListToSession( const ActionList&  actionList,
+                                     const Key&         clientPublicKey,
                                      const ReplicatorList& replicatorList,
                                      const std::string& workFolder )
     {
@@ -99,7 +100,7 @@ public:
 
         auto modificationWorkFolder = workFolder + "/" + drive::toString(drive::randomByteArray<Hash256>());
 
-        auto hash = m_session->addActionListToSession( actionList, modificationWorkFolder, endpointList );
+        auto hash = m_session->addActionListToSession( actionList, clientPublicKey, modificationWorkFolder, endpointList );
         return hash;
     }
 
