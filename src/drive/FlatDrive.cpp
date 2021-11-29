@@ -1114,10 +1114,11 @@ public:
     }
 
     bool validateOpinion(const ApprovalTransactionInfo& anOpinion ) {
-        return  m_myOpinion->m_rootHash != anOpinion.m_rootHash ||
-                m_myOpinion->m_fsTreeFileSize != anOpinion.m_fsTreeFileSize ||
-                m_myOpinion->m_metaFilesSize != anOpinion.m_metaFilesSize ||
-                m_myOpinion->m_driveSize != anOpinion.m_driveSize;
+        bool equal = m_myOpinion->m_rootHash == anOpinion.m_rootHash &&
+                     m_myOpinion->m_fsTreeFileSize == anOpinion.m_fsTreeFileSize &&
+                     m_myOpinion->m_metaFilesSize == anOpinion.m_metaFilesSize &&
+                     m_myOpinion->m_driveSize == anOpinion.m_driveSize;
+        return equal;
     }
 
     void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
