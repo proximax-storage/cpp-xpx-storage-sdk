@@ -149,7 +149,9 @@ namespace sirius::drive::test {
             }
         }
 
+#ifdef __APPLE__
 #pragma mark --ReplicatorEventHandler methods and variables
+#endif
 
 // It will be called before 'replicator' shuts down
         virtual void willBeTerminated(Replicator &replicator) override {

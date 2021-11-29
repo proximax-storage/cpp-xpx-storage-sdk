@@ -89,7 +89,7 @@ namespace sirius::drive::test {
         lt::settings_pack pack;
         TestClient client(pack);
 
-        _LOG("");
+        EXLOG("");
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
@@ -106,7 +106,7 @@ namespace sirius::drive::test {
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        _LOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
+        EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);
     }
 

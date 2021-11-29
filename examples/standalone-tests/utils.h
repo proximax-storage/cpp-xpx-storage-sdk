@@ -1,6 +1,7 @@
 #pragma once
 
 #include <condition_variable>
+#include <drive/FsTree.h>
 #include "types.h"
 #include "drive/Session.h"
 #include "drive/ClientSession.h"
@@ -86,10 +87,11 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
             EXLOG("# Client is waiting the end of replicator update");
         }
 
-        void downloadFromDrive(const InfoHash& rootHash, const Key& downloadChannelKey, const ReplicatorList &replicatorList)
+        void downloadFromDrive(const InfoHash& rootHash,
+                               const Key& downloadChannelKey,
+                               const ReplicatorList &replicatorList,
+                               const Hash256& downloadChannelId)
         {
-            auto downloadChannelId = Hash256(downloadChannelKey.array());
-            m_clientSession->setDownloadChannel(replicatorList, downloadChannelId);
             m_clientSession->download(DownloadContext(
                                               DownloadContext::fs_tree,
                                               [this] (download_status::code code,
@@ -107,6 +109,29 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
                                               downloadChannelId, 0),
                                       m_clientFolder / "fsTree-folder");
             m_downloadChannels.push_back(downloadChannelId);
+        }
+
+        void synchronizeDrive( const fs::path& baseFolder, const Folder& folder )
+        {
+            for( const auto& child: folder.childs() )
+            {
+                if ( isFolder(child) )
+                {
+                    const auto& childFolder = getFolder(child);
+                    synchronizeDrive( baseFolder / childFolder.name(), childFolder );
+                }
+                else
+                {
+                    m_clientSession->download( DownloadContext(
+                            DownloadContext::file_from_drive,
+                            clientDownloadFilesHandler,
+                            file.hash(),
+                            {}, 0,
+                            gClientFolder / "downloaded_files" / folderName / file.name() ),
+                                              //gClientFolder / "downloaded_files" / folderName / toString(file.hash()) ),
+                                              gClientFolder / "downloaded_files" );
+                }
+            }
         }
 
         void waitForDownloadComplete(const InfoHash& infoHash) {

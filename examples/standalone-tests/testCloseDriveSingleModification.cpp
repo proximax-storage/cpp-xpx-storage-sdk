@@ -56,8 +56,6 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
         pack.set_int(lt::settings_pack::upload_rate_limit, 0);
         TestClient client(pack);
 
-        _LOG("");
-
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
                 SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1);
@@ -73,7 +71,7 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        _LOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
+        EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);
 
         EXLOG("\n# Client asked to close drive");

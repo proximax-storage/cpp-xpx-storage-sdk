@@ -16,7 +16,7 @@ using namespace sirius::drive::test;
 namespace sirius::drive::test {
 
     /// change this macro for your test
-#define TEST_NAME DownloadTooLarge
+#define TEST_NAME DownloadWithoutChannel
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -88,7 +88,7 @@ namespace sirius::drive::test {
         lt::settings_pack pack;
         TestClient client(pack);
 
-        _LOG("");
+        EXLOG("");
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
@@ -105,7 +105,7 @@ namespace sirius::drive::test {
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        _LOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
+        EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);
 
         auto downloadChannel = randomByteArray<Key>();
@@ -118,7 +118,8 @@ namespace sirius::drive::test {
 
         client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification], downloadChannel, env.m_addrList);
 
-        std::this_thread::sleep_for(std::chrono::minutes(1));
+        std::this_thread::sleep_for(std::chrono::seconds(20));
+        std::cout << "WAKE UP" << std::endl;
         ASSERT_EQ(client.m_downloadCompleted[env.m_lastApprovedModification], false);
     }
 

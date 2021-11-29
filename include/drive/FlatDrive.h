@@ -73,7 +73,9 @@ class Replicator;
         {
         }
         
-        void Sign( const crypto::KeyPair& keyPair, const Hash256& modifyTransactionHash, const InfoHash& rootHash )
+        void Sign( const crypto::KeyPair& keyPair,
+                   const Hash256& modifyTransactionHash,
+                   const InfoHash& rootHash )
         {
 //            std::cerr <<  "Sign:" << keyPair.publicKey()[0] << "," << modifyTransactionHash[0] << "," << rootHash[0] << "," << m_replicatorUploadBytes[0] <<
 //            "," << m_clientUploadBytes << "\n\n";

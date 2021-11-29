@@ -404,6 +404,7 @@ public:
 
         for (auto &[downloadChannelId, downloadChannel]: m_downloadChannelMap)
         {
+            // TODO Potential performance bottleneck
             std::erase_if(downloadChannel.m_downloadOpinionMap, [&now](const auto &item)
             {
                 const auto&[key, value] = item;
@@ -658,6 +659,7 @@ public:
                     {
                         channelIt->second.m_isClosed = true;
 
+                        // TODO Potential performance bottleneck
                         driveWillBeDeleted = std::find_if(m_downloadChannelMap.begin(), m_downloadChannelMap.end(),[&driveKey] (const auto& value)
                               {
                                   return value.second.m_driveKey == driveKey && !value.second.m_isClosed;
