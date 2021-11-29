@@ -9,6 +9,7 @@
 #include "utils/RawBuffer.h"
 #include <string>
 #include <array>
+#include <set>
 #include <functional>
 #include <boost/asio/ip/tcp.hpp>
 
@@ -58,9 +59,17 @@ namespace sirius {
 	}
 
     namespace drive {
+
         // InfoHash
         using InfoHash  = Hash256;// std::array<uint8_t,32>;
+    
+        struct InfoHashPtrCompare {
+            bool operator() ( const InfoHash* l, const InfoHash* r) const { return *l < *r; }
+        };
+    
+        using InfoHashPtrSet = std::set<const InfoHash*,InfoHashPtrCompare>;
 
+        // Replicator requisites
         struct ReplicatorInfo
         {
             bool operator==(const ReplicatorInfo& ri) const {

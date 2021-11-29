@@ -164,7 +164,7 @@ public:
 
             if ( actualRootHash && drive->rootHash() != actualRootHash )
             {
-                drive->startDriveSyncWithSwarm( std::move(actualRootHash) );
+                drive->startCatchingUp( std::move(actualRootHash) );
             }
 
             // Notify

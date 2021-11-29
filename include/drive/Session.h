@@ -139,6 +139,7 @@ public:
                                                  std::function<void()>          endNotification ) = 0;
 
     virtual InfoHash  addActionListToSession( const ActionList&,
+                                              const Key& clientPublicKey,
                                               const std::string& workFolder,
                                               endpoint_list list = {} ) = 0;
 
@@ -160,8 +161,9 @@ public:
 
 // createTorrentFile
 PLUGIN_API InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
-                            const std::string& /*pathToRootFolder*/, // not used
-                            const std::string& outputTorrentFilename );
+                                       const Key&         drivePublicKey, // or client public key
+                                       const std::string& pathToRootFolder,
+                                       const std::string& outputTorrentFilename );
 
 //
 // It is used on drive side only.
@@ -170,9 +172,9 @@ PLUGIN_API InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
 // with name as 'InfoHash' + '.' + 'outputTorrentFileExtension'
 //
 PLUGIN_API InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& file,
-                                      const std::string& drivePublicKey,
-                                      const std::string& outputTorrentPath,
-                                      const std::string& outputTorrentFileExtension );
+                                                           const Key&         drivePublicKey, // or client public key
+                                                           const std::string& outputTorrentPath,
+                                                           const std::string& outputTorrentFileExtension );
 
 //
 // createDefaultLibTorrentSession
