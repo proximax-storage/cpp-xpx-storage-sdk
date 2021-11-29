@@ -89,9 +89,9 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
 
         void downloadFromDrive(const InfoHash& rootHash,
                                const Key& downloadChannelKey,
-                               const ReplicatorList &replicatorList,
-                               const Hash256& downloadChannelId)
+                               const ReplicatorList &replicatorList)
         {
+            auto downloadChannelId = Hash256(downloadChannelKey.array());
             m_clientSession->download(DownloadContext(
                                               DownloadContext::fs_tree,
                                               [this] (download_status::code code,
@@ -122,14 +122,14 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
                 }
                 else
                 {
-                    m_clientSession->download( DownloadContext(
-                            DownloadContext::file_from_drive,
-                            clientDownloadFilesHandler,
-                            file.hash(),
-                            {}, 0,
-                            gClientFolder / "downloaded_files" / folderName / file.name() ),
-                                              //gClientFolder / "downloaded_files" / folderName / toString(file.hash()) ),
-                                              gClientFolder / "downloaded_files" );
+//                    m_clientSession->download( DownloadContext(
+//                            DownloadContext::file_from_drive,
+//                            clientDownloadFilesHandler,
+//                            file.hash(),
+//                            {}, 0,
+//                            gClientFolder / "downloaded_files" / folderName / file.name() ),
+//                                              //gClientFolder / "downloaded_files" / folderName / toString(file.hash()) ),
+//                                              gClientFolder / "downloaded_files" );
                 }
             }
         }

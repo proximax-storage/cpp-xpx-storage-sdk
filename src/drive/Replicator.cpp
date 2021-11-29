@@ -378,15 +378,15 @@ public:
         {
             if ( auto downloadedIt = info.m_replicatorUploadMap.find( replicatorIt.m_publicKey.array()); downloadedIt != info.m_replicatorUploadMap.end() )
             {
-                myOpinion.m_downloadedBytes.push_back( downloadedIt->second.m_uploadedSize );
+                myOpinion.m_downloadLayout.push_back( {downloadedIt->first, downloadedIt->second.m_uploadedSize} );
             }
             else if ( replicatorIt.m_publicKey == publicKey() )
             {
-                myOpinion.m_downloadedBytes.push_back( info.m_uploadedSize );
+                myOpinion.m_downloadLayout.push_back( { publicKey(), info.m_uploadedSize } );
             }
             else
             {
-                myOpinion.m_downloadedBytes.push_back( 0 );
+                myOpinion.m_downloadLayout.push_back( { replicatorIt.m_publicKey.array(), 0 } );
             }
         }
         
@@ -469,7 +469,7 @@ public:
         {
             opinions.push_back(opinion);
         }
-        auto transactionInfo = DownloadApprovalTransactionInfo{mapValue.m_eventHash, mapValue.m_downloadChannelId, 0, std::move(opinions)};
+        auto transactionInfo = DownloadApprovalTransactionInfo{mapValue.m_eventHash, mapValue.m_downloadChannelId, std::move(opinions)};
         m_eventHandler.downloadApprovalTransactionIsReady( *this, transactionInfo );
         mapValue.m_approveTransactionSent = true;
     }
@@ -505,7 +505,6 @@ public:
             
             DownloadApprovalTransactionInfo transactionInfo{  blockHash.array(),
                                                             channelId.array(),
-                                                            (uint32_t)replicatorsList.size(),
                                                             { myOpinion }};
             
             //
@@ -597,7 +596,6 @@ public:
                         {
                             opinionInfo.m_eventHash,
                             opinionInfo.m_downloadChannelId,
-                            0,
                             {opinion}
                         });
                     }

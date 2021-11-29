@@ -52,9 +52,12 @@ namespace sirius::drive::test {
             ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size() - 1);
             for (const auto& opinion: transactionInfo.m_opinions) {
                 auto size =
-                        std::accumulate(opinion.m_replicatorUploadBytes.begin(),
-                                        opinion.m_replicatorUploadBytes.end(),
-                                        opinion.m_clientUploadBytes);
+                    std::accumulate(opinion.m_uploadLayout.begin(),
+                                    opinion.m_uploadLayout.end(),
+                                    opinion.m_clientUploadBytes,
+                                    [] (const auto& sum, const auto& item) {
+                                        return sum + item.m_uploadedBytes;
+                                    });
                 m_modificationSizes.insert(size);
             }
 
@@ -68,9 +71,12 @@ namespace sirius::drive::test {
 
             const auto& opinion = transactionInfo.m_opinions.front();
             auto size =
-                    std::accumulate(opinion.m_replicatorUploadBytes.begin(),
-                                    opinion.m_replicatorUploadBytes.end(),
-                                    opinion.m_clientUploadBytes);
+                    std::accumulate(opinion.m_uploadLayout.begin(),
+                                    opinion.m_uploadLayout.end(),
+                                    opinion.m_clientUploadBytes,
+                                    [] (const auto& sum, const auto& item) {
+                        return sum + item.m_uploadedBytes;
+                    });
             m_modificationSizes.insert(size);
 
             ASSERT_EQ(m_modificationSizes.size(), 1);
@@ -108,7 +114,7 @@ namespace sirius::drive::test {
         EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);
 
-        auto downloadChannel = randomByteArray<Key>();
+//        auto downloadChannel = randomByteArray<Key>();
 //        env.downloadFromDrive(DRIVE_PUB_KEY, DownloadRequest{
 //                downloadChannel,
 //                10000000,
@@ -116,7 +122,7 @@ namespace sirius::drive::test {
 //                {client.m_clientKeyPair.publicKey()}
 //        });
 
-        client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification], downloadChannel, env.m_addrList);
+//        client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification], downloadChannel, env.m_addrList);
 
         std::this_thread::sleep_for(std::chrono::seconds(20));
         std::cout << "WAKE UP" << std::endl;

@@ -167,8 +167,9 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     std::optional<ApprovalTransactionInfo>  m_myOpinion;
 
     // opinions from other replicators
-    // (key is a replicator key, one replicator one opinion)
-    std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>    m_otherOpinions;
+    // key of the outer map is modification id
+    // key of the inner map is a replicator key, one replicator one opinion
+    std::map<Hash256, std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>>    m_otherOpinions;
     
     //todo may be they are outstripping opinions
     //std::vector<ApprovalTransactionInfo>    m_unknownOpinions;
@@ -560,9 +561,6 @@ public:
             m_sandboxCalculated          = false;
             m_approveTransactionReceived = false;
             m_approveTransactionSent     = false;
-
-            // remove old opinions
-            m_otherOpinions.clear();
         }
         
         // remove my opinion
@@ -864,10 +862,7 @@ public:
         for( const auto& replicatorIt : m_modifyRequest->m_replicatorList )
         {
             auto it = m_cumulativeUploads.find( replicatorIt.m_publicKey.array() );
-            opinion.m_replicatorUploadBytes.push_back( it->second );
-            
-            auto& v = opinion.m_uploadReplicatorKeys;
-            v.insert( v.end(), replicatorIt.m_publicKey.array().begin(), replicatorIt.m_publicKey.array().end() );
+            opinion.m_uploadLayout.push_back( {replicatorIt.m_publicKey.array(), it->second} );
         }
 
         {
@@ -875,19 +870,26 @@ public:
             opinion.m_clientUploadBytes = it->second;
         }
 
-        opinion.Sign( m_replicator.keyPair(), m_modifyRequest->m_transactionHash, m_sandboxRootHash );
-
         // Calculate size of torrent files and total drive size
         uint64_t metaFilesSize;
         uint64_t driveSize;
         getSandboxDriveSizes( metaFilesSize, driveSize );
+        uint64_t fsTreeSize = sandboxFsTreeSize();
+
+        opinion.Sign( m_replicator.keyPair(),
+                      drivePublicKey(),
+                      m_modifyRequest->m_transactionHash,
+                      m_sandboxRootHash,
+                      fsTreeSize,
+                      metaFilesSize,
+                      driveSize);
 
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
         m_myOpinion = std::optional<ApprovalTransactionInfo> {{ m_drivePubKey.array(),
                                                                 m_modifyRequest->m_transactionHash.array(),
                                                                 m_sandboxRootHash.array(),
-                                                                sandboxFsTreeSize(),
+                                                                fsTreeSize,
                                                                 metaFilesSize,
                                                                 driveSize,
                                                                 { std::move(opinion) }}};
@@ -926,8 +928,14 @@ public:
             {
                 // Send my opinion to other replicators
                 shareMyOpinion();
-                
-                // May be send approval transaction
+
+                // validate already received opinions
+                auto& transactionOpinions = m_otherOpinions[m_modifyRequest->m_transactionHash];
+                std::erase_if( transactionOpinions, [this] (const auto& item) {
+                   return !validateOpinion(item.second);
+                });
+
+                // Maybe send approval transaction
                 checkOpinionNumberAndStartTimer();
             }
         }
@@ -951,7 +959,7 @@ public:
         auto replicatorNumber = m_modifyRequest->m_replicatorList.size();//todo++++ +1;
 
         // check opinion number
-        if ( m_myOpinion && m_otherOpinions.size() >= ((replicatorNumber)*2)/3
+        if ( m_myOpinion && m_otherOpinions[m_modifyRequest->m_transactionHash].size() >= ((replicatorNumber)*2)/3
             && !m_approveTransactionSent && !m_approveTransactionReceived )
         {
             // start timer if it is not started
@@ -1089,47 +1097,32 @@ public:
         }
     }
 
+    bool validateOpinion(const ApprovalTransactionInfo& anOpinion ) {
+        return  m_myOpinion->m_rootHash != anOpinion.m_rootHash ||
+                m_myOpinion->m_fsTreeFileSize != anOpinion.m_fsTreeFileSize ||
+                m_myOpinion->m_metaFilesSize != anOpinion.m_metaFilesSize ||
+                m_myOpinion->m_driveSize != anOpinion.m_driveSize;
+    }
+
     void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
-        // TODO move validation to extension
-        if ( anOpinion.m_opinions.size() != 1 )
-            return; //is it spam?
-        
-        auto& replicatorKey = anOpinion.m_opinions[0].m_replicatorKey;
-        
-        // check public key
-        {
-            std::shared_lock<std::shared_mutex> lock(m_mutex);
-            auto count = std::count_if( m_replicatorList.begin(), m_replicatorList.end(),
-                                        [&replicatorKey] (const auto& r){
-                                            return r.m_publicKey == replicatorKey;} );
-            //todo unknown replicator (or spam)
-            if ( count != 1 )
-                return;
-        }
-        
-        // verify sign
-        if ( !anOpinion.m_opinions[0].Verify( anOpinion.m_modifyTransactionHash, anOpinion.m_rootHash ) )
-        {
-            // invalid ApprovalTransactionInfo
-            //todo
-            return;
-        }
+        // Preliminary opinion verification takes place at extension
 
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
-        if ( !m_modifyRequest || anOpinion.m_modifyTransactionHash != m_modifyRequest->m_transactionHash.array())
+        // In this case Replicator is able to verify all data in the opinion
+        if ( m_modifyRequest &&
+            anOpinion.m_modifyTransactionHash == m_modifyRequest->m_transactionHash.array() &&
+            m_myOpinion)
         {
-            // it seems that our drive is significantly behind
-            // todo remove old opinions from this replicator
-            //todo m_unknownOpinions.push_back( anOpinion );
-            return;
+            if ( !validateOpinion(anOpinion) )
+            {
+                return;
+            }
         }
-        
-        // todo verify transaction, duplicates ...
 
         // May be send approval transaction
-        m_otherOpinions[replicatorKey] = anOpinion;
+        m_otherOpinions[anOpinion.m_modifyTransactionHash][anOpinion.m_opinions[0].m_replicatorKey] = anOpinion;
         checkOpinionNumberAndStartTimer();
     }
     
@@ -1151,9 +1144,9 @@ public:
                                             m_myOpinion->m_driveSize,
                                             {}};
         
-        info.m_opinions.reserve( m_otherOpinions.size()+1 );
+        info.m_opinions.reserve( m_otherOpinions[m_modifyRequest->m_transactionHash].size()+1 );
         info.m_opinions.emplace_back(  m_myOpinion->m_opinions[0] );
-        for( const auto& otherOpinion : m_otherOpinions ) {
+        for( const auto& otherOpinion : m_otherOpinions[m_modifyRequest->m_transactionHash] ) {
             info.m_opinions.emplace_back( otherOpinion.second.m_opinions[0] );
         }
         
@@ -1168,9 +1161,10 @@ public:
     void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
         m_approveTransactionReceived = true;
-        
+
         // stop timer
         m_opinionTimer.reset();
+        m_otherOpinions.erase(transaction.m_modifyTransactionHash);
         
         // check actual root hash
         if ( m_modificationIsCanceling )
@@ -1232,11 +1226,14 @@ public:
              !m_modifyRequest->m_isCanceled &&
              !m_approveTransactionReceived)
         {
-            m_approveTransactionSent = false;
-            auto opinions = m_otherOpinions;
-            m_otherOpinions.clear();
-            for (const auto& [key, opinion]: opinions) {
-                m_replicator.processOpinion(opinion);
+            if ( auto it = m_otherOpinions.find(transactionHash); it != m_otherOpinions.end() )
+            {
+                m_approveTransactionSent = false;
+                auto opinions = it->second;
+                m_otherOpinions.erase(it);
+                for (const auto& [key, opinion]: opinions) {
+                    m_replicator.processOpinion(opinion);
+                }
             }
         }
     }

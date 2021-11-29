@@ -51,18 +51,28 @@ class Replicator;
         std::vector<Key>     m_clients;
     };
 
+    struct KeyAndBytes
+    {
+        std::array<uint8_t,32> m_key;
+        uint64_t m_uploadedBytes;
+
+        template<class Archive>
+        void serialize(Archive &arch)
+        {
+            arch(m_key);
+            arch(m_uploadedBytes);
+        }
+    };
+
     // It is opinition of single replicator about how much data the other peers transferred.
     // (when it downloads modifyData)
     struct SingleOpinion
     {
         // Replicator public key
-        std::array<uint8_t,32>  m_replicatorKey;
+        std::array<uint8_t,32>      m_replicatorKey;
 
-        // Opinions about how much the Replicators and the Drive Owner have uploaded to this Replicator.
-        //TODO
-        std::vector<uint8_t>    m_uploadReplicatorKeys; // all keys are concatenated into 1 array
-        std::vector<uint64_t>   m_replicatorUploadBytes;
-        uint64_t                m_clientUploadBytes = 0;
+        std::vector<KeyAndBytes>    m_uploadLayout;
+        uint64_t                    m_clientUploadBytes = 0;
         
         // Signature of { modifyTransactionHash, rootHash, replicatorsUploadBytes, clientUploadBytes }
         Signature               m_signature;
@@ -74,32 +84,50 @@ class Replicator;
         }
         
         void Sign( const crypto::KeyPair& keyPair,
+                   const Key& driveKey,
                    const Hash256& modifyTransactionHash,
-                   const InfoHash& rootHash )
+                   const InfoHash& rootHash,
+                   const uint64_t& fsTreeFileSize,
+                   const uint64_t& metaFilesSize,
+                   const uint64_t& driveSize)
         {
 //            std::cerr <<  "Sign:" << keyPair.publicKey()[0] << "," << modifyTransactionHash[0] << "," << rootHash[0] << "," << m_replicatorUploadBytes[0] <<
 //            "," << m_clientUploadBytes << "\n\n";
             crypto::Sign( keyPair,
                           {
+                            utils::RawBuffer{driveKey},
                             utils::RawBuffer{modifyTransactionHash},
                             utils::RawBuffer{rootHash},
-                            utils::RawBuffer{ (const uint8_t*) &m_replicatorUploadBytes[0],
-                                                m_replicatorUploadBytes.size() * sizeof (m_replicatorUploadBytes[0]) },
+                            utils::RawBuffer{(const uint8_t*) &fsTreeFileSize, sizeof(fsTreeFileSize)},
+                            utils::RawBuffer{(const uint8_t*) &metaFilesSize, sizeof(metaFilesSize)},
+                            utils::RawBuffer{(const uint8_t*) &driveSize, sizeof(driveSize)},
+                            utils::RawBuffer{ (const uint8_t*) &m_uploadLayout[0],
+                                              m_uploadLayout.size() * sizeof (m_uploadLayout[0]) },
                             utils::RawBuffer{(const uint8_t*)&m_clientUploadBytes,sizeof(m_clientUploadBytes)}
                           },
                           m_signature );
         }
 
-        bool Verify( const Hash256& modifyTransactionHash, const InfoHash& rootHash ) const
+        bool Verify( const crypto::KeyPair& keyPair,
+                     const Key& driveKey,
+                     const Hash256& modifyTransactionHash,
+                     const InfoHash& rootHash,
+                     const uint64_t& fsTreeFileSize,
+                     const uint64_t& metaFilesSize,
+                     const uint64_t& driveSize ) const
         {
 //            std::cerr <<  "Verify:" << m_replicatorKey[0] << "," << modifyTransactionHash[0] << "," << rootHash[0] << "," << m_replicatorUploadBytes[0] <<
 //            "," << m_clientUploadBytes << "\n\n";
             return crypto::Verify( m_replicatorKey,
                                   {
+                                    utils::RawBuffer{driveKey},
                                     utils::RawBuffer{modifyTransactionHash},
                                     utils::RawBuffer{rootHash},
-                                    utils::RawBuffer{ (const uint8_t*) &m_replicatorUploadBytes[0],
-                                    m_replicatorUploadBytes.size() * sizeof (m_replicatorUploadBytes[0]) },
+                                    utils::RawBuffer{(const uint8_t*) &fsTreeFileSize, sizeof(fsTreeFileSize)},
+                                    utils::RawBuffer{(const uint8_t*) &metaFilesSize, sizeof(metaFilesSize)},
+                                    utils::RawBuffer{(const uint8_t*) &driveSize, sizeof(driveSize)},
+                                    utils::RawBuffer{ (const uint8_t*) &m_uploadLayout[0],
+                                                      m_uploadLayout.size() * sizeof (m_uploadLayout[0]) },
                                     utils::RawBuffer{(const uint8_t*)&m_clientUploadBytes,sizeof(m_clientUploadBytes)}
                                   },
                                   m_signature );
@@ -107,8 +135,7 @@ class Replicator;
 
         template <class Archive> void serialize( Archive & arch ) {
             arch( m_replicatorKey );
-            arch( m_uploadReplicatorKeys );
-            arch( m_replicatorUploadBytes );
+            arch( m_uploadLayout );
             arch( m_clientUploadBytes );
             arch( cereal::binary_data( m_signature.data(), m_signature.size() ) );
         }
@@ -156,9 +183,9 @@ class Replicator;
     struct DownloadOpinion
     {
         // Replicator public key
-        std::array<uint8_t,32>  m_replicatorKey;
+        std::array<uint8_t,32>   m_replicatorKey;
 
-        std::vector<uint64_t>   m_downloadedBytes;
+        std::vector<KeyAndBytes> m_downloadLayout;
         
         // Signature of { modifyTransactionHash, rootHash, replicatorsUploadBytes, clientUploadBytes }
         Signature               m_signature;
@@ -169,14 +196,16 @@ class Replicator;
         {
         }
         
-        void Sign( const crypto::KeyPair& keyPair, const std::array<uint8_t,32>& blockHash, const std::array<uint8_t,32>& downloadChannelId )
+        void Sign( const crypto::KeyPair& keyPair,
+                   const std::array<uint8_t,32>& blockHash,
+                   const std::array<uint8_t,32>& downloadChannelId )
         {
             crypto::Sign( keyPair,
                           {
                             utils::RawBuffer{blockHash},
                             utils::RawBuffer{downloadChannelId},
-                            utils::RawBuffer{ (const uint8_t*) &m_downloadedBytes[0],
-                                m_downloadedBytes.size() * sizeof (m_downloadedBytes[0]) },
+                            utils::RawBuffer{ (const uint8_t*) &m_downloadLayout[0],
+                                              m_downloadLayout.size() * sizeof (m_downloadLayout[0]) },
                           },
                           m_signature );
         }
@@ -187,15 +216,15 @@ class Replicator;
                                    {
                                         utils::RawBuffer{blockHash},
                                         utils::RawBuffer{downloadChannelId},
-                                        utils::RawBuffer{ (const uint8_t*) &m_downloadedBytes[0],
-                                        m_downloadedBytes.size() * sizeof (m_downloadedBytes[0]) },
+                                        utils::RawBuffer{ (const uint8_t*) &m_downloadLayout[0],
+                                                          m_downloadLayout.size() * sizeof (m_downloadLayout[0]) },
                                    },
                                    m_signature );
         }
 
         template <class Archive> void serialize( Archive & arch ) {
             arch( m_replicatorKey );
-            arch( m_downloadedBytes );
+            arch( m_downloadLayout );
             arch( cereal::binary_data( m_signature.data(), m_signature.size() ) );
         }
     };
@@ -208,9 +237,6 @@ class Replicator;
         // Transaction hash
         std::array<uint8_t,32>  m_downloadChannelId;
 
-        //
-        uint32_t                m_replicatorNumber;
-
         // Opinions about how much the Replicators and the Drive Owner have uploaded to this Replicator.
         std::vector<DownloadOpinion>   m_opinions;
 
@@ -218,7 +244,6 @@ class Replicator;
         {
             arch( m_blockHash );
             arch( m_downloadChannelId );
-            arch( m_replicatorNumber );
             arch( m_opinions );
         }
     };

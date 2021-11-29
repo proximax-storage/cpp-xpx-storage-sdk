@@ -63,9 +63,12 @@ namespace sirius::drive::test
 
             for (const auto& opinion: transactionInfo.m_opinions) {
                 auto size =
-                        std::accumulate(opinion.m_replicatorUploadBytes.begin(),
-                                        opinion.m_replicatorUploadBytes.end(),
-                                        opinion.m_clientUploadBytes);
+                        std::accumulate(opinion.m_uploadLayout.begin(),
+                                        opinion.m_uploadLayout.end(),
+                                        opinion.m_clientUploadBytes,
+                                        [] (const auto& sum, const auto& item) {
+                            return sum + item.m_uploadedBytes;
+                        });
                 m_modificationSizes[transactionInfo.m_modifyTransactionHash].insert(size);
             }
             ASSERT_EQ(m_modificationSizes[transactionInfo.m_modifyTransactionHash].size(), 1);
@@ -83,9 +86,12 @@ namespace sirius::drive::test
 
                 for (const auto& opinion: transactionInfo.m_opinions) {
                     auto size =
-                            std::accumulate(opinion.m_replicatorUploadBytes.begin(),
-                                            opinion.m_replicatorUploadBytes.end(),
-                                            opinion.m_clientUploadBytes);
+                            std::accumulate(opinion.m_uploadLayout.begin(),
+                                            opinion.m_uploadLayout.end(),
+                                            opinion.m_clientUploadBytes,
+                                            [] (const auto& sum, const auto& item) {
+                                return sum + item.m_uploadedBytes;
+                            });
                     m_modificationSizes[transactionInfo.m_modifyTransactionHash].insert(size);
                 }
                 ASSERT_EQ(m_modificationSizes[transactionInfo.m_modifyTransactionHash].size(), 1);
