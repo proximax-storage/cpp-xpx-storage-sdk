@@ -139,9 +139,9 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     bool m_modificationIsCanceling    = false;
 
     // It will be not empty while drive is catching-up (syncronizing with swarm)
-    std::optional<InfoHash>     m_catchingUpRootHash;
-    std::optional<InfoHash>     m_newCatchingUpRootHash;
-    std::thread                 m_catchingUpThread;
+    std::optional<CatchingUpRequest>    m_catchingUpRequest;
+    std::optional<CatchingUpRequest>    m_newCatchingUpRequest;
+    std::thread                         m_catchingUpThread;
 
     std::optional<lt_handle>            m_catchingUpFsTreeLtHandle;
     std::optional<lt_handle>            m_missingFileLtHandle;
@@ -406,7 +406,7 @@ public:
     
     void cancelModifyDrive( const Hash256& transactionHash ) override
     {
-        _ASSERT( m_catchingUpRootHash );
+        _ASSERT(m_catchingUpRequest );
         
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
@@ -488,7 +488,7 @@ public:
 
     void startDriveClosing( const Hash256& transactionHash ) override
     {
-        _ASSERT( !m_catchingUpRootHash );
+        _ASSERT( !m_catchingUpRequest );
         
         m_closingTxHash = {transactionHash};
         
@@ -568,8 +568,7 @@ public:
     //
     void startModifyDrive( ModifyRequest&& modifyRequest ) override
     {
-        _ASSERT( !m_catchingUpRootHash );
-        
+
         m_modifyUserDataReceived  = false;
         m_modificationIsCanceling = false;
 
@@ -578,7 +577,7 @@ public:
             
             m_replicatorList = modifyRequest.m_replicatorList;
 
-            if ( m_modifyRequest )
+            if ( m_modifyRequest || m_catchingUpRequest )
             {
                 //LOG_ERR( "startModifyDrive():: prevoius modification is not completed" );
                 m_defferedModifyRequests.emplace_back( std::move(modifyRequest) );
@@ -604,8 +603,8 @@ public:
         m_modifyDataLtHandle = m_session->download( DownloadContext(
                                             DownloadContext::client_data,
                                             std::bind( &DefaultFlatDrive::downloadHandler, this, _1, _2, _3, _4, _5, _6 ),
-                                            modifyRequest.m_clientDataInfoHash,
-                                            modifyRequest.m_transactionHash,
+                                            m_modifyRequest->m_clientDataInfoHash,
+                                            m_modifyRequest->m_transactionHash,
                                             0, //todo
                                             ""),
                                                    m_sandboxRootPath,
@@ -1202,36 +1201,55 @@ public:
         {
             // wait the end of 'Cancel Modification'
             // and then start 'CatchingUp'
-            m_newCatchingUpRootHash.reset();
-            m_catchingUpRootHash = transaction.m_rootHash;
+            m_newCatchingUpRequest.reset();
+            m_catchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
             return;
         }
-        else if ( !m_modifyRequest && transaction.m_modifyTransactionHash != m_rootHash.array() )
+        else if ( !m_modifyRequest && transaction.m_rootHash != m_rootHash.array() )
         {
             // we do NOT MODIFY and we have OUTDATED rootHash
             
             // do we catching up now?
-            if ( m_catchingUpRootHash )
+            if ( m_catchingUpRequest )
             {
-                if ( m_catchingUpRootHash == transaction.m_rootHash )
+                if (m_catchingUpRequest->m_rootHash == transaction.m_rootHash )
                 {
-                    _ASSERT(m_catchingUpRootHash != transaction.m_rootHash);
+                    // This situation could be valid if some next modification has not changed Drive Root Hash
+                    // For example, because of next modification was invalid
                     return;
                 }
-                
-                m_newCatchingUpRootHash = transaction.m_rootHash;
-                
+
+                m_newCatchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
+
+                /// The main purpose of the conditions is to avoid freezing on downloading
                 if ( m_catchingUpFsTreeLtHandle )
                 {
-                    m_session->removeTorrentsFromSession( {*m_catchingUpFsTreeLtHandle}, [this]
+                    bool notEmptyRemoved = m_session->removeTorrentsFromSession( {*m_catchingUpFsTreeLtHandle}, [this]
                     {
-                        startCatchingUp( *m_newCatchingUpRootHash );
+                        startCatchingUp( *m_newCatchingUpRequest );
                     });
+
+                    if ( !notEmptyRemoved )
+                    {
+                        startCatchingUp( *m_newCatchingUpRequest );
+                    }
+                }
+                else if ( m_missingFileLtHandle )
+                {
+                    bool notEmptyRemoved = m_session->removeTorrentsFromSession( {*m_missingFileLtHandle}, [this]
+                    {
+                        startCatchingUp( *m_newCatchingUpRequest );
+                    });
+
+                    if ( !notEmptyRemoved )
+                    {
+                        startCatchingUp( *m_newCatchingUpRequest );
+                    }
                 }
             }
             else
             {
-                startCatchingUp( transaction.m_rootHash );
+                startCatchingUp( CatchingUpRequest{ transaction.m_rootHash, transaction.m_modifyTransactionHash } );
             }
             return;
         }
@@ -1302,7 +1320,7 @@ public:
         _LOG( "onSingleApprovalTransactionHasBeenPublished()" );
     }
     
-    void startCatchingUp( std::optional<InfoHash>&& actualRootHash ) override
+    void startCatchingUp( std::optional<CatchingUpRequest>&& actualCatchingRequest ) override
     {
         DBG_SINGLE_THREAD
         
@@ -1311,10 +1329,30 @@ public:
         _ASSERT( !m_closingTxHash );
 
         // actualRootHash could be empty when internal error ONLY
-        if ( actualRootHash )
+        if ( actualCatchingRequest )
         {
-            m_newCatchingUpRootHash.reset();
-            m_catchingUpRootHash = std::move( actualRootHash );
+            m_newCatchingUpRequest.reset();
+
+            // clear modification queue - we will not execute these modifications
+            auto it = std::find_if(m_defferedModifyRequests.begin(),
+                                   m_defferedModifyRequests.end(),
+                                   [&](const auto &item)
+                                   {
+                                       return item.m_transactionHash ==
+                                              actualCatchingRequest->m_modifyTransactionHash;
+                                   });
+            if ( it == m_defferedModifyRequests.end() )
+            {
+                LOG_ERR("Unknown modification has been approved");
+                assert(0);
+            }
+            it++;
+            while ( !m_defferedModifyRequests.empty() and it != m_defferedModifyRequests.begin() )
+            {
+                m_defferedModifyRequests.pop_front();
+            }
+
+            m_catchingUpRequest = std::move(actualCatchingRequest );
         }
         
         //
@@ -1322,12 +1360,12 @@ public:
         //
         using namespace std::placeholders;  // for _1, _2, _3
 
-        _LOG( "Late: download FsTree:" << *m_catchingUpRootHash )
+        _LOG( "Late: download FsTree:" << m_catchingUpRequest->m_rootHash )
         
         m_catchingUpFsTreeLtHandle = m_session->download( DownloadContext(
                                             DownloadContext::missing_files,
                                             std::bind( &DefaultFlatDrive::catchingUpFsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
-                                            *m_catchingUpRootHash,
+                                            m_catchingUpRequest->m_rootHash,
                                             drivePublicKey().array(),
                                             0,
                                             "" ),
@@ -1347,11 +1385,11 @@ public:
     {
         DBG_SINGLE_THREAD
         
-        if ( m_newCatchingUpRootHash && m_newCatchingUpRootHash != m_catchingUpRootHash )
+        if (m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash != m_catchingUpRequest->m_rootHash )
         {
             // Recently downloaded FsTree is outdated)
             // start download new
-            startCatchingUp( std::move(m_newCatchingUpRootHash) );
+            startCatchingUp( std::move(m_newCatchingUpRequest) );
             return;
         }
 
@@ -1393,7 +1431,7 @@ public:
         m_catchingUpFileSet.clear();
         createCatchingUpFileList( m_sandboxFsTree );
         
-        if ( m_catchingUpFileSet.size() == 0 )
+        if ( m_catchingUpFileSet.empty() )
         {
             LOG_ERR( "m_catchingUpFileSet.size() == 0" );
         }
@@ -1441,7 +1479,7 @@ public:
         }
         else
         {
-            if ( m_newCatchingUpRootHash && *m_newCatchingUpRootHash == *m_catchingUpRootHash )
+            if (m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash == m_catchingUpRequest->m_rootHash )
             {
                 completeCatchingUp_1();
                 return;
@@ -1497,14 +1535,12 @@ public:
         markUsedFiles( m_sandboxFsTree );
 
         std::set<lt_handle> tobeRemovedTorrents;
-        InfoHashPtrSet      tobeRemovedFiles;
 
         for( const auto& it : m_torrentHandleMap )
         {
             if ( !it.second.m_isUsed )
             {
                 tobeRemovedTorrents.insert( it.second.m_ltHandle );
-                tobeRemovedFiles.insert( &it.first);
             }
         }
         tobeRemovedTorrents.insert( m_fsTreeLtHandle );
@@ -1545,13 +1581,13 @@ public:
                                                m_sandboxFsTreeTorrent );
 
         _LOG("m_sandboxRootHash: " << m_sandboxRootHash );
-        _LOG("m_catchingUpRootHash: " << *m_catchingUpRootHash );
-        _ASSERT( m_sandboxRootHash == *m_catchingUpRootHash );
+        _LOG("m_catchingUpRootHash: " << m_catchingUpRequest->m_rootHash );
+        _ASSERT( m_sandboxRootHash == m_catchingUpRequest->m_rootHash );
         
         // check if RootHash has been published
-        if ( m_newCatchingUpRootHash )
+        if ( m_newCatchingUpRequest )
         {
-            startCatchingUp( std::move(m_newCatchingUpRootHash) );
+            startCatchingUp( std::move(m_newCatchingUpRequest) );
             return;
         }
 
@@ -1596,7 +1632,7 @@ public:
             
             createMyOpinion();
             sendSingleApprovalTransaction();
-            m_catchingUpRootHash.reset();
+            m_catchingUpRequest.reset();
         });
     }
     
@@ -1655,7 +1691,7 @@ public:
 
     bool isOutOfSync() const override
     {
-        return m_catchingUpRootHash.has_value();
+        return m_catchingUpRequest.has_value();
     }
 
     const std::optional<Hash256>& closingTxHash() const override

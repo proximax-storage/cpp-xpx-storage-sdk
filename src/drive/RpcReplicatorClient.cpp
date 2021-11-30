@@ -170,7 +170,7 @@ namespace sirius::drive {
         std::filesystem::create_directories( tmpFolder );
 
         // start file uploading
-        const InfoHash infoHash = m_clientSession->addActionListToSession( actionList, rpcDriveInfo.getReplicators(), tmpFolder );
+        const InfoHash infoHash = m_clientSession->addActionListToSession( actionList, m_clientPubKey, rpcDriveInfo.getReplicators(), tmpFolder);
 
         std::cout << "Client. modifyDrive. New InfoHash: " << infoHash << std::endl;
 

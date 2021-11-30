@@ -78,7 +78,7 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
             //
             auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
             // start file uploading
-            InfoHash hash = m_clientSession->addActionListToSession(actionList, replicatorList, tmpFolder);
+            InfoHash hash = m_clientSession->addActionListToSession(actionList, m_clientKeyPair.publicKey(), replicatorList, tmpFolder);
 
             // inform replicator
             m_actionListHashes.push_back(hash);

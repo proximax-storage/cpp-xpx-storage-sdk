@@ -165,7 +165,7 @@ public:
 
             if ( actualRootHash && drive->rootHash() != actualRootHash )
             {
-                drive->startCatchingUp( std::move(actualRootHash) );
+                drive->startCatchingUp( CatchingUpRequest{ *actualRootHash, {} } );
             }
 
             // Notify

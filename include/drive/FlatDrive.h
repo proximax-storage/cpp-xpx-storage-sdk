@@ -34,14 +34,22 @@ class Replicator;
 
     using DriveModifyHandler = std::function<void( modify_status::code, const FlatDrive& drive, const std::string& error )>;
 
-    struct ModifyRequest {
-        InfoHash          m_clientDataInfoHash;
-        Hash256           m_transactionHash;
-        uint64_t          m_maxDataSize;
-        ReplicatorList    m_replicatorList;
-        Key               m_clientPublicKey;
-        
-        bool              m_isCanceled = false;
+    struct ModifyRequest
+    {
+        InfoHash m_clientDataInfoHash;
+        Hash256 m_transactionHash;
+        uint64_t m_maxDataSize;
+        ReplicatorList m_replicatorList;
+        Key m_clientPublicKey;
+
+        bool m_isCanceled = false;
+    };
+
+    struct CatchingUpRequest
+    {
+        InfoHash            m_rootHash;
+        Hash256             m_modifyTransactionHash;
+//        uint64_t            m_uploadSize;
     };
 
     struct DownloadRequest {
@@ -374,7 +382,7 @@ class Replicator;
         virtual void     onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
         
         // actualRootHash should not be empty if it is called from replicator::asyncAddDrive()
-        virtual void     startCatchingUp( std::optional<InfoHash>&& actualRootHash ) = 0;
+        virtual void     startCatchingUp( std::optional<CatchingUpRequest>&& actualRootHash ) = 0;
         
         virtual bool     isOutOfSync() const = 0;
         
