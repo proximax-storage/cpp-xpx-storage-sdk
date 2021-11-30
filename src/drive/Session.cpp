@@ -172,13 +172,13 @@ public:
         m_session.abort();
     }
 
-    virtual bool removeTorrentsFromSession( std::set<lt::torrent_handle>&& torrents,
-                                            std::function<void()>          endNotification ) override
+    virtual bool removeTorrentsFromSession( const std::set<lt::torrent_handle>&  torrents,
+                                            std::function<void()>                endNotification ) override
     {
         std::lock_guard locker( m_removeMutex );
         auto toBeRemoved = std::set<lt::torrent_handle>();
 
-        _LOG( m_addressAndPort << ":removeTorrentsFromSession: " << torrents.size() )
+        _LOG( ":removeTorrentsFromSession: " << torrents.size() )
 
         for( const auto& torrentHandle : torrents )
         {
@@ -690,10 +690,10 @@ private:
 //                    break;
                 }
 
-                case lt::peer_log_alert::alert_type: {
-                    _LOG(  m_addressAndPort << ": peer_log_alert: " << alert->message())
-                    break;
-                }
+//                case lt::peer_log_alert::alert_type: {
+//                    _LOG(  m_addressAndPort << ": peer_log_alert: " << alert->message())
+//                    break;
+//                }
 
                 // piece_finished_alert
                 case lt::piece_finished_alert::alert_type:
@@ -931,7 +931,7 @@ private:
                     // Notify about completed downloads
                     //
 
-                    _LOG( m_addressAndPort << " *** lt::torrent_deleted_alert: m_downloadMap.Size: " << m_downloadMap.size() << " : " << theAlert->handle.id() );
+                    _LOG( " *** lt::torrent_deleted_alert: m_downloadMap.Size: " << m_downloadMap.size() << " : " << theAlert->handle.id() );
                     if ( auto it =  m_downloadMap.find(theAlert->handle.id());
                               it != m_downloadMap.end() )
                     {

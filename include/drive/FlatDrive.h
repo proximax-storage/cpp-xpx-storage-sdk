@@ -54,7 +54,7 @@ class Replicator;
     struct KeyAndBytes
     {
         std::array<uint8_t,32> m_key;
-        uint64_t m_uploadedBytes;
+        uint64_t               m_uploadedBytes;
 
         template<class Archive>
         void serialize(Archive &arch)

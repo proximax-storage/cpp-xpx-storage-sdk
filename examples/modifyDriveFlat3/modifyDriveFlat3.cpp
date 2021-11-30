@@ -214,9 +214,9 @@ public:
                 EXLOG( "----  DownloadApprovalTransactionHasBeenPublished  ------" );
                 EXLOG( "---------------------------------------------------------" );
                 EXLOG( "download opinion of: " << gReplicatorMap[opinion.m_replicatorKey]->dbgReplicatorName() );
-                for( const auto& bytes : opinion.m_downloadedBytes )
+                for( const auto& downloadInfo : opinion.m_downloadLayout )
                 {
-                    EXLOG( "  bytes: " << bytes );
+                    EXLOG( "  bytes: " << downloadInfo.m_uploadedBytes );
                 }
             }
         }
@@ -251,9 +251,9 @@ public:
         for( const auto& opinion: transactionInfo.m_opinions )
         {
             std::cout << " key:" << int(opinion.m_replicatorKey[0]) << " ";
-            for( size_t i=0; i<opinion.m_uploadReplicatorKeys.size(); i+=32  )
+            for( size_t i=0; i<opinion.m_uploadLayout.size(); i++  )
             {
-                std::cout << int(opinion.m_uploadReplicatorKeys[i]) << ":" << opinion.m_replicatorUploadBytes[i/32] << " ";
+                std::cout << int(opinion.m_uploadLayout[i].m_key[0]) << ":" << opinion.m_uploadLayout[i].m_uploadedBytes << " ";
             }
             std::cout << "client:" <<opinion.m_clientUploadBytes << std::endl;
         }
