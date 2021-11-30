@@ -19,8 +19,8 @@
 **/
 
 #include "crypto/Signer.h"
+#include "crypto/Hashes.h"
 #include "CryptoUtils.h"
-#include "Hashes.h"
 #include "utils/RawBuffer.h"
 
 #include "exceptions.h"

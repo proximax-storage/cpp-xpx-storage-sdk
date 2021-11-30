@@ -21,31 +21,32 @@
 #pragma once
 #include "types.h"
 #include "utils/RawBuffer.h"
+#include "plugins.h"
 
 namespace sirius { namespace crypto {
 
 	// region free functions
 
 	/// Calculates the ripemd160 hash of \a dataBuffer into \a hash.
-	void Ripemd160(const utils::RawBuffer& dataBuffer, Hash160& hash) noexcept;
+    PLUGIN_API void Ripemd160(const utils::RawBuffer& dataBuffer, Hash160& hash) noexcept;
 
 	/// Calculates bitcoin's hash 160 of \a dataBuffer into \a hash (sha256 + ripemd).
-	void Bitcoin160(const utils::RawBuffer& dataBuffer, Hash160& hash) noexcept;
+    PLUGIN_API void Bitcoin160(const utils::RawBuffer& dataBuffer, Hash160& hash) noexcept;
 
 	/// Calculates double sha256 hash of \a dataBuffer into \a hash.
-	void Sha256Double(const utils::RawBuffer& dataBuffer, Hash256& hash) noexcept;
+    PLUGIN_API void Sha256Double(const utils::RawBuffer& dataBuffer, Hash256& hash) noexcept;
 
 	/// Calculates the 256-bit SHA3 hash of \a dataBuffer into \a hash.
-	void Sha3_256(const utils::RawBuffer& dataBuffer, Hash256& hash) noexcept;
+    PLUGIN_API void Sha3_256(const utils::RawBuffer& dataBuffer, Hash256& hash) noexcept;
 
 	/// Calculates the 512-bit SHA3 hash of \a dataBuffer into \a hash.
-	void Sha3_512(const utils::RawBuffer& dataBuffer, Hash512& hash) noexcept;
+    PLUGIN_API void Sha3_512(const utils::RawBuffer& dataBuffer, Hash512& hash) noexcept;
 
 	/// Calculates the 256-bit Keccak hash of \a dataBuffer into \a hash.
-	void Keccak_256(const utils::RawBuffer& dataBuffer, Hash256& hash) noexcept;
+    PLUGIN_API void Keccak_256(const utils::RawBuffer& dataBuffer, Hash256& hash) noexcept;
 
 	/// Calculates the 512-bit Keccak hash of \a dataBuffer into \a hash.
-	void Keccak_512(const utils::RawBuffer& dataBuffer, Hash512& hash) noexcept;
+    PLUGIN_API void Keccak_512(const utils::RawBuffer& dataBuffer, Hash512& hash) noexcept;
 
 	// endregion
 

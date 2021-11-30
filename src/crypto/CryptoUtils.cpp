@@ -19,7 +19,7 @@
 **/
 
 #include "CryptoUtils.h"
-#include "Hashes.h"
+#include "crypto/Hashes.h"
 #include "crypto/PrivateKey.h"
 #ifdef SIGNATURE_SCHEME_NIS1
 #include "SecureZero.h"

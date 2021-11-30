@@ -18,7 +18,7 @@
 *** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#include "Hashes.h"
+#include "crypto/Hashes.h"
 #include "KeccakHash.h"
 #include "utils/Casting.h"
 
