@@ -417,6 +417,12 @@ public:
         
         return tHandle;
     }
+    
+    void removeDownloadContext( lt::torrent_handle tHandle ) override
+    {
+        m_downloadMap.erase( tHandle.id() );
+    }
+
 
 //    void loadTorrent( const InfoHash& infoHash,
 //                           std::function<void(bool)> addTorrentNotifier,
