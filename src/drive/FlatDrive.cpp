@@ -140,7 +140,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     std::set<InfoHash>::iterator        m_catchingUpFileIt = m_catchingUpFileSet.end();
 
     // It is used when drive is closing
-    std::optional<Hash256> m_closingTxHash = {};
+    std::optional<Hash256> m_removeDriveTx = {};
 
     // Client data (for drive modification)
     std::optional<ModifyRequest> m_modifyRequest;
@@ -275,16 +275,29 @@ public:
         }
     }
     
-    uint64_t sandboxFsTreeSize() const override {
-        return fs::file_size( m_sandboxFsTreeFile );
+    uint64_t sandboxFsTreeSize() const override
+    {
+        if ( fs::exists(m_sandboxFsTreeFile) )
+        {
+            return fs::file_size( m_sandboxFsTreeFile );
+        }
+        return 0;
     }
 
     void getSandboxDriveSizes( uint64_t& metaFilesSize, uint64_t& driveSize ) const override
     {
-        metaFilesSize = fs::file_size( m_sandboxFsTreeTorrent);
-        driveSize = 0;
-        m_sandboxFsTree.getSizes( m_driveFolder, m_torrentFolder, metaFilesSize, driveSize );
-        driveSize += metaFilesSize;
+        if ( fs::exists(m_sandboxRootPath) )
+        {
+            metaFilesSize = fs::file_size( m_sandboxFsTreeTorrent);
+            driveSize = 0;
+            m_sandboxFsTree.getSizes( m_driveFolder, m_torrentFolder, metaFilesSize, driveSize );
+            driveSize += metaFilesSize;
+        }
+        else
+        {
+            metaFilesSize = 0;
+            driveSize = 0;
+        }
     }
 
     // Initialize drive
@@ -549,8 +562,10 @@ public:
                 });
             }
         }
-
-        nextStep();
+        else
+        {
+            nextStep();
+        }
     }
 
     void startDriveClosing( const Hash256& transactionHash ) override
@@ -559,7 +574,7 @@ public:
         
         _ASSERT( !m_catchingUpRequest );
         
-        m_closingTxHash = {transactionHash};
+        m_removeDriveTx = {transactionHash};
         
         {
             std::ofstream filestream( m_driveFolder / "is_closing" );
@@ -576,8 +591,6 @@ public:
     {
         DBG_SINGLE_THREAD
         
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
-
         std::set<lt_handle> tobeRemovedTorrents;
 
         for( auto& [key,value]: m_torrentHandleMap )
@@ -613,7 +626,8 @@ public:
             }
             else
             {
-                updateDrive_1([this] {
+                updateDrive_1( [this]
+                {
                     updateDrive_2();
                 });
             }
@@ -1207,7 +1221,7 @@ public:
 
         // clear sandbox
         fs::remove_all( m_sandboxRootPath );
-        m_session->lt_session().get_context().post( [=,this]() mutable
+        m_session->lt_session().get_context().post( [=,this]
         {
             modifyIsCompleted();
         });
@@ -1337,16 +1351,16 @@ public:
         }
 
         // We should not catch up only in the case
-        // When we have already downloaded all necessary data dor the modification approval
-        bool shouldNotCatchUp =
+        // When we have already downloaded all necessary data (??? or the modification approval)
+        bool continueModify =
                 m_modifyRequest &&
                 m_modifyRequest->m_transactionHash == transaction.m_modifyTransactionHash &&
                 m_modifyUserDataReceived;
 
-        if ( !shouldNotCatchUp )
+        if ( !continueModify )
         {
-            // We should break torrent downloading if there are any
-            // Because they may no longer be available
+            // We should break torrent downloading
+            // Because they (torrents/files) may no longer be available
             stopAnyDriveTask( [=,this]
             {
                 m_newCatchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
@@ -1439,7 +1453,7 @@ public:
         
         _ASSERT( !m_modificationIsCanceling );
         _ASSERT( !m_modifyRequest );
-        _ASSERT( !m_closingTxHash );
+        _ASSERT( !m_removeDriveTx );
 
         // actualRootHash could be empty when internal error ONLY
         if ( actualCatchingRequest )
@@ -1454,17 +1468,16 @@ public:
                                        return item.m_transactionHash ==
                                               actualCatchingRequest->m_modifyTransactionHash;
                                    });
-            if ( it == m_defferedModifyRequests.end() )
+            if ( it != m_defferedModifyRequests.end() )
             {
-                _ASSERT("Unknown modification has been approved");
+                it++;
+                while ( !m_defferedModifyRequests.empty() and it != m_defferedModifyRequests.begin() )
+                {
+                    m_expectedCumulativeDownload += m_defferedModifyRequests.front().m_maxDataSize;
+                    m_defferedModifyRequests.pop_front();
+                }
             }
-            it++;
-            while ( !m_defferedModifyRequests.empty() and it != m_defferedModifyRequests.begin() )
-            {
-                m_expectedCumulativeDownload += m_defferedModifyRequests.front().m_maxDataSize;
-                m_defferedModifyRequests.pop_front();
-            }
-
+            
             m_catchingUpRequest = std::move(actualCatchingRequest );
         }
         
@@ -1540,7 +1553,10 @@ public:
         
         if ( m_catchingUpFileSet.empty() )
         {
-            LOG_ERR( "m_catchingUpFileSet.size() == 0" );
+            updateDrive_1( [this]
+            {
+                completeCatchingUp();
+            });
         }
         else
         {
@@ -1581,17 +1597,17 @@ public:
         if ( m_catchingUpFileIt == m_catchingUpFileSet.end() )
         {
             // it is the end of list
-            _LOG( "m_catchingUpFileHashes.size() == 0 ")
-            updateDrive_1([this]
+            updateDrive_1( [this]
             {
                 completeCatchingUp();
             });
         }
         else
         {
-            if (m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash == m_catchingUpRequest->m_rootHash )
+            // ??? comment?
+            if ( m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash == m_catchingUpRequest->m_rootHash )
             {
-                updateDrive_1([this]
+                updateDrive_1( [this]
                 {
                     completeCatchingUp();
                 });
@@ -1769,7 +1785,7 @@ public:
 
         // clear sandbox
         fs::remove_all( m_sandboxRootPath );
-        m_session->lt_session().get_context().post( [=,this]() mutable
+        m_session->lt_session().get_context().post( [=,this]
         {
             DBG_SINGLE_THREAD
 
@@ -1844,7 +1860,7 @@ public:
 
     const std::optional<Hash256>& closingTxHash() const override
     {
-        return m_closingTxHash;
+        return m_removeDriveTx;
     }
     
     void removeAllDriveData() override
@@ -1863,7 +1879,7 @@ public:
         fs::remove_all( m_driveRootPath );
         fs::remove_all( m_sandboxRootPath );
         
-        m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_closingTxHash );
+        m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_removeDriveTx );
     }
 
     const ReplicatorList&  replicatorList() const override

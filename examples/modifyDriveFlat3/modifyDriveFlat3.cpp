@@ -19,7 +19,7 @@
 
 #include <sirius_drive/session_delegate.h>
 
-const bool testLateReplicator = false;
+const bool testLateReplicator = true;
 
 //
 // This example shows interaction between 'client' and 'replicator'.

@@ -303,15 +303,17 @@ public:
             
             return false;
         }
-        
-        if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
-        {
-            if ( isPeerReplicator( *driveIt->second, peerPublicKey) )
-            {
-                *outIsDownloadUnlimited = true;
-                return true;
-            }
-        }
+
+        //TODO!!!
+        return true;
+//        if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
+//        {
+//            if ( isPeerReplicator( *driveIt->second, peerPublicKey) )
+//            {
+//                *outIsDownloadUnlimited = true;
+//                return true;
+//            }
+//        }
         
         _LOG( "bad connection? to: " << dbgOurPeerName() << " from: " << int(peerPublicKey[0]) << " hash: " << (int)transactionHash[0] );
 //        assert(0);
