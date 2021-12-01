@@ -135,7 +135,7 @@ public:
     // It removes torrents from session.
     // After removing 'endNotification' will be called.
     // And only after that the 'client' could move/remove files and torrnet file.
-    virtual bool      removeTorrentsFromSession( const std::set<lt::torrent_handle>& torrents,
+    virtual void      removeTorrentsFromSession( const std::set<lt::torrent_handle>& torrents,
                                                  std::function<void()>               endNotification ) = 0;
 
     virtual InfoHash  addActionListToSession( const ActionList&,

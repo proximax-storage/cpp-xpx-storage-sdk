@@ -172,7 +172,7 @@ public:
         m_session.abort();
     }
 
-    virtual bool removeTorrentsFromSession( const std::set<lt::torrent_handle>&  torrents,
+    virtual void removeTorrentsFromSession( const std::set<lt::torrent_handle>&  torrents,
                                             std::function<void()>                endNotification ) override
     {
         std::lock_guard locker( m_removeMutex );
@@ -195,11 +195,17 @@ public:
 //            }
             m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
         }
-        if ( !toBeRemoved.empty() ) {
+        
+        if ( !toBeRemoved.empty() )
+        {
             m_removeContexts.push_back( std::make_unique<RemoveTorrentContext>( toBeRemoved, endNotification ) );
-            return true;
         }
-        return false;
+        else
+        {
+            lt_session().get_context().post( [=] {
+                endNotification();
+            });
+        }
     }
 
     virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
