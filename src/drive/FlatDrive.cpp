@@ -124,12 +124,6 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     size_t        m_maxSize;
 
-    // If the Replicator is added to existing Drive,
-    // it downloads its content are then receives rewards for the downloading
-    size_t        m_initSize;
-
-    bool          m_anyModificationsApproved;
-    
     // It has the following statuses: "modification started", "sandbox calculated", modification approved"
     std::shared_mutex m_mutex;
     bool m_modifyUserDataReceived     = false;
@@ -173,14 +167,14 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     
     // opinion
     std::optional<ApprovalTransactionInfo>  m_myOpinion;
+    std::optional<Hash256> m_trafficIdentifier;
+    uint64_t m_expectedCumulativeDownload;
+    uint64_t m_accountedCumulativeDownload = 0;
 
     // opinions from other replicators
     // key of the outer map is modification id
     // key of the inner map is a replicator key, one replicator one opinion
     std::map<Hash256, std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>>    m_otherOpinions;
-    
-    //todo may be they are outstripping opinions
-    //std::vector<ApprovalTransactionInfo>    m_unknownOpinions;
     
     std::optional<boost::asio::high_resolution_timer> m_opinionTimer;
 
@@ -195,6 +189,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     std::map<InfoHash,UseTorrentInfo> m_torrentHandleMap;
 
     std::map<Key, uint64_t> m_cumulativeUploads;
+    std::map<Key, uint64_t> m_lastAccountedUploads;
     
     const char*             m_dbgOurPeerName = "";
     std::thread::id         m_dbgThreadId;
@@ -215,9 +210,8 @@ public:
           FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
           m_session(session),
           m_maxSize(maxSize),
-          m_initSize(usedDriveSizeExcludingMetafiles),
-          m_anyModificationsApproved(false),
           m_replicatorList(replicatorList),
+          m_expectedCumulativeDownload(usedDriveSizeExcludingMetafiles),
           m_eventHandler(eventHandler),
           m_dbgEventHandler(dbgEventHandler),
           m_replicator(replicator),
@@ -410,6 +404,28 @@ public:
             }
         }
     }
+
+    void downgradeCumulativeUploads()
+    {
+        DBG_SINGLE_THREAD
+
+        _ASSERT(m_modifyRequest)
+        _ASSERT(m_modificationIsCanceling)
+
+        // We have already taken into account information
+        // about uploads of the modification to be canceled;
+        if ( !m_trafficIdentifier )
+        {
+            uint64_t sum = 0;
+            for (const auto&[uploaderKey, bytes]: m_lastAccountedUploads)
+            {
+                sum += bytes;
+                m_cumulativeUploads[uploaderKey] -= bytes;
+            }
+            m_accountedCumulativeDownload -= sum;
+            m_expectedCumulativeDownload = m_accountedCumulativeDownload;
+        }
+    }
     
     void cancelModifyDrive( const Hash256& transactionHash ) override
     {
@@ -424,9 +440,10 @@ public:
                 LOG_ERR( "cancelModifyDrive(): m_approveTransactionReceived == true" )
                 return;
             }
-            
+
             m_modificationIsCanceling = true;
             m_modifyRequest->m_isCanceled = true;
+            downgradeCumulativeUploads();
             
             stopAnyDriveTask( [this,tx = m_modifyRequest->m_transactionHash] {
                 continueCancelModifyDrive(tx);
@@ -464,7 +481,7 @@ public:
         if ( m_newCatchingUpRequest )
             startCatchingUp( *m_newCatchingUpRequest );
         
-        if ( !m_defferedModifyRequests.empty() )
+        else if ( !m_defferedModifyRequests.empty() )
         {
             auto request = std::move( m_defferedModifyRequests.front() );
             m_defferedModifyRequests.pop_front();
@@ -487,7 +504,7 @@ public:
         }
     }
 
-    void stopAnyDriveTask( std::function<void()> nextStep )
+    void stopAnyDriveTask( const std::function<void()>& nextStep )
     {
         DBG_SINGLE_THREAD
         
@@ -610,24 +627,21 @@ public:
         DBG_SINGLE_THREAD
         
         m_modifyUserDataReceived  = false;
-        m_modificationIsCanceling = false;
 
+        m_replicatorList = modifyRequest.m_replicatorList;
+
+        // ModificationIsCanceling check is redundant now
+        if ( m_modifyRequest || m_catchingUpRequest || m_newCatchingUpRequest || m_modificationIsCanceling )
         {
-            std::unique_lock<std::shared_mutex> lock(m_mutex);
-            
-            m_replicatorList = modifyRequest.m_replicatorList;
-
-            if ( m_modifyRequest || m_catchingUpRequest )
-            {
-                //LOG_ERR( "startModifyDrive():: prevoius modification is not completed" );
-                m_defferedModifyRequests.emplace_back( std::move(modifyRequest) );
-                return;
-            }
-
-            m_sandboxCalculated          = false;
-            m_approveTransactionReceived = false;
-            m_approveTransactionSent     = false;
+            //LOG_ERR( "startModifyDrive():: prevoius modification is not completed" );
+            m_defferedModifyRequests.emplace_back( std::move(modifyRequest) );
+            return;
         }
+
+        m_sandboxCalculated          = false;
+        m_approveTransactionReceived = false;
+        m_approveTransactionSent     = false;
+        m_modificationIsCanceling    = false;
         
         // remove my opinion
         m_myOpinion.reset();
@@ -640,11 +654,14 @@ public:
 
         using namespace std::placeholders;  // for _1, _2, _3
 
+        m_expectedCumulativeDownload += m_modifyRequest->m_maxDataSize;
+
+        updateTrafficIdentifier();
         m_downloadingLtHandle = m_session->download( DownloadContext(
                                             DownloadContext::client_data,
                                             std::bind( &DefaultFlatDrive::downloadHandler, this, _1, _2, _3, _4, _5, _6 ),
                                             m_modifyRequest->m_clientDataInfoHash,
-                                            m_modifyRequest->m_transactionHash,
+                                            *m_trafficIdentifier,
                                             0, //todo
                                             ""),
                                                    m_sandboxRootPath,
@@ -897,42 +914,38 @@ public:
 
     void updateCumulativeUploads()
     {
-        const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(m_modifyRequest->m_transactionHash)
+        const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(*m_trafficIdentifier)
                 .m_modifyTrafficMap;
 
-        std::map <Key, uint64_t> modificationUploads;
-
-        for (const auto &replicatorIt : m_modifyRequest->m_replicatorList)
+        m_lastAccountedUploads.clear();
+        for (const auto &replicatorIt : m_replicatorList)
         {
             // get data size received from 'replicatorIt.m_publicKey'
             if (auto it = modifyTrafficMap.find(replicatorIt.m_publicKey.array());
                     it != modifyTrafficMap.end())
             {
-                modificationUploads[it->first] = it->second.m_receivedSize;
+                m_lastAccountedUploads[it->first] = it->second.m_receivedSize;
             } else
             {
-                modificationUploads[it->first] = 0;
+                m_lastAccountedUploads[it->first] = 0;
             }
         }
 
         if (auto it = modifyTrafficMap.find(m_modifyRequest->m_clientPublicKey.array());
                 it != modifyTrafficMap.end())
         {
-            modificationUploads[it->first] = it->second.m_receivedSize;
+            m_lastAccountedUploads[it->first] = it->second.m_receivedSize;
         } else
         {
-            modificationUploads[it->first] = 0;
+            m_lastAccountedUploads[it->first] = 0;
         }
 
-        uint64_t targetSize = m_modifyRequest->m_maxDataSize;
-        if (!m_anyModificationsApproved)
-        {
-            targetSize += m_initSize;
-            m_anyModificationsApproved = true;
-        }
-        normalizeUploads(modificationUploads, targetSize);
+        uint64_t targetSize = m_expectedCumulativeDownload - m_accountedCumulativeDownload;
+        normalizeUploads(m_lastAccountedUploads, targetSize);
+        m_accountedCumulativeDownload = m_expectedCumulativeDownload;
+        m_trafficIdentifier.reset();
 
-        for (const auto&[uploaderKey, bytes]: modificationUploads)
+        for (const auto&[uploaderKey, bytes]: m_lastAccountedUploads)
         {
             if (m_cumulativeUploads.find(uploaderKey) == m_cumulativeUploads.end())
             {
@@ -945,14 +958,18 @@ public:
     void createMyOpinion()
     {
         DBG_SINGLE_THREAD
-        
+
+        _ASSERT( m_trafficIdentifier )
+        _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
+        _ASSERT( !m_modificationIsCanceling )
+
         updateCumulativeUploads();
 
         //
         // Calculate upload opinion
         //
         SingleOpinion opinion( m_replicator.replicatorKey().array() );
-        for( const auto& replicatorIt : m_modifyRequest->m_replicatorList )
+        for( const auto& replicatorIt : m_replicatorList )
         {
             auto it = m_cumulativeUploads.find( replicatorIt.m_publicKey.array() );
             opinion.m_uploadLayout.push_back( {replicatorIt.m_publicKey.array(), it->second} );
@@ -969,9 +986,19 @@ public:
         getSandboxDriveSizes( metaFilesSize, driveSize );
         uint64_t fsTreeSize = sandboxFsTreeSize();
 
+        Hash256 modificationToBeApproved;
+        if ( m_modifyRequest )
+        {
+            modificationToBeApproved = m_modifyRequest->m_transactionHash;
+        }
+        else
+        {
+            modificationToBeApproved = m_catchingUpRequest->m_modifyTransactionHash;
+        }
+
         opinion.Sign( m_replicator.keyPair(),
                       drivePublicKey(),
-                      m_modifyRequest->m_transactionHash,
+                      modificationToBeApproved,
                       m_sandboxRootHash,
                       fsTreeSize,
                       metaFilesSize,
@@ -980,7 +1007,7 @@ public:
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
         m_myOpinion = std::optional<ApprovalTransactionInfo> {{ m_drivePubKey.array(),
-                                                                m_modifyRequest->m_transactionHash.array(),
+                                                                modificationToBeApproved.array(),
                                                                 m_sandboxRootHash.array(),
                                                                 fsTreeSize,
                                                                 metaFilesSize,
@@ -1105,7 +1132,7 @@ public:
         {
             m_stopSecondaryThread = false;
 
-            if ( m_secondaryThread.get_id() != std::thread::id{} )
+            if ( m_secondaryThread.joinable() )
                 m_secondaryThread.detach();
 
             m_secondaryThread = std::thread( [this]
@@ -1297,48 +1324,36 @@ public:
         {
             // wait the end of 'Cancel Modification'
             // and then start 'CatchingUp'
-            m_newCatchingUpRequest.reset();
-            m_catchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
+            m_newCatchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
             return;
         }
-        else if ( !m_modifyRequest && transaction.m_rootHash != m_rootHash.array() )
+
+        if ( m_catchingUpRequest && m_catchingUpRequest->m_rootHash == transaction.m_rootHash )
         {
-            // we do NOT MODIFY and we have OUTDATED rootHash
-            
-            // do we catching up now?
-            if ( m_catchingUpRequest )
-            {
-                if ( m_catchingUpRequest->m_rootHash == transaction.m_rootHash )
-                {
-                    // This situation could be valid if some next modification has not changed Drive Root Hash
-                    // For example, because of next modification was invalid
-                    // So, we continue previous catching-up
-                    return;
-                }
-
-                m_newCatchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
-
-                // We should break torrent downloading, because they may no longer be available
-                //
-                stopAnyDriveTask( [=,this]
-                {
-                    startCatchingUp( *m_newCatchingUpRequest );
-                });
-            }
-            else
-            {
-                startCatchingUp( {{ transaction.m_rootHash, transaction.m_modifyTransactionHash }} );
-            }
+            // TODO We should update knowledge about the catching modification id
+            // This situation could be valid if some next modification has not changed Drive Root Hash
+            // For example, because of next modification was invalid
+            // So, we continue previous catching-up
             return;
         }
-//        else if ( m_modifyRequest && !m_modifyUserDataReceived )
-//        {
-//            // we have not received the whole user blob!
-//            m_session->removeTorrentsFromSession( { m_downloadingLtHandle }, [this] {
-//                startCatchingUp( m_catchingUpRootHash );
-//            });
-//            return;
-//        }
+
+        // We should not catch up only in the case
+        // When we have already downloaded all necessary data dor the modification approval
+        bool shouldNotCatchUp =
+                m_modifyRequest &&
+                m_modifyRequest->m_transactionHash == transaction.m_modifyTransactionHash &&
+                m_modifyUserDataReceived;
+
+        if ( !shouldNotCatchUp )
+        {
+            // We should break torrent downloading if there are any
+            // Because they may no longer be available
+            stopAnyDriveTask( [=,this]
+            {
+                m_newCatchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
+                startCatchingUp( *m_newCatchingUpRequest );
+            });
+        }
 
         _LOG( "onApprovalTransactionHasBeenPublished(): m_sandboxCalculated=" << m_sandboxCalculated )
         if ( !m_sandboxCalculated )
@@ -1399,7 +1414,26 @@ public:
     {
         _LOG( "onSingleApprovalTransactionHasBeenPublished()" );
     }
-    
+
+    void updateTrafficIdentifier()
+    {
+        DBG_SINGLE_THREAD
+
+        _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
+
+        if ( !m_trafficIdentifier )
+        {
+            if ( m_modifyRequest )
+            {
+                m_trafficIdentifier = m_modifyRequest->m_transactionHash;
+            }
+            else
+            {
+                m_trafficIdentifier = m_catchingUpRequest->m_modifyTransactionHash;
+            }
+        }
+    }
+
     void startCatchingUp( std::optional<CatchingUpRequest>&& actualCatchingRequest ) override
     {
         DBG_SINGLE_THREAD
@@ -1428,6 +1462,7 @@ public:
             it++;
             while ( !m_defferedModifyRequests.empty() and it != m_defferedModifyRequests.begin() )
             {
+                m_expectedCumulativeDownload += m_defferedModifyRequests.front().m_maxDataSize;
                 m_defferedModifyRequests.pop_front();
             }
 
@@ -1441,11 +1476,12 @@ public:
 
         _LOG( "Late: download FsTree:" << m_catchingUpRequest->m_rootHash )
         
+        updateTrafficIdentifier();
         m_downloadingLtHandle = m_session->download( DownloadContext(
                                             DownloadContext::missing_files,
                                             std::bind( &DefaultFlatDrive::catchingUpFsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
                                             m_catchingUpRequest->m_rootHash,
-                                            drivePublicKey().array(),
+                                            *m_trafficIdentifier,
                                             0,
                                             "" ),
                                             //toString( *m_catchingUpRootHash ) ),
@@ -1463,20 +1499,13 @@ public:
                                           const std::string& errorText )
     {
         DBG_SINGLE_THREAD
-        
-        if (m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash != m_catchingUpRequest->m_rootHash )
-        {
-            // Recently downloaded FsTree is outdated)
-            // start download new
-            startCatchingUp( std::move(m_newCatchingUpRequest) );
-            return;
-        }
+
+        _ASSERT( !m_newCatchingUpRequest )
 
         if ( code == download_status::failed )
         {
             //todo is it possible?
             _ASSERT(0);
-            startCatchingUp( {} );
             return;
         }
 
@@ -1566,7 +1595,8 @@ public:
 
             auto missingFileHash = *m_catchingUpFileIt;
             m_catchingUpFileIt++;
-            
+
+            updateTrafficIdentifier();
             m_downloadingLtHandle = m_session->download( DownloadContext(
                                                                          
                                                  DownloadContext::missing_files,
@@ -1590,7 +1620,7 @@ public:
                                                  },
 
                                                  missingFileHash,
-                                                 drivePublicKey().array(),
+                                                 *m_trafficIdentifier,
                                                  0,
                                                  ""),
                                                  m_sandboxRootPath,
@@ -1672,14 +1702,7 @@ public:
         _ASSERT( m_sandboxRootHash == m_catchingUpRequest->m_rootHash );
         
         // check if RootHash has been published
-        if ( m_newCatchingUpRequest )
-        {
-            m_session->lt_session().get_context().post( [=,this]()
-            {
-                startCatchingUp( std::move(m_newCatchingUpRequest) );
-            });
-            return;
-        }
+        _ASSERT( !m_newCatchingUpRequest )
 
         fs::rename(  m_sandboxFsTreeFile, m_fsTreeFile );
         fs::rename(  m_sandboxFsTreeTorrent, m_fsTreeTorrent );
