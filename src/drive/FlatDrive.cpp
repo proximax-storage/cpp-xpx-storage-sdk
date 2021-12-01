@@ -495,7 +495,8 @@ public:
         {
             if ( m_downloadingLtHandle )
             {
-                //todo remove download context before!
+                m_session->removeDownloadContext( *m_downloadingLtHandle );
+                
                 m_session->removeTorrentsFromSession( {*m_downloadingLtHandle}, [=]
                 {
                     DBG_SINGLE_THREAD
@@ -510,13 +511,13 @@ public:
                     nextStep();
                 });
             }
-
         }
         else if ( m_catchingUpRequest )
         {
             if ( m_downloadingLtHandle )
             {
-                //todo remove download context before!
+                m_session->removeDownloadContext( *m_downloadingLtHandle );
+
                 m_session->removeTorrentsFromSession( {*m_downloadingLtHandle}, [=]
                 {
                     m_stopSecondaryThread = true;
