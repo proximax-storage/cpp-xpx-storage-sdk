@@ -46,9 +46,14 @@ namespace sirius::drive::test {
 
         void
         modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override {
-            m_ignoredReplicator = transactionInfo.m_opinions.back().m_replicatorKey;
-            transactionInfo.m_opinions.pop_back();
 
+            {
+                const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+                if ( !m_ignoredReplicator ) {
+                    m_ignoredReplicator = transactionInfo.m_opinions.back().m_replicatorKey;
+                }
+            }
+            transactionInfo.m_opinions.pop_back();
             TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
             ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size() - 1);
             for (const auto& opinion: transactionInfo.m_opinions) {
@@ -83,7 +88,7 @@ namespace sirius::drive::test {
             ASSERT_EQ(m_modificationSizes.size(), 1);
         };
 
-        std::array<uint8_t,32> m_ignoredReplicator;
+        std::optional<std::array<uint8_t,32>> m_ignoredReplicator;
         std::set<uint64_t> m_modificationSizes;
     };
 

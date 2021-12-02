@@ -182,18 +182,25 @@ public:
 
         for( const auto& torrentHandle : torrents )
         {
-            _LOG( ":remove_torrent: " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state << " " << lt::torrent_status::seeding )
-            _LOG(":remove_torrent(2): " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
-            assert(torrentHandle.is_valid());
-            if ( torrentHandle.is_valid() && torrentHandle.status().state > 2 ) // torrentHandle.status().state == lt::torrent_status::seeding )
+//            _LOG( ":remove_torrent: " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state << " " << lt::torrent_status::seeding )
+//            _LOG(":remove_torrent(2): " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
+//            assert(torrentHandle.is_valid());
+            if ( !torrentHandle.is_valid() )
             {
-                toBeRemoved.insert(torrentHandle);
+                LOG_ERR("TRY REMOVE NOT VALID TORRENT");
             }
-//            else
-//            {
-//                _LOG( m_addressAndPort << "********:remove_torrent(3): " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
-//            }
-            m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
+            else
+            {
+                if ( torrentHandle.status().state > 2 ) // torrentHandle.status().state == lt::torrent_status::seeding )
+                {
+                    toBeRemoved.insert(torrentHandle);
+                }
+                //            else
+                //            {
+                //                _LOG( m_addressAndPort << "********:remove_torrent(3): " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
+                //            }
+                m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
+            }
         }
         
         if ( !toBeRemoved.empty() )
