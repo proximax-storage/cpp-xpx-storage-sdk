@@ -146,6 +146,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     std::optional<ModifyRequest> m_modifyRequest;
 
     std::optional<lt_handle>     m_downloadingLtHandle; // used for removing torrent from session
+    std::optional<std::function<void()>> m_nextStepAfterTaskStop;
+    
     std::thread                  m_secondaryThread;
     bool                         m_stopSecondaryThread;
 
@@ -518,17 +520,22 @@ public:
         }
     }
 
-    void stopAnyDriveTask( const std::function<void()>& nextStep )
+    void stopAnyDriveTask( std::optional<std::function<void()>>&& nextStep )
     {
         DBG_SINGLE_THREAD
         
-        if ( m_modifyRequest )
+        m_nextStepAfterTaskStop = std::move( nextStep );
+        
+        if ( m_modifyRequest || m_catchingUpRequest )
         {
             if ( m_downloadingLtHandle )
             {
                 m_session->removeDownloadContext( *m_downloadingLtHandle );
                 
-                m_session->removeTorrentsFromSession( {*m_downloadingLtHandle}, [=, this]
+                lt_handle torrentHandle = *m_downloadingLtHandle;
+                m_downloadingLtHandle.reset();
+                
+                m_session->removeTorrentsFromSession( {torrentHandle}, [=, this]
                 {
                     DBG_SINGLE_THREAD
 
@@ -539,32 +546,22 @@ public:
                     
                     m_downloadingLtHandle.reset();
                     m_modifyRequest.reset();
-                    nextStep();
-                });
-            }
-        }
-        else if ( m_catchingUpRequest )
-        {
-            if ( m_downloadingLtHandle )
-            {
-                m_session->removeDownloadContext( *m_downloadingLtHandle );
-
-                m_session->removeTorrentsFromSession( {*m_downloadingLtHandle}, [=, this]
-                {
-                    m_stopSecondaryThread = true;
-
-                    if ( m_secondaryThread.get_id() != std::thread::id{} )
-                        m_secondaryThread.join(); // !!!! DELAY on main thread !!!!
-
-                    m_downloadingLtHandle.reset();
-                    m_modifyRequest.reset();
-                    nextStep();
+                    
+                    if ( m_nextStepAfterTaskStop )
+                    {
+                        (*m_nextStepAfterTaskStop)();
+                        m_nextStepAfterTaskStop.reset();
+                    }
                 });
             }
         }
         else
         {
-            nextStep();
+            if ( m_nextStepAfterTaskStop )
+            {
+                (*m_nextStepAfterTaskStop)();
+                m_nextStepAfterTaskStop.reset();
+            }
         }
     }
 

@@ -131,8 +131,7 @@ public:
     //TODO make it async !!!
     virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) const override
     {
-        //DBG_SINGLE_THREAD
-        //std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+        DBG_SINGLE_THREAD
 
         if ( const auto it = m_modifyDriveMap.find( transactionHash.array() ); it != m_modifyDriveMap.end() )
         {

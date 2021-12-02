@@ -866,7 +866,7 @@ private:
 
                     if ( auto it = m_downloadMap.find(theAlert->handle.id()); it != m_downloadMap.end() )
                     {
-                        _LOG( " torrent_finished: " << theAlert->handle.info_hashes().v2 )
+                        _LOG( " *** torrent_finished: " << theAlert->handle.info_hashes().v2 )
 
                         // get peers info
                         std::vector<lt::peer_info> peers;
@@ -893,16 +893,16 @@ private:
                     
                 case lt::torrent_deleted_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_deleted_alert*>(alert);
-                    _LOG( m_addressAndPort << " *** lt::torrent_deleted_alert:" << theAlert->handle.info_hashes().v2 );
-                    //LOG( "*** lt::torrent_deleted_alert:" << theAlert->handle.torrent_file()->files().file_name(0) );
-                    //LOG( "*** lt::torrent_deleted_alert:" << theAlert->handle.torrent_file()->files().file_path(0) );
+                    _LOG( " *** torrent_deleted_alert:" << theAlert->handle.info_hashes().v2 );
+                    _LOG( " *** torrent_deleted_alert:" << theAlert->handle.torrent_file()->files().file_name(0) );
+                    //LOG( "*** torrent_deleted_alert:" << theAlert->handle.torrent_file()->files().file_path(0) );
                     //LOG( "*** get_torrents().size()=" << m_session.get_torrents().size() );
 
                     // Notify about removed torrents
                     //
                     {
                         std::lock_guard<std::mutex> locker(m_removeMutex);
-                        _LOG( " *** lt::torrent_deleted_alert: removeContext.Size: " << m_removeContexts.size() );
+                        _LOG( " *** torrent_deleted_alert: removeContext.Size: " << m_removeContexts.size() );
 
                         // loop by set
                         for ( auto removeContextIt  = m_removeContexts.begin(); removeContextIt != m_removeContexts.end(); )
@@ -943,7 +943,7 @@ private:
                     // Notify about completed downloads
                     //
 
-                    _LOG( " *** lt::torrent_deleted_alert: m_downloadMap.Size: " << m_downloadMap.size() << " : " << theAlert->handle.id() );
+                    _LOG( " *** torrent_deleted_alert: m_downloadMap.Size: " << m_downloadMap.size() << " : " << theAlert->handle.id() );
                     if ( auto it =  m_downloadMap.find(theAlert->handle.id());
                               it != m_downloadMap.end() )
                     {

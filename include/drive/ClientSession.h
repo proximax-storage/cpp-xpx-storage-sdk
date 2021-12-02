@@ -183,7 +183,7 @@ protected:
 
     void signHandshake( const uint8_t* bytes, size_t size, std::array<uint8_t,64>& signature ) override
     {
-        std::cout << "IN HANDSHAKE " << m_keyPair.publicKey() << std::endl;
+        _LOG( "SIGN HANDSHAKE: " << m_keyPair.publicKey() )
         crypto::Sign( m_keyPair, utils::RawBuffer{bytes,size}, reinterpret_cast<Signature&>(signature) );
     }
 
