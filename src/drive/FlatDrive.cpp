@@ -60,8 +60,49 @@ namespace fs = std::filesystem;
 
 namespace sirius::drive {
 
-#define DBG_SINGLE_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
-#define DBG_NOT_SINGLE_THREAD { assert( m_dbgThreadId != std::this_thread::get_id() ); }
+#define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
+#define DBG_SECONDARY_THREAD { assert( m_dbgThreadId != std::this_thread::get_id() ); }
+
+//class SecondaryThread
+//{
+//protected:
+//    std::thread::id m_dbgThreadId;
+//
+//protected:
+//    SecondaryThread() {}
+//
+//    void runTask( std::function<void()> task )
+//    {
+//        _ASSERT( !m_isRunning );
+//        m_isRunning = true;
+//        m_shouldBeBroken = false;
+//
+//        m_thread = std::thread( [=]
+//        {
+//            task();
+//            m_isRunning = false;
+//
+//            //m_thread.join();
+//        });
+//
+//
+//        m_isRunning = false;
+//    }
+//
+//    void breakTask( std::optional<std::function<void()>> callAfterTheEnd )
+//    {
+//        m_shouldBeBroken = true;
+//    }
+//
+//private:
+//    bool        m_isRunning       = false;
+//    bool        m_shouldBeBroken = false;
+//
+//private:
+//    std::thread                          m_thread;
+//    std::mutex                           m_mutex;
+//    std::optional<std::function<void()>> m_callAfterTheEnd;
+//};
 
 //
 // DrivePaths - drive paths, used at replicator side
@@ -259,7 +300,7 @@ public:
 
     void updateReplicators(const ReplicatorList& replicators) override
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
 
         if (replicators.empty()) {
             LOG_ERR( "ReplicatorList is empty!");
@@ -305,7 +346,7 @@ public:
     // Initialize drive
     void init()
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         // Clear m_rootDriveHash
         memset( m_rootHash.data(), 0 , m_rootHash.size() );
@@ -362,7 +403,7 @@ public:
     //
     void addFilesToSession( fs::path folderPath, fs::path torrentFolderPath, Folder& fsTreeFolder )
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         // Loop by folder childs
         //
@@ -422,7 +463,7 @@ public:
 
     void downgradeCumulativeUploads()
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
 
         _ASSERT(m_modifyRequest)
         _ASSERT(m_modificationIsCanceling)
@@ -444,7 +485,7 @@ public:
     
     void cancelModifyDrive( const Hash256& transactionHash ) override
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         _ASSERT(m_catchingUpRequest );
         
@@ -481,7 +522,7 @@ public:
 
     void continueCancelModifyDrive( const Hash256& transactionHash )
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         m_modifyRequest.reset();
 
@@ -508,7 +549,7 @@ public:
     // It tries to start next modify
     void modifyIsCompleted()
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         m_modifyRequest.reset();
 
@@ -522,7 +563,7 @@ public:
 
     void stopAnyDriveTask( std::optional<std::function<void()>>&& nextStep )
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         m_nextStepAfterTaskStop = std::move( nextStep );
         
@@ -537,7 +578,7 @@ public:
                 
                 m_session->removeTorrentsFromSession( {torrentHandle}, [=, this]
                 {
-                    DBG_SINGLE_THREAD
+                    DBG_MAIN_THREAD
 
                     m_stopSecondaryThread = true;
 
@@ -567,7 +608,7 @@ public:
 
     void startDriveClosing( const Hash256& transactionHash ) override
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         _ASSERT( !m_catchingUpRequest );
         
@@ -586,7 +627,7 @@ public:
 
     void continueDriveClosing( const Hash256& transactionHash )
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         std::set<lt_handle> tobeRemovedTorrents;
 
@@ -604,7 +645,7 @@ public:
 
     bool synchronizeDriveWithSandbox()
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         assert( m_sandboxCalculated );
         
@@ -638,7 +679,7 @@ public:
     //
     void startModifyDrive( ModifyRequest&& modifyRequest ) override
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         m_modifyUserDataReceived  = false;
 
@@ -691,7 +732,7 @@ public:
                           size_t /*fileSize*/,
                           const std::string& errorText )
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
     
         if ( !m_modifyRequest )
         {
@@ -733,7 +774,7 @@ public:
     //
     void modifyDriveInSandbox()
     {
-        DBG_NOT_SINGLE_THREAD
+        DBG_SECONDARY_THREAD
         
         // Check that client data exist
         if ( !fs::exists(m_clientDataFolder) || !fs::is_directory(m_clientDataFolder) )
@@ -971,7 +1012,7 @@ public:
     
     void createMyOpinion()
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
 
         _ASSERT( m_trafficIdentifier )
         _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
@@ -1031,7 +1072,7 @@ public:
 
     void myRootHashIsCalculated()
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         if ( m_modificationIsCanceling )
             return;
@@ -1078,7 +1119,7 @@ public:
     
     void shareMyOpinion()
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
@@ -1092,7 +1133,7 @@ public:
     
     void checkOpinionNumberAndStartTimer()
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         // m_replicatorList is the list of other replicators (it does not contain our replicator)
         auto replicatorNumber = m_modifyRequest->m_replicatorList.size();//todo++++ +1;
@@ -1113,7 +1154,7 @@ public:
     //
     void updateDrive_1( const std::function<void()>& nextStep )
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         _LOG( "updateDrive_1:" << m_replicator.dbgReplicatorName() );
         
@@ -1162,7 +1203,7 @@ public:
     //
     void updateDrive_2() try
     {
-        DBG_NOT_SINGLE_THREAD
+        DBG_SECONDARY_THREAD
 
         // update FsTree file & torrent
         fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
@@ -1233,7 +1274,7 @@ public:
     //
     void markUsedFiles( const Folder& folder )
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         for( const auto& child : folder.m_childs )
         {
@@ -1267,7 +1308,7 @@ public:
 
     void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         // Preliminary opinion verification takes place at extension
 
@@ -1289,7 +1330,7 @@ public:
     
     void opinionTimerExpired()
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         if ( m_approveTransactionSent || m_approveTransactionReceived )
             return;
@@ -1321,7 +1362,7 @@ public:
 
     void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         m_approveTransactionReceived = true;
 
@@ -1393,7 +1434,7 @@ public:
 
     void onApprovalTransactionHasFailedInvalidSignatures(const Hash256 &transactionHash) override
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
 
         if ( m_modifyRequest &&
              m_modifyRequest->m_transactionHash == transactionHash &&
@@ -1414,7 +1455,7 @@ public:
 
     void sendSingleApprovalTransaction()
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         auto copy = *m_myOpinion;
         m_eventHandler.singleModifyApprovalTransactionIsReady( m_replicator, std::move(copy) );
@@ -1427,7 +1468,7 @@ public:
 
     void updateTrafficIdentifier()
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
 
         _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
 
@@ -1446,7 +1487,7 @@ public:
 
     void startCatchingUp( std::optional<CatchingUpRequest>&& actualCatchingRequest ) override
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         _ASSERT( !m_modificationIsCanceling );
         _ASSERT( !m_modifyRequest );
@@ -1507,7 +1548,7 @@ public:
                                           size_t /*fileSize*/,
                                           const std::string& errorText )
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
 
         _ASSERT( !m_newCatchingUpRequest )
 
@@ -1526,7 +1567,7 @@ public:
 
     void startDownloadMissingFiles()
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
 
         _LOG( "startDownloadMissingFiles: removeTorrentsFromSession: " << m_downloadingLtHandle->id()  << " " << m_downloadingLtHandle->info_hashes().v2  );
 
@@ -1564,7 +1605,7 @@ public:
     
     void createCatchingUpFileList( const Folder& folder )
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
 
         for( const auto& child : folder.m_childs )
         {
@@ -1587,7 +1628,7 @@ public:
     // Download file by file
     void downloadMissingFiles()
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         m_downloadingLtHandle.reset();
         
@@ -1648,7 +1689,7 @@ public:
     
 //    void completeCatchingUp_1()
 //    {
-//        DBG_SINGLE_THREAD
+//        DBG_MAIN_THREAD
 //
 //        //
 //        // Create list of unused torrents
@@ -1677,7 +1718,7 @@ public:
 //        //
 //        m_session->removeTorrentsFromSession( tobeRemovedTorrents, [this]
 //        {
-//            DBG_SINGLE_THREAD
+//            DBG_MAIN_THREAD
 //
 //            // remove unused files and torrent files from the drive
 //            for( const auto& [key,value] : m_torrentHandleMap )
@@ -1705,7 +1746,7 @@ public:
     
     void completeCatchingUp() try
     {
-        DBG_NOT_SINGLE_THREAD
+        DBG_SECONDARY_THREAD
 
         //
         // Check RootHash Before All
@@ -1784,7 +1825,7 @@ public:
         fs::remove_all( m_sandboxRootPath );
         m_session->lt_session().get_context().post( [=,this]
         {
-            DBG_SINGLE_THREAD
+            DBG_MAIN_THREAD
 
             createMyOpinion();
             sendSingleApprovalTransaction();
@@ -1862,7 +1903,7 @@ public:
     
     void removeAllDriveData() override
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         {
             // When node is restaring and file "is_closing" exists, but file "approval_tx_has_been_bulished" is not exists,

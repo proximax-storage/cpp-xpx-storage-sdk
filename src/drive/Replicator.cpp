@@ -20,9 +20,6 @@
 
 #include <mutex>
 
-/*#define DBG_SINGLE_THREAD { std::cout << m_dbgThreadId << "==" << std::this_thread::get_id() << std::endl; \
-                            assert( m_dbgThreadId == std::this_thread::get_id() ); }*/
-
 namespace sirius::drive {
 
 //
@@ -128,7 +125,7 @@ public:
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
-            DBG_SINGLE_THREAD
+            DBG_MAIN_THREAD
             
             LOG( "adding drive " << driveKey );
 
@@ -179,7 +176,7 @@ public:
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
-            DBG_SINGLE_THREAD
+            DBG_MAIN_THREAD
 
             if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
             {
@@ -211,7 +208,7 @@ public:
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
-            DBG_SINGLE_THREAD
+            DBG_MAIN_THREAD
 
             std::shared_ptr<sirius::drive::FlatDrive> pDrive;
             {
@@ -249,7 +246,7 @@ public:
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
-            DBG_SINGLE_THREAD
+            DBG_MAIN_THREAD
             
             if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
             {
@@ -263,7 +260,7 @@ public:
     
 //    std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) override
 //    {
-//        DBG_SINGLE_THREAD
+//        DBG_MAIN_THREAD
 //
 //        std::shared_ptr<sirius::drive::FlatDrive> pDrive;
 //        {
@@ -286,7 +283,7 @@ public:
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
-            DBG_SINGLE_THREAD
+            DBG_MAIN_THREAD
 
             std::vector<std::array<uint8_t,32>> clientList;
             for( const auto& it : request.m_clients )
@@ -301,7 +298,7 @@ public:
 
     void removeDownloadChannelInfo( const std::array<uint8_t,32>& channelKey ) override
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         removeChannelInfo(channelKey);
     }
@@ -311,7 +308,7 @@ public:
                                                 uint64_t                       downloadedSize,
                                                 const std::array<uint8_t,64>&  signature ) override
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         auto replicatorPublicKey = publicKey();
 
@@ -352,7 +349,7 @@ public:
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
 
-            DBG_SINGLE_THREAD
+            DBG_MAIN_THREAD
 
             if ( anOpinion.m_opinions.size() != 1 )
             {
@@ -371,7 +368,7 @@ public:
     
     DownloadOpinion createMyOpinion( const DownloadChannelInfo& info )
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
 
         DownloadOpinion myOpinion( publicKey() );
 
@@ -396,7 +393,7 @@ public:
 
     void addOpinion(DownloadApprovalTransactionInfo &&opinion)
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
 
         //
         // remove outdated entries (by m_creationTime)
@@ -459,7 +456,7 @@ public:
     
     void onDownloadApprovalTimeExipred( DownloadOpinionMapValue& mapValue )
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         if ( mapValue.m_approveTransactionSent || mapValue.m_approveTransactionReceived )
             return;
@@ -481,14 +478,14 @@ public:
 
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
-            DBG_SINGLE_THREAD
+            DBG_MAIN_THREAD
             doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
         });//post
     }
 
     void doInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId )
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         //todo make queue for several simultaneous requests of the same channelId
         
@@ -536,7 +533,7 @@ public:
     // It is called when drive is closing
     virtual void closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) override
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
 
         bool deleteDriveImmediately = true;
         
@@ -567,7 +564,7 @@ public:
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
 
-            DBG_SINGLE_THREAD
+            DBG_MAIN_THREAD
 
             if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end())
             {
@@ -616,7 +613,7 @@ public:
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
-            DBG_SINGLE_THREAD
+            DBG_MAIN_THREAD
             
             // clear opinion map
             if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end())
@@ -677,7 +674,7 @@ public:
 
     void deleteDrive( const std::array<uint8_t,32>& driveKey )
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
 
         std::erase_if( m_downloadChannelMap, [&driveKey] (const auto& item) {
             return item.second.m_driveKey == driveKey;
@@ -698,7 +695,7 @@ public:
     virtual void asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
-            DBG_SINGLE_THREAD
+            DBG_MAIN_THREAD
         
             if ( auto it = m_driveMap.find( anOpinion.m_driveKey ); it != m_driveMap.end() )
             {
@@ -721,7 +718,7 @@ public:
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
-            DBG_SINGLE_THREAD
+            DBG_MAIN_THREAD
 
             if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
             {
@@ -738,7 +735,7 @@ public:
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
 
-            DBG_SINGLE_THREAD
+            DBG_MAIN_THREAD
 
             if ( auto it = m_driveMap.find( driveKey ); it != m_driveMap.end() )
             {
@@ -755,7 +752,7 @@ public:
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
-            DBG_SINGLE_THREAD
+            DBG_MAIN_THREAD
             
             if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
             {
@@ -770,13 +767,13 @@ public:
     
     virtual void sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint endpoint, const std::string& message ) override
     {
-        //todo? DBG_SINGLE_THREAD
+        //todo? DBG_MAIN_THREAD
         m_session->sendMessage( query, { endpoint.address(), endpoint.port() }, message );
     }
     
     virtual void onMessageReceived( const std::string& query, const std::string& message ) override try
     {
-        DBG_SINGLE_THREAD
+        DBG_MAIN_THREAD
         
         //todo
         if ( query == "opinion" )
