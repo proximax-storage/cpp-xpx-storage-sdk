@@ -82,7 +82,7 @@ int main() {
 //                                  (std::string(getenv("HOME"))+"/111/replicator4/replicator_root"),
 //                                  (std::string(getenv("HOME"))+"/111/replicator4/sandbox_root"),
 //                                  5510,
-//                                  "192.168.0.101",
+//                                  "192.168.2.101",
 //                                  5510);
 //        replicator.setModifyApprovalTransactionTimerDelay(1);
 //        replicator.setDownloadApprovalTransactionTimerDelay(1);

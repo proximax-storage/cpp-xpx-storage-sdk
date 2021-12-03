@@ -19,7 +19,7 @@
 
 #include <sirius_drive/session_delegate.h>
 
-const bool gUse3Replicators = true;
+const bool testLateReplicator = true;
 
 //
 // This example shows interaction between 'client' and 'replicator'.
@@ -31,14 +31,14 @@ const bool gUse3Replicators = true;
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_IP_ADDR          "192.168.0.100"
+#define CLIENT_IP_ADDR          "192.168.2.200"
 #define CLIENT_PORT             5000
 
-#define REPLICATOR_IP_ADDR      "192.168.0.101"
+#define REPLICATOR_IP_ADDR      "192.168.2.101"
 #define REPLICATOR_PORT         5001
-#define REPLICATOR_IP_ADDR_2    "192.168.0.102"
+#define REPLICATOR_IP_ADDR_2    "192.168.2.102"
 #define REPLICATOR_PORT_2       5002
-#define REPLICATOR_IP_ADDR_3    "192.168.0.103"
+#define REPLICATOR_IP_ADDR_3    "192.168.2.103"
 #define REPLICATOR_PORT_3       5003
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111"
@@ -206,17 +206,17 @@ public:
             std::thread( [info] { gReplicator->asyncDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
             std::thread( [info] { gReplicator2->asyncDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
             std::thread( [info] { gReplicator3->asyncDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
-
-
+            
+            
             for( const auto& opinion : info.m_opinions )
             {
                 EXLOG( "---------------------------------------------------------" );
                 EXLOG( "----  DownloadApprovalTransactionHasBeenPublished  ------" );
                 EXLOG( "---------------------------------------------------------" );
                 EXLOG( "download opinion of: " << gReplicatorMap[opinion.m_replicatorKey]->dbgReplicatorName() );
-                for( const auto& bytes : opinion.m_downloadedBytes )
+                for( const auto& downloadInfo : opinion.m_downloadLayout )
                 {
-                    EXLOG( "  bytes: " << bytes );
+                    EXLOG( "  bytes: " << downloadInfo.m_uploadedBytes );
                 }
             }
         }
@@ -251,13 +251,13 @@ public:
         for( const auto& opinion: transactionInfo.m_opinions )
         {
             std::cout << " key:" << int(opinion.m_replicatorKey[0]) << " ";
-            for( size_t i=0; i<opinion.m_uploadReplicatorKeys.size(); i+=32  )
+            for( size_t i=0; i<opinion.m_uploadLayout.size(); i++  )
             {
-                std::cout << int(opinion.m_uploadReplicatorKeys[i]) << ":" << opinion.m_replicatorUploadBytes[i/32] << " ";
+                std::cout << int(opinion.m_uploadLayout[i].m_key[0]) << ":" << opinion.m_uploadLayout[i].m_uploadedBytes << " ";
             }
             std::cout << "client:" <<opinion.m_clientUploadBytes << std::endl;
         }
-
+        
         gReplicator3->printTrafficDistribution( modifyTransactionHash1.array() );
         gReplicator->printTrafficDistribution( modifyTransactionHash1.array() );
         gReplicator2->printTrafficDistribution( modifyTransactionHash1.array() );
@@ -268,6 +268,10 @@ public:
 
             std::thread( [] { gReplicator->asyncApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
             std::thread( [] { gReplicator2->asyncApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
+            
+            if ( testLateReplicator )
+                gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
+
             std::thread( [] { gReplicator3->asyncApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
         }
     }
@@ -296,6 +300,18 @@ public:
 
         modifyCompleteCounter++;
         modifyCompleteCondVar.notify_all();
+    }
+
+    virtual void opinionHasBeenReceived(  Replicator& replicator,
+                                          const ApprovalTransactionInfo& opinion ) override
+    {
+        replicator.asyncOnOpinionReceived( opinion );
+    }
+
+    virtual void downloadOpinionHasBeenReceived(  Replicator& replicator,
+                                                  const DownloadApprovalTransactionInfo& opinion ) override
+    {
+        replicator.asyncOnDownloadOpinionReceived( opinion );
     }
 };
 
@@ -328,20 +344,31 @@ int main(int,char**)
     ///
     boost::asio::ip::address e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR);
     replicatorList.emplace_back( ReplicatorInfo{ {e, REPLICATOR_PORT},
-                                                 sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY)).publicKey() } );
-
+        sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY)).publicKey() } );
+    
     boost::asio::ip::address e2 = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_2);
     replicatorList.emplace_back( ReplicatorInfo{ {e2, REPLICATOR_PORT_2},
-                                                 sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_2)).publicKey() } );
+        sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_2)).publicKey() } );
 
     boost::asio::ip::address e3 = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_3);
     replicatorList.emplace_back( ReplicatorInfo{ {e3, REPLICATOR_PORT_3},
-                                                 sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3)).publicKey() } );
+        sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3)).publicKey() } );
 
     printf( "client key[0] :      0x%x %i\n", clientKeyPair.publicKey().array()[0], clientKeyPair.publicKey().array()[0] );
     printf( "replicator1 key[0] : 0x%x %i\n", replicatorList[0].m_publicKey[0], replicatorList[0].m_publicKey[0] );
     printf( "replicator2 key[0] : 0x%x %i\n", replicatorList[1].m_publicKey[0], replicatorList[1].m_publicKey[0] );
     printf( "replicator3 key[0] : 0x%x %i\n", replicatorList[2].m_publicKey[0], replicatorList[2].m_publicKey[0] );
+
+
+    ///
+    /// Create client session
+    ///
+    gClientFolder  = createClientFiles(BIG_FILE_SIZE);
+    gClientSession = createClientSession( std::move(clientKeyPair),
+                                         CLIENT_IP_ADDR ":5000",
+                                         clientSessionErrorHandler,
+                                         TRANSPORT_PROTOCOL,
+                                         "client" );
 
     ///
     /// Create replicators
@@ -363,35 +390,52 @@ int main(int,char**)
                                     "replicator1" );
     gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
 
+#if 0
+    sleep(1);
+    driveRootHash = std::make_shared<InfoHash>( gReplicator->dbgGetRootHash( DRIVE_PUB_KEY ) );
+    gReplicator.reset();
+    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
+    clientDownloadFsTree();
+
+    gReplicator = createReplicator( replicatorKeyPair,
+                                    REPLICATOR_IP_ADDR,
+                                    REPLICATOR_PORT,
+                                    std::string( REPLICATOR_ROOT_FOLDER ),
+                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER ),
+                                    TRANSPORT_PROTOCOL,
+                                    gMyReplicatorEventHandler,
+                                    "replicator1" );
+#endif
+
     gReplicator2 = createReplicator( replicatorKeyPair_2,
-                                     REPLICATOR_IP_ADDR_2,
-                                     REPLICATOR_PORT_2,
-                                     std::string( REPLICATOR_ROOT_FOLDER_2 ),
-                                     std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_2 ),
-                                     TRANSPORT_PROTOCOL,
-                                     gMyReplicatorEventHandler2,
-                                     "replicator2" );
+                                    REPLICATOR_IP_ADDR_2,
+                                    REPLICATOR_PORT_2,
+                                    std::string( REPLICATOR_ROOT_FOLDER_2 ),
+                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_2 ),
+                                    TRANSPORT_PROTOCOL,
+                                    gMyReplicatorEventHandler2,
+                                    "replicator2" );
     gReplicatorMap[gReplicator2->replicatorKey()] = gReplicator2;
 
     gReplicator3 = createReplicator( replicatorKeyPair_3,
-                                     REPLICATOR_IP_ADDR_3,
-                                     REPLICATOR_PORT_3,
-                                     std::string( REPLICATOR_ROOT_FOLDER_3 ),
-                                     std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_3 ),
-                                     TRANSPORT_PROTOCOL,
-                                     gMyReplicatorEventHandler3,
-                                     "replicator3" );
+                                    REPLICATOR_IP_ADDR_3,
+                                    REPLICATOR_PORT_3,
+                                    std::string( REPLICATOR_ROOT_FOLDER_3 ),
+                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_3 ),
+                                    TRANSPORT_PROTOCOL,
+                                    gMyReplicatorEventHandler3,
+                                    "replicator3" );
     gReplicatorMap[gReplicator3->replicatorKey()] = gReplicator3;
 
-    ///
-    /// Create client session
-    ///
-    gClientFolder  = createClientFiles(BIG_FILE_SIZE);
-    gClientSession = createClientSession( std::move(clientKeyPair),
-                                          CLIENT_IP_ADDR ":5000",
-                                          clientSessionErrorHandler,
-                                          TRANSPORT_PROTOCOL,
-                                          "client" );
+//    ///
+//    /// Create client session
+//    ///
+//    gClientFolder  = createClientFiles(BIG_FILE_SIZE);
+//    gClientSession = createClientSession( std::move(clientKeyPair),
+//                                         CLIENT_IP_ADDR ":5000",
+//                                         clientSessionErrorHandler,
+//                                         TRANSPORT_PROTOCOL,
+//                                         "client" );
     _EXLOG("");
 
     // set root drive hash
@@ -410,6 +454,7 @@ int main(int,char**)
     EXLOG( "\n# Client started: 1-st upload" );
     {
         ActionList actionList;
+        actionList.push_back( Action::newFolder( "fff0/" ) );
         actionList.push_back( Action::newFolder( "fff1/" ) );
         actionList.push_back( Action::newFolder( "fff1/ffff1" ) );
         actionList.push_back( Action::upload( clientFolder / "a.txt", "fff2/a.txt" ) );
@@ -428,8 +473,12 @@ int main(int,char**)
 
     gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
-    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
 
+    if ( !testLateReplicator )
+    {
+        gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
+    }
+    
     {
         std::unique_lock<std::mutex> lock(modifyCompleteMutex);
         modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 3; } );
@@ -437,8 +486,9 @@ int main(int,char**)
 
     gReplicatorThread.join();
     gReplicatorThread2.join();
-    gReplicatorThread3.join();
-
+    //if ( !testLateReplicator )
+        gReplicatorThread3.join();
+    
     /// Client: read changed fsTree (2)
     ///
     gClientSession->setDownloadChannel( replicatorList, downloadChannelHash2 );
@@ -446,7 +496,7 @@ int main(int,char**)
 
     /// Client: read files from drive
     clientDownloadFiles( 5, gFsTree );
-
+    
     ///TODO
 //    sleep(1);
 //    gReplicator->sendMessage( "dnopinion", replicatorList[0].m_endpoint, "str" );
@@ -464,6 +514,10 @@ int main(int,char**)
     EXLOG( "# Client started: 2-st upload/modify" );
     {
         ActionList actionList;
+
+//        actionList.push_back( Action::upload( clientFolder / "a.txt", "fff0/a.txt" ) );
+        actionList.push_back( Action::upload( clientFolder / "a.txt", "fff0" ) );
+
         actionList.push_back( Action::remove( "fff1/" ) );
         actionList.push_back( Action::remove( "fff2/" ) );
 
@@ -480,7 +534,10 @@ int main(int,char**)
 
     gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
     gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
-    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
+    if ( !testLateReplicator )
+    {
+        gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, BIG_FILE_SIZE+1024 );
+    }
 
     {
         std::unique_lock<std::mutex> lock(modifyCompleteMutex);
@@ -492,6 +549,7 @@ int main(int,char**)
     gReplicatorThread3.join();
 
     /// Client: read new fsTree (3)
+    EXLOG( "# Client started FsTree download !!!!! " );
     gClientSession->setDownloadChannel( replicatorList, downloadChannelHash3 );
     clientDownloadFsTree();
 
@@ -540,10 +598,7 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->setModifyApprovalTransactionTimerDelay(1);
     replicator->start();
     replicator->asyncAddDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, replicatorList} );
-//    replicator->asyncAddDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, false, replicatorList} );
-
-//todo    smart_unique_ptr<AddDriveRequest> x = { 100*1024*1024u, 0u, false, replicatorList };
-
+    
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash1.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash3.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
@@ -607,11 +662,11 @@ static void clientDownloadFsTree()
     EXLOG( "# Client started FsTree download: " << toString(rootHash) );
 
     gClientSession->download( DownloadContext(
-                                      DownloadContext::fs_tree,
-                                      clientDownloadHandler,
-                                      rootHash,
-                                      *gClientSession->downloadChannelId(), 0 ),
-                              gClientFolder / "fsTree-folder" );
+                                    DownloadContext::fs_tree,
+                                    clientDownloadHandler,
+                                    rootHash,
+                                    *gClientSession->downloadChannelId(), 0 ),
+                                    gClientFolder / "fsTree-folder" );
 
     /// wait the end of file downloading
     {
@@ -639,7 +694,7 @@ static void clientModifyDrive( const ActionList& actionList,
     fs::create_directories( tmpFolder );
 
     // start file uploading
-    InfoHash hash = gClientSession->addActionListToSession( actionList, replicatorList, tmpFolder );
+    InfoHash hash = gClientSession->addActionListToSession( actionList, clientKeyPair.publicKey(), replicatorList, tmpFolder );
 
     // inform replicator
     clientModifyHash = hash;
@@ -827,4 +882,3 @@ static std::string now_str()
 
     return buf;
 }
-

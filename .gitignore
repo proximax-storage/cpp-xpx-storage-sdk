@@ -63,3 +63,4 @@ bin
 
 CMakeLists.back
 _build
+.vscode

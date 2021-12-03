@@ -1,16 +1,19 @@
 #pragma once
 
+#include <condition_variable>
+#include <drive/FsTree.h>
 #include "types.h"
 #include "drive/Session.h"
 #include "drive/ClientSession.h"
 #include "drive/Utils.h"
 #include "crypto/Signer.h"
 
-namespace sirius::drive::test {
+namespace sirius::drive::test
+{
 
-namespace fs = std::filesystem;
+    namespace fs = std::filesystem;
 
-using namespace sirius::drive;
+    using namespace sirius::drive;
 
 #define ROOT_FOLDER fs::path(getenv("HOME")) / "111"
 #define NUMBER_OF_REPLICATORS 4
@@ -39,35 +42,43 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
 
     void clientSessionErrorHandler(const lt::alert *alert);
 
-    class TestClient {
+    class TestClient
+    {
     public:
-        fs::path clientFolder;
         sirius::crypto::KeyPair m_clientKeyPair;
         std::shared_ptr<ClientSession> m_clientSession;
+        fs::path m_clientFolder;
         std::vector<InfoHash> m_actionListHashes;
         std::vector<sirius::Hash256> m_modificationTransactionHashes;
 
-        TestClient(const lt::settings_pack& pack = lt::settings_pack()) :
+        std::vector<sirius::Hash256> m_downloadChannels;
+        std::map<InfoHash, bool> m_downloadCompleted;
+        std::map<Hash256, std::condition_variable> m_downloadCondVars;
+        std::mutex m_downloadCompleteMutex;
+
+        TestClient(const lt::settings_pack &pack = lt::settings_pack(), const fs::path& clientFolder = fs::path(".") / "111" / "client_drive") :
                 m_clientKeyPair(sirius::crypto::KeyPair::FromPrivate(
                         sirius::crypto::PrivateKey::FromString(
                                 "0000000000010203040501020304050102030405010203040501020304050102"))),
                 m_clientSession(createClientSession(std::move(m_clientKeyPair),
-                                CLIENT_ADDRESS ":5550",
-                                clientSessionErrorHandler,
-                                USE_TCP,
-                                "client"))
+                                                    CLIENT_ADDRESS ":5550",
+                                                    clientSessionErrorHandler,
+                                                    USE_TCP,
+                                                    "client")),
+                m_clientFolder(clientFolder)
         {
             m_clientSession->setSessionSettings(pack, true);
         }
 
         void modifyDrive(const ActionList &actionList,
-                               const ReplicatorList &replicatorList) {
+                         const ReplicatorList &replicatorList)
+        {
             actionList.dbgPrint();
             // Create empty tmp folder for 'client modify data'
             //
             auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
             // start file uploading
-            InfoHash hash = m_clientSession->addActionListToSession(actionList, replicatorList, tmpFolder);
+            InfoHash hash = m_clientSession->addActionListToSession(actionList, m_clientKeyPair.publicKey(), replicatorList, tmpFolder);
 
             // inform replicator
             m_actionListHashes.push_back(hash);
@@ -75,10 +86,66 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
 
             EXLOG("# Client is waiting the end of replicator update");
         }
+
+        void downloadFromDrive(const InfoHash& rootHash,
+                               const Key& downloadChannelKey,
+                               const ReplicatorList &replicatorList)
+        {
+            auto downloadChannelId = Hash256(downloadChannelKey.array());
+            m_clientSession->download(DownloadContext(
+                                              DownloadContext::fs_tree,
+                                              [this] (download_status::code code,
+                                                 const InfoHash &infoHash,
+                                                 const std::filesystem::path /*filePath*/,
+                                                 size_t /*downloaded*/,
+                                                 size_t /*fileSize*/,
+                                                 const std::string & /*errorText*/ )
+                                              {
+                                                  std::unique_lock<std::mutex> lock(m_downloadCompleteMutex);
+                                                  m_downloadCompleted[infoHash] = true;
+                                                  m_downloadCondVars[infoHash].notify_all();
+                                              },
+                                              rootHash,
+                                              downloadChannelId, 0),
+                                      m_clientFolder / "fsTree-folder");
+            m_downloadChannels.push_back(downloadChannelId);
+        }
+
+        void synchronizeDrive( const fs::path& baseFolder, const Folder& folder )
+        {
+            for( const auto& child: folder.childs() )
+            {
+                if ( isFolder(child) )
+                {
+                    const auto& childFolder = getFolder(child);
+                    synchronizeDrive( baseFolder / childFolder.name(), childFolder );
+                }
+                else
+                {
+//                    m_clientSession->download( DownloadContext(
+//                            DownloadContext::file_from_drive,
+//                            clientDownloadFilesHandler,
+//                            file.hash(),
+//                            {}, 0,
+//                            gClientFolder / "downloaded_files" / folderName / file.name() ),
+//                                              //gClientFolder / "downloaded_files" / folderName / toString(file.hash()) ),
+//                                              gClientFolder / "downloaded_files" );
+                }
+            }
+        }
+
+        void waitForDownloadComplete(const InfoHash& infoHash) {
+            std::unique_lock<std::mutex> lock(m_downloadCompleteMutex);
+            m_downloadCondVars[infoHash].wait(lock, [this, infoHash] {
+                return m_downloadCompleted[infoHash];
+            });
+        }
     };
 
     /// Some Functions For Tests
-    fs::path createClientFiles(const fs::path& clientFolder, size_t bigFileSize );
-    ActionList createActionList(const fs::path& clientRootFolder);
-    ActionList createActionList_2(const fs::path& clientRootFolder);
+    fs::path createClientFiles(const fs::path &clientFolder, size_t bigFileSize);
+
+    ActionList createActionList(const fs::path &clientRootFolder);
+
+    ActionList createActionList_2(const fs::path &clientRootFolder);
 }

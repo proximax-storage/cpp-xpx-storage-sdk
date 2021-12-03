@@ -82,6 +82,7 @@ public:
 
     // prepare session to modify action
     InfoHash addActionListToSession( const ActionList&  actionList,
+                                     const Key&         clientPublicKey,
                                      const ReplicatorList& replicatorList,
                                      const std::string& workFolder )
     {
@@ -99,7 +100,7 @@ public:
 
         auto modificationWorkFolder = workFolder + "/" + drive::toString(drive::randomByteArray<Hash256>());
 
-        auto hash = m_session->addActionListToSession( actionList, modificationWorkFolder, endpointList );
+        auto hash = m_session->addActionListToSession( actionList, clientPublicKey, modificationWorkFolder, endpointList );
         return hash;
     }
 
@@ -183,13 +184,19 @@ protected:
     void signHandshake( const uint8_t* bytes, size_t size, std::array<uint8_t,64>& signature ) override
     {
         crypto::Sign( m_keyPair, utils::RawBuffer{bytes,size}, reinterpret_cast<Signature&>(signature) );
+        _LOG( "SIGN HANDSHAKE: " << int(signature[0]) )
     }
 
     virtual bool verifyHandshake( const uint8_t* bytes, size_t size,
                                   const std::array<uint8_t,32>& publicKey,
                                   const std::array<uint8_t,64>& signature ) override
     {
-        return crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
+        //_LOG( "verifyHandshake: " << int(signature[0]) )
+
+        bool ok = crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
+        if ( !ok )
+            LOG_ERR( "verifyHandshake: failed" )
+        return ok;
     }
 
     const std::array<uint8_t,32>& publicKey() override
@@ -210,10 +217,11 @@ protected:
         m_requestedSize[senderPublicKey] += pieceSize;
     }
     
-    void onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
+    bool onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
                                  const std::array<uint8_t,32>&  receiverPublicKey,
                                  uint64_t                       pieceSize ) override
     {
+        return true;
     }
 
     
@@ -267,7 +275,7 @@ inline std::shared_ptr<ClientSession> createClientSession(  const crypto::KeyPai
                                                             bool                          useTcpSocket, // instead of uTP
                                                             const char*                   dbgClientName = "" )
 {
-    _LOG( "creating: " << dbgClientName << " with key: " <<  int(keyPair.publicKey().array()[0]) )
+    //LOG( "creating: " << dbgClientName << " with key: " <<  int(keyPair.publicKey().array()[0]) )
 
     std::shared_ptr<ClientSession> clientSession = std::make_shared<ClientSession>( keyPair, dbgClientName );
     clientSession->m_session = createDefaultSession( address, errorHandler, clientSession, useTcpSocket );

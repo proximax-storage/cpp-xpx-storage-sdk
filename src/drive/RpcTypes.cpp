@@ -57,6 +57,23 @@ namespace sirius::drive::types {
         return replicators;
     }
 
+    void RpcSingleOpinion::setUploadLayout(const std::vector<KeyAndBytes>& uploadLayout)
+    {
+        m_uploadLayout.clear();
+        for (const auto& item: uploadLayout) {
+            m_uploadLayout.push_back( { item.m_key, item.m_uploadedBytes } );
+        }
+    }
+
+    std::vector<KeyAndBytes> RpcSingleOpinion::getUploadLayout() const
+    {
+        std::vector<KeyAndBytes> uploadLayout;
+        for (const auto& item: m_uploadLayout) {
+            uploadLayout.push_back( { item.m_key, item.m_uploadedBytes} );
+        }
+        return uploadLayout;
+    }
+
     ApprovalTransactionInfo RpcModifyApprovalTransactionInfo::getApprovalTransactionInfo() const {
         ApprovalTransactionInfo approvalTransactionInfo;
         approvalTransactionInfo.m_driveKey = m_drivePubKey;
@@ -70,8 +87,7 @@ namespace sirius::drive::types {
             SingleOpinion singleOpinion;
             singleOpinion.m_replicatorKey = rpcOpinion.m_replicatorKey;
             singleOpinion.m_clientUploadBytes = rpcOpinion.m_clientUploadBytes;
-            singleOpinion.m_uploadReplicatorKeys = rpcOpinion.m_uploadReplicatorKeys;
-            singleOpinion.m_replicatorUploadBytes = rpcOpinion.m_replicatorUploadBytes;
+            singleOpinion.m_uploadLayout = rpcOpinion.getUploadLayout();
             singleOpinion.m_signature = rpcOpinion.m_signature;
             approvalTransactionInfo.m_opinions.push_back(singleOpinion);
         }
@@ -98,8 +114,7 @@ namespace sirius::drive::types {
             RpcSingleOpinion rpcSingleOpinion;
             rpcSingleOpinion.m_replicatorKey = opinion.m_replicatorKey;
             rpcSingleOpinion.m_clientUploadBytes = opinion.m_clientUploadBytes;
-            rpcSingleOpinion.m_uploadReplicatorKeys = opinion.m_uploadReplicatorKeys;
-            rpcSingleOpinion.m_replicatorUploadBytes = opinion.m_replicatorUploadBytes;
+            rpcSingleOpinion.setUploadLayout(opinion.m_uploadLayout);
             rpcSingleOpinion.m_signature = opinion.m_signature.array();
             m_opinions.push_back(rpcSingleOpinion);
         }

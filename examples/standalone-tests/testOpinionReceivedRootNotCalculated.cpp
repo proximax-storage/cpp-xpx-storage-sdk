@@ -55,9 +55,9 @@ namespace sirius::drive::test {
 
                 for (const auto &opinion: transactionInfo.m_opinions) {
                     std::cout << " key:" << int(opinion.m_replicatorKey[0]) << " ";
-                    for (size_t i = 0; i < opinion.m_uploadReplicatorKeys.size(); i += 32) {
-                        std::cout << int(opinion.m_uploadReplicatorKeys[i]) << ":"
-                                  << opinion.m_replicatorUploadBytes[i / 32] << " ";
+                    for (size_t i = 0; i < opinion.m_uploadLayout.size(); i++) {
+                        std::cout << int(opinion.m_uploadLayout[i].m_key[0]) << ":"
+                        << opinion.m_uploadLayout[i].m_uploadedBytes << " ";
                     }
                     std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
                 }
@@ -75,9 +75,12 @@ namespace sirius::drive::test {
                     std::set<uint64_t> sizes;
                     for (const auto& opinion: transactionInfo.m_opinions) {
                         auto size =
-                                std::accumulate(opinion.m_replicatorUploadBytes.begin(),
-                                                opinion.m_replicatorUploadBytes.end(),
-                                                opinion.m_clientUploadBytes);
+                                std::accumulate(opinion.m_uploadLayout.begin(),
+                                                opinion.m_uploadLayout.end(),
+                                                opinion.m_clientUploadBytes,
+                                                [] (const auto& sum, const auto& item) {
+                                    return sum + item.m_uploadedBytes;
+                                });
                         sizes.insert(size);
                     }
 
@@ -104,7 +107,7 @@ namespace sirius::drive::test {
         lt::settings_pack pack;
         TestClient client(pack);
 
-        _LOG("");
+        EXLOG("");
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
@@ -121,7 +124,7 @@ namespace sirius::drive::test {
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        _LOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
+        EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         std::thread([] {
             std::this_thread::sleep_for(std::chrono::seconds(60));
             ASSERT_EQ(true, false);

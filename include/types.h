@@ -9,6 +9,7 @@
 #include "utils/RawBuffer.h"
 #include <string>
 #include <array>
+#include <set>
 #include <functional>
 #include <boost/asio/ip/tcp.hpp>
 
@@ -58,9 +59,17 @@ namespace sirius {
 	}
 
     namespace drive {
+
         // InfoHash
         using InfoHash  = Hash256;// std::array<uint8_t,32>;
+    
+        struct InfoHashPtrCompare {
+            bool operator() ( const InfoHash* l, const InfoHash* r) const { return *l < *r; }
+        };
+    
+        using InfoHashPtrSet = std::set<const InfoHash*,InfoHashPtrCompare>;
 
+        // Replicator requisites
         struct ReplicatorInfo
         {
             bool operator==(const ReplicatorInfo& ri) const {
@@ -73,6 +82,24 @@ namespace sirius {
 
         using ReplicatorList = std::vector<ReplicatorInfo>;
     }
+
+    // smart unique ptr
+    template< class T >
+    class smart_uptr : public std::unique_ptr<T>
+    {
+    public:
+        template <typename... Args>
+        smart_uptr( Args... args ) : std::unique_ptr<T>( new T{args...} )
+        {
+        }
+
+        smart_uptr( std::unique_ptr<T> ptr ) : std::unique_ptr<T>( ptr )
+        {
+        }
+        
+        operator std::unique_ptr<T>() { return static_cast<std::unique_ptr<T>>(*this); }
+    };
+
 
 }
 

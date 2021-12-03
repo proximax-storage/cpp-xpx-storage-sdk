@@ -54,6 +54,7 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
             if ( m_forbiddenTransaction and m_forbiddenTransaction->array() == transactionInfo.m_modifyTransactionHash) {
                 ASSERT_EQ(true, false);
             }
+            TestEnvironment::modifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
         }
     };
 
@@ -64,7 +65,7 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
         pack.set_int(lt::settings_pack::upload_rate_limit, 0);
         TestClient client(pack);
 
-        _LOG("");
+        EXLOG("");
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,

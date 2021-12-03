@@ -46,16 +46,24 @@ namespace sirius::drive::test {
 
         void
         modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override {
-            m_ignoredReplicator = transactionInfo.m_opinions.back().m_replicatorKey;
-            transactionInfo.m_opinions.pop_back();
 
+            {
+                const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+                if ( !m_ignoredReplicator ) {
+                    m_ignoredReplicator = transactionInfo.m_opinions.back().m_replicatorKey;
+                }
+            }
+            transactionInfo.m_opinions.pop_back();
             TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
             ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size() - 1);
             for (const auto& opinion: transactionInfo.m_opinions) {
                 auto size =
-                        std::accumulate(opinion.m_replicatorUploadBytes.begin(),
-                                        opinion.m_replicatorUploadBytes.end(),
-                                        opinion.m_clientUploadBytes);
+                        std::accumulate(opinion.m_uploadLayout.begin(),
+                                        opinion.m_uploadLayout.end(),
+                                        opinion.m_clientUploadBytes,
+                                        [] (const auto& sum, const auto& item) {
+                            return sum + item.m_uploadedBytes;
+                        });
                 m_modificationSizes.insert(size);
             }
 
@@ -69,15 +77,18 @@ namespace sirius::drive::test {
 
             const auto& opinion = transactionInfo.m_opinions.front();
             auto size =
-                    std::accumulate(opinion.m_replicatorUploadBytes.begin(),
-                                    opinion.m_replicatorUploadBytes.end(),
-                                    opinion.m_clientUploadBytes);
+                    std::accumulate(opinion.m_uploadLayout.begin(),
+                                    opinion.m_uploadLayout.end(),
+                                    opinion.m_clientUploadBytes,
+                                    [] (const auto& sum, const auto& item) {
+                        return sum + item.m_uploadedBytes;
+                    });
             m_modificationSizes.insert(size);
 
             ASSERT_EQ(m_modificationSizes.size(), 1);
         };
 
-        std::array<uint8_t,32> m_ignoredReplicator;
+        std::optional<std::array<uint8_t,32>> m_ignoredReplicator;
         std::set<uint64_t> m_modificationSizes;
     };
 
@@ -89,7 +100,7 @@ namespace sirius::drive::test {
         lt::settings_pack pack;
         TestClient client(pack);
 
-        _LOG("");
+        EXLOG("");
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
@@ -106,7 +117,7 @@ namespace sirius::drive::test {
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        _LOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
+        EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);
     }
 

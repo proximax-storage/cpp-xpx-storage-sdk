@@ -63,19 +63,28 @@ namespace sirius::drive::types {
         MSGPACK_DEFINE_ARRAY(m_drivePubKey, m_clientPubKey, m_infoHash, m_transactionHash, m_maxDataSize, m_rpcReplicators);
     };
 
+    struct PLUGIN_API RpcKeyAndBytes {
+        std::array<uint8_t,32> m_key;
+        uint64_t m_uploadedBytes;
+        MSGPACK_DEFINE_ARRAY(m_key, m_uploadedBytes);
+    };
+
     struct PLUGIN_API RpcSingleOpinion {
+
+        std::vector<KeyAndBytes> getUploadLayout() const;
+        void setUploadLayout(const std::vector<KeyAndBytes>& uploadLayout);
+
         // Replicator public key
-        std::array<uint8_t,32>  m_replicatorKey;
+        std::array<uint8_t,32>          m_replicatorKey;
 
         // Opinions about how much the Replicators and the Drive Owner have uploaded to this Replicator.
         //TODO
-        std::vector<uint8_t>    m_uploadReplicatorKeys;
-        std::vector<uint64_t>   m_replicatorUploadBytes;
-        uint64_t                m_clientUploadBytes = 0;
+        std::vector<RpcKeyAndBytes>     m_uploadLayout;
+        uint64_t                        m_clientUploadBytes = 0;
 
         // Signature of { modifyTransactionHash, rootHash, replicatorsUploadBytes, clientUploadBytes }
         std::array<uint8_t,64>  m_signature;
-        MSGPACK_DEFINE_ARRAY(m_replicatorKey, m_uploadReplicatorKeys, m_replicatorUploadBytes, m_clientUploadBytes, m_signature);
+        MSGPACK_DEFINE_ARRAY(m_replicatorKey, m_uploadLayout, m_clientUploadBytes, m_signature);
     };
 
     struct PLUGIN_API RpcModifyApprovalTransactionInfo {

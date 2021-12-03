@@ -43,6 +43,7 @@
 
 #include <filesystem>
 #include <set>
+#include <functional>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -58,6 +59,50 @@
 namespace fs = std::filesystem;
 
 namespace sirius::drive {
+
+#define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
+#define DBG_SECONDARY_THREAD { assert( m_dbgThreadId != std::this_thread::get_id() ); }
+
+//class SecondaryThread
+//{
+//protected:
+//    std::thread::id m_dbgThreadId;
+//
+//protected:
+//    SecondaryThread() {}
+//
+//    void runTask( std::function<void()> task )
+//    {
+//        _ASSERT( !m_isRunning );
+//        m_isRunning = true;
+//        m_shouldBeBroken = false;
+//
+//        m_thread = std::thread( [=]
+//        {
+//            task();
+//            m_isRunning = false;
+//
+//            //m_thread.join();
+//        });
+//
+//
+//        m_isRunning = false;
+//    }
+//
+//    void breakTask( std::optional<std::function<void()>> callAfterTheEnd )
+//    {
+//        m_shouldBeBroken = true;
+//    }
+//
+//private:
+//    bool        m_isRunning       = false;
+//    bool        m_shouldBeBroken = false;
+//
+//private:
+//    std::thread                          m_thread;
+//    std::mutex                           m_mutex;
+//    std::optional<std::function<void()>> m_callAfterTheEnd;
+//};
 
 //
 // DrivePaths - drive paths, used at replicator side
@@ -106,7 +151,7 @@ protected:
 class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     using LtSession = std::shared_ptr<Session>;
-    using lt_handle  = Session::lt_handle;
+    using lt_handle = Session::lt_handle;
     using uint128_t = boost::multiprecision::uint128_t;
 
     // UseTorrentInfo is used to avoid adding torrents into session with the same hash
@@ -120,28 +165,32 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     size_t        m_maxSize;
 
-    size_t        m_initSize;
-
-    bool          m_anyModificationsApproved;
-    
     // It has the following statuses: "modification started", "sandbox calculated", modification approved"
     std::shared_mutex m_mutex;
     bool m_modifyUserDataReceived     = false;
     bool m_sandboxCalculated          = false;
-    bool m_approveTransactionReceived = false;
+    std::optional<Hash256> m_approveTransactionReceived;
     bool m_approveTransactionSent     = false; // approval transaction has been sent
     bool m_modificationIsCanceling    = false;
 
     // It will be not empty while drive is catching-up (syncronizing with swarm)
-    std::optional<InfoHash>     m_catchingUpRootHash;
-    std::optional<lt_handle>    m_actualFsTreeLtHandle;
-    
+    std::optional<CatchingUpRequest>    m_catchingUpRequest;
+    std::optional<CatchingUpRequest>    m_newCatchingUpRequest;
+
+    std::set<InfoHash>                  m_catchingUpFileSet;
+    std::set<InfoHash>::iterator        m_catchingUpFileIt = m_catchingUpFileSet.end();
+
     // It is used when drive is closing
-    std::optional<Hash256> m_closingTxHash = {};
+    std::optional<Hash256> m_removeDriveTx = {};
 
     // Client data (for drive modification)
     std::optional<ModifyRequest> m_modifyRequest;
-    lt_handle                    m_modifyDataLtHandle; // used for removing torrent from session
+
+    std::optional<lt_handle>     m_downloadingLtHandle; // used for removing torrent from session
+    std::optional<std::function<void()>> m_nextStepAfterTaskStop;
+    
+    std::thread                  m_secondaryThread;
+    bool                         m_stopSecondaryThread;
 
     // It is needed if a new 'modifyRequest' is received, but drive could not start it immediately
     // (is syncing with sandbox?)
@@ -161,13 +210,14 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     
     // opinion
     std::optional<ApprovalTransactionInfo>  m_myOpinion;
+    std::optional<Hash256> m_trafficIdentifier;
+    uint64_t m_expectedCumulativeDownload;
+    uint64_t m_accountedCumulativeDownload = 0;
 
     // opinions from other replicators
-    // (key is a replicator key, one replicator one opinion)
-    std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>    m_otherOpinions;
-    
-    //todo may be they are outstripping opinions
-    //std::vector<ApprovalTransactionInfo>    m_unknownOpinions;
+    // key of the outer map is modification id
+    // key of the inner map is a replicator key, one replicator one opinion
+    std::map<Hash256, std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>>    m_otherOpinions;
     
     std::optional<boost::asio::high_resolution_timer> m_opinionTimer;
 
@@ -182,7 +232,10 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     std::map<InfoHash,UseTorrentInfo> m_torrentHandleMap;
 
     std::map<Key, uint64_t> m_cumulativeUploads;
-
+    std::map<Key, uint64_t> m_lastAccountedUploads;
+    
+    const char*             m_dbgOurPeerName = "";
+    std::thread::id         m_dbgThreadId;
 public:
 
     DefaultFlatDrive(
@@ -200,13 +253,15 @@ public:
           FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
           m_session(session),
           m_maxSize(maxSize),
-          m_initSize(usedDriveSizeExcludingMetafiles),
-          m_anyModificationsApproved(false),
           m_replicatorList(replicatorList),
+          m_expectedCumulativeDownload(usedDriveSizeExcludingMetafiles),
           m_eventHandler(eventHandler),
           m_dbgEventHandler(dbgEventHandler),
-          m_replicator(replicator)
+          m_replicator(replicator),
+          m_dbgOurPeerName(replicator.dbgReplicatorName())
     {
+        m_dbgThreadId = std::this_thread::get_id();
+        
         // Initialize drive
         init();
     }
@@ -217,8 +272,13 @@ public:
 
     const Key& drivePublicKey() const override { return m_drivePubKey; }
 
-    void terminate() {
-        //TODO?
+    void terminate()
+    {
+        //TODO main thread
+        if ( m_secondaryThread.get_id() != std::thread::id{} )
+            m_secondaryThread.join();
+
+        //TODO
     }
 
     uint64_t maxSize() const override {
@@ -238,7 +298,10 @@ public:
         return m_replicatorList;
     }
 
-    void updateReplicators(const ReplicatorList& replicators) override {
+    void updateReplicators(const ReplicatorList& replicators) override
+    {
+        DBG_MAIN_THREAD
+
         if (replicators.empty()) {
             LOG_ERR( "ReplicatorList is empty!");
             return;
@@ -255,21 +318,36 @@ public:
         }
     }
     
-    uint64_t sandboxFsTreeSize() const override {
-        return fs::file_size( m_sandboxFsTreeFile );
+    uint64_t sandboxFsTreeSize() const override
+    {
+        if ( fs::exists(m_sandboxFsTreeFile) )
+        {
+            return fs::file_size( m_sandboxFsTreeFile );
+        }
+        return 0;
     }
 
     void getSandboxDriveSizes( uint64_t& metaFilesSize, uint64_t& driveSize ) const override
     {
-        metaFilesSize = fs::file_size( m_sandboxFsTreeTorrent);
-        driveSize = 0;
-        m_sandboxFsTree.getSizes( m_driveFolder, m_torrentFolder, metaFilesSize, driveSize );
-        driveSize += metaFilesSize;
+        if ( fs::exists(m_sandboxRootPath) )
+        {
+            metaFilesSize = fs::file_size( m_sandboxFsTreeTorrent);
+            driveSize = 0;
+            m_sandboxFsTree.getSizes( m_driveFolder, m_torrentFolder, metaFilesSize, driveSize );
+            driveSize += metaFilesSize;
+        }
+        else
+        {
+            metaFilesSize = 0;
+            driveSize = 0;
+        }
     }
 
     // Initialize drive
     void init()
     {
+        DBG_MAIN_THREAD
+        
         // Clear m_rootDriveHash
         memset( m_rootHash.data(), 0 , m_rootHash.size() );
 
@@ -305,7 +383,10 @@ public:
 
         // Calculate torrent and root hash
         m_fsTree.deserialize( m_fsTreeFile );
-        m_rootHash = createTorrentFile( m_fsTreeFile, m_fsTreeFile.parent_path(), m_fsTreeTorrent );
+        m_rootHash = createTorrentFile( m_fsTreeFile,
+                                        m_drivePubKey,
+                                        m_fsTreeFile.parent_path(),
+                                        m_fsTreeTorrent );
 
         //TODO compare rootHash with blockchain?
 
@@ -322,6 +403,8 @@ public:
     //
     void addFilesToSession( fs::path folderPath, fs::path torrentFolderPath, Folder& fsTreeFolder )
     {
+        DBG_MAIN_THREAD
+        
         // Loop by folder childs
         //
         for( const auto& child : std::filesystem::directory_iterator( folderPath ) )
@@ -368,17 +451,44 @@ public:
                     throw std::runtime_error( std::string("internal error absent torrent file: ") + name.string() );
                 }
                 
-                //fs::path torrentFile = m_torrentFolder / hashToFileName(  );
-                auto torrentHandle = m_session->addTorrentFileToSession( torrentFile, m_driveFolder, lt::sf_is_replicator, {} );
-                m_torrentHandleMap.try_emplace( getFile(*fsTreeChild).hash(), UseTorrentInfo{ torrentHandle, true } );
+                // skip identical files that was already added
+                if ( m_torrentHandleMap.find(getFile(*fsTreeChild).hash()) != m_torrentHandleMap.end() )
+                {
+                    auto torrentHandle = m_session->addTorrentFileToSession( torrentFile, m_driveFolder, lt::sf_is_replicator, {} );
+                    m_torrentHandleMap.emplace( getFile(*fsTreeChild).hash(), UseTorrentInfo{ torrentHandle, true } );
+                }
             }
+        }
+    }
+
+    void downgradeCumulativeUploads()
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT(m_modifyRequest)
+        _ASSERT(m_modificationIsCanceling)
+
+        // We have already taken into account information
+        // about uploads of the modification to be canceled;
+        if ( !m_trafficIdentifier )
+        {
+            uint64_t sum = 0;
+            for (const auto&[uploaderKey, bytes]: m_lastAccountedUploads)
+            {
+                sum += bytes;
+                m_cumulativeUploads[uploaderKey] -= bytes;
+            }
+            m_accountedCumulativeDownload -= sum;
+            m_expectedCumulativeDownload = m_accountedCumulativeDownload;
         }
     }
     
     void cancelModifyDrive( const Hash256& transactionHash ) override
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
-
+        DBG_MAIN_THREAD
+        
+        _ASSERT( m_modifyRequest || m_catchingUpRequest );
+        
         if ( m_modifyRequest && transactionHash == m_modifyRequest->m_transactionHash )
         {
             if ( m_approveTransactionReceived )
@@ -386,30 +496,13 @@ public:
                 LOG_ERR( "cancelModifyDrive(): m_approveTransactionReceived == true" )
                 return;
             }
-            
+
             m_modificationIsCanceling = true;
             m_modifyRequest->m_isCanceled = true;
+            downgradeCumulativeUploads();
             
-            m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this]
-            {
-                std::unique_lock<std::shared_mutex> lock(m_mutex);
-                
-                auto transactionHash = m_modifyRequest->m_transactionHash;
-                m_modifyRequest.reset();
-
-                // clear sandbox folder
-                fs::remove_all( m_sandboxRootPath );
-                fs::create_directories( m_sandboxRootPath);
-                
-                if ( !m_defferedModifyRequests.empty() )
-                {
-                    auto request = std::move( m_defferedModifyRequests.front() );
-                    m_defferedModifyRequests.pop_front();
-                    lock.unlock();
-                    startModifyDrive( std::move(request) );
-                }
-                
-                m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), transactionHash );
+            stopAnyDriveTask( [this,tx = m_modifyRequest->m_transactionHash] {
+                continueCancelModifyDrive(tx);
             });
         }
         else
@@ -426,63 +519,128 @@ public:
             m_defferedModifyRequests.erase( it );
         }
     }
+
+    void continueCancelModifyDrive( const Hash256& transactionHash )
+    {
+        DBG_MAIN_THREAD
+
+        _LOG("CONTINUE CANCEL");
+
+        m_modifyRequest.reset();
+
+        // clear sandbox folder
+        fs::remove_all( m_sandboxRootPath );
+        fs::create_directories( m_sandboxRootPath);
+
+        m_modificationIsCanceling = false;
+        
+        m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), transactionHash );
+        
+        if ( m_newCatchingUpRequest )
+        {
+            startCatchingUp( *m_newCatchingUpRequest );
+        }
+        else if ( !m_defferedModifyRequests.empty() )
+        {
+            auto request = std::move( m_defferedModifyRequests.front() );
+            m_defferedModifyRequests.pop_front();
+            startModifyDrive( std::move(request) );
+        }
+    }
     
     // It tries to start next modify
     void modifyIsCompleted()
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
-
+        DBG_MAIN_THREAD
+        
+        _LOG( "modifyIsCompleted" );
         m_modifyRequest.reset();
 
         if ( !m_defferedModifyRequests.empty() )
         {
             auto request = std::move( m_defferedModifyRequests.front() );
             m_defferedModifyRequests.pop_front();
-            lock.unlock();
             startModifyDrive( std::move(request) );
         }
     }
 
+    void stopAnyDriveTask( std::optional<std::function<void()>>&& nextStep )
+    {
+        DBG_MAIN_THREAD
+        
+        m_nextStepAfterTaskStop = std::move( nextStep );
+        
+        if ( m_modifyRequest || m_catchingUpRequest )
+        {
+            if ( m_downloadingLtHandle )
+            {
+                m_session->removeDownloadContext( *m_downloadingLtHandle );
+                
+                lt_handle torrentHandle = *m_downloadingLtHandle;
+                m_downloadingLtHandle.reset();
+                
+                m_session->removeTorrentsFromSession( {torrentHandle}, [=, this]
+                {
+                    DBG_MAIN_THREAD
+
+                    m_stopSecondaryThread = true;
+
+                    if ( m_secondaryThread.get_id() != std::thread::id{} )
+                        m_secondaryThread.join(); // !!!! DELAY on main thread !!!!
+                    
+                    m_downloadingLtHandle.reset();
+                    m_modifyRequest.reset();
+
+                    _LOG("HAVE NEXT STEP " << m_nextStepAfterTaskStop.has_value() );
+
+                    if ( m_nextStepAfterTaskStop )
+                    {
+                        (*m_nextStepAfterTaskStop)();
+                        m_nextStepAfterTaskStop.reset();
+                    }
+                });
+            }
+        }
+        else
+        {
+            if ( m_nextStepAfterTaskStop )
+            {
+                (*m_nextStepAfterTaskStop)();
+                m_nextStepAfterTaskStop.reset();
+            }
+        }
+    }
 
     void startDriveClosing( const Hash256& transactionHash ) override
     {
-        m_closingTxHash = {transactionHash};
+        DBG_MAIN_THREAD
         
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
-
+        _ASSERT( !m_catchingUpRequest );
+        
+        m_removeDriveTx = {transactionHash};
+        
         {
             std::ofstream filestream( m_driveFolder / "is_closing" );
             filestream << "1";
             filestream.close();
         }
-
-        if ( m_modifyRequest )
-        {
-            bool notEmptyRemoved = m_session->removeTorrentsFromSession( {m_modifyDataLtHandle}, [this,transactionHash] {
-                continueDriveClosing( transactionHash );
-            });
-
-            if ( !notEmptyRemoved ) {
-                continueDriveClosing( transactionHash );
-            }
-        }
-        else
-        {
+        
+        stopAnyDriveTask( [=,this] {
             continueDriveClosing( transactionHash );
-        }
+        });
     }
 
     void continueDriveClosing( const Hash256& transactionHash )
     {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
-
+        DBG_MAIN_THREAD
+        
         std::set<lt_handle> tobeRemovedTorrents;
 
         for( auto& [key,value]: m_torrentHandleMap )
         {
             tobeRemovedTorrents.insert( value.m_ltHandle );
         }
-        
+
         tobeRemovedTorrents.insert( m_fsTreeLtHandle );
 
         m_session->removeTorrentsFromSession( std::move(tobeRemovedTorrents), [this,transactionHash](){
@@ -492,6 +650,8 @@ public:
 
     bool synchronizeDriveWithSandbox()
     {
+        DBG_MAIN_THREAD
+
         assert( m_sandboxCalculated );
         
         if ( m_modifyRequest->m_isCanceled )
@@ -502,8 +662,6 @@ public:
         
         // complete drive update
         {
-            std::unique_lock<std::shared_mutex> lock(m_mutex);
-
             if ( !m_modifyRequest )
             {
                 LOG_ERR( "synchronizeDriveWithSandbox(): modification is not started" );
@@ -511,8 +669,10 @@ public:
             }
             else
             {
-                lock.unlock();
-                updateDrive_1();
+                updateDrive_1( [this]
+                {
+                    updateDrive_2();
+                });
             }
         }
         
@@ -524,28 +684,24 @@ public:
     //
     void startModifyDrive( ModifyRequest&& modifyRequest ) override
     {
+        DBG_MAIN_THREAD
+        
         m_modifyUserDataReceived  = false;
-        m_modificationIsCanceling = false;
 
+        m_replicatorList = modifyRequest.m_replicatorList;
+
+        // ModificationIsCanceling check is redundant now
+        if ( m_modifyRequest || m_catchingUpRequest || m_newCatchingUpRequest || m_modificationIsCanceling )
         {
-            std::unique_lock<std::shared_mutex> lock(m_mutex);
-            
-            m_replicatorList = modifyRequest.m_replicatorList;
-
-            if ( m_modifyRequest )
-            {
-                //LOG_ERR( "startModifyDrive():: prevoius modification is not completed" );
-                m_defferedModifyRequests.emplace_back( std::move(modifyRequest) );
-                return;
-            }
-
-            m_sandboxCalculated          = false;
-            m_approveTransactionReceived = false;
-            m_approveTransactionSent     = false;
-
-            // remove old opinions
-            m_otherOpinions.clear();
+            //LOG_ERR( "startModifyDrive():: prevoius modification is not completed" );
+            m_defferedModifyRequests.emplace_back( std::move(modifyRequest) );
+            return;
         }
+
+        m_sandboxCalculated          = false;
+        m_approveTransactionReceived.reset();
+        m_approveTransactionSent     = false;
+        m_modificationIsCanceling    = false;
         
         // remove my opinion
         m_myOpinion.reset();
@@ -558,11 +714,14 @@ public:
 
         using namespace std::placeholders;  // for _1, _2, _3
 
-        m_modifyDataLtHandle = m_session->download( DownloadContext(
+        m_expectedCumulativeDownload += m_modifyRequest->m_maxDataSize;
+
+        updateTrafficIdentifier();
+        m_downloadingLtHandle = m_session->download( DownloadContext(
                                             DownloadContext::client_data,
                                             std::bind( &DefaultFlatDrive::downloadHandler, this, _1, _2, _3, _4, _5, _6 ),
-                                            modifyRequest.m_clientDataInfoHash,
-                                            modifyRequest.m_transactionHash,
+                                            m_modifyRequest->m_clientDataInfoHash,
+                                            *m_trafficIdentifier,
                                             0, //todo
                                             ""),
                                                    m_sandboxRootPath,
@@ -578,6 +737,7 @@ public:
                           size_t /*fileSize*/,
                           const std::string& errorText )
     {
+        DBG_MAIN_THREAD
     
         if ( !m_modifyRequest )
         {
@@ -603,7 +763,14 @@ public:
         if ( code == download_status::download_complete )
         {
             m_modifyUserDataReceived = true;
-            std::thread( [this] { this->modifyDriveInSandbox(); } ).detach();
+            m_stopSecondaryThread = false;
+            
+            if ( m_secondaryThread.get_id() != std::thread::id{} )
+                m_secondaryThread.detach();
+
+            m_secondaryThread = std::thread( [this] {
+                this->modifyDriveInSandbox();
+            });
         }
     }
 
@@ -612,159 +779,212 @@ public:
     //
     void modifyDriveInSandbox()
     {
-        // Check that client data exist
-        if ( !fs::exists(m_clientDataFolder) || !fs::is_directory(m_clientDataFolder) )
+        DBG_SECONDARY_THREAD
+
+        _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
+
+        if ( m_modifyRequest )
         {
-            LOG( "m_clientDataFolder=" << m_clientDataFolder );
-            m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'client-data' is absent", -1 );
-            modifyIsCompleted();
-            return;
-        }
 
-        // Check 'actionList.bin' is received
-        if ( !fs::exists( m_clientActionListFile ) )
-        {
-            LOG( "m_clientActionListFile=" << m_clientActionListFile );
-            m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'ActionList.bin' is absent", -1 );
-            modifyIsCompleted();
-            return;
-        }
-
-        // Load 'actionList' into memory
-        ActionList actionList;
-        actionList.deserialize( m_clientActionListFile );
-
-        // Make copy of current FsTree
-        m_sandboxFsTree.deserialize( m_fsTreeFile );
-
-        //
-        // Perform actions
-        //
-        for( const Action& action : actionList )
-        {
-            if (action.m_isInvalid)
-                continue;
-
-            switch( action.m_actionId )
+            // Check that client data exist
+            if ( !fs::exists(m_clientDataFolder) || !fs::is_directory(m_clientDataFolder) )
             {
-            //
-            // Upload
-            //
-            case action_list_id::upload:
-            {
-                // Check that file exists in client folder
-                fs::path clientFile = m_clientDriveFolder / action.m_param2;
-                if ( !fs::exists( clientFile ) || fs::is_directory(clientFile) )
+                LOG( "m_clientDataFolder=" << m_clientDataFolder );
+                m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'client-data' is absent", -1 );
+                m_session->lt_session().get_context().post( [=,this]
                 {
-                    action.m_isInvalid = true;
-                    break;
-                }
-
-                // calculate torrent, file hash, and file size
-                InfoHash fileHash = calculateInfoHashAndCreateTorrentFile( clientFile, arrayToString(m_drivePubKey.array()), m_torrentFolder, "" );
-                size_t fileSize = std::filesystem::file_size( clientFile );
-
-                // rename file and move it into drive folder
-                std::string newFileName = m_driveFolder / hashToFileName( fileHash );
-                fs::rename( clientFile, newFileName );
-
-                // add file in resultFsTree
-                m_sandboxFsTree.addFile( fs::path(action.m_param2).parent_path(),
-                                       clientFile.filename(),
-                                       fileHash,
-                                       fileSize );
-
-                // add ref into 'torrentMap'
-                m_torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{} );
-
-                break;
+                    modifyIsCompleted();
+                });
+                return;
             }
-            //
-            // New folder
-            //
-            case action_list_id::new_folder:
-            {
-                // Check that entry is free
-                if ( m_sandboxFsTree.getEntryPtr( action.m_param1 ) != nullptr )
-                {
-                    //todo m_isInvalid?
-                    action.m_isInvalid = true;
-                    break;
-                }
 
-                m_sandboxFsTree.addFolder( action.m_param1 );
-                break;
+            // Check 'actionList.bin' is received
+            if ( !fs::exists( m_clientActionListFile ) )
+            {
+                LOG( "m_clientActionListFile=" << m_clientActionListFile );
+                m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'ActionList.bin' is absent", -1 );
+                m_session->lt_session().get_context().post( [=,this]()
+                {
+                    modifyIsCompleted();
+                });
+                return;
             }
+
+            // Load 'actionList' into memory
+            ActionList actionList;
+            actionList.deserialize( m_clientActionListFile );
+
+            // Make copy of current FsTree
+            m_sandboxFsTree.deserialize( m_fsTreeFile );
+
             //
-            // Move
+            // Perform actions
             //
-            case action_list_id::move:
+            for( const Action& action : actionList )
             {
-                auto* srcChild = m_sandboxFsTree.getEntryPtr( action.m_param1 );
+                if ( m_stopSecondaryThread )
+                    return;
 
-                // Check that src child exists
-                if ( srcChild == nullptr )
+                if (action.m_isInvalid)
+                    continue;
+
+                switch( action.m_actionId )
                 {
-                    LOG( "invalid 'move' action: src not exists (in FsTree): " << action.m_param1  );
-                    action.m_isInvalid = true;
-                    break;
-                }
-
-                // Check topology (nesting folders)
-                if ( isFolder(*srcChild) )
-                {
-                    fs::path srcPath = fs::path("root") / action.m_param1;
-                    fs::path destPath = fs::path("root") / action.m_param2;
-
-                    // srcPath should not be a parent folder of destPath
-                    if ( isPathInsideFolder( srcPath, destPath ) )
+                    //
+                    // Upload
+                    //
+                    case action_list_id::upload:
                     {
-                        LOG( "invalid 'move' action: 'srcPath' is a directory which is an ancestor of 'destPath'" );
-                        LOG( "invalid 'move' action: srcPath : " << action.m_param1  );
-                        LOG( "invalid 'move' action: destPath : " << action.m_param2  );
-                        action.m_isInvalid = true;
+                        // Check that file exists in client folder
+                        fs::path clientFile = m_clientDriveFolder / action.m_param2;
+                        if ( !fs::exists( clientFile ) || fs::is_directory(clientFile) )
+                        {
+                            action.m_isInvalid = true;
+                            break;
+                        }
+
+                        // calculate torrent, file hash, and file size
+                        InfoHash fileHash = calculateInfoHashAndCreateTorrentFile( clientFile, m_drivePubKey, m_torrentFolder, "" );
+                        size_t fileSize = std::filesystem::file_size( clientFile );
+
+                        // add ref into 'torrentMap' (skip if identical file was already loaded)
+                        m_torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{} );
+
+                        // rename file and move it into drive folder
+                        std::string newFileName = m_driveFolder / hashToFileName( fileHash );
+                        fs::rename( clientFile, newFileName );
+
+                        //
+                        // add file in resultFsTree
+                        //
+                        Folder::Child* destEntry = m_sandboxFsTree.getEntryPtr( action.m_param2 );
+                        fs::path destFolder;
+                        fs::path srcFile;
+                        if ( destEntry != nullptr && isFolder(*destEntry) )
+                        {
+                            srcFile = fs::path( action.m_param1 ).filename();
+                            destFolder = action.m_param2;
+                        }
+                        else
+                        {
+                            srcFile = fs::path( action.m_param2 ).filename();
+                            destFolder = fs::path(action.m_param2).parent_path();
+                        }
+                        m_sandboxFsTree.addFile( destFolder,
+                                                 srcFile,
+                                                 fileHash,
+                                                 fileSize );
                         break;
                     }
-                }
+                    //
+                    // New folder
+                    //
+                    case action_list_id::new_folder:
+                    {
+                        // Check that entry is free
+                        if ( m_sandboxFsTree.getEntryPtr( action.m_param1 ) != nullptr )
+                        {
+                            //todo m_isInvalid?
+                            action.m_isInvalid = true;
+                            break;
+                        }
 
-                // modify FsTree
-                m_sandboxFsTree.moveFlat( action.m_param1, action.m_param2, [/*this*/] ( const InfoHash& /*fileHash*/ )
-                {
-                    //m_torrentMap.try_emplace( fileHash, UseTorrentInfo{} );
-                } );
+                        m_sandboxFsTree.addFolder( action.m_param1 );
+                        break;
+                    }
+                    //
+                    // Move
+                    //
+                    case action_list_id::move:
+                    {
+                        auto* srcChild = m_sandboxFsTree.getEntryPtr( action.m_param1 );
 
-                break;
+                        // Check that src child exists
+                        if ( srcChild == nullptr )
+                        {
+                            LOG( "invalid 'move' action: src not exists (in FsTree): " << action.m_param1  );
+                            action.m_isInvalid = true;
+                            break;
+                        }
+
+                        // Check topology (nesting folders)
+                        if ( isFolder(*srcChild) )
+                        {
+                            fs::path srcPath = fs::path("root") / action.m_param1;
+                            fs::path destPath = fs::path("root") / action.m_param2;
+
+                            // srcPath should not be a parent folder of destPath
+                            if ( isPathInsideFolder( srcPath, destPath ) )
+                            {
+                                LOG( "invalid 'move' action: 'srcPath' is a directory which is an ancestor of 'destPath'" );
+                                LOG( "invalid 'move' action: srcPath : " << action.m_param1  );
+                                LOG( "invalid 'move' action: destPath : " << action.m_param2  );
+                                action.m_isInvalid = true;
+                                break;
+                            }
+                        }
+
+                        // modify FsTree
+                        m_sandboxFsTree.moveFlat( action.m_param1, action.m_param2, [/*this*/] ( const InfoHash& /*fileHash*/ )
+                        {
+                            //m_torrentMap.try_emplace( fileHash, UseTorrentInfo{} );
+                        } );
+
+                        break;
+                    }
+                    //
+                    // Remove
+                    //
+                    case action_list_id::remove: {
+
+                        if ( m_sandboxFsTree.getEntryPtr( action.m_param1 ) == nullptr )
+                        {
+                            _LOG( "invalid 'remove' action: src not exists (in FsTree): " << action.m_param1  );
+                            //m_sandboxFsTree.dbgPrint();
+                            action.m_isInvalid = true;
+                            break;
+                        }
+
+                        // remove entry from FsTree
+                        m_sandboxFsTree.removeFlat( action.m_param1, [this] ( const InfoHash& fileHash )
+                        {
+                            // maybe it is file from client data, so we add it to map with empty torrent handle
+                            m_torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{} );
+                        } );
+
+                        break;
+                    }
+
+                } // end of switch()
+            } // end of for( const Action& action : actionList )
+
+            // calculate new rootHash
+            m_sandboxFsTree.doSerialize( m_sandboxFsTreeFile );
+        }
+        else {
+            for( const auto& fileHash : m_catchingUpFileSet )
+            {
+                if ( m_stopSecondaryThread )
+                    return;
+
+                auto fileName = toString( fileHash );
+
+                // move file to drive folder
+                fs::rename(  m_sandboxRootPath / fileName, m_driveFolder / fileName );
+
+                // create torrent
+                calculateInfoHashAndCreateTorrentFile( m_driveFolder / fileName, m_drivePubKey, m_torrentFolder, "" );
             }
-            //
-            // Remove
-            //
-            case action_list_id::remove: {
+        }
+        m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile,
+                                               m_drivePubKey,
+                                               m_sandboxRootPath,
+                                               m_sandboxFsTreeTorrent );
 
-                if ( m_sandboxFsTree.getEntryPtr( action.m_param1 ) == nullptr )
-                {
-                    _LOG( "invalid 'remove' action: src not exists (in FsTree): " << action.m_param1  );
-                    //m_sandboxFsTree.dbgPrint();
-                    action.m_isInvalid = true;
-                    break;
-                }
-
-                // remove entry from FsTree
-                m_sandboxFsTree.removeFlat( action.m_param1, [this] ( const InfoHash& fileHash )
-                {
-                    m_torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{} );
-                } );
-
-                break;
-            }
-
-            } // end of switch()
-        } // end of for( const Action& action : actionList )
-
-        // calculate new rootHash
-        m_sandboxFsTree.doSerialize( m_sandboxFsTreeFile );
-        m_sandboxRootHash = createTorrentFile( m_sandboxFsTreeFile, m_sandboxRootPath, m_sandboxFsTreeTorrent );
-
-        myRootHashIsCalculated();
+        m_session->lt_session().get_context().post( [=,this]()
+        {
+            myRootHashIsCalculated();
+        });
     }
 
     void normalizeUploads(std::map<Key, uint64_t>& modificationUploads, uint64_t targetSum)
@@ -790,42 +1010,38 @@ public:
 
     void updateCumulativeUploads()
     {
-        const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(m_modifyRequest->m_transactionHash)
+        const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(*m_trafficIdentifier)
                 .m_modifyTrafficMap;
 
-        std::map <Key, uint64_t> modificationUploads;
-
-        for (const auto &replicatorIt : m_modifyRequest->m_replicatorList)
+        m_lastAccountedUploads.clear();
+        for (const auto &replicatorIt : m_replicatorList)
         {
             // get data size received from 'replicatorIt.m_publicKey'
             if (auto it = modifyTrafficMap.find(replicatorIt.m_publicKey.array());
                     it != modifyTrafficMap.end())
             {
-                modificationUploads[it->first] = it->second.m_receivedSize;
+                m_lastAccountedUploads[it->first] = it->second.m_receivedSize;
             } else
             {
-                modificationUploads[it->first] = 0;
+                m_lastAccountedUploads[it->first] = 0;
             }
         }
 
         if (auto it = modifyTrafficMap.find(m_modifyRequest->m_clientPublicKey.array());
                 it != modifyTrafficMap.end())
         {
-            modificationUploads[it->first] = it->second.m_receivedSize;
+            m_lastAccountedUploads[it->first] = it->second.m_receivedSize;
         } else
         {
-            modificationUploads[it->first] = 0;
+            m_lastAccountedUploads[it->first] = 0;
         }
 
-        uint64_t targetSize = m_modifyRequest->m_maxDataSize;
-        if (!m_anyModificationsApproved)
-        {
-            targetSize += m_initSize;
-            m_anyModificationsApproved = true;
-        }
-        normalizeUploads(modificationUploads, targetSize);
+        uint64_t targetSize = m_expectedCumulativeDownload - m_accountedCumulativeDownload;
+        normalizeUploads(m_lastAccountedUploads, targetSize);
+        m_accountedCumulativeDownload = m_expectedCumulativeDownload;
+        m_trafficIdentifier.reset();
 
-        for (const auto&[uploaderKey, bytes]: modificationUploads)
+        for (const auto&[uploaderKey, bytes]: m_lastAccountedUploads)
         {
             if (m_cumulativeUploads.find(uploaderKey) == m_cumulativeUploads.end())
             {
@@ -837,19 +1053,22 @@ public:
     
     void createMyOpinion()
     {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_trafficIdentifier )
+        _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
+        _ASSERT( !m_modificationIsCanceling )
+
         updateCumulativeUploads();
 
         //
         // Calculate upload opinion
         //
         SingleOpinion opinion( m_replicator.replicatorKey().array() );
-        for( const auto& replicatorIt : m_modifyRequest->m_replicatorList )
+        for( const auto& replicatorIt : m_replicatorList )
         {
             auto it = m_cumulativeUploads.find( replicatorIt.m_publicKey.array() );
-            opinion.m_replicatorUploadBytes.push_back( it->second );
-            
-            auto& v = opinion.m_uploadReplicatorKeys;
-            v.insert( v.end(), replicatorIt.m_publicKey.array().begin(), replicatorIt.m_publicKey.array().end() );
+            opinion.m_uploadLayout.push_back( {replicatorIt.m_publicKey.array(), it->second} );
         }
 
         {
@@ -857,27 +1076,49 @@ public:
             opinion.m_clientUploadBytes = it->second;
         }
 
-        opinion.Sign( m_replicator.keyPair(), m_modifyRequest->m_transactionHash, m_sandboxRootHash );
-
         // Calculate size of torrent files and total drive size
         uint64_t metaFilesSize;
         uint64_t driveSize;
         getSandboxDriveSizes( metaFilesSize, driveSize );
+        uint64_t fsTreeSize = sandboxFsTreeSize();
+
+        _LOG( "Drive Size " << driveSize);
+
+        Hash256 modificationToBeApproved;
+        if ( m_modifyRequest )
+        {
+            modificationToBeApproved = m_modifyRequest->m_transactionHash;
+        }
+        else
+        {
+            modificationToBeApproved = m_catchingUpRequest->m_modifyTransactionHash;
+        }
+
+        opinion.Sign( m_replicator.keyPair(),
+                      drivePublicKey(),
+                      modificationToBeApproved,
+                      m_sandboxRootHash,
+                      fsTreeSize,
+                      metaFilesSize,
+                      driveSize);
 
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
         m_myOpinion = std::optional<ApprovalTransactionInfo> {{ m_drivePubKey.array(),
-                                                                m_modifyRequest->m_transactionHash.array(),
+                                                                modificationToBeApproved.array(),
                                                                 m_sandboxRootHash.array(),
-                                                                sandboxFsTreeSize(),
+                                                                fsTreeSize,
                                                                 metaFilesSize,
                                                                 driveSize,
                                                                 { std::move(opinion) }}};
     }
 
-#pragma mark --myRootHashIsCalculated--
     void myRootHashIsCalculated()
     {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
+        
         if ( m_modificationIsCanceling )
             return;
         
@@ -887,36 +1128,47 @@ public:
         
         // Calculate my opinion
         createMyOpinion();
-        
+
+        m_sandboxCalculated = true;
+
+        if ( m_approveTransactionReceived )
         {
-            std::unique_lock<std::shared_mutex> lock(m_mutex);
-            
-            m_sandboxCalculated = true;
-            
-            if ( m_approveTransactionReceived )
+            auto transactionHash = m_modifyRequest->m_transactionHash;
+            sendSingleApprovalTransaction();
+            if ( m_catchingUpRequest )
             {
-//                std::cout << "RECEIVED" << std::endl;
-                auto transactionHash = m_modifyRequest->m_transactionHash;
-                sendSingleApprovalTransaction();
-                lock.unlock();
-                if ( !synchronizeDriveWithSandbox() )
+                updateDrive_1( [this]
                 {
-                    LOG_ERR( "onMyRootHashCalculated(): cannot synchronize drive with sandbox: " << transactionHash );
-                }
+                    completeCatchingUp();
+                });
             }
-            else
+            else if ( !synchronizeDriveWithSandbox() )
             {
-                // Send my opinion to other replicators
-                shareMyOpinion();
-                
-                // May be send approval transaction
-                checkOpinionNumberAndStartTimer();
+                LOG_ERR( "onMyRootHashCalculated(): cannot synchronize drive with sandbox: " << transactionHash );
             }
+        }
+        else
+        {
+            _ASSERT( m_modifyRequest )
+
+            // Send my opinion to other replicators
+            shareMyOpinion();
+
+            // validate already received opinions
+            auto& transactionOpinions = m_otherOpinions[m_modifyRequest->m_transactionHash];
+            std::erase_if( transactionOpinions, [this] (const auto& item) {
+               return !validateOpinion(item.second);
+            });
+
+            // Maybe send approval transaction
+            checkOpinionNumberAndStartTimer();
         }
     }
     
     void shareMyOpinion()
     {
+        DBG_MAIN_THREAD
+        
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
         archive( *m_myOpinion );
@@ -929,11 +1181,13 @@ public:
     
     void checkOpinionNumberAndStartTimer()
     {
+        DBG_MAIN_THREAD
+        
         // m_replicatorList is the list of other replicators (it does not contain our replicator)
-        auto replicatorNumber = m_modifyRequest->m_replicatorList.size()+1;
+        auto replicatorNumber = m_modifyRequest->m_replicatorList.size();//todo++++ +1;
 
         // check opinion number
-        if ( m_myOpinion && m_otherOpinions.size() >= ((replicatorNumber)*2)/3
+        if ( m_myOpinion && m_otherOpinions[m_modifyRequest->m_transactionHash].size() >= ((replicatorNumber)*2)/3
             && !m_approveTransactionSent && !m_approveTransactionReceived )
         {
             // start timer if it is not started
@@ -946,8 +1200,10 @@ public:
     // updates drive (1st step after approve)
     // - remove torrents from session
     //
-    void updateDrive_1()
+    void updateDrive_1( const std::function<void()>& nextStep )
     {
+        DBG_MAIN_THREAD
+        
         _LOG( "updateDrive_1:" << m_replicator.dbgReplicatorName() );
         
         // Prepare map for detecting of used files
@@ -974,80 +1230,107 @@ public:
         // Add current fsTree torrent handle
         toBeRemovedTorrents.insert( m_fsTreeLtHandle );
 
+        _LOG( "REMOVE "  << toBeRemovedTorrents.begin()->is_valid() );
+
         // Remove unused torrents
-        m_session->removeTorrentsFromSession( std::move(toBeRemovedTorrents), [this]{ updateDrive_2(); } );
+        m_session->removeTorrentsFromSession( toBeRemovedTorrents, [this, nextStep]
+        {
+            m_stopSecondaryThread = false;
+
+            if ( m_secondaryThread.joinable() )
+                m_secondaryThread.detach();
+
+            m_secondaryThread = std::thread( [nextStep]
+            {
+                nextStep();
+            });
+        });
     }
 
     // updates drive (2st phase after fsTree torrent removed)
     // - remove unused files and torrent files
     // - add new torrents to session
     //
-    void updateDrive_2() try
+    void updateDrive_2()
     {
-        // update FsTree file & torrent
-        fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
-        fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
-        m_fsTree = m_sandboxFsTree;
-        m_rootHash = m_sandboxRootHash;
-
-        // clear sandbox
-        fs::remove_all( m_sandboxRootPath );
-
-        // remove unused files and torrent files from the drive
-        for( const auto& it : m_torrentHandleMap )
+        DBG_SECONDARY_THREAD
+        
+        try
         {
-            const UseTorrentInfo& info = it.second;
-            if ( !info.m_isUsed )
+            _LOG( "IN UPDATE 2")
+
+            // update FsTree file & torrent
+            fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
+            fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
+            m_fsTree = m_sandboxFsTree;
+            m_rootHash = m_sandboxRootHash;
+
+            // remove unused files and torrent files from the drive
+            for( const auto& it : m_torrentHandleMap )
             {
-                const auto& hash = it.first;
-                std::string filename = hashToFileName( hash );
-                fs::remove( fs::path(m_driveFolder) / filename );
-                fs::remove( fs::path(m_torrentFolder) / filename );
-                LOG("+++ updateDrive_2: removed: " << filename );
+                const UseTorrentInfo& info = it.second;
+                if ( !info.m_isUsed )
+                {
+                    const auto& hash = it.first;
+                    std::string filename = hashToFileName( hash );
+                    fs::remove( fs::path(m_driveFolder) / filename );
+                    fs::remove( fs::path(m_torrentFolder) / filename );
+                }
             }
+
+            // remove unused data from 'fileMap'
+            std::erase_if( m_torrentHandleMap, [] (const auto& it) { return !it.second.m_isUsed; } );
+
+            //
+            // Add torrents into session
+            //
+            for( auto& it : m_torrentHandleMap )
+            {
+                if ( m_stopSecondaryThread )
+                    return;
+
+                // load torrent (if it is not loaded)
+                if ( !it.second.m_ltHandle.is_valid() )
+                {
+                    std::string fileName = hashToFileName( it.first );
+                    it.second.m_ltHandle = m_session->addTorrentFileToSession( m_torrentFolder / fileName,
+                                                                               m_driveFolder,
+                                                                               lt::sf_is_replicator );
+                }
+            }
+
+            // Add FsTree torrent to session
+            _LOG( "Add FsTree torrent to session: " << toString(m_rootHash) );
+            m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
+                                                                   m_fsTreeTorrent.parent_path(),
+                                                                   lt::sf_is_replicator );
+
+            // Call update handler
+            if ( m_dbgEventHandler )
+                m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
+
+            LOG( "drive is synchronized" );
+
+            // clear sandbox
+            fs::remove_all( m_sandboxRootPath );
+            m_session->lt_session().get_context().post( [=,this]
+            {
+                modifyIsCompleted();
+            });
         }
-
-        // remove unused data from 'fileMap'
-        std::erase_if( m_torrentHandleMap, [] (const auto& it) { return !it.second.m_isUsed; } );
-
-        //
-        // Add torrents into session
-        //
-        for( auto& it : m_torrentHandleMap )
+        catch ( const std::exception& ex )
         {
-            // load torrent (if it is not loaded)
-            if ( !it.second.m_ltHandle.is_valid() )
-            {
-                std::string fileName = hashToFileName( it.first );
-                it.second.m_ltHandle = m_session->addTorrentFileToSession( m_torrentFolder / fileName,
-                                                                           m_driveFolder,
-                                                                           lt::sf_is_replicator );
-            }
+            _LOG( "!ERROR!: updateDrive_2 error: " << ex.what() );
+            _ASSERT(0);
         }
-
-        // Add FsTree torrent to session
-        m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
-                                                               m_fsTreeTorrent.parent_path(),
-                                                               lt::sf_is_replicator );
-
-        // Call update handler
-        if ( m_dbgEventHandler )
-            m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
-
-        LOG( "drive is synchronized" );
-
-        modifyIsCompleted();
-    }
-    catch ( const std::exception& ex )
-    {
-        LOG( "!ERROR!: updateDrive_2 error: " << ex.what() );
-        exit(-1);
     }
 
     // Recursively marks 'm_toBeRemoved' as false
     //
     void markUsedFiles( const Folder& folder )
     {
+        DBG_MAIN_THREAD
+        
         for( const auto& child : folder.m_childs )
         {
             if ( isFolder(child) )
@@ -1057,8 +1340,8 @@ public:
             else
             {
                 auto& hash = getFile(child).m_hash;
-                const auto& it = m_torrentHandleMap.find(hash);
-                if ( it != m_torrentHandleMap.end() )
+                
+                if ( const auto& it = m_torrentHandleMap.find(hash); it != m_torrentHandleMap.end() )
                 {
                     it->second.m_isUsed = true;
                 }
@@ -1070,53 +1353,40 @@ public:
         }
     }
 
+    bool validateOpinion(const ApprovalTransactionInfo& anOpinion ) {
+        bool equal = m_myOpinion->m_rootHash == anOpinion.m_rootHash &&
+                     m_myOpinion->m_fsTreeFileSize == anOpinion.m_fsTreeFileSize &&
+                     m_myOpinion->m_metaFilesSize == anOpinion.m_metaFilesSize &&
+                     m_myOpinion->m_driveSize == anOpinion.m_driveSize;
+        return equal;
+    }
+
     void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
     {
-        if ( anOpinion.m_opinions.size() != 1 )
-            return; //is it spam?
+        DBG_MAIN_THREAD
         
-        auto& replicatorKey = anOpinion.m_opinions[0].m_replicatorKey;
-        
-        // check public key
+        // Preliminary opinion verification takes place at extension
+
+        // In this case Replicator is able to verify all data in the opinion
+        if ( m_modifyRequest &&
+            anOpinion.m_modifyTransactionHash == m_modifyRequest->m_transactionHash.array() &&
+            m_myOpinion)
         {
-            std::shared_lock<std::shared_mutex> lock(m_mutex);
-            auto count = std::count_if( m_replicatorList.begin(), m_replicatorList.end(),
-                                        [&replicatorKey] (const auto& r){
-                                            return r.m_publicKey == replicatorKey;} );
-            //todo unknown replicator (or spam)
-            if ( count != 1 )
+            if ( !validateOpinion(anOpinion) )
+            {
                 return;
+            }
         }
-        
-        // verify sign
-        if ( !anOpinion.m_opinions[0].Verify( anOpinion.m_modifyTransactionHash, anOpinion.m_rootHash ) )
-        {
-            // invalid ApprovalTransactionInfo
-            //todo
-            return;
-        }
-
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
-
-        if ( !m_modifyRequest || anOpinion.m_modifyTransactionHash != m_modifyRequest->m_transactionHash.array())
-        {
-            // it seems that our drive is significantly behind
-            // todo remove old opinions from this replicator
-            //todo m_unknownOpinions.push_back( anOpinion );
-            return;
-        }
-        
-        // todo verify transaction, duplicates ...
 
         // May be send approval transaction
-        m_otherOpinions[replicatorKey] = anOpinion;
+        m_otherOpinions[anOpinion.m_modifyTransactionHash][anOpinion.m_opinions[0].m_replicatorKey] = anOpinion;
         checkOpinionNumberAndStartTimer();
     }
     
     void opinionTimerExpired()
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
-
+        DBG_MAIN_THREAD
+        
         if ( m_approveTransactionSent || m_approveTransactionReceived )
             return;
         
@@ -1131,9 +1401,9 @@ public:
                                             m_myOpinion->m_driveSize,
                                             {}};
         
-        info.m_opinions.reserve( m_otherOpinions.size()+1 );
+        info.m_opinions.reserve( m_otherOpinions[m_modifyRequest->m_transactionHash].size()+1 );
         info.m_opinions.emplace_back(  m_myOpinion->m_opinions[0] );
-        for( const auto& otherOpinion : m_otherOpinions ) {
+        for( const auto& otherOpinion : m_otherOpinions[m_modifyRequest->m_transactionHash] ) {
             info.m_opinions.emplace_back( otherOpinion.second.m_opinions[0] );
         }
         
@@ -1147,37 +1417,67 @@ public:
 
     void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
-        m_approveTransactionReceived = true;
-        
+        DBG_MAIN_THREAD
+
+        _LOG( "onApprovalTransactionHasBeenPublished(): m_sandboxCalculated=" << m_sandboxCalculated )
+
+        if ( m_approveTransactionReceived &&  *m_approveTransactionReceived == transaction.m_modifyTransactionHash)
+        {
+            LOG_ERR("Duplicated approval tx ");
+            return;
+        }
+
+        m_approveTransactionReceived = transaction.m_modifyTransactionHash;
+
         // stop timer
         m_opinionTimer.reset();
+        m_otherOpinions.erase(transaction.m_modifyTransactionHash);
         
         // check actual root hash
         if ( m_modificationIsCanceling )
         {
             // wait the end of 'Cancel Modification'
             // and then start 'CatchingUp'
-            m_catchingUpRootHash = transaction.m_rootHash;
+            m_newCatchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
             return;
         }
-        else if ( !m_modifyRequest && transaction.m_modifyTransactionHash != m_rootHash.array() )
-        {
-            // we have outdated rootHash
-            m_catchingUpRootHash = transaction.m_rootHash;
-            startDriveSyncWithSwarm( {} );
-            return;
-        }
-//        else if ( m_modifyRequest && !m_modifyUserDataReceived )
-//        {
-//            // we have not received the whole user blob!
-//            m_catchingUpRootHash = transaction.m_rootHash;
-//            m_session->removeTorrentsFromSession( { m_modifyDataLtHandle }, [this] {
-//                startDriveSyncWithSwarm( {} );
-//            });
-//            return;
-//        }
 
-        _LOG( "onApprovalTransactionHasBeenPublished(): m_sandboxCalculated=" << m_sandboxCalculated )
+        if ( m_catchingUpRequest && m_catchingUpRequest->m_rootHash == transaction.m_rootHash )
+        {
+            // TODO We should update knowledge about the catching modification id
+            // This situation could be valid if some next modification has not changed Drive Root Hash
+            // For example, because of next modification was invalid
+            // So, we continue previous catching-up
+            return;
+        }
+
+        // We should not catch up only in the case
+        // When we have already downloaded all necessary data (??? or the modification approval)
+        bool couldContinueModify =
+                m_modifyRequest &&
+                m_modifyRequest->m_transactionHash == transaction.m_modifyTransactionHash &&
+                m_modifyUserDataReceived;
+        
+        //(+++)
+        bool shouldCatchUp = (m_catchingUpRequest    && m_catchingUpRequest->m_rootHash    != transaction.m_rootHash) ||
+                             (m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash != transaction.m_rootHash);
+
+        _LOG( "shouldCatchUp, couldContinueModify: " << shouldCatchUp << " " << couldContinueModify )
+        if ( shouldCatchUp || !couldContinueModify )
+        {
+            //(+++)
+            m_newCatchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
+
+                // We should break torrent downloading
+            // Because they (torrents/files) may no longer be available
+            stopAnyDriveTask( [=,this]
+            {
+                startCatchingUp( *m_newCatchingUpRequest );
+            });
+            //(+++)
+            return;
+        }
+
         if ( !m_sandboxCalculated )
         {
             return;
@@ -1203,8 +1503,31 @@ public:
         }
     }
 
+    void onApprovalTransactionHasFailedInvalidSignatures(const Hash256 &transactionHash) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( m_modifyRequest &&
+             m_modifyRequest->m_transactionHash == transactionHash &&
+             !m_modifyRequest->m_isCanceled &&
+             !m_approveTransactionReceived)
+        {
+            if ( auto it = m_otherOpinions.find(transactionHash); it != m_otherOpinions.end() )
+            {
+                m_approveTransactionSent = false;
+                auto opinions = it->second;
+                m_otherOpinions.erase(it);
+                for (const auto& [key, opinion]: opinions) {
+                    m_replicator.processOpinion(opinion);
+                }
+            }
+        }
+    }
+
     void sendSingleApprovalTransaction()
     {
+        DBG_MAIN_THREAD
+        
         auto copy = *m_myOpinion;
         m_eventHandler.singleModifyApprovalTransactionIsReady( m_replicator, std::move(copy) );
     }
@@ -1213,53 +1536,100 @@ public:
     {
         _LOG( "onSingleApprovalTransactionHasBeenPublished()" );
     }
-    
-    void startDriveSyncWithSwarm( std::optional<InfoHash>&& actualRootHash ) override
-    {
-        if ( m_actualFsTreeLtHandle && actualRootHash && *m_catchingUpRootHash != actualRootHash )
-        {
-            m_catchingUpRootHash = std::move( actualRootHash );
-            //todo remove torrent and startDriveSyncWithSwarm() again
-            return;
-        }
 
-        if ( actualRootHash )
-            m_catchingUpRootHash = std::move( actualRootHash );
+    void updateTrafficIdentifier()
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
+
+        if ( !m_trafficIdentifier )
+        {
+            if ( m_modifyRequest )
+            {
+                m_trafficIdentifier = m_modifyRequest->m_transactionHash;
+            }
+            else
+            {
+                m_trafficIdentifier = m_catchingUpRequest->m_modifyTransactionHash;
+            }
+        }
+    }
+
+    void startCatchingUp( std::optional<CatchingUpRequest>&& actualCatchingRequest ) override
+    {
+        DBG_MAIN_THREAD
+        
+        _ASSERT( !m_modificationIsCanceling );
+        _ASSERT( !m_modifyRequest );
+        _ASSERT( !m_removeDriveTx );
+
+        // actualRootHash could be empty when internal error ONLY
+        if ( actualCatchingRequest )
+        {
+            m_newCatchingUpRequest.reset();
+
+            // clear modification queue - we will not execute these modifications
+            auto it = std::find_if(m_defferedModifyRequests.begin(),
+                                   m_defferedModifyRequests.end(),
+                                   [&](const auto &item)
+                                   {
+                                       return item.m_transactionHash ==
+                                              actualCatchingRequest->m_modifyTransactionHash;
+                                   });
+            if ( it != m_defferedModifyRequests.end() )
+            {
+                it++;
+                while ( !m_defferedModifyRequests.empty() and it != m_defferedModifyRequests.begin() )
+                {
+                    m_expectedCumulativeDownload += m_defferedModifyRequests.front().m_maxDataSize;
+                    m_defferedModifyRequests.pop_front();
+                }
+            }
+            
+            m_catchingUpRequest = std::move(actualCatchingRequest );
+
+            fs::remove_all( m_sandboxRootPath );
+            fs::create_directories( m_sandboxRootPath);
+        }
         
         //
         // Start download fsTree
         //
         using namespace std::placeholders;  // for _1, _2, _3
 
-        m_actualFsTreeLtHandle = m_session->download( DownloadContext(
-                                            DownloadContext::client_data,
-                                            std::bind( &DefaultFlatDrive::actualFsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
-                                            *m_catchingUpRootHash,
-                                            {},
+        _LOG( "Late: download FsTree:" << m_catchingUpRequest->m_rootHash )
+        
+        updateTrafficIdentifier();
+        m_downloadingLtHandle = m_session->download( DownloadContext(
+                                            DownloadContext::missing_files,
+                                            std::bind( &DefaultFlatDrive::catchingUpFsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
+                                            m_catchingUpRequest->m_rootHash,
+                                            *m_trafficIdentifier,
                                             0,
-                                            //TODO!!! "CatchingUpFsTree"
-                                            toString( *m_catchingUpRootHash ) ),
+                                            "" ),
+                                            //toString( *m_catchingUpRootHash ) ),
                                             m_sandboxRootPath,
                                                    //{} );
                                             m_replicatorList );
     }
     
-    // it will be called by Session
-    void actualFsTreeDownloadHandler( download_status::code code,
-                          const InfoHash& infoHash,
-                          const std::filesystem::path /*filePath*/,
-                          size_t /*downloaded*/,
-                          size_t /*fileSize*/,
-                          const std::string& errorText )
+    // it will be called from Session
+    void catchingUpFsTreeDownloadHandler( download_status::code code,
+                                          const InfoHash& infoHash,
+                                          const std::filesystem::path /*filePath*/,
+                                          size_t /*downloaded*/,
+                                          size_t /*fileSize*/,
+                                          const std::string& errorText )
     {
-    
-        if ( *m_catchingUpRootHash != infoHash )
-            return;
+        DBG_MAIN_THREAD
+
+        _ASSERT( !m_newCatchingUpRequest )
 
         if ( code == download_status::failed )
         {
-            //todo??
-            startDriveSyncWithSwarm( {} );
+            //todo is it possible?
+            _ASSERT(0);
             return;
         }
 
@@ -1271,22 +1641,338 @@ public:
 
     void startDownloadMissingFiles()
     {
-        // prepare list
+        DBG_MAIN_THREAD
+
+        _LOG( "startDownloadMissingFiles: removeTorrentsFromSession: " << m_downloadingLtHandle->id()  << " " << m_downloadingLtHandle->info_hashes().v2  );
+
+        //
+        // Deserialize FsTree
+        //
+        try
+        {
+            m_sandboxFsTree.deserialize( m_sandboxFsTreeFile );
+            m_downloadingLtHandle.reset();
+        }
+        catch(...)
+        {
+            LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
+            fs::remove( m_sandboxFsTreeFile );
+        }
         
+        //
+        // Prepare missing list and start download
+        //
+        m_catchingUpFileSet.clear();
+        createCatchingUpFileList( m_sandboxFsTree );
+        
+        m_catchingUpFileIt = m_catchingUpFileSet.begin();
+        downloadMissingFiles();
     }
     
+    void createCatchingUpFileList( const Folder& folder )
+    {
+        DBG_MAIN_THREAD
+
+        for( const auto& child : folder.m_childs )
+        {
+            if ( isFolder(child) )
+            {
+                createCatchingUpFileList( getFolder(child) );
+            }
+            else
+            {
+                const auto& hash = getFile(child).m_hash;
+                
+                if ( !fs::exists( m_driveFolder / toString(hash) ) )
+                {
+                    m_catchingUpFileSet.emplace( hash );
+                }
+            }
+        }
+    }
+
+    // Download file by file
+    void downloadMissingFiles()
+    {
+        DBG_MAIN_THREAD
+        
+        m_downloadingLtHandle.reset();
+        
+        if ( m_catchingUpFileIt == m_catchingUpFileSet.end() )
+        {
+            // it is the end of list
+            m_stopSecondaryThread = false;
+
+            if ( m_secondaryThread.get_id() != std::thread::id{} )
+                m_secondaryThread.detach();
+
+            m_secondaryThread = std::thread( [this] {
+                this->modifyDriveInSandbox();
+            });
+        }
+        else
+        {
+            // ??? comment?
+            if ( m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash == m_catchingUpRequest->m_rootHash )
+            {
+                // TODO Check this situation
+                m_stopSecondaryThread = false;
+
+                if ( m_secondaryThread.get_id() != std::thread::id{} )
+                    m_secondaryThread.detach();
+
+                m_secondaryThread = std::thread( [this] {
+                    this->modifyDriveInSandbox();
+                });
+                return;
+            }
+
+            auto missingFileHash = *m_catchingUpFileIt;
+            m_catchingUpFileIt++;
+
+            updateTrafficIdentifier();
+            m_downloadingLtHandle = m_session->download( DownloadContext(
+                                                                         
+                                                 DownloadContext::missing_files,
+
+                                                 [this] ( download_status::code code,
+                                                           const InfoHash& infoHash,
+                                                           const std::filesystem::path saveAs,
+                                                           size_t /*downloaded*/,
+                                                           size_t /*fileSize*/,
+                                                           const std::string& errorText )
+                                                 {
+                                                     if ( code == download_status::download_complete )
+                                                     {
+                                                         _LOG( "catchedUp: " << toString(infoHash) );
+                                                         downloadMissingFiles();
+                                                     }
+                                                     else if ( code == download_status::failed )
+                                                     {
+                                                         LOG_ERR("???");
+                                                     }
+                                                 },
+
+                                                 missingFileHash,
+                                                 *m_trafficIdentifier,
+                                                 0,
+                                                 ""),
+                                                 m_sandboxRootPath,
+                                                 m_replicatorList );
+        }
+    }
+    
+//    void completeCatchingUp_1()
+//    {
+//        DBG_MAIN_THREAD
+//
+//        //
+//        // Create list of unused torrents
+//        //
+//
+//        for( auto& it : m_torrentHandleMap )
+//        {
+//            it.second.m_isUsed = false;
+//        }
+//
+//        markUsedFiles( m_sandboxFsTree );
+//
+//        std::set<lt_handle> tobeRemovedTorrents;
+//
+//        for( const auto& it : m_torrentHandleMap )
+//        {
+//            if ( !it.second.m_isUsed )
+//            {
+//                tobeRemovedTorrents.insert( it.second.m_ltHandle );
+//            }
+//        }
+//        tobeRemovedTorrents.insert( m_fsTreeLtHandle );
+//
+//        //
+//        // Remove unused torrents and files
+//        //
+//        m_session->removeTorrentsFromSession( tobeRemovedTorrents, [this]
+//        {
+//            DBG_MAIN_THREAD
+//
+//            // remove unused files and torrent files from the drive
+//            for( const auto& [key,value] : m_torrentHandleMap )
+//            {
+//                if ( !value.m_isUsed )
+//                {
+//                    std::string filename = hashToFileName( key );
+//                    fs::remove( fs::path(m_driveFolder) / filename );
+//                    fs::remove( fs::path(m_torrentFolder) / filename );
+//                }
+//            }
+//            fs::remove( fs::path(m_fsTreeFile) );
+//
+//            m_stopSecondaryThread = false;
+//
+//            if ( m_secondaryThread.get_id() != std::thread::id{} )
+//                m_secondaryThread.detach();
+//
+//            m_secondaryThread = std::thread( [this]
+//            {
+//                completeCatchingUp_2();
+//            });
+//        });
+//    }
+    
+    void completeCatchingUp()
+    {
+        DBG_SECONDARY_THREAD
+        
+        try
+        {
+            //
+            // Check RootHash Before All
+            //
+            _LOG("m_sandboxRootHash: " << m_sandboxRootHash );
+            _LOG("m_catchingUpRootHash: " << m_catchingUpRequest->m_rootHash );
+            _ASSERT( m_sandboxRootHash == m_catchingUpRequest->m_rootHash );
+
+            // check if RootHash has been published
+            _ASSERT( !m_newCatchingUpRequest )
+
+            fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
+            fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
+//            m_fsTree = m_sandboxFsTree;
+//            m_rootHash = m_sandboxRootHash;
+
+            // remove unused files and torrent files from the drive
+            for( const auto& it : m_torrentHandleMap )
+            {
+                const UseTorrentInfo& info = it.second;
+                if ( !info.m_isUsed )
+                {
+                    const auto& hash = it.first;
+                    std::string filename = hashToFileName( hash );
+                    fs::remove( fs::path(m_driveFolder) / filename );
+                    fs::remove( fs::path(m_torrentFolder) / filename );
+                }
+            }
+
+            //
+            // Add missing files
+            //
+            for( const auto& fileHash : m_catchingUpFileSet )
+            {
+                if ( m_stopSecondaryThread )
+                    return;
+
+                auto fileName = toString( fileHash );
+
+                // Add torrent into session
+                auto tHandle = m_session->addTorrentFileToSession( m_torrentFolder / fileName,
+                                                                   m_driveFolder,
+                                                                   lt::sf_is_replicator );
+
+                _ASSERT( tHandle.is_valid() );
+                m_torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{tHandle,true} );
+            }
+
+            // Add FsTree torrent to session
+            m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
+                                                                   m_fsTreeTorrent.parent_path(),
+                                                                   lt::sf_is_replicator );
+
+            // remove unused data from 'torrentMap'
+            std::erase_if( m_torrentHandleMap, [] (const auto& it) { return !it.second.m_isUsed; } );
+
+            LOG( "drive is synchronized" );
+
+            // clear sandbox
+            fs::remove_all( m_sandboxRootPath );
+            
+            m_session->lt_session().get_context().post( [=,this]
+            {
+                m_fsTree = m_sandboxFsTree;
+                m_rootHash = m_sandboxRootHash;
+
+                // Call update handler
+                if ( m_dbgEventHandler )
+                    m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
+
+                //(+++)
+                m_catchingUpRequest.reset();
+                modifyIsCompleted();
+            });
+        }
+        catch ( const std::exception& ex )
+        {
+            _LOG( "!ERROR!: completeCatchingUp error: " << ex.what() );
+            _ASSERT(0);
+        }
+    }
+    
+// It will be used after restart to clear disc !!!
+//    void fillUsedFileList( const Folder& folder, InfoHashPtrSet& usedFileList )
+//    {
+//        for( const auto& child : folder.m_childs )
+//        {
+//            if ( isFolder(child) )
+//            {
+//                fillUsedFileList( getFolder(child), usedFileList );
+//            }
+//            else
+//            {
+//                auto& hash = getFile(child).m_hash;
+//
+//                if ( !fs::exists( m_driveFolder / toString(hash) ) )
+//                {
+//                    usedFileList.emplace( &hash );
+//                }
+//                if ( !fs::exists( m_torrentFolder / toString(hash) ) )
+//                {
+//                    usedFileList.emplace( &hash );
+//                }
+//            }
+//        }
+//    }
+//
+// It will be used after restart to clean disc !!!
+//    void removeUnusedFiles( const FsTree& fsTree )
+//    {
+//        InfoHashPtrSet usedFileList;
+//        fillUsedFileList( fsTree, usedFileList );
+//
+//        std::set<fs::path> tobeRemovedFileList;
+//        for( const auto& entry: std::filesystem::directory_iterator{m_driveFolder} )
+//        {
+//            if ( entry.is_directory() )
+//            {
+//                _ASSERT(0);
+//            }
+//            else
+//            {
+//                // stem() - filename without extension
+//                const InfoHash hash = stringToHash( entry.path().stem().string() );
+//                if ( usedFileList.find( &hash ) == usedFileList.end() )
+//                    tobeRemovedFileList.insert( entry.path().stem() );
+//            }
+//        }
+//
+//        for( const auto& file : tobeRemovedFileList )
+//        {
+//            fs::remove( file );
+//        }
+//    }
+
     bool isOutOfSync() const override
     {
-        return m_catchingUpRootHash.has_value();
+        return m_catchingUpRequest.has_value();
     }
 
     const std::optional<Hash256>& closingTxHash() const override
     {
-        return m_closingTxHash;
+        return m_removeDriveTx;
     }
     
     void removeAllDriveData() override
     {
+        DBG_MAIN_THREAD
+        
         {
             // When node is restaring and file "is_closing" exists, but file "approval_tx_has_been_bulished" is not exists,
             // then drive should approve all download channels
@@ -1299,7 +1985,7 @@ public:
         fs::remove_all( m_driveRootPath );
         fs::remove_all( m_sandboxRootPath );
         
-        m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_closingTxHash );
+        m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_removeDriveTx );
     }
 
     const ReplicatorList&  replicatorList() const override

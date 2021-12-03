@@ -53,9 +53,12 @@ namespace sirius::drive::test {
             std::set<uint64_t> sizes;
             for (const auto& opinion: transactionInfo.m_opinions) {
                 auto size =
-                        std::accumulate(opinion.m_replicatorUploadBytes.begin(),
-                                        opinion.m_replicatorUploadBytes.end(),
-                                        opinion.m_clientUploadBytes);
+                        std::accumulate(opinion.m_uploadLayout.begin(),
+                                        opinion.m_uploadLayout.end(),
+                                        opinion.m_clientUploadBytes,
+                                        [] (const auto& sum, const auto& item) {
+                            return sum + item.m_uploadedBytes;
+                        });
                 sizes.insert(size);
             }
 
@@ -78,7 +81,7 @@ namespace sirius::drive::test {
 //        pack.set_int(lt::settings_pack::upload_rate_limit, 1024 * 1024);
         TestClient client(pack);
 
-        _LOG("");
+        EXLOG("");
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
@@ -95,7 +98,7 @@ namespace sirius::drive::test {
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        _LOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
+        EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         std::thread([] {
             std::this_thread::sleep_for(std::chrono::seconds(120));
             ASSERT_EQ(true, false);

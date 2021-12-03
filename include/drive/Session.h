@@ -47,7 +47,8 @@ struct DownloadContext {
     enum download_type {
         fs_tree = 0,
         file_from_drive = 1,
-        client_data = 3
+        client_data = 3,
+        missing_files = 4,
     };
 
     using Notification = std::function<void( download_status::code,
@@ -125,18 +126,20 @@ public:
 
     virtual void      endSession() = 0;
 
+    // It loads existing file from disk
     virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
-                                               const std::string& savePath,
+                                               const std::string& folderWhereFileIsLocated,
                                                uint32_t           siriusFlags,
                                                endpoint_list = {} ) = 0;
 
     // It removes torrents from session.
     // After removing 'endNotification' will be called.
     // And only after that the 'client' could move/remove files and torrnet file.
-    virtual bool      removeTorrentsFromSession( std::set<lt::torrent_handle>&& torrents,
-                                                 std::function<void()>          endNotification ) = 0;
+    virtual void      removeTorrentsFromSession( const std::set<lt::torrent_handle>& torrents,
+                                                 std::function<void()>               endNotification ) = 0;
 
     virtual InfoHash  addActionListToSession( const ActionList&,
+                                              const Key& clientPublicKey,
                                               const std::string& workFolder,
                                               endpoint_list list = {} ) = 0;
 
@@ -144,6 +147,10 @@ public:
     virtual lt_handle download( DownloadContext&&   downloadParameters,
                                 const std::string&  tmpFolder,
                                 ReplicatorList      list = {} ) = 0;
+
+    // Remove download context
+    // (It prevents call of downloadHandler)
+    virtual void removeDownloadContext( lt::torrent_handle ) = 0;
 
     virtual void      sendMessage( boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
     virtual void      sendMessage( const std::string& query, boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
@@ -158,8 +165,9 @@ public:
 
 // createTorrentFile
 PLUGIN_API InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
-                            const std::string& /*pathToRootFolder*/, // not used
-                            const std::string& outputTorrentFilename );
+                                       const Key&         drivePublicKey, // or client public key
+                                       const std::string& pathToRootFolder,
+                                       const std::string& outputTorrentFilename );
 
 //
 // It is used on drive side only.
@@ -168,9 +176,9 @@ PLUGIN_API InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
 // with name as 'InfoHash' + '.' + 'outputTorrentFileExtension'
 //
 PLUGIN_API InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& file,
-                                      const std::string& drivePublicKey,
-                                      const std::string& outputTorrentPath,
-                                      const std::string& outputTorrentFileExtension );
+                                                           const Key&         drivePublicKey, // or client public key
+                                                           const std::string& outputTorrentPath,
+                                                           const std::string& outputTorrentFileExtension );
 
 //
 // createDefaultLibTorrentSession
