@@ -190,9 +190,6 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     std::optional<lt_handle>     m_downloadingLtHandle; // used for removing torrent from session
     std::optional<std::function<void()>> m_nextStepAfterTaskStop;
-    
-//    std::thread                  m_secondaryThread;
-//    bool                         m_stopSecondaryThread;
 
     // It is needed if a new 'modifyRequest' is received, but drive could not start it immediately
     // (is syncing with sandbox?)
@@ -278,9 +275,7 @@ public:
     void terminate()
     {
         //TODO main thread
-//        if ( m_secondaryThread.get_id() != std::thread::id{} )
-//            m_secondaryThread.join();
-
+        LOG_ERR ("Not implemented");
         //TODO
     }
 
@@ -569,6 +564,8 @@ public:
 
     void processNextStepAfterTaskStop()
     {
+        DBG_MAIN_THREAD
+
         if ( m_nextStepAfterTaskStop )
         {
             (*m_nextStepAfterTaskStop)();
@@ -590,38 +587,26 @@ public:
                 
                 lt_handle torrentHandle = *m_downloadingLtHandle;
                 m_downloadingLtHandle.reset();
-
-                _LOG( "In cancel" );
                 
                 m_session->removeTorrentsFromSession( {torrentHandle}, [=, this]
                 {
                     DBG_MAIN_THREAD
 
-//                    m_stopSecondaryThread = true;
-//
-//                    if ( m_secondaryThread.get_id() != std::thread::id{} )
-//                        m_secondaryThread.join(); // !!!! DELAY on main thread !!!!
-                    
                     m_downloadingLtHandle.reset();
                     m_modifyRequest.reset();
 
-//                    _LOG("HAVE NEXT STEP " << m_nextStepAfterTaskStop.has_value() );
-//
-//                    if ( m_nextStepAfterTaskStop )
-//                    {
-//                        (*m_nextStepAfterTaskStop)();
-//                        m_nextStepAfterTaskStop.reset();
-//                    }
+                    m_backgroundExecutor.run( []{}, [this] {
+                        processNextStepAfterTaskStop();
+                    });
+                    std::thread([this] {
+                       fs::remove_all( m_sandboxRootPath );
+                    }).detach();
                 });
             }
         }
         else
         {
-            if ( m_nextStepAfterTaskStop )
-            {
-                (*m_nextStepAfterTaskStop)();
-                m_nextStepAfterTaskStop.reset();
-            }
+            processNextStepAfterTaskStop();
         }
     }
 
@@ -777,25 +762,13 @@ public:
         if ( code == download_status::download_complete )
         {
             m_modifyUserDataReceived = true;
-//            m_stopSecondaryThread = false;
-//
-//            if ( m_secondaryThread.get_id() != std::thread::id{} )
-//                m_secondaryThread.detach();
-//
-//            m_secondaryThread = std::thread( [this] {
-//                this->modifyDriveInSandbox();
-//            });
-            m_backgroundExecutor.run([this] {
-
-                DBG_SECONDARY_THREAD
-
-                modifyDriveInSandbox();
-                }, [this] {
-
-                DBG_MAIN_THREAD
-
-                processNextStepAfterTaskStop();
-            });
+            m_backgroundExecutor.run([this]
+                 {
+                     modifyDriveInSandbox();
+                 }, [this]
+                 {
+                     processNextStepAfterTaskStop();
+                 });
         }
     }
 
@@ -847,9 +820,6 @@ public:
             //
             for( const Action& action : actionList )
             {
-//                if ( m_stopSecondaryThread )
-//                    return;
-
                 if (action.m_isInvalid)
                     continue;
 
@@ -989,9 +959,6 @@ public:
         else {
             for( const auto& fileHash : m_catchingUpFileSet )
             {
-//                if ( m_stopSecondaryThread )
-//                    return;
-
                 auto fileName = toString( fileHash );
 
                 // move file to drive folder
@@ -1225,7 +1192,7 @@ public:
     // updates drive (1st step after approve)
     // - remove torrents from session
     //
-    void  updateDrive_1( const std::function<void()>& nextStep )
+    void updateDrive_1( const std::function<void()>& nextStep )
     {
         DBG_MAIN_THREAD
         
@@ -1260,30 +1227,14 @@ public:
         // Remove unused torrents
         m_session->removeTorrentsFromSession( toBeRemovedTorrents, [this, nextStep]
         {
-            m_backgroundExecutor.run([this, nextStep] {
-
-                DBG_SECONDARY_THREAD
-
-                nextStep();
-                }, [this] {
-
-                DBG_MAIN_THREAD
-
-                processNextStepAfterTaskStop();
-            });
+            m_backgroundExecutor.run([this, nextStep]
+                 {
+                     nextStep();
+                 }, [this]
+                 {
+                     processNextStepAfterTaskStop();
+                 });
         });
-//        m_session->removeTorrentsFromSession( toBeRemovedTorrents, [this, nextStep]
-//        {
-//            m_stopSecondaryThread = false;
-//
-//            if ( m_secondaryThread.joinable() )
-//                m_secondaryThread.detach();
-//
-//            m_secondaryThread = std::thread( [nextStep]
-//            {
-//                nextStep();
-//            });
-//        });
     }
 
     // updates drive (2st phase after fsTree torrent removed)
@@ -1325,9 +1276,6 @@ public:
             //
             for( auto& it : m_torrentHandleMap )
             {
-//                if ( m_stopSecondaryThread )
-//                    return;
-
                 // load torrent (if it is not loaded)
                 if ( !it.second.m_ltHandle.is_valid() )
                 {
@@ -1447,6 +1395,7 @@ public:
         }
         
         // notify event handler
+        _LOG( "*************" )
         m_eventHandler.modifyApprovalTransactionIsReady( m_replicator, std::move(info) );
         
         m_replicator.removeModifyDriveInfo( m_myOpinion->m_modifyTransactionHash );
@@ -1504,7 +1453,6 @@ public:
         _LOG( "shouldCatchUp, couldContinueModify: " << shouldCatchUp << " " << couldContinueModify )
         if ( shouldCatchUp || !couldContinueModify )
         {
-            LOG_ERR( "In Catch Up" )
             //(+++)
             m_newCatchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
 
@@ -1740,40 +1688,20 @@ public:
         if ( m_catchingUpFileIt == m_catchingUpFileSet.end() )
         {
             // it is the end of list
-//            m_stopSecondaryThread = false;
-
-            m_backgroundExecutor.run([this] {
-
-                DBG_SECONDARY_THREAD
-
+            m_backgroundExecutor.run([this]
+            {
                 modifyDriveInSandbox();
-            }, [this] {
-
-                DBG_MAIN_THREAD
-
+            }, [this]
+            {
                 processNextStepAfterTaskStop();
             });
-//            if ( m_secondaryThread.get_id() != std::thread::id{} )
-//                m_secondaryThread.detach();
-//
-//            m_secondaryThread = std::thread( [this] {
-//                this->modifyDriveInSandbox();
-//            });
         }
         else
         {
-            // ??? comment?
             if ( m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash == m_catchingUpRequest->m_rootHash )
             {
                 // TODO Check this situation
-//                m_stopSecondaryThread = false;
-//
-//                if ( m_secondaryThread.get_id() != std::thread::id{} )
-//                    m_secondaryThread.detach();
-//
-//                m_secondaryThread = std::thread( [this] {
-//                    this->modifyDriveInSandbox();
-//                });
+                LOG_ERR( "Not Implemented" );
                 return;
             }
 
@@ -1908,9 +1836,6 @@ public:
             //
             for( const auto& fileHash : m_catchingUpFileSet )
             {
-//                if ( m_stopSecondaryThread )
-//                    return;
-
                 auto fileName = toString( fileHash );
 
                 // Add torrent into session

@@ -208,6 +208,7 @@ namespace sirius::drive::test {
 
             if (m_pendingModifications.front() == transactionInfo.m_modifyTransactionHash) {
 
+
                 m_pendingModifications.pop_front();
                 m_lastApprovedModification = transactionInfo.m_modifyTransactionHash;
                 m_rootHashes[m_lastApprovedModification] = transactionInfo.m_rootHash;
