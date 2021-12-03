@@ -715,7 +715,7 @@ public:
     virtual void asyncApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
-        
+
             DBG_MAIN_THREAD
 
             if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )

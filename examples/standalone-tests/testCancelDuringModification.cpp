@@ -80,7 +80,7 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
         EXLOG("\n# Client asked to close drive");
 
         env.cancelModification(DRIVE_PUB_KEY, client.m_modificationTransactionHashes[0]);
-        std::this_thread::sleep_for(std::chrono::seconds (60));
+        std::this_thread::sleep_for(std::chrono::seconds (30));
         ASSERT_EQ(env.modifyCompleteCounters[client.m_modificationTransactionHashes[0]], 0);
         ASSERT_EQ(env.modifyCompleteCounters[client.m_modificationTransactionHashes[1]], NUMBER_OF_REPLICATORS);
     }

@@ -35,12 +35,12 @@ public:
             const unsigned short    emulatorRpcPort)
             : m_keyPair(keyPair){
 
-        _LOG("RPC Replicator name: " + name)
-        _LOG("RPC Replicator address: " + address)
-        _LOG("RPC Replicator port: " + port)
-        _LOG("RPC Replicator RPC port: " + std::to_string(rpcPort))
-        _LOG("RPC Replicator root folder: " + replicatorRootFolder)
-        _LOG("RPC Replicator sandbox folder: " + sandboxRootFolder)
+        __LOG("RPC Replicator name: " + name)
+        __LOG("RPC Replicator address: " + address)
+        __LOG("RPC Replicator port: " + port)
+        __LOG("RPC Replicator RPC port: " + std::to_string(rpcPort))
+        __LOG("RPC Replicator root folder: " + replicatorRootFolder)
+        __LOG("RPC Replicator sandbox folder: " + sandboxRootFolder)
 
         m_replicatorAddress = address;
         m_replicatorPort = std::stoi(port);
