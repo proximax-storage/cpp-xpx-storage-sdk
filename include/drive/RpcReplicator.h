@@ -34,12 +34,12 @@ public:
             const std::string&      emulatorRpcAddress,
             const unsigned short    emulatorRpcPort) {
 
-        _LOG("RPC Replicator name: " + name)
-        _LOG("RPC Replicator address: " + address)
-        _LOG("RPC Replicator port: " + port)
-        _LOG("RPC Replicator RPC port: " + std::to_string(rpcPort))
-        _LOG("RPC Replicator root folder: " + replicatorRootFolder)
-        _LOG("RPC Replicator sandbox folder: " + sandboxRootFolder)
+        LOG("RPC Replicator name: " + name)
+        LOG("RPC Replicator address: " + address)
+        LOG("RPC Replicator port: " + port)
+        LOG("RPC Replicator RPC port: " + std::to_string(rpcPort))
+        LOG("RPC Replicator root folder: " + replicatorRootFolder)
+        LOG("RPC Replicator sandbox folder: " + sandboxRootFolder)
 
         m_replicatorAddress = address;
         m_replicatorPort = std::stoi(port);
