@@ -25,7 +25,9 @@ class DownloadLimiter : public Replicator,
                         public lt::session_delegate,
                         public std::enable_shared_from_this<DownloadLimiter>
 {
-protected:    
+protected:
+    std::shared_ptr<Session> m_session;
+
     // Replicator's keys
     const crypto::KeyPair& m_keyPair;
 
@@ -104,7 +106,7 @@ public:
 
     void printTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
+      m_session->lt_session().get_context().post( [=,this]() mutable {
 
         if ( const auto& it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
         {
@@ -125,6 +127,7 @@ public:
                 }
             }
         }
+      });
     }
     
     //TODO return const ModifyDriveInfo getMyDownloadOpinion& ???

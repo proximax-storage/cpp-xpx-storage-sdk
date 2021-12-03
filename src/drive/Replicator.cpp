@@ -28,8 +28,6 @@ namespace sirius::drive {
 class DefaultReplicator : public DownloadLimiter // Replicator
 {
 public:
-    std::shared_ptr<Session> m_session;
-
     // Session listen interface
     std::string m_address;
     std::string m_port;

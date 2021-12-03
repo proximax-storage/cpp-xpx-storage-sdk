@@ -710,14 +710,15 @@ private:
                 }
 
 //                case lt::peer_log_alert::alert_type: {
-//                    _LOG(  m_addressAndPort << ": peer_log_alert: " << alert->message())
+//                    _LOG(  ": peer_log_alert: " << alert->message())
 //                    break;
 //                }
 
                 // piece_finished_alert
                 case lt::piece_finished_alert::alert_type:
                 {
-//                    auto *theAlert = dynamic_cast<lt::piece_finished_alert *>(alert);
+                    auto *theAlert = dynamic_cast<lt::piece_finished_alert *>(alert);
+                    if ( theAlert ) _LOG( "piece_finished_alert: " << theAlert->handle.torrent_file()->files().file_path(0) );
 //
 //                    if ( theAlert ) {
 //

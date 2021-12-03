@@ -549,6 +549,7 @@ int main(int,char**)
     gReplicatorThread3.join();
 
     /// Client: read new fsTree (3)
+    EXLOG( "# Client started FsTree download !!!!! " );
     gClientSession->setDownloadChannel( replicatorList, downloadChannelHash3 );
     clientDownloadFsTree();
 
