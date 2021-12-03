@@ -131,12 +131,12 @@ int main() {
 
             ActionList actionList;
             actionList.push_back( Action::newFolder( "fff1" ) );
-//            actionList.push_back( Action::newFolder( "fff1/ffff1" ) );
-//            actionList.push_back( Action::upload( workFolder / "client_files" / "a.txt", "a.txt" ) );
-//            actionList.push_back( Action::upload( workFolder / "client_files" / "a.txt", "a2.txt" ) );
-//            actionList.push_back( Action::upload( workFolder / "client_files" / "b.bin", "f1/b1.bin" ) );
-//            actionList.push_back( Action::upload( workFolder / "client_files" / "b.bin", "f2/b2.bin" ) );
-//            actionList.push_back( Action::upload( workFolder / "client_files" / "a.txt", "f2/a.txt" ) );
+            actionList.push_back( Action::newFolder( "fff1/ffff1" ) );
+            actionList.push_back( Action::upload( workFolder / "client_files" / "a.txt", "a.txt" ) );
+            actionList.push_back( Action::upload( workFolder / "client_files" / "a.txt", "a2.txt" ) );
+            actionList.push_back( Action::upload( workFolder / "client_files" / "b.bin", "f1/b1.bin" ) );
+            actionList.push_back( Action::upload( workFolder / "client_files" / "b.bin", "f2/b2.bin" ) );
+            actionList.push_back( Action::upload( workFolder / "client_files" / "a.txt", "f2/a.txt" ) );
 
             const uint64_t maxDataSize = 10;
 

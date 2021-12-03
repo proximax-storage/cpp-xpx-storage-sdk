@@ -35,12 +35,12 @@ public:
             const unsigned short    emulatorRpcPort)
             : m_keyPair(keyPair){
 
-        __LOG("RPC Replicator name: " + name)
-        __LOG("RPC Replicator address: " + address)
-        __LOG("RPC Replicator port: " + port)
-        __LOG("RPC Replicator RPC port: " + std::to_string(rpcPort))
-        __LOG("RPC Replicator root folder: " + replicatorRootFolder)
-        __LOG("RPC Replicator sandbox folder: " + sandboxRootFolder)
+        std::cout << "RPC Replicator name: " << name << std::endl;
+        std::cout << "RPC Replicator address: " << address << std::endl;
+        std::cout << "RPC Replicator port: " << port << std::endl;
+        std::cout << "RPC Replicator RPC port: " << std::to_string(rpcPort) << std::endl;
+        std::cout << "RPC Replicator root folder: " << replicatorRootFolder << std::endl;
+        std::cout << "RPC Replicator sandbox folder: " << sandboxRootFolder << std::endl;
 
         m_replicatorAddress = address;
         m_replicatorPort = std::stoi(port);
@@ -183,6 +183,14 @@ public:
 
     void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) override {
         std::cout << "Replicator. downloadApprovalTransactionIsReady. DriveKey: " << std::endl;
+    }
+
+    void opinionHasBeenReceived(  Replicator& replicator, const ApprovalTransactionInfo& ) override {
+        std::cout << "Replicator. opinionHasBeenReceived. DriveKey: " << std::endl;
+    }
+
+    void downloadOpinionHasBeenReceived(  Replicator& replicator, const DownloadApprovalTransactionInfo& ) override {
+        std::cout << "Replicator. downloadOpinionHasBeenReceived. DriveKey: " << std::endl;
     }
 
     void driveAdded(const sirius::Key& driveKey) override {

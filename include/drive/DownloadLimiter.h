@@ -289,8 +289,8 @@ public:
                     }
                     else
                     {
-                        //LOG_ERR( "acceptConnection: unknown peerPublicKey: " << sirius::Key(peerPublicKey) );
-                        return false;
+                        LOG_ERR( "acceptConnection: unknown peerPublicKey: " << sirius::Key(peerPublicKey) );
+                        return true;
                     }
                 }
                 else
