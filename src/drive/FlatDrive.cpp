@@ -815,7 +815,6 @@ public:
             actionList.deserialize( m_clientActionListFile );
 
             // Make copy of current FsTree
-            _LOG( "******************** m_sandboxFsTree.deserialize( m_fsTreeFile );" )
             m_sandboxFsTree.deserialize( m_fsTreeFile );
 
             //
@@ -855,9 +854,24 @@ public:
                         std::string newFileName = m_driveFolder / hashToFileName( fileHash );
                         fs::rename( clientFile, newFileName );
 
+                        //
                         // add file in resultFsTree
-                        m_sandboxFsTree.addFile( fs::path(action.m_param2).parent_path(),
-                                                 clientFile.filename(),
+                        //
+                        Folder::Child* destEntry = m_sandboxFsTree.getEntryPtr( action.m_param2 );
+                        fs::path destFolder;
+                        fs::path srcFile;
+                        if ( destEntry != nullptr && isFolder(*destEntry) )
+                        {
+                            srcFile = fs::path( action.m_param1 ).filename();
+                            destFolder = action.m_param2;
+                        }
+                        else
+                        {
+                            srcFile = fs::path( action.m_param2 ).filename();
+                            destFolder = fs::path(action.m_param2).parent_path();
+                        }
+                        m_sandboxFsTree.addFile( destFolder,
+                                                 srcFile,
                                                  fileHash,
                                                  fileSize );
                         break;
