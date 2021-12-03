@@ -553,6 +553,7 @@ public:
     {
         DBG_MAIN_THREAD
         
+        _LOG( "modifyIsCompleted" );
         m_modifyRequest.reset();
 
         if ( !m_defferedModifyRequests.empty() )
@@ -814,6 +815,7 @@ public:
             actionList.deserialize( m_clientActionListFile );
 
             // Make copy of current FsTree
+            _LOG( "******************** m_sandboxFsTree.deserialize( m_fsTreeFile );" )
             m_sandboxFsTree.deserialize( m_fsTreeFile );
 
             //
@@ -1235,75 +1237,78 @@ public:
     // - remove unused files and torrent files
     // - add new torrents to session
     //
-    void updateDrive_2() try
+    void updateDrive_2()
     {
         DBG_SECONDARY_THREAD
-
-        _LOG( "IN UPDATE 2")
-
-        // update FsTree file & torrent
-        fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
-        fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
-        m_fsTree = m_sandboxFsTree;
-        m_rootHash = m_sandboxRootHash;
-
-        // remove unused files and torrent files from the drive
-        for( const auto& it : m_torrentHandleMap )
+        
+        try
         {
-            const UseTorrentInfo& info = it.second;
-            if ( !info.m_isUsed )
+            _LOG( "IN UPDATE 2")
+
+            // update FsTree file & torrent
+            fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
+            fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
+            m_fsTree = m_sandboxFsTree;
+            m_rootHash = m_sandboxRootHash;
+
+            // remove unused files and torrent files from the drive
+            for( const auto& it : m_torrentHandleMap )
             {
-                const auto& hash = it.first;
-                std::string filename = hashToFileName( hash );
-                fs::remove( fs::path(m_driveFolder) / filename );
-                fs::remove( fs::path(m_torrentFolder) / filename );
+                const UseTorrentInfo& info = it.second;
+                if ( !info.m_isUsed )
+                {
+                    const auto& hash = it.first;
+                    std::string filename = hashToFileName( hash );
+                    fs::remove( fs::path(m_driveFolder) / filename );
+                    fs::remove( fs::path(m_torrentFolder) / filename );
+                }
             }
-        }
 
-        // remove unused data from 'fileMap'
-        std::erase_if( m_torrentHandleMap, [] (const auto& it) { return !it.second.m_isUsed; } );
+            // remove unused data from 'fileMap'
+            std::erase_if( m_torrentHandleMap, [] (const auto& it) { return !it.second.m_isUsed; } );
 
-        //
-        // Add torrents into session
-        //
-        for( auto& it : m_torrentHandleMap )
-        {
-            if ( m_stopSecondaryThread )
-                return;
-
-            // load torrent (if it is not loaded)
-            if ( !it.second.m_ltHandle.is_valid() )
+            //
+            // Add torrents into session
+            //
+            for( auto& it : m_torrentHandleMap )
             {
-                std::string fileName = hashToFileName( it.first );
-                it.second.m_ltHandle = m_session->addTorrentFileToSession( m_torrentFolder / fileName,
-                                                                           m_driveFolder,
-                                                                           lt::sf_is_replicator );
+                if ( m_stopSecondaryThread )
+                    return;
+
+                // load torrent (if it is not loaded)
+                if ( !it.second.m_ltHandle.is_valid() )
+                {
+                    std::string fileName = hashToFileName( it.first );
+                    it.second.m_ltHandle = m_session->addTorrentFileToSession( m_torrentFolder / fileName,
+                                                                               m_driveFolder,
+                                                                               lt::sf_is_replicator );
+                }
             }
+
+            // Add FsTree torrent to session
+            _LOG( "Add FsTree torrent to session: " << toString(m_rootHash) );
+            m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
+                                                                   m_fsTreeTorrent.parent_path(),
+                                                                   lt::sf_is_replicator );
+
+            // Call update handler
+            if ( m_dbgEventHandler )
+                m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
+
+            LOG( "drive is synchronized" );
+
+            // clear sandbox
+            fs::remove_all( m_sandboxRootPath );
+            m_session->lt_session().get_context().post( [=,this]
+            {
+                modifyIsCompleted();
+            });
         }
-
-        // Add FsTree torrent to session
-        _LOG( "Add FsTree torrent to session: " << toString(m_rootHash) );
-        m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
-                                                               m_fsTreeTorrent.parent_path(),
-                                                               lt::sf_is_replicator );
-
-        // Call update handler
-        if ( m_dbgEventHandler )
-            m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
-
-        LOG( "drive is synchronized" );
-
-        // clear sandbox
-        fs::remove_all( m_sandboxRootPath );
-        m_session->lt_session().get_context().post( [=,this]
+        catch ( const std::exception& ex )
         {
-            modifyIsCompleted();
-        });
-    }
-    catch ( const std::exception& ex )
-    {
-        _LOG( "!ERROR!: updateDrive_2 error: " << ex.what() );
-        exit(-1);
+            _LOG( "!ERROR!: updateDrive_2 error: " << ex.what() );
+            _ASSERT(0);
+        }
     }
 
     // Recursively marks 'm_toBeRemoved' as false
@@ -1400,6 +1405,8 @@ public:
     {
         DBG_MAIN_THREAD
 
+        _LOG( "onApprovalTransactionHasBeenPublished(): m_sandboxCalculated=" << m_sandboxCalculated )
+
         if ( m_approveTransactionReceived &&  *m_approveTransactionReceived == transaction.m_modifyTransactionHash)
         {
             LOG_ERR("Duplicated approval tx ");
@@ -1432,23 +1439,31 @@ public:
 
         // We should not catch up only in the case
         // When we have already downloaded all necessary data (??? or the modification approval)
-        bool continueModify =
+        bool couldContinueModify =
                 m_modifyRequest &&
                 m_modifyRequest->m_transactionHash == transaction.m_modifyTransactionHash &&
                 m_modifyUserDataReceived;
+        
+        //(+++)
+        bool shouldCatchUp = (m_catchingUpRequest    && m_catchingUpRequest->m_rootHash    != transaction.m_rootHash) ||
+                             (m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash != transaction.m_rootHash);
 
-        if ( !continueModify )
+        _LOG( "shouldCatchUp, couldContinueModify: " << shouldCatchUp << " " << couldContinueModify )
+        if ( shouldCatchUp || !couldContinueModify )
         {
-            // We should break torrent downloading
+            //(+++)
+            m_newCatchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
+
+                // We should break torrent downloading
             // Because they (torrents/files) may no longer be available
             stopAnyDriveTask( [=,this]
             {
-                m_newCatchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
                 startCatchingUp( *m_newCatchingUpRequest );
             });
+            //(+++)
+            return;
         }
 
-        _LOG( "onApprovalTransactionHasBeenPublished(): m_sandboxCalculated=" << m_sandboxCalculated )
         if ( !m_sandboxCalculated )
         {
             return;
@@ -1619,11 +1634,13 @@ public:
         //
         // Deserialize FsTree
         //
-
-        try {
+        try
+        {
             m_sandboxFsTree.deserialize( m_sandboxFsTreeFile );
             m_downloadingLtHandle.reset();
-        } catch(...) {
+        }
+        catch(...)
+        {
             LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
             fs::remove( m_sandboxFsTreeFile );
         }
@@ -1788,83 +1805,91 @@ public:
 //        });
 //    }
     
-    void completeCatchingUp() try
+    void completeCatchingUp()
     {
         DBG_SECONDARY_THREAD
-
-        //
-        // Check RootHash Before All
-        //
-        _LOG("m_sandboxRootHash: " << m_sandboxRootHash );
-        _LOG("m_catchingUpRootHash: " << m_catchingUpRequest->m_rootHash );
-        _ASSERT( m_sandboxRootHash == m_catchingUpRequest->m_rootHash );
-
-        // check if RootHash has been published
-        _ASSERT( !m_newCatchingUpRequest )
-
-        fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
-        fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
-        m_fsTree = m_sandboxFsTree;
-        m_rootHash = m_sandboxRootHash;
-
-        // remove unused files and torrent files from the drive
-        for( const auto& it : m_torrentHandleMap )
+        
+        try
         {
-            const UseTorrentInfo& info = it.second;
-            if ( !info.m_isUsed )
+            //
+            // Check RootHash Before All
+            //
+            _LOG("m_sandboxRootHash: " << m_sandboxRootHash );
+            _LOG("m_catchingUpRootHash: " << m_catchingUpRequest->m_rootHash );
+            _ASSERT( m_sandboxRootHash == m_catchingUpRequest->m_rootHash );
+
+            // check if RootHash has been published
+            _ASSERT( !m_newCatchingUpRequest )
+
+            fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
+            fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
+//            m_fsTree = m_sandboxFsTree;
+//            m_rootHash = m_sandboxRootHash;
+
+            // remove unused files and torrent files from the drive
+            for( const auto& it : m_torrentHandleMap )
             {
-                const auto& hash = it.first;
-                std::string filename = hashToFileName( hash );
-                fs::remove( fs::path(m_driveFolder) / filename );
-                fs::remove( fs::path(m_torrentFolder) / filename );
+                const UseTorrentInfo& info = it.second;
+                if ( !info.m_isUsed )
+                {
+                    const auto& hash = it.first;
+                    std::string filename = hashToFileName( hash );
+                    fs::remove( fs::path(m_driveFolder) / filename );
+                    fs::remove( fs::path(m_torrentFolder) / filename );
+                }
             }
+
+            //
+            // Add missing files
+            //
+            for( const auto& fileHash : m_catchingUpFileSet )
+            {
+                if ( m_stopSecondaryThread )
+                    return;
+
+                auto fileName = toString( fileHash );
+
+                // Add torrent into session
+                auto tHandle = m_session->addTorrentFileToSession( m_torrentFolder / fileName,
+                                                                   m_driveFolder,
+                                                                   lt::sf_is_replicator );
+
+                _ASSERT( tHandle.is_valid() );
+                m_torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{tHandle,true} );
+            }
+
+            // Add FsTree torrent to session
+            m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
+                                                                   m_fsTreeTorrent.parent_path(),
+                                                                   lt::sf_is_replicator );
+
+            // remove unused data from 'torrentMap'
+            std::erase_if( m_torrentHandleMap, [] (const auto& it) { return !it.second.m_isUsed; } );
+
+            LOG( "drive is synchronized" );
+
+            // clear sandbox
+            fs::remove_all( m_sandboxRootPath );
+            
+            m_session->lt_session().get_context().post( [=,this]
+            {
+                m_fsTree = m_sandboxFsTree;
+                m_rootHash = m_sandboxRootHash;
+
+                // Call update handler
+                if ( m_dbgEventHandler )
+                    m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
+
+                //(+++)
+                m_catchingUpRequest.reset();
+                modifyIsCompleted();
+            });
         }
-
-        //
-        // Add missing files
-        //
-        for( const auto& fileHash : m_catchingUpFileSet )
+        catch ( const std::exception& ex )
         {
-            if ( m_stopSecondaryThread )
-                return;
-
-            auto fileName = toString( fileHash );
-
-            // Add torrent into session
-            auto tHandle = m_session->addTorrentFileToSession( m_torrentFolder / fileName,
-                                                               m_driveFolder,
-                                                               lt::sf_is_replicator );
-
-            _ASSERT( tHandle.is_valid() );
-            m_torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{tHandle,true} );
+            _LOG( "!ERROR!: completeCatchingUp error: " << ex.what() );
+            _ASSERT(0);
         }
-
-        // Add FsTree torrent to session
-        _LOG( "Add FsTree torrent to session: " << toString(m_rootHash) );
-        m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
-                                                               m_fsTreeTorrent.parent_path(),
-                                                               lt::sf_is_replicator );
-
-        // remove unused data from 'torrentMap'
-        std::erase_if( m_torrentHandleMap, [] (const auto& it) { return !it.second.m_isUsed; } );
-
-        // Call update handler
-        if ( m_dbgEventHandler )
-            m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
-
-        LOG( "drive is synchronized" );
-
-        // clear sandbox
-        fs::remove_all( m_sandboxRootPath );
-        m_session->lt_session().get_context().post( [=,this]
-        {
-            modifyIsCompleted();
-        });
-    }
-    catch ( const std::exception& ex )
-    {
-        LOG( "!ERROR!: completeCatchingUp error: " << ex.what() );
-        exit(-1);
     }
     
 // It will be used after restart to clear disc !!!

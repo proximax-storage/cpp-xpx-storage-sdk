@@ -454,6 +454,7 @@ int main(int,char**)
     EXLOG( "\n# Client started: 1-st upload" );
     {
         ActionList actionList;
+        actionList.push_back( Action::newFolder( "fff0/" ) );
         actionList.push_back( Action::newFolder( "fff1/" ) );
         actionList.push_back( Action::newFolder( "fff1/ffff1" ) );
         actionList.push_back( Action::upload( clientFolder / "a.txt", "fff2/a.txt" ) );
@@ -513,6 +514,10 @@ int main(int,char**)
     EXLOG( "# Client started: 2-st upload/modify" );
     {
         ActionList actionList;
+
+//        actionList.push_back( Action::upload( clientFolder / "a.txt", "fff0/a.txt" ) );
+        actionList.push_back( Action::upload( clientFolder / "a.txt", "fff0" ) );
+
         actionList.push_back( Action::remove( "fff1/" ) );
         actionList.push_back( Action::remove( "fff2/" ) );
 

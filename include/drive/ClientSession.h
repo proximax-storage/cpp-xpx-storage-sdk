@@ -183,15 +183,20 @@ protected:
 
     void signHandshake( const uint8_t* bytes, size_t size, std::array<uint8_t,64>& signature ) override
     {
-        _LOG( "SIGN HANDSHAKE: " << m_keyPair.publicKey() )
         crypto::Sign( m_keyPair, utils::RawBuffer{bytes,size}, reinterpret_cast<Signature&>(signature) );
+        _LOG( "SIGN HANDSHAKE: " << int(signature[0]) )
     }
 
     virtual bool verifyHandshake( const uint8_t* bytes, size_t size,
                                   const std::array<uint8_t,32>& publicKey,
                                   const std::array<uint8_t,64>& signature ) override
     {
-        return crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
+        //_LOG( "verifyHandshake: " << int(signature[0]) )
+
+        bool ok = crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
+        if ( !ok )
+            LOG_ERR( "verifyHandshake: failed" )
+        return ok;
     }
 
     const std::array<uint8_t,32>& publicKey() override

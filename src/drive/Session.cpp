@@ -870,6 +870,8 @@ private:
                 case lt::torrent_finished_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_finished_alert*>(alert);
 //                    _LOG( "*** lt::torrent_finished_alert:" << m_downloadLimiter->dbgOurPeerName() << " " << theAlert->handle.info_hashes().v2 );
+                    //TODO save torrent file???
+                    //lt::torrent_status st = theAlert->handle.status( lt::torrent_handle::query_torrent_file );
 
                     if ( auto it = m_downloadMap.find(theAlert->handle.id()); it != m_downloadMap.end() )
                     {

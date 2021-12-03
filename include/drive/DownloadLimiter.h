@@ -137,7 +137,10 @@ public:
         {
             return it->second;
         }
-        throw std::runtime_error( "unknown modify transaction hash" );
+        LOG_ERR( "getMyDownloadOpinion: unknown modify transaction hash" );
+        
+        //(+++) ???
+        return {};
     }
 
 
@@ -181,7 +184,7 @@ public:
         {
             if ( it->second.m_prepaidDownloadSize <= prepaidDownloadSize )
             {
-                throw std::runtime_error( "addChannelInfo: invalid prepaidDownloadSize" );
+                LOG_ERR( "addChannelInfo: invalid prepaidDownloadSize: " << it->second.m_prepaidDownloadSize << " <= " << prepaidDownloadSize );
             }
             it->second.m_prepaidDownloadSize = prepaidDownloadSize;
 
@@ -521,6 +524,7 @@ public:
     {
         DBG_MAIN_THREAD
         crypto::Sign( m_keyPair, utils::RawBuffer{bytes,size}, reinterpret_cast<Signature&>(signature) );
+        //_LOG( "SIGN HANDSHAKE: " << int(signature[0]) )
     }
 
     bool verifyHandshake( const uint8_t*                 bytes,
@@ -529,9 +533,11 @@ public:
                           const std::array<uint8_t,64>&  signature ) override
     {
         DBG_MAIN_THREAD
+        
+        //_LOG( "verifyHandshake: " << int(signature[0]) )
         bool ok = crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );;
         if ( !ok ) {
-            std::cout << "PROOBLEMS " << std::endl;
+            LOG_ERR( "PROOBLEMS " );
         }
         return crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
     }
