@@ -808,35 +808,11 @@ private:
                     break;
                 }
 
-//                case lt::file_completed_alert::alert_type: {
-//                    auto *theAlert = dynamic_cast<lt::file_completed_alert *>(alert);
-//                    _LOG( "*** lt::file_completed_alert:" << m_downloadLimiter->dbgOurPeerName() << " " << theAlert->index );
-//
-////                    auto it = m_downloadMap.find(theAlert->handle.id());
-//
-////                    if ( it != m_downloadMap.end() )
-////                    {
-////                        // get peers info
-//////                        std::vector<lt::peer_info> peers;
-//////                        theAlert->handle.get_peer_info(peers);
-//
-//////                        for (const lt::peer_info &pi : peers)
-//////                        {
-//////                            LOG("Peer ip: " << pi.ip.address().to_string())
-//////                            LOG("Peer id: " << pi.pid.to_string())
-//
-//////                            // the total number of bytes downloaded from and uploaded to this peer.
-//////                            // These numbers do not include the protocol chatter, but only the
-//////                            // payload data.
-//////                            LOG("Total download: " << pi.total_download)
-//////                            LOG("Total upload: " << pi.total_upload)
-//////                        }
-//
-////                        // remove torrent
-////                        m_session.remove_torrent( theAlert->handle, lt::session::delete_partfile );
-////                    }
-//                    break;
-//                }
+                case lt::file_completed_alert::alert_type: {
+                    auto *theAlert= dynamic_cast<lt::file_completed_alert *>(alert);
+                    _LOG( "*** file_completed_alert:" << theAlert->handle.torrent_file()->files().file_path(0) );
+                    break;
+                }
 
 
                 case lt::torrent_error_alert::alert_type: {
@@ -870,6 +846,7 @@ private:
 
                 case lt::torrent_finished_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_finished_alert*>(alert);
+                    _LOG( "*** torrent_finished_alert:" << theAlert->handle.torrent_file()->files().file_path(0) );
 //                    _LOG( "*** lt::torrent_finished_alert:" << m_downloadLimiter->dbgOurPeerName() << " " << theAlert->handle.info_hashes().v2 );
                     //TODO save torrent file???
                     //lt::torrent_status st = theAlert->handle.status( lt::torrent_handle::query_torrent_file );
