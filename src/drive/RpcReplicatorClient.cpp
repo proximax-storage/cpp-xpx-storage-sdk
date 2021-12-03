@@ -4,7 +4,10 @@
 *** license that can be found in the LICENSE file.
 */
 
+#include <random>
 #include "drive/RpcReplicatorClient.h"
+#include "crypto/Hashes.h"
+
 namespace sirius::drive {
     RpcReplicatorClient::RpcReplicatorClient( const crypto::KeyPair& keyPair,
                                               const std::string& remoteRpcAddress,
@@ -79,7 +82,7 @@ namespace sirius::drive {
 
     void RpcReplicatorClient::addDrive(const Key& driveKey, const uint64_t driveSize, AddDriveCallback callback)
     {
-        std::cout << "Client. PrepareDriveTransaction: " << driveKey << std::endl;
+        std::cout << "Client. PrepareDriveTransaction: " << driveKey << " : " << std::this_thread::get_id() << std::endl;
 
         types::RpcPrepareDriveTransactionInfo rpcPrepareDriveTransactionInfo;
         rpcPrepareDriveTransactionInfo.m_clientPubKey = getPubKey();
@@ -94,10 +97,13 @@ namespace sirius::drive {
 
         rpcPrepareDriveTransactionInfo.m_rpcClientInfo = rpcClientInfo;
 
-        if (m_addedDrives.contains(driveKey.array())) {
-            std::cout << "Client. addDrive. Hash already exists: " << driveKey << std::endl;
-        } else {
-            m_addedDrives.insert(std::pair<std::array<uint8_t,32>, std::function<void(const std::array<uint8_t,32>& drivePubKey)>>(driveKey.array(), callback));
+        {
+            std::scoped_lock lock(m_addedDrivesMutex);
+            if (m_addedDrives.contains(rpcPrepareDriveTransactionInfo.m_driveKey)) {
+                std::cout << "Client. addDrive. Hash already exists: " << driveKey << std::endl;
+            } else {
+                m_addedDrives.insert(std::pair<std::array<uint8_t,32>, std::function<void(const std::array<uint8_t,32>& drivePubKey)>>(rpcPrepareDriveTransactionInfo.m_driveKey, callback));
+            }
         }
 
         m_rpcClient->call( "PrepareDriveTransaction", rpcPrepareDriveTransactionInfo );
@@ -177,15 +183,21 @@ namespace sirius::drive {
         rpcDataModification.m_maxDataSize = maxDataSize;
         rpcDataModification.m_rpcReplicators = rpcDriveInfo.m_rpcReplicators;
 
+        // Generate randomly (for callbacks)
+        rpcDataModification.m_transactionHash = getRandomHash().array();
+
         types::RpcClientInfo rpcClientInfo;
         rpcClientInfo.m_address = m_address;
         rpcClientInfo.m_rpcPort = m_rpcPort;
         rpcClientInfo.m_clientPubKey = rpcDataModification.m_clientPubKey;
 
-        if (m_endDriveModificationHashes.contains(rpcDataModification.m_transactionHash)) {
-            std::cout << "Client. modifyDrive. Hash already exists: " << utils::HexFormat(rpcDataModification.m_transactionHash) << std::endl;
-        } else {
-            m_endDriveModificationHashes.insert(std::pair<std::array<uint8_t,32>, std::function<void()>>(rpcDataModification.m_transactionHash, endDriveModificationCallback));
+        {
+            std::scoped_lock lock(m_endDriveModificationsMutex);
+            if (m_endDriveModificationHashes.contains(rpcDataModification.m_transactionHash)) {
+                std::cout << "Client. modifyDrive. Hash already exists: " << utils::HexFormat(rpcDataModification.m_transactionHash) << std::endl;
+            } else {
+                m_endDriveModificationHashes.insert(std::pair<std::array<uint8_t,32>, std::function<void()>>(rpcDataModification.m_transactionHash, endDriveModificationCallback));
+            }
         }
 
         m_rpcClient->call( "DataModificationTransaction", rpcDataModification, rpcClientInfo );
@@ -193,6 +205,7 @@ namespace sirius::drive {
 
     void RpcReplicatorClient::downloadFsTree(const Key& drivePubKey,
                                              const std::array<uint8_t,32>& channelKey,
+                                             const std::string& destinationFolder,
                                              DownloadFsTreeCallback callback,
                                              const uint64_t downloadLimit) {
 
@@ -205,7 +218,18 @@ namespace sirius::drive {
         std::cout << "Client. downloadFsTree. channelKey: " << utils::HexFormat(channelKey) << std::endl;
         std::cout << "Client. downloadFsTree. InfoHash: " << utils::HexFormat(rpcDriveInfo.m_rootHash) << std::endl;
 
-        auto handler = [this, drivePubKey, callback](download_status::code code,
+        std::stringstream stream;
+        stream << utils::HexFormat(drivePubKey.array());
+        const std::string drivePubKeyHex = stream.str();
+
+        std::string pathToFsTree = destinationFolder;
+        if (destinationFolder.back() != '/') {
+            pathToFsTree += '/';
+        }
+
+        pathToFsTree += drivePubKeyHex + "/fstree";
+
+        auto handler = [drivePubKey, callback, drivePubKeyHex, pathToFsTree](download_status::code code,
                                   const InfoHash& infoHash,
                                   const std::filesystem::path filePath,
                                   size_t downloaded,
@@ -216,7 +240,7 @@ namespace sirius::drive {
             {
                 std::cout << "Client. downloadHandler. Client received FsTree: " << toString(infoHash) << std::endl;
 
-                fsTree.deserialize( m_rootFolder / "drives" / std::string(drivePubKey.begin(), drivePubKey.end()) / "fsTree-folder" / "FsTree.bin" );
+                fsTree.deserialize( pathToFsTree + "/FsTree.bin" );
                 fsTree.dbgPrint();
 
                 callback(fsTree, code);
@@ -229,17 +253,17 @@ namespace sirius::drive {
         };
 
         DownloadContext downloadContext( DownloadContext::fs_tree, handler, rpcDriveInfo.m_rootHash, channelKey, 0 );
-        m_clientSession->download( std::move(downloadContext), m_rootFolder / "drives" / std::string(drivePubKey.begin(), drivePubKey.end()) / "fsTree-folder");
+        m_clientSession->download( std::move(downloadContext), pathToFsTree);
     }
 
-    void RpcReplicatorClient::downloadData(const Folder& folder, DownloadDataCallabck callback) {
+    void RpcReplicatorClient::downloadData(const Folder& folder, const std::string& destinationFolder, DownloadDataCallabck callback) {
         std::cout << "Client. downloadData. Folder: " << folder.name() << std::endl;
 
         for( const auto& child: folder.childs() )
         {
             if ( isFolder(child) )
             {
-                downloadData( getFolder(child), callback );
+                downloadData( getFolder(child), destinationFolder, callback);
             }
             else
             {
@@ -249,7 +273,7 @@ namespace sirius::drive {
                     folderName = folder.name();
 
                 std::cout << "Client. downloadData. Client started download file " << hashToFileName( file.hash() ) << std::endl;
-                std::cout << "Client. downloadData. to " << m_rootFolder / "downloaded_files" / folderName  / file.name() << std::endl;
+                std::cout << "Client. downloadData. to " << destinationFolder + "/" + folderName + "/" + file.name() << std::endl;
 
                 auto handler = [callback](download_status::code code,
                                               const InfoHash& infoHash,
@@ -260,12 +284,39 @@ namespace sirius::drive {
                     callback(code, infoHash, filePath, downloaded, fileSize, errorText);
                 };
 
-                DownloadContext downloadContext(
-                        DownloadContext::file_from_drive, handler, file.hash(), {}, 0, m_rootFolder / "downloaded_files" / folderName / file.name() );
+                DownloadContext downloadContext(DownloadContext::file_from_drive,
+                                                handler,
+                                                file.hash(),
+                                                {},
+                                                0,
+                                                destinationFolder + "/" + folderName + "/" + file.name() );
+                                                //destinationFolder + "/" + folderName + "/" + file.name() );
 
-                m_clientSession->download( std::move(downloadContext), m_rootFolder / "downloaded_files" );
+                m_clientSession->download( std::move(downloadContext), destinationFolder );
             }
         }
+    }
+
+    void RpcReplicatorClient::downloadData(const InfoHash& hash, const std::string& tempFolder, const std::string& destinationFolder, DownloadDataCallabck callback) {
+        std::cout << "Client. downloadData. Client started download file: " << hashToFileName( hash ) << " : hash: " << toString(hash) << std::endl;
+
+        auto handler = [callback](download_status::code code,
+                                  const InfoHash& infoHash,
+                                  const std::filesystem::path filePath,
+                                  size_t downloaded,
+                                  size_t fileSize,
+                                  const std::string& errorText) {
+            callback(code, infoHash, filePath, downloaded, fileSize, errorText);
+        };
+
+        DownloadContext downloadContext(DownloadContext::file_from_drive,
+                                        handler,
+                                        hash,
+                                        {},
+                                        0,
+                                        destinationFolder);
+
+        m_clientSession->download( std::move(downloadContext), tempFolder );
     }
 
     std::filesystem::path RpcReplicatorClient::createClientFiles( size_t bigFileSize ) {
@@ -310,6 +361,7 @@ namespace sirius::drive {
     void RpcReplicatorClient::driveModificationIsCompleted(const types::RpcEndDriveModificationInfo& rpcEndDriveModificationInfo) {
         std::cout << "Client. driveModificationIsCompleted: " << utils::HexFormat(rpcEndDriveModificationInfo.m_modifyTransactionHash) << std::endl;
 
+        std::shared_lock lock(m_endDriveModificationsMutex);
         if (m_endDriveModificationHashes.contains(rpcEndDriveModificationInfo.m_modifyTransactionHash)) {
             m_endDriveModificationHashes[rpcEndDriveModificationInfo.m_modifyTransactionHash]();
         } else {
@@ -318,8 +370,9 @@ namespace sirius::drive {
     }
 
     void RpcReplicatorClient::driveAdded(const std::array<uint8_t,32>& drivePubKey) {
-        std::cout << "Client. driveAdded." << utils::HexFormat(drivePubKey) << std::endl;
+        std::cout << "Client. driveAdded." << utils::HexFormat(drivePubKey) << " : " << std::this_thread::get_id() << std::endl;
 
+        std::shared_lock lock(m_addedDrivesMutex);
         if (m_addedDrives.contains(drivePubKey)) {
             m_addedDrives[drivePubKey](drivePubKey);
         } else {
@@ -337,5 +390,21 @@ namespace sirius::drive {
 
     const std::array<uint8_t,32>& RpcReplicatorClient::getPubKey() const {
         return m_keyPair.publicKey().array();
+    }
+
+    Hash256 RpcReplicatorClient::getRandomHash() {
+        // init random
+        std::random_device rd;
+        std::mt19937_64 gen(rd());
+        std::uniform_int_distribution<uint64_t> dis;
+
+        // generate random hash
+        const std::string randomData = std::to_string(dis(gen));
+
+        utils::RawBuffer rawBuffer(reinterpret_cast<const unsigned char *>(randomData.data()), randomData.size());
+
+        Hash256 hash;
+        crypto::Sha3_256(rawBuffer, hash);
+        return hash;
     }
 }

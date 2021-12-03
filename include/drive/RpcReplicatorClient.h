@@ -6,6 +6,7 @@
 #pragma once
 
 #include <filesystem>
+#include <shared_mutex>
 #include "types.h"
 #include "plugins.h"
 #include "RpcTypes.h"
@@ -67,10 +68,12 @@ public:
 
     void downloadFsTree(const Key& drivePubKey,
                         const std::array<uint8_t,32>& channelKey,
+                        const std::string& destinationFolder,
                         DownloadFsTreeCallback callback,
                         const uint64_t downloadLimit = 0);
 
-    void downloadData(const Folder& folder, DownloadDataCallabck callback);
+    void downloadData(const Folder& folder, const std::string& destinationFolder, DownloadDataCallabck callback);
+    void downloadData(const InfoHash& hash, const std::string& tempFolder, const std::string& destinationFolder, DownloadDataCallabck callback);
 
     std::filesystem::path createClientFiles( size_t bigFileSize );
 
@@ -83,6 +86,8 @@ public:
 
     const std::array<uint8_t,32>& getPubKey() const;
 
+    static Hash256 getRandomHash();
+
 private:
     const crypto::KeyPair& m_keyPair;
     std::thread m_rpcServerThread;
@@ -93,6 +98,8 @@ private:
     std::shared_ptr<rpc::server> m_rpcServer;
     std::filesystem::path m_rootFolder;
     std::string m_address;
+    std::shared_mutex m_addedDrivesMutex;
+    std::shared_mutex m_endDriveModificationsMutex;
     int m_rpcPort;
 };
 }
