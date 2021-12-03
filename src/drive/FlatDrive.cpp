@@ -1258,16 +1258,19 @@ public:
         _LOG( "REMOVE "  << toBeRemovedTorrents.begin()->is_valid() );
 
         // Remove unused torrents
-        m_backgroundExecutor.run([this, nextStep] {
+        m_session->removeTorrentsFromSession( toBeRemovedTorrents, [this, nextStep]
+        {
+            m_backgroundExecutor.run([this, nextStep] {
 
-            DBG_SECONDARY_THREAD
+                DBG_SECONDARY_THREAD
 
-            nextStep();
-            }, [this] {
+                nextStep();
+                }, [this] {
 
-            DBG_MAIN_THREAD
+                DBG_MAIN_THREAD
 
-            processNextStepAfterTaskStop();
+                processNextStepAfterTaskStop();
+            });
         });
 //        m_session->removeTorrentsFromSession( toBeRemovedTorrents, [this, nextStep]
 //        {

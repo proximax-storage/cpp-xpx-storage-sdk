@@ -14,8 +14,8 @@ class BackgroundExecutor
 public:
     explicit BackgroundExecutor(std::shared_ptr<Session> session);
 
-    void run(const std::function<void()> &task,
-             const std::function<void()> &callBack);
+    void run(const std::function<void()>& task,
+             const std::function<void()>& callBack);
 
 private:
     std::shared_ptr<Session> m_session;
