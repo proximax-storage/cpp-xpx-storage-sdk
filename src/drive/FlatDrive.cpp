@@ -1227,7 +1227,7 @@ public:
         // Remove unused torrents
         m_session->removeTorrentsFromSession( toBeRemovedTorrents, [this, nextStep]
         {
-            m_backgroundExecutor.run([this, nextStep]
+            m_backgroundExecutor.run([nextStep]
                  {
                      nextStep();
                  }, [this]

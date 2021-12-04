@@ -12,16 +12,35 @@ namespace sirius::drive {
 class BackgroundExecutor
 {
 public:
-    explicit BackgroundExecutor(std::shared_ptr<Session> session);
+    explicit BackgroundExecutor(std::shared_ptr<Session> session)
+            : m_session(session),
+              m_work(m_context),
+              m_thread(std::thread([this]
+               {
+                   m_context.run();
+               }))
+    {
+    }
 
-    void run(const std::function<void()>& task,
-             const std::function<void()>& callBack);
+    ~BackgroundExecutor()
+    {
+        m_context.stop();
+    }
+
+    void run(const std::function<void()>& task, const std::function<void()>& callBack)
+    {
+        m_context.post( [=,this]
+        {
+            task();
+            m_session->lt_session().get_context().post(callBack);
+        });
+    }
 
 private:
-    std::shared_ptr<Session> m_session;
-    boost::asio::io_context m_context;
-    boost::asio::io_context::work m_work;
-    std::thread m_thread;
+    std::shared_ptr<Session>        m_session;
+    boost::asio::io_context         m_context;
+    boost::asio::io_context::work   m_work;
+    std::thread                     m_thread;
 };
 
 }
