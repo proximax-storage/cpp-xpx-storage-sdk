@@ -197,17 +197,18 @@ namespace sirius::drive::test {
             EXLOG("modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
 
-            for (const auto &opinion: transactionInfo.m_opinions) {
-                std::cout << " key:" << int(opinion.m_replicatorKey[0]) << " ";
-                for (size_t i = 0; i < opinion.m_uploadLayout.size(); i++) {
-                    std::cout << int(opinion.m_uploadLayout[i].m_key[0]) << ":"
-                    << opinion.m_uploadLayout[i].m_uploadedBytes << " ";
-                }
-                std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
-            }
-
             if (m_pendingModifications.front() == transactionInfo.m_modifyTransactionHash) {
 
+                EXLOG( toString(transactionInfo.m_modifyTransactionHash) );
+
+                for (const auto &opinion: transactionInfo.m_opinions) {
+                    std::cout << " key:" << int(opinion.m_replicatorKey[0]) << " ";
+                    for (size_t i = 0; i < opinion.m_uploadLayout.size(); i++) {
+                        std::cout << int(opinion.m_uploadLayout[i].m_key[0]) << ":"
+                        << opinion.m_uploadLayout[i].m_uploadedBytes << " ";
+                    }
+                    std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
+                }
 
                 m_pendingModifications.pop_front();
                 m_lastApprovedModification = transactionInfo.m_modifyTransactionHash;
@@ -226,7 +227,8 @@ namespace sirius::drive::test {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
             if (transactionInfo.m_modifyTransactionHash == m_lastApprovedModification.array())
             {
-                EXLOG("modifySingleApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
+                EXLOG("modifySingleApprovalTransactionIsReady: " << replicator.dbgReplicatorName()
+                << " " << toString(transactionInfo.m_modifyTransactionHash) );
                 std::thread([&replicator, transactionInfo] {
                     replicator.asyncSingleApprovalTransactionHasBeenPublished(transactionInfo);
                 }).detach();

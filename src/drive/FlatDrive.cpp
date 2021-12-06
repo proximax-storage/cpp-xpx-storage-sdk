@@ -1684,7 +1684,7 @@ public:
         DBG_MAIN_THREAD
         
         m_downloadingLtHandle.reset();
-        
+
         if ( m_catchingUpFileIt == m_catchingUpFileSet.end() )
         {
             // it is the end of list
