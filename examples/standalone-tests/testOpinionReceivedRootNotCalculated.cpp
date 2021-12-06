@@ -90,9 +90,7 @@ namespace sirius::drive::test {
                     m_lastApprovedModification = transactionInfo.m_modifyTransactionHash;
 
                     for (const auto &r: m_replicators) {
-                        std::thread([r, transactionInfo] {
-                            r->asyncApprovalTransactionHasBeenPublished(transactionInfo);
-                        }).detach();
+                        r->asyncApprovalTransactionHasBeenPublished(transactionInfo);
                     }
                 }
             }

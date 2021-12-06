@@ -550,9 +550,29 @@ public:
     void modifyIsCompleted()
     {
         DBG_MAIN_THREAD
-        
-        _LOG( "modifyIsCompleted" );
-        m_modifyRequest.reset();
+
+        _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
+
+        m_fsTree = m_sandboxFsTree;
+        m_rootHash = m_sandboxRootHash;
+
+        Hash256 modificationHash;
+        if ( m_modifyRequest )
+        {
+            _LOG( "modifyIsCompleted" );
+            modificationHash = m_modifyRequest->m_transactionHash;
+            m_modifyRequest.reset();
+        }
+        else {
+            _LOG( "catchingUpIsCompleted" );
+            modificationHash = m_catchingUpRequest->m_modifyTransactionHash;
+            m_catchingUpRequest.reset();
+        }
+
+        // Call update handler
+        if ( m_dbgEventHandler )
+            m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, modificationHash, m_rootHash );
+
 
         if ( !m_defferedModifyRequests.empty() )
         {
@@ -1252,8 +1272,6 @@ public:
             // update FsTree file & torrent
             fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
             fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
-            m_fsTree = m_sandboxFsTree;
-            m_rootHash = m_sandboxRootHash;
 
             // remove unused files and torrent files from the drive
             for( const auto& it : m_torrentHandleMap )
@@ -1291,12 +1309,6 @@ public:
             m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
                                                                    m_fsTreeTorrent.parent_path(),
                                                                    lt::sf_is_replicator );
-
-            // Call update handler
-            if ( m_dbgEventHandler )
-                m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
-
-            LOG( "drive is synchronized" );
 
             // clear sandbox
             fs::remove_all( m_sandboxRootPath );
@@ -1514,7 +1526,7 @@ public:
     void sendSingleApprovalTransaction()
     {
         DBG_MAIN_THREAD
-        
+
         auto copy = *m_myOpinion;
         m_eventHandler.singleModifyApprovalTransactionIsReady( m_replicator, std::move(copy) );
     }
@@ -1815,8 +1827,6 @@ public:
 
             fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
             fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
-//            m_fsTree = m_sandboxFsTree;
-//            m_rootHash = m_sandboxRootHash;
 
             // remove unused files and torrent files from the drive
             for( const auto& it : m_torrentHandleMap )
@@ -1862,15 +1872,6 @@ public:
             
             m_session->lt_session().get_context().post( [=,this]
             {
-                m_fsTree = m_sandboxFsTree;
-                m_rootHash = m_sandboxRootHash;
-
-                // Call update handler
-                if ( m_dbgEventHandler )
-                    m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_rootHash );
-
-                //(+++)
-                m_catchingUpRequest.reset();
                 modifyIsCompleted();
             });
         }

@@ -114,15 +114,9 @@ namespace sirius::drive::test {
         EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);
 
-//        auto downloadChannel = randomByteArray<Key>();
-//        env.downloadFromDrive(DRIVE_PUB_KEY, DownloadRequest{
-//                downloadChannel,
-//                10000000,
-//                env.m_addrList,
-//                {client.m_clientKeyPair.publicKey()}
-//        });
+        auto downloadChannel = randomByteArray<Key>();
 
-//        client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification], downloadChannel, env.m_addrList);
+        client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification], downloadChannel, env.m_addrList);
 
         std::this_thread::sleep_for(std::chrono::seconds(20));
         std::cout << "WAKE UP" << std::endl;

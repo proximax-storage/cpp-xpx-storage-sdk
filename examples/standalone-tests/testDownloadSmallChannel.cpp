@@ -125,7 +125,7 @@ namespace sirius::drive::test {
 
 //        client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification], downloadChannel, env.m_addrList);
 
-        client.waitForDownloadComplete(env.m_lastApprovedModification);
+//        client.waitForDownloadComplete(env.m_lastApprovedModification);
     }
 
 #undef TEST_NAME

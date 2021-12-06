@@ -92,6 +92,7 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
                                const ReplicatorList &replicatorList)
         {
             auto downloadChannelId = Hash256(downloadChannelKey.array());
+            m_clientSession->setDownloadChannel(replicatorList, downloadChannelId);
             m_clientSession->download(DownloadContext(
                                               DownloadContext::fs_tree,
                                               [this] (download_status::code code,
