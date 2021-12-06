@@ -64,47 +64,6 @@ namespace sirius::drive {
 #define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
 #define DBG_SECONDARY_THREAD { assert( m_dbgThreadId != std::this_thread::get_id() ); }
 
-//class SecondaryThread
-//{
-//protected:
-//    std::thread::id m_dbgThreadId;
-//
-//protected:
-//    SecondaryThread() {}
-//
-//    void runTask( std::function<void()> task )
-//    {
-//        _ASSERT( !m_isRunning );
-//        m_isRunning = true;
-//        m_shouldBeBroken = false;
-//
-//        m_thread = std::thread( [=]
-//        {
-//            task();
-//            m_isRunning = false;
-//
-//            //m_thread.join();
-//        });
-//
-//
-//        m_isRunning = false;
-//    }
-//
-//    void breakTask( std::optional<std::function<void()>> callAfterTheEnd )
-//    {
-//        m_shouldBeBroken = true;
-//    }
-//
-//private:
-//    bool        m_isRunning       = false;
-//    bool        m_shouldBeBroken = false;
-//
-//private:
-//    std::thread                          m_thread;
-//    std::mutex                           m_mutex;
-//    std::optional<std::function<void()>> m_callAfterTheEnd;
-//};
-
 //
 // DrivePaths - drive paths, used at replicator side
 //
@@ -162,38 +121,60 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
         bool      m_isUsed = true;
     };
 
-    LtSession     m_session;
-    BackgroundExecutor m_backgroundExecutor;
+    LtSession           m_session;
 
-    size_t        m_maxSize;
+    // It is as 1-st parameter in functions of ReplicatorEventHandler (for debugging)
+    Replicator&         m_replicator;
 
-    // It has the following statuses: "modification started", "sandbox calculated", modification approved"
-    std::shared_mutex m_mutex;
-    bool m_modifyUserDataReceived     = false;
-    bool m_sandboxCalculated          = false;
-    std::optional<Hash256> m_approveTransactionReceived;
-    bool m_approveTransactionSent     = false; // approval transaction has been sent
-    bool m_modificationIsCanceling    = false;
+    BackgroundExecutor  m_backgroundExecutor;
 
-    // It will be not empty while drive is catching-up (syncronizing with swarm)
+    size_t              m_maxSize;
+
+    // List of replicators that support this drive
+    ReplicatorList    m_replicatorList;
+    
+    // Replicator event handlers
+    ReplicatorEventHandler&     m_eventHandler;
+    DbgReplicatorEventHandler*  m_dbgEventHandler = nullptr;
+    
+    //
+    bool m_modifyUserDataReceived       = false;
+    bool m_sandboxCalculated            = false;
+    bool m_modifyApproveTransactionSent = false;
+
+    std::optional<Hash256>            m_receivedModifyApproveTx;
+    
+    //
+    // Drive state
+    //
+    
+    InfoHash                            m_rootHash;
+
+    bool                                m_driveIsInitializing = true;
     std::optional<CatchingUpRequest>    m_catchingUpRequest;
+    std::optional<ModifyRequest>        m_modifyRequest;
+    bool                                m_modificationIsCanceling = false;
+
+    std::optional<std::function<void()>> m_nextStepAfterTaskStop;
+
+    //
+    // Request queue
+    //
+    
+    std::optional<Hash256>              m_removeDriveTx = {};
     std::optional<CatchingUpRequest>    m_newCatchingUpRequest;
+    std::deque<ModifyRequest>           m_defferedModifyRequests;
+
+    //
+    // Task data
+    //
+    bool                                 m_taskMustBeBroken = false;
+    bool                                 m_taskIsBroken     = false;
+
+    std::optional<lt_handle>             m_downloadingLtHandle; // used for removing torrent from session
 
     std::set<InfoHash>                  m_catchingUpFileSet;
     std::set<InfoHash>::iterator        m_catchingUpFileIt = m_catchingUpFileSet.end();
-
-    // It is used when drive is closing
-    std::optional<Hash256> m_removeDriveTx = {};
-
-    // Client data (for drive modification)
-    std::optional<ModifyRequest> m_modifyRequest;
-
-    std::optional<lt_handle>     m_downloadingLtHandle; // used for removing torrent from session
-    std::optional<std::function<void()>> m_nextStepAfterTaskStop;
-
-    // It is needed if a new 'modifyRequest' is received, but drive could not start it immediately
-    // (is syncing with sandbox?)
-    std::deque<ModifyRequest> m_defferedModifyRequests;
 
     // FsTree
     FsTree        m_fsTree;
@@ -201,42 +182,38 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     lt_handle     m_fsTreeLtHandle; // used for removing FsTree torrent from session
 
     // Root hashes
-    InfoHash      m_rootHash;
     InfoHash      m_sandboxRootHash;
 
-    // List of replicators that support this drive
-    ReplicatorList    m_replicatorList;
-    
-    // opinion
+    //
+    // 'modify' opinion
+    //
     std::optional<ApprovalTransactionInfo>  m_myOpinion;
-    std::optional<Hash256> m_trafficIdentifier;
-    uint64_t m_expectedCumulativeDownload;
-    uint64_t m_accountedCumulativeDownload = 0;
+    
+    // It is needed for right calculation of my 'modify' opinion
+    std::optional<Hash256>                  m_opinionTrafficIdentifier;
+    uint64_t                                m_expectedCumulativeDownload;
+    uint64_t                                m_accountedCumulativeDownload = 0;
+    std::map<Key, uint64_t>                 m_cumulativeUploads;
+    std::map<Key, uint64_t>                 m_lastAccountedUploads;
 
     // opinions from other replicators
     // key of the outer map is modification id
     // key of the inner map is a replicator key, one replicator one opinion
     std::map<Hash256, std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>>    m_otherOpinions;
     
-    std::optional<boost::asio::high_resolution_timer> m_opinionTimer;
+    std::optional<boost::asio::high_resolution_timer> m_modifyOpinionTimer;
 
-    ReplicatorEventHandler&     m_eventHandler;
-    DbgReplicatorEventHandler*  m_dbgEventHandler = nullptr;
-    
-    // It is as 1-st parameter in functions of ReplicatorEventHandler (for debugging)
-    Replicator&             m_replicator;
-
+    //
     // TorrentHandleMap is used to avoid adding torrents into session with the same hash
     // and for deleting unused files and torrents from session
-    std::map<InfoHash,UseTorrentInfo> m_torrentHandleMap;
+    //
+    std::map<InfoHash,UseTorrentInfo>       m_torrentHandleMap;
 
-    std::map<Key, uint64_t> m_cumulativeUploads;
-    std::map<Key, uint64_t> m_lastAccountedUploads;
-    
-    const char*             m_dbgOurPeerName = "";
-    std::thread::id         m_dbgThreadId;
+    // For debugging:
+    const char*                             m_dbgOurPeerName = "";
+    std::thread::id                         m_dbgThreadId;
+
 public:
-
     DefaultFlatDrive(
                   std::shared_ptr<Session>  session,
                   const std::string&        replicatorRootFolder,
@@ -251,13 +228,13 @@ public:
         :
           FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
           m_session(session),
+          m_replicator(replicator),
           m_backgroundExecutor(session),
           m_maxSize(maxSize),
           m_replicatorList(replicatorList),
-          m_expectedCumulativeDownload(usedDriveSizeExcludingMetafiles),
           m_eventHandler(eventHandler),
           m_dbgEventHandler(dbgEventHandler),
-          m_replicator(replicator),
+          m_expectedCumulativeDownload(usedDriveSizeExcludingMetafiles),
           m_dbgOurPeerName(replicator.dbgReplicatorName())
     {
         m_dbgThreadId = std::this_thread::get_id();
@@ -287,12 +264,7 @@ public:
         return m_rootHash;
     }
     
-    InfoHash sandboxRootHash() const override {
-        return m_sandboxRootHash;
-    }
-
     ReplicatorList getReplicators() override {
-        std::scoped_lock<std::shared_mutex> lock(m_mutex);
         return m_replicatorList;
     }
 
@@ -305,7 +277,6 @@ public:
             return;
         }
 
-        std::scoped_lock<std::shared_mutex> lock(m_mutex);
         for (const ReplicatorInfo& ri : replicators) {
             const auto& r = std::find(m_replicatorList.begin(), m_replicatorList.end(), ri);
             if(r != m_replicatorList.end()) {
@@ -468,7 +439,7 @@ public:
 
         // We have already taken into account information
         // about uploads of the modification to be canceled;
-        if ( !m_trafficIdentifier )
+        if ( !m_opinionTrafficIdentifier )
         {
             uint64_t sum = 0;
             for (const auto&[uploaderKey, bytes]: m_lastAccountedUploads)
@@ -481,6 +452,30 @@ public:
         }
     }
     
+    void startNextTask()
+    {
+        _ASSERT( !m_driveIsInitializing );
+        
+        if ( m_removeDriveTx )
+        {
+            startDriveClosing( *m_removeDriveTx );
+            return;
+        }
+        
+        if ( m_newCatchingUpRequest )
+        {
+            startCatchingUp( *m_newCatchingUpRequest );
+            return;
+        }
+        
+        if ( !m_defferedModifyRequests.empty() )
+        {
+            auto request = std::move( m_defferedModifyRequests.front() );
+            m_defferedModifyRequests.pop_front();
+            startModifyDrive( std::move(request) );
+        }
+    }
+    
     void cancelModifyDrive( const Hash256& transactionHash ) override
     {
         DBG_MAIN_THREAD
@@ -489,9 +484,9 @@ public:
         
         if ( m_modifyRequest && transactionHash == m_modifyRequest->m_transactionHash )
         {
-            if ( m_approveTransactionReceived )
+            if ( m_receivedModifyApproveTx )
             {
-                LOG_ERR( "cancelModifyDrive(): m_approveTransactionReceived == true" )
+                LOG_ERR( "cancelModifyDrive(): m_receivedModifyApproveTx == true" )
                 return;
             }
 
@@ -718,8 +713,8 @@ public:
         }
 
         m_sandboxCalculated          = false;
-        m_approveTransactionReceived.reset();
-        m_approveTransactionSent     = false;
+        m_receivedModifyApproveTx.reset();
+        m_modifyApproveTransactionSent     = false;
         m_modificationIsCanceling    = false;
         
         // remove my opinion
@@ -735,12 +730,14 @@ public:
 
         m_expectedCumulativeDownload += m_modifyRequest->m_maxDataSize;
 
-        updateTrafficIdentifier();
+        _ASSERT( !m_opinionTrafficIdentifier );
+        m_opinionTrafficIdentifier = m_modifyRequest->m_transactionHash;
+        
         m_downloadingLtHandle = m_session->download( DownloadContext(
                                             DownloadContext::client_data,
                                             std::bind( &DefaultFlatDrive::downloadHandler, this, _1, _2, _3, _4, _5, _6 ),
                                             m_modifyRequest->m_clientDataInfoHash,
-                                            *m_trafficIdentifier,
+                                            *m_opinionTrafficIdentifier,
                                             0, //todo
                                             ""),
                                                    m_sandboxRootPath,
@@ -973,7 +970,7 @@ public:
                 } // end of switch()
             } // end of for( const Action& action : actionList )
 
-            // calculate new rootHash
+            // create FsTree in sandbox
             m_sandboxFsTree.doSerialize( m_sandboxFsTreeFile );
         }
         else {
@@ -1022,7 +1019,7 @@ public:
 
     void updateCumulativeUploads()
     {
-        const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(*m_trafficIdentifier)
+        const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(*m_opinionTrafficIdentifier)
                 .m_modifyTrafficMap;
 
         m_lastAccountedUploads.clear();
@@ -1051,7 +1048,7 @@ public:
         uint64_t targetSize = m_expectedCumulativeDownload - m_accountedCumulativeDownload;
         normalizeUploads(m_lastAccountedUploads, targetSize);
         m_accountedCumulativeDownload = m_expectedCumulativeDownload;
-        m_trafficIdentifier.reset();
+        m_opinionTrafficIdentifier.reset();
 
         for (const auto&[uploaderKey, bytes]: m_lastAccountedUploads)
         {
@@ -1067,7 +1064,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_trafficIdentifier )
+        _ASSERT( m_opinionTrafficIdentifier )
         _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
         _ASSERT( !m_modificationIsCanceling )
 
@@ -1114,8 +1111,6 @@ public:
                       metaFilesSize,
                       driveSize);
 
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
-
         m_myOpinion = std::optional<ApprovalTransactionInfo> {{ m_drivePubKey.array(),
                                                                 modificationToBeApproved.array(),
                                                                 m_sandboxRootHash.array(),
@@ -1143,7 +1138,7 @@ public:
 
         m_sandboxCalculated = true;
 
-        if ( m_approveTransactionReceived )
+        if ( m_receivedModifyApproveTx )
         {
             auto transactionHash = m_modifyRequest->m_transactionHash;
             sendSingleApprovalTransaction();
@@ -1200,11 +1195,11 @@ public:
 
         // check opinion number
         if ( m_myOpinion && m_otherOpinions[m_modifyRequest->m_transactionHash].size() >= ((replicatorNumber)*2)/3
-            && !m_approveTransactionSent && !m_approveTransactionReceived )
+            && !m_modifyApproveTransactionSent && !m_receivedModifyApproveTx )
         {
             // start timer if it is not started
-            if ( !m_opinionTimer )
-                m_opinionTimer = m_session->startTimer( m_replicator.getModifyApprovalTransactionTimerDelay(),
+            if ( !m_modifyOpinionTimer )
+                m_modifyOpinionTimer = m_session->startTimer( m_replicator.getModifyApprovalTransactionTimerDelay(),
                                     [this]() { opinionTimerExpired(); } );
         }
     }
@@ -1386,7 +1381,7 @@ public:
     {
         DBG_MAIN_THREAD
         
-        if ( m_approveTransactionSent || m_approveTransactionReceived )
+        if ( m_modifyApproveTransactionSent || m_receivedModifyApproveTx )
             return;
         
         if ( m_modificationIsCanceling )
@@ -1412,7 +1407,7 @@ public:
         
         m_replicator.removeModifyDriveInfo( m_myOpinion->m_modifyTransactionHash );
         
-        m_approveTransactionSent = true;
+        m_modifyApproveTransactionSent = true;
     }
 
     void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
@@ -1421,16 +1416,16 @@ public:
 
         _LOG( "onApprovalTransactionHasBeenPublished(): m_sandboxCalculated=" << m_sandboxCalculated )
 
-        if ( m_approveTransactionReceived &&  *m_approveTransactionReceived == transaction.m_modifyTransactionHash)
+        if ( m_receivedModifyApproveTx &&  *m_receivedModifyApproveTx == transaction.m_modifyTransactionHash)
         {
             LOG_ERR("Duplicated approval tx ");
             return;
         }
 
-        m_approveTransactionReceived = transaction.m_modifyTransactionHash;
+        m_receivedModifyApproveTx = transaction.m_modifyTransactionHash;
 
         // stop timer
-        m_opinionTimer.reset();
+        m_modifyOpinionTimer.reset();
         m_otherOpinions.erase(transaction.m_modifyTransactionHash);
         
         // check actual root hash
@@ -1509,11 +1504,11 @@ public:
         if ( m_modifyRequest &&
              m_modifyRequest->m_transactionHash == transactionHash &&
              !m_modifyRequest->m_isCanceled &&
-             !m_approveTransactionReceived)
+             !m_receivedModifyApproveTx)
         {
             if ( auto it = m_otherOpinions.find(transactionHash); it != m_otherOpinions.end() )
             {
-                m_approveTransactionSent = false;
+                m_modifyApproveTransactionSent = false;
                 auto opinions = it->second;
                 m_otherOpinions.erase(it);
                 for (const auto& [key, opinion]: opinions) {
@@ -1534,25 +1529,6 @@ public:
     void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
     {
         _LOG( "onSingleApprovalTransactionHasBeenPublished()" );
-    }
-
-    void updateTrafficIdentifier()
-    {
-        DBG_MAIN_THREAD
-
-        _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
-
-        if ( !m_trafficIdentifier )
-        {
-            if ( m_modifyRequest )
-            {
-                m_trafficIdentifier = m_modifyRequest->m_transactionHash;
-            }
-            else
-            {
-                m_trafficIdentifier = m_catchingUpRequest->m_modifyTransactionHash;
-            }
-        }
     }
 
     void startCatchingUp( std::optional<CatchingUpRequest>&& actualCatchingRequest ) override
@@ -1599,12 +1575,15 @@ public:
 
         _LOG( "Late: download FsTree:" << m_catchingUpRequest->m_rootHash )
         
-        updateTrafficIdentifier();
+        if ( !m_opinionTrafficIdentifier )
+        {
+            m_opinionTrafficIdentifier = m_catchingUpRequest->m_modifyTransactionHash;
+        }
         m_downloadingLtHandle = m_session->download( DownloadContext(
                                             DownloadContext::missing_files,
                                             std::bind( &DefaultFlatDrive::catchingUpFsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
                                             m_catchingUpRequest->m_rootHash,
-                                            *m_trafficIdentifier,
+                                            *m_opinionTrafficIdentifier,
                                             0,
                                             "" ),
                                             //toString( *m_catchingUpRootHash ) ),
@@ -1720,7 +1699,6 @@ public:
             auto missingFileHash = *m_catchingUpFileIt;
             m_catchingUpFileIt++;
 
-            updateTrafficIdentifier();
             m_downloadingLtHandle = m_session->download( DownloadContext(
                                                                          
                                                  DownloadContext::missing_files,
@@ -1744,7 +1722,7 @@ public:
                                                  },
 
                                                  missingFileHash,
-                                                 *m_trafficIdentifier,
+                                                 *m_opinionTrafficIdentifier,
                                                  0,
                                                  ""),
                                                  m_sandboxRootPath,

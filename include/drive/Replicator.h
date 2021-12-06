@@ -27,7 +27,7 @@ struct DownloadOpinionMapValue
     std::array<uint8_t,32>                              m_eventHash;
     std::array<uint8_t,32>                              m_downloadChannelId;
     std::map<Key, DownloadOpinion>                      m_opinions;
-    bool                                                m_approveTransactionSent = false;
+    bool                                                m_modifyApproveTransactionSent = false;
     bool                                                m_approveTransactionReceived = false;
     std::optional<boost::asio::high_resolution_timer>   m_timer = {};
     boost::posix_time::ptime                            m_creationTime = boost::posix_time::microsec_clock::universal_time();

@@ -456,7 +456,7 @@ public:
     {
         DBG_MAIN_THREAD
         
-        if ( mapValue.m_approveTransactionSent || mapValue.m_approveTransactionReceived )
+        if ( mapValue.m_modifyApproveTransactionSent || mapValue.m_approveTransactionReceived )
             return;
 
         // notify
@@ -467,7 +467,7 @@ public:
         }
         auto transactionInfo = DownloadApprovalTransactionInfo{mapValue.m_eventHash, mapValue.m_downloadChannelId, std::move(opinions)};
         m_eventHandler.downloadApprovalTransactionIsReady( *this, transactionInfo );
-        mapValue.m_approveTransactionSent = true;
+        mapValue.m_modifyApproveTransactionSent = true;
     }
     
     virtual void asyncInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) override
@@ -585,7 +585,7 @@ public:
                     }
                     auto receivedOpinions = opinionInfo.m_opinions;
                     opinionInfo.m_opinions.clear();
-                    opinionInfo.m_approveTransactionSent=false;
+                    opinionInfo.m_modifyApproveTransactionSent=false;
                     for (const auto& [key, opinion]: receivedOpinions)
                     {
                         processDownloadOpinion(DownloadApprovalTransactionInfo

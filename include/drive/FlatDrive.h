@@ -357,8 +357,6 @@ class Replicator;
 
         virtual uint64_t sandboxFsTreeSize() const = 0;
         
-        virtual InfoHash sandboxRootHash() const = 0;
-
         virtual ReplicatorList getReplicators() = 0;
 
         virtual void updateReplicators(const ReplicatorList& replicators) = 0;
