@@ -19,6 +19,9 @@
 #include <libtorrent/kademlia/ed25519.hpp>
 
 #include <sirius_drive/session_delegate.h>
+#include <numeric>
+
+#include "gtest/gtest.h"
 
 namespace sirius::drive::test {
 
@@ -43,13 +46,14 @@ namespace sirius::drive::test {
         std::atomic<unsigned int> driveClosedCounter{0};
         std::mutex driveClosedMutex;
 
-//        std::optional<ApprovalTransactionInfo> m_approvalTransactionInfo;
         std::optional<DownloadApprovalTransactionInfo> m_dnApprovalTransactionInfo;
         std::mutex m_transactionInfoMutex;
 
         std::deque<Hash256> m_pendingModifications;
         Hash256 m_lastApprovedModification;
         std::map<Hash256, InfoHash> m_rootHashes;
+
+        std::map<Key, std::set<uint64_t>> m_modificationSizes;
 
     public:
         TestEnvironment(int numberOfReplicators,
@@ -103,6 +107,9 @@ namespace sirius::drive::test {
                 }
             }
         }
+
+        virtual ~TestEnvironment()
+        {}
 
         virtual void addDrive(const Key &driveKey, uint64_t driveSize, std::optional<InfoHash> actualRootHash = {}) {
             for (auto &replicator: m_replicators) {
@@ -205,6 +212,20 @@ namespace sirius::drive::test {
                     r->asyncApprovalTransactionHasBeenPublished(
                             ApprovalTransactionInfo(transactionInfo));
                 }
+
+                for (const auto& opinion: transactionInfo.m_opinions)
+                {
+                    auto size =
+                            std::accumulate(opinion.m_uploadLayout.begin(),
+                                            opinion.m_uploadLayout.end(),
+                                            opinion.m_clientUploadBytes,
+                                            [] (const auto& sum, const auto& item) {
+                                return sum + item.m_uploadedBytes;
+                            });
+                    m_modificationSizes[transactionInfo.m_modifyTransactionHash].insert(size);
+                }
+
+                ASSERT_EQ(m_modificationSizes[transactionInfo.m_modifyTransactionHash].size(), 1);
             }
         }
 
@@ -216,6 +237,20 @@ namespace sirius::drive::test {
                 EXLOG("modifySingleApprovalTransactionIsReady: " << replicator.dbgReplicatorName()
                 << " " << toString(transactionInfo.m_modifyTransactionHash) );
                 replicator.asyncSingleApprovalTransactionHasBeenPublished(transactionInfo);
+
+                ASSERT_EQ(transactionInfo.m_opinions.size(), 1);
+
+                for (const auto& opinion: transactionInfo.m_opinions) {
+                    auto size =
+                            std::accumulate(opinion.m_uploadLayout.begin(),
+                                            opinion.m_uploadLayout.end(),
+                                            opinion.m_clientUploadBytes,
+                                            [] (const auto& sum, const auto& item) {
+                                return sum + item.m_uploadedBytes;
+                            });
+                    m_modificationSizes[transactionInfo.m_modifyTransactionHash].insert(size);
+                }
+                ASSERT_EQ(m_modificationSizes[transactionInfo.m_modifyTransactionHash].size(), 1);
             }
         };
 

@@ -2,7 +2,6 @@
 #include <numeric>
 #include "TestEnvironment.h"
 #include "utils.h"
-#include "gtest/gtest.h"
 
 #include "types.h"
 #include "drive/Session.h"
@@ -52,7 +51,6 @@ namespace sirius::drive::test
         }
 
         std::optional<Hash256> m_forbiddenTransaction;
-        std::map<Key, std::set<uint64_t>> m_modificationSizes;
 
         virtual void
         modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override {
@@ -81,20 +79,6 @@ namespace sirius::drive::test
             {
                 TestEnvironment::singleModifyApprovalTransactionIsReady(replicator,
                                                                         ApprovalTransactionInfo(transactionInfo));
-
-                ASSERT_EQ(transactionInfo.m_opinions.size(), 1);
-
-                for (const auto& opinion: transactionInfo.m_opinions) {
-                    auto size =
-                            std::accumulate(opinion.m_uploadLayout.begin(),
-                                            opinion.m_uploadLayout.end(),
-                                            opinion.m_clientUploadBytes,
-                                            [] (const auto& sum, const auto& item) {
-                                return sum + item.m_uploadedBytes;
-                            });
-                    m_modificationSizes[transactionInfo.m_modifyTransactionHash].insert(size);
-                }
-                ASSERT_EQ(m_modificationSizes[transactionInfo.m_modifyTransactionHash].size(), 1);
             }
         };
     };

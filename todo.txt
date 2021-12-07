@@ -49,3 +49,19 @@ Replicator exchange & checkDownloadLimit()
 Послать невалидную Tx если превышен размер драйва после вычисления нового FsTree
 Либо невалидные акт лист
 //////////////
+
+Connection close channel does not exist
+
+start modify replicator list
+
+StopAnyDriveTask else
+
+
+
+/home/kyrylo/CLionProjects/cpp-xpx-storage-sdk2/include/drive/DownloadLimiter.h:292: acceptConnection: unknown peerPublicKey: A3949FD69ECE12D8125B0989D46CA3CE0302814D046CB3C3EFAE0D471A8EDF51client: SIGN HANDSHAKE: 20
+
+duplicate file completed
+replicator_01: *** file_completed_alert:client-data/actionList.bin
+replicator_01: *** file_completed_alert:client-data/actionList.bin
+
+надо ли join в BackgroundExecutor

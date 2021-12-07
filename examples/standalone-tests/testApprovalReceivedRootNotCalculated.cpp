@@ -10,14 +10,16 @@
 #include "drive/FlatDrive.h"
 #include "drive/Utils.h"
 
-namespace sirius::drive::test {
+namespace sirius::drive::test
+{
 
 #define TEST_NAME ApprovalReceivedRootNotCalculated
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 #define RUN_TEST void JOIN(run, TEST_NAME)()
 
-    class ENVIRONMENT_CLASS : public TestEnvironment {
+    class ENVIRONMENT_CLASS : public TestEnvironment
+    {
     public:
         ENVIRONMENT_CLASS(
                 int numberOfReplicators,
@@ -39,59 +41,39 @@ namespace sirius::drive::test {
                 useTcpSocket,
                 modifyApprovalDelay,
                 downloadApprovalDelay,
-                startReplicator) {
+                startReplicator)
+        {
             lt::settings_pack pack;
             pack.set_int(lt::settings_pack::download_rate_limit, backDownloadRate);
             m_replicators.back()->setSessionSettings(pack, true);
         }
 
         void
-        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override {
+        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override
+        {
             TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
 
             ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size() - 1);
             auto it = std::find_if(transactionInfo.m_opinions.begin(), transactionInfo.m_opinions.end(),
-                                   [this] (const SingleOpinion& opinion) {
-                return opinion.m_replicatorKey == m_replicators.back()->keyPair().publicKey().array();
-            });
+                                   [this](const SingleOpinion &opinion)
+                                   {
+                                       return opinion.m_replicatorKey ==
+                                              m_replicators.back()->keyPair().publicKey().array();
+                                   });
             ASSERT_EQ(it, transactionInfo.m_opinions.end());
-
-            for (const auto& opinion: transactionInfo.m_opinions) {
-                auto size =
-                        std::accumulate(opinion.m_uploadLayout.begin(),
-                                        opinion.m_uploadLayout.end(),
-                                        opinion.m_clientUploadBytes,
-                                        [] (const auto& sum, const auto& item) {
-                            return sum + item.m_uploadedBytes;
-                        });
-                m_modificationSizes.insert(size);
-            }
-            ASSERT_EQ(m_modificationSizes.size(), 1);
         }
 
         virtual void singleModifyApprovalTransactionIsReady(Replicator &replicator,
-                                                            ApprovalTransactionInfo &&transactionInfo) override {
+                                                            ApprovalTransactionInfo &&transactionInfo) override
+        {
 
-            TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
             ASSERT_EQ(replicator.keyPair().publicKey(), m_replicators.back()->keyPair().publicKey());
-
-            const auto& opinion = transactionInfo.m_opinions.front();
-            auto size =
-                    std::accumulate(opinion.m_uploadLayout.begin(),
-                                    opinion.m_uploadLayout.end(),
-                                    opinion.m_clientUploadBytes,
-                                    [] (const auto& sum, const auto& item) {
-                        return sum + item.m_uploadedBytes;
-                    });
-            m_modificationSizes.insert(size);
-
-            ASSERT_EQ(m_modificationSizes.size(), 1);
-        };
-
-        std::set<uint64_t> m_modificationSizes;
+            TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
+        }
     };
 
-    TEST(ModificationTest, TEST_NAME) {
+    TEST(ModificationTest, TEST_NAME)
+    {
         fs::remove_all(ROOT_FOLDER);
 
         auto startTime = std::clock();

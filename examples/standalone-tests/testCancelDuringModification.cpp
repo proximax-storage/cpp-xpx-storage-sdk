@@ -71,6 +71,9 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
+        auto size = BIG_FILE_SIZE + 1024;
+        std::cout << size << std::endl;
+
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[1],
                                         client.m_modificationTransactionHashes[1],
                                         BIG_FILE_SIZE + 1024,

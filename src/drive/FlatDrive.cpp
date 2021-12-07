@@ -446,9 +446,11 @@ public:
                 sum += bytes;
                 m_cumulativeUploads[uploaderKey] -= bytes;
             }
-            m_accountedCumulativeDownload -= sum;
-            m_expectedCumulativeDownload = m_accountedCumulativeDownload;
+            _ASSERT( sum == m_modifyRequest->m_maxDataSize );
         }
+        m_accountedCumulativeDownload -= m_modifyRequest->m_maxDataSize;
+        m_expectedCumulativeDownload = m_accountedCumulativeDownload;
+        m_opinionTrafficIdentifier.reset();
     }
     
     void runNextTask()
@@ -1020,7 +1022,6 @@ public:
             for ( auto& [key, uploadBytes]: modificationUploads ) {
                 if ( key != m_modifyRequest->m_clientPublicKey )
                 {
-                    _LOG( "sumBefore: " << sumBefore );
                     auto longUploadBytes = (uploadBytes * longTargetSum) / sumBefore;
                     uploadBytes = longUploadBytes.convert_to<uint64_t>();
                     sumAfter += uploadBytes;
@@ -1104,8 +1105,6 @@ public:
         getSandboxDriveSizes( metaFilesSize, driveSize );
         uint64_t fsTreeSize = sandboxFsTreeSize();
 
-        _LOG( "Drive Size " << driveSize);
-
         Hash256 modificationToBeApproved;
         if ( m_modifyRequest )
         {
@@ -1153,7 +1152,6 @@ public:
 
         if ( m_receivedModifyApproveTx )
         {
-            auto transactionHash = m_modifyRequest->m_transactionHash;
             sendSingleApprovalTransaction();
             if ( m_catchingUpRequest )
             {

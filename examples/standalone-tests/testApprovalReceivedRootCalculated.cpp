@@ -54,42 +54,17 @@ namespace sirius::drive::test {
                 }
             }
             transactionInfo.m_opinions.pop_back();
-            TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
             ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size() - 1);
-            for (const auto& opinion: transactionInfo.m_opinions) {
-                auto size =
-                        std::accumulate(opinion.m_uploadLayout.begin(),
-                                        opinion.m_uploadLayout.end(),
-                                        opinion.m_clientUploadBytes,
-                                        [] (const auto& sum, const auto& item) {
-                            return sum + item.m_uploadedBytes;
-                        });
-                m_modificationSizes.insert(size);
-            }
-
-            ASSERT_EQ(m_modificationSizes.size(), 1);
+            TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
         }
 
         void singleModifyApprovalTransactionIsReady(Replicator &replicator,
                                                             ApprovalTransactionInfo &&transactionInfo) override {
-            TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
             ASSERT_EQ(replicator.keyPair().publicKey(), m_ignoredReplicator);
-
-            const auto& opinion = transactionInfo.m_opinions.front();
-            auto size =
-                    std::accumulate(opinion.m_uploadLayout.begin(),
-                                    opinion.m_uploadLayout.end(),
-                                    opinion.m_clientUploadBytes,
-                                    [] (const auto& sum, const auto& item) {
-                        return sum + item.m_uploadedBytes;
-                    });
-            m_modificationSizes.insert(size);
-
-            ASSERT_EQ(m_modificationSizes.size(), 1);
+            TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
         };
 
         std::optional<std::array<uint8_t,32>> m_ignoredReplicator;
-        std::set<uint64_t> m_modificationSizes;
     };
 
     TEST(ModificationTest, TEST_NAME) {

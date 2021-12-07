@@ -2,7 +2,6 @@
 #include "TestEnvironment.h"
 #include "utils.h"
 #include <set>
-#include <numeric>
 
 #include "types.h"
 #include "drive/Session.h"
@@ -16,7 +15,7 @@ using namespace sirius::drive::test;
 namespace sirius::drive::test {
 
     /// change this macro for your test
-#define TEST_NAME OfflineReplicator
+#define TEST_NAME OfflineReplicatorThreeModifications
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -31,6 +30,7 @@ namespace sirius::drive::test {
                 bool useTcpSocket,
                 int modifyApprovalDelay,
                 int downloadApprovalDelay,
+                int backDownloadRate,
                 bool startReplicator = true)
                 : TestEnvironment(
                 numberOfReplicators,
@@ -42,13 +42,19 @@ namespace sirius::drive::test {
                 modifyApprovalDelay,
                 downloadApprovalDelay,
                 startReplicator),
-        m_offlineWork(m_offlineContext),
-        m_offlineThread([this] {
-            std::this_thread::sleep_for(std::chrono::seconds(60));
-            EXLOG( "RUN CONTEXT" );
-            m_offlineContext.run();
-        })
-        {}
+        m_offlineWork(m_offlineContext)
+        {
+            lt::settings_pack pack;
+            pack.set_int(lt::settings_pack::download_rate_limit, backDownloadRate);
+            m_replicators.back()->setSessionSettings(pack, true);
+        }
+
+        void runBack()
+        {
+            m_offlineThread = std::thread([this] {
+                m_offlineContext.run();
+            });
+        }
 
         void modifyDrive(const Key &driveKey, const ModifyRequest &request) override {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
@@ -99,16 +105,28 @@ namespace sirius::drive::test {
                     std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
                 }
 
+                for (const auto& opinion: transactionInfo.m_opinions)
+                {
+                    auto size =
+                            std::accumulate(opinion.m_uploadLayout.begin(),
+                                            opinion.m_uploadLayout.end(),
+                                            opinion.m_clientUploadBytes,
+                                            [] (const auto& sum, const auto& item) {
+                                return sum + item.m_uploadedBytes;
+                            });
+                    m_modificationSizes[transactionInfo.m_modifyTransactionHash].insert(size);
+                }
+
+                ASSERT_EQ(m_modificationSizes[transactionInfo.m_modifyTransactionHash].size(), 1);
+
                 m_pendingModifications.pop_front();
                 m_lastApprovedModification = transactionInfo.m_modifyTransactionHash;
                 m_rootHashes[m_lastApprovedModification] = transactionInfo.m_rootHash;
                 for (uint i = 0; i < m_replicators.size() - 1; i++)
                 {
                     const auto& r = m_replicators[i];
-                    std::thread([=] {
-                        r->asyncApprovalTransactionHasBeenPublished(
-                                ApprovalTransactionInfo(transactionInfo));
-                    }).detach();
+                    r->asyncApprovalTransactionHasBeenPublished(
+                            ApprovalTransactionInfo(transactionInfo));
                 }
                 m_offlineContext.post([=, this] {
                     m_replicators.back()->asyncApprovalTransactionHasBeenPublished(transactionInfo);
@@ -123,6 +141,21 @@ namespace sirius::drive::test {
             {
                 EXLOG("modifySingleApprovalTransactionIsReady: " << replicator.dbgReplicatorName()
                 << " " << toString(transactionInfo.m_modifyTransactionHash) );
+
+                ASSERT_EQ(transactionInfo.m_opinions.size(), 1);
+
+                for (const auto& opinion: transactionInfo.m_opinions) {
+                    auto size =
+                            std::accumulate(opinion.m_uploadLayout.begin(),
+                                            opinion.m_uploadLayout.end(),
+                                            opinion.m_clientUploadBytes,
+                                            [] (const auto& sum, const auto& item) {
+                                return sum + item.m_uploadedBytes;
+                            });
+                    m_modificationSizes[transactionInfo.m_modifyTransactionHash].insert(size);
+                }
+                ASSERT_EQ(m_modificationSizes[transactionInfo.m_modifyTransactionHash].size(), 1);
+
                 if (replicator.keyPair().publicKey() != m_replicators.back()->keyPair().publicKey())
                 {
                     replicator.asyncSingleApprovalTransactionHasBeenPublished(transactionInfo);
@@ -134,6 +167,13 @@ namespace sirius::drive::test {
                 }
             }
         };
+
+        ~ENVIRONMENT_CLASS() override
+        {
+            m_offlineContext.stop();
+            m_offlineThread.join();
+        }
+
 
         boost::asio::io_context m_offlineContext;
         boost::asio::io_context::work m_offlineWork;
@@ -150,12 +190,13 @@ namespace sirius::drive::test {
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
-                SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000);
+                SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000, 1024 * 1024);
 
         EXLOG("\n# Client started: 1-st upload");
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
         client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList);
         client.modifyDrive(createActionList_2(CLIENT_WORK_FOLDER), env.m_addrList);
+        client.modifyDrive(createActionList_3(CLIENT_WORK_FOLDER), env.m_addrList);
 
         env.addDrive(DRIVE_PUB_KEY, 100 * 1024 * 1024);
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[0],
@@ -164,18 +205,23 @@ namespace sirius::drive::test {
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        EXLOG( "Required modification " << toString(client.m_modificationTransactionHashes[0] ));
-
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[1],
                                         client.m_modificationTransactionHashes[1],
                                         BIG_FILE_SIZE + 1024,
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        EXLOG( "Required modification " << toString(client.m_modificationTransactionHashes[1] ));
+        env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[2],
+                                        client.m_modificationTransactionHashes[2],
+                                        BIG_FILE_SIZE + 1024,
+                                        env.m_addrList,
+                                        client.m_clientKeyPair.publicKey()});
 
-        env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS);
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+        env.waitModificationEnd(client.m_modificationTransactionHashes[2], NUMBER_OF_REPLICATORS - 1);
+
+        env.runBack();
+
+        env.waitModificationEnd(client.m_modificationTransactionHashes[2], NUMBER_OF_REPLICATORS);
     }
 
 #undef TEST_NAME
