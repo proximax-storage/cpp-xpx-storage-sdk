@@ -142,7 +142,6 @@ public:
         }
         LOG_ERR( "getMyDownloadOpinion: unknown modify transaction hash" );
         
-        //(+++) ???
         return {};
     }
 

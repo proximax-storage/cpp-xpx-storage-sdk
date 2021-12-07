@@ -151,17 +151,17 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     InfoHash                            m_rootHash;
 
     bool                                m_driveIsInitializing = true;
+    std::optional<Hash256>              m_driveWillRemovedTx = {};
+    bool                                m_modificationIsCanceling = false;
     std::optional<CatchingUpRequest>    m_catchingUpRequest;
     std::optional<ModifyRequest>        m_modifyRequest;
-    bool                                m_modificationIsCanceling = false;
-
-    std::optional<std::function<void()>> m_nextStepAfterTaskStop;
 
     //
     // Request queue
     //
     
     std::optional<Hash256>              m_removeDriveTx = {};
+    std::optional<Hash256>              m_modificationMustBeCanceledTx;
     std::optional<CatchingUpRequest>    m_newCatchingUpRequest;
     std::deque<ModifyRequest>           m_defferedModifyRequests;
 
@@ -229,7 +229,7 @@ public:
           FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey ),
           m_session(session),
           m_replicator(replicator),
-          m_backgroundExecutor(session),
+          m_backgroundExecutor(),
           m_maxSize(maxSize),
           m_replicatorList(replicatorList),
           m_eventHandler(eventHandler),
@@ -452,13 +452,32 @@ public:
         }
     }
     
-    void startNextTask()
+    void runNextTask()
     {
-        _ASSERT( !m_driveIsInitializing );
+        DBG_MAIN_THREAD
+
+        //todo _ASSERT( !m_driveIsInitializing );
         
-        if ( m_removeDriveTx )
+        m_catchingUpRequest.reset();
+        m_modifyRequest.reset();
+        m_modificationIsCanceling = false;
+        
+        if ( m_driveWillRemovedTx )
         {
-            startDriveClosing( *m_removeDriveTx );
+            _ASSERT( !m_removeDriveTx );
+            if ( !m_removeDriveTx )
+            {
+                runDriveClosingTask( std::move(m_removeDriveTx) );
+            }
+            return;
+        }
+
+        if ( m_modificationMustBeCanceledTx )
+        {
+            auto tx = *m_modificationMustBeCanceledTx;
+            m_modificationMustBeCanceledTx.reset();
+            
+            runCancelModifyDriveTask( tx );
             return;
         }
         
@@ -476,71 +495,51 @@ public:
         }
     }
     
-    void cancelModifyDrive( const Hash256& transactionHash ) override
+    void breakTorrentDownload()
     {
         DBG_MAIN_THREAD
         
-        _ASSERT( m_modifyRequest || m_catchingUpRequest );
+        if ( m_taskMustBeBroken )
+            return;
         
-        if ( m_modifyRequest && transactionHash == m_modifyRequest->m_transactionHash )
-        {
-            if ( m_receivedModifyApproveTx )
-            {
-                LOG_ERR( "cancelModifyDrive(): m_receivedModifyApproveTx == true" )
-                return;
-            }
+        m_taskMustBeBroken = true;
+        m_taskIsBroken     = false;
 
-            m_modificationIsCanceling = true;
-            m_modifyRequest->m_isCanceled = true;
-            downgradeCumulativeUploads();
+        if ( (m_modifyRequest || m_catchingUpRequest) && m_downloadingLtHandle )
+        {
+            //
+            // We must break torrent downloading because it could be unavailable
+            //
+            m_session->removeDownloadContext( *m_downloadingLtHandle );
             
-            stopAnyDriveTask( [this,tx = m_modifyRequest->m_transactionHash] {
-                continueCancelModifyDrive(tx);
+            lt_handle torrentHandle = *m_downloadingLtHandle;
+            m_downloadingLtHandle.reset();
+
+            m_session->removeTorrentsFromSession( {torrentHandle}, [=, this]
+            {
+                DBG_MAIN_THREAD
+                _LOG( "breakTorrentDownload: torrent is removed");
+
+                m_backgroundExecutor.run( [this]
+                {
+                    //TODO: move downloaded files from sandbox to drive (for catching-up only)
+                    
+                    fs::remove_all( m_sandboxRootPath );
+                    
+                    m_session->lt_session().get_context().post( [=,this]
+                    {
+                        runNextTask();
+                    });
+                });
             });
         }
         else
         {
-            auto it = std::find_if( m_defferedModifyRequests.begin(), m_defferedModifyRequests.end(), [&transactionHash](const auto& item)
-                                { return item.m_transactionHash == transactionHash; });
-            
-            if ( it == m_defferedModifyRequests.end() )
-            {
-                LOG_ERR( "cancelModifyDrive(): invalid transactionHash: " << transactionHash );
-                return;
-            }
-            
-            m_defferedModifyRequests.erase( it );
+            // (+++) Всегда ли так будет?
+            // wait the end of the current task
         }
     }
 
-    void continueCancelModifyDrive( const Hash256& transactionHash )
-    {
-        DBG_MAIN_THREAD
-
-        _LOG("CONTINUE CANCEL");
-
-        m_modifyRequest.reset();
-
-        // clear sandbox folder
-        fs::remove_all( m_sandboxRootPath );
-        fs::create_directories( m_sandboxRootPath);
-
-        m_modificationIsCanceling = false;
-        
-        m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), transactionHash );
-        
-        if ( m_newCatchingUpRequest )
-        {
-            startCatchingUp( *m_newCatchingUpRequest );
-        }
-        else if ( !m_defferedModifyRequests.empty() )
-        {
-            auto request = std::move( m_defferedModifyRequests.front() );
-            m_defferedModifyRequests.pop_front();
-            startModifyDrive( std::move(request) );
-        }
-    }
-    
     // It tries to start next modify
     void modifyIsCompleted()
     {
@@ -564,89 +563,107 @@ public:
             m_catchingUpRequest.reset();
         }
 
-        // Call update handler
         if ( m_dbgEventHandler )
             m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, modificationHash, m_rootHash );
 
-
-        if ( !m_defferedModifyRequests.empty() )
-        {
-            auto request = std::move( m_defferedModifyRequests.front() );
-            m_defferedModifyRequests.pop_front();
-            startModifyDrive( std::move(request) );
-        }
+        runNextTask();
     }
 
-    void processNextStepAfterTaskStop()
-    {
-        DBG_MAIN_THREAD
+    //
+    // CANCEL
+    //
 
-        if ( m_nextStepAfterTaskStop )
-        {
-            (*m_nextStepAfterTaskStop)();
-            m_nextStepAfterTaskStop.reset();
-        }
-    }
-
-    void stopAnyDriveTask( std::optional<std::function<void()>>&& nextStep )
+    void cancelModifyDrive( const Hash256& transactionHash ) override
     {
         DBG_MAIN_THREAD
         
-        m_nextStepAfterTaskStop = std::move( nextStep );
+        _ASSERT( m_modifyRequest || m_catchingUpRequest );
         
-        if ( m_modifyRequest || m_catchingUpRequest )
+        if ( m_modifyRequest && transactionHash == m_modifyRequest->m_transactionHash )
         {
-            if ( m_downloadingLtHandle )
+            if ( m_receivedModifyApproveTx )
             {
-                m_session->removeDownloadContext( *m_downloadingLtHandle );
-                
-                lt_handle torrentHandle = *m_downloadingLtHandle;
-                m_downloadingLtHandle.reset();
-                
-                m_session->removeTorrentsFromSession( {torrentHandle}, [=, this]
-                {
-                    DBG_MAIN_THREAD
-
-                    m_downloadingLtHandle.reset();
-                    m_modifyRequest.reset();
-
-                    m_backgroundExecutor.run( []{}, [this] {
-                        processNextStepAfterTaskStop();
-                    });
-                    std::thread([this] {
-                       fs::remove_all( m_sandboxRootPath );
-                    }).detach();
-                });
+                LOG_ERR( "cancelModifyDrive(): m_receivedModifyApproveTx == true" )
+                return;
             }
+
+            m_modificationIsCanceling = true;
+            m_modifyRequest->m_isCanceled = true;
+            downgradeCumulativeUploads();
+            
+            breakTorrentDownload();
+            return;
         }
         else
         {
-            processNextStepAfterTaskStop();
+            auto it = std::find_if( m_defferedModifyRequests.begin(), m_defferedModifyRequests.end(), [&transactionHash](const auto& item)
+                                { return item.m_transactionHash == transactionHash; });
+            
+            if ( it == m_defferedModifyRequests.end() )
+            {
+                LOG_ERR( "cancelModifyDrive(): invalid transactionHash: " << transactionHash );
+                return;
+            }
+            
+            m_defferedModifyRequests.erase( it );
         }
     }
 
+    void runCancelModifyDriveTask( const Hash256& transactionHash )
+    {
+        DBG_MAIN_THREAD
+
+        _LOG("CONTINUE CANCEL");
+
+        m_modifyRequest.reset();
+
+        // clear sandbox folder
+        fs::remove_all( m_sandboxRootPath );
+        fs::create_directories( m_sandboxRootPath);
+
+        m_modificationIsCanceling = false;
+        
+        m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), transactionHash );
+        
+        runNextTask();
+    }
+    
+    //
+    // CLOSE/REMOVE
+    //
+    
     void startDriveClosing( const Hash256& transactionHash ) override
     {
         DBG_MAIN_THREAD
         
-        _ASSERT( !m_catchingUpRequest );
-        
-        m_removeDriveTx = {transactionHash};
-        
+        m_driveWillRemovedTx = transactionHash;
+
         {
             std::ofstream filestream( m_driveFolder / "is_closing" );
             filestream << "1";
             filestream.close();
         }
         
-        stopAnyDriveTask( [=,this] {
-            continueDriveClosing( transactionHash );
-        });
+        if ( m_modifyRequest || m_catchingUpRequest )
+        {
+            breakTorrentDownload();
+        }
+        else
+        {
+            runNextTask();
+        }
     }
 
-    void continueDriveClosing( const Hash256& transactionHash )
+    void runDriveClosingTask( std::optional<Hash256>&& transactionHash )
     {
         DBG_MAIN_THREAD
+        
+        _ASSERT( transactionHash );
+        m_removeDriveTx = std::move(transactionHash);
+        
+        //
+        // Remove torrents from session
+        //
         
         std::set<lt_handle> tobeRemovedTorrents;
 
@@ -654,45 +671,37 @@ public:
         {
             tobeRemovedTorrents.insert( value.m_ltHandle );
         }
-
+        
         tobeRemovedTorrents.insert( m_fsTreeLtHandle );
 
         m_session->removeTorrentsFromSession( std::move(tobeRemovedTorrents), [this,transactionHash](){
-            m_replicator.closeDriveChannels( transactionHash, *this );
+            m_replicator.closeDriveChannels( *m_removeDriveTx, *this );
         });
     }
 
-    bool synchronizeDriveWithSandbox()
+    void synchronizeDriveWithSandbox()
     {
         DBG_MAIN_THREAD
+        
+        if ( m_taskMustBeBroken )
+        {
+            m_session->lt_session().get_context().post( [=,this]
+            {
+                runNextTask();
+            });
+            return;
+        }
 
-        assert( m_sandboxCalculated );
-        
-        if ( m_modifyRequest->m_isCanceled )
+        _ASSERT( m_sandboxCalculated );
+        _ASSERT( !m_modifyRequest->m_isCanceled );
+        if ( !m_modifyRequest )
+            _ASSERT( !m_modifyRequest );
+
+        updateDrive_1( [this]
         {
-            LOG_ERR( "synchronizeDriveWithSandbox(): modification is canceled" );
-            return false;
-        }
-        
-        // complete drive update
-        {
-            if ( !m_modifyRequest )
-            {
-                LOG_ERR( "synchronizeDriveWithSandbox(): modification is not started" );
-                return false;
-            }
-            else
-            {
-                updateDrive_1( [this]
-                {
-                    updateDrive_2();
-                });
-            }
-        }
-        
-        return true;
+            updateDrive_2();
+        });
     }
-
 
     // startModifyDrive - should be called after client 'modify request'
     //
@@ -735,7 +744,7 @@ public:
         
         m_downloadingLtHandle = m_session->download( DownloadContext(
                                             DownloadContext::client_data,
-                                            std::bind( &DefaultFlatDrive::downloadHandler, this, _1, _2, _3, _4, _5, _6 ),
+                                            std::bind( &DefaultFlatDrive::modifyDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
                                             m_modifyRequest->m_clientDataInfoHash,
                                             *m_opinionTrafficIdentifier,
                                             0, //todo
@@ -746,12 +755,12 @@ public:
     }
 
     // will be called by Session
-    void downloadHandler( download_status::code code,
-                          const InfoHash& infoHash,
-                          const std::filesystem::path /*filePath*/,
-                          size_t /*downloaded*/,
-                          size_t /*fileSize*/,
-                          const std::string& errorText )
+    void modifyDownloadHandler( download_status::code code,
+                                const InfoHash& infoHash,
+                                const std::filesystem::path /*filePath*/,
+                                size_t /*downloaded*/,
+                                size_t /*fileSize*/,
+                                const std::string& errorText )
     {
         DBG_MAIN_THREAD
     
@@ -779,13 +788,10 @@ public:
         if ( code == download_status::download_complete )
         {
             m_modifyUserDataReceived = true;
-            m_backgroundExecutor.run([this]
-                 {
-                     modifyDriveInSandbox();
-                 }, [this]
-                 {
-                     processNextStepAfterTaskStop();
-                 });
+            m_backgroundExecutor.run( [this]
+            {
+                modifyDriveInSandbox();
+            });
         }
     }
 
@@ -1005,16 +1011,22 @@ public:
                                               [] (const uint64_t& value, const std::pair<Key, int>& p)
                                               { return value + p.second; }
                                               );
+        
         uint64_t sumAfter = 0;
-        for ( auto& [key, uploadBytes]: modificationUploads ) {
-            if ( key != m_modifyRequest->m_clientPublicKey )
-            {
-                auto longUploadBytes = (uploadBytes * longTargetSum) / sumBefore;
-                uploadBytes = longUploadBytes.convert_to<uint64_t>();
-                sumAfter += uploadBytes;
+
+        if ( sumBefore > 0 ) // (+++) ?
+        {
+            for ( auto& [key, uploadBytes]: modificationUploads ) {
+                if ( key != m_modifyRequest->m_clientPublicKey )
+                {
+                    _LOG( "sumBefore: " << sumBefore );
+                    auto longUploadBytes = (uploadBytes * longTargetSum) / sumBefore;
+                    uploadBytes = longUploadBytes.convert_to<uint64_t>();
+                    sumAfter += uploadBytes;
+                }
             }
+            modificationUploads[m_modifyRequest->m_clientPublicKey] = targetSum - sumAfter;
         }
-        modificationUploads[m_modifyRequest->m_clientPublicKey] = targetSum - sumAfter;
     }
 
     void updateCumulativeUploads()
@@ -1149,9 +1161,9 @@ public:
                     completeCatchingUp();
                 });
             }
-            else if ( !synchronizeDriveWithSandbox() )
+            else
             {
-                LOG_ERR( "onMyRootHashCalculated(): cannot synchronize drive with sandbox: " << transactionHash );
+                synchronizeDriveWithSandbox();
             }
         }
         else
@@ -1237,18 +1249,13 @@ public:
         // Add current fsTree torrent handle
         toBeRemovedTorrents.insert( m_fsTreeLtHandle );
 
-        _LOG( "REMOVE "  << toBeRemovedTorrents.begin()->is_valid() );
-
         // Remove unused torrents
         m_session->removeTorrentsFromSession( toBeRemovedTorrents, [this, nextStep]
         {
-            m_backgroundExecutor.run([nextStep]
-                 {
-                     nextStep();
-                 }, [this]
-                 {
-                     processNextStepAfterTaskStop();
-                 });
+            m_backgroundExecutor.run( [nextStep]
+            {
+                nextStep();
+            });
         });
     }
 
@@ -1314,8 +1321,11 @@ public:
         }
         catch ( const std::exception& ex )
         {
-            _LOG( "!ERROR!: updateDrive_2 error: " << ex.what() );
-            _ASSERT(0);
+            _LOG( "???: updateDrive_2 broken: " << ex.what() );
+            m_session->lt_session().get_context().post( [=,this]
+            {
+                runNextTask();
+            });
         }
     }
 
@@ -1414,9 +1424,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _LOG( "onApprovalTransactionHasBeenPublished(): m_sandboxCalculated=" << m_sandboxCalculated )
-
-        if ( m_receivedModifyApproveTx &&  *m_receivedModifyApproveTx == transaction.m_modifyTransactionHash)
+        if ( m_receivedModifyApproveTx &&  *m_receivedModifyApproveTx == transaction.m_modifyTransactionHash )
         {
             LOG_ERR("Duplicated approval tx ");
             return;
@@ -1447,33 +1455,32 @@ public:
         }
 
         // We should not catch up only in the case
-        // When we have already downloaded all necessary data (??? or the modification approval)
+        // when we have already downloaded all necessary data (??? or the modification approval)
         bool couldContinueModify =
                 m_modifyRequest &&
                 m_modifyRequest->m_transactionHash == transaction.m_modifyTransactionHash &&
                 m_modifyUserDataReceived;
         
-        //(+++)
+        // We must start new catch up
+        // if current is outdated
         bool shouldCatchUp = (m_catchingUpRequest    && m_catchingUpRequest->m_rootHash    != transaction.m_rootHash) ||
                              (m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash != transaction.m_rootHash);
 
         _LOG( "shouldCatchUp, couldContinueModify: " << shouldCatchUp << " " << couldContinueModify )
         if ( shouldCatchUp || !couldContinueModify )
         {
-            //(+++)
+            _LOG( "Will catch-up" )
             m_newCatchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
 
-                // We should break torrent downloading
+            // We should break torrent downloading
             // Because they (torrents/files) may no longer be available
-            stopAnyDriveTask( [=,this]
-            {
-                startCatchingUp( *m_newCatchingUpRequest );
-            });
+            breakTorrentDownload();
             return;
         }
 
         if ( !m_sandboxCalculated )
         {
+            // wait the end of sandbox calculation
             return;
         }
         else
@@ -1486,14 +1493,11 @@ public:
             // Is my opinion present
             if ( it == v.end() )
             {
-                // Send Single Aproval Transaction
+                // Send Single Aproval Transaction At First
                 sendSingleApprovalTransaction();
             }
 
-            if ( !synchronizeDriveWithSandbox() )
-            {
-                LOG_ERR( "onApprovalTransactionHasBeenPublished(): cannot synchronize drive with sandbox: " << Hash256(transaction.m_modifyTransactionHash) );
-            }
+            synchronizeDriveWithSandbox();
         }
     }
 
@@ -1682,9 +1686,6 @@ public:
             m_backgroundExecutor.run([this]
             {
                 modifyDriveInSandbox();
-            }, [this]
-            {
-                processNextStepAfterTaskStop();
             });
         }
         else
@@ -1855,8 +1856,11 @@ public:
         }
         catch ( const std::exception& ex )
         {
-            _LOG( "!ERROR!: completeCatchingUp error: " << ex.what() );
-            _ASSERT(0);
+            _LOG( "???: completeCatchingUp broken: " << ex.what() );
+            m_session->lt_session().get_context().post( [=,this]
+            {
+                runNextTask();
+            });
         }
     }
     

@@ -30,13 +30,16 @@ inline std::mutex gLogMutex;
 
 #define LOG_ERR(expr) { \
     const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    std::cerr << __FILE__ << ":" << __LINE__ << ": "<< expr << std::flush; \
+    std::cerr << __FILE__ << ":" << __LINE__ << ": "<< expr << "\n" << std::flush; \
 }
 
 #define _ASSERT(expr) { \
     if (!(expr)) {\
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        std::cerr << __FILE__ << ":" << __LINE__ << " failed: " << #expr << std::flush; \
+        if (0) \
+            std::cerr << m_dbgOurPeerName << ": " << __FILE__ << ":" << __LINE__ << " failed: " << #expr << "\n" << std::flush; \
+        else \
+            std::cerr << m_dbgOurPeerName << ": failed assert: " << #expr << "\n" << std::flush; \
         assert(0); \
     }\
 }
