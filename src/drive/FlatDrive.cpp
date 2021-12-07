@@ -169,7 +169,6 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     // Task data
     //
     bool                                 m_taskMustBeBroken = false;
-    bool                                 m_taskIsBroken     = false;
 
     std::optional<lt_handle>             m_downloadingLtHandle; // used for removing torrent from session
 
@@ -458,6 +457,7 @@ public:
 
         //todo _ASSERT( !m_driveIsInitializing );
         
+        m_taskMustBeBroken = false;
         m_catchingUpRequest.reset();
         m_modifyRequest.reset();
         m_modificationIsCanceling = false;
@@ -503,7 +503,6 @@ public:
             return;
         
         m_taskMustBeBroken = true;
-        m_taskIsBroken     = false;
 
         if ( (m_modifyRequest || m_catchingUpRequest) && m_downloadingLtHandle )
         {
@@ -685,17 +684,18 @@ public:
         
         if ( m_taskMustBeBroken )
         {
+            //(+++)???
+            _ASSERT(0);
             m_session->lt_session().get_context().post( [=,this]
             {
                 runNextTask();
             });
             return;
         }
-
+        
         _ASSERT( m_sandboxCalculated );
         _ASSERT( !m_modifyRequest->m_isCanceled );
-        if ( !m_modifyRequest )
-            _ASSERT( !m_modifyRequest );
+        _ASSERT( m_modifyRequest || m_catchingUpRequest );
 
         updateDrive_1( [this]
         {
@@ -787,6 +787,7 @@ public:
 
         if ( code == download_status::download_complete )
         {
+            m_downloadingLtHandle.reset();
             m_modifyUserDataReceived = true;
             m_backgroundExecutor.run( [this]
             {
@@ -1639,6 +1640,8 @@ public:
         {
             LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
             fs::remove( m_sandboxFsTreeFile );
+            //TODO (+++)
+            //modifyIsCompleted();
         }
         
         //
@@ -1678,10 +1681,16 @@ public:
     {
         DBG_MAIN_THREAD
         
-        m_downloadingLtHandle.reset();
+        if ( m_taskMustBeBroken )
+        {
+            m_downloadingLtHandle.reset();
+            return;
+        }
 
         if ( m_catchingUpFileIt == m_catchingUpFileSet.end() )
         {
+            m_downloadingLtHandle.reset();
+
             // it is the end of list
             m_backgroundExecutor.run([this]
             {
