@@ -152,7 +152,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     bool                                m_driveIsInitializing = true;
     std::optional<Hash256>              m_driveWillRemovedTx = {};
-    bool                                m_modificationIsCanceling = false;
+    std::optional<Hash256>              m_modificationCanceledTx;
     std::optional<CatchingUpRequest>    m_catchingUpRequest;
     std::optional<ModifyRequest>        m_modifyRequest;
 
@@ -237,9 +237,11 @@ public:
           m_dbgOurPeerName(replicator.dbgReplicatorName())
     {
         m_dbgThreadId = std::this_thread::get_id();
-        
-        // Initialize drive
-        init();
+
+        m_backgroundExecutor.run( [this]
+        {
+            initializeDrive();
+        });
     }
 
     virtual~DefaultFlatDrive() {
@@ -312,9 +314,9 @@ public:
     }
 
     // Initialize drive
-    void init()
+    void initializeDrive()
     {
-        DBG_MAIN_THREAD
+        DBG_SECONDARY_THREAD
         
         // Clear m_rootDriveHash
         memset( m_rootHash.data(), 0 , m_rootHash.size() );
@@ -334,14 +336,20 @@ public:
         // Load FsTree
         if ( fs::exists(m_fsTreeFile) )
         {
-            try {
+            try
+            {
                 m_fsTree.deserialize( m_fsTreeFile );
-            } catch(...) {
+            }
+            catch(...)
+            {
+                LOG_ERR( "initializeDrive: invalid FsTree file" )
                 fs::remove(m_fsTreeFile);
+                //TODO syncronize!
             }
         }
-
-        // Create FsTree if it is absent
+        
+        // If FsTree is absent,
+        // create it
         if ( !fs::exists(m_fsTreeFile) )
         {
             fs::create_directories( m_fsTreeFile.parent_path() );
@@ -350,13 +358,10 @@ public:
         }
 
         // Calculate torrent and root hash
-        m_fsTree.deserialize( m_fsTreeFile );
         m_rootHash = createTorrentFile( m_fsTreeFile,
                                         m_drivePubKey,
                                         m_fsTreeFile.parent_path(),
                                         m_fsTreeTorrent );
-
-        //TODO compare rootHash with blockchain?
 
         // Add files to session
         addFilesToSession( m_driveFolder, m_torrentFolder, m_fsTree );
@@ -365,13 +370,23 @@ public:
         m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
                                                                m_fsTreeTorrent.parent_path(),
                                                                lt::sf_is_replicator );
+        
+        if ( m_dbgEventHandler )
+        {
+            m_dbgEventHandler->driveIsInitialized( m_replicator, drivePublicKey(), m_rootHash );
+        }
+        
+        m_session->lt_session().get_context().post( [=,this]
+        {
+            runNextTask( true );
+        });
     }
 
     // add files to session recursively
     //
     void addFilesToSession( fs::path folderPath, fs::path torrentFolderPath, Folder& fsTreeFolder )
     {
-        DBG_MAIN_THREAD
+        //DBG_SECONDARY_THREAD
         
         // Loop by folder childs
         //
@@ -434,7 +449,7 @@ public:
         DBG_MAIN_THREAD
 
         _ASSERT(m_modifyRequest)
-        _ASSERT(m_modificationIsCanceling)
+        _ASSERT(m_modificationCanceledTx)
 
         // We have already taken into account information
         // about uploads of the modification to be canceled;
@@ -453,39 +468,44 @@ public:
         m_opinionTrafficIdentifier.reset();
     }
     
-    void runNextTask()
+    void runNextTask( bool runAfterInitializing = false )
     {
         DBG_MAIN_THREAD
 
-        //todo _ASSERT( !m_driveIsInitializing );
+        if ( runAfterInitializing )
+            m_driveIsInitializing = false;
         
-        m_taskMustBeBroken = false;
+        if ( m_driveIsInitializing )
+            return;
+        
+        //???m_driveWillRemovedTx.reset();
+        m_modificationCanceledTx.reset();
         m_catchingUpRequest.reset();
         m_modifyRequest.reset();
-        m_modificationIsCanceling = false;
         
+        m_taskMustBeBroken = false;
+
         if ( m_driveWillRemovedTx )
         {
-            _ASSERT( !m_removeDriveTx );
-            if ( !m_removeDriveTx )
-            {
-                runDriveClosingTask( std::move(m_removeDriveTx) );
-            }
+            auto tx = std::move( m_driveWillRemovedTx );
+
+            runDriveClosingTask( std::move(tx) );
             return;
         }
 
         if ( m_modificationMustBeCanceledTx )
         {
-            auto tx = *m_modificationMustBeCanceledTx;
-            m_modificationMustBeCanceledTx.reset();
+            auto tx = std::move( m_modificationMustBeCanceledTx );
             
-            runCancelModifyDriveTask( tx );
+            runCancelModifyDriveTask( std::move(tx) );
             return;
         }
         
         if ( m_newCatchingUpRequest )
         {
-            startCatchingUp( *m_newCatchingUpRequest );
+            auto request = std::move( m_newCatchingUpRequest );
+
+            startCatchingUp( std::move(request) );
             return;
         }
         
@@ -493,7 +513,9 @@ public:
         {
             auto request = std::move( m_defferedModifyRequests.front() );
             m_defferedModifyRequests.pop_front();
+            
             startModifyDrive( std::move(request) );
+            return;
         }
     }
     
@@ -501,9 +523,8 @@ public:
     {
         DBG_MAIN_THREAD
         
-        if ( m_taskMustBeBroken )
-            return;
-        
+        _ASSERT( !m_taskMustBeBroken );
+
         m_taskMustBeBroken = true;
 
         if ( (m_modifyRequest || m_catchingUpRequest) && m_downloadingLtHandle )
@@ -558,7 +579,8 @@ public:
             modificationHash = m_modifyRequest->m_transactionHash;
             m_modifyRequest.reset();
         }
-        else {
+        else
+        {
             _LOG( "catchingUpIsCompleted" );
             modificationHash = m_catchingUpRequest->m_modifyTransactionHash;
             m_catchingUpRequest.reset();
@@ -582,13 +604,17 @@ public:
         
         if ( m_modifyRequest && transactionHash == m_modifyRequest->m_transactionHash )
         {
+            _ASSERT( !m_driveIsInitializing );
+            
             if ( m_receivedModifyApproveTx )
             {
                 LOG_ERR( "cancelModifyDrive(): m_receivedModifyApproveTx == true" )
                 return;
             }
 
-            m_modificationIsCanceling = true;
+            m_modifyOpinionTimer.reset();
+            
+            m_modificationMustBeCanceledTx = transactionHash;
             m_modifyRequest->m_isCanceled = true;
             downgradeCumulativeUploads();
             
@@ -610,11 +636,13 @@ public:
         }
     }
 
-    void runCancelModifyDriveTask( const Hash256& transactionHash )
+    void runCancelModifyDriveTask( std::optional<Hash256>&& transactionHash )
     {
         DBG_MAIN_THREAD
 
         _LOG("CONTINUE CANCEL");
+        
+        _ASSERT( transactionHash );
 
         m_modifyRequest.reset();
 
@@ -622,9 +650,9 @@ public:
         fs::remove_all( m_sandboxRootPath );
         fs::create_directories( m_sandboxRootPath);
 
-        m_modificationIsCanceling = false;
+        m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), *transactionHash );
         
-        m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), transactionHash );
+        m_modificationCanceledTx.reset();
         
         runNextTask();
     }
@@ -645,14 +673,7 @@ public:
             filestream.close();
         }
         
-        if ( m_modifyRequest || m_catchingUpRequest )
-        {
-            breakTorrentDownload();
-        }
-        else
-        {
-            runNextTask();
-        }
+        breakTorrentDownload();
     }
 
     void runDriveClosingTask( std::optional<Hash256>&& transactionHash )
@@ -660,6 +681,8 @@ public:
         DBG_MAIN_THREAD
         
         _ASSERT( transactionHash );
+        _ASSERT( !m_removeDriveTx );
+
         m_removeDriveTx = std::move(transactionHash);
         
         //
@@ -684,10 +707,8 @@ public:
     {
         DBG_MAIN_THREAD
         
-        if ( m_taskMustBeBroken )
+        if ( m_modificationMustBeCanceledTx )
         {
-            //(+++)???
-            _ASSERT(0);
             m_session->lt_session().get_context().post( [=,this]
             {
                 runNextTask();
@@ -716,18 +737,17 @@ public:
         m_replicatorList = modifyRequest.m_replicatorList;
 
         // ModificationIsCanceling check is redundant now
-        if ( m_modifyRequest || m_catchingUpRequest || m_newCatchingUpRequest || m_modificationIsCanceling )
+        if ( m_modifyRequest || m_catchingUpRequest || m_newCatchingUpRequest || m_modificationCanceledTx || m_driveIsInitializing )
         {
             //LOG_ERR( "startModifyDrive():: prevoius modification is not completed" );
             m_defferedModifyRequests.emplace_back( std::move(modifyRequest) );
             return;
         }
 
-        m_sandboxCalculated          = false;
+        m_sandboxCalculated            = false;
+        m_modifyApproveTransactionSent = false;
         m_receivedModifyApproveTx.reset();
-        m_modifyApproveTransactionSent     = false;
-        m_modificationIsCanceling    = false;
-        
+
         // remove my opinion
         m_myOpinion.reset();
 
@@ -766,19 +786,8 @@ public:
     {
         DBG_MAIN_THREAD
     
-        if ( !m_modifyRequest )
-        {
-            m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, {}, "DefaultDrive::downloadHandler: internal error", 0 );
-            modifyIsCompleted();
-            return;
-        }
-
-        if ( m_modifyRequest->m_clientDataInfoHash != infoHash )
-        {
-            m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "DefaultDrive::downloadHandler: internal error", 0 );
-            modifyIsCompleted();
-            return;
-        }
+        _ASSERT( m_modifyRequest )
+        _ASSERT( m_modifyRequest->m_clientDataInfoHash == infoHash )
 
         if ( code == download_status::failed )
         {
@@ -789,7 +798,10 @@ public:
 
         if ( code == download_status::download_complete )
         {
+            _ASSERT( !m_taskMustBeBroken );
+
             m_downloadingLtHandle.reset();
+
             m_modifyUserDataReceived = true;
             m_backgroundExecutor.run( [this]
             {
@@ -1080,7 +1092,7 @@ public:
 
         _ASSERT( m_opinionTrafficIdentifier )
         _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
-        _ASSERT( !m_modificationIsCanceling )
+        _ASSERT( !m_modificationCanceledTx )
 
         updateCumulativeUploads();
 
@@ -1138,9 +1150,15 @@ public:
 
         _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
         
-        if ( m_modificationIsCanceling )
+        if ( m_modificationMustBeCanceledTx )
+        {
+            m_session->lt_session().get_context().post( [=,this]
+            {
+                runNextTask();
+            });
             return;
-        
+        }
+
         // Notify
         if ( m_dbgEventHandler )
             m_dbgEventHandler->rootHashIsCalculated( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_sandboxRootHash );
@@ -1393,9 +1411,6 @@ public:
         if ( m_modifyApproveTransactionSent || m_receivedModifyApproveTx )
             return;
         
-        if ( m_modificationIsCanceling )
-            return;
-        
         ApprovalTransactionInfo info = {    m_drivePubKey.array(),
                                             m_myOpinion->m_modifyTransactionHash,
                                             m_myOpinion->m_rootHash,
@@ -1436,7 +1451,7 @@ public:
         m_otherOpinions.erase(transaction.m_modifyTransactionHash);
         
         // check actual root hash
-        if ( m_modificationIsCanceling )
+        if ( m_modificationCanceledTx || m_modificationMustBeCanceledTx || m_driveIsInitializing )
         {
             // wait the end of 'Cancel Modification'
             // and then start 'CatchingUp'
@@ -1538,7 +1553,7 @@ public:
     {
         DBG_MAIN_THREAD
         
-        _ASSERT( !m_modificationIsCanceling );
+        _ASSERT( !m_modificationCanceledTx );
         _ASSERT( !m_modifyRequest );
         _ASSERT( !m_removeDriveTx );
 
@@ -1616,6 +1631,10 @@ public:
 
         if ( code == download_status::download_complete )
         {
+            _ASSERT( !m_taskMustBeBroken );
+
+            m_downloadingLtHandle.reset();
+
             startDownloadMissingFiles();
         }
     }
@@ -1632,7 +1651,6 @@ public:
         try
         {
             m_sandboxFsTree.deserialize( m_sandboxFsTreeFile );
-            m_downloadingLtHandle.reset();
         }
         catch(...)
         {
@@ -1679,16 +1697,12 @@ public:
     {
         DBG_MAIN_THREAD
         
-        if ( m_taskMustBeBroken )
-        {
-            m_downloadingLtHandle.reset();
-            return;
-        }
+        _ASSERT( !m_taskMustBeBroken );
 
         if ( m_catchingUpFileIt == m_catchingUpFileSet.end() )
         {
             m_downloadingLtHandle.reset();
-
+            
             // it is the end of list
             m_backgroundExecutor.run([this]
             {
@@ -1737,63 +1751,6 @@ public:
                                                  m_replicatorList );
         }
     }
-    
-//    void completeCatchingUp_1()
-//    {
-//        DBG_MAIN_THREAD
-//
-//        //
-//        // Create list of unused torrents
-//        //
-//
-//        for( auto& it : m_torrentHandleMap )
-//        {
-//            it.second.m_isUsed = false;
-//        }
-//
-//        markUsedFiles( m_sandboxFsTree );
-//
-//        std::set<lt_handle> tobeRemovedTorrents;
-//
-//        for( const auto& it : m_torrentHandleMap )
-//        {
-//            if ( !it.second.m_isUsed )
-//            {
-//                tobeRemovedTorrents.insert( it.second.m_ltHandle );
-//            }
-//        }
-//        tobeRemovedTorrents.insert( m_fsTreeLtHandle );
-//
-//        //
-//        // Remove unused torrents and files
-//        //
-//        m_session->removeTorrentsFromSession( tobeRemovedTorrents, [this]
-//        {
-//            DBG_MAIN_THREAD
-//
-//            // remove unused files and torrent files from the drive
-//            for( const auto& [key,value] : m_torrentHandleMap )
-//            {
-//                if ( !value.m_isUsed )
-//                {
-//                    std::string filename = hashToFileName( key );
-//                    fs::remove( fs::path(m_driveFolder) / filename );
-//                    fs::remove( fs::path(m_torrentFolder) / filename );
-//                }
-//            }
-//            fs::remove( fs::path(m_fsTreeFile) );
-//
-//            m_stopSecondaryThread = false;
-//
-//            if ( m_secondaryThread.get_id() != std::thread::id{} )
-//                m_secondaryThread.detach();
-//
-//            m_secondaryThread = std::thread( [this]
-//            {
-//                completeCatchingUp_2();
-//            });
-//        });
-//    }
     
     void completeCatchingUp()
     {

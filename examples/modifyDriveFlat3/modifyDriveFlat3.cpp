@@ -313,6 +313,14 @@ public:
     {
         replicator.asyncOnDownloadOpinionReceived( opinion );
     }
+    
+    // It will be called when rootHash is calculated in sandbox
+    virtual void driveIsInitialized( Replicator&                    replicator,
+                                     const sirius::Key&             driveKey,
+                                     const sirius::drive::InfoHash& rootHash ) override
+    {
+        EXLOG( "@ driveIsInitialized: " << replicator.dbgReplicatorName() );
+    }
 };
 
 std::optional<ApprovalTransactionInfo>          MyReplicatorEventHandler::m_approvalTransactionInfo;

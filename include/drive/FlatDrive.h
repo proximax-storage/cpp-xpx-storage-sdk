@@ -320,7 +320,6 @@ class Replicator;
         }
 
         // It will be called when rootHash is calculated in sandbox
-        // (TODO it will be removed)
         virtual void rootHashIsCalculated( Replicator&                    replicator,
                                            const sirius::Key&             driveKey,
                                            const Hash256&                 modifyTransactionHash,
@@ -335,9 +334,16 @@ class Replicator;
             //?
         }
 
-        virtual void driveAdded(const sirius::Key& driveKey) {
-
+        // It will be called after drive initializing
+        virtual void driveAdded( const sirius::Key& driveKey, const InfoHash& rootHash ) {
         }
+
+        // It will be called when rootHash is calculated in sandbox
+        virtual void driveIsInitialized( Replicator&                    replicator,
+                                         const sirius::Key&             driveKey,
+                                         const sirius::drive::InfoHash& rootHash )
+        {
+        }        
     };
 
     //

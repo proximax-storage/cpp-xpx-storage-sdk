@@ -117,9 +117,9 @@ public:
 
     }
 
-    // 'actualRootHash' is empty ONLY when 'asyncAddDrive()' creates new drive
+    // 'actualRootHash' is not used
     //
-    void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest, std::optional<InfoHash> actualRootHash ) override
+    void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest, std::optional<InfoHash> /*actualRootHash*/ ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
@@ -158,15 +158,15 @@ public:
 
             m_driveMap[driveKey] = drive;
 
-            if ( actualRootHash && drive->rootHash() != actualRootHash )
-            {
-                drive->startCatchingUp( CatchingUpRequest{ *actualRootHash, {} } );
-            }
+//            if ( actualRootHash && drive->rootHash() != actualRootHash )
+//            {
+//                drive->startCatchingUp( CatchingUpRequest{ *actualRootHash, {} } );
+//            }
 
             // Notify
-            if ( m_dbgEventHandler ) {
-                m_dbgEventHandler->driveAdded(drive->drivePublicKey());
-            }
+//            if ( m_dbgEventHandler ) {
+//                m_dbgEventHandler->driveAdded(drive->drivePublicKey());
+//            }
         });//post
     }
 
@@ -550,7 +550,6 @@ public:
                 deleteDriveImmediately = false;
             }
         }
-        
         
         if ( deleteDriveImmediately )
         {
