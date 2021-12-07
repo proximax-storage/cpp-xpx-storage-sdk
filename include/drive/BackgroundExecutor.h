@@ -22,6 +22,10 @@ public:
     ~BackgroundExecutor()
     {
         m_context.stop();
+        if ( m_thread.joinable() )
+        {
+            m_thread.join();
+        }
     }
 
     void run( const std::function<void()>& task )

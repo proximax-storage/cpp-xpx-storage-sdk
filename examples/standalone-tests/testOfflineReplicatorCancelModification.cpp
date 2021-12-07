@@ -224,6 +224,8 @@ namespace sirius::drive::test {
         env.runBack();
 
         env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS);
+
+        ASSERT_EQ(env.modifyCompleteCounters[client.m_modificationTransactionHashes[0]], 0);
     }
 
 #undef TEST_NAME
