@@ -19,7 +19,7 @@
 
 #include <sirius_drive/session_delegate.h>
 
-const bool testLateReplicator = true;
+const bool testLateReplicator = false;
 
 //
 // This example shows interaction between 'client' and 'replicator'.
@@ -398,12 +398,10 @@ int main(int,char**)
                                     "replicator1" );
     gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
 
-#if 0
+#if 1
     sleep(1);
-    driveRootHash = std::make_shared<InfoHash>( gReplicator->dbgGetRootHash( DRIVE_PUB_KEY ) );
+    
     gReplicator.reset();
-    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
-    clientDownloadFsTree();
 
     gReplicator = createReplicator( replicatorKeyPair,
                                     REPLICATOR_IP_ADDR,
@@ -413,6 +411,17 @@ int main(int,char**)
                                     TRANSPORT_PROTOCOL,
                                     gMyReplicatorEventHandler,
                                     "replicator1" );
+
+    gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
+
+//    sleep(1);
+//    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
+//    driveRootHash = std::make_shared<InfoHash>( gReplicator->dbgGetRootHash( DRIVE_PUB_KEY ) );
+//    clientDownloadFsTree();
+//    sleep(100);
+
+    sleep(1);
+
 #endif
 
     gReplicator2 = createReplicator( replicatorKeyPair_2,
@@ -435,6 +444,9 @@ int main(int,char**)
                                     "replicator3" );
     gReplicatorMap[gReplicator3->replicatorKey()] = gReplicator3;
 
+    sleep(1);
+
+    
 //    ///
 //    /// Create client session
 //    ///

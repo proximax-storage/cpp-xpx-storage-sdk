@@ -656,9 +656,14 @@ private:
 //                    break;
 //                }
 
+//                case lt::peer_log_alert::alert_type: {
+//                    _LOG(  ": peer_log_alert: " << alert->message())
+//                    break;
+//                }
+
                 case lt::add_torrent_alert::        alert_type: {
                     auto* theAlert = dynamic_cast<lt::add_torrent_alert*>(alert);
-                    _LOG("add torrent " << theAlert->message());
+                    _LOG("*** add_torrent_alert: " << theAlert->message());
                 }
                 case lt::dht_announce_alert::       alert_type:
                 //case lt::torrent_log_alert::        alert_type:
@@ -708,11 +713,6 @@ private:
 //                    LOG( "#peer_disconnected_alert: " << theAlert->error.category().name() << " " << theAlert->error << " " << theAlert->endpoint << "\n" );
 //                    break;
                 }
-
-//                case lt::peer_log_alert::alert_type: {
-//                    _LOG(  ": peer_log_alert: " << alert->message())
-//                    break;
-//                }
 
                 // piece_finished_alert
                 case lt::piece_finished_alert::alert_type:
