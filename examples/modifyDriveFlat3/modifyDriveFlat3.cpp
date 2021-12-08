@@ -481,6 +481,7 @@ int main(int,char**)
 
         //actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
         actionList.push_back( Action::upload( clientFolder / "a.txt", "a2.txt" ) );
+        actionList.push_back( Action::upload( clientFolder / "b.txt", "a2.txt" ) );
         actionList.push_back( Action::upload( clientFolder / "b.bin", "f1/b1.bin" ) );
         actionList.push_back( Action::upload( clientFolder / "b.bin", "f2/b2.bin" ) );
         actionList.push_back( Action::upload( clientFolder / "a.txt", "f2/a.txt" ) );

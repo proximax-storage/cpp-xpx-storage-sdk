@@ -295,7 +295,14 @@ public:
                 {
                     fs::path sandboxFilePath = addFilesFolder/action.m_param2;
                     fs::create_directories( sandboxFilePath.parent_path() );
-                    fs::create_symlink( action.m_param1, sandboxFilePath);
+                    try
+                    {
+                        fs::create_symlink( action.m_param1, sandboxFilePath);
+                    }
+                    catch(...)
+                    {
+                        // ignore duplicate destination links
+                    }
                     //fs::copy( action.m_param1, addFilesFolder/action.m_param2 );
                     break;
                 }
