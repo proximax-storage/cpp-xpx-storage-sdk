@@ -150,20 +150,23 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     
     InfoHash                            m_rootHash;
 
+    //
+    // Request queue
+    //
+
+    std::optional<Hash256>              m_removeDriveTx = {};
+    std::optional<Hash256>              m_modificationMustBeCanceledTx;
+    std::optional<CatchingUpRequest>    m_newCatchingUpRequest;
+    std::deque<ModifyRequest>           m_defferedModifyRequests;
+
+    //
+    // Task variable
+    //
     bool                                m_driveIsInitializing = true;
     std::optional<Hash256>              m_driveWillRemovedTx = {};
     std::optional<Hash256>              m_modificationCanceledTx;
     std::optional<CatchingUpRequest>    m_catchingUpRequest;
     std::optional<ModifyRequest>        m_modifyRequest;
-
-    //
-    // Request queue
-    //
-    
-    std::optional<Hash256>              m_removeDriveTx = {};
-    std::optional<Hash256>              m_modificationMustBeCanceledTx;
-    std::optional<CatchingUpRequest>    m_newCatchingUpRequest;
-    std::deque<ModifyRequest>           m_defferedModifyRequests;
 
     //
     // Task data
@@ -448,7 +451,6 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT(m_modifyRequest)
         _ASSERT(m_modificationCanceledTx)
 
         // We have already taken into account information
@@ -488,7 +490,7 @@ public:
         if ( m_driveWillRemovedTx )
         {
             auto tx = std::move( m_driveWillRemovedTx );
-
+            m_driveWillRemovedTx.reset();
             runDriveClosingTask( std::move(tx) );
             return;
         }
@@ -496,7 +498,7 @@ public:
         if ( m_modificationMustBeCanceledTx )
         {
             auto tx = std::move( m_modificationMustBeCanceledTx );
-            
+            m_modificationMustBeCanceledTx.reset();
             runCancelModifyDriveTask( std::move(tx) );
             return;
         }
@@ -504,7 +506,7 @@ public:
         if ( m_newCatchingUpRequest )
         {
             auto request = std::move( m_newCatchingUpRequest );
-
+            m_newCatchingUpRequest.reset();
             startCatchingUpTask( std::move(request) );
             return;
         }
@@ -522,8 +524,13 @@ public:
     void breakTorrentDownload()
     {
         DBG_MAIN_THREAD
-        
-        _ASSERT( !m_taskMustBeBroken );
+
+        if( m_taskMustBeBroken )
+        {
+            // Previous task has not been completed yet
+            // So we wait for its completeness
+            return;
+        }
 
         m_taskMustBeBroken = true;
 
@@ -599,9 +606,9 @@ public:
     void cancelModifyDrive( const Hash256& transactionHash ) override
     {
         DBG_MAIN_THREAD
-        
-        _ASSERT( m_modifyRequest || m_catchingUpRequest );
-        
+
+        _ASSERT( m_modifyRequest || m_catchingUpRequest || m_driveIsInitializing );
+
         if ( m_modifyRequest && transactionHash == m_modifyRequest->m_transactionHash )
         {
             _ASSERT( !m_driveIsInitializing );
@@ -616,7 +623,6 @@ public:
             
             m_modificationMustBeCanceledTx = transactionHash;
             m_modifyRequest->m_isCanceled = true;
-            downgradeCumulativeUploads();
             
             breakTorrentDownload();
             return;
@@ -644,6 +650,10 @@ public:
         
         _ASSERT( transactionHash );
 
+        m_modificationCanceledTx = transactionHash;
+
+        downgradeCumulativeUploads();
+
         m_modifyRequest.reset();
 
         // clear sandbox folder
@@ -651,9 +661,7 @@ public:
         fs::create_directories( m_sandboxRootPath);
 
         m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), *transactionHash );
-        
-        m_modificationCanceledTx.reset();
-        
+
         runNextTask();
     }
     
@@ -741,7 +749,6 @@ public:
             m_defferedModifyRequests.emplace_back( std::move(modifyRequest) );
             return;
         }
-        
         startModifyDriveTask( modifyRequest );
     }
     

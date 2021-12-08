@@ -398,7 +398,7 @@ int main(int,char**)
                                     "replicator1" );
     gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
 
-#if 0
+#if 1
     sleep(1);
     
     gReplicator.reset();
@@ -411,14 +411,7 @@ int main(int,char**)
                                     TRANSPORT_PROTOCOL,
                                     gMyReplicatorEventHandler,
                                     "replicator1" );
-
     gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
-
-//    sleep(1);
-//    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
-//    driveRootHash = std::make_shared<InfoHash>( gReplicator->dbgGetRootHash( DRIVE_PUB_KEY ) );
-//    clientDownloadFsTree();
-//    sleep(100);
 
     sleep(1);
 

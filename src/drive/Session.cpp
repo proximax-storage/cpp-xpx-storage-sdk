@@ -663,10 +663,13 @@ private:
 //                    break;
 //                }
 
-//                case lt::peer_log_alert::alert_type: {
-//                    _LOG(  ": peer_log_alert: " << alert->message())
-//                    break;
-//                }
+                case lt::peer_log_alert::alert_type: {
+                    if (strcmp(m_dbgOurPeerName, "replicator1") == 0 || strcmp(m_dbgOurPeerName, "client") == 0)
+                    {
+                        _LOG(  ": peer_log_alert: " << alert->message())
+                    }
+                    break;
+                }
 
                 case lt::add_torrent_alert::        alert_type: {
                     auto* theAlert = dynamic_cast<lt::add_torrent_alert*>(alert);
