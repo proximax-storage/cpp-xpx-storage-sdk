@@ -19,7 +19,7 @@
 
 #include <sirius_drive/session_delegate.h>
 
-const bool testLateReplicator = false;
+const bool testLateReplicator = true;
 
 //
 // This example shows interaction between 'client' and 'replicator'.
@@ -398,7 +398,7 @@ int main(int,char**)
                                     "replicator1" );
     gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
 
-#if 1
+#if 0
     sleep(1);
     
     gReplicator.reset();

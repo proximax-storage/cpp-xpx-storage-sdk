@@ -505,16 +505,16 @@ public:
         {
             auto request = std::move( m_newCatchingUpRequest );
 
-            startCatchingUp( std::move(request) );
+            startCatchingUpTask( std::move(request) );
             return;
         }
         
         if ( !m_defferedModifyRequests.empty() )
         {
-            auto request = std::move( m_defferedModifyRequests.front() );
+            auto request = m_defferedModifyRequests.front();
             m_defferedModifyRequests.pop_front();
             
-            startModifyDrive( std::move(request) );
+            startModifyDriveTask( request );
             return;
         }
     }
@@ -732,8 +732,6 @@ public:
     {
         DBG_MAIN_THREAD
         
-        m_modifyUserDataReceived  = false;
-
         m_replicatorList = modifyRequest.m_replicatorList;
 
         // ModificationIsCanceling check is redundant now
@@ -743,7 +741,13 @@ public:
             m_defferedModifyRequests.emplace_back( std::move(modifyRequest) );
             return;
         }
-
+        
+        startModifyDriveTask( modifyRequest );
+    }
+    
+    void startModifyDriveTask( const ModifyRequest& modifyRequest )
+    {
+        m_modifyUserDataReceived       = false;
         m_sandboxCalculated            = false;
         m_modifyApproveTransactionSent = false;
         m_receivedModifyApproveTx.reset();
@@ -751,7 +755,7 @@ public:
         // remove my opinion
         m_myOpinion.reset();
 
-        m_modifyRequest = std::move( modifyRequest );
+        m_modifyRequest = modifyRequest;
 
         // clear client session folder
         fs::remove_all( m_sandboxRootPath );
@@ -1549,7 +1553,7 @@ public:
         _LOG( "onSingleApprovalTransactionHasBeenPublished()" );
     }
 
-    void startCatchingUp( std::optional<CatchingUpRequest>&& actualCatchingRequest ) override
+    void startCatchingUpTask( std::optional<CatchingUpRequest>&& actualCatchingRequest )
     {
         DBG_MAIN_THREAD
         
