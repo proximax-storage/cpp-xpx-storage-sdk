@@ -110,7 +110,6 @@ protected:
 //
 class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
-    using LtSession = std::shared_ptr<Session>;
     using lt_handle = Session::lt_handle;
     using uint128_t = boost::multiprecision::uint128_t;
 
@@ -121,17 +120,17 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
         bool      m_isUsed = true;
     };
 
-    LtSession           m_session;
+    std::weak_ptr<Session>  m_session;
 
     // It is as 1-st parameter in functions of ReplicatorEventHandler (for debugging)
-    Replicator&         m_replicator;
+    Replicator&             m_replicator;
 
-    BackgroundExecutor  m_backgroundExecutor;
+    BackgroundExecutor      m_backgroundExecutor;
 
-    size_t              m_maxSize;
+    size_t                  m_maxSize;
 
     // List of replicators that support this drive
-    ReplicatorList    m_replicatorList;
+    ReplicatorList          m_replicatorList;
     
     // Replicator event handlers
     ReplicatorEventHandler&     m_eventHandler;
@@ -253,11 +252,10 @@ public:
 
     const Key& drivePublicKey() const override { return m_drivePubKey; }
 
-    void terminate()
+    void terminate() override
     {
-        //TODO main thread
-        LOG_ERR ("Not implemented");
-        //TODO
+        //LOG_ERR ("Not fully implemented?");
+        m_backgroundExecutor.stop();
     }
 
     uint64_t maxSize() const override {
@@ -315,6 +313,14 @@ public:
             driveSize = 0;
         }
     }
+    
+    void executeOnSessionThread( const std::function<void()>& task )
+    {
+        if ( auto session = m_session.lock(); session )
+        {
+            session->lt_session().get_context().post( task );
+        }
+    }
 
     // Initialize drive
     void initializeDrive()
@@ -370,16 +376,19 @@ public:
         addFilesToSession( m_driveFolder, m_torrentFolder, m_fsTree );
 
         // Add FsTree to session
-        m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
-                                                               m_fsTreeTorrent.parent_path(),
-                                                               lt::sf_is_replicator );
+        if ( auto session = m_session.lock(); session )
+        {
+            m_fsTreeLtHandle = session->addTorrentFileToSession( m_fsTreeTorrent,
+                                                                 m_fsTreeTorrent.parent_path(),
+                                                                 lt::sf_is_replicator );
+        }
         
         if ( m_dbgEventHandler )
         {
             m_dbgEventHandler->driveIsInitialized( m_replicator, drivePublicKey(), m_rootHash );
         }
         
-        m_session->lt_session().get_context().post( [=,this]
+        executeOnSessionThread( [=,this]
         {
             runNextTask( true );
         });
@@ -440,8 +449,11 @@ public:
                 // skip identical files that was already added
                 if ( m_torrentHandleMap.find(getFile(*fsTreeChild).hash()) != m_torrentHandleMap.end() )
                 {
-                    auto torrentHandle = m_session->addTorrentFileToSession( torrentFile, m_driveFolder, lt::sf_is_replicator, {} );
-                    m_torrentHandleMap.emplace( getFile(*fsTreeChild).hash(), UseTorrentInfo{ torrentHandle, true } );
+                    if ( auto session = m_session.lock(); session )
+                    {
+                        auto torrentHandle = session->addTorrentFileToSession( torrentFile, m_driveFolder, lt::sf_is_replicator, {} );
+                        m_torrentHandleMap.emplace( getFile(*fsTreeChild).hash(), UseTorrentInfo{ torrentHandle, true } );
+                    }
                 }
             }
         }
@@ -536,31 +548,34 @@ public:
 
         if ( (m_modifyRequest || m_catchingUpRequest) && m_downloadingLtHandle )
         {
-            //
-            // We must break torrent downloading because it could be unavailable
-            //
-            m_session->removeDownloadContext( *m_downloadingLtHandle );
-            
-            lt_handle torrentHandle = *m_downloadingLtHandle;
-            m_downloadingLtHandle.reset();
-
-            m_session->removeTorrentsFromSession( {torrentHandle}, [=, this]
+            if ( auto session = m_session.lock(); session )
             {
-                DBG_MAIN_THREAD
-                _LOG( "breakTorrentDownload: torrent is removed");
+                //
+                // We must break torrent downloading because it could be unavailable
+                //
+                session->removeDownloadContext( *m_downloadingLtHandle );
+                
+                lt_handle torrentHandle = *m_downloadingLtHandle;
+                m_downloadingLtHandle.reset();
 
-                m_backgroundExecutor.run( [this]
+                session->removeTorrentsFromSession( {torrentHandle}, [=, this]
                 {
-                    //TODO: move downloaded files from sandbox to drive (for catching-up only)
-                    
-                    fs::remove_all( m_sandboxRootPath );
-                    
-                    m_session->lt_session().get_context().post( [=,this]
+                    DBG_MAIN_THREAD
+                    _LOG( "breakTorrentDownload: torrent is removed");
+
+                    m_backgroundExecutor.run( [this]
                     {
-                        runNextTask();
+                        //TODO: move downloaded files from sandbox to drive (for catching-up only)
+                        
+                        fs::remove_all( m_sandboxRootPath );
+                        
+                        executeOnSessionThread( [=,this]
+                        {
+                            runNextTask();
+                        });
                     });
                 });
-            });
+            }
         }
         else
         {
@@ -706,9 +721,12 @@ public:
         
         tobeRemovedTorrents.insert( m_fsTreeLtHandle );
 
-        m_session->removeTorrentsFromSession( std::move(tobeRemovedTorrents), [this,transactionHash](){
-            m_replicator.closeDriveChannels( *m_removeDriveTx, *this );
-        });
+        if ( auto session = m_session.lock(); session )
+        {
+            session->removeTorrentsFromSession( std::move(tobeRemovedTorrents), [this,transactionHash](){
+                m_replicator.closeDriveChannels( *m_removeDriveTx, *this );
+            });
+        }
     }
 
     void synchronizeDriveWithSandbox()
@@ -717,7 +735,7 @@ public:
         
         if ( m_modificationMustBeCanceledTx )
         {
-            m_session->lt_session().get_context().post( [=,this]
+            executeOnSessionThread( [=,this]
             {
                 runNextTask();
             });
@@ -775,16 +793,19 @@ public:
         _ASSERT( !m_opinionTrafficIdentifier );
         m_opinionTrafficIdentifier = m_modifyRequest->m_transactionHash;
         
-        m_downloadingLtHandle = m_session->download( DownloadContext(
-                                            DownloadContext::client_data,
-                                            std::bind( &DefaultFlatDrive::modifyDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
-                                            m_modifyRequest->m_clientDataInfoHash,
-                                            *m_opinionTrafficIdentifier,
-                                            0, //todo
-                                            ""),
-                                                   m_sandboxRootPath,
-                                                   //{} );
-                                            m_replicatorList );
+        if ( auto session = m_session.lock(); session )
+        {
+            m_downloadingLtHandle = session->download( DownloadContext(
+                                                DownloadContext::client_data,
+                                                std::bind( &DefaultFlatDrive::modifyDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
+                                                m_modifyRequest->m_clientDataInfoHash,
+                                                *m_opinionTrafficIdentifier,
+                                                0, //todo
+                                                ""),
+                                                       m_sandboxRootPath,
+                                                       //{} );
+                                                m_replicatorList );
+        }
     }
 
     // will be called by Session
@@ -838,7 +859,7 @@ public:
             {
                 LOG( "m_clientDataFolder=" << m_clientDataFolder );
                 m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'client-data' is absent", -1 );
-                m_session->lt_session().get_context().post( [=,this]
+                executeOnSessionThread( [=,this]
                 {
                     modifyIsCompleted();
                 });
@@ -850,7 +871,7 @@ public:
             {
                 LOG( "m_clientActionListFile=" << m_clientActionListFile );
                 m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'ActionList.bin' is absent", -1 );
-                m_session->lt_session().get_context().post( [=,this]()
+                executeOnSessionThread( [=,this]()
                 {
                     modifyIsCompleted();
                 });
@@ -883,6 +904,7 @@ public:
                         fs::path clientFile = m_clientDriveFolder / action.m_param2;
                         if ( !fs::exists( clientFile ) || fs::is_directory(clientFile) )
                         {
+                            _LOG( "! ActionList: invalid 'upload': file/folder not exists: " << clientFile )
                             action.m_isInvalid = true;
                             break;
                         }
@@ -918,6 +940,8 @@ public:
                                                  srcFile,
                                                  fileHash,
                                                  fileSize );
+
+                        _LOG( "ActionList: successful 'upload': " << clientFile )
                         break;
                     }
                     //
@@ -928,12 +952,14 @@ public:
                         // Check that entry is free
                         if ( m_sandboxFsTree.getEntryPtr( action.m_param1 ) != nullptr )
                         {
-                            //todo m_isInvalid?
+                            _LOG( "! ActionList: invalid 'new_folder': such entry already exists: " << action.m_param1 )
                             action.m_isInvalid = true;
                             break;
                         }
 
                         m_sandboxFsTree.addFolder( action.m_param1 );
+
+                        _LOG( "ActionList: successful 'new_folder': " << action.m_param1 )
                         break;
                     }
                     //
@@ -946,7 +972,7 @@ public:
                         // Check that src child exists
                         if ( srcChild == nullptr )
                         {
-                            LOG( "invalid 'move' action: src not exists (in FsTree): " << action.m_param1  );
+                            _LOG( "! ActionList: invalid 'move': 'srcPath' not exists (in FsTree): " << action.m_param1 )
                             action.m_isInvalid = true;
                             break;
                         }
@@ -960,9 +986,9 @@ public:
                             // srcPath should not be a parent folder of destPath
                             if ( isPathInsideFolder( srcPath, destPath ) )
                             {
-                                LOG( "invalid 'move' action: 'srcPath' is a directory which is an ancestor of 'destPath'" );
-                                LOG( "invalid 'move' action: srcPath : " << action.m_param1  );
-                                LOG( "invalid 'move' action: destPath : " << action.m_param2  );
+                                _LOG( "! ActionList: invalid 'move': 'srcPath' is a directory which is an ancestor of 'destPath'" )
+                                _LOG( "  invalid 'move': 'srcPath' : " << action.m_param1  );
+                                _LOG( "  invalid 'move': 'destPath' : " << action.m_param2  );
                                 action.m_isInvalid = true;
                                 break;
                             }
@@ -974,6 +1000,7 @@ public:
                             //m_torrentMap.try_emplace( fileHash, UseTorrentInfo{} );
                         } );
 
+                        _LOG( "ActionList: successful 'move': "  << action.m_param1 << " -> " << action.m_param2 )
                         break;
                     }
                     //
@@ -983,7 +1010,7 @@ public:
 
                         if ( m_sandboxFsTree.getEntryPtr( action.m_param1 ) == nullptr )
                         {
-                            _LOG( "invalid 'remove' action: src not exists (in FsTree): " << action.m_param1  );
+                            _LOG( "! ActionList: invalid 'remove': 'srcPath' not exists (in FsTree): " << action.m_param1  );
                             //m_sandboxFsTree.dbgPrint();
                             action.m_isInvalid = true;
                             break;
@@ -995,7 +1022,8 @@ public:
                             // maybe it is file from client data, so we add it to map with empty torrent handle
                             m_torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{} );
                         } );
-
+                        
+                        _LOG( "! ActionList: successful 'remove': " << action.m_param1  );
                         break;
                     }
 
@@ -1022,7 +1050,7 @@ public:
                                                m_sandboxRootPath,
                                                m_sandboxFsTreeTorrent );
 
-        m_session->lt_session().get_context().post( [=,this]()
+        executeOnSessionThread( [=,this]()
         {
             myRootHashIsCalculated();
         });
@@ -1163,7 +1191,7 @@ public:
         
         if ( m_modificationMustBeCanceledTx )
         {
-            m_session->lt_session().get_context().post( [=,this]
+            executeOnSessionThread( [=,this]
             {
                 runNextTask();
             });
@@ -1239,8 +1267,13 @@ public:
         {
             // start timer if it is not started
             if ( !m_modifyOpinionTimer )
-                m_modifyOpinionTimer = m_session->startTimer( m_replicator.getModifyApprovalTransactionTimerDelay(),
-                                    [this]() { opinionTimerExpired(); } );
+            {
+                if ( auto session = m_session.lock(); session )
+                {
+                    m_modifyOpinionTimer = session->startTimer( m_replicator.getModifyApprovalTransactionTimerDelay(),
+                                        [this]() { opinionTimerExpired(); } );
+                }
+            }
         }
     }
     
@@ -1278,13 +1311,16 @@ public:
         toBeRemovedTorrents.insert( m_fsTreeLtHandle );
 
         // Remove unused torrents
-        m_session->removeTorrentsFromSession( toBeRemovedTorrents, [this, nextStep]
+        if ( auto session = m_session.lock(); session )
         {
-            m_backgroundExecutor.run( [nextStep]
+            session->removeTorrentsFromSession( toBeRemovedTorrents, [this, nextStep]
             {
-                nextStep();
+                m_backgroundExecutor.run( [nextStep]
+                {
+                    nextStep();
+                });
             });
-        });
+        }
     }
 
     // updates drive (2st phase after fsTree torrent removed)
@@ -1327,22 +1363,28 @@ public:
                 // load torrent (if it is not loaded)
                 if ( !it.second.m_ltHandle.is_valid() )
                 {
-                    std::string fileName = hashToFileName( it.first );
-                    it.second.m_ltHandle = m_session->addTorrentFileToSession( m_torrentFolder / fileName,
-                                                                               m_driveFolder,
-                                                                               lt::sf_is_replicator );
+                    if ( auto session = m_session.lock(); session )
+                    {
+                        std::string fileName = hashToFileName( it.first );
+                        it.second.m_ltHandle = session->addTorrentFileToSession( m_torrentFolder / fileName,
+                                                                                   m_driveFolder,
+                                                                                   lt::sf_is_replicator );
+                    }
                 }
             }
 
             // Add FsTree torrent to session
             _LOG( "Add FsTree torrent to session: " << toString(m_rootHash) );
-            m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
-                                                                   m_fsTreeTorrent.parent_path(),
-                                                                   lt::sf_is_replicator );
+            if ( auto session = m_session.lock(); session )
+            {
+                m_fsTreeLtHandle = session->addTorrentFileToSession( m_fsTreeTorrent,
+                                                                     m_fsTreeTorrent.parent_path(),
+                                                                     lt::sf_is_replicator );
+            }
 
             // clear sandbox
             fs::remove_all( m_sandboxRootPath );
-            m_session->lt_session().get_context().post( [=,this]
+            executeOnSessionThread( [=,this]
             {
                 modifyIsCompleted();
             });
@@ -1350,7 +1392,7 @@ public:
         catch ( const std::exception& ex )
         {
             _LOG( "???: updateDrive_2 broken: " << ex.what() );
-            m_session->lt_session().get_context().post( [=,this]
+            executeOnSessionThread( [=,this]
             {
                 runNextTask();
             });
@@ -1437,7 +1479,6 @@ public:
         }
         
         // notify event handler
-        _LOG( "*************" )
         m_eventHandler.modifyApprovalTransactionIsReady( m_replicator, std::move(info) );
         
         m_replicator.removeModifyDriveInfo( m_myOpinion->m_modifyTransactionHash );
@@ -1591,7 +1632,7 @@ public:
                 }
             }
             
-            m_catchingUpRequest = std::move(actualCatchingRequest );
+            m_catchingUpRequest = std::move( actualCatchingRequest );
 
             fs::remove_all( m_sandboxRootPath );
             fs::create_directories( m_sandboxRootPath);
@@ -1608,7 +1649,10 @@ public:
         {
             m_opinionTrafficIdentifier = m_catchingUpRequest->m_modifyTransactionHash;
         }
-        m_downloadingLtHandle = m_session->download( DownloadContext(
+
+        if ( auto session = m_session.lock(); session )
+        {
+            m_downloadingLtHandle = session->download( DownloadContext(
                                             DownloadContext::missing_files,
                                             std::bind( &DefaultFlatDrive::catchingUpFsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
                                             m_catchingUpRequest->m_rootHash,
@@ -1619,6 +1663,7 @@ public:
                                             m_sandboxRootPath,
                                                    //{} );
                                             m_replicatorList );
+        }
     }
     
     // it will be called from Session
@@ -1732,7 +1777,9 @@ public:
             auto missingFileHash = *m_catchingUpFileIt;
             m_catchingUpFileIt++;
 
-            m_downloadingLtHandle = m_session->download( DownloadContext(
+            if ( auto session = m_session.lock(); session )
+            {
+                m_downloadingLtHandle = session->download( DownloadContext(
                                                                          
                                                  DownloadContext::missing_files,
 
@@ -1760,6 +1807,7 @@ public:
                                                  ""),
                                                  m_sandboxRootPath,
                                                  m_replicatorList );
+            }
         }
     }
     
@@ -1803,18 +1851,23 @@ public:
                 auto fileName = toString( fileHash );
 
                 // Add torrent into session
-                auto tHandle = m_session->addTorrentFileToSession( m_torrentFolder / fileName,
-                                                                   m_driveFolder,
-                                                                   lt::sf_is_replicator );
-
-                _ASSERT( tHandle.is_valid() );
-                m_torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{tHandle,true} );
+                if ( auto session = m_session.lock(); session )
+                {
+                    auto tHandle = session->addTorrentFileToSession( m_torrentFolder / fileName,
+                                                                       m_driveFolder,
+                                                                       lt::sf_is_replicator );
+                    _ASSERT( tHandle.is_valid() );
+                    m_torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{tHandle,true} );
+                }
             }
 
             // Add FsTree torrent to session
-            m_fsTreeLtHandle = m_session->addTorrentFileToSession( m_fsTreeTorrent,
-                                                                   m_fsTreeTorrent.parent_path(),
-                                                                   lt::sf_is_replicator );
+            if ( auto session = m_session.lock(); session )
+            {
+                m_fsTreeLtHandle = session->addTorrentFileToSession( m_fsTreeTorrent,
+                                                                       m_fsTreeTorrent.parent_path(),
+                                                                       lt::sf_is_replicator );
+            }
 
             // remove unused data from 'torrentMap'
             std::erase_if( m_torrentHandleMap, [] (const auto& it) { return !it.second.m_isUsed; } );
@@ -1824,7 +1877,7 @@ public:
             // clear sandbox
             fs::remove_all( m_sandboxRootPath );
             
-            m_session->lt_session().get_context().post( [=,this]
+            executeOnSessionThread( [=,this]
             {
                 modifyIsCompleted();
             });
@@ -1832,7 +1885,7 @@ public:
         catch ( const std::exception& ex )
         {
             _LOG( "???: completeCatchingUp broken: " << ex.what() );
-            m_session->lt_session().get_context().post( [=,this]
+            executeOnSessionThread( [=,this]
             {
                 runNextTask();
             });
@@ -1930,7 +1983,10 @@ public:
     {
         LOG("Drive Status:")
         m_fsTree.dbgPrint();
-        m_session->printActiveTorrents();
+        if ( auto session = m_session.lock(); session )
+        {
+            session->printActiveTorrents();
+        }
     }
 
 };

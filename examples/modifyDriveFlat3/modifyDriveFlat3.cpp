@@ -319,7 +319,7 @@ public:
                                      const sirius::Key&             driveKey,
                                      const sirius::drive::InfoHash& rootHash ) override
     {
-        EXLOG( "@ driveIsInitialized: " << replicator.dbgReplicatorName() );
+        //EXLOG( "@ driveIsInitialized: " << replicator.dbgReplicatorName() );
     }
 };
 
@@ -399,8 +399,7 @@ int main(int,char**)
     gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
 
 #if 1
-    sleep(1);
-    
+    gReplicatorMap.erase( gReplicator->replicatorKey() );
     gReplicator.reset();
 
     gReplicator = createReplicator( replicatorKeyPair,
@@ -412,9 +411,6 @@ int main(int,char**)
                                     gMyReplicatorEventHandler,
                                     "replicator1" );
     gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
-
-    sleep(1);
-
 #endif
 
     gReplicator2 = createReplicator( replicatorKeyPair_2,
@@ -706,6 +702,7 @@ static void clientModifyDrive( const ActionList& actionList,
     auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
     fs::remove_all( tmpFolder );
     fs::create_directories( tmpFolder );
+    EXLOG( "# Client tmpFolder: " << tmpFolder );
 
     // start file uploading
     InfoHash hash = gClientSession->addActionListToSession( actionList, clientKeyPair.publicKey(), replicatorList, tmpFolder );

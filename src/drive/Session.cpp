@@ -93,10 +93,10 @@ private:
     LibTorrentErrorHandler  m_alertHandler;
 
 #ifdef SIRIUS_DRIVE_MULTI
-    std::shared_ptr<lt::session_delegate> m_downloadLimiter;
+    std::weak_ptr<lt::session_delegate> m_downloadLimiter;
 #endif
     
-    const char* m_dbgOurPeerName = "";
+    std::string m_dbgOurPeerName = "";
     int m_dbgPieceCounter = 0;
 
 public:
@@ -113,10 +113,8 @@ public:
             m_dbgOurPeerName = downloadLimiter.lock()->dbgOurPeerName();
         
         createSession( useTcpSocket );
-#ifdef SIRIUS_DRIVE_MULTI
         m_session.setDelegate( m_downloadLimiter );
-#endif
-        LOG( "DefaultSession created: " << m_addressAndPort );
+        _LOG( "DefaultSession created: " << m_addressAndPort );
     }
 
     virtual ~DefaultSession() {
@@ -486,8 +484,8 @@ public:
     
     struct DhtRequestPlugin : lt::plugin
     {
-        std::shared_ptr<lt::session_delegate> m_replicator;
-        DhtRequestPlugin( std::shared_ptr<lt::session_delegate> replicator ) : m_replicator(replicator) {}
+        std::weak_ptr<lt::session_delegate> m_replicator;
+        DhtRequestPlugin( std::weak_ptr<lt::session_delegate> replicator ) : m_replicator(replicator) {}
 
         feature_flags_t implemented_features() override
         {
@@ -512,7 +510,10 @@ public:
                 auto str = message.dict_find_string_value("x");
                 std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
 
-                m_replicator->onMessageReceived( std::string(query.begin(),query.end()), packet );
+                if ( auto replicator = m_replicator.lock(); replicator )
+                {
+                    replicator->onMessageReceived( std::string(query.begin(),query.end()), packet );
+                }
 
                 response["r"]["ret"] = "ok";
                 return true;
@@ -546,11 +547,14 @@ public:
                 // it will be verifyed in acceptReceiptFromAnotherReplicator()
                 //assert( m_replicator->verifyReceipt( downloadChannelId, clientPublicKey, replicatorPublicKey, totalDownloadedSize, signature.array() ) );
 
-                m_replicator->acceptReceiptFromAnotherReplicator( downloadChannelId,
-                                                                clientPublicKey,
-                                                                replicatorPublicKey,
-                                                                totalDownloadedSize,
-                                                                signature.array() );
+                if ( auto replicator = m_replicator.lock(); replicator )
+                {
+                    replicator->acceptReceiptFromAnotherReplicator( downloadChannelId,
+                                                                    clientPublicKey,
+                                                                    replicatorPublicKey,
+                                                                    totalDownloadedSize,
+                                                                    signature.array() );
+                }
             }
             
 //            if ( message.dict_find_string_value("q") == "sirius_message" )
@@ -663,13 +667,13 @@ private:
 //                    break;
 //                }
 
-                case lt::peer_log_alert::alert_type: {
-                    if (strcmp(m_dbgOurPeerName, "replicator1") == 0 || strcmp(m_dbgOurPeerName, "client") == 0)
-                    {
-                        _LOG(  ": peer_log_alert: " << alert->message())
-                    }
-                    break;
-                }
+//                case lt::peer_log_alert::alert_type: {
+//                    if ( m_dbgOurPeerName=="replicator1" || m_dbgOurPeerName=="client" )
+//                    {
+//                        _LOG(  ": peer_log_alert: " << alert->message())
+//                    }
+//                    break;
+//                }
 
                 case lt::add_torrent_alert::        alert_type: {
                     auto* theAlert = dynamic_cast<lt::add_torrent_alert*>(alert);
@@ -713,7 +717,7 @@ private:
                 case lt::peer_snubbed_alert::alert_type: {
                     auto* theAlert = dynamic_cast<lt::peer_snubbed_alert*>(alert);
 
-                    _LOG( "#!!!peer_snubbed_alert!!!: "  << m_downloadLimiter->dbgOurPeerName() << " " << theAlert->endpoint << "\n" );
+                    _LOG( "#!!!peer_snubbed_alert!!!: " << theAlert->endpoint << "\n" );
                     break;
                 }
 
@@ -982,10 +986,6 @@ private:
                                     }
                                 }
 
-//                                if ( std::string("replicator3") == m_dbgOurPeerName )
-//                                {
-//                                    _LOG( " torrent_deleted_alert: m_downloadNotification()" );
-//                                }
                                 context.m_downloadNotification( download_status::code::download_complete,
                                                                 context.m_infoHash,
                                                                 context.m_saveAs,

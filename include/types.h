@@ -85,19 +85,19 @@ namespace sirius {
 
     // smart unique ptr
     template< class T >
-    class smart_uptr : public std::unique_ptr<T>
+    class movable_ptr : public std::unique_ptr<T>
     {
     public:
         template <typename... Args>
-        smart_uptr( Args... args ) : std::unique_ptr<T>( new T{args...} )
+        movable_ptr( Args... args ) : std::unique_ptr<T>( new T{args...} )
         {
         }
 
-        smart_uptr( std::unique_ptr<T> ptr ) : std::unique_ptr<T>( ptr )
-        {
-        }
-        
-        operator std::unique_ptr<T>() { return static_cast<std::unique_ptr<T>>(*this); }
+//        movable_ptr( std::unique_ptr<T> ptr ) : std::unique_ptr<T>( ptr )
+//        {
+//        }
+//
+//        operator std::unique_ptr<T>() { return static_cast<std::unique_ptr<T>>(*this); }
     };
 
 

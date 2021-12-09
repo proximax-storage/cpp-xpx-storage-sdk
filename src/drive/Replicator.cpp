@@ -66,6 +66,16 @@ public:
     {
     }
 
+    virtual  ~DefaultReplicator()
+    {
+        //todo mutex for drivaMap!!! - it is not main thread !!!
+        for( auto& [key,drive]: m_driveMap )
+        {
+            drive->terminate();
+        }
+        m_session.reset();
+    }
+    
     void start() override
     {
         m_session = createDefaultSession( m_address + ":" + m_port, [port=m_port] (const lt::alert* pAlert)
@@ -86,7 +96,6 @@ public:
             waitMutex.unlock();
         });//post
         waitMutex.lock();
-
     }
 
     Hash256 dbgGetRootHash( const Key& driveKey ) override

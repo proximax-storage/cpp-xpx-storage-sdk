@@ -353,7 +353,8 @@ class Replicator;
     public:
 
         virtual ~FlatDrive() = default;
-        //virtual void terminate() = 0;
+        
+        virtual void terminate() = 0;
 
         virtual const Key& drivePublicKey() const = 0;
         

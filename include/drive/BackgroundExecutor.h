@@ -21,6 +21,11 @@ public:
 
     ~BackgroundExecutor()
     {
+        stop();
+    }
+    
+    void stop()
+    {
         m_context.stop();
         if ( m_thread.joinable() )
         {
