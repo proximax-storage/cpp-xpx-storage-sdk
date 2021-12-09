@@ -193,7 +193,7 @@ public:
         std::cout << "Replicator. downloadOpinionHasBeenReceived. DriveKey: " << std::endl;
     }
 
-    void driveAdded(const sirius::Key& driveKey) override {
+    void driveAdded(const sirius::Key& driveKey, const InfoHash&) override {
         rpc::client emulator(m_emulatorRpcAddress, m_emulatorRpcPort);
         emulator.call("driveAdded", driveKey.array());
     }
