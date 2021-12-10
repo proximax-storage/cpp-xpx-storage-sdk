@@ -26,7 +26,7 @@ namespace sirius::drive::test
 #define CLIENT_ADDRESS "192.168.2.200"
 #define CLIENT_WORK_FOLDER (ROOT_FOLDER / "client_work_folder")
 #define DRIVE_PUB_KEY std::array<uint8_t,32>{1,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
-#define BIG_FILE_SIZE (100 * 1024 * 1024)
+#define BIG_FILE_SIZE (10 * 1024 * 1024)
 
 #define JOIN(x, y) JOIN_AGAIN(x, y)
 #define JOIN_AGAIN(x, y) x ## y
@@ -72,7 +72,7 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
 
         ~TestClient()
         {
-            m_clientSession.reset();
+            m_clientSession->stop();
         }
 
         void modifyDrive(const ActionList &actionList,

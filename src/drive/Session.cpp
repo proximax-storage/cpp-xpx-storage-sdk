@@ -667,13 +667,13 @@ private:
 //                    break;
 //                }
 
-//                case lt::peer_log_alert::alert_type: {
-//                    if ( m_dbgOurPeerName=="replicator1" || m_dbgOurPeerName=="client" )
-//                    {
-//                        _LOG(  ": peer_log_alert: " << alert->message())
-//                    }
-//                    break;
-//                }
+                case lt::peer_log_alert::alert_type: {
+                    if ( m_dbgOurPeerName=="replicator1" || m_dbgOurPeerName=="client" )
+                    {
+                        _LOG(  ": peer_log_alert: " << alert->message())
+                    }
+                    break;
+                }
 
                 case lt::add_torrent_alert::        alert_type: {
                     auto* theAlert = dynamic_cast<lt::add_torrent_alert*>(alert);

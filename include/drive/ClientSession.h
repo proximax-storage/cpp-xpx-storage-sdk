@@ -120,6 +120,12 @@ public:
         }
     }
 
+    void stop()
+    {
+        auto blockedDestructor = m_session->lt_session().abort();
+        m_session.reset();
+    }
+
     // The next functions are called in libtorrent
 protected:
 

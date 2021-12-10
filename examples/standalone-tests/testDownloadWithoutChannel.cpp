@@ -119,8 +119,7 @@ namespace sirius::drive::test {
         client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification], downloadChannel, env.m_addrList);
 
         std::this_thread::sleep_for(std::chrono::seconds(20));
-        std::cout << "WAKE UP" << std::endl;
-        ASSERT_EQ(client.m_downloadCompleted[env.m_lastApprovedModification], false);
+        ASSERT_EQ(client.m_downloadCompleted[env.m_rootHashes[env.m_lastApprovedModification]], false);
     }
 
 #undef TEST_NAME

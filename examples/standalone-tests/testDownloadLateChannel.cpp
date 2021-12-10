@@ -42,48 +42,6 @@ namespace sirius::drive::test {
                 modifyApprovalDelay,
                 downloadApprovalDelay,
                 startReplicator) {}
-
-        void
-        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override {
-            m_ignoredReplicator = transactionInfo.m_opinions.back().m_replicatorKey;
-            transactionInfo.m_opinions.pop_back();
-
-            TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
-            ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size() - 1);
-            for (const auto& opinion: transactionInfo.m_opinions) {
-                auto size =
-                        std::accumulate(opinion.m_uploadLayout.begin(),
-                                        opinion.m_uploadLayout.end(),
-                                        opinion.m_clientUploadBytes,
-                                        [] (const auto& sum, const auto& item) {
-                            return sum + item.m_uploadedBytes;
-                        });
-                m_modificationSizes.insert(size);
-            }
-
-            ASSERT_EQ(m_modificationSizes.size(), 1);
-        }
-
-        void singleModifyApprovalTransactionIsReady(Replicator &replicator,
-                                                            ApprovalTransactionInfo &&transactionInfo) override {
-            TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
-            ASSERT_EQ(replicator.keyPair().publicKey(), m_ignoredReplicator);
-
-            const auto& opinion = transactionInfo.m_opinions.front();
-            auto size =
-                    std::accumulate(opinion.m_uploadLayout.begin(),
-                                    opinion.m_uploadLayout.end(),
-                                    opinion.m_clientUploadBytes,
-                                    [] (const auto& sum, const auto& item) {
-                        return sum + item.m_uploadedBytes;
-                    });
-            m_modificationSizes.insert(size);
-
-            ASSERT_EQ(m_modificationSizes.size(), 1);
-        };
-
-        std::array<uint8_t,32> m_ignoredReplicator;
-        std::set<uint64_t> m_modificationSizes;
     };
 
     TEST(ModificationTest, TEST_NAME) {
@@ -117,7 +75,9 @@ namespace sirius::drive::test {
         auto downloadChannel = randomByteArray<Key>();
         client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification], downloadChannel, env.m_addrList);
 
-        std::this_thread::sleep_for(std::chrono::seconds(10));
+        std::this_thread::sleep_for(std::chrono::minutes(5));
+
+        ASSERT_EQ(client.m_downloadCompleted[env.m_rootHashes[env.m_lastApprovedModification]], false);
 
         env.downloadFromDrive(DRIVE_PUB_KEY, DownloadRequest{
                 downloadChannel,
@@ -126,7 +86,7 @@ namespace sirius::drive::test {
                 {client.m_clientKeyPair.publicKey()}
         });
 
-        client.waitForDownloadComplete(env.m_lastApprovedModification);
+        client.waitForDownloadComplete(env.m_rootHashes[env.m_lastApprovedModification]);
     }
 
 #undef TEST_NAME
