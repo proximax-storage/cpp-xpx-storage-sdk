@@ -70,6 +70,11 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
             m_clientSession->setSessionSettings(pack, true);
         }
 
+        ~TestClient()
+        {
+            m_clientSession.reset();
+        }
+
         void modifyDrive(const ActionList &actionList,
                          const ReplicatorList &replicatorList)
         {
