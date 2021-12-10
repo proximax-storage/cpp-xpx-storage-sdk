@@ -28,7 +28,7 @@ class Replicator;
 
     struct AddDriveRequest {
         uint64_t          driveSize;
-        uint64_t          usedDriveSizeExcludingMetafiles;
+        uint64_t          expectedCumulativeDownloadSize;
         ReplicatorList    replicators;
     };
 
@@ -409,7 +409,7 @@ class Replicator;
                                                        const std::string&       replicatorSandboxRootFolder,
                                                        const Key&               drivePubKey,
                                                        size_t                   maxSize,
-                                                       size_t                   usedDriveSizeExcludingMetafiles,
+                                                       size_t                   expectedCumulativeDownload,
                                                        ReplicatorEventHandler&  eventHandler,
                                                        Replicator&              replicator,
                                                        const ReplicatorList&    replicators,

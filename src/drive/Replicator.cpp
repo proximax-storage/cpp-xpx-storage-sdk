@@ -178,7 +178,7 @@ public:
                         m_sandboxDirectory,
                         driveKey,
                         driveRequest.driveSize,
-                        driveRequest.usedDriveSizeExcludingMetafiles,
+                        driveRequest.expectedCumulativeDownloadSize,
                         m_eventHandler,
                         *this,
                         driveRequest.replicators,

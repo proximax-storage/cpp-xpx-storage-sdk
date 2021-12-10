@@ -67,6 +67,7 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
                                                     "client")),
                 m_clientFolder(clientFolder)
         {
+            fs::remove_all(clientFolder);
             m_clientSession->setSessionSettings(pack, true);
         }
 

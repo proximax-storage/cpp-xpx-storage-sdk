@@ -89,6 +89,7 @@ protected:
     // Drive paths
     const fs::path  m_driveRootPath     = m_replicatorRoot / arrayToString(m_drivePubKey.array());
     const fs::path  m_driveFolder       = m_driveRootPath  / "drive";
+    const fs::path  m_offlineFolder     = m_driveRootPath  / "offline";
     const fs::path  m_torrentFolder     = m_driveRootPath  / "torrent";
     const fs::path  m_fsTreeFile        = m_driveRootPath  / "fs_tree" / FS_TREE_FILE_NAME;
     const fs::path  m_fsTreeTorrent     = m_driveRootPath  / "fs_tree" / FS_TREE_FILE_NAME ".torrent";
@@ -221,7 +222,7 @@ public:
                   const std::string&        replicatorSandboxRootFolder,
                   const Key&                drivePubKey,
                   size_t                    maxSize,
-                  size_t                    usedDriveSizeExcludingMetafiles,
+                  size_t                    expectedCumulativeDownload,
                   ReplicatorEventHandler&   eventHandler,
                   Replicator&               replicator,
                   const ReplicatorList&     replicatorList,
@@ -235,7 +236,7 @@ public:
           m_replicatorList(replicatorList),
           m_eventHandler(eventHandler),
           m_dbgEventHandler(dbgEventHandler),
-          m_expectedCumulativeDownload(usedDriveSizeExcludingMetafiles),
+          m_expectedCumulativeDownload(expectedCumulativeDownload),
           m_dbgOurPeerName(replicator.dbgReplicatorName())
     {
         m_dbgThreadId = std::this_thread::get_id();
@@ -691,12 +692,20 @@ public:
         m_driveWillRemovedTx = transactionHash;
 
         {
-            std::ofstream filestream( m_driveFolder / "is_closing" );
-            filestream << "1";
-            filestream.close();
+            std::error_code code;
+            fs::create_directories(m_offlineFolder, code);
+            if ( fs::is_directory(m_offlineFolder) )
+            {
+                std::ofstream filestream( m_driveFolder / "is_closing" );
+                filestream << "1";
+                filestream.close();
+            }
         }
-        
-        breakTorrentDownload();
+
+        if ( !m_driveIsInitializing )
+        {
+            breakTorrentDownload();
+        }
     }
 
     void runDriveClosingTask( std::optional<Hash256>&& transactionHash )
@@ -723,7 +732,7 @@ public:
 
         if ( auto session = m_session.lock(); session )
         {
-            session->removeTorrentsFromSession( std::move(tobeRemovedTorrents), [this,transactionHash](){
+            session->removeTorrentsFromSession( tobeRemovedTorrents, [this](){
                 m_replicator.closeDriveChannels( *m_removeDriveTx, *this );
             });
         }

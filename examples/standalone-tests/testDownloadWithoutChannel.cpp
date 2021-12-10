@@ -92,6 +92,7 @@ namespace sirius::drive::test {
         auto startTime = std::clock();
 
         lt::settings_pack pack;
+        pack.set_int(lt::settings_pack::min_reconnect_time, 30);
         TestClient client(pack);
 
         EXLOG("");
@@ -118,7 +119,7 @@ namespace sirius::drive::test {
 
         client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification], downloadChannel, env.m_addrList);
 
-        std::this_thread::sleep_for(std::chrono::seconds(20));
+        std::this_thread::sleep_for(std::chrono::seconds(60));
         ASSERT_EQ(client.m_downloadCompleted[env.m_rootHashes[env.m_lastApprovedModification]], false);
     }
 

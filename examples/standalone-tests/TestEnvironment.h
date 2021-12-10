@@ -161,7 +161,7 @@ namespace sirius::drive::test {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
             if ( !m_dnApprovalTransactionInfo )
             {
-                m_dnApprovalTransactionInfo = { std::move(info) };
+                m_dnApprovalTransactionInfo = { info };
                 for (auto &r: m_replicators) {
                     r->asyncDownloadApprovalTransactionHasBeenPublished(m_dnApprovalTransactionInfo->m_blockHash,
                                                                      m_dnApprovalTransactionInfo->m_downloadChannelId,
