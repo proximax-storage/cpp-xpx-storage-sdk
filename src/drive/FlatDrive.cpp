@@ -696,7 +696,7 @@ public:
             fs::create_directories(m_offlineFolder, code);
             if ( fs::is_directory(m_offlineFolder) )
             {
-                std::ofstream filestream( m_driveFolder / "is_closing" );
+                std::ofstream filestream( m_offlineFolder / "is_closing" );
                 filestream << "1";
                 filestream.close();
             }
@@ -1972,9 +1972,14 @@ public:
             // When node is restaring and file "is_closing" exists, but file "approval_tx_has_been_bulished" is not exists,
             // then drive should approve all download channels
             //todo : where replicator will find channels ids???
-            std::ofstream filestream( m_driveFolder / "approval_tx_has_been_bulished" );
-            filestream << "1";
-            filestream.close();
+            std::error_code code;
+            fs::create_directories(m_offlineFolder, code);
+            if ( fs::is_directory(m_offlineFolder) )
+            {
+                std::ofstream filestream( m_offlineFolder / "approval_tx_has_been_published" );
+                filestream << "1";
+                filestream.close();
+            }
         }
 
         fs::remove_all( m_driveRootPath );
