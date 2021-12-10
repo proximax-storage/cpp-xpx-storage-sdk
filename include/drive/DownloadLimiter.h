@@ -31,8 +31,6 @@ protected:
     // Replicator's keys
     const crypto::KeyPair& m_keyPair;
 
-    std::shared_mutex   m_mutex;
-
     // Drives
     std::map<Key, std::shared_ptr<FlatDrive>> m_driveMap;
     std::shared_mutex  m_driveMutex;
@@ -43,13 +41,13 @@ protected:
 
     ModifyDriveMap      m_modifyDriveMap;
 
-    uint64_t            m_receiptLimit = 32*1024; //1024*1024;
+    uint64_t            m_receiptLimit = 10*16*1024; //1024*1024;
 
     std::string         m_dbgOurPeerName = "unset";
     
 
 
-    std::thread::id          m_dbgThreadId;
+    std::thread::id     m_dbgThreadId;
 
 public:
     DownloadLimiter( const crypto::KeyPair& keyPair, const char* dbgOurPeerName ) : m_keyPair(keyPair), m_dbgOurPeerName(dbgOurPeerName)
@@ -58,16 +56,17 @@ public:
     
     void printReport( const std::array<uint8_t,32>&  transactionHash )
     {
-        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
-        
-        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
-        {
-            _LOG( "requestedSize=" << it->second.m_requestedSize << "; uploadedSize=" << it->second.m_uploadedSize );
-            return;
-        }
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+            
+            if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
+            {
+                _LOG( "requestedSize=" << it->second.m_requestedSize << "; uploadedSize=" << it->second.m_uploadedSize );
+                return;
+            }
 
-        _LOG( dbgOurPeerName() << "ERROR: printReport hash: " << (int)transactionHash[0] );
-        assert(0);
+            _LOG( dbgOurPeerName() << "ERROR: printReport hash: " << (int)transactionHash[0] );
+            assert(0);
+        });
     }
 
     void onDisconnected( const std::array<uint8_t,32>&  transactionHash,
@@ -79,7 +78,7 @@ public:
         //TODO++
         return;
         
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
+        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
 
         if ( !(siriusFlags & lt::sf_is_receiver) )
         {
@@ -106,32 +105,32 @@ public:
 
     void printTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) override
     {
-      m_session->lt_session().get_context().post( [=,this]() mutable {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
 
-        if ( const auto& it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
-        {
-            _LOG( "\nTrafficDistribution: " << dbgOurPeerName() << " (" << (int)publicKey()[0] << ")" );
-            for( const auto& replicatorIt : it->second.m_modifyTrafficMap )
+            DBG_MAIN_THREAD
+              
+            if ( const auto& it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
             {
-                if ( replicatorIt.second.m_receivedSize )
+                _LOG( "\nTrafficDistribution: " << dbgOurPeerName() << " (" << (int)publicKey()[0] << ")" );
+                for( const auto& replicatorIt : it->second.m_modifyTrafficMap )
                 {
-                    _LOG( " receivedSize: " <<  replicatorIt.second.m_receivedSize << " from " << (int)replicatorIt.first[0] );
-                }
-                if ( replicatorIt.second.m_requestedSize )
-                {
-                    _LOG( " requestedSize: "     <<  replicatorIt.second.m_requestedSize << " by " << (int)replicatorIt.first[0] );
-                }
-                if ( replicatorIt.second.m_sentSize )
-                {
-                    _LOG( " sentSize: "     <<  replicatorIt.second.m_sentSize << " to " << (int)replicatorIt.first[0] );
+                    if ( replicatorIt.second.m_receivedSize )
+                    {
+                        _LOG( " receivedSize: " <<  replicatorIt.second.m_receivedSize << " from " << (int)replicatorIt.first[0] );
+                    }
+                    if ( replicatorIt.second.m_requestedSize )
+                    {
+                        _LOG( " requestedSize: "     <<  replicatorIt.second.m_requestedSize << " by " << (int)replicatorIt.first[0] );
+                    }
+                    if ( replicatorIt.second.m_sentSize )
+                    {
+                        _LOG( " sentSize: "     <<  replicatorIt.second.m_sentSize << " to " << (int)replicatorIt.first[0] );
+                    }
                 }
             }
-        }
       });
     }
     
-    //TODO return const ModifyDriveInfo getMyDownloadOpinion& ???
-    //TODO make it async !!!
     virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) const override
     {
         DBG_MAIN_THREAD
@@ -151,12 +150,11 @@ public:
                             uint64_t                       downloadedSizeByClient ) override
     {
         DBG_MAIN_THREAD
-        //std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
         
         if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
         {
-            if ( it->second.m_uploadedSize > downloadedSizeByClient + m_receiptLimit )
-                return false;
+//todo++++            if ( it->second.m_uploadedSize > downloadedSizeByClient + m_receiptLimit )
+//                return false;
             return true;
         }
         return false;
@@ -165,7 +163,6 @@ public:
     uint8_t getUploadedSize( const std::array<uint8_t,32>& downloadChannelId ) override
     {
         DBG_MAIN_THREAD
-        //std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
         {
@@ -208,8 +205,6 @@ public:
                 map.insert( { it.m_publicKey.array(), {}} );
         }
         
-//        _LOG( m_dbgOurPeerName <<  " addChInfo: " << int(channelId[0]) );
-        
         m_downloadChannelMap[channelId] = DownloadChannelInfo{ false, prepaidDownloadSize, 0, 0, driveKey.array(), replicatorsList, map, clients, {} };
     }
 
@@ -220,7 +215,6 @@ public:
                              const ReplicatorList&  replicatorsList )
     {
         DBG_MAIN_THREAD
-        //std::unique_lock<std::shared_mutex> lock(m_mutex);
 
         ModifyTrafficMap trafficMap;
         trafficMap.insert( { clientPublicKey.array(), {0,0}} );
@@ -237,13 +231,12 @@ public:
         }
         
         m_modifyDriveMap[modifyTransactionHash.array()] = ModifyDriveInfo{ driveKey.array(), dataSize, replicatorsList, trafficMap, 0 };
-        //lock.unlock();
 
         // we need to add modifyTransactionHash into 'm_downloadChannelMap'
         // because replicators could download pieces from their neighbors
         //
         {
-            std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+            _LOG( "driveKey: " << driveKey )
             m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, dataSize, 0, 0, driveKey.array(), replicatorsList, {}, clients, {}};
         }
     }
@@ -251,7 +244,7 @@ public:
     void removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash ) override
     {
         DBG_MAIN_THREAD
-        //std::unique_lock<std::shared_mutex> lock(m_mutex);
+
         m_modifyDriveMap.erase(modifyTransactionHash);
     }
 
@@ -277,8 +270,11 @@ public:
         
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
+            std::shared_lock<std::shared_mutex> lock(m_driveMutex);
+
             if ( it->second.m_isModifyTx )
             {
+                _LOG( "it->second.m_driveKey: " << sirius::Key(it->second.m_driveKey) )
                 if ( auto driveIt = m_driveMap.find( it->second.m_driveKey ); driveIt != m_driveMap.end() )
                 {
                     if ( isPeerReplicator( *driveIt->second, peerPublicKey) )
@@ -310,6 +306,9 @@ public:
 
         //TODO!!!
         return true;
+        
+//        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
+//
 //        if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
 //        {
 //            if ( isPeerReplicator( *driveIt->second, peerPublicKey) )
@@ -328,7 +327,6 @@ public:
                          const std::array<uint8_t,32>&  receiverPublicKey,
                          uint64_t                       pieceSize ) override
     {
-        //std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
         DBG_MAIN_THREAD
 
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
@@ -337,6 +335,7 @@ public:
             return;
         }
 
+        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
         if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
         {
             if ( isPeerReplicator( *driveIt->second, receiverPublicKey) )
@@ -354,7 +353,6 @@ public:
                                  uint64_t                       pieceSize ) override
     {
         DBG_MAIN_THREAD
-        //std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
@@ -373,6 +371,7 @@ public:
             return false;
         }
         
+        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
         if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
         {
             if ( isPeerReplicator( *driveIt->second, receiverPublicKey) )
@@ -391,7 +390,6 @@ public:
                       uint64_t                       pieceSize ) override
     {
         DBG_MAIN_THREAD
-        //std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
 
         // May be this piece was sent to client (during data download)
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
@@ -419,7 +417,6 @@ public:
                           uint64_t                       pieceSize ) override
     {
         DBG_MAIN_THREAD
-        //std::shared_lock<std::shared_mutex> lock(m_mutex);
 
         if ( auto it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
         {
@@ -433,6 +430,7 @@ public:
             LOG_ERR( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
         }
 
+        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
         if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
         {
             if ( isPeerReplicator( *driveIt->second, senderPublicKey ) )
@@ -471,7 +469,6 @@ public:
         }
 
         //todo accept
-        std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
         if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
         {
             // check client key
@@ -516,7 +513,7 @@ public:
     void removeChannelInfo( const std::array<uint8_t,32>& channelId )
     {
         DBG_MAIN_THREAD
-        //std::unique_lock<std::shared_mutex> lock(m_downloadChannelMutex);
+
         m_downloadChannelMap.erase( channelId );
     }
 

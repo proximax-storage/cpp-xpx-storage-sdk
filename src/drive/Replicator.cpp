@@ -27,7 +27,7 @@ namespace sirius::drive {
 //
 class DefaultReplicator : public DownloadLimiter // Replicator
 {
-public:
+private:
     // Session listen interface
     std::string m_address;
     std::string m_port;
@@ -38,12 +38,14 @@ public:
     
     int         m_downloadApprovalTransactionTimerDelayMs = 60*1000;
     int         m_modifyApprovalTransactionTimerDelayMs   = 60*1000;
+    std::mutex  m_replicatorDestructingMutex;
+    bool        m_replicatorIsDestructing = false;
 
     bool        m_useTcpSocket;
-
+    
     ReplicatorEventHandler& m_eventHandler;
     DbgReplicatorEventHandler*  m_dbgEventHandler;
-
+    
 public:
     DefaultReplicator (
                const crypto::KeyPair& keyPair,
@@ -66,14 +68,24 @@ public:
     {
     }
 
-    virtual  ~DefaultReplicator()
+    virtual ~DefaultReplicator()
     {
-        //todo mutex for drivaMap!!! - it is not main thread !!!
+        _LOG( "~DefaultReplicator() ")
+        
+        m_replicatorDestructingMutex.lock();
+        m_replicatorIsDestructing = true;
+        m_replicatorDestructingMutex.unlock();
+
+        std::unique_lock<std::shared_mutex> lock(m_driveMutex);
+        
+
         for( auto& [key,drive]: m_driveMap )
         {
             drive->terminate();
         }
+        auto blockedDestructor = m_session->lt_session().abort();
         m_session.reset();
+
     }
     
     void start() override
@@ -100,6 +112,8 @@ public:
 
     Hash256 dbgGetRootHash( const Key& driveKey ) override
     {
+        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
+
         if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
         {
             auto rootHash = driveIt->second->rootHash();
@@ -116,6 +130,7 @@ public:
     void printDriveStatus( const Key& driveKey ) override
     {
         std::shared_lock<std::shared_mutex> lock(m_driveMutex);
+        
         if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
         {
             return driveIt->second->printDriveStatus();
@@ -134,38 +149,42 @@ public:
         
             DBG_MAIN_THREAD
             
-            LOG( "adding drive " << driveKey );
-
-            std::unique_lock<std::shared_mutex> lock(m_driveMutex);
-
-            if (m_driveMap.find(driveKey) != m_driveMap.end()) {
-                _LOG( "drive already added" );
-                return;
-            }
-
-            // Exclude itself from replicator list
-            for( auto it = driveRequest.replicators.begin();  it != driveRequest.replicators.end(); it++ )
+            if ( m_replicatorDestructingMutex.try_lock() && !m_replicatorIsDestructing )
             {
-                if ( it->m_publicKey == publicKey() )
-                {
-                    driveRequest.replicators.erase( it );
-                    break;
+                m_replicatorDestructingMutex.unlock();
+
+                _LOG( "adding drive " << driveKey );
+
+                std::unique_lock<std::shared_mutex> lock(m_driveMutex);
+                
+                if (m_driveMap.find(driveKey) != m_driveMap.end()) {
+                    _LOG( "drive already added" );
+                    return;
                 }
-            }
 
-            auto drive = sirius::drive::createDefaultFlatDrive(
-                    session(),
-                    m_storageDirectory,
-                    m_sandboxDirectory,
-                    driveKey,
-                    driveRequest.driveSize,
-                    driveRequest.usedDriveSizeExcludingMetafiles,
-                    m_eventHandler,
-                    *this,
-                    driveRequest.replicators,
-                    m_dbgEventHandler );
+                // Exclude itself from replicator list
+                for( auto it = driveRequest.replicators.begin();  it != driveRequest.replicators.end(); it++ )
+                {
+                    if ( it->m_publicKey == publicKey() )
+                    {
+                        driveRequest.replicators.erase( it );
+                        break;
+                    }
+                }
 
-            m_driveMap[driveKey] = drive;
+                auto drive = sirius::drive::createDefaultFlatDrive(
+                        session(),
+                        m_storageDirectory,
+                        m_sandboxDirectory,
+                        driveKey,
+                        driveRequest.driveSize,
+                        driveRequest.usedDriveSizeExcludingMetafiles,
+                        m_eventHandler,
+                        *this,
+                        driveRequest.replicators,
+                        m_dbgEventHandler );
+
+                m_driveMap[driveKey] = drive;
 
 //            if ( actualRootHash && drive->rootHash() != actualRootHash )
 //            {
@@ -176,6 +195,7 @@ public:
 //            if ( m_dbgEventHandler ) {
 //                m_dbgEventHandler->driveAdded(drive->drivePublicKey());
 //            }
+            }
         });//post
     }
 
@@ -184,6 +204,7 @@ public:
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
             DBG_MAIN_THREAD
+            std::shared_lock<std::shared_mutex> lock(m_driveMutex);
 
             if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
             {
@@ -254,7 +275,8 @@ public:
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
             DBG_MAIN_THREAD
-            
+            std::shared_lock<std::shared_mutex> lock(m_driveMutex);
+
             if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
             {
                 driveIt->second->cancelModifyDrive( transactionHash );
@@ -653,6 +675,8 @@ public:
             {
                 const auto& driveKey = channelIt->second.m_driveKey;
 
+                std::shared_lock<std::shared_mutex> lock(m_driveMutex);
+
                 if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
                 {
                     bool driveWillBeDeleted = false;
@@ -690,6 +714,8 @@ public:
             return item.second.m_driveKey == driveKey;
         });
 
+        std::unique_lock<std::shared_mutex> lock(m_driveMutex);
+
         auto driveIt = m_driveMap.find( driveKey );
         assert( driveIt != m_driveMap.end() );
 
@@ -701,8 +727,10 @@ public:
     virtual void asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
+
             DBG_MAIN_THREAD
-        
+            std::shared_lock<std::shared_mutex> lock(m_driveMutex);
+
             if ( auto it = m_driveMap.find( anOpinion.m_driveKey ); it != m_driveMap.end() )
             {
                 it->second->onOpinionReceived( anOpinion );
@@ -725,6 +753,7 @@ public:
         m_session->lt_session().get_context().post( [=,this]() mutable {
 
             DBG_MAIN_THREAD
+            std::shared_lock<std::shared_mutex> lock(m_driveMutex);
 
             if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
             {
@@ -742,6 +771,7 @@ public:
         m_session->lt_session().get_context().post( [=,this]() mutable {
 
             DBG_MAIN_THREAD
+            std::shared_lock<std::shared_mutex> lock(m_driveMutex);
 
             if ( auto it = m_driveMap.find( driveKey ); it != m_driveMap.end() )
             {
@@ -759,7 +789,8 @@ public:
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
             DBG_MAIN_THREAD
-            
+            std::shared_lock<std::shared_mutex> lock(m_driveMutex);
+
             if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
             {
                 it->second->onSingleApprovalTransactionHasBeenPublished( transaction );
@@ -847,6 +878,7 @@ public:
     
     virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) override
     {
+        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
         if ( auto it = m_driveMap.find(driveKey); it != m_driveMap.end() )
         {
             return it->second;
