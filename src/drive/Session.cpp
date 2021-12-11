@@ -63,7 +63,6 @@ class DefaultSession: public Session, std::enable_shared_from_this<DefaultSessio
     };
 
     using DownloadMap      = std::map<std::uint32_t,DownloadMapCell>;
-    //using LoadTorrentMap   = std::map<InfoHash,std::function<void(bool)>>;
 
 private:
 
@@ -85,9 +84,6 @@ private:
     DownloadMap             m_downloadMap;
     std::mutex              m_downloadMapMutex;
 
-    // loadTorrentMap
-    //LoadTorrentMap          m_loadTorrentMap;
-
     // It will be called on socket listening error
     //
     LibTorrentErrorHandler  m_alertHandler;
@@ -100,13 +96,34 @@ private:
     int m_dbgPieceCounter = 0;
 
 public:
+    
+    DefaultSession( boost::asio::io_context&             context,
+                    std::string                          address,
+                    const LibTorrentErrorHandler&        alertHandler,
+                    std::weak_ptr<lt::session_delegate>  downloadLimiter,
+                    bool                                 useTcpSocket
+                    )
+        : m_addressAndPort(address)
+        , m_session( lt::session_params{}, context, {})
+        , m_alertHandler(alertHandler)
+        , m_downloadLimiter(downloadLimiter)
+    {
+        if ( downloadLimiter.lock() )
+            m_dbgOurPeerName = downloadLimiter.lock()->dbgOurPeerName();
+        
+        createSession( useTcpSocket );
+        m_session.setDelegate( m_downloadLimiter );
+        _LOG( "DefaultSession created: " << m_addressAndPort );
+    }
 
     DefaultSession( std::string address,
                     LibTorrentErrorHandler alertHandler
                     ,std::weak_ptr<lt::session_delegate> downloadLimiter
-                    ,bool useTcpSocket = true
+                    ,bool useTcpSocket
                     )
-        : m_addressAndPort(address), m_alertHandler(alertHandler)
+        : m_addressAndPort(address)
+        , m_session()
+        , m_alertHandler(alertHandler)
         , m_downloadLimiter(downloadLimiter)
     {
         if ( downloadLimiter.lock() )
@@ -165,9 +182,9 @@ public:
     }
 
     virtual void endSession() override {
-        m_downloadMap.clear();
+        //m_downloadMap.clear();
         //TODO?
-        m_session.abort();
+        //m_session.abort();
     }
 
     virtual void removeTorrentsFromSession( const std::set<lt::torrent_handle>&  torrents,
@@ -667,13 +684,13 @@ private:
 //                    break;
 //                }
 
-                case lt::peer_log_alert::alert_type: {
-                    if ( m_dbgOurPeerName=="replicator1" || m_dbgOurPeerName=="client" )
-                    {
-                        _LOG(  ": peer_log_alert: " << alert->message())
-                    }
-                    break;
-                }
+//                case lt::peer_log_alert::alert_type: {
+//                    if ( m_dbgOurPeerName=="replicator1" || m_dbgOurPeerName=="client" )
+//                    {
+//                        _LOG(  ": peer_log_alert: " << alert->message())
+//                    }
+//                    break;
+//                }
 
                 case lt::add_torrent_alert::        alert_type: {
                     auto* theAlert = dynamic_cast<lt::add_torrent_alert*>(alert);
@@ -1309,21 +1326,25 @@ InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
     return infoHash;
 }
 
+//
 // createDefaultLibTorrentSession
-#ifdef SIRIUS_DRIVE_MULTI
-std::shared_ptr<Session> createDefaultSession( std::string address,
-                                               const LibTorrentErrorHandler& alertHandler,
-                                               std::weak_ptr<lt::session_delegate> downloadLimiter,
-                                               bool useTcpSocket )
+//
+
+std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&             context,
+                                               std::string                          address,
+                                               const LibTorrentErrorHandler&        alertHandler,
+                                               std::weak_ptr<lt::session_delegate>  downloadLimiter,
+                                               bool                                 useTcpSocket )
+{
+    return std::make_shared<DefaultSession>( context, address, alertHandler, downloadLimiter, useTcpSocket );
+}
+
+std::shared_ptr<Session> createDefaultSession( std::string                          address,
+                                               const LibTorrentErrorHandler&        alertHandler,
+                                               std::weak_ptr<lt::session_delegate>  downloadLimiter,
+                                               bool                                 useTcpSocket )
 {
     return std::make_shared<DefaultSession>( address, alertHandler, downloadLimiter, useTcpSocket );
 }
-#else
-std::shared_ptr<Session> createDefaultSession( std::string address,
-                                               const LibTorrentErrorHandler& alertHandler )
-{
-    return std::make_shared<DefaultSession>( address, alertHandler );
-}
-#endif
 
 }

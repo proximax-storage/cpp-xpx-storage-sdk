@@ -16,9 +16,10 @@
 #include <cereal/archives/portable_binary.hpp>
 
 #include <libtorrent/alert_types.hpp>
-#include <filesystem>
 
+#include <filesystem>
 #include <mutex>
+#include <future>
 
 namespace sirius::drive {
 
@@ -28,6 +29,9 @@ namespace sirius::drive {
 class DefaultReplicator : public DownloadLimiter // Replicator
 {
 private:
+    boost::asio::io_context m_replicatorContext;
+    std::thread             m_libtorrentThread;
+
     // Session listen interface
     std::string m_address;
     std::string m_port;
@@ -77,29 +81,53 @@ public:
         m_replicatorDestructingMutex.unlock();
 
         std::unique_lock<std::shared_mutex> lock(m_driveMutex);
-        
 
         for( auto& [key,drive]: m_driveMap )
         {
             drive->terminate();
         }
-        auto blockedDestructor = m_session->lt_session().abort();
-        m_session.reset();
 
+        m_session->lt_session().get_context().post( [this]() mutable {
+            m_downloadChannelMap.clear();
+            m_modifyDriveMap.clear();
+            m_driveMap.clear();
+        });
+        
+        m_session->endSession();
+        
+        {
+            auto blockedDestructor = m_session->lt_session().abort();
+            m_session.reset();
+        }
+
+//        m_replicatorContext.stop();
+//        if ( m_libtorrentThread.joinable() )
+//        {
+//            m_libtorrentThread.join();
+////            m_libtorrentThread.detach();
+//        }
     }
     
     void start() override
     {
-        m_session = createDefaultSession( m_address + ":" + m_port, [port=m_port] (const lt::alert* pAlert)
+////        m_session = createDefaultSession( m_replicatorContext, m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
+        m_session = createDefaultSession( m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
             {
-                if ( pAlert->type() == lt::listen_failed_alert::alert_type ) {
-                    LOG( "Replicator session alert: " << pAlert->message() );
-                    LOG( "Port is busy?: " << port );
+                if ( pAlert->type() == lt::listen_failed_alert::alert_type )
+                {
+                    _LOG( "Replicator session alert: " << pAlert->message() );
+                    _LOG( "Port is busy?: " << port );
                 }
             },
             weak_from_this(),
             m_useTcpSocket );
         m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName.c_str();
+        
+//        m_libtorrentThread = std::thread( [this] {
+//            m_replicatorContext.run();
+//            _LOG( "libtorrentThread ended" );
+//        });
+//        m_dbgThreadId = m_libtorrentThread.get_id();
         
         std::mutex waitMutex;
         waitMutex.lock();
@@ -112,11 +140,9 @@ public:
 
     Hash256 dbgGetRootHash( const Key& driveKey ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-
-        if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
+        if ( const auto drive = getDrive(driveKey); drive )
         {
-            auto rootHash = driveIt->second->rootHash();
+            auto rootHash = drive->rootHash();
             LOG( "getRootHash of: " << driveKey << " -> " << rootHash );
             return rootHash;
         }
@@ -129,11 +155,9 @@ public:
 
     void printDriveStatus( const Key& driveKey ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-        
-        if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
+        if ( const auto drive = getDrive(driveKey); drive )
         {
-            return driveIt->second->printDriveStatus();
+            return drive->printDriveStatus();
         }
 
         LOG_ERR( "unknown dive: " << driveKey );
@@ -204,11 +228,10 @@ public:
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
             DBG_MAIN_THREAD
-            std::shared_lock<std::shared_mutex> lock(m_driveMutex);
 
-            if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
+            if ( auto drive = getDrive(driveKey); drive )
             {
-                driveIt->second->startDriveClosing( transactionHash );
+                drive->startDriveClosing( transactionHash );
             }
             else
             {
@@ -218,20 +241,6 @@ public:
         });//post
     }
 
-//todo    std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) override {
-//        LOG( "getDrive " << driveKey );
-//
-//        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-//
-//        if (m_driveMap.find(driveKey) == m_driveMap.end())
-//        {
-//            LOG( "drive not found " << driveKey );
-//            return nullptr;
-//        }
-//
-//        return m_driveMap[driveKey];
-//    }
-
     void asyncModify( Key driveKey, ModifyRequest modifyRequest ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
@@ -240,9 +249,9 @@ public:
 
             std::shared_ptr<sirius::drive::FlatDrive> pDrive;
             {
-                if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
+                if ( auto drive = getDrive(driveKey); drive )
                 {
-                    pDrive = driveIt->second;
+                    pDrive = drive;
                 }
                 else {
                     _LOG( "asyncModify(): drive not found: " << driveKey );
@@ -275,11 +284,10 @@ public:
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
             DBG_MAIN_THREAD
-            std::shared_lock<std::shared_mutex> lock(m_driveMutex);
 
-            if ( const auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
+            if ( const auto drive = getDrive(driveKey); drive )
             {
-                driveIt->second->cancelModifyDrive( transactionHash );
+                drive->cancelModifyDrive( transactionHash );
                 return;
             }
 
@@ -287,27 +295,6 @@ public:
         });//post
     }
     
-//    std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) override
-//    {
-//        DBG_MAIN_THREAD
-//
-//        std::shared_ptr<sirius::drive::FlatDrive> pDrive;
-//        {
-//
-//            const std::unique_lock<std::shared_mutex> lock(m_driveMutex);
-//            if ( auto driveIt = m_driveMap.find(driveKey); driveIt != m_driveMap.end() )
-//            {
-//                pDrive = driveIt->second;
-//            }
-//            else {
-//                return "drive not found";
-//            }
-//        }
-//
-//        pDrive->loadTorrent( infoHash );
-//        return "";
-//    }
-
     void asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&& request ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
@@ -361,8 +348,6 @@ public:
         message.insert( message.end(), (uint8_t*)&downloadedSize,   ((uint8_t*)&downloadedSize)+8 );
         message.insert( message.end(), signature.begin(),           signature.end() );
         
-        std::shared_lock<std::shared_mutex> lock(m_downloadChannelMutex);
-
         if ( auto it = m_downloadChannelMap.find(downloadChannelId); it != m_downloadChannelMap.end() )
         {
             // go throw replictor list
@@ -675,13 +660,11 @@ public:
             {
                 const auto& driveKey = channelIt->second.m_driveKey;
 
-                std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-
-                if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+                if ( auto drive = getDrive( driveKey ); drive )
                 {
                     bool driveWillBeDeleted = false;
 
-                    if ( driveIt->second->closingTxHash() == eventHash )
+                    if ( drive->closingTxHash() == eventHash )
                     {
                         channelIt->second.m_isClosed = true;
 
@@ -729,11 +712,10 @@ public:
         m_session->lt_session().get_context().post( [=,this]() mutable {
 
             DBG_MAIN_THREAD
-            std::shared_lock<std::shared_mutex> lock(m_driveMutex);
 
-            if ( auto it = m_driveMap.find( anOpinion.m_driveKey ); it != m_driveMap.end() )
+            if ( auto drive = getDrive( anOpinion.m_driveKey ); drive )
             {
-                it->second->onOpinionReceived( anOpinion );
+                drive->onOpinionReceived( anOpinion );
             }
             else
             {
@@ -753,11 +735,10 @@ public:
         m_session->lt_session().get_context().post( [=,this]() mutable {
 
             DBG_MAIN_THREAD
-            std::shared_lock<std::shared_mutex> lock(m_driveMutex);
 
-            if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
+            if ( auto drive = getDrive( transaction.m_driveKey ); drive )
             {
-                it->second->onApprovalTransactionHasBeenPublished( transaction );
+                drive->onApprovalTransactionHasBeenPublished( transaction );
             }
             else
             {
@@ -771,11 +752,10 @@ public:
         m_session->lt_session().get_context().post( [=,this]() mutable {
 
             DBG_MAIN_THREAD
-            std::shared_lock<std::shared_mutex> lock(m_driveMutex);
 
-            if ( auto it = m_driveMap.find( driveKey ); it != m_driveMap.end() )
+            if ( auto drive = getDrive( driveKey ); drive )
             {
-                it->second->onApprovalTransactionHasFailedInvalidSignatures( transactionHash );
+                drive->onApprovalTransactionHasFailedInvalidSignatures( transactionHash );
             }
             else
             {
@@ -789,11 +769,10 @@ public:
         m_session->lt_session().get_context().post( [=,this]() mutable {
         
             DBG_MAIN_THREAD
-            std::shared_lock<std::shared_mutex> lock(m_driveMutex);
 
-            if ( auto it = m_driveMap.find( transaction.m_driveKey ); it != m_driveMap.end() )
+            if ( auto drive = getDrive( transaction.m_driveKey ); drive )
             {
-                it->second->onSingleApprovalTransactionHasBeenPublished( transaction );
+                drive->onSingleApprovalTransactionHasBeenPublished( transaction );
             }
             else
             {
@@ -873,7 +852,6 @@ public:
         }
     }
 
-    
     const char* dbgReplicatorName() const override { return m_dbgOurPeerName.c_str(); }
     
     virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) override

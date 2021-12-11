@@ -45,6 +45,7 @@
 #include <filesystem>
 #include <set>
 #include <functional>
+#include <future>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -248,15 +249,44 @@ public:
     }
 
     virtual~DefaultFlatDrive() {
-        terminate();
     }
 
     const Key& drivePublicKey() const override { return m_drivePubKey; }
 
     void terminate() override
     {
+        _ASSERT( m_dbgThreadId != std::this_thread::get_id() );
+        
         //LOG_ERR ("Not fully implemented?");
         m_backgroundExecutor.stop();
+        
+#if 0
+        std::set<lt::torrent_handle> toBeRemovedTorrents;
+        toBeRemovedTorrents.insert( m_fsTreeLtHandle );
+
+        // Add unused files into set<>
+        for( const auto& [key,info] : m_torrentHandleMap )
+        {
+            if ( info.m_ltHandle.is_valid() )
+                toBeRemovedTorrents.insert( info.m_ltHandle );
+        }
+
+        if ( !toBeRemovedTorrents.empty() )
+        {
+            std::promise<void> complitionPromise;
+            std::future<void> complitionFuture = complitionPromise.get_future();
+
+            // Remove unused torrents
+            if ( auto session = m_session.lock(); session )
+            {
+                session->removeTorrentsFromSession( toBeRemovedTorrents, [&complitionPromise]
+                {
+                    complitionPromise.set_value();
+                });
+            }
+            complitionFuture.wait();
+        }
+#endif
     }
 
     uint64_t maxSize() const override {

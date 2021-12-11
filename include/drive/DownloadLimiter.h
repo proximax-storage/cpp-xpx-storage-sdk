@@ -31,21 +31,16 @@ protected:
     // Replicator's keys
     const crypto::KeyPair& m_keyPair;
 
-    // Drives
-    std::map<Key, std::shared_ptr<FlatDrive>> m_driveMap;
-    std::shared_mutex  m_driveMutex;
-
-
     ChannelMap          m_downloadChannelMap;
-    std::shared_mutex   m_downloadChannelMutex;
-
     ModifyDriveMap      m_modifyDriveMap;
 
     uint64_t            m_receiptLimit = 10*16*1024; //1024*1024;
 
     std::string         m_dbgOurPeerName = "unset";
     
-
+    // Drives
+    std::map<Key, std::shared_ptr<FlatDrive>> m_driveMap;
+    std::shared_mutex  m_driveMutex;
 
     std::thread::id     m_dbgThreadId;
 
@@ -78,8 +73,6 @@ public:
         //TODO++
         return;
         
-        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-
         if ( !(siriusFlags & lt::sf_is_receiver) )
         {
             _LOG( "onDisconnected: " << dbgOurPeerName() << " from client: " << (int)peerPublicKey[0] );
@@ -270,14 +263,12 @@ public:
         
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
-            std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-
             if ( it->second.m_isModifyTx )
             {
                 _LOG( "it->second.m_driveKey: " << sirius::Key(it->second.m_driveKey) )
-                if ( auto driveIt = m_driveMap.find( it->second.m_driveKey ); driveIt != m_driveMap.end() )
+                if ( auto drive = getDrive( it->second.m_driveKey ); drive )
                 {
-                    if ( isPeerReplicator( *driveIt->second, peerPublicKey) )
+                    if ( isPeerReplicator( *drive, peerPublicKey) )
                     {
                         *outIsDownloadUnlimited = true;
                         return true;
@@ -307,11 +298,9 @@ public:
         //TODO!!!
         return true;
         
-//        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-//
-//        if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
+//        if ( auto drive = getDrive( transactionHash ); drive )
 //        {
-//            if ( isPeerReplicator( *driveIt->second, peerPublicKey) )
+//            if ( isPeerReplicator( *drive, peerPublicKey) )
 //            {
 //                *outIsDownloadUnlimited = true;
 //                return true;
@@ -335,10 +324,9 @@ public:
             return;
         }
 
-        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-        if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
+        if ( auto drive = getDrive( transactionHash ); drive )
         {
-            if ( isPeerReplicator( *driveIt->second, receiverPublicKey) )
+            if ( isPeerReplicator( *drive, receiverPublicKey) )
             {
                 //todo it is a late replicator
                 return;
@@ -371,10 +359,9 @@ public:
             return false;
         }
         
-        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-        if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
+        if ( auto drive = getDrive( transactionHash ); drive )
         {
-            if ( isPeerReplicator( *driveIt->second, receiverPublicKey) )
+            if ( isPeerReplicator( *drive, receiverPublicKey) )
             {
                 //todo it is a late replicator
                 return true;
@@ -430,10 +417,9 @@ public:
             LOG_ERR( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
         }
 
-        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
-        if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
+        if ( auto drive = getDrive( transactionHash ); drive )
         {
-            if ( isPeerReplicator( *driveIt->second, senderPublicKey ) )
+            if ( isPeerReplicator( *drive, senderPublicKey ) )
             {
                 //todo it is a late replicator
                 return;
@@ -621,6 +607,17 @@ public:
     {
         m_receiptLimit = newLimitInBytes;
     }
+    
+    std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key driveKey )
+    {
+        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
+        if ( auto it = m_driveMap.find(driveKey); it != m_driveMap.end() )
+        {
+            return it->second;
+        }
+        return {};
+    }
+
 };
 
 }
