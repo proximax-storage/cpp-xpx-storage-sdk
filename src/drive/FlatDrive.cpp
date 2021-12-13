@@ -163,6 +163,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     //
     // Task variable
     //
+    bool                                m_taskQueued = false;
     bool                                m_driveIsInitializing = true;
     std::optional<Hash256>              m_driveWillRemovedTx = {};
     std::optional<Hash256>              m_modificationCanceledTx;
@@ -512,6 +513,17 @@ public:
         m_expectedCumulativeDownload = m_accountedCumulativeDownload;
         m_opinionTrafficIdentifier.reset();
     }
+
+    void queueTask()
+    {
+        if ( !m_taskQueued )
+        {
+            m_taskQueued = true;
+            executeOnSessionThread([this] {
+                runNextTask(false);
+            });
+        }
+    }
     
     void runNextTask( bool runAfterInitializing = false )
     {
@@ -527,7 +539,8 @@ public:
         m_modificationCanceledTx.reset();
         m_catchingUpRequest.reset();
         m_modifyRequest.reset();
-        
+        m_taskQueued = false;
+
         m_taskMustBeBroken = false;
 
         if ( m_driveWillRemovedTx )
@@ -562,6 +575,11 @@ public:
             startModifyDriveTask( request );
             return;
         }
+    }
+
+    bool isProcessingTask()
+    {
+        return m_modifyRequest || m_catchingUpRequest || m_modificationCanceledTx || m_driveIsInitializing || m_driveWillRemovedTx;
     }
     
     void breakTorrentDownload()
@@ -602,7 +620,7 @@ public:
                         
                         executeOnSessionThread( [=,this]
                         {
-                            runNextTask();
+                            queueTask();
                         });
                     });
                 });
@@ -612,6 +630,7 @@ public:
         {
             // (+++) Всегда ли так будет?
             // wait the end of the current task
+            queueTask();
         }
     }
 
@@ -630,19 +649,17 @@ public:
         {
             _LOG( "modifyIsCompleted" );
             modificationHash = m_modifyRequest->m_transactionHash;
-            m_modifyRequest.reset();
         }
         else
         {
             _LOG( "catchingUpIsCompleted" );
             modificationHash = m_catchingUpRequest->m_modifyTransactionHash;
-            m_catchingUpRequest.reset();
         }
 
         if ( m_dbgEventHandler )
             m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, modificationHash, m_rootHash );
 
-        runNextTask();
+        queueTask();
     }
 
     //
@@ -700,15 +717,13 @@ public:
 
         downgradeCumulativeUploads();
 
-        m_modifyRequest.reset();
-
         // clear sandbox folder
         fs::remove_all( m_sandboxRootPath );
         fs::create_directories( m_sandboxRootPath);
 
         m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), *transactionHash );
 
-        runNextTask();
+        queueTask();
     }
     
     //
@@ -774,10 +789,7 @@ public:
         
         if ( m_modificationMustBeCanceledTx )
         {
-            executeOnSessionThread( [=,this]
-            {
-                runNextTask();
-            });
+            queueTask();
             return;
         }
         
@@ -1230,10 +1242,7 @@ public:
         
         if ( m_modificationMustBeCanceledTx )
         {
-            executeOnSessionThread( [=,this]
-            {
-                runNextTask();
-            });
+            queueTask();
             return;
         }
 
@@ -1433,7 +1442,7 @@ public:
             _LOG( "???: updateDrive_2 broken: " << ex.what() );
             executeOnSessionThread( [=,this]
             {
-                runNextTask();
+                queueTask();
             });
         }
     }
@@ -1926,7 +1935,7 @@ public:
             _LOG( "???: completeCatchingUp broken: " << ex.what() );
             executeOnSessionThread( [=,this]
             {
-                runNextTask();
+                queueTask();
             });
         }
     }

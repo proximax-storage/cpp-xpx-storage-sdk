@@ -64,4 +64,4 @@ duplicate file completed
 replicator_01: *** file_completed_alert:client-data/actionList.bin
 replicator_01: *** file_completed_alert:client-data/actionList.bin
 
-надо ли join в BackgroundExecutor
+Что если удаляем торрент, который есть на другом Драйве
