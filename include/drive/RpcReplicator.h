@@ -204,7 +204,7 @@ private:
 
         AddDriveRequest addDriveRequest;
         addDriveRequest.driveSize = rpcPrepareDriveTransactionInfo.m_driveSize;
-        addDriveRequest.usedDriveSizeExcludingMetafiles = 0;
+        addDriveRequest.expectedCumulativeDownloadSize = 0;
         addDriveRequest.replicators = rpcPrepareDriveTransactionInfo.getReplicators();
 
         m_replicator->asyncAddDrive(rpcPrepareDriveTransactionInfo.m_driveKey, addDriveRequest );

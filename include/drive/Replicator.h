@@ -107,7 +107,7 @@ public:
     // - when received transaction about drive creation (in this case 'actualRootHash' should be empty)
     // - when storage-extension restarts and initiates the drive (that already was created)
     //
-    virtual void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest, std::optional<InfoHash> actualRootHash = {} ) = 0;
+    virtual void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest) = 0;
 
     // it starts drive closing
     virtual void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) = 0;

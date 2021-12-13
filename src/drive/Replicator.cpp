@@ -167,7 +167,7 @@ public:
 
     // 'actualRootHash' is not used
     //
-    void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest, std::optional<InfoHash> /*actualRootHash*/ ) override
+    void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
         

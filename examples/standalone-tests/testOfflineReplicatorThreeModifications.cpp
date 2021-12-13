@@ -31,7 +31,7 @@ namespace sirius::drive::test {
                 int modifyApprovalDelay,
                 int downloadApprovalDelay,
                 int backDownloadRate,
-                bool startReplicator = true)
+                int startReplicator = -1)
                 : TestEnvironment(
                 numberOfReplicators,
                 ipAddr0,
@@ -58,7 +58,7 @@ namespace sirius::drive::test {
 
         void modifyDrive(const Key &driveKey, const ModifyRequest &request) override {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
-            m_pendingModifications.push_back(request.m_transactionHash);
+            m_pendingModifications.push_back(request);
             for (uint i = 0; i < m_replicators.size() - 1; i++)
             {
                 auto & replicator = m_replicators[i];
@@ -73,7 +73,9 @@ namespace sirius::drive::test {
 
         void cancelModification(const Key& driveKey, const Hash256& transactionHash) override {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
-            std::erase(m_pendingModifications, transactionHash);
+            std::erase_if(m_pendingModifications, [&] (const auto& item) {
+                return item.m_transactionHash == transactionHash;
+            });
             for (uint i = 0; i < m_replicators.size() - 1; i++)
             {
                 auto & replicator = m_replicators[i];
@@ -92,7 +94,7 @@ namespace sirius::drive::test {
             EXLOG("modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
 
-            if (m_pendingModifications.front() == transactionInfo.m_modifyTransactionHash) {
+            if (m_pendingModifications.front().m_transactionHash == transactionInfo.m_modifyTransactionHash) {
 
                 EXLOG( toString(transactionInfo.m_modifyTransactionHash) );
 
@@ -120,8 +122,8 @@ namespace sirius::drive::test {
                 ASSERT_EQ(m_modificationSizes[transactionInfo.m_modifyTransactionHash].size(), 1);
 
                 m_pendingModifications.pop_front();
-                m_lastApprovedModification = transactionInfo.m_modifyTransactionHash;
-                m_rootHashes[m_lastApprovedModification] = transactionInfo.m_rootHash;
+                m_lastApprovedModification = transactionInfo;
+                m_rootHashes[m_lastApprovedModification->m_modifyTransactionHash] = transactionInfo.m_rootHash;
                 for (uint i = 0; i < m_replicators.size() - 1; i++)
                 {
                     const auto& r = m_replicators[i];
@@ -137,7 +139,7 @@ namespace sirius::drive::test {
         void singleModifyApprovalTransactionIsReady(Replicator &replicator,
                                                             ApprovalTransactionInfo &&transactionInfo) override {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
-            if (transactionInfo.m_modifyTransactionHash == m_lastApprovedModification.array())
+            if (transactionInfo.m_modifyTransactionHash == m_lastApprovedModification->m_modifyTransactionHash)
             {
                 EXLOG("modifySingleApprovalTransactionIsReady: " << replicator.dbgReplicatorName()
                 << " " << toString(transactionInfo.m_modifyTransactionHash) );

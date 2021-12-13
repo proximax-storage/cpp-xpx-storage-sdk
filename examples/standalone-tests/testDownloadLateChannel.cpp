@@ -31,7 +31,7 @@ namespace sirius::drive::test {
                 bool useTcpSocket,
                 int modifyApprovalDelay,
                 int downloadApprovalDelay,
-                bool startReplicator = true)
+                int startReplicator = -1)
                 : TestEnvironment(
                 numberOfReplicators,
                 ipAddr0,
@@ -73,11 +73,11 @@ namespace sirius::drive::test {
         env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);
 
         auto downloadChannel = randomByteArray<Key>();
-        client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification], downloadChannel, env.m_addrList);
+        client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification->m_modifyTransactionHash], downloadChannel, env.m_addrList);
 
         std::this_thread::sleep_for(std::chrono::minutes(5));
 
-        ASSERT_EQ(client.m_downloadCompleted[env.m_rootHashes[env.m_lastApprovedModification]], false);
+        ASSERT_EQ(client.m_downloadCompleted[env.m_rootHashes[env.m_lastApprovedModification->m_modifyTransactionHash]], false);
 
         env.downloadFromDrive(DRIVE_PUB_KEY, DownloadRequest{
                 downloadChannel,
@@ -86,7 +86,7 @@ namespace sirius::drive::test {
                 {client.m_clientKeyPair.publicKey()}
         });
 
-        client.waitForDownloadComplete(env.m_rootHashes[env.m_lastApprovedModification]);
+        client.waitForDownloadComplete(env.m_rootHashes[env.m_lastApprovedModification->m_modifyTransactionHash]);
     }
 
 #undef TEST_NAME

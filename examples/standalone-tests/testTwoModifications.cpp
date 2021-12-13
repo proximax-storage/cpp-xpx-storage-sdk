@@ -30,7 +30,7 @@ namespace sirius::drive::test
                 int modifyApprovalDelay,
                 int downloadApprovalDelay,
                 int downloadRateLimit,
-                bool startReplicator = true)
+                int startReplicator = -1)
                 : TestEnvironment(
                 numberOfReplicators,
                 ipAddr0,

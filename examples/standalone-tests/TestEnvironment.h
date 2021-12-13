@@ -49,11 +49,13 @@ namespace sirius::drive::test {
         std::optional<DownloadApprovalTransactionInfo> m_dnApprovalTransactionInfo;
         std::mutex m_transactionInfoMutex;
 
-        std::deque<Hash256> m_pendingModifications;
-        Hash256 m_lastApprovedModification;
+        std::deque<ModifyRequest> m_pendingModifications;
+        std::optional<ApprovalTransactionInfo> m_lastApprovedModification;
         std::map<Hash256, InfoHash> m_rootHashes;
 
         std::map<Key, std::set<uint64_t>> m_modificationSizes;
+
+        std::optional<std::pair<Key, AddDriveRequest>> drive;
 
     public:
         TestEnvironment(int numberOfReplicators,
@@ -64,26 +66,32 @@ namespace sirius::drive::test {
                         bool useTcpSocket,
                         int modifyApprovalDelay,
                         int downloadApprovalDelay,
-                        bool startReplicator = true) {
-            if (true) {
-                for (int i = 1; i <= numberOfReplicators; i++) {
-                    std::string privateKey =
-                            intToString02(i) + "00000000010203040501020304050102030405010203040501020304050102";
-                    std::string ipAddr = ipAddr0 + intToString02(i);
-                    int port = port0 + i;
-                    std::string rootFolder = rootFolder0 + "_" + intToString02(i);
-                    std::string sandboxRootFolder = sandboxRootFolder0 + "_" + intToString02(i);
-                    std::string dbgReplicatorName = std::string("replicator_") + intToString02(i);
+                        int startReplicator = -1) {
+            if ( startReplicator == -1 )
+            {
+                startReplicator = numberOfReplicators;
+            }
+            for (int i = 1; i <= numberOfReplicators; i++)
+            {
+                std::string privateKey =
+                        intToString02(i) + "00000000010203040501020304050102030405010203040501020304050102";
+                std::string ipAddr = ipAddr0 + intToString02(i);
+                int port = port0 + i;
+                std::string rootFolder = rootFolder0 + "_" + intToString02(i);
+                std::string sandboxRootFolder = sandboxRootFolder0 + "_" + intToString02(i);
+                std::string dbgReplicatorName = std::string("replicator_") + intToString02(i);
 
-                    auto keyPair = sirius::crypto::KeyPair::FromPrivate(
-                            sirius::crypto::PrivateKey::FromString(privateKey));
-                    m_keys.emplace_back(std::make_shared<sirius::crypto::KeyPair>(std::move(keyPair)));
+                auto keyPair = sirius::crypto::KeyPair::FromPrivate(
+                        sirius::crypto::PrivateKey::FromString(privateKey));
+                m_keys.emplace_back(std::make_shared<sirius::crypto::KeyPair>(std::move(keyPair)));
 
-                    //EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(replicatorKeyPair.publicKey().array()[0]) );
+                //EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(replicatorKeyPair.publicKey().array()[0]) );
 
-                    boost::asio::ip::tcp::endpoint point = {boost::asio::ip::address::from_string(ipAddr),
-                                                            static_cast<ushort>(port)};
+                boost::asio::ip::tcp::endpoint point = {boost::asio::ip::address::from_string(ipAddr),
+                                                        static_cast<ushort>(port)};
 
+                if (i <= startReplicator)
+                {
                     auto replicator = createDefaultReplicator(
                             *m_keys.back(),
                             std::move(ipAddr),
@@ -97,13 +105,60 @@ namespace sirius::drive::test {
 
                     replicator->setDownloadApprovalTransactionTimerDelay(modifyApprovalDelay);
                     replicator->setModifyApprovalTransactionTimerDelay(downloadApprovalDelay);
-
-                    if (startReplicator)
-                        replicator->start();
-
+                    replicator->start();
                     m_replicators.emplace_back(replicator);
+                }
+                else {
+                    m_replicators.emplace_back(std::shared_ptr<Replicator>(nullptr));
+                }
 
-                    m_addrList.emplace_back(ReplicatorInfo{point, m_keys.back()->publicKey()});
+                m_addrList.emplace_back(ReplicatorInfo{point, m_keys.back()->publicKey()});
+            }
+        }
+
+        void startReplicator(int i,
+                             std::string ipAddr0,
+                             int port0,
+                             std::string rootFolder0,
+                             std::string sandboxRootFolder0,
+                             bool useTcpSocket,
+                             int modifyApprovalDelay,
+                             int downloadApprovalDelay)
+        {
+            const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+            if ( !m_replicators[i - 1] )
+            {
+                std::string privateKey =
+                        intToString02(i) + "00000000010203040501020304050102030405010203040501020304050102";
+                std::string ipAddr = ipAddr0 + intToString02(i);
+                int port = port0 + i;
+                std::string rootFolder = rootFolder0 + "_" + intToString02(i);
+                std::string sandboxRootFolder = sandboxRootFolder0 + "_" + intToString02(i);
+                std::string dbgReplicatorName = std::string("replicator_") + intToString02(i);
+
+                auto replicator = createDefaultReplicator(
+                        *m_keys[i - 1],
+                        std::move(ipAddr),
+                        std::to_string(port),
+                        std::move(rootFolder),
+                        std::move(sandboxRootFolder),
+                        useTcpSocket,
+                        *this,
+                        this,
+                        dbgReplicatorName.c_str());
+
+                replicator->setDownloadApprovalTransactionTimerDelay(modifyApprovalDelay);
+                replicator->setModifyApprovalTransactionTimerDelay(downloadApprovalDelay);
+                replicator->start();
+                m_replicators[i - 1] = replicator;
+                replicator->asyncAddDrive(drive->first, drive->second);
+                if (m_lastApprovedModification)
+                {
+                    replicator->asyncApprovalTransactionHasBeenPublished(*m_lastApprovedModification);
+                }
+                for (const auto& modification: m_pendingModifications)
+                {
+                    replicator->asyncModify(drive->first, modification);
                 }
             }
         }
@@ -111,38 +166,56 @@ namespace sirius::drive::test {
         virtual ~TestEnvironment()
         {}
 
-        virtual void addDrive(const Key &driveKey, uint64_t driveSize, std::optional<InfoHash> actualRootHash = {}) {
+        virtual void addDrive(const Key &driveKey, uint64_t driveSize) {
+            drive = {driveKey, {driveSize, 0, m_addrList}};
             for (auto &replicator: m_replicators) {
-                replicator->asyncAddDrive(driveKey, { driveSize, 0, m_addrList }, actualRootHash);
+                if ( replicator )
+                {
+                    replicator->asyncAddDrive(driveKey, { driveSize, 0, m_addrList });
+                }
             }
         }
 
         virtual void modifyDrive(const Key &driveKey, const ModifyRequest &request) {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
-            m_pendingModifications.push_back(request.m_transactionHash);
+            m_pendingModifications.push_back(request);
             for (auto &replicator: m_replicators) {
-                replicator->asyncModify(driveKey, ModifyRequest(request));
+                if ( replicator )
+                {
+                    replicator->asyncModify(driveKey, ModifyRequest(request));
+                }
             }
         }
 
         virtual void downloadFromDrive(const Key& driveKey, const DownloadRequest& request) {
             for (auto &replicator: m_replicators) {
-                replicator->asyncAddDownloadChannelInfo(driveKey, DownloadRequest(request));
+                if ( replicator )
+                {
+                    replicator->asyncAddDownloadChannelInfo(driveKey, DownloadRequest(request));
+                }
             }
         }
 
         virtual void closeDrive(const Key& driveKey) {
             auto transactionHash = randomByteArray<Hash256>();
             for (auto &replicator: m_replicators) {
-                replicator->asyncCloseDrive(driveKey, transactionHash);
+                if ( replicator )
+                {
+                    replicator->asyncCloseDrive(driveKey, transactionHash);
+                }
             }
         }
 
         virtual void cancelModification(const Key& driveKey, const Hash256& transactionHash) {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
-            std::erase(m_pendingModifications, transactionHash);
+            std::erase_if(m_pendingModifications, [&] (const auto& item) {
+                return item.m_transactionHash == transactionHash;
+            });
             for (auto &replicator: m_replicators) {
-                replicator->asyncCancelModify(driveKey, transactionHash);
+                if ( replicator )
+                {
+                    replicator->asyncCancelModify(driveKey, transactionHash);
+                }
             }
         }
 
@@ -163,9 +236,12 @@ namespace sirius::drive::test {
             {
                 m_dnApprovalTransactionInfo = { info };
                 for (auto &r: m_replicators) {
-                    r->asyncDownloadApprovalTransactionHasBeenPublished(m_dnApprovalTransactionInfo->m_blockHash,
-                                                                     m_dnApprovalTransactionInfo->m_downloadChannelId,
-                                                                     true);
+                    if ( r )
+                    {
+                        r->asyncDownloadApprovalTransactionHasBeenPublished(m_dnApprovalTransactionInfo->m_blockHash,
+                                                                            m_dnApprovalTransactionInfo->m_downloadChannelId,
+                                                                            true);
+                    }
                 }
             }
         }
@@ -192,7 +268,7 @@ namespace sirius::drive::test {
             EXLOG("modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
 
-            if (m_pendingModifications.front() == transactionInfo.m_modifyTransactionHash) {
+            if (m_pendingModifications.front().m_transactionHash == transactionInfo.m_modifyTransactionHash) {
 
                 EXLOG( toString(transactionInfo.m_modifyTransactionHash) );
 
@@ -205,12 +281,16 @@ namespace sirius::drive::test {
                     std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
                 }
 
+                drive->second.expectedCumulativeDownloadSize += m_pendingModifications.front().m_maxDataSize;
                 m_pendingModifications.pop_front();
-                m_lastApprovedModification = transactionInfo.m_modifyTransactionHash;
-                m_rootHashes[m_lastApprovedModification] = transactionInfo.m_rootHash;
+                m_lastApprovedModification = transactionInfo;
+                m_rootHashes[m_lastApprovedModification->m_modifyTransactionHash] = transactionInfo.m_rootHash;
                 for (const auto &r: m_replicators) {
-                    r->asyncApprovalTransactionHasBeenPublished(
-                            ApprovalTransactionInfo(transactionInfo));
+                    if ( r )
+                    {
+                        r->asyncApprovalTransactionHasBeenPublished(
+                                ApprovalTransactionInfo(transactionInfo));
+                    }
                 }
 
                 for (const auto& opinion: transactionInfo.m_opinions)
@@ -232,7 +312,7 @@ namespace sirius::drive::test {
         virtual void singleModifyApprovalTransactionIsReady(Replicator &replicator,
                                                             ApprovalTransactionInfo &&transactionInfo) override {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
-            if (transactionInfo.m_modifyTransactionHash == m_lastApprovedModification.array())
+            if (transactionInfo.m_modifyTransactionHash == m_lastApprovedModification->m_modifyTransactionHash)
             {
                 EXLOG("modifySingleApprovalTransactionIsReady: " << replicator.dbgReplicatorName()
                 << " " << toString(transactionInfo.m_modifyTransactionHash) );

@@ -1184,6 +1184,12 @@ public:
         _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
         _ASSERT( !m_modificationCanceledTx )
 
+        if ( strcmp(m_dbgOurPeerName, "replicator_04") == 0 )
+        {
+            std::cout << "HEEELo";
+        }
+
+
         updateCumulativeUploads();
 
         //

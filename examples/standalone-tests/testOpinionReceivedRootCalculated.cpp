@@ -32,7 +32,7 @@ namespace sirius::drive::test {
                 int modifyApprovalDelay,
                 int downloadApprovalDelay,
                 int minimalDownloadSpeed,
-                bool startReplicator = true)
+                int startReplicator = -1)
                 : TestEnvironment(
                 numberOfReplicators,
                 ipAddr0,
@@ -63,7 +63,7 @@ namespace sirius::drive::test {
                 std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
             }
 
-            if (m_pendingModifications.front().array() != transactionInfo.m_modifyTransactionHash)
+            if (m_pendingModifications.front().m_transactionHash != transactionInfo.m_modifyTransactionHash)
             {
                 return;
             }
@@ -87,7 +87,7 @@ namespace sirius::drive::test {
                 ASSERT_EQ(sizes.size(), 1);
 
                 m_pendingModifications.pop_front();
-                m_lastApprovedModification = transactionInfo.m_modifyTransactionHash;
+                m_lastApprovedModification = transactionInfo;
 
                 for (const auto &r: m_replicators) {
                     r->asyncApprovalTransactionHasBeenPublished(transactionInfo);

@@ -28,7 +28,7 @@ namespace sirius::drive::test {
                 bool useTcpSocket,
                 int modifyApprovalDelay,
                 int downloadApprovalDelay,
-                bool startReplicator = true)
+                int startReplicator = -1)
                 : TestEnvironment(
                 numberOfReplicators,
                 ipAddr0,
