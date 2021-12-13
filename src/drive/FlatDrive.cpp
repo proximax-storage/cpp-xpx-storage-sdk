@@ -516,6 +516,8 @@ public:
 
     void queueTask()
     {
+        DBG_MAIN_THREAD
+
         if ( !m_taskQueued )
         {
             m_taskQueued = true;
