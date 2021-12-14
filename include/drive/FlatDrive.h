@@ -150,6 +150,30 @@ class Replicator;
 
     };
 
+    struct PublishedModificationApprovalTransactionInfo
+    {
+        // Drive public key
+        std::array<uint8_t, 32> m_driveKey;
+
+        // A reference to the transaction that initiated the modification
+        std::array<uint8_t, 32> m_modifyTransactionHash;
+
+        // New root hash (hash of the File Structure)
+        std::array<uint8_t, 32> m_rootHash;
+
+        // Keys of the cosigners
+        std::vector<std::array<uint8_t, 32>> m_replicatorKeys;
+    };
+
+    struct PublishedModificationSingleApprovalTransactionInfo
+    {
+        // Drive public key
+        std::array<uint8_t, 32> m_driveKey;
+
+        // A reference to the transaction that initiated the modification
+        std::array<uint8_t, 32> m_modifyTransactionHash;
+    };
+
     // It is used in 2 cases:
     // - as 'DataModificationApprovalTransaction '
     // - as 'DataModificationSingleApprovalTransaction' (in this case vector 'm_opinions' has single element)
@@ -185,6 +209,21 @@ class Replicator;
             arch( m_metaFilesSize );
             arch( m_driveSize );
             arch( m_opinions );
+        }
+
+        operator PublishedModificationApprovalTransactionInfo() const
+        {
+            std::vector<std::array<uint8_t, 32>> replicatorKeys;
+            for (const auto& opinion: m_opinions)
+            {
+                replicatorKeys.push_back(opinion.m_replicatorKey);
+            }
+            return {m_driveKey, m_modifyTransactionHash, m_rootHash, replicatorKeys};
+        }
+
+        operator PublishedModificationSingleApprovalTransactionInfo() const
+        {
+            return {m_driveKey, m_modifyTransactionHash};
         }
     };
 
@@ -380,11 +419,11 @@ class Replicator;
         
         virtual void     onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
 
-        virtual void     onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
+        virtual void     onApprovalTransactionHasBeenPublished( const PublishedModificationApprovalTransactionInfo& transaction ) = 0;
 
         virtual void     onApprovalTransactionHasFailedInvalidSignatures( const Hash256& transactionHash) = 0;
 
-        virtual void     onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) = 0;
+        virtual void     onSingleApprovalTransactionHasBeenPublished( const PublishedModificationSingleApprovalTransactionInfo& transaction ) = 0;
         
         // actualRootHash should not be empty if it is called from replicator::asyncAddDrive()
         //virtual void     startCatchingUp( std::optional<CatchingUpRequest>&& actualRootHash ) = 0;

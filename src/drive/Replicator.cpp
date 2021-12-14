@@ -742,7 +742,7 @@ public:
         m_eventHandler.opinionHasBeenReceived(*this, anOpinion);
     }
     
-    virtual void asyncApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) override
+    virtual void asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo transaction ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
 
@@ -776,7 +776,7 @@ public:
         });//post
     }
     
-    virtual void asyncSingleApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) override
+    virtual void asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo transaction ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
         

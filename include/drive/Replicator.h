@@ -150,13 +150,13 @@ public:
     virtual void        processOpinion( const ApprovalTransactionInfo& anOpinion ) = 0;
     
     // It will be called after 'MODIFY approval transaction' has been published
-    virtual void        asyncApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) = 0;
+    virtual void        asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo transaction ) = 0;
 
     // It will be called if transaction sent by the Replicator has failed because of invalid Replicators list
     virtual void        asyncApprovalTransactionHasFailedInvalidSignatures( Key driveKey, Hash256 transactionHash ) = 0;
 
     // It will be called after 'single MODIFY approval transaction' has been published
-    virtual void        asyncSingleApprovalTransactionHasBeenPublished( ApprovalTransactionInfo transaction ) = 0;
+    virtual void        asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo transaction ) = 0;
 
     // It continues drive closing (initiates DownloadApprovalTransaction and then removes drive)
     virtual void        closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) = 0;

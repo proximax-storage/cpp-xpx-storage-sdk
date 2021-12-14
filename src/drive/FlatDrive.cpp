@@ -1542,7 +1542,7 @@ public:
         m_modifyApproveTransactionSent = true;
     }
 
-    void onApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
+    void onApprovalTransactionHasBeenPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
     {
         DBG_MAIN_THREAD
 
@@ -1607,10 +1607,8 @@ public:
         }
         else
         {
-            const auto& v = transaction.m_opinions;
-            auto it = std::find_if( v.begin(), v.end(), [this] (const auto& opinion) {
-                return opinion.m_replicatorKey == m_replicator.replicatorKey().array();
-            });
+            const auto& v = transaction.m_replicatorKeys;
+            auto it = std::find( v.begin(), v.end(), m_replicator.replicatorKey().array());
 
             // Is my opinion present
             if ( it == v.end() )
@@ -1652,7 +1650,7 @@ public:
         m_eventHandler.singleModifyApprovalTransactionIsReady( m_replicator, std::move(copy) );
     }
 
-    void onSingleApprovalTransactionHasBeenPublished( const ApprovalTransactionInfo& transaction ) override
+    void onSingleApprovalTransactionHasBeenPublished( const PublishedModificationSingleApprovalTransactionInfo& transaction ) override
     {
         _LOG( "onSingleApprovalTransactionHasBeenPublished()" );
     }
