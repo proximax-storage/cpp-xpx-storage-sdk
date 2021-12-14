@@ -307,7 +307,7 @@ public:
         DBG_MAIN_THREAD
 
         if (replicators.empty()) {
-            LOG_ERR( "ReplicatorList is empty!");
+            _LOG_ERR( "ReplicatorList is empty!");
             return;
         }
 
@@ -383,7 +383,7 @@ public:
             }
             catch(...)
             {
-                LOG_ERR( "initializeDrive: invalid FsTree file" )
+                _LOG_ERR( "initializeDrive: invalid FsTree file" )
                 fs::remove(m_fsTreeFile);
                 //TODO syncronize!
             }
@@ -680,7 +680,7 @@ public:
             
             if ( m_receivedModifyApproveTx )
             {
-                LOG_ERR( "cancelModifyDrive(): m_receivedModifyApproveTx == true" )
+                _LOG_ERR( "cancelModifyDrive(): m_receivedModifyApproveTx == true" )
                 return;
             }
 
@@ -699,7 +699,7 @@ public:
             
             if ( it == m_defferedModifyRequests.end() )
             {
-                LOG_ERR( "cancelModifyDrive(): invalid transactionHash: " << transactionHash );
+                _LOG_ERR( "cancelModifyDrive(): invalid transactionHash: " << transactionHash );
                 return;
             }
             
@@ -816,7 +816,7 @@ public:
         // ModificationIsCanceling check is redundant now
         if ( m_modifyRequest || m_catchingUpRequest || m_newCatchingUpRequest || m_modificationCanceledTx || m_driveIsInitializing )
         {
-            //LOG_ERR( "startModifyDrive():: prevoius modification is not completed" );
+            _LOG( "startModifyDrive():: prevoius modification is not completed" );
             m_defferedModifyRequests.emplace_back( std::move(modifyRequest) );
             return;
         }
@@ -1548,7 +1548,7 @@ public:
 
         if ( m_receivedModifyApproveTx &&  *m_receivedModifyApproveTx == transaction.m_modifyTransactionHash )
         {
-            LOG_ERR("Duplicated approval tx ");
+            _LOG_ERR("Duplicated approval tx ");
             return;
         }
 
@@ -1766,7 +1766,7 @@ public:
         }
         catch(...)
         {
-            LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
+            _LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
             fs::remove( m_sandboxFsTreeFile );
             //TODO (+++)
             //modifyIsCompleted();
@@ -1826,7 +1826,7 @@ public:
             if ( m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash == m_catchingUpRequest->m_rootHash )
             {
                 // TODO Check this situation
-                LOG_ERR( "Not Implemented" );
+                _LOG_ERR( "Not Implemented" );
                 return;
             }
 
@@ -1853,7 +1853,7 @@ public:
                                                      }
                                                      else if ( code == download_status::failed )
                                                      {
-                                                         LOG_ERR("???");
+                                                         _LOG_ERR("???");
                                                      }
                                                  },
 

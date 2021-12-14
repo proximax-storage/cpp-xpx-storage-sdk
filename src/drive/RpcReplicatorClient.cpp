@@ -5,6 +5,7 @@
 */
 
 #include <random>
+#include <fstream>
 #include "drive/RpcReplicatorClient.h"
 #include "crypto/Hashes.h"
 

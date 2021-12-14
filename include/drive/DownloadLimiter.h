@@ -132,7 +132,7 @@ public:
         {
             return it->second;
         }
-        LOG_ERR( "getMyDownloadOpinion: unknown modify transaction hash" );
+        _LOG_ERR( "getMyDownloadOpinion: unknown modify transaction hash" );
         
         return {};
     }
@@ -176,7 +176,7 @@ public:
         {
             if ( it->second.m_prepaidDownloadSize <= prepaidDownloadSize )
             {
-                LOG_ERR( "addChannelInfo: invalid prepaidDownloadSize: " << it->second.m_prepaidDownloadSize << " <= " << prepaidDownloadSize );
+                _LOG_ERR( "addChannelInfo: invalid prepaidDownloadSize: " << it->second.m_prepaidDownloadSize << " <= " << prepaidDownloadSize );
             }
             it->second.m_prepaidDownloadSize = prepaidDownloadSize;
 
@@ -275,13 +275,13 @@ public:
                     }
                     else
                     {
-                        LOG_ERR( "acceptConnection: unknown peerPublicKey: " << sirius::Key(peerPublicKey) );
+                        _LOG_ERR( "acceptConnection: unknown peerPublicKey: " << sirius::Key(peerPublicKey) );
                         return true;
                     }
                 }
                 else
                 {
-                    LOG_ERR( "acceptConnection: unknown drive: " << sirius::Key(it->second.m_driveKey) );
+                    _LOG_ERR( "acceptConnection: unknown drive: " << sirius::Key(it->second.m_driveKey) );
                     return false;
                 }
             }
@@ -333,7 +333,7 @@ public:
             }
         }
 
-        LOG_ERR( "ERROR: unknown transactionHash: " << (int)transactionHash[0] );
+        _LOG_ERR( "ERROR: unknown transactionHash: " << (int)transactionHash[0] );
     }
     
     bool onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
@@ -355,7 +355,7 @@ public:
                 peerIt->second.m_requestedSize += pieceSize;
                 return true;
             }
-            LOG_ERR( "ERROR: unknown peer: " << (int)receiverPublicKey[0] );
+            _LOG_ERR( "ERROR: unknown peer: " << (int)receiverPublicKey[0] );
             return false;
         }
         
@@ -393,10 +393,10 @@ public:
                 peerIt->second.m_sentSize += pieceSize;
                 return;
             }
-            //LOG_ERR( "ERROR: unknown peer: " << (int)receiverPublicKey[0] );
+            _LOG_WARN( "unknown peer: " << (int)receiverPublicKey[0] );
         }
 
-        //LOG_ERR( "ERROR(2): unknown transactionHash: " << (int)transactionHash[0] );
+        _LOG_WARN( "unknown transactionHash: " << (int)transactionHash[0] );
     }
     
     void onPieceReceived( const std::array<uint8_t,32>&  transactionHash,
@@ -414,7 +414,7 @@ public:
                 return;
             }
             
-            LOG_ERR( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
+            _LOG_ERR( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
         }
 
         if ( auto drive = getDrive( transactionHash ); drive )
@@ -427,7 +427,7 @@ public:
         }
         
         _LOG( "unknown transactionHash: " << (int)transactionHash[0] );
-        LOG_ERR( "ERROR(3): unknown transactionHash: " << (int)transactionHash[0] );
+        _LOG_ERR( "ERROR(3): unknown transactionHash: " << (int)transactionHash[0] );
     }
 
 
@@ -464,7 +464,7 @@ public:
                 if ( std::find_if( v.begin(), v.end(), [&clientPublicKey](const auto& element)
                                   { return element == clientPublicKey; } ) == v.end() )
                 {
-                    LOG_ERR( "acceptReceiptFromAnotherReplicator: bad client key; it is ignored" );
+                    _LOG_ERR( "acceptReceiptFromAnotherReplicator: bad client key; it is ignored" );
                     return;
                 }
             }
@@ -482,7 +482,7 @@ public:
                 if ( std::find_if( v.begin(), v.end(), [&replicatorPublicKey](const auto& element)
                                   { return element.m_publicKey.array() == replicatorPublicKey; } ) == v.end() )
                 {
-                    LOG_ERR( "acceptReceiptFromAnotherReplicator: bad replicator key; it is ignored" );
+                    _LOG_ERR( "acceptReceiptFromAnotherReplicator: bad replicator key; it is ignored" );
                     return;
                 }
                 it->second.m_replicatorUploadMap[replicatorPublicKey] = {downloadedSize};
@@ -522,7 +522,7 @@ public:
         //_LOG( "verifyHandshake: " << int(signature[0]) )
         bool ok = crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );;
         if ( !ok ) {
-            LOG_ERR( "PROOBLEMS " );
+            _LOG_ERR( "PROOBLEMS " );
         }
         return crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
     }

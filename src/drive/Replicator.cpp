@@ -23,15 +23,19 @@
 
 namespace sirius::drive {
 
+#define USE_OUR_IO_CONTEXT
+
 //
 // DefaultReplicator
 //
 class DefaultReplicator : public DownloadLimiter // Replicator
 {
 private:
+#ifdef USE_OUR_IO_CONTEXT
     boost::asio::io_context m_replicatorContext;
     std::thread             m_libtorrentThread;
-
+#endif
+    
     // Session listen interface
     std::string m_address;
     std::string m_port;
@@ -74,7 +78,9 @@ public:
 
     virtual ~DefaultReplicator()
     {
+#ifdef DEBUG_OFF_CATAPULT2
         _LOG( "~DefaultReplicator() ")
+#endif
         
         m_replicatorDestructingMutex.lock();
         m_replicatorIsDestructing = true;
@@ -98,20 +104,22 @@ public:
         {
             auto blockedDestructor = m_session->lt_session().abort();
             m_session.reset();
-        }
 
-//        m_replicatorContext.stop();
-//        if ( m_libtorrentThread.joinable() )
-//        {
-//            m_libtorrentThread.join();
-////            m_libtorrentThread.detach();
-//        }
+#ifdef USE_OUR_IO_CONTEXT
+        if ( m_libtorrentThread.joinable() )
+        {
+            m_libtorrentThread.join();
+        }
+#endif
+        }
     }
-    
     void start() override
     {
-////        m_session = createDefaultSession( m_replicatorContext, m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
+#ifdef USE_OUR_IO_CONTEXT
+        m_session = createDefaultSession( m_replicatorContext, m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
+#else
         m_session = createDefaultSession( m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
+#endif
             {
                 if ( pAlert->type() == lt::listen_failed_alert::alert_type )
                 {
@@ -123,12 +131,15 @@ public:
             m_useTcpSocket );
         m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName.c_str();
         
-//        m_libtorrentThread = std::thread( [this] {
-//            m_replicatorContext.run();
-//            _LOG( "libtorrentThread ended" );
-//        });
-//        m_dbgThreadId = m_libtorrentThread.get_id();
-        
+#ifdef USE_OUR_IO_CONTEXT
+        m_libtorrentThread = std::thread( [this] {
+            m_replicatorContext.run();
+#ifdef DEBUG_OFF_CATAPULT2
+            _LOG( "libtorrentThread ended" );
+#endif
+        });
+        m_dbgThreadId = m_libtorrentThread.get_id();
+#else
         std::mutex waitMutex;
         waitMutex.lock();
         m_session->lt_session().get_context().post( [=,&waitMutex,this]() mutable {
@@ -136,6 +147,7 @@ public:
             waitMutex.unlock();
         });//post
         waitMutex.lock();
+#endif
     }
 
     Hash256 dbgGetRootHash( const Key& driveKey ) override
@@ -147,7 +159,7 @@ public:
             return rootHash;
         }
 
-        LOG_ERR( "unknown drive: " << driveKey );
+        _LOG_ERR( "unknown drive: " << driveKey );
         throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
 
         return Hash256();
@@ -160,7 +172,7 @@ public:
             return drive->printDriveStatus();
         }
 
-        LOG_ERR( "unknown dive: " << driveKey );
+        _LOG_ERR( "unknown dive: " << driveKey );
         throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
 
     }
@@ -367,7 +379,7 @@ public:
 
             if ( anOpinion.m_opinions.size() != 1 )
             {
-                LOG_ERR( "onDownloadOpinionReceived: invalid opinion format: anOpinion.m_opinions.size() != 1" )
+                _LOG_ERR( "onDownloadOpinionReceived: invalid opinion format: anOpinion.m_opinions.size() != 1" )
                 return;
             }
         
@@ -431,7 +443,7 @@ public:
 
         if (channelIt == m_downloadChannelMap.end())
         {
-            LOG_ERR("Attempt to add opinion for a non-existing channel");
+            _LOG_ERR("Attempt to add opinion for a non-existing channel");
             return;
         }
 
@@ -540,7 +552,7 @@ public:
         }
         else
         {
-            LOG_ERR( "channelId not found" );
+            _LOG_ERR( "channelId not found" );
         }
     }
     
@@ -613,11 +625,11 @@ public:
                 }
                 else
                 {
-                    LOG_ERR( "eventHash not found" );
+                    _LOG_ERR( "eventHash not found" );
                 }
             }
             else {
-                LOG_ERR( "channelId not found" );
+                _LOG_ERR( "channelId not found" );
             }
         });//post
     }
@@ -642,12 +654,12 @@ public:
                 }
                 else
                 {
-                    LOG_ERR( "eventHash not found" );
+                    _LOG_ERR( "eventHash not found" );
                 }
             }
             else
             {
-                LOG_ERR( "channelId not found" );
+                _LOG_ERR( "channelId not found" );
             }
 
             if ( !driveIsClosed )
@@ -719,7 +731,7 @@ public:
             }
             else
             {
-                LOG_ERR( "drive not found" );
+                _LOG_ERR( "drive not found" );
             }
         });
     }
@@ -742,7 +754,7 @@ public:
             }
             else
             {
-                LOG_ERR( "drive not found" );
+                _LOG_ERR( "drive not found" );
             }
         });//post
     }
@@ -759,7 +771,7 @@ public:
             }
             else
             {
-                LOG_ERR( "drive not found" );
+                _LOG_ERR( "drive not found" );
             }
         });//post
     }
@@ -776,7 +788,7 @@ public:
             }
             else
             {
-                LOG_ERR( "drive not found" );
+                _LOG_ERR( "drive not found" );
             }
         });//post
     }
@@ -817,7 +829,7 @@ public:
     }
     catch(...)
     {
-        LOG_ERR( "onMessageReceived: invalid message format: query=" << query );
+        _LOG_ERR( "onMessageReceived: invalid message format: query=" << query );
     }
 
 

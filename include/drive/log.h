@@ -7,31 +7,69 @@
 
 #include <iostream>
 #include <mutex>
+#include "utils/Logging.h"
 
 inline std::mutex gLogMutex;
 
 #define LOG(expr)
 
-#define __LOG(expr) { \
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        std::cerr << expr << std::endl << std::flush; \
+// __LOG
+#ifdef DEBUG_OFF_CATAPULT2
+    #define __LOG(expr) { \
+            const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+            std::cout << expr << std::endl << std::flush; \
+        }
+#else
+    #define __LOG(expr) { \
+            std::ostringstream out; \
+            out << m_dbgOurPeerName << ": " << expr; \
+            CATAPULT_LOG(debug) << out.str(); \
     }
+#endif
 
-#define _LOG(expr) { \
+// _LOG
+#ifdef DEBUG_OFF_CATAPULT2
+    #define _LOG(expr) { \
+            const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+            std::cout << m_dbgOurPeerName << ": " << expr << std::endl << std::flush; \
+        }
+#else
+    #define _LOG(expr) { \
+            std::ostringstream out; \
+            out << m_dbgOurPeerName << ": " << expr; \
+            CATAPULT_LOG(debug) << out.str(); \
+        }
+#endif
+
+// LOG_WARN
+#ifdef DEBUG_OFF_CATAPULT2
+    #define _LOG_WARN(expr) { \
+            const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+            std::cout << m_dbgOurPeerName << ": WARNING!!! " << expr << std::endl << std::flush; \
+        }
+#else
+    #define _LOG_WARN(expr) { \
+            std::ostringstream out; \
+            out << ": WARNING!!! " << ": " << expr; \
+            CATAPULT_LOG(debug) << out.str(); \
+        }
+#endif
+
+// LOG_ERR
+#ifdef DEBUG_OFF_CATAPULT2
+    #define _LOG_ERR(expr) { \
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        std::cerr << m_dbgOurPeerName << ": " << expr << std::endl << std::flush; \
+        std::cerr << __FILE__ << ":" << __LINE__ << ": "<< expr << "\n" << std::flush; \
+        assert(0); \
     }
-
-/*#define LOG_WARN(expr) { \
-    const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    std::cerr << __FILE__ << ":" << __LINE__ << ": "<< expr << std::flush; \
-    std::cerr << expr << std::flush; \
-}*/
-
-#define LOG_ERR(expr) { \
-    const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    std::cerr << __FILE__ << ":" << __LINE__ << ": "<< expr << "\n" << std::flush; \
-}
+#else
+    #define _LOG_ERR(expr) { \
+        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::ostringstream out; \
+        out << "ERROR!!! " << __FILE__ << ":" << __LINE__ << ": "<< expr; \
+        CATAPULT_LOG(error) << out.str(); \
+    }
+#endif
 
 #define _ASSERT(expr) { \
     if (!(expr)) {\

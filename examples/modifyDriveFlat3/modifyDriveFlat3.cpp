@@ -520,6 +520,7 @@ int main(int,char**)
     //sleep(1000);
 
     /// Client: modify drive (2)
+#if 1
     EXLOG( "" );
     EXLOG( "# Client started: 2-st upload/modify" );
     {
@@ -562,7 +563,8 @@ int main(int,char**)
     EXLOG( "# Client started FsTree download !!!!! " );
     gClientSession->setDownloadChannel( replicatorList, downloadChannelHash3 );
     clientDownloadFsTree();
-
+#endif
+    
     /// Delete client session and replicators
     gClientSession.reset();
     gReplicator.reset();

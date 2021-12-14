@@ -202,7 +202,7 @@ public:
 //            assert(torrentHandle.is_valid());
             if ( !torrentHandle.is_valid() )
             {
-                LOG_ERR("TRY REMOVE NOT VALID TORRENT");
+                _LOG_ERR("TRY REMOVE NOT VALID TORRENT");
             }
             else
             {

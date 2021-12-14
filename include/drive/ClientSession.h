@@ -201,7 +201,7 @@ protected:
 
         bool ok = crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
         if ( !ok )
-            LOG_ERR( "verifyHandshake: failed" )
+            _LOG_ERR( "verifyHandshake: failed" )
         return ok;
     }
 
