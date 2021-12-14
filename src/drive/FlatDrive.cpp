@@ -513,19 +513,6 @@ public:
         m_expectedCumulativeDownload = m_accountedCumulativeDownload;
         m_opinionTrafficIdentifier.reset();
     }
-
-    void queueTask()
-    {
-        DBG_MAIN_THREAD
-
-        if ( !m_taskQueued )
-        {
-            m_taskQueued = true;
-            executeOnSessionThread([this] {
-                runNextTask(false);
-            });
-        }
-    }
     
     void runNextTask( bool runAfterInitializing = false )
     {
@@ -578,11 +565,6 @@ public:
             return;
         }
     }
-
-    bool isProcessingTask()
-    {
-        return m_modifyRequest || m_catchingUpRequest || m_modificationCanceledTx || m_driveIsInitializing || m_driveWillRemovedTx;
-    }
     
     void breakTorrentDownload()
     {
@@ -597,7 +579,9 @@ public:
 
         m_taskMustBeBroken = true;
 
-        if ( (m_modifyRequest || m_catchingUpRequest) && m_downloadingLtHandle )
+        _ASSERT(m_modifyRequest || m_catchingUpRequest)
+
+        if ( m_downloadingLtHandle )
         {
             if ( auto session = m_session.lock(); session )
             {
@@ -622,7 +606,7 @@ public:
                         
                         executeOnSessionThread( [=,this]
                         {
-                            queueTask();
+                            runNextTask();
                         });
                     });
                 });
@@ -630,9 +614,6 @@ public:
         }
         else
         {
-            // (+++) Всегда ли так будет?
-            // wait the end of the current task
-            queueTask();
         }
     }
 
@@ -661,7 +642,7 @@ public:
         if ( m_dbgEventHandler )
             m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, modificationHash, m_rootHash );
 
-        queueTask();
+        runNextTask();
     }
 
     //
@@ -725,7 +706,7 @@ public:
 
         m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), *transactionHash );
 
-        queueTask();
+        runNextTask();
     }
     
     //
@@ -751,7 +732,13 @@ public:
 
         if ( !m_driveIsInitializing )
         {
-            breakTorrentDownload();
+            if ( m_modifyRequest || m_catchingUpRequest || m_modificationCanceledTx )
+            {
+                breakTorrentDownload();
+            }
+            else {
+                runNextTask();
+            }
         }
     }
 
@@ -791,7 +778,7 @@ public:
         
         if ( m_modificationMustBeCanceledTx )
         {
-            queueTask();
+            runNextTask();
             return;
         }
         
@@ -1250,7 +1237,7 @@ public:
         
         if ( m_modificationMustBeCanceledTx )
         {
-            queueTask();
+            runNextTask();
             return;
         }
 
@@ -1450,7 +1437,7 @@ public:
             _LOG( "???: updateDrive_2 broken: " << ex.what() );
             executeOnSessionThread( [=,this]
             {
-                queueTask();
+                runNextTask();
             });
         }
     }
@@ -1596,7 +1583,14 @@ public:
 
             // We should break torrent downloading
             // Because they (torrents/files) may no longer be available
-            breakTorrentDownload();
+            if ( m_modifyRequest || m_catchingUpRequest )
+            {
+                breakTorrentDownload();
+            }
+            else
+            {
+                runNextTask();
+            }
             return;
         }
 
@@ -1941,7 +1935,7 @@ public:
             _LOG( "???: completeCatchingUp broken: " << ex.what() );
             executeOnSessionThread( [=,this]
             {
-                queueTask();
+                runNextTask();
             });
         }
     }
