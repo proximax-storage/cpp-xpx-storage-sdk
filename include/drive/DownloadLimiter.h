@@ -427,7 +427,7 @@ public:
         }
         
         _LOG( "unknown transactionHash: " << (int)transactionHash[0] );
-        _LOG_ERR( "ERROR(3): unknown transactionHash: " << (int)transactionHash[0] );
+        _LOG_WARN( "ERROR(3): unknown transactionHash: " << (int)transactionHash[0] );
     }
 
 
