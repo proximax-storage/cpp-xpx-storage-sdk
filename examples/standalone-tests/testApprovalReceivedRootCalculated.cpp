@@ -19,7 +19,6 @@ namespace sirius::drive::test {
 #define TEST_NAME ApprovalReceivedRootCalculated
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
-#define RUN_TEST void JOIN(run, TEST_NAME)()
 
     class ENVIRONMENT_CLASS : public TestEnvironment {
     public:
