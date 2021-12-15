@@ -63,7 +63,7 @@ namespace fs = std::filesystem;
 namespace sirius::drive {
 
 #define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
-#define DBG_SECONDARY_THREAD { assert( m_dbgThreadId != std::this_thread::get_id() ); }
+#define DBG_BG_THREAD { assert( m_dbgThreadId != std::this_thread::get_id() ); }
 
 //
 // DrivePaths - drive paths, used at replicator side
@@ -357,7 +357,7 @@ public:
     // Initialize drive
     void initializeDrive()
     {
-        DBG_SECONDARY_THREAD
+        DBG_BG_THREAD
         
         // Clear m_rootDriveHash
         memset( m_rootHash.data(), 0 , m_rootHash.size() );
@@ -405,11 +405,16 @@ public:
                                         m_fsTreeTorrent );
 
         // Add files to session
-        addFilesToSession( m_driveFolder, m_torrentFolder, m_fsTree );
+        addFilesToSession( m_fsTree );
 
         // Add FsTree to session
         if ( auto session = m_session.lock(); session )
         {
+            if ( !fs::exists(m_fsTreeTorrent) )
+            {
+                //TODO try recovery!
+                _LOG_ERR( "disk corrupted: fsTreeTorrent does not exist: " << m_fsTreeTorrent )
+            }
             m_fsTreeLtHandle = session->addTorrentFileToSession( m_fsTreeTorrent,
                                                                  m_fsTreeTorrent.parent_path(),
                                                                  lt::sf_is_replicator );
@@ -426,66 +431,41 @@ public:
         });
     }
 
-    // add files to session recursively
+    // Recursively marks 'm_toBeRemoved' as false
     //
-    void addFilesToSession( fs::path folderPath, fs::path torrentFolderPath, Folder& fsTreeFolder )
+    void addFilesToSession( const Folder& folder )
     {
-        //DBG_SECONDARY_THREAD
+        DBG_BG_THREAD
         
-        // Loop by folder childs
-        //
-        for( const auto& child : std::filesystem::directory_iterator( folderPath ) )
+        for( const auto& child : folder.m_childs )
         {
-            // Child name
-            auto name = child.path().filename();
-
-            if ( child.is_directory() )
+            if ( isFolder(child) )
             {
-                // Get FsTree child
-                Folder::Child* fsTreeChild = fsTreeFolder.findChild( name );
-
-                if ( fsTreeChild == nullptr ) {
-                    throw std::runtime_error( std::string("internal error, absent folder: ") + name.string() );
-                }
-
-                if ( isFile(*fsTreeChild) ) {
-                    throw std::runtime_error( std::string("internal error, must be folder, filname: ") + name.string() );
-                }
-
-                // Go into subfolder
-                addFilesToSession( folderPath / name,
-                                   torrentFolderPath / name,
-                                   getFolder(*fsTreeChild) );
+                addFilesToSession( getFolder(child) );
             }
-            else if ( child.is_regular_file() )
+            else
             {
-                // Add file to session
-                //
+                auto& hash = getFile(child).m_hash;
+                std::string fileName = hashToFileName( hash );
 
-                // Get FsTree child
-                Folder::Child* fsTreeChild = fsTreeFolder.findChild( name );
-
-                if ( fsTreeChild == nullptr ) {
-                    throw std::runtime_error( std::string("internal error absent file: ") + name.string() );
+                if ( !fs::exists( m_driveFolder / fileName ) )
+                {
+                    //TODO inform user?
+                    _LOG_ERR( "disk corrupted: drive file does not exist: " << m_driveFolder / fileName );
                 }
 
-                if ( isFolder(*fsTreeChild) ) {
-                    throw std::runtime_error( std::string("attempt to create a file with existing folder with same name: ") + name.string() );
-                }
-
-                fs::path torrentFile = torrentFolderPath / name;
-                if ( !fs::exists( torrentFile ) ) {
-                    throw std::runtime_error( std::string("internal error absent torrent file: ") + name.string() );
+                if ( !fs::exists( m_torrentFolder / fileName ) )
+                {
+                    //TODO try recovery
+                    _LOG_ERR( "disk corrupted: torrent file does not exist: " << m_torrentFolder / fileName )
                 }
                 
-                // skip identical files that was already added
-                if ( m_torrentHandleMap.find(getFile(*fsTreeChild).hash()) != m_torrentHandleMap.end() )
+                if ( auto session = m_session.lock(); session )
                 {
-                    if ( auto session = m_session.lock(); session )
-                    {
-                        auto torrentHandle = session->addTorrentFileToSession( torrentFile, m_driveFolder, lt::sf_is_replicator, {} );
-                        m_torrentHandleMap.emplace( getFile(*fsTreeChild).hash(), UseTorrentInfo{ torrentHandle, true } );
-                    }
+                    auto ltHandle = session->addTorrentFileToSession( m_torrentFolder / fileName,
+                                                                      m_driveFolder,
+                                                                      lt::sf_is_replicator );
+                    m_torrentHandleMap.try_emplace( hash, UseTorrentInfo{ltHandle,true} );
                 }
             }
         }
@@ -566,7 +546,7 @@ public:
         }
     }
     
-    void breakTorrentDownload()
+    void breakTorrentDownloadAndRunNextTask()
     {
         DBG_MAIN_THREAD
 
@@ -581,7 +561,12 @@ public:
 
         _ASSERT(m_modifyRequest || m_catchingUpRequest)
 
-        if ( m_downloadingLtHandle )
+        if ( !m_downloadingLtHandle )
+        {
+            // We cannot break torrent download.
+            // Therefore, we will wait the end of current task, that will call runNextTask()
+        }
+        else
         {
             if ( auto session = m_session.lock(); session )
             {
@@ -596,7 +581,7 @@ public:
                 session->removeTorrentsFromSession( {torrentHandle}, [=, this]
                 {
                     DBG_MAIN_THREAD
-                    _LOG( "breakTorrentDownload: torrent is removed");
+                    _LOG( "breakTorrentDownloadAndRunNextTask: torrent is removed");
 
                     m_backgroundExecutor.run( [this]
                     {
@@ -611,9 +596,6 @@ public:
                     });
                 });
             }
-        }
-        else
-        {
         }
     }
 
@@ -670,7 +652,10 @@ public:
             m_modificationMustBeCanceledTx = transactionHash;
             m_modifyRequest->m_isCanceled = true;
             
-            breakTorrentDownload();
+            // We should break torrent downloading
+            // Because they (torrents/files) may no longer be available
+            //
+            breakTorrentDownloadAndRunNextTask();
             return;
         }
         else
@@ -734,9 +719,10 @@ public:
         {
             if ( m_modifyRequest || m_catchingUpRequest || m_modificationCanceledTx )
             {
-                breakTorrentDownload();
+                breakTorrentDownloadAndRunNextTask();
             }
-            else {
+            else
+            {
                 runNextTask();
             }
         }
@@ -887,7 +873,7 @@ public:
     //
     void modifyDriveInSandbox()
     {
-        DBG_SECONDARY_THREAD
+        DBG_BG_THREAD
 
         _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
 
@@ -1372,7 +1358,7 @@ public:
     //
     void updateDrive_2()
     {
-        DBG_SECONDARY_THREAD
+        DBG_BG_THREAD
         
         try
         {
@@ -1581,11 +1567,12 @@ public:
             _LOG( "Will catch-up" )
             m_newCatchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
 
-            // We should break torrent downloading
-            // Because they (torrents/files) may no longer be available
             if ( m_modifyRequest || m_catchingUpRequest )
             {
-                breakTorrentDownload();
+                // We should break torrent downloading
+                // Because they (torrents/files) may no longer be available
+                //
+                breakTorrentDownloadAndRunNextTask();
             }
             else
             {
@@ -1861,7 +1848,7 @@ public:
     
     void completeCatchingUp()
     {
-        DBG_SECONDARY_THREAD
+        DBG_BG_THREAD
         
         try
         {

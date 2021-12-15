@@ -333,7 +333,7 @@ public:
             }
         }
 
-        _LOG_ERR( "ERROR: unknown transactionHash: " << (int)transactionHash[0] );
+        _LOG_WARN( "ERROR: unknown transactionHash: " << (int)transactionHash[0] );
     }
     
     bool onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
