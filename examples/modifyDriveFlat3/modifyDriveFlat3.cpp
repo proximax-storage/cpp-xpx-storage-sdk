@@ -333,6 +333,65 @@ MyReplicatorEventHandler gMyReplicatorEventHandler3;
 MyReplicatorEventHandler gMyReplicatorEventHandler4;
 MyReplicatorEventHandler gMyReplicatorEventHandler5;
 
+auto replicatorKeyPair   = sirius::crypto::KeyPair::FromPrivate(
+        sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY ));
+auto replicatorKeyPair_2 = sirius::crypto::KeyPair::FromPrivate(
+        sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_2 ));
+auto replicatorKeyPair_3 = sirius::crypto::KeyPair::FromPrivate(
+        sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3 ));
+
+///
+/// Create replicators
+///
+void createReplicators()
+{
+    gReplicator = createReplicator( replicatorKeyPair,
+                                    REPLICATOR_IP_ADDR,
+                                    REPLICATOR_PORT,
+                                    std::string( REPLICATOR_ROOT_FOLDER ),
+                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER ),
+                                    TRANSPORT_PROTOCOL,
+                                    gMyReplicatorEventHandler,
+                                    "replicator1" );
+    gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
+
+#if 0
+    gReplicatorMap.erase( gReplicator->replicatorKey() );
+    gReplicator.reset();
+
+    gReplicator = createReplicator( replicatorKeyPair,
+                                    REPLICATOR_IP_ADDR,
+                                    REPLICATOR_PORT,
+                                    std::string( REPLICATOR_ROOT_FOLDER ),
+                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER ),
+                                    TRANSPORT_PROTOCOL,
+                                    gMyReplicatorEventHandler,
+                                    "replicator1" );
+    gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
+#endif
+
+    gReplicator2 = createReplicator( replicatorKeyPair_2,
+                                    REPLICATOR_IP_ADDR_2,
+                                    REPLICATOR_PORT_2,
+                                    std::string( REPLICATOR_ROOT_FOLDER_2 ),
+                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_2 ),
+                                    TRANSPORT_PROTOCOL,
+                                    gMyReplicatorEventHandler2,
+                                    "replicator2" );
+    gReplicatorMap[gReplicator2->replicatorKey()] = gReplicator2;
+
+    gReplicator3 = createReplicator( replicatorKeyPair_3,
+                                    REPLICATOR_IP_ADDR_3,
+                                    REPLICATOR_PORT_3,
+                                    std::string( REPLICATOR_ROOT_FOLDER_3 ),
+                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_3 ),
+                                    TRANSPORT_PROTOCOL,
+                                    gMyReplicatorEventHandler3,
+                                    "replicator3" );
+    gReplicatorMap[gReplicator3->replicatorKey()] = gReplicator3;
+
+
+}
 
 #ifdef __APPLE__
 #pragma mark --main()--
@@ -378,61 +437,7 @@ int main(int,char**)
                                          TRANSPORT_PROTOCOL,
                                          "client" );
 
-    ///
-    /// Create replicators
-    ///
-    auto replicatorKeyPair   = sirius::crypto::KeyPair::FromPrivate(
-            sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY ));
-    auto replicatorKeyPair_2 = sirius::crypto::KeyPair::FromPrivate(
-            sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_2 ));
-    auto replicatorKeyPair_3 = sirius::crypto::KeyPair::FromPrivate(
-            sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3 ));
-
-    gReplicator = createReplicator( replicatorKeyPair,
-                                    REPLICATOR_IP_ADDR,
-                                    REPLICATOR_PORT,
-                                    std::string( REPLICATOR_ROOT_FOLDER ),
-                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER ),
-                                    TRANSPORT_PROTOCOL,
-                                    gMyReplicatorEventHandler,
-                                    "replicator1" );
-    gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
-
-#if 1
-    gReplicatorMap.erase( gReplicator->replicatorKey() );
-    gReplicator.reset();
-
-    gReplicator = createReplicator( replicatorKeyPair,
-                                    REPLICATOR_IP_ADDR,
-                                    REPLICATOR_PORT,
-                                    std::string( REPLICATOR_ROOT_FOLDER ),
-                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER ),
-                                    TRANSPORT_PROTOCOL,
-                                    gMyReplicatorEventHandler,
-                                    "replicator1" );
-    gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
-#endif
-
-    gReplicator2 = createReplicator( replicatorKeyPair_2,
-                                    REPLICATOR_IP_ADDR_2,
-                                    REPLICATOR_PORT_2,
-                                    std::string( REPLICATOR_ROOT_FOLDER_2 ),
-                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_2 ),
-                                    TRANSPORT_PROTOCOL,
-                                    gMyReplicatorEventHandler2,
-                                    "replicator2" );
-    gReplicatorMap[gReplicator2->replicatorKey()] = gReplicator2;
-
-    gReplicator3 = createReplicator( replicatorKeyPair_3,
-                                    REPLICATOR_IP_ADDR_3,
-                                    REPLICATOR_PORT_3,
-                                    std::string( REPLICATOR_ROOT_FOLDER_3 ),
-                                    std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_3 ),
-                                    TRANSPORT_PROTOCOL,
-                                    gMyReplicatorEventHandler3,
-                                    "replicator3" );
-    gReplicatorMap[gReplicator3->replicatorKey()] = gReplicator3;
-
+    createReplicators();
     sleep(1);
 
     
@@ -558,6 +563,15 @@ int main(int,char**)
     gReplicatorThread.join();
     gReplicatorThread2.join();
     gReplicatorThread3.join();
+    
+    gReplicatorMap.erase( gReplicator->replicatorKey() );
+    gReplicator.reset();
+    gReplicatorMap.erase( gReplicator2->replicatorKey() );
+    gReplicator2.reset();
+    gReplicatorMap.erase( gReplicator3->replicatorKey() );
+    gReplicator3.reset();
+    
+    createReplicators();
 
     /// Client: read new fsTree (3)
     EXLOG( "# Client started FsTree download !!!!! " );

@@ -269,7 +269,12 @@ public:
         //LOG( "add torrent: " << lt::make_magnet_uri(tInfo) );
         //dbg///////////////////////////////////////////////////
 
-        lt::torrent_handle tHandle = m_session.add_torrent(params);
+        lt::error_code ec;
+        lt::torrent_handle tHandle = m_session.add_torrent( std::move(params), ec );
+        if ( ec )
+        {
+            _LOG_WARN( "session::add_torrent error: ec: " << ec );
+        }
 
         //TODO!!!
         //LOG( "torrentFilename: " << torrentFilename );

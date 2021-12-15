@@ -78,7 +78,7 @@ public:
 
     virtual ~DefaultReplicator()
     {
-#ifdef DEBUG_OFF_CATAPULT2
+#ifdef DEBUG_OFF_CATAPULT
         _LOG( "~DefaultReplicator() ")
 #endif
         
@@ -134,7 +134,7 @@ public:
 #ifdef USE_OUR_IO_CONTEXT
         m_libtorrentThread = std::thread( [this] {
             m_replicatorContext.run();
-#ifdef DEBUG_OFF_CATAPULT2
+#ifdef DEBUG_OFF_CATAPULT
             _LOG( "libtorrentThread ended" );
 #endif
         });

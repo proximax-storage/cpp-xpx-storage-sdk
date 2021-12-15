@@ -14,7 +14,7 @@ inline std::mutex gLogMutex;
 #define LOG(expr)
 
 // __LOG
-#ifdef DEBUG_OFF_CATAPULT2
+#ifdef DEBUG_OFF_CATAPULT
     #define __LOG(expr) { \
             const std::lock_guard<std::mutex> autolock( gLogMutex ); \
             std::cout << expr << std::endl << std::flush; \
@@ -28,7 +28,7 @@ inline std::mutex gLogMutex;
 #endif
 
 // _LOG
-#ifdef DEBUG_OFF_CATAPULT2
+#ifdef DEBUG_OFF_CATAPULT
     #define _LOG(expr) { \
             const std::lock_guard<std::mutex> autolock( gLogMutex ); \
             std::cout << m_dbgOurPeerName << ": " << expr << std::endl << std::flush; \
@@ -42,7 +42,7 @@ inline std::mutex gLogMutex;
 #endif
 
 // LOG_WARN
-#ifdef DEBUG_OFF_CATAPULT2
+#ifdef DEBUG_OFF_CATAPULT
     #define _LOG_WARN(expr) { \
             const std::lock_guard<std::mutex> autolock( gLogMutex ); \
             std::cout << m_dbgOurPeerName << ": WARNING!!! " << expr << std::endl << std::flush; \
@@ -56,7 +56,7 @@ inline std::mutex gLogMutex;
 #endif
 
 // LOG_ERR
-#ifdef DEBUG_OFF_CATAPULT2
+#ifdef DEBUG_OFF_CATAPULT
     #define _LOG_ERR(expr) { \
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
         std::cerr << __FILE__ << ":" << __LINE__ << ": "<< expr << "\n" << std::flush; \
