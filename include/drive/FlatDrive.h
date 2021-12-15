@@ -30,6 +30,7 @@ class Replicator;
         uint64_t          driveSize;
         uint64_t          expectedCumulativeDownloadSize;
         ReplicatorList    replicators;
+        Key               client;
     };
 
     using DriveModifyHandler = std::function<void( modify_status::code, const FlatDrive& drive, const std::string& error )>;
@@ -404,6 +405,8 @@ class Replicator;
         virtual uint64_t sandboxFsTreeSize() const = 0;
         
         virtual ReplicatorList getReplicators() = 0;
+
+        virtual Key getClient() = 0;
 
         virtual void updateReplicators(const ReplicatorList& replicators) = 0;
 

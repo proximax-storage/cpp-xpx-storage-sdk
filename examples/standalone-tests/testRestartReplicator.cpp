@@ -15,7 +15,7 @@ using namespace sirius::drive::test;
 namespace sirius::drive::test {
 
     /// change this macro for your test
-#define TEST_NAME InitReplicatorAfterFirstModification
+#define TEST_NAME RestartReplicator
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -43,11 +43,11 @@ public:
             modifyApprovalDelay,
             downloadApprovalDelay,
             startReplicator),
-            m_downloadRate(downloadRate)
+              m_downloadRate(downloadRate)
     {
         for (auto replicator: m_replicators)
         {
-            if ( replicator )
+            if (replicator)
             {
                 lt::settings_pack pack;
                 pack.set_int(lt::settings_pack::download_rate_limit, m_downloadRate);
@@ -92,7 +92,7 @@ TEST(ModificationTest, TEST_NAME) {
 
     ENVIRONMENT_CLASS env(
             NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
-            SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000, 1024 * 1024, NUMBER_OF_REPLICATORS - 1);
+            SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000, 1024 * 1024);
 
     EXLOG("\n# Client started: 1-st upload");
     client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList);
@@ -105,13 +105,23 @@ TEST(ModificationTest, TEST_NAME) {
                                     env.m_addrList,
                                     client.m_clientKeyPair.publicKey()});
 
-    env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS - 1);
+    env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS);
+
+    env.stopReplicator(NUMBER_OF_REPLICATORS);
+
+    env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[1],
+                                    client.m_modificationTransactionHashes[1],
+                                    BIG_FILE_SIZE + 1024,
+                                    env.m_addrList,
+                                    client.m_clientKeyPair.publicKey()});
+
+    env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS - 1);
 
     env.startReplicator(NUMBER_OF_REPLICATORS,
                         REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
                         SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000);
 
-    env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS);
+    env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS);
 }
 
 #undef TEST_NAME

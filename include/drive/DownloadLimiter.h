@@ -209,6 +209,11 @@ public:
     {
         DBG_MAIN_THREAD
 
+        if ( m_modifyDriveMap.contains(modifyTransactionHash.array()) )
+        {
+            return;
+        }
+
         ModifyTrafficMap trafficMap;
         trafficMap.insert( { clientPublicKey.array(), {0,0}} );
         

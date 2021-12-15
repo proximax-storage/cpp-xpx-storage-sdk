@@ -750,6 +750,12 @@ public:
 
             if ( auto drive = getDrive( transaction.m_driveKey ); drive )
             {
+                addModifyDriveInfo( transaction.m_modifyTransactionHash,
+                                    transaction.m_driveKey,
+                                    LONG_LONG_MAX,
+                                    drive->getClient(),
+                                    drive->getReplicators());
+
                 drive->onApprovalTransactionHasBeenPublished( transaction );
             }
             else

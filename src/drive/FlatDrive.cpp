@@ -133,6 +133,9 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     // List of replicators that support this drive
     ReplicatorList          m_replicatorList;
+
+    // Client of the drive
+    Key                     m_client;
     
     // Replicator event handlers
     ReplicatorEventHandler&     m_eventHandler;
@@ -163,7 +166,6 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     //
     // Task variable
     //
-    bool                                m_taskQueued = false;
     bool                                m_driveIsInitializing = true;
     std::optional<Hash256>              m_driveWillRemovedTx = {};
     std::optional<Hash256>              m_modificationCanceledTx;
@@ -302,6 +304,11 @@ public:
         return m_replicatorList;
     }
 
+    Key getClient() override
+    {
+        return m_client;
+    }
+
     void updateReplicators(const ReplicatorList& replicators) override
     {
         DBG_MAIN_THREAD
@@ -434,60 +441,48 @@ public:
         
         // Loop by folder childs
         //
+
+        std::set<InfoHash> fsTreeFiles;
+        getFiles(fsTreeFolder, fsTreeFiles);
+
+        uint filesCount = 0;
         for( const auto& child : std::filesystem::directory_iterator( folderPath ) )
         {
-            // Child name
-            auto name = child.path().filename();
+            filesCount++;
+            auto name = child.path().filename().string();
 
-            if ( child.is_directory() )
+            if ( !child.is_regular_file() )
             {
-                // Get FsTree child
-                Folder::Child* fsTreeChild = fsTreeFolder.findChild( name );
-
-                if ( fsTreeChild == nullptr ) {
-                    throw std::runtime_error( std::string("internal error, absent folder: ") + name.string() );
-                }
-
-                if ( isFile(*fsTreeChild) ) {
-                    throw std::runtime_error( std::string("internal error, must be folder, filname: ") + name.string() );
-                }
-
-                // Go into subfolder
-                addFilesToSession( folderPath / name,
-                                   torrentFolderPath / name,
-                                   getFolder(*fsTreeChild) );
+                throw std::runtime_error( std::string("internal error non regular file in flat drive ") + name );
             }
-            else if ( child.is_regular_file() )
+
+            auto hash = stringToHash(name);
+
+            if ( !fsTreeFiles.contains(hash) )
             {
-                // Add file to session
-                //
-
-                // Get FsTree child
-                Folder::Child* fsTreeChild = fsTreeFolder.findChild( name );
-
-                if ( fsTreeChild == nullptr ) {
-                    throw std::runtime_error( std::string("internal error absent file: ") + name.string() );
-                }
-
-                if ( isFolder(*fsTreeChild) ) {
-                    throw std::runtime_error( std::string("attempt to create a file with existing folder with same name: ") + name.string() );
-                }
-
-                fs::path torrentFile = torrentFolderPath / name;
-                if ( !fs::exists( torrentFile ) ) {
-                    throw std::runtime_error( std::string("internal error absent torrent file: ") + name.string() );
-                }
-                
-                // skip identical files that was already added
-                if ( m_torrentHandleMap.find(getFile(*fsTreeChild).hash()) != m_torrentHandleMap.end() )
-                {
-                    if ( auto session = m_session.lock(); session )
-                    {
-                        auto torrentHandle = session->addTorrentFileToSession( torrentFile, m_driveFolder, lt::sf_is_replicator, {} );
-                        m_torrentHandleMap.emplace( getFile(*fsTreeChild).hash(), UseTorrentInfo{ torrentHandle, true } );
-                    }
-                }
+                throw std::runtime_error( std::string("internal error missing file in fsTree") + name );
             }
+
+            fs::path torrentFile = torrentFolderPath / name;
+            if ( !fs::exists( torrentFile ) ) {
+                throw std::runtime_error( std::string("internal error absent torrent file: ") + name );
+            }
+
+            _ASSERT( m_torrentHandleMap.find(hash) == m_torrentHandleMap.end() )
+
+            if ( auto session = m_session.lock(); session )
+            {
+                auto torrentHandle = session->addTorrentFileToSession( torrentFile, m_driveFolder, lt::sf_is_replicator, {} );
+                m_torrentHandleMap.emplace( hash, UseTorrentInfo{ torrentHandle, true } );
+            }
+
+        }
+
+        _ASSERT( filesCount <= fsTreeFiles.size() )
+
+        if ( filesCount < fsTreeFiles.size() )
+        {
+            throw std::runtime_error( std::string("internal error missing some files in filesystem"));
         }
     }
 
@@ -528,7 +523,6 @@ public:
         m_modificationCanceledTx.reset();
         m_catchingUpRequest.reset();
         m_modifyRequest.reset();
-        m_taskQueued = false;
 
         m_taskMustBeBroken = false;
 
@@ -775,8 +769,8 @@ public:
     void synchronizeDriveWithSandbox()
     {
         DBG_MAIN_THREAD
-        
-        if ( m_modificationMustBeCanceledTx )
+
+        if ( m_modificationMustBeCanceledTx || m_removeDriveTx )
         {
             runNextTask();
             return;
@@ -1235,7 +1229,7 @@ public:
 
         _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
         
-        if ( m_modificationMustBeCanceledTx )
+        if ( m_modificationMustBeCanceledTx || m_removeDriveTx )
         {
             runNextTask();
             return;
@@ -1523,9 +1517,7 @@ public:
         
         // notify event handler
         m_eventHandler.modifyApprovalTransactionIsReady( m_replicator, std::move(info) );
-        
-        m_replicator.removeModifyDriveInfo( m_myOpinion->m_modifyTransactionHash );
-        
+
         m_modifyApproveTransactionSent = true;
     }
 
@@ -1611,6 +1603,7 @@ public:
                 sendSingleApprovalTransaction();
             }
 
+            m_replicator.removeModifyDriveInfo( transaction.m_modifyTransactionHash );
             synchronizeDriveWithSandbox();
         }
     }
@@ -1646,6 +1639,7 @@ public:
 
     void onSingleApprovalTransactionHasBeenPublished( const PublishedModificationSingleApprovalTransactionInfo& transaction ) override
     {
+        m_replicator.removeModifyDriveInfo( transaction.m_modifyTransactionHash );
         _LOG( "onSingleApprovalTransactionHasBeenPublished()" );
     }
 
@@ -1773,7 +1767,24 @@ public:
         m_catchingUpFileIt = m_catchingUpFileSet.begin();
         downloadMissingFiles();
     }
-    
+
+    void getFiles(const Folder& folder, std::set<InfoHash>& files)
+    {
+        for( const auto& child : folder.m_childs )
+        {
+            if ( isFolder(child) )
+            {
+                getFiles( getFolder(child), files );
+            }
+            else
+            {
+                const auto& hash = getFile(child).m_hash;
+
+                files.emplace(hash);
+            }
+        }
+    }
+
     void createCatchingUpFileList( const Folder& folder )
     {
         DBG_MAIN_THREAD

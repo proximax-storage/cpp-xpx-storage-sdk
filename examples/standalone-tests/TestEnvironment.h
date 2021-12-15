@@ -116,7 +116,7 @@ namespace sirius::drive::test {
             }
         }
 
-        void startReplicator(int i,
+        virtual void startReplicator(int i,
                              std::string ipAddr0,
                              int port0,
                              std::string rootFolder0,
@@ -163,15 +163,20 @@ namespace sirius::drive::test {
             }
         }
 
+        void stopReplicator(int i)
+        {
+            m_replicators[i - 1].reset();
+        }
+
         virtual ~TestEnvironment()
         {}
 
-        virtual void addDrive(const Key &driveKey, uint64_t driveSize) {
-            drive = {driveKey, {driveSize, 0, m_addrList}};
+        virtual void addDrive(const Key &driveKey, const Key& client, uint64_t driveSize) {
+            drive = {driveKey, {driveSize, 0, m_addrList, client}};
             for (auto &replicator: m_replicators) {
                 if ( replicator )
                 {
-                    replicator->asyncAddDrive(driveKey, { driveSize, 0, m_addrList });
+                    replicator->asyncAddDrive(drive->first, drive->second);
                 }
             }
         }

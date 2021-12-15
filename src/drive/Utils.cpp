@@ -139,7 +139,7 @@ Hash256 stringToHash( const boost::string_view& str )
 
     for( unsigned int i=0; i<32; i++ )
     {
-        hash[i] = (charToInt(str[2*i])<<8) + charToInt(str[2*i+1]);
+        hash[i] = (charToInt(str[2*i])<<4) + charToInt(str[2*i+1]);
     }
 
     return hash;
