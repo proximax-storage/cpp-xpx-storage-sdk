@@ -193,19 +193,19 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     //
     // 'modify' opinion
     //
-    std::optional<ApprovalTransactionInfo>  m_myOpinion;
+    std::optional<ApprovalTransactionInfo>  m_myOpinion; // (***)
     
     // It is needed for right calculation of my 'modify' opinion
-    std::optional<Hash256>                  m_opinionTrafficIdentifier;
+    std::optional<Hash256>                  m_opinionTrafficIdentifier; // (***)
     uint64_t                                m_expectedCumulativeDownload;
-    uint64_t                                m_accountedCumulativeDownload = 0;
-    std::map<Key, uint64_t>                 m_cumulativeUploads;
-    std::map<Key, uint64_t>                 m_lastAccountedUploads;
+    uint64_t                                m_accountedCumulativeDownload = 0; // (***)
+    std::map<Key, uint64_t>                 m_cumulativeUploads; // (***)
+    std::map<Key, uint64_t>                 m_lastAccountedUploads; // (***)
 
     // opinions from other replicators
     // key of the outer map is modification id
     // key of the inner map is a replicator key, one replicator one opinion
-    std::map<Hash256, std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>>    m_otherOpinions;
+    std::map<Hash256, std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>>    m_otherOpinions; // (***)
     
     std::optional<boost::asio::high_resolution_timer> m_modifyOpinionTimer;
 
@@ -339,6 +339,7 @@ public:
 
     void getSandboxDriveSizes( uint64_t& metaFilesSize, uint64_t& driveSize ) const override
     {
+        // TODO move to BG thread
         if ( fs::exists(m_sandboxRootPath) )
         {
             metaFilesSize = fs::file_size( m_sandboxFsTreeTorrent);
@@ -431,11 +432,8 @@ public:
         {
             m_dbgEventHandler->driveIsInitialized( m_replicator, drivePublicKey(), m_rootHash );
         }
-        
-        executeOnSessionThread( [=,this]
-        {
-            runNextTask( true );
-        });
+
+        runNextTask(true);
     }
 
     // Recursively marks 'm_toBeRemoved' as false
@@ -500,8 +498,30 @@ public:
         m_expectedCumulativeDownload = m_accountedCumulativeDownload;
         m_opinionTrafficIdentifier.reset();
     }
+
+    void runNextTask(bool runAfterInitializing = false)
+    {
+        m_backgroundExecutor.run([=, this] {
+
+            if (!fs::exists(m_sandboxRootPath))
+            {
+                fs::create_directories(m_sandboxRootPath);
+            }
+            else
+            {
+                for (const auto &entry : std::filesystem::directory_iterator(m_sandboxRootPath))
+                {
+                    fs::remove_all(entry.path());
+                }
+            }
+
+            executeOnSessionThread([=, this] {
+                runNextTaskOnMainThread(runAfterInitializing);
+            });
+        });
+    }
     
-    void runNextTask( bool runAfterInitializing = false )
+    void runNextTaskOnMainThread(bool runAfterInitializing)
     {
         DBG_MAIN_THREAD
 
@@ -592,13 +612,8 @@ public:
                     m_backgroundExecutor.run( [this]
                     {
                         //TODO: move downloaded files from sandbox to drive (for catching-up only)
-                        
-                        fs::remove_all( m_sandboxRootPath );
-                        
-                        executeOnSessionThread( [=,this]
-                        {
-                            runNextTask();
-                        });
+
+                        runNextTask();
                     });
                 });
             }
@@ -690,10 +705,6 @@ public:
         m_modificationCanceledTx = transactionHash;
 
         downgradeCumulativeUploads();
-
-        // clear sandbox folder
-        fs::remove_all( m_sandboxRootPath );
-        fs::create_directories( m_sandboxRootPath);
 
         m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), *transactionHash );
 
@@ -813,10 +824,6 @@ public:
         m_myOpinion.reset();
 
         m_modifyRequest = modifyRequest;
-
-        // clear client session folder
-        fs::remove_all( m_sandboxRootPath );
-        fs::create_directories( m_sandboxRootPath);
 
         using namespace std::placeholders;  // for _1, _2, _3
 
@@ -1417,8 +1424,6 @@ public:
                                                                      lt::sf_is_replicator );
             }
 
-            // clear sandbox
-            fs::remove_all( m_sandboxRootPath );
             executeOnSessionThread( [=,this]
             {
                 modifyIsCompleted();
@@ -1427,10 +1432,7 @@ public:
         catch ( const std::exception& ex )
         {
             _LOG( "???: updateDrive_2 broken: " << ex.what() );
-            executeOnSessionThread( [=,this]
-            {
-                runNextTask();
-            });
+            runNextTask();
         }
     }
 
@@ -1550,6 +1552,13 @@ public:
             // This situation could be valid if some next modification has not changed Drive Root Hash
             // For example, because of next modification was invalid
             // So, we continue previous catching-up
+            return;
+        }
+
+        if ( m_rootHash == transaction.m_rootHash)
+        {
+            // TODO implement via task
+            sendSingleApprovalTransaction();
             return;
         }
 
@@ -1674,9 +1683,6 @@ public:
             }
             
             m_catchingUpRequest = std::move( actualCatchingRequest );
-
-            fs::remove_all( m_sandboxRootPath );
-            fs::create_directories( m_sandboxRootPath);
         }
         
         //
@@ -1752,9 +1758,6 @@ public:
         catch(...)
         {
             _LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
-            fs::remove( m_sandboxFsTreeFile );
-            //TODO (+++)
-            //modifyIsCompleted();
         }
         
         //
@@ -1765,23 +1768,6 @@ public:
         
         m_catchingUpFileIt = m_catchingUpFileSet.begin();
         downloadMissingFiles();
-    }
-
-    void getFiles(const Folder& folder, std::set<InfoHash>& files)
-    {
-        for( const auto& child : folder.m_childs )
-        {
-            if ( isFolder(child) )
-            {
-                getFiles( getFolder(child), files );
-            }
-            else
-            {
-                const auto& hash = getFile(child).m_hash;
-
-                files.emplace(hash);
-            }
-        }
     }
 
     void createCatchingUpFileList( const Folder& folder )
@@ -1932,9 +1918,6 @@ public:
 
             LOG( "drive is synchronized" );
 
-            // clear sandbox
-            fs::remove_all( m_sandboxRootPath );
-            
             executeOnSessionThread( [=,this]
             {
                 modifyIsCompleted();
@@ -1943,10 +1926,7 @@ public:
         catch ( const std::exception& ex )
         {
             _LOG( "???: completeCatchingUp broken: " << ex.what() );
-            executeOnSessionThread( [=,this]
-            {
-                runNextTask();
-            });
+            runNextTask();
         }
     }
     

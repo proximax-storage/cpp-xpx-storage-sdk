@@ -31,7 +31,7 @@ protected:
     // Replicator's keys
     const crypto::KeyPair& m_keyPair;
 
-    ChannelMap          m_downloadChannelMap;
+    ChannelMap          m_downloadChannelMap; // (***), only if not crash
     ModifyDriveMap      m_modifyDriveMap;
 
     uint64_t            m_receiptLimit = 10*16*1024; //1024*1024;
@@ -209,8 +209,11 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_modifyDriveMap.contains(modifyTransactionHash.array()) )
+        auto driveMapIt = m_modifyDriveMap.lower_bound(modifyTransactionHash.array());
+
+        if (driveMapIt != m_modifyDriveMap.end() && driveMapIt->first == modifyTransactionHash.array())
         {
+            // already exists
             return;
         }
 
@@ -228,7 +231,7 @@ public:
             }
         }
         
-        m_modifyDriveMap[modifyTransactionHash.array()] = ModifyDriveInfo{ driveKey.array(), dataSize, replicatorsList, trafficMap, 0 };
+        m_modifyDriveMap.insert(driveMapIt, {modifyTransactionHash.array(), ModifyDriveInfo{ driveKey.array(), dataSize, replicatorsList, trafficMap, 0 }});
 
         // we need to add modifyTransactionHash into 'm_downloadChannelMap'
         // because replicators could download pieces from their neighbors

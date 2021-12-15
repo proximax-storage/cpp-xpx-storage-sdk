@@ -15,7 +15,7 @@ using namespace sirius::drive::test;
 namespace sirius::drive::test {
 
     /// change this macro for your test
-#define TEST_NAME RestartReplicator
+#define TEST_NAME RestartReplicatorAfterModificationApproval
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -97,6 +97,7 @@ TEST(ModificationTest, TEST_NAME) {
     EXLOG("\n# Client started: 1-st upload");
     client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList);
     client.modifyDrive(createActionList_2(CLIENT_WORK_FOLDER), env.m_addrList);
+    client.modifyDrive(createActionList_3(CLIENT_WORK_FOLDER), env.m_addrList);
 
     env.addDrive(DRIVE_PUB_KEY, client.m_clientKeyPair.publicKey(), 100 * 1024 * 1024);
     env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[0],
@@ -109,17 +110,17 @@ TEST(ModificationTest, TEST_NAME) {
 
     env.stopReplicator(NUMBER_OF_REPLICATORS);
 
+    env.startReplicator(NUMBER_OF_REPLICATORS,
+                        REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
+                        SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000);
+
+//    std::this_thread::sleep_for(std::chrono::seconds(60));
+
     env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[1],
                                     client.m_modificationTransactionHashes[1],
                                     BIG_FILE_SIZE + 1024,
                                     env.m_addrList,
                                     client.m_clientKeyPair.publicKey()});
-
-    env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS - 1);
-
-    env.startReplicator(NUMBER_OF_REPLICATORS,
-                        REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
-                        SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000);
 
     env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS);
 }
