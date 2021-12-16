@@ -161,6 +161,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     // Request queue
     //
 
+    std::optional<PublishedModificationApprovalTransactionInfo> m_initSynchronizeTx;
     std::optional<Hash256>              m_removeDriveTx = {};
     std::optional<Hash256>              m_modificationMustBeCanceledTx;
     std::optional<CatchingUpRequest>    m_newCatchingUpRequest;
@@ -493,7 +494,8 @@ public:
 
         // We have already taken into account information
         // about uploads of the modification to be canceled;
-        if ( !m_opinionTrafficIdentifier )
+        auto trafficIdentifierHasValue = m_opinionTrafficIdentifier.has_value();
+        if ( !trafficIdentifierHasValue )
         {
             uint64_t sum = 0;
             for (const auto&[uploaderKey, bytes]: m_lastAccountedUploads)
@@ -501,11 +503,24 @@ public:
                 sum += bytes;
                 m_cumulativeUploads[uploaderKey] -= bytes;
             }
+            m_opinionTrafficIdentifier.reset();
             _ASSERT( sum == m_modifyRequest->m_maxDataSize );
         }
         m_accountedCumulativeDownload -= m_modifyRequest->m_maxDataSize;
         m_expectedCumulativeDownload = m_accountedCumulativeDownload;
-        m_opinionTrafficIdentifier.reset();
+
+        m_backgroundExecutor.run([=, this]
+        {
+            saveAccountedCumulativeDownload();
+            if ( trafficIdentifierHasValue )
+            {
+                saveCumulativeUploads();
+                saveOpinionTrafficIdentifier();
+            }
+            executeOnSessionThread([this] {
+                continueCancelModifyDrive();
+            });
+        });
     }
 
     void runNextTask(bool runAfterInitializing = false)
@@ -524,6 +539,11 @@ public:
                 }
             }
 
+            if ( !runAfterInitializing )
+            {
+                saveEmptyOpinion();
+            }
+
             executeOnSessionThread([=, this] {
                 runNextTaskOnMainThread(runAfterInitializing);
             });
@@ -535,10 +555,17 @@ public:
         DBG_MAIN_THREAD
 
         if ( runAfterInitializing )
+        {
             m_driveIsInitializing = false;
+        }
         
         if ( m_driveIsInitializing )
             return;
+
+        if ( !runAfterInitializing )
+        {
+            m_myOpinion.reset();
+        }
         
         //???m_driveWillRemovedTx.reset();
         m_modificationCanceledTx.reset();
@@ -546,6 +573,17 @@ public:
         m_modifyRequest.reset();
 
         m_taskMustBeBroken = false;
+
+        if ( m_initSynchronizeTx )
+        {
+            // During initializing hasBeenApprovalTransaction could be received
+            // We enqueue it in 'initSynchronizeTx' since we are not able to process it at that moment
+            // And now we process it
+            _ASSERT( runAfterInitializing )
+            auto tx = std::move(m_initSynchronizeTx);
+            m_initSynchronizeTx.reset();
+            onApprovalTransactionHasBeenPublished(*tx);
+        }
 
         if ( m_driveWillRemovedTx )
         {
@@ -714,9 +752,11 @@ public:
         m_modificationCanceledTx = transactionHash;
 
         downgradeCumulativeUploads();
+    }
 
-        m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), *transactionHash );
-
+    void continueCancelModifyDrive()
+    {
+        m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), *m_modificationCanceledTx );
         runNextTask();
     }
     
@@ -788,7 +828,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_modificationMustBeCanceledTx || m_removeDriveTx )
+        if ( m_newCatchingUpRequest || m_modificationMustBeCanceledTx || m_removeDriveTx )
         {
             runNextTask();
             return;
@@ -829,9 +869,6 @@ public:
         m_modifyApproveTransactionSent = false;
         m_receivedModifyApproveTx.reset();
 
-        // remove my opinion
-        m_myOpinion.reset();
-
         m_modifyRequest = modifyRequest;
 
         using namespace std::placeholders;  // for _1, _2, _3
@@ -839,6 +876,9 @@ public:
         m_expectedCumulativeDownload += m_modifyRequest->m_maxDataSize;
 
         _ASSERT( !m_opinionTrafficIdentifier );
+
+        _LOG( "started modification" )
+
         m_opinionTrafficIdentifier = m_modifyRequest->m_transactionHash.array();
         
         if ( auto session = m_session.lock(); session )
@@ -1119,7 +1159,7 @@ public:
         if ( sumBefore > 0 ) // (+++) ?
         {
             for ( auto& [key, uploadBytes]: modificationUploads ) {
-                if ( key != m_modifyRequest->m_clientPublicKey )
+                if ( key != m_modifyRequest->m_clientPublicKey.array() )
                 {
                     auto longUploadBytes = (uploadBytes * longTargetSum) / sumBefore;
                     uploadBytes = longUploadBytes.convert_to<uint64_t>();
@@ -1178,14 +1218,9 @@ public:
         DBG_MAIN_THREAD
 
         _ASSERT( m_opinionTrafficIdentifier )
+        _ASSERT( !m_myOpinion )
         _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
         _ASSERT( !m_modificationCanceledTx )
-
-        if ( strcmp(m_dbgOurPeerName, "replicator_04") == 0 )
-        {
-            std::cout << "HEEELo";
-        }
-
 
         updateCumulativeUploads();
 
@@ -1235,6 +1270,17 @@ public:
                                                                 metaFilesSize,
                                                                 driveSize,
                                                                 { std::move(opinion) }}};
+
+        m_backgroundExecutor.run([this] {
+            saveMyOpinion();
+            saveOpinionTrafficIdentifier();
+            saveCumulativeUploads();
+            saveLastAccountedUploads();
+            saveAccountedCumulativeDownload();
+            executeOnSessionThread([this] {
+                myOpinionIsCreated();
+            });
+        });
     }
 
     void myRootHashIsCalculated()
@@ -1243,7 +1289,7 @@ public:
 
         _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
         
-        if ( m_modificationMustBeCanceledTx || m_removeDriveTx )
+        if ( m_newCatchingUpRequest || m_modificationMustBeCanceledTx || m_removeDriveTx )
         {
             runNextTask();
             return;
@@ -1255,6 +1301,20 @@ public:
         
         // Calculate my opinion
         createMyOpinion();
+    }
+
+    void myOpinionIsCreated()
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
+        _ASSERT( m_myOpinion )
+
+        if ( m_newCatchingUpRequest || m_modificationMustBeCanceledTx || m_removeDriveTx )
+        {
+            runNextTask();
+            return;
+        }
 
         m_sandboxCalculated = true;
 
@@ -1534,6 +1594,12 @@ public:
     {
         DBG_MAIN_THREAD
 
+        if ( m_driveIsInitializing )
+        {
+            m_initSynchronizeTx = transaction;
+            return;
+        }
+
         if ( m_receivedModifyApproveTx &&  *m_receivedModifyApproveTx == transaction.m_modifyTransactionHash )
         {
             _LOG_ERR("Duplicated approval tx ");
@@ -1545,8 +1611,7 @@ public:
         // stop timer
         m_modifyOpinionTimer.reset();
         m_otherOpinions.erase(transaction.m_modifyTransactionHash);
-        
-        // check actual root hash
+
         if ( m_modificationCanceledTx || m_modificationMustBeCanceledTx || m_driveIsInitializing )
         {
             // wait the end of 'Cancel Modification'
@@ -1566,8 +1631,10 @@ public:
 
         if ( m_rootHash == transaction.m_rootHash)
         {
-            // TODO implement via task
-            sendSingleApprovalTransaction();
+            if ( m_myOpinion )
+            {
+                sendSingleApprovalTransaction();
+            }
             return;
         }
 
@@ -1577,11 +1644,11 @@ public:
                 m_modifyRequest &&
                 m_modifyRequest->m_transactionHash == transaction.m_modifyTransactionHash &&
                 m_modifyUserDataReceived;
-        
+
         // We must start new catch up
         // if current is outdated
         bool shouldCatchUp = (m_catchingUpRequest    && m_catchingUpRequest->m_rootHash    != transaction.m_rootHash) ||
-                             (m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash != transaction.m_rootHash);
+                (m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash != transaction.m_rootHash);
 
         _LOG( "shouldCatchUp, couldContinueModify: " << shouldCatchUp << " " << couldContinueModify )
         if ( shouldCatchUp || !couldContinueModify )
@@ -1650,6 +1717,8 @@ public:
     {
         DBG_MAIN_THREAD
 
+        _ASSERT( m_myOpinion )
+
         auto copy = *m_myOpinion;
         m_eventHandler.singleModifyApprovalTransactionIsReady( m_replicator, std::move(copy) );
     }
@@ -1671,8 +1740,6 @@ public:
         // actualRootHash could be empty when internal error ONLY
         if ( actualCatchingRequest )
         {
-            m_newCatchingUpRequest.reset();
-
             // clear modification queue - we will not execute these modifications
             auto it = std::find_if(m_defferedModifyRequests.begin(),
                                    m_defferedModifyRequests.end(),
@@ -1877,9 +1944,6 @@ public:
             _LOG("m_catchingUpRootHash: " << m_catchingUpRequest->m_rootHash );
             _ASSERT( m_sandboxRootHash == m_catchingUpRequest->m_rootHash );
 
-            // check if RootHash has been published
-            _ASSERT( !m_newCatchingUpRequest )
-
             fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
             fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
 
@@ -2046,6 +2110,11 @@ public:
     //-----------------------------------------------------------------------------
 
     // m_myOpinion
+    void saveEmptyOpinion()
+    {
+        std::optional<ApprovalTransactionInfo> opinion;
+        saveRestartValue( opinion, "myOpinion" );
+    }
     void saveMyOpinion()
     {
         saveRestartValue( m_myOpinion, "myOpinion" );

@@ -58,18 +58,6 @@ namespace sirius::drive::test
                 transactionInfo.m_opinions.pop_back();
             }
             TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
-
-            for (const auto& opinion: transactionInfo.m_opinions) {
-                auto size =
-                        std::accumulate(opinion.m_uploadLayout.begin(),
-                                        opinion.m_uploadLayout.end(),
-                                        opinion.m_clientUploadBytes,
-                                        [] (const auto& sum, const auto& item) {
-                            return sum + item.m_uploadedBytes;
-                        });
-                m_modificationSizes[transactionInfo.m_modifyTransactionHash].insert(size);
-            }
-            ASSERT_EQ(m_modificationSizes[transactionInfo.m_modifyTransactionHash].size(), 1);
         }
 
         virtual void singleModifyApprovalTransactionIsReady(Replicator &replicator,
