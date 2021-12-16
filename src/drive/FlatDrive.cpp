@@ -40,6 +40,8 @@
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/array.hpp>
+#include <cereal/types/map.hpp>
+#include <cereal/types/optional.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
 #include <filesystem>
@@ -90,7 +92,6 @@ protected:
     // Drive paths
     const fs::path  m_driveRootPath     = m_replicatorRoot / arrayToString(m_drivePubKey.array());
     const fs::path  m_driveFolder       = m_driveRootPath  / "drive";
-    const fs::path  m_offlineFolder     = m_driveRootPath  / "offline";
     const fs::path  m_torrentFolder     = m_driveRootPath  / "torrent";
     const fs::path  m_fsTreeFile        = m_driveRootPath  / "fs_tree" / FS_TREE_FILE_NAME;
     const fs::path  m_fsTreeTorrent     = m_driveRootPath  / "fs_tree" / FS_TREE_FILE_NAME ".torrent";
@@ -100,11 +101,13 @@ protected:
     const fs::path  m_sandboxFsTreeFile     = m_sandboxRootPath / FS_TREE_FILE_NAME;
     const fs::path  m_sandboxFsTreeTorrent  = m_sandboxRootPath / FS_TREE_FILE_NAME ".torrent";
 
-    // Client session data paths
+    // Client data paths (received action list and files)
     const fs::path  m_clientDataFolder      = m_sandboxRootPath / "client-data";
     const fs::path  m_clientDriveFolder     = m_clientDataFolder / "drive";
     const fs::path  m_clientActionListFile  = m_clientDataFolder / "actionList.bin";
 
+    // Restart data
+    const fs::path  m_restartRootPath       = m_driveRootPath  / "restart-data";
 };
 
 //
@@ -193,14 +196,14 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     //
     // 'modify' opinion
     //
-    std::optional<ApprovalTransactionInfo>  m_myOpinion; // (***)
+    std::optional<ApprovalTransactionInfo>      m_myOpinion; // (***)
     
     // It is needed for right calculation of my 'modify' opinion
-    std::optional<Hash256>                  m_opinionTrafficIdentifier; // (***)
-    uint64_t                                m_expectedCumulativeDownload;
-    uint64_t                                m_accountedCumulativeDownload = 0; // (***)
-    std::map<Key, uint64_t>                 m_cumulativeUploads; // (***)
-    std::map<Key, uint64_t>                 m_lastAccountedUploads; // (***)
+    std::optional<std::array<uint8_t,32>>       m_opinionTrafficIdentifier; // (***)
+    uint64_t                                    m_expectedCumulativeDownload;
+    uint64_t                                    m_accountedCumulativeDownload = 0; // (***)
+    std::map<std::array<uint8_t,32>, uint64_t>  m_cumulativeUploads; // (***)
+    std::map<std::array<uint8_t,32>, uint64_t>  m_lastAccountedUploads; // (***)
 
     // opinions from other replicators
     // key of the outer map is modification id
@@ -427,6 +430,12 @@ public:
                                                                  m_fsTreeTorrent.parent_path(),
                                                                  lt::sf_is_replicator );
         }
+        
+        loadMyOpinion();
+        loadOpinionTrafficIdentifier();
+        loadAccountedCumulativeDownload();
+        loadCumulativeUploads();
+        loadLastAccountedUploads();
         
         if ( m_dbgEventHandler )
         {
@@ -723,10 +732,10 @@ public:
 
         {
             std::error_code code;
-            fs::create_directories(m_offlineFolder, code);
-            if ( fs::is_directory(m_offlineFolder) )
+            fs::create_directories(m_restartRootPath, code);
+            if ( fs::is_directory(m_restartRootPath) )
             {
-                std::ofstream filestream( m_offlineFolder / "is_closing" );
+                std::ofstream filestream( m_restartRootPath / "is_closing" );
                 filestream << "1";
                 filestream.close();
             }
@@ -830,7 +839,7 @@ public:
         m_expectedCumulativeDownload += m_modifyRequest->m_maxDataSize;
 
         _ASSERT( !m_opinionTrafficIdentifier );
-        m_opinionTrafficIdentifier = m_modifyRequest->m_transactionHash;
+        m_opinionTrafficIdentifier = m_modifyRequest->m_transactionHash.array();
         
         if ( auto session = m_session.lock(); session )
         {
@@ -1095,7 +1104,7 @@ public:
         });
     }
 
-    void normalizeUploads(std::map<Key, uint64_t>& modificationUploads, uint64_t targetSum)
+    void normalizeUploads(std::map<std::array<uint8_t,32>, uint64_t>& modificationUploads, uint64_t targetSum)
     {
         uint128_t longTargetSum = targetSum;
         uint128_t sumBefore = std::accumulate(modificationUploads.begin(),
@@ -1117,7 +1126,7 @@ public:
                     sumAfter += uploadBytes;
                 }
             }
-            modificationUploads[m_modifyRequest->m_clientPublicKey] = targetSum - sumAfter;
+            modificationUploads[m_modifyRequest->m_clientPublicKey.array()] = targetSum - sumAfter;
         }
     }
 
@@ -1694,7 +1703,7 @@ public:
         
         if ( !m_opinionTrafficIdentifier )
         {
-            m_opinionTrafficIdentifier = m_catchingUpRequest->m_modifyTransactionHash;
+            m_opinionTrafficIdentifier = m_catchingUpRequest->m_modifyTransactionHash.array();
         }
 
         if ( auto session = m_session.lock(); session )
@@ -1997,15 +2006,16 @@ public:
     {
         DBG_MAIN_THREAD
         
+        //(???)
         {
             // When node is restaring and file "is_closing" exists, but file "approval_tx_has_been_bulished" is not exists,
             // then drive should approve all download channels
             //todo : where replicator will find channels ids???
             std::error_code code;
-            fs::create_directories(m_offlineFolder, code);
-            if ( fs::is_directory(m_offlineFolder) )
+            fs::create_directories(m_restartRootPath, code);
+            if ( fs::is_directory(m_restartRootPath) )
             {
-                std::ofstream filestream( m_offlineFolder / "approval_tx_has_been_published" );
+                std::ofstream filestream( m_restartRootPath / "approval_tx_has_been_published" );
                 filestream << "1";
                 filestream.close();
             }
@@ -2031,7 +2041,135 @@ public:
             session->printActiveTorrents();
         }
     }
+    
+    
+    //-----------------------------------------------------------------------------
 
+    // m_myOpinion
+    void saveMyOpinion()
+    {
+        saveRestartValue( m_myOpinion, "myOpinion" );
+    }
+    void loadMyOpinion()
+    {
+        loadRestartValue( m_myOpinion, "myOpinion" );
+    }
+    
+    // m_opinionTrafficIdentifier
+    void saveOpinionTrafficIdentifier()
+    {
+        saveRestartValue( m_opinionTrafficIdentifier, "opinionTrafficIdentifier" );
+    }
+    void loadOpinionTrafficIdentifier()
+    {
+        loadRestartValue( m_opinionTrafficIdentifier, "opinionTrafficIdentifier" );
+    }
+    
+    // m_accountedCumulativeDownload
+    void saveAccountedCumulativeDownload()
+    {
+        saveRestartValue( m_accountedCumulativeDownload, "accountedCumulativeDownload" );
+    }
+    void loadAccountedCumulativeDownload()
+    {
+        if ( !loadRestartValue( m_accountedCumulativeDownload, "accountedCumulativeDownload" ) )
+        {
+            m_accountedCumulativeDownload = 0;
+        }
+    }
+
+    // m_cumulativeUploads
+    void saveCumulativeUploads()
+    {
+        saveRestartValue( m_cumulativeUploads, "cumulativeUploads" );
+    }
+    void loadCumulativeUploads()
+    {
+        loadRestartValue( m_cumulativeUploads, "cumulativeUploads" );
+    }
+
+    // m_lastAccountedUploads
+    void saveLastAccountedUploads()
+    {
+        saveRestartValue( m_lastAccountedUploads, "lastAccountedUploads" );
+    }
+    void loadLastAccountedUploads()
+    {
+        loadRestartValue(  m_lastAccountedUploads, "lastAccountedUploads" );
+    }
+
+    template<class T>
+    void saveRestartValue( T& value, std::string path )
+    {
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( value );
+        
+        saveRestartData( m_restartRootPath / path , os.str() );
+    }
+    
+    template<class T>
+    bool loadRestartValue( T& value, std::string path )
+    {
+        std::string data;
+        
+        if ( !loadRestartData( m_restartRootPath / path, data ) )
+        {
+            return false;
+        }
+        
+        std::istringstream is( data, std::ios::binary );
+        cereal::PortableBinaryInputArchive iarchive(is);
+        iarchive( value );
+        return true;
+    }
+    
+    void saveRestartData( std::string outputFile, const std::string data )
+    {
+        try
+        {
+            {
+                std::ofstream fStream( outputFile +".tmp", std::ios::binary );
+                fStream << data;
+            }
+            std::error_code err;
+            fs::remove( outputFile, err );
+            fs::rename( outputFile +".tmp", outputFile , err );
+        }
+        catch(...)
+        {
+            _LOG_WARN( "saveRestartData: cannot save" );
+        }
+    }
+    
+    bool loadRestartData( std::string outputFile, std::string& data )
+    {
+        if ( fs::exists( outputFile +".tmp" ) )
+        {
+            std::ifstream ifStream( outputFile +".tmp", std::ios::binary );
+            if ( ifStream.is_open() )
+            {
+                std::ostringstream os;
+                os << ifStream.rdbuf();
+                data = os.str();
+                return true;
+            }
+        }
+        
+        if ( fs::exists( outputFile) )
+        {
+            std::ifstream ifStream( outputFile, std::ios::binary );
+            if ( ifStream.is_open() )
+            {
+                std::ostringstream os;
+                os << ifStream.rdbuf();
+                data = os.str();
+                return true;
+            }
+        }
+        
+        return false;
+    }
 };
 
 
