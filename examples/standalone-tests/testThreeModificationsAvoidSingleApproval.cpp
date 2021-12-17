@@ -108,16 +108,13 @@ namespace sirius::drive::test
         virtual void singleModifyApprovalTransactionIsReady(Replicator &replicator,
                                                             ApprovalTransactionInfo &&transactionInfo) override
         {
+            EXLOG( "single " << toString(transactionInfo.m_modifyTransactionHash) )
             if ( auto it =
                     std::find(m_forbiddenTransaction.begin(),
                               m_forbiddenTransaction.end(),
                               transactionInfo.m_modifyTransactionHash); it != m_forbiddenTransaction.end() )
             {
                 const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
-                if ( !m_expectingApproval.has_value() )
-                {
-                    std::cout << "erer" << std::endl;
-                }
                 ASSERT_EQ( m_expectingApproval.has_value(), true );
                 approveModification();
             }
@@ -178,7 +175,7 @@ namespace sirius::drive::test
 
         EXLOG( "Required modification " << toString(client.m_modificationTransactionHashes[2] ));
 
-        env.waitModificationEnd(client.m_modificationTransactionHashes[2], NUMBER_OF_REPLICATORS);
+        env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS);
     }
 }
 

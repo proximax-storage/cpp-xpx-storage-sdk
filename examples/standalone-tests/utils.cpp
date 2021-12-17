@@ -79,6 +79,15 @@ namespace sirius::drive::test {
             file.write( (char*) data.data(), data.size() );
         }
         {
+            fs::path b_bin = clientFolder / "c.bin";
+            fs::create_directories( b_bin.parent_path() );
+            //        std::vector<uint8_t> data(10*1024*1024);
+            std::vector<uint8_t> data(bigFileSize);
+            std::generate( data.begin(), data.end(), std::rand );
+            std::ofstream file( b_bin );
+            file.write( (char*) data.data(), data.size() );
+        }
+        {
             fs::path d_bin = clientFolder / "d.bin";
             fs::create_directories( d_bin.parent_path() );
             //        std::vector<uint8_t> data(10*1024*1024);
@@ -119,7 +128,7 @@ namespace sirius::drive::test {
     ActionList createActionList_2(const fs::path& clientRootFolder) {
         fs::path clientFolder = clientRootFolder / "client_files";
         ActionList actionList;
-        actionList.push_back(Action::upload(clientFolder / "b.bin", "f1/b3.bin"));
+        actionList.push_back(Action::upload(clientFolder / "c.bin", "f1/c.bin"));
         return actionList;
     }
 

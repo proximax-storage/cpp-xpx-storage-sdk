@@ -490,7 +490,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT(m_modificationCanceledTx)
+        _ASSERT( m_modificationCanceledTx )
 
         // We have already taken into account information
         // about uploads of the modification to be canceled;
@@ -503,8 +503,11 @@ public:
                 sum += bytes;
                 m_cumulativeUploads[uploaderKey] -= bytes;
             }
-            m_opinionTrafficIdentifier.reset();
             _ASSERT( sum == m_modifyRequest->m_maxDataSize );
+        }
+        else
+        {
+            m_opinionTrafficIdentifier.reset();
         }
         m_accountedCumulativeDownload -= m_modifyRequest->m_maxDataSize;
         m_expectedCumulativeDownload = m_accountedCumulativeDownload;
@@ -512,9 +515,12 @@ public:
         m_backgroundExecutor.run([=, this]
         {
             saveAccountedCumulativeDownload();
-            if ( trafficIdentifierHasValue )
+            if ( !trafficIdentifierHasValue )
             {
                 saveCumulativeUploads();
+            }
+            else
+            {
                 saveOpinionTrafficIdentifier();
             }
             executeOnSessionThread([this] {
@@ -1841,7 +1847,7 @@ public:
         //
         m_catchingUpFileSet.clear();
         createCatchingUpFileList( m_sandboxFsTree );
-        
+
         m_catchingUpFileIt = m_catchingUpFileSet.begin();
         downloadMissingFiles();
     }
