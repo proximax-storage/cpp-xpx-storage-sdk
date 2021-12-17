@@ -13,6 +13,7 @@
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/array.hpp>
+#include <cereal/types/map.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
 #include <libtorrent/alert_types.hpp>
@@ -111,24 +112,37 @@ public:
             m_libtorrentThread.join();
         }
 #endif
+        saveDownloadChannelMap();
         }
     }
+    
     void start() override
     {
 #ifdef USE_OUR_IO_CONTEXT
         m_session = createDefaultSession( m_replicatorContext, m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
+                                         {
+                                             if ( pAlert->type() == lt::listen_failed_alert::alert_type )
+                                             {
+                                                 _LOG_WARN( "Replicator session alert: " << pAlert->message() );
+                                                 _LOG_WARN( "Port is busy?: " << port );
+                                                 m_eventHandler.onLibtorrentSessionError( pAlert->message() );
+                                             }
+                                         },
+                                         weak_from_this(),
+                                         m_useTcpSocket );
 #else
         m_session = createDefaultSession( m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
+                                         {
+                                             if ( pAlert->type() == lt::listen_failed_alert::alert_type )
+                                             {
+                                                 _LOG_WARN( "Replicator session alert: " << pAlert->message() );
+                                                 _LOG_WARN( "Port is busy?: " << port );
+                                                 m_eventHandler.onLibtorrentSessionError( pAlert->message() );
+                                             }
+                                         },
+                                         weak_from_this(),
+                                         m_useTcpSocket );
 #endif
-            {
-                if ( pAlert->type() == lt::listen_failed_alert::alert_type )
-                {
-                    _LOG( "Replicator session alert: " << pAlert->message() );
-                    _LOG( "Port is busy?: " << port );
-                }
-            },
-            weak_from_this(),
-            m_useTcpSocket );
         m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName.c_str();
         
 #ifdef USE_OUR_IO_CONTEXT
@@ -148,6 +162,8 @@ public:
         });//post
         waitMutex.lock();
 #endif
+
+        loadDownloadChannelMap();
     }
 
     Hash256 dbgGetRootHash( const Key& driveKey ) override
@@ -326,9 +342,12 @@ public:
 
     void removeDownloadChannelInfo( const std::array<uint8_t,32>& channelKey ) override
     {
-        DBG_MAIN_THREAD
-        
-        removeChannelInfo(channelKey);
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+
+            DBG_MAIN_THREAD
+            
+            removeChannelInfo(channelKey);
+        });
     }
 
     virtual void sendReceiptToOtherReplicators( const std::array<uint8_t,32>&  downloadChannelId,
@@ -363,7 +382,7 @@ public:
         if ( auto it = m_downloadChannelMap.find(downloadChannelId); it != m_downloadChannelMap.end() )
         {
             // go throw replictor list
-            for( auto replicatorIt = it->second.m_replicatorsList.begin(); replicatorIt != it->second.m_replicatorsList.end(); replicatorIt++ )
+            for( auto replicatorIt = it->second.m_replicatorsList2.begin(); replicatorIt != it->second.m_replicatorsList2.end(); replicatorIt++ )
             {
                 //_LOG( "todo++++ sendMessage(rcpt) " << m_dbgOurPeerName << " " << int(downloadChannelId[0]) );
                 m_session->sendMessage( "rcpt", { replicatorIt->m_endpoint.address(), replicatorIt->m_endpoint.port() }, message );
@@ -389,6 +408,8 @@ public:
 
     void processDownloadOpinion( const DownloadApprovalTransactionInfo& anOpinion ) override
     {
+        DBG_MAIN_THREAD
+        
         m_eventHandler.downloadOpinionHasBeenReceived(*this, anOpinion);
     }
     
@@ -398,7 +419,7 @@ public:
 
         DownloadOpinion myOpinion( publicKey() );
 
-        for( const auto& replicatorIt : info.m_replicatorsList )
+        for( const auto& replicatorIt : info.m_replicatorsList2 )
         {
             if ( auto downloadedIt = info.m_replicatorUploadMap.find( replicatorIt.m_publicKey.array()); downloadedIt != info.m_replicatorUploadMap.end() )
             {
@@ -467,7 +488,7 @@ public:
         // check opinion number
         //_LOG( "///// " << opinionInfo.m_opinions.size() << " " <<  (opinionInfo.m_replicatorNumber*2)/3 );
         //todo not ">=..."!!! - "> (opinionInfo.m_replicatorNumber*2)/3
-        if (opinions.size() >= (channel.m_replicatorsList.size() * 2) / 3)
+        if (opinions.size() >= (channel.m_replicatorsList2.size() * 2) / 3)
         {
             // start timer if it is not started
             if (!opinionInfo.m_timer)
@@ -517,7 +538,7 @@ public:
         
         if ( auto it = m_downloadChannelMap.find( channelId.array() ); it != m_downloadChannelMap.end() )
         {
-            const auto& replicatorsList = it->second.m_replicatorsList;
+            const auto& replicatorsList = it->second.m_replicatorsList2;
 
             //
             // Create my opinion
@@ -739,6 +760,8 @@ public:
 
     void processOpinion( const ApprovalTransactionInfo& anOpinion ) override
     {
+        DBG_MAIN_THREAD
+        
         m_eventHandler.opinionHasBeenReceived(*this, anOpinion);
     }
     
@@ -801,7 +824,8 @@ public:
     
     virtual void sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint endpoint, const std::string& message ) override
     {
-        //todo? DBG_MAIN_THREAD
+        DBG_MAIN_THREAD
+        
         m_session->sendMessage( query, { endpoint.address(), endpoint.port() }, message );
     }
     
@@ -881,6 +905,32 @@ public:
         }
         assert(0);
     }
+    
+    void saveDownloadChannelMap()
+    {
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( m_downloadChannelMap );
+
+        saveRestartData( fs::path(m_storageDirectory) / "downloadChannelMap", os.str() );
+    }
+    
+    bool loadDownloadChannelMap()
+    {
+        std::string data;
+        
+        if ( !loadRestartData( fs::path(m_storageDirectory) / "downloadChannelMap", data ) )
+        {
+            return false;
+        }
+        
+        std::istringstream is( data, std::ios::binary );
+        cereal::PortableBinaryInputArchive iarchive(is);
+        iarchive( m_downloadChannelMap );
+        return true;
+    }
+    
+
 
 private:
     std::shared_ptr<sirius::drive::Session> session() {

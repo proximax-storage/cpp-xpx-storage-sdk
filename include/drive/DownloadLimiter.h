@@ -13,6 +13,9 @@
 
 #include <map>
 #include <shared_mutex>
+#include <iostream>
+#include <fstream>
+#include <sstream>
 
 #define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
 
@@ -486,7 +489,7 @@ public:
             else
             {
                 // check replicator key
-                const auto& v = it->second.m_replicatorsList;
+                const auto& v = it->second.m_replicatorsList2;
                 if ( std::find_if( v.begin(), v.end(), [&replicatorPublicKey](const auto& element)
                                   { return element.m_publicKey.array() == replicatorPublicKey; } ) == v.end() )
                 {
@@ -624,6 +627,54 @@ public:
             return it->second;
         }
         return {};
+    }
+
+    //--------------------------------------------------------------------------------------------------
+    void saveRestartData( std::string outputFile, const std::string data )
+    {
+        try
+        {
+            {
+                std::ofstream fStream( outputFile +".tmp", std::ios::binary );
+                fStream << data;
+            }
+            std::error_code err;
+            fs::remove( outputFile, err );
+            fs::rename( outputFile +".tmp", outputFile , err );
+        }
+        catch(...)
+        {
+            _LOG_WARN( "saveRestartData: cannot save" );
+        }
+    }
+    
+    bool loadRestartData( std::string outputFile, std::string& data )
+    {
+        if ( fs::exists( outputFile) )
+        {
+            std::ifstream ifStream( outputFile, std::ios::binary );
+            if ( ifStream.is_open() )
+            {
+                std::ostringstream os;
+                os << ifStream.rdbuf();
+                data = os.str();
+                return true;
+            }
+        }
+        
+        if ( fs::exists( outputFile +".tmp" ) )
+        {
+            std::ifstream ifStream( outputFile +".tmp", std::ios::binary );
+            if ( ifStream.is_open() )
+            {
+                std::ostringstream os;
+                os << ifStream.rdbuf();
+                data = os.str();
+                return true;
+            }
+        }
+        
+        return false;
     }
 
 };

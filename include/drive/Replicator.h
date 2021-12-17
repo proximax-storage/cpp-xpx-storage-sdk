@@ -19,6 +19,10 @@ struct ReplicatorUploadInfo
 {
     // It is the size uploaded by another replicator
     uint64_t m_uploadedSize = 0;
+    template <class Archive> void serialize( Archive & arch )
+    {
+        arch(m_uploadedSize);
+    }
 };
 using ReplicatorUploadMap = std::map<std::array<uint8_t,32>,ReplicatorUploadInfo>;
 
@@ -26,11 +30,21 @@ struct DownloadOpinionMapValue
 {
     std::array<uint8_t,32>                              m_eventHash;
     std::array<uint8_t,32>                              m_downloadChannelId;
-    std::map<Key, DownloadOpinion>                      m_opinions;
+    std::map<std::array<uint8_t,32>, DownloadOpinion>   m_opinions;
     bool                                                m_modifyApproveTransactionSent = false;
     bool                                                m_approveTransactionReceived = false;
     std::optional<boost::asio::high_resolution_timer>   m_timer = {};
     boost::posix_time::ptime                            m_creationTime = boost::posix_time::microsec_clock::universal_time();
+
+    template <class Archive> void serialize( Archive & arch )
+    {
+        arch(m_eventHash);
+        arch(m_downloadChannelId);
+        arch(m_opinions);
+        arch(m_modifyApproveTransactionSent);
+        arch(m_approveTransactionReceived);
+        //TODO ??m_creationTime
+    }
 };
 
 // DownloadOpinionMap (key is a blockHash value)
@@ -44,13 +58,26 @@ struct DownloadChannelInfo
     uint64_t m_requestedSize = 0;
     uint64_t m_uploadedSize = 0;
     std::array<uint8_t, 32> m_driveKey;
-    ReplicatorList m_replicatorsList;      //todo must be synchronized with drive.m_replicatorList (in higher versions?)
+    ReplicatorList m_replicatorsList2;      //todo must be synchronized with drive.m_replicatorList (in higher versions?)
     ReplicatorUploadMap m_replicatorUploadMap;
     std::vector<std::array<uint8_t, 32>> m_clients; //todo
     DownloadOpinionMap m_downloadOpinionMap;
 
     // it is used when drive is closing
     bool m_isClosed = false;
+    
+    template <class Archive> void serialize( Archive & arch )
+    {
+        arch( m_isModifyTx );
+        arch( m_prepaidDownloadSize );
+        arch( m_uploadedSize );
+        arch( m_driveKey );
+        //(???)
+        //todo !!!m_replicatorsList2
+        arch( m_replicatorUploadMap );
+        arch( m_clients );
+        arch( m_downloadOpinionMap );
+    }
 };
 
 // key is a channel hash

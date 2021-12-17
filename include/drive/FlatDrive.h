@@ -6,6 +6,7 @@
 #pragma once
 
 #include "types.h"
+#include "log.h"
 #include "plugins.h"
 #include "crypto/Signer.h"
 #include <boost/asio/ip/tcp.hpp>
@@ -342,6 +343,11 @@ class Replicator;
 
         virtual void downloadOpinionHasBeenReceived(  Replicator& replicator,
                                                       const DownloadApprovalTransactionInfo& ) = 0;
+
+        virtual void onLibtorrentSessionError( const std::string& message )
+        {
+            _LOG_ERR( "onLibtorrentSessionError: " << message );
+        }
     };
 
     class DbgReplicatorEventHandler

@@ -161,7 +161,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     // Request queue
     //
 
-    std::optional<PublishedModificationApprovalTransactionInfo> m_initSynchronizeTx;
+    std::optional<PublishedModificationApprovalTransactionInfo> m_publishedTxDuringInitialization;
     std::optional<Hash256>              m_removeDriveTx = {};
     std::optional<Hash256>              m_modificationMustBeCanceledTx;
     std::optional<CatchingUpRequest>    m_newCatchingUpRequest;
@@ -574,14 +574,14 @@ public:
 
         m_taskMustBeBroken = false;
 
-        if ( m_initSynchronizeTx )
+        if ( m_publishedTxDuringInitialization )
         {
             // During initializing hasBeenApprovalTransaction could be received
             // We enqueue it in 'initSynchronizeTx' since we are not able to process it at that moment
             // And now we process it
             _ASSERT( runAfterInitializing )
-            auto tx = std::move(m_initSynchronizeTx);
-            m_initSynchronizeTx.reset();
+            auto tx = std::move(m_publishedTxDuringInitialization);
+            m_publishedTxDuringInitialization.reset();
             onApprovalTransactionHasBeenPublished(*tx);
         }
 
@@ -1596,7 +1596,7 @@ public:
 
         if ( m_driveIsInitializing )
         {
-            m_initSynchronizeTx = transaction;
+            m_publishedTxDuringInitialization = transaction;
             return;
         }
 
@@ -2068,27 +2068,15 @@ public:
     
     void removeAllDriveData() override
     {
-        DBG_MAIN_THREAD
-        
-        //(???)
+        m_backgroundExecutor.run( [this]
         {
-            // When node is restaring and file "is_closing" exists, but file "approval_tx_has_been_bulished" is not exists,
-            // then drive should approve all download channels
-            //todo : where replicator will find channels ids???
-            std::error_code code;
-            fs::create_directories(m_restartRootPath, code);
-            if ( fs::is_directory(m_restartRootPath) )
-            {
-                std::ofstream filestream( m_restartRootPath / "approval_tx_has_been_published" );
-                filestream << "1";
-                filestream.close();
-            }
-        }
-
-        fs::remove_all( m_driveRootPath );
-        fs::remove_all( m_sandboxRootPath );
-        
-        m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_removeDriveTx );
+            DBG_BG_THREAD
+            
+            fs::remove_all( m_sandboxRootPath );
+            fs::remove_all( m_driveRootPath );
+            
+            m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_removeDriveTx );
+        });
     }
 
     const ReplicatorList&  replicatorList() const override
@@ -2213,9 +2201,9 @@ public:
     
     bool loadRestartData( std::string outputFile, std::string& data )
     {
-        if ( fs::exists( outputFile +".tmp" ) )
+        if ( fs::exists( outputFile) )
         {
-            std::ifstream ifStream( outputFile +".tmp", std::ios::binary );
+            std::ifstream ifStream( outputFile, std::ios::binary );
             if ( ifStream.is_open() )
             {
                 std::ostringstream os;
@@ -2225,9 +2213,9 @@ public:
             }
         }
         
-        if ( fs::exists( outputFile) )
+        if ( fs::exists( outputFile +".tmp" ) )
         {
-            std::ifstream ifStream( outputFile, std::ios::binary );
+            std::ifstream ifStream( outputFile +".tmp", std::ios::binary );
             if ( ifStream.is_open() )
             {
                 std::ostringstream os;
