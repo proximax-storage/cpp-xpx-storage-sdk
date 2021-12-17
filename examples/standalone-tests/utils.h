@@ -26,7 +26,7 @@ namespace sirius::drive::test
 #define CLIENT_ADDRESS "192.168.2.200"
 #define CLIENT_WORK_FOLDER (ROOT_FOLDER / "client_work_folder")
 #define DRIVE_PUB_KEY std::array<uint8_t,32>{1,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
-#define BIG_FILE_SIZE (100 * 1024 * 1024)
+#define BIG_FILE_SIZE (10 * 1024 * 1024)
 
 #define JOIN(x, y) JOIN_AGAIN(x, y)
 #define JOIN_AGAIN(x, y) x ## y
@@ -118,28 +118,56 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
             m_downloadChannels.push_back(downloadChannelId);
         }
 
-        void synchronizeDrive( const fs::path& baseFolder, const Folder& folder )
+        auto getFsTreeFiles()
         {
-            for( const auto& child: folder.childs() )
+            FsTree fsTree;
+            fsTree.deserialize( m_clientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
+            std::set<InfoHash> files;
+            iterateFsTreeFiles(fsTree, files);
+            return files;
+        }
+
+    private:
+
+        void iterateFsTreeFiles(const Folder & folder, std::set<InfoHash> & files)
+        {
+            for (const auto& child: folder.childs())
             {
-                if ( isFolder(child) )
+                if (isFolder(child))
                 {
-                    const auto& childFolder = getFolder(child);
-                    synchronizeDrive( baseFolder / childFolder.name(), childFolder );
+                    iterateFsTreeFiles(getFolder(child), files);
                 }
                 else
                 {
-//                    m_clientSession->download( DownloadContext(
-//                            DownloadContext::file_from_drive,
-//                            clientDownloadFilesHandler,
-//                            file.hash(),
-//                            {}, 0,
-//                            gClientFolder / "downloaded_files" / folderName / file.name() ),
-//                                              //gClientFolder / "downloaded_files" / folderName / toString(file.hash()) ),
-//                                              gClientFolder / "downloaded_files" );
+                    files.insert(getFile(child).hash());
                 }
             }
         }
+
+    public:
+
+//        void synchronizeDrive( const fs::path& baseFolder, const Folder& folder )
+//        {
+//            for( const auto& child: folder.childs() )
+//            {
+//                if ( isFolder(child) )
+//                {
+//                    const auto& childFolder = getFolder(child);
+//                    synchronizeDrive( baseFolder / childFolder.name(), childFolder );
+//                }
+//                else
+//                {
+////                    m_clientSession->download( DownloadContext(
+////                            DownloadContext::file_from_drive,
+////                            clientDownloadFilesHandler,
+////                            file.hash(),
+////                            {}, 0,
+////                            gClientFolder / "downloaded_files" / folderName / file.name() ),
+////                                              //gClientFolder / "downloaded_files" / folderName / toString(file.hash()) ),
+////                                              gClientFolder / "downloaded_files" );
+//                }
+//            }
+//        }
 
         void waitForDownloadComplete(const InfoHash& infoHash) {
             std::unique_lock<std::mutex> lock(m_downloadCompleteMutex);

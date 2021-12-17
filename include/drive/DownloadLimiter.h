@@ -146,11 +146,16 @@ public:
                             uint64_t                       downloadedSizeByClient ) override
     {
         DBG_MAIN_THREAD
-        
+
         if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
         {
-//todo++++            if ( it->second.m_uploadedSize > downloadedSizeByClient + m_receiptLimit )
-//                return false;
+
+            if ( it->second.m_uploadedSize > downloadedSizeByClient + m_receiptLimit )
+            {
+                _LOG ("Bad Client " << it->second.m_uploadedSize << " " << downloadedSizeByClient);
+                return false;
+            }
+            _LOG("Good Client " << it->second.m_uploadedSize << " " << downloadedSizeByClient);
             return true;
         }
         return false;

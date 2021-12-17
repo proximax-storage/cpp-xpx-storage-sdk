@@ -1,0 +1,8 @@
+Download ActionList as separate torrent and then download all files in it
+Verifications
+Modification overhead
+Many clients on Download Channel
+Use LibTorrent DHT for IP
+Correctly Work with modifications that end with the same Root Hash
+modification ended with error should post an ordinary transaction (actually, such an error is a normal result of actionlist execution that does not change drive state)
+download limitations

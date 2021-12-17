@@ -41,49 +41,19 @@ namespace sirius::drive::test {
                 useTcpSocket,
                 modifyApprovalDelay,
                 downloadApprovalDelay,
-                startReplicator) {}
-
-        void
-        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override {
-            m_ignoredReplicator = transactionInfo.m_opinions.back().m_replicatorKey;
-            transactionInfo.m_opinions.pop_back();
-
-            TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
-            ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size() - 1);
-            for (const auto& opinion: transactionInfo.m_opinions) {
-                auto size =
-                        std::accumulate(opinion.m_uploadLayout.begin(),
-                                        opinion.m_uploadLayout.end(),
-                                        opinion.m_clientUploadBytes,
-                                        [] (const auto& sum, const auto& item) {
-                            return sum + item.m_uploadedBytes;
-                        });
-                m_modificationSizes.insert(size);
+                startReplicator)
+        {
+            lt::settings_pack pack;
+            pack.set_int(lt::settings_pack::download_rate_limit, 1024 * 1024);
+            pack.set_int(lt::settings_pack::upload_rate_limit, 1024 * 1024);
+            for ( auto replicator: m_replicators )
+            {
+                if ( replicator )
+                {
+                    replicator->setSessionSettings(pack, true);
+                }
             }
-
-            ASSERT_EQ(m_modificationSizes.size(), 1);
         }
-
-        void singleModifyApprovalTransactionIsReady(Replicator &replicator,
-                                                            ApprovalTransactionInfo &&transactionInfo) override {
-            TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
-            ASSERT_EQ(replicator.keyPair().publicKey(), m_ignoredReplicator);
-
-            const auto& opinion = transactionInfo.m_opinions.front();
-            auto size =
-                    std::accumulate(opinion.m_uploadLayout.begin(),
-                                    opinion.m_uploadLayout.end(),
-                                    opinion.m_clientUploadBytes,
-                                    [] (const auto& sum, const auto& item) {
-                        return sum + item.m_uploadedBytes;
-                    });
-            m_modificationSizes.insert(size);
-
-            ASSERT_EQ(m_modificationSizes.size(), 1);
-        };
-
-        std::array<uint8_t,32> m_ignoredReplicator;
-        std::set<uint64_t> m_modificationSizes;
     };
 
     TEST(ModificationTest, TEST_NAME) {
@@ -92,6 +62,8 @@ namespace sirius::drive::test {
         auto startTime = std::clock();
 
         lt::settings_pack pack;
+        pack.set_int(lt::settings_pack::download_rate_limit, 1024 * 1024);
+        pack.set_int(lt::settings_pack::upload_rate_limit, 1024 * 1024);
         TestClient client(pack);
 
         EXLOG("");
@@ -118,14 +90,22 @@ namespace sirius::drive::test {
 
         env.downloadFromDrive(DRIVE_PUB_KEY, DownloadRequest{
             downloadChannel,
-            10000000,
+            100,
             env.m_addrList,
             {client.m_clientKeyPair.publicKey()}
         });
 
-//        client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification], downloadChannel, env.m_addrList);
+        client.downloadFromDrive(env.m_lastApprovedModification->m_rootHash, downloadChannel, env.m_addrList);
 
-//        client.waitForDownloadComplete(env.m_lastApprovedModification);
+        client.waitForDownloadComplete(env.m_lastApprovedModification->m_rootHash);
+
+        auto files = client.getFsTreeFiles();
+        for (const auto& file: files)
+        {
+            client.downloadFromDrive(file, downloadChannel, env.m_addrList);
+            client.waitForDownloadComplete(file);
+            EXLOG( "downloaded by client " << toString(file));
+        }
     }
 
 #undef TEST_NAME
