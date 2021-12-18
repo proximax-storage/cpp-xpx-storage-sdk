@@ -473,12 +473,12 @@ public:
 
         if (channel.m_downloadOpinionMap.find(opinion.m_blockHash) == channel.m_downloadOpinionMap.end())
         {
-            channel.m_downloadOpinionMap[blockHash] = DownloadOpinionMapValue
-                    {
+            channel.m_downloadOpinionMap.emplace( std::make_pair(blockHash, DownloadOpinionMapValue
+                    (
                             opinion.m_blockHash,
                             opinion.m_downloadChannelId,
                             {}
-                    };
+                     )));
         }
 
         auto &opinionInfo = channel.m_downloadOpinionMap[blockHash];
@@ -926,7 +926,7 @@ public:
         
         std::istringstream is( data, std::ios::binary );
         cereal::PortableBinaryInputArchive iarchive(is);
-        iarchive( m_downloadChannelMap );
+        iarchive( m_downloadChannelMapBackup );
         return true;
     }
     

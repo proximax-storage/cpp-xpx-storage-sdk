@@ -565,6 +565,8 @@ public:
             m_driveIsInitializing = false;
         }
         
+        //(+++)??? is following 'assert' right?
+        _ASSERT( !m_driveIsInitializing )
         if ( m_driveIsInitializing )
             return;
 
@@ -709,12 +711,24 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_modifyRequest || m_catchingUpRequest || m_driveIsInitializing );
+        //(+++)??? added below
+        if ( m_driveIsInitializing )
+        {
+            auto it = std::find_if( m_defferedModifyRequests.begin(), m_defferedModifyRequests.end(), [&transactionHash](const auto& item)
+                                { return item.m_transactionHash == transactionHash; });
+            
+            if ( it != m_defferedModifyRequests.end() )
+            {
+                m_defferedModifyRequests.erase( it );
+                m_replicator.removeModifyDriveInfo( transactionHash.array() );
+            }
+            return;
+        }
+        
+        _ASSERT( m_modifyRequest || m_catchingUpRequest );
 
         if ( m_modifyRequest && transactionHash == m_modifyRequest->m_transactionHash )
         {
-            _ASSERT( !m_driveIsInitializing );
-            
             if ( m_receivedModifyApproveTx )
             {
                 _LOG_ERR( "cancelModifyDrive(): m_receivedModifyApproveTx == true" )
@@ -744,6 +758,8 @@ public:
             }
             
             m_defferedModifyRequests.erase( it );
+            //(+++)??? added removeModifyDriveInfo
+            m_replicator.removeModifyDriveInfo( transactionHash.array() );
         }
     }
 
@@ -861,7 +877,7 @@ public:
         // ModificationIsCanceling check is redundant now
         if ( m_modifyRequest || m_catchingUpRequest || m_newCatchingUpRequest || m_modificationCanceledTx || m_driveIsInitializing )
         {
-            _LOG( "startModifyDrive():: prevoius modification is not completed" );
+            _LOG( "startModifyDrive: queue modifyRequest" );
             m_defferedModifyRequests.emplace_back( std::move(modifyRequest) );
             return;
         }
@@ -1162,7 +1178,7 @@ public:
         
         uint64_t sumAfter = 0;
 
-        if ( sumBefore > 0 ) // (+++) ?
+        if ( sumBefore > 0 )
         {
             for ( auto& [key, uploadBytes]: modificationUploads ) {
                 if ( key != m_modifyRequest->m_clientPublicKey.array() )
@@ -1618,7 +1634,9 @@ public:
         m_modifyOpinionTimer.reset();
         m_otherOpinions.erase(transaction.m_modifyTransactionHash);
 
-        if ( m_modificationCanceledTx || m_modificationMustBeCanceledTx || m_driveIsInitializing )
+//(+++) removed 'm_driveIsInitializing', see above 'if ( m_driveIsInitializing )'
+//        if ( m_modificationCanceledTx || m_modificationMustBeCanceledTx || m_driveIsInitializing )
+        if ( m_modificationCanceledTx || m_modificationMustBeCanceledTx )
         {
             // wait the end of 'Cancel Modification'
             // and then start 'CatchingUp'
@@ -1760,6 +1778,8 @@ public:
                 while ( !m_defferedModifyRequests.empty() and it != m_defferedModifyRequests.begin() )
                 {
                     m_expectedCumulativeDownload += m_defferedModifyRequests.front().m_maxDataSize;
+                    //(+++)??? is it needed?
+                    //m_replicator.removeModifyDriveInfo( m_defferedModifyRequests.front().m_transactionHash.array() );
                     m_defferedModifyRequests.pop_front();
                 }
             }

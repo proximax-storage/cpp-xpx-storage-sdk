@@ -36,6 +36,35 @@ struct DownloadOpinionMapValue
     std::optional<boost::asio::high_resolution_timer>   m_timer = {};
     boost::posix_time::ptime                            m_creationTime = boost::posix_time::microsec_clock::universal_time();
 
+    DownloadOpinionMapValue() {}
+    
+    DownloadOpinionMapValue( const std::array<uint8_t,32>                       eventHash,
+                             const std::array<uint8_t,32>&                      downloadChannelId,
+                             std::map<std::array<uint8_t,32>, DownloadOpinion>  opinions )
+    :   m_eventHash(eventHash),
+        m_downloadChannelId(downloadChannelId),
+        m_opinions(opinions)
+    {}
+
+    DownloadOpinionMapValue( const DownloadOpinionMapValue& newValue )
+    {
+        m_eventHash                     = newValue.m_eventHash;
+        m_downloadChannelId             = newValue.m_downloadChannelId;
+        m_opinions                      = newValue.m_opinions;
+        m_modifyApproveTransactionSent  = newValue.m_modifyApproveTransactionSent;
+        m_approveTransactionReceived    = newValue.m_approveTransactionReceived;
+    }
+    
+    DownloadOpinionMapValue& operator=( const DownloadOpinionMapValue& newValue )&
+    {
+        m_eventHash                     = newValue.m_eventHash;
+        m_downloadChannelId             = newValue.m_downloadChannelId;
+        m_opinions                      = newValue.m_opinions;
+        m_modifyApproveTransactionSent  = newValue.m_modifyApproveTransactionSent;
+        m_approveTransactionReceived    = newValue.m_approveTransactionReceived;
+        return *this;
+    }
+    
     template <class Archive> void serialize( Archive & arch )
     {
         arch(m_eventHash);
@@ -72,8 +101,6 @@ struct DownloadChannelInfo
         arch( m_prepaidDownloadSize );
         arch( m_uploadedSize );
         arch( m_driveKey );
-        //(???)
-        //todo !!!m_replicatorsList2
         arch( m_replicatorUploadMap );
         arch( m_clients );
         arch( m_downloadOpinionMap );
