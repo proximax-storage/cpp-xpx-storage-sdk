@@ -72,6 +72,12 @@ namespace sirius::drive::test {
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
                 SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000);
 
+        for (uint i = 1; i <= env.m_addrList.size(); i++)
+        {
+            EXLOG( "Replicator " << i << " " << int(env.m_addrList[i - 1].m_publicKey[0]) )
+        }
+        EXLOG( "Client " <<  int(client.m_clientKeyPair.publicKey()[0]) )
+
         EXLOG("\n# Client started: 1-st upload");
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
         client.modifyDrive(actionList, env.m_addrList);
@@ -90,7 +96,7 @@ namespace sirius::drive::test {
 
         env.downloadFromDrive(DRIVE_PUB_KEY, DownloadRequest{
             downloadChannel,
-            100,
+            2 * 1024 * 1024,
             env.m_addrList,
             {client.m_clientKeyPair.publicKey()}
         });

@@ -685,10 +685,7 @@ private:
 //                }
 
 //                case lt::peer_log_alert::alert_type: {
-//                    if ( m_dbgOurPeerName=="replicator1" || m_dbgOurPeerName=="client" )
-//                    {
-//                        _LOG(  ": peer_log_alert: " << alert->message())
-//                    }
+//                    _LOG(  ": peer_log_alert: " << alert->message())
 //                    break;
 //                }
 

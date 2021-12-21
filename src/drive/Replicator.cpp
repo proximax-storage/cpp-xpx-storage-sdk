@@ -253,6 +253,7 @@ public:
                         m_storageDirectory,
                         m_sandboxDirectory,
                         driveKey,
+                        driveRequest.client,
                         driveRequest.driveSize,
                         driveRequest.expectedCumulativeDownloadSize,
                         m_eventHandler,
@@ -389,18 +390,18 @@ public:
         
         auto replicatorPublicKey = publicKey();
 
-        // check receipt
-        if ( !DownloadLimiter::verifyReceipt(  downloadChannelId,
-                                               clientPublicKey,
-                                               replicatorPublicKey,
-                                               downloadedSize,
-                                               signature ) )
-        {
-            //todo log error?
-            std::cerr << "ERROR! Invalid receipt" << std::endl << std::flush;
-            assert(0);
-            return;
-        }
+//        // check receipt
+//        if ( !DownloadLimiter::verifyReceipt(  downloadChannelId,
+//                                               clientPublicKey,
+//                                               replicatorPublicKey,
+//                                               downloadedSize,
+//                                               signature ) )
+//        {
+//            //todo log error?
+//            std::cerr << "ERROR! Invalid receipt" << std::endl << std::flush;
+//            assert(0);
+//            return;
+//        }
         
         std::vector<uint8_t> message;
         message.insert( message.end(), downloadChannelId.begin(),   downloadChannelId.end() );
@@ -414,8 +415,11 @@ public:
             // go throw replictor list
             for( auto replicatorIt = it->second.m_replicatorsList2.begin(); replicatorIt != it->second.m_replicatorsList2.end(); replicatorIt++ )
             {
-                //_LOG( "todo++++ sendMessage(rcpt) " << m_dbgOurPeerName << " " << int(downloadChannelId[0]) );
-                m_session->sendMessage( "rcpt", { replicatorIt->m_endpoint.address(), replicatorIt->m_endpoint.port() }, message );
+                if ( replicatorIt->m_publicKey != replicatorPublicKey )
+                {
+                    //_LOG( "todo++++ sendMessage(rcpt) " << m_dbgOurPeerName << " " << int(downloadChannelId[0]) );
+                    m_session->sendMessage( "rcpt", { replicatorIt->m_endpoint.address(), replicatorIt->m_endpoint.port() }, message );
+                }
             }
         }
     }

@@ -84,6 +84,7 @@ struct DownloadChannelInfo
     bool m_isModifyTx;
 
     uint64_t m_prepaidDownloadSize;
+    uint64_t m_totalReceiptsSize = 0;
     uint64_t m_requestedSize = 0;
     uint64_t m_uploadedSize = 0;
     std::array<uint8_t, 32> m_driveKey;
@@ -101,6 +102,7 @@ struct DownloadChannelInfo
         arch( m_prepaidDownloadSize );
         arch( m_uploadedSize );
         arch( m_driveKey );
+        arch(m_totalReceiptsSize );
         arch( m_replicatorUploadMap );
         arch( m_clients );
         arch( m_downloadOpinionMap );

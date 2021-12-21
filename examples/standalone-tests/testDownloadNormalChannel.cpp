@@ -16,7 +16,7 @@ using namespace sirius::drive::test;
 namespace sirius::drive::test {
 
     /// change this macro for your test
-#define TEST_NAME DownloadLateChannel
+#define TEST_NAME DownloadNormalChannel
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -41,13 +41,29 @@ namespace sirius::drive::test {
                 useTcpSocket,
                 modifyApprovalDelay,
                 downloadApprovalDelay,
-                startReplicator) {}
+                startReplicator)
+        {
+            lt::settings_pack pack;
+//            pack.set_int(lt::settings_pack::download_rate_limit, 1024 * 1024);
+//            pack.set_int(lt::settings_pack::upload_rate_limit, 1024 * 1024);
+            for ( auto replicator: m_replicators )
+            {
+                if ( replicator )
+                {
+                    replicator->setSessionSettings(pack, true);
+                }
+            }
+        }
     };
 
     TEST(ModificationTest, TEST_NAME) {
         fs::remove_all(ROOT_FOLDER);
 
+        auto startTime = std::clock();
+
         lt::settings_pack pack;
+//        pack.set_int(lt::settings_pack::download_rate_limit, 1024 * 1024);
+//        pack.set_int(lt::settings_pack::upload_rate_limit, 1024 * 1024);
         TestClient client(pack);
 
         EXLOG("");
@@ -55,6 +71,12 @@ namespace sirius::drive::test {
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
                 SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000);
+
+        for (uint i = 1; i <= env.m_addrList.size(); i++)
+        {
+            EXLOG( "Replicator " << i << " " << int(env.m_addrList[i - 1].m_publicKey[0]) )
+        }
+        EXLOG( "Client " <<  int(client.m_clientKeyPair.publicKey()[0]) )
 
         EXLOG("\n# Client started: 1-st upload");
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
@@ -67,25 +89,29 @@ namespace sirius::drive::test {
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        EXLOG("Requested Modification: " << (int) client.m_modificationTransactionHashes.back().array()[0]);
+        EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);
 
         auto downloadChannel = randomByteArray<Key>();
-        EXLOG("Download Channel: " << (int) downloadChannel.array()[0]);
-        client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification->m_modifyTransactionHash], downloadChannel, env.m_addrList);
-
-        std::this_thread::sleep_for(std::chrono::minutes(5));
-
-        ASSERT_EQ(client.m_downloadCompleted[env.m_rootHashes[env.m_lastApprovedModification->m_modifyTransactionHash]], false);
 
         env.downloadFromDrive(DRIVE_PUB_KEY, DownloadRequest{
-                downloadChannel,
-                10000000,
-                env.m_addrList,
-                {client.m_clientKeyPair.publicKey()}
+            downloadChannel,
+            1024 * 1024 * 1024,
+            env.m_addrList,
+            {client.m_clientKeyPair.publicKey()}
         });
 
-        client.waitForDownloadComplete(env.m_rootHashes[env.m_lastApprovedModification->m_modifyTransactionHash]);
+        client.downloadFromDrive(env.m_lastApprovedModification->m_rootHash, downloadChannel, env.m_addrList);
+
+        client.waitForDownloadComplete(env.m_lastApprovedModification->m_rootHash);
+
+        auto files = client.getFsTreeFiles();
+        for (const auto& file: files)
+        {
+            client.downloadFromDrive(file, downloadChannel, env.m_addrList);
+            client.waitForDownloadComplete(file);
+            EXLOG( "downloaded by client " << toString(file));
+        }
     }
 
 #undef TEST_NAME

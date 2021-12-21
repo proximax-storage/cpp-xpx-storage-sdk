@@ -236,6 +236,7 @@ public:
                   const std::string&        replicatorRootFolder,
                   const std::string&        replicatorSandboxRootFolder,
                   const Key&                drivePubKey,
+                  const Key&                clientPubKey,
                   size_t                    maxSize,
                   size_t                    expectedCumulativeDownload,
                   ReplicatorEventHandler&   eventHandler,
@@ -249,6 +250,7 @@ public:
           m_backgroundExecutor(),
           m_maxSize(maxSize),
           m_replicatorList(replicatorList),
+          m_client(clientPubKey),
           m_eventHandler(eventHandler),
           m_dbgEventHandler(dbgEventHandler),
           m_expectedCumulativeDownload(expectedCumulativeDownload),
@@ -315,7 +317,7 @@ public:
         return m_replicatorList;
     }
 
-    Key getClient() override
+    Key getClient() const override
     {
         return m_client;
     }
@@ -510,10 +512,11 @@ public:
                 sum += bytes;
                 m_cumulativeUploads[uploaderKey] -= bytes;
             }
-            _ASSERT( sum == m_modifyRequest->m_maxDataSize );
+            _ASSERT( sum == m_modifyRequest->m_maxDataSize )
         }
         else
         {
+            m_replicator.removeModifyDriveInfo( *m_opinionTrafficIdentifier );
             m_opinionTrafficIdentifier.reset();
         }
         m_accountedCumulativeDownload -= m_modifyRequest->m_maxDataSize;
@@ -572,10 +575,7 @@ public:
             m_driveIsInitializing = false;
         }
         
-        //(+++)??? is following 'assert' right?
         _ASSERT( !m_driveIsInitializing )
-        if ( m_driveIsInitializing )
-            return;
 
         if ( !runAfterInitializing )
         {
@@ -718,7 +718,6 @@ public:
     {
         DBG_MAIN_THREAD
 
-        //(+++)??? added below
         if ( m_driveIsInitializing )
         {
             auto it = std::find_if( m_defferedModifyRequests.begin(), m_defferedModifyRequests.end(), [&transactionHash](const auto& item)
@@ -765,7 +764,6 @@ public:
             }
             
             m_defferedModifyRequests.erase( it );
-            //(+++)??? added removeModifyDriveInfo
             m_replicator.removeModifyDriveInfo( transactionHash.array() );
         }
     }
@@ -912,6 +910,7 @@ public:
         
         if ( auto session = m_session.lock(); session )
         {
+            _ASSERT( m_opinionTrafficIdentifier )
             m_downloadingLtHandle = session->download( DownloadContext(
                                                 DownloadContext::client_data,
                                                 std::bind( &DefaultFlatDrive::modifyDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
@@ -1230,6 +1229,7 @@ public:
         uint64_t targetSize = m_expectedCumulativeDownload - m_accountedCumulativeDownload;
         normalizeUploads(m_lastAccountedUploads, targetSize);
         m_accountedCumulativeDownload = m_expectedCumulativeDownload;
+        m_replicator.removeModifyDriveInfo( *m_opinionTrafficIdentifier );
         m_opinionTrafficIdentifier.reset();
 
         for (const auto&[uploaderKey, bytes]: m_lastAccountedUploads)
@@ -1641,8 +1641,6 @@ public:
         m_modifyOpinionTimer.reset();
         m_otherOpinions.erase(transaction.m_modifyTransactionHash);
 
-//(+++) removed 'm_driveIsInitializing', see above 'if ( m_driveIsInitializing )'
-//        if ( m_modificationCanceledTx || m_modificationMustBeCanceledTx || m_driveIsInitializing )
         if ( m_modificationCanceledTx || m_modificationMustBeCanceledTx )
         {
             // wait the end of 'Cancel Modification'
@@ -1718,7 +1716,6 @@ public:
                 sendSingleApprovalTransaction();
             }
 
-            m_replicator.removeModifyDriveInfo( transaction.m_modifyTransactionHash );
             synchronizeDriveWithSandbox();
         }
     }
@@ -1756,7 +1753,6 @@ public:
 
     void onSingleApprovalTransactionHasBeenPublished( const PublishedModificationSingleApprovalTransactionInfo& transaction ) override
     {
-        m_replicator.removeModifyDriveInfo( transaction.m_modifyTransactionHash );
         _LOG( "onSingleApprovalTransactionHasBeenPublished()" );
     }
 
@@ -1785,8 +1781,11 @@ public:
                 while ( !m_defferedModifyRequests.empty() and it != m_defferedModifyRequests.begin() )
                 {
                     m_expectedCumulativeDownload += m_defferedModifyRequests.front().m_maxDataSize;
-                    //(+++)??? is it needed?
-                    //m_replicator.removeModifyDriveInfo( m_defferedModifyRequests.front().m_transactionHash.array() );
+                    if ( !m_opinionTrafficIdentifier
+                         || *m_opinionTrafficIdentifier != m_defferedModifyRequests.front().m_transactionHash.array() )
+                    {
+                        m_replicator.removeModifyDriveInfo(m_defferedModifyRequests.front().m_transactionHash.array());
+                    }
                     m_defferedModifyRequests.pop_front();
                 }
             }
@@ -1808,6 +1807,7 @@ public:
 
         if ( auto session = m_session.lock(); session )
         {
+            _ASSERT( m_opinionTrafficIdentifier )
             m_downloadingLtHandle = session->download( DownloadContext(
                                             DownloadContext::missing_files,
                                             std::bind( &DefaultFlatDrive::catchingUpFsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
@@ -1932,6 +1932,7 @@ public:
 
             if ( auto session = m_session.lock(); session )
             {
+                _ASSERT( m_opinionTrafficIdentifier )
                 m_downloadingLtHandle = session->download( DownloadContext(
                                                                          
                                                  DownloadContext::missing_files,
@@ -2268,6 +2269,7 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
         const std::string&       replicatorRootFolder,
         const std::string&       replicatorSandboxRootFolder,
         const Key&               drivePubKey,
+        const Key&               clientPubKey,
         size_t                   maxSize,
         size_t                   usedDriveSizeExcludingMetafiles,
         ReplicatorEventHandler&  eventHandler,
@@ -2280,6 +2282,7 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
                                            replicatorRootFolder,
                                            replicatorSandboxRootFolder,
                                            drivePubKey,
+                                           clientPubKey,
                                            maxSize,
                                            usedDriveSizeExcludingMetafiles,
                                            eventHandler,

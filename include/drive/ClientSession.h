@@ -223,11 +223,10 @@ protected:
         m_requestedSize[senderPublicKey] += pieceSize;
     }
     
-    bool onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
+    void onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
                                  const std::array<uint8_t,32>&  receiverPublicKey,
                                  uint64_t                       pieceSize ) override
     {
-        return true;
     }
 
     

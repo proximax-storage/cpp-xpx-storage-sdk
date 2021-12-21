@@ -447,7 +447,7 @@ class Replicator;
         
         virtual ReplicatorList getReplicators() = 0;
 
-        virtual Key getClient() = 0;
+        virtual Key getClient() const = 0;
 
         virtual void updateReplicators(const ReplicatorList& replicators) = 0;
 
@@ -493,6 +493,7 @@ class Replicator;
                                                        const std::string&       replicatorRootFolder,
                                                        const std::string&       replicatorSandboxRootFolder,
                                                        const Key&               drivePubKey,
+                                                       const Key&               clientPubKey,
                                                        size_t                   maxSize,
                                                        size_t                   expectedCumulativeDownload,
                                                        ReplicatorEventHandler&  eventHandler,
