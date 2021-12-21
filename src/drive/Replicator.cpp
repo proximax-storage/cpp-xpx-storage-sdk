@@ -163,7 +163,31 @@ public:
         waitMutex.lock();
 #endif
 
+        removeDriveDataOfBrokenClose();
         loadDownloadChannelMap();
+    }
+    
+    void removeDriveDataOfBrokenClose()
+    {
+        auto rootFolderPath = fs::path( m_storageDirectory );
+
+        std::error_code ec;
+        if ( !std::filesystem::is_directory(rootFolderPath,ec) )
+            return;
+
+        for( const auto& entry : std::filesystem::directory_iterator(rootFolderPath) )
+        {
+            if ( entry.is_directory() )
+            {
+                const auto entryName = entry.path().filename().string();
+                
+                std::error_code errorCode;
+                if ( fs::exists( FlatDrive::driveIsClosingPath( rootFolderPath / entryName ), errorCode ) )
+                {
+                    fs::remove_all( rootFolderPath / entryName );
+                }
+            }
+        }
     }
 
     Hash256 dbgGetRootHash( const Key& driveKey ) override
@@ -322,6 +346,12 @@ public:
             _LOG( "cancelModify: unknown drive: " << driveKey );
         });//post
     }
+    
+    void asyncStartDriveVerification( Key driveKey, VerificationRequest ) override
+    {
+        //TODO
+    }
+
     
     void asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&& request ) override
     {

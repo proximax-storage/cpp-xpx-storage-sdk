@@ -174,6 +174,8 @@ public:
     virtual void asyncModify( Key driveKey, ModifyRequest  modifyRequest ) = 0;
 
     virtual void asyncCancelModify( Key driveKey, Hash256  transactionHash ) = 0;
+    
+    virtual void asyncStartDriveVerification( Key driveKey, VerificationRequest ) = 0;
 
     // 'replicatorsList' is used to notify other replictors
     // (it does not contain its own endpoint)
@@ -246,7 +248,6 @@ public:
     virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) const = 0;
 
     //virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;
-
 
 
     virtual void        printDriveStatus( const Key& driveKey ) = 0;

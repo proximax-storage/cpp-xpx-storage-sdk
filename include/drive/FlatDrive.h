@@ -297,6 +297,34 @@ class Replicator;
         }
     };
 
+    struct VerificationRequest
+    {
+        Hash256                     m_tx;
+        std::vector<Key>            m_replicator;
+    };
+
+    struct VerifyOpinion
+    {
+        bool                        m_opinion;
+        std::array<uint8_t,32>      m_replicatorKey;
+    };
+
+    struct VerifyOpinions
+    {
+        std::array<uint8_t,32>      m_publicKey;
+        std::vector<VerifyOpinion>  m_opinions;
+        
+        // our publicKey, m_tx, m_driveKey, m_shardId, m_opinions
+        Signature                   m_signature;
+    };
+
+    struct VerifyApprovalTransactionInfo
+    {
+        std::array<uint8_t,32>      m_tx;
+        std::array<uint8_t,32>      m_driveKey;
+        uint32_t                    m_shardId = 0;
+        std::vector<VerifyOpinion>  m_opinions;
+    };
 
     // Iterface for storage extension
     class ReplicatorEventHandler
@@ -305,6 +333,13 @@ class Replicator;
 
         virtual ~ReplicatorEventHandler() = default;
 
+        virtual void verificationTransactionIsReady( Replicator&                    replicator,
+                                                    VerifyApprovalTransactionInfo&& transactionInfo
+                                                    )
+        {
+            
+        }
+        
         // It will be called when modification ended with error (for example small disc space)
         virtual void modifyTransactionEndedWithError( Replicator&               replicator,
                                                      const sirius::Key&         driveKey,
@@ -448,6 +483,8 @@ class Replicator;
 
         // for testing and debugging
         virtual void printDriveStatus() = 0;
+        
+        static std::string driveIsClosingPath( const std::string& driveRootPath );
     };
 
     class Session;

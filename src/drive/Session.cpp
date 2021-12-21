@@ -15,6 +15,11 @@
 #include <fstream>
 #include <cstring>
 
+// boost
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
+
 // libtorrent
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
@@ -29,15 +34,7 @@
 #include "libtorrent/aux_/session_impl.hpp"
 #include "libtorrent/extensions.hpp"
 
-#ifdef SIRIUS_DRIVE_MULTI
 #include <sirius_drive/session_delegate.h>
-#endif
-
-// boost
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
-
 
 namespace fs = std::filesystem;
 
@@ -88,12 +85,10 @@ private:
     //
     LibTorrentErrorHandler  m_alertHandler;
 
-#ifdef SIRIUS_DRIVE_MULTI
     std::weak_ptr<lt::session_delegate> m_downloadLimiter;
-#endif
     
     std::string m_dbgOurPeerName = "";
-    int m_dbgPieceCounter = 0;
+    //int m_dbgPieceCounter = 0;
 
 public:
     

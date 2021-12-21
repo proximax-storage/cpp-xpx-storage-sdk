@@ -1,30 +1,31 @@
-save/read downloadedSize map (between reboots?)
-Remove torrent that is still downloading?
 
+cmake -DCMAKE_BUILD_TYPE=Debug -GXcode ..
+
+RpcReplicatorClient.cpp
+RpcTypes.cpp
+
+- закончить свой io_context in ~Replicator() - remove mutex
+
+
++? late channel-tx that replicator received (client could not download data)
+
+
+save/read downloadedSize map (between reboots?)
+
+Remove torrent that is still downloading?
 
 
 --------------------------
 Our 'libtorrent' implementation:
 
-Thread-pool
-Every drive works on its own boost::asio:strand 
 Buffer-pool (16KB,32KB ?)
 
 
-onApprovalTransactionHasBeenPublished and other
-Lock delete drive operation???? (Counter with mutex???)
-
-Раздача файлов из песочницы для streaming: каждый кусочек - это торрент
+?Раздача файлов из песочницы для streaming: каждый кусочек - это торрент
 
 Много клиентов на одном канале
 
-Отставший репликатор (+ очередь модификаций?)
-
 Удаление и добавление в список репликаторов
-
-//////////
-   !!!modify() -> onModifyTxPublished() + add rootHash!!! 
-//////////
 
 //////
 Replicator exchange & checkDownloadLimit()
@@ -34,7 +35,7 @@ Replicator exchange & checkDownloadLimit()
 
 вы последние дни поднимали вопрос, что делать если узел перезагружается в разрере drive closure transaction. Если узел перезагружается, то есть еще одна проблема - будут потеряны рецепты
 
-!!!LocalDataBase!!!
+
 Рецепты для DownloadChannel (и для ModifyDrive?)
 
 если мы у репликаторов перешли на константные ссылки вместо rvalue, не имеет смысл у клиента тоже на них перейти для единообразия?
@@ -50,16 +51,31 @@ Replicator exchange & checkDownloadLimit()
 Либо невалидные акт лист
 //////////////
 
-Connection close channel does not exist
-
-start modify replicator list
-
-StopAnyDriveTask else
+///////////
+DownloadApprovalTransactionInfo - MANY CLIENTS !!!
+///////////
 
 
+addDrive не снуля в 3-й версии
 
-/home/kyrylo/CLionProjects/cpp-xpx-storage-sdk2/include/drive/DownloadLimiter.h:292: acceptConnection: unknown peerPublicKey: A3949FD69ECE12D8125B0989D46CA3CE0302814D046CB3C3EFAE0D471A8EDF51client: SIGN HANDSHAKE: 20
+CloseDrive - storageExt should remember that drive started closing and not completed!!!
 
-duplicate file completed
-replicator_01: *** file_completed_alert:client-data/actionList.bin
-replicator_01: *** file_completed_alert:client-data/actionList.bin
+Test removeUnusedFiles()
+
+
+1) acceptConnection()
+!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//        if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
+//        {
+//            if ( isPeerReplicator( *driveIt->second, peerPublicKey) )
+//            {
+//                *outIsDownloadUnlimited = true;
+//                return true;
+//            }
+//        }
+
+
+2) drive publicKey будет нужен чтобы убедиться, что это репликатор из драйв-списка
+   Прийдется курочить libtorent-овскую часть
+
+

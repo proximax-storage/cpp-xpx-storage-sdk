@@ -108,7 +108,14 @@ protected:
 
     // Restart data
     const fs::path  m_restartRootPath       = m_driveRootPath  / "restart-data";
+    const fs::path  m_driveIsClosingPath    = m_driveRootPath  / "restart-data" / "drive-is-closing";
 };
+
+std::string FlatDrive::driveIsClosingPath( const std::string& driveRootPath )
+{
+    return fs::path(driveRootPath) / "restart-data" / "drive-is-closing";
+}
+
 
 //
 // DefaultDrive - it manages all user files at replicator side
@@ -797,7 +804,7 @@ public:
             fs::create_directories(m_restartRootPath, code);
             if ( fs::is_directory(m_restartRootPath) )
             {
-                std::ofstream filestream( m_restartRootPath / "is_closing" );
+                std::ofstream filestream( m_driveIsClosingPath );
                 filestream << "1";
                 filestream.close();
             }
