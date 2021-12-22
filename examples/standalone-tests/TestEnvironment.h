@@ -353,6 +353,7 @@ namespace sirius::drive::test {
         }
 
         void driveIsClosed(Replicator &replicator, const Key &driveKey, const Hash256 &transactionHash) override {
+            std::unique_lock<std::mutex> lock(driveClosedMutex);
             EXLOG("driveIsClosed: " << replicator.dbgReplicatorName());
             driveClosedCounter++;
             driveClosedCondVar.notify_all();

@@ -7,17 +7,5 @@ Correctly Work with modifications that end with the same Root Hash
 modification ended with error should post an ordinary transaction (actually, such an error is a normal result of actionlist execution that does not change drive state)
 download limitations
 send receipts from another replicator to replicators
-
-
-
-
-
-Download Limiter
-157
-215 1. Нужно удалять из мапа? 2. Размер может быть больше, чем сохраненный, сохранять размер, наверное, не нужно
-
-Replicator
-Почему таски optional - add asserts
-
-m_transactionHash in bt_peer_replicator
-close channel when close drive - todo
+Ограничить запросы с клиента к фолтному репликатору
+Сделать загрузку для репликатора не всегда unlimited

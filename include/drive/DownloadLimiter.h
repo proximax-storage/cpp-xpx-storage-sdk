@@ -245,6 +245,8 @@ public:
             it->second.m_uploadedSize         = backupIt->second.m_uploadedSize;
             it->second.m_replicatorUploadMap  = backupIt->second.m_replicatorUploadMap;
             it->second.m_downloadOpinionMap   = backupIt->second.m_downloadOpinionMap;
+
+            m_downloadChannelMapBackup.erase(backupIt);
         }
     }
 
@@ -352,7 +354,10 @@ public:
             {
                 auto& clients = it->second.m_clients;
                 auto clientIt = std::find( clients.begin(), clients.end(), peerPublicKey);
-                return clientIt != clients.end();
+                if ( clientIt == clients.end() ) {
+                    return false;
+                }
+                return it->second.m_totalReceiptsSize < it->second.m_prepaidDownloadSize;
             }
         }
 

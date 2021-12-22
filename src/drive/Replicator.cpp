@@ -623,6 +623,7 @@ public:
             return channelInfo.second.m_isModifyTx;
         });
 
+#ifndef CHANNELS_NOT_OWNED_BY_DRIVES
         for( auto& [channelId,channelInfo] : m_downloadChannelMap )
         {
             if ( channelInfo.m_driveKey == drive.drivePublicKey().array() && !channelInfo.m_isModifyTx )
@@ -633,6 +634,7 @@ public:
                 deleteDriveImmediately = false;
             }
         }
+#endif
         
         if ( deleteDriveImmediately )
         {
@@ -717,6 +719,7 @@ public:
                 _LOG_ERR( "channelId not found" );
             }
 
+#ifndef CHANNELS_NOT_OWNED_BY_DRIVES
             if ( !driveIsClosed )
             {
                 return;
@@ -749,6 +752,7 @@ public:
                 }
 
             }
+#endif
         });//post
     }
 
@@ -756,9 +760,11 @@ public:
     {
         DBG_MAIN_THREAD
 
+#ifndef CHANNELS_NOT_OWNED_BY_DRIVES
         std::erase_if( m_downloadChannelMap, [&driveKey] (const auto& item) {
             return item.second.m_driveKey == driveKey;
         });
+#endif
 
         std::erase_if( m_modifyDriveMap, [&driveKey] (const auto& item) {
             return item.second.m_driveKey == driveKey;

@@ -96,7 +96,7 @@ namespace sirius::drive::test {
 
         env.downloadFromDrive(DRIVE_PUB_KEY, DownloadRequest{
             downloadChannel,
-            2 * 1024 * 1024,
+            BIG_FILE_SIZE / 2,
             env.m_addrList,
             {client.m_clientKeyPair.publicKey()}
         });
@@ -106,12 +106,23 @@ namespace sirius::drive::test {
         client.waitForDownloadComplete(env.m_lastApprovedModification->m_rootHash);
 
         auto files = client.getFsTreeFiles();
+
         for (const auto& file: files)
         {
             client.downloadFromDrive(file, downloadChannel, env.m_addrList);
-            client.waitForDownloadComplete(file);
-            EXLOG( "downloaded by client " << toString(file));
         }
+
+        std::this_thread::sleep_for(std::chrono::seconds(20));
+
+        int downloaded = 0;
+        for (auto& file: files)
+        {
+            if ( client.m_downloadCompleted[file] )
+            {
+                downloaded++;
+            }
+        }
+        ASSERT_LT(downloaded, files.size());
     }
 
 #undef TEST_NAME

@@ -14,7 +14,7 @@ using namespace sirius::drive::test;
 
 namespace sirius::drive::test {
 
-    /// change this macro for your test
+/// change this macro for your test
 #define TEST_NAME InitReplicatorAfterFirstModification
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)

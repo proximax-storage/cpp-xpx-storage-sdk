@@ -1751,7 +1751,7 @@ public:
             // Is my opinion present
             if ( it == v.end() )
             {
-                // Send Single Aproval Transaction At First
+                // Send Single Approval Transaction At First
                 sendSingleApprovalTransaction();
             }
 
@@ -1803,34 +1803,32 @@ public:
         _ASSERT( !m_modifyRequest );
         _ASSERT( !m_removeDriveTx );
 
-        // actualRootHash could be empty when internal error ONLY
-        if ( actualCatchingRequest )
+        _ASSERT( actualCatchingRequest )
+
+        // clear modification queue - we will not execute these modifications
+        auto it = std::find_if(m_defferedModifyRequests.begin(),
+                               m_defferedModifyRequests.end(),
+                               [&](const auto &item)
+                               {
+                                   return item.m_transactionHash ==
+                                          actualCatchingRequest->m_modifyTransactionHash;
+                               });
+        if ( it != m_defferedModifyRequests.end() )
         {
-            // clear modification queue - we will not execute these modifications
-            auto it = std::find_if(m_defferedModifyRequests.begin(),
-                                   m_defferedModifyRequests.end(),
-                                   [&](const auto &item)
-                                   {
-                                       return item.m_transactionHash ==
-                                              actualCatchingRequest->m_modifyTransactionHash;
-                                   });
-            if ( it != m_defferedModifyRequests.end() )
+            it++;
+            while ( !m_defferedModifyRequests.empty() and it != m_defferedModifyRequests.begin() )
             {
-                it++;
-                while ( !m_defferedModifyRequests.empty() and it != m_defferedModifyRequests.begin() )
+                m_expectedCumulativeDownload += m_defferedModifyRequests.front().m_maxDataSize;
+                if ( !m_opinionTrafficIdentifier
+                     || *m_opinionTrafficIdentifier != m_defferedModifyRequests.front().m_transactionHash.array() )
                 {
-                    m_expectedCumulativeDownload += m_defferedModifyRequests.front().m_maxDataSize;
-                    if ( !m_opinionTrafficIdentifier
-                         || *m_opinionTrafficIdentifier != m_defferedModifyRequests.front().m_transactionHash.array() )
-                    {
-                        m_replicator.removeModifyDriveInfo(m_defferedModifyRequests.front().m_transactionHash.array());
-                    }
-                    m_defferedModifyRequests.pop_front();
+                    m_replicator.removeModifyDriveInfo(m_defferedModifyRequests.front().m_transactionHash.array());
                 }
+                m_defferedModifyRequests.pop_front();
             }
-            
-            m_catchingUpRequest = std::move( actualCatchingRequest );
         }
+
+        m_catchingUpRequest = std::move( actualCatchingRequest );
         
         //
         // Start download fsTree
