@@ -8,15 +8,17 @@ find_package(Boost 1.71.0 REQUIRED)
 find_package(GTest REQUIRED) # Find the google testing framework on your system
 
 file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/test*.cpp")
+#file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/testApprovalReceivedRootNotCalculated.cpp")
 add_executable(standalone-tests utils.h utils.cpp TestEnvironment.h ${TEST_FILES})
 
 include_directories(${GTEST_INCLUDE_DIRS})
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     target_link_libraries(standalone-tests
-            ${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
-            #${CMAKE_SOURCE_DIR}/cpp-xpx-storage-sdk/libtorrent/_build/Debug/libtorrent-sirius.dylib
-            #${CMAKE_SOURCE_DIR}/libtorrent/cmake-build-debug/libtorrent-sirius.dylib
+            #${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
+            ${CMAKE_SOURCE_DIR}/libtorrent/cmake-build-debug/libtorrent-sirius.dylib
+            ${CMAKE_SOURCE_DIR}/rpclib/build/librpc.a
+
             drive
             crypto
             ${GTEST_LIBRARIES}

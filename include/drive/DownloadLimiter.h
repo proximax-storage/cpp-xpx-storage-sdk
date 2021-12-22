@@ -145,7 +145,7 @@ public:
 
     bool checkDownloadLimit( const std::array<uint8_t,64>& /*signature*/,
                              const std::array<uint8_t,32>& downloadChannelId,
-                             size_t /*downloadedSize*/) override
+                             uint64_t /*downloadedSize*/) override
     {
         DBG_MAIN_THREAD
 
