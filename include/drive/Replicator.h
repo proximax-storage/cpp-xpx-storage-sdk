@@ -196,7 +196,7 @@ public:
     // It will
     virtual void        asyncDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed = false ) = 0;
 
-    virtual void asyncDownloadApprovalTransactionHasFailedInvalidSignatures( Hash256 eventHash, Hash256 channelId ) = 0;
+    virtual void asyncDownloadApprovalTransactionHasFailedInvalidOpinions( Hash256 eventHash, Hash256 channelId ) = 0;
 
     // It will be called when other replicator calculated rootHash and send his opinion
     virtual void        asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) = 0;

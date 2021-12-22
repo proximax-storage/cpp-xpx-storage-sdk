@@ -535,7 +535,7 @@ public:
         }
     }
     
-    void onDownloadApprovalTimeExipred( DownloadOpinionMapValue& mapValue )
+    void onDownloadApprovalTimeExpired( DownloadOpinionMapValue& mapValue )
     {
         DBG_MAIN_THREAD
         
@@ -642,7 +642,7 @@ public:
         }
     }
 
-    void asyncDownloadApprovalTransactionHasFailedInvalidSignatures( Hash256 eventHash, Hash256 channelId ) override
+    void asyncDownloadApprovalTransactionHasFailedInvalidOpinions( Hash256 eventHash, Hash256 channelId ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
 
@@ -836,7 +836,7 @@ public:
 
             if ( auto drive = getDrive( driveKey ); drive )
             {
-                drive->onApprovalTransactionHasFailedInvalidSignatures( transactionHash );
+                drive->onApprovalTransactionHasFailedInvalidOpinions( transactionHash );
             }
             else
             {

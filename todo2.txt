@@ -9,3 +9,6 @@ download limitations
 send receipts from another replicator to replicators
 Ограничить запросы с клиента к фолтному репликатору
 Сделать загрузку для репликатора не всегда unlimited
+Unexpected connections of Replicators
+Remove Download Channel when DownloadApproval with flag "channel is closed" is published
+Accept Connection in extended handshake с учетом ссылок на драйв и канал

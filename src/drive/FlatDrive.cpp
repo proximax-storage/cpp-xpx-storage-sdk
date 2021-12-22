@@ -1759,7 +1759,7 @@ public:
         }
     }
 
-    void onApprovalTransactionHasFailedInvalidSignatures(const Hash256 &transactionHash) override
+    void onApprovalTransactionHasFailedInvalidOpinions(const Hash256 &transactionHash) override
     {
         DBG_MAIN_THREAD
 

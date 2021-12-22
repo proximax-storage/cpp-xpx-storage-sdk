@@ -465,7 +465,7 @@ class Replicator;
 
         virtual void     onApprovalTransactionHasBeenPublished( const PublishedModificationApprovalTransactionInfo& transaction ) = 0;
 
-        virtual void     onApprovalTransactionHasFailedInvalidSignatures( const Hash256& transactionHash) = 0;
+        virtual void     onApprovalTransactionHasFailedInvalidOpinions(const Hash256& transactionHash) = 0;
 
         virtual void     onSingleApprovalTransactionHasBeenPublished( const PublishedModificationSingleApprovalTransactionInfo& transaction ) = 0;
         
