@@ -530,7 +530,7 @@ public:
                 //todo check
                 opinionInfo.m_timer = m_session->startTimer(m_downloadApprovalTransactionTimerDelayMs,
                                                             [this, &opinionInfo]()
-                                                            { onDownloadApprovalTimeExipred(opinionInfo); });
+                                                            { onDownloadApprovalTimeExpired(opinionInfo); });
             }
         }
     }
