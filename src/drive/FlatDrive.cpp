@@ -343,9 +343,11 @@ public:
     
     uint64_t sandboxFsTreeSize() const override
     {
-        if ( fs::exists(m_sandboxFsTreeFile) )
+        std::error_code err;
+        
+        if ( fs::exists(m_sandboxFsTreeFile,err) )
         {
-            return fs::file_size( m_sandboxFsTreeFile );
+            return fs::file_size( m_sandboxFsTreeFile, err );
         }
         return 0;
     }
@@ -353,7 +355,10 @@ public:
     void getSandboxDriveSizes( uint64_t& metaFilesSize, uint64_t& driveSize ) const override
     {
         // TODO move to BG thread
-        if ( fs::exists(m_sandboxRootPath) )
+
+        std::error_code err;
+
+        if ( fs::exists(m_sandboxRootPath,err) )
         {
             metaFilesSize = fs::file_size( m_sandboxFsTreeTorrent);
             driveSize = 0;
@@ -383,40 +388,48 @@ public:
         // Clear m_rootDriveHash
         memset( m_rootHash.data(), 0 , m_rootHash.size() );
 
+        std::error_code err;
+        
         // Create nonexistent folders
-        if ( !fs::exists( m_fsTreeFile ) )
+        if ( !fs::exists( m_fsTreeFile, err ) )
         {
-            if ( !fs::exists( m_driveFolder) ) {
-                fs::create_directories( m_driveFolder );
+            if ( !fs::exists( m_driveFolder, err ) ) {
+                fs::create_directories( m_driveFolder, err );
             }
 
-            if ( !fs::exists( m_torrentFolder) ) {
-                fs::create_directories( m_torrentFolder );
+            if ( !fs::exists( m_torrentFolder, err ) ) {
+                fs::create_directories( m_torrentFolder, err );
             }
         }
 
         // Load FsTree
-        if ( fs::exists(m_fsTreeFile) )
+        if ( fs::exists( m_fsTreeFile, err ) )
         {
             try
             {
                 m_fsTree.deserialize( m_fsTreeFile );
             }
-            catch(...)
+            catch( const std::exception& ex )
             {
-                _LOG_ERR( "initializeDrive: invalid FsTree file" )
-                fs::remove(m_fsTreeFile);
-                //TODO syncronize!
+                _LOG_ERR( "initializeDrive: m_fsTree.deserialize exception: " << ex.what() )
+                fs::remove( m_fsTreeFile, err );
             }
         }
         
         // If FsTree is absent,
         // create it
-        if ( !fs::exists(m_fsTreeFile) )
+        if ( !fs::exists( m_fsTreeFile, err ) )
         {
-            fs::create_directories( m_fsTreeFile.parent_path() );
+            fs::create_directories( m_fsTreeFile.parent_path(), err );
             m_fsTree.m_name = "/";
-            m_fsTree.doSerialize( m_fsTreeFile );
+            try
+            {
+                m_fsTree.doSerialize( m_fsTreeFile );
+            }
+            catch( const std::exception& ex )
+            {
+                _LOG_ERR( "m_fsTree.doSerialize exception:" << ex.what() )
+            }
         }
 
         // Calculate torrent and root hash
@@ -431,7 +444,7 @@ public:
         // Add FsTree to session
         if ( auto session = m_session.lock(); session )
         {
-            if ( !fs::exists(m_fsTreeTorrent) )
+            if ( !fs::exists( m_fsTreeTorrent, err ) )
             {
                 //TODO try recovery!
                 _LOG_ERR( "disk corrupted: fsTreeTorrent does not exist: " << m_fsTreeTorrent )
@@ -471,14 +484,15 @@ public:
             {
                 auto& hash = getFile(child).m_hash;
                 std::string fileName = hashToFileName( hash );
+                std::error_code err;
 
-                if ( !fs::exists( m_driveFolder / fileName ) )
+                if ( !fs::exists( m_driveFolder / fileName, err ) )
                 {
                     //TODO inform user?
                     _LOG_ERR( "disk corrupted: drive file does not exist: " << m_driveFolder / fileName );
                 }
 
-                if ( !fs::exists( m_torrentFolder / fileName ) )
+                if ( !fs::exists( m_torrentFolder / fileName, err ) )
                 {
                     //TODO try recovery
                     _LOG_ERR( "disk corrupted: torrent file does not exist: " << m_torrentFolder / fileName )
@@ -541,9 +555,11 @@ public:
 
     void runNextTask(bool runAfterInitializing = false)
     {
-        m_backgroundExecutor.run([=, this] {
-
-            if (!fs::exists(m_sandboxRootPath))
+        m_backgroundExecutor.run([=, this]
+        {
+            std::error_code err;
+            
+            if ( !fs::exists( m_sandboxRootPath, err ) )
             {
                 fs::create_directories(m_sandboxRootPath);
             }
@@ -551,7 +567,7 @@ public:
             {
                 for (const auto &entry : std::filesystem::directory_iterator(m_sandboxRootPath))
                 {
-                    fs::remove_all(entry.path());
+                    fs::remove_all( entry.path(), err );
                 }
             }
 
@@ -798,9 +814,9 @@ public:
         m_driveWillRemovedTx = transactionHash;
 
         {
-            std::error_code code;
-            fs::create_directories(m_restartRootPath, code);
-            if ( fs::is_directory(m_restartRootPath) )
+            std::error_code err;
+            fs::create_directories( m_restartRootPath, err );
+            if ( fs::is_directory( m_restartRootPath, err ) )
             {
                 std::ofstream filestream( m_driveIsClosingPath );
                 filestream << "1";
@@ -967,11 +983,16 @@ public:
 
         _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
 
+        // There are 2 cases:
+        //  - modify
+        //  - catchingUp
+        //
         if ( m_modifyRequest )
         {
-
+            std::error_code err;
+            
             // Check that client data exist
-            if ( !fs::exists(m_clientDataFolder) || !fs::is_directory(m_clientDataFolder) )
+            if ( !fs::exists(m_clientDataFolder,err) || !fs::is_directory(m_clientDataFolder,err) )
             {
                 LOG( "m_clientDataFolder=" << m_clientDataFolder );
                 m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'client-data' is absent", -1 );
@@ -983,7 +1004,7 @@ public:
             }
 
             // Check 'actionList.bin' is received
-            if ( !fs::exists( m_clientActionListFile ) )
+            if ( !fs::exists( m_clientActionListFile, err ) )
             {
                 LOG( "m_clientActionListFile=" << m_clientActionListFile );
                 m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'ActionList.bin' is absent", -1 );
@@ -1018,46 +1039,57 @@ public:
                     {
                         // Check that file exists in client folder
                         fs::path clientFile = m_clientDriveFolder / action.m_param2;
-                        if ( !fs::exists( clientFile ) || fs::is_directory(clientFile) )
+                        if ( !fs::exists( clientFile, err ) || fs::is_directory( clientFile, err ) )
                         {
                             _LOG( "! ActionList: invalid 'upload': file/folder not exists: " << clientFile )
                             action.m_isInvalid = true;
                             break;
                         }
 
-                        // calculate torrent, file hash, and file size
-                        InfoHash fileHash = calculateInfoHashAndCreateTorrentFile( clientFile, m_drivePubKey, m_torrentFolder, "" );
-                        size_t fileSize = std::filesystem::file_size( clientFile );
-
-                        // add ref into 'torrentMap' (skip if identical file was already loaded)
-                        m_torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{} );
-
-                        // rename file and move it into drive folder
-                        std::string newFileName = m_driveFolder / hashToFileName( fileHash );
-                        fs::rename( clientFile, newFileName );
-
-                        //
-                        // add file in resultFsTree
-                        //
-                        Folder::Child* destEntry = m_sandboxFsTree.getEntryPtr( action.m_param2 );
-                        fs::path destFolder;
-                        fs::path srcFile;
-                        if ( destEntry != nullptr && isFolder(*destEntry) )
+                        try
                         {
-                            srcFile = fs::path( action.m_param1 ).filename();
-                            destFolder = action.m_param2;
-                        }
-                        else
-                        {
-                            srcFile = fs::path( action.m_param2 ).filename();
-                            destFolder = fs::path(action.m_param2).parent_path();
-                        }
-                        m_sandboxFsTree.addFile( destFolder,
-                                                 srcFile,
-                                                 fileHash,
-                                                 fileSize );
+                            // calculate torrent, file hash, and file size
+                            InfoHash fileHash = calculateInfoHashAndCreateTorrentFile( clientFile, m_drivePubKey, m_torrentFolder, "" );
+                            size_t fileSize = std::filesystem::file_size( clientFile );
 
-                        _LOG( "ActionList: successful 'upload': " << clientFile )
+                            // add ref into 'torrentMap' (skip if identical file was already loaded)
+                            m_torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{} );
+
+                            // rename file and move it into drive folder
+                            std::string newFileName = m_driveFolder / hashToFileName( fileHash );
+                            fs::rename( clientFile, newFileName );
+
+                            //
+                            // add file in resultFsTree
+                            //
+                            Folder::Child* destEntry = m_sandboxFsTree.getEntryPtr( action.m_param2 );
+                            fs::path destFolder;
+                            fs::path srcFile;
+                            if ( destEntry != nullptr && isFolder(*destEntry) )
+                            {
+                                srcFile = fs::path( action.m_param1 ).filename();
+                                destFolder = action.m_param2;
+                            }
+                            else
+                            {
+                                srcFile = fs::path( action.m_param2 ).filename();
+                                destFolder = fs::path(action.m_param2).parent_path();
+                            }
+                            m_sandboxFsTree.addFile( destFolder,
+                                                     srcFile,
+                                                     fileHash,
+                                                     fileSize );
+
+                            _LOG( "ActionList: successful 'upload': " << clientFile )
+                        }
+                        catch( const std::exception& error )
+                        {
+                            _LOG_ERR( "ActionList: exception during 'upload': " << clientFile << "; " << error.what() )
+                        }
+                        catch(...)
+                        {
+                            _LOG_ERR( "ActionList: unknown exception during 'upload': " << clientFile )
+                        }
                         break;
                     }
                     //
@@ -1155,7 +1187,14 @@ public:
                 auto fileName = toString( fileHash );
 
                 // move file to drive folder
-                fs::rename(  m_sandboxRootPath / fileName, m_driveFolder / fileName );
+                try {
+                    fs::rename(  m_sandboxRootPath / fileName, m_driveFolder / fileName );
+                }
+                catch ( const std::exception& ex ) {
+                    _LOG( "exception during rename:" << ex.what() );
+                    _LOG_ERR( "exception during rename '" << m_sandboxRootPath / fileName <<
+                              "' to '" << m_driveFolder / fileName << "'; " << ex.what() );
+                }
 
                 // create torrent
                 calculateInfoHashAndCreateTorrentFile( m_driveFolder / fileName, m_drivePubKey, m_torrentFolder, "" );
@@ -1529,7 +1568,7 @@ public:
         }
         catch ( const std::exception& ex )
         {
-            _LOG( "???: updateDrive_2 broken: " << ex.what() );
+            _LOG_ERR( "exception during updateDrive_2: " << ex.what() );
             runNextTask();
         }
     }
@@ -1892,8 +1931,9 @@ public:
             else
             {
                 const auto& hash = getFile(child).m_hash;
+                std::error_code err;
                 
-                if ( !fs::exists( m_driveFolder / toString(hash) ) )
+                if ( !fs::exists( m_driveFolder / toString(hash), err ) )
                 {
                     m_catchingUpFileSet.emplace( hash );
                 }
@@ -2032,7 +2072,7 @@ public:
         }
         catch ( const std::exception& ex )
         {
-            _LOG( "???: completeCatchingUp broken: " << ex.what() );
+            _LOG_ERR( "exception during completeCatchingUp: " << ex.what() );
             runNextTask();
         }
     }
@@ -2105,10 +2145,18 @@ public:
         m_backgroundExecutor.run( [this]
         {
             DBG_BG_THREAD
-            
-            fs::remove_all( m_sandboxRootPath );
-            fs::remove_all( m_driveRootPath );
-            
+
+            try {
+                // remove drive root folder and sandbox
+                fs::remove_all( m_sandboxRootPath );
+                fs::remove_all( m_driveRootPath );
+            }
+            catch ( const std::exception& ex )
+            {
+                _LOG_ERR( "exception during removeAllDriveData: " << ex.what() );
+                runNextTask();
+            }
+
             m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_removeDriveTx );
         });
     }
@@ -2227,15 +2275,17 @@ public:
             fs::remove( outputFile, err );
             fs::rename( outputFile +".tmp", outputFile , err );
         }
-        catch(...)
+        catch( const std::exception& ex)
         {
-            _LOG_WARN( "saveRestartData: cannot save" );
+            _LOG_ERR( "exception during saveRestartData: " << ex.what() );
         }
     }
     
     bool loadRestartData( std::string outputFile, std::string& data )
     {
-        if ( fs::exists( outputFile) )
+        std::error_code err;
+
+        if ( fs::exists( outputFile, err ) )
         {
             std::ifstream ifStream( outputFile, std::ios::binary );
             if ( ifStream.is_open() )
@@ -2247,7 +2297,7 @@ public:
             }
         }
         
-        if ( fs::exists( outputFile +".tmp" ) )
+        if ( fs::exists( outputFile +".tmp", err ) )
         {
             std::ifstream ifStream( outputFile +".tmp", std::ios::binary );
             if ( ifStream.is_open() )
@@ -2258,6 +2308,8 @@ public:
                 return true;
             }
         }
+        
+        //_LOG_WARN( "cannot loadRestartData: " << outputFile );
         
         return false;
     }

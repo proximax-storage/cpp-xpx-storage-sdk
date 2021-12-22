@@ -982,21 +982,22 @@ private:
                                 {
                                     fs::path destFilePath = context.m_saveAs;
 
-                                    if ( !fs::exists( destFilePath.parent_path() ) ) {
-                                        fs::create_directories( destFilePath.parent_path() );
+                                    std::error_code err;
+                                    if ( !fs::exists( destFilePath.parent_path(), err ) ) {
+                                        fs::create_directories( destFilePath.parent_path(), err );
                                     }
 
-                                    if ( fs::exists( destFilePath ) ) {
+                                    if ( fs::exists( destFilePath, err ) ) {
                                         fs::remove( destFilePath );
                                     }
 
                                     if ( i == contextVector.size()-1 )
                                     {
-                                        fs::rename( srcFilePath, destFilePath );
+                                        fs::rename( srcFilePath, destFilePath, err );
                                     }
                                     else
                                     {
-                                        fs::copy( srcFilePath, destFilePath );
+                                        fs::copy( srcFilePath, destFilePath, err );
                                     }
                                 }
 
@@ -1231,7 +1232,7 @@ InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
                                                 const Key&         drivePublicKey, // or client public key
                                                 const std::string& outputTorrentPath,
                                                 const std::string& outputTorrentFileExtension )
-        {
+{
     if ( fs::is_directory(pathToFile) )
     {
         throw std::runtime_error( std::string("moveFileToFlatDrive: 1-st parameter cannot be a folder: ") + pathToFile );

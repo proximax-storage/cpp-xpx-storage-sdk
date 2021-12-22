@@ -721,7 +721,9 @@ public:
     
     bool loadRestartData( std::string outputFile, std::string& data )
     {
-        if ( fs::exists( outputFile) )
+        std::error_code err;
+        
+        if ( fs::exists( outputFile,err) )
         {
             std::ifstream ifStream( outputFile, std::ios::binary );
             if ( ifStream.is_open() )
@@ -733,7 +735,7 @@ public:
             }
         }
         
-        if ( fs::exists( outputFile +".tmp" ) )
+        if ( fs::exists( outputFile +".tmp", err ) )
         {
             std::ifstream ifStream( outputFile +".tmp", std::ios::binary );
             if ( ifStream.is_open() )
