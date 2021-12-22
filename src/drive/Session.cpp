@@ -257,7 +257,8 @@ public:
 
         //dbg///////////////////////////////////////////////////
         auto tInfo = lt::torrent_info(buffer, lt::from_span);
-        LOG( "addTorrentToSession: " << tInfo.info_hashes().v2 );
+        _LOG( "addTorrentToSession: " << torrentFilename << "; infoHash:" << tInfo.info_hashes().v2 );
+        
 //        LOG( tInfo.info_hashes().v2 ) );
 //        LOG( "add torrent: torrent filename:" << torrentFilename );
 //        LOG( "add torrent: fileFolder:" << fileFolder );

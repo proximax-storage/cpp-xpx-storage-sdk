@@ -799,7 +799,10 @@ public:
 
     void continueCancelModifyDrive()
     {
-        m_eventHandler.driveModificationIsCanceled( m_replicator, drivePublicKey(), *m_modificationCanceledTx );
+        if ( m_dbgEventHandler )
+        {
+            m_dbgEventHandler->driveModificationIsCanceled( m_replicator, drivePublicKey(), *m_modificationCanceledTx );
+        }
         runNextTask();
     }
     
@@ -955,7 +958,10 @@ public:
 
         if ( code == download_status::failed )
         {
-            m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, errorText, 0 );
+            if ( m_dbgEventHandler )
+            {
+                m_dbgEventHandler->modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, errorText, 0 );
+            }
             modifyIsCompleted();
             return;
         }
@@ -994,8 +1000,11 @@ public:
             // Check that client data exist
             if ( !fs::exists(m_clientDataFolder,err) || !fs::is_directory(m_clientDataFolder,err) )
             {
-                LOG( "m_clientDataFolder=" << m_clientDataFolder );
-                m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'client-data' is absent", -1 );
+                _LOG_ERR( "modifyDriveInSandbox: 'client-data' is absent; m_clientDataFolder=" << m_clientDataFolder );
+                if ( m_dbgEventHandler )
+                {
+                    m_dbgEventHandler->modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'client-data' is absent", -1 );
+                }
                 executeOnSessionThread( [=,this]
                 {
                     modifyIsCompleted();
@@ -1006,8 +1015,11 @@ public:
             // Check 'actionList.bin' is received
             if ( !fs::exists( m_clientActionListFile, err ) )
             {
-                LOG( "m_clientActionListFile=" << m_clientActionListFile );
-                m_eventHandler.modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'ActionList.bin' is absent", -1 );
+                _LOG_ERR( "modifyDriveInSandbox: 'ActionList.bin' is absent: " << m_clientActionListFile );
+                if ( m_dbgEventHandler )
+                {
+                    m_dbgEventHandler->modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'ActionList.bin' is absent", -1 );
+                }
                 executeOnSessionThread( [=,this]()
                 {
                     modifyIsCompleted();
@@ -2155,7 +2167,10 @@ public:
                 runNextTask();
             }
 
-            m_eventHandler.driveIsClosed( m_replicator, m_drivePubKey, *m_removeDriveTx );
+            if ( m_dbgEventHandler )
+            {
+                m_dbgEventHandler->driveIsClosed( m_replicator, m_drivePubKey, *m_removeDriveTx );
+            }
         });
     }
 

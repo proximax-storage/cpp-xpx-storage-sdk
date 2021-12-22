@@ -337,15 +337,7 @@ class Replicator;
                                                     VerifyApprovalTransactionInfo&& transactionInfo
                                                     )
         {
-            
         }
-        
-        // It will be called when modification ended with error (for example small disc space)
-        virtual void modifyTransactionEndedWithError( Replicator&               replicator,
-                                                     const sirius::Key&         driveKey,
-                                                     const ModifyRequest&       modifyRequest,
-                                                     const std::string&         reason,
-                                                     int                        errorCode ) = 0;
         
         // It will initiate the approving of modify transaction
         virtual void modifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
@@ -355,23 +347,6 @@ class Replicator;
         
         // It will be called when transaction could not be completed
         virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
-
-        // It will be called in response on CancelModifyTransaction
-        virtual void driveModificationIsCanceled(  Replicator&                  replicator,
-                                                   const sirius::Key&           driveKey,
-                                                   const Hash256&               modifyTransactionHash )
-        {
-        }
-
-        // It will be called in response on CloseDriveTransaction
-        // It is needed to remove 'drive' from drive list (by Storage Extension)
-        // (If this method has not been not called, then the disk has not yet been removed from the HDD - operation is not comapleted)
-        virtual void driveIsClosed(  Replicator&                replicator,
-                                     const sirius::Key&         driveKey,
-                                     const Hash256&             transactionHash )
-        {
-            //todo make it pure virtual function?
-        }
 
         virtual void opinionHasBeenReceived(  Replicator& replicator,
                                               const ApprovalTransactionInfo& ) = 0;
@@ -425,6 +400,30 @@ class Replicator;
                                          const sirius::drive::InfoHash& rootHash )
         {
         }        
+
+        // It will be called in response on CloseDriveTransaction
+        // It is needed to remove 'drive' from drive list (by Storage Extension)
+        // (If this method has not been not called, then the disk has not yet been removed from the HDD - operation is not comapleted)
+        virtual void driveIsClosed(  Replicator&                replicator,
+                                     const sirius::Key&         driveKey,
+                                     const Hash256&             transactionHash )
+        {
+            //todo make it pure virtual function?
+        }
+
+        // It will be called in response on CancelModifyTransaction
+        virtual void driveModificationIsCanceled(  Replicator&                  replicator,
+                                                   const sirius::Key&           driveKey,
+                                                   const Hash256&               modifyTransactionHash )
+        {
+        }
+
+        // It will be called when modification ended with error (for example small disc space)
+        virtual void modifyTransactionEndedWithError( Replicator&               replicator,
+                                                     const sirius::Key&         driveKey,
+                                                     const ModifyRequest&       modifyRequest,
+                                                     const std::string&         reason,
+                                                     int                        errorCode ) = 0;        
     };
 
     //
