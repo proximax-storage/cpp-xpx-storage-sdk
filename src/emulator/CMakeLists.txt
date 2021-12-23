@@ -2,7 +2,7 @@
 add_definitions(-DSIRIUS_DRIVE_MULTI)
 set(CMAKE_CXX_STANDARD 20)
 
-storage_sdk_shared_library_target(drive)
+storage_sdk_shared_library_target(emulator)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     target_link_libraries(drive
