@@ -94,7 +94,7 @@ public:
             drive->terminate();
         }
 
-        m_session->lt_session().get_context().post( [this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [this]() mutable {
             m_downloadChannelMap.clear();
             m_modifyDriveMap.clear();
             m_driveMap.clear();
@@ -156,7 +156,7 @@ public:
 #else
         std::mutex waitMutex;
         waitMutex.lock();
-        m_session->lt_session().get_context().post( [=,&waitMutex,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,&waitMutex,this]() mutable {
             m_dbgThreadId = std::this_thread::get_id();
             waitMutex.unlock();
         });//post
@@ -221,7 +221,7 @@ public:
     //
     void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
             
@@ -278,7 +278,7 @@ public:
 
     void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -296,7 +296,7 @@ public:
 
     void asyncModify( Key driveKey, ModifyRequest modifyRequest ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -334,7 +334,7 @@ public:
     
     void asyncCancelModify( Key driveKey, Hash256 transactionHash ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -350,7 +350,7 @@ public:
     
     void asyncStartDriveVerification( Key driveKey, VerificationRequest&& request ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -367,7 +367,7 @@ public:
     
     void asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&& request ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -384,7 +384,7 @@ public:
 
     void removeDownloadChannelInfo( const std::array<uint8_t,32>& channelKey ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
             
@@ -437,7 +437,7 @@ public:
 
     virtual void asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -568,7 +568,7 @@ public:
     {
         //todo make queue for several simultaneous requests of the same channelId
 
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
             doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
@@ -655,7 +655,7 @@ public:
 
     void asyncDownloadApprovalTransactionHasFailedInvalidOpinions( Hash256 eventHash, Hash256 channelId ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -704,7 +704,7 @@ public:
     
     virtual void asyncDownloadApprovalTransactionHasBeenPublished( Hash256 eventHash, Hash256 channelId, bool driveIsClosed ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
             
@@ -793,7 +793,7 @@ public:
     
     virtual void asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -818,7 +818,7 @@ public:
     
     virtual void asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo transaction ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -841,7 +841,7 @@ public:
 
     void asyncApprovalTransactionHasFailedInvalidSignatures(Key driveKey, Hash256 transactionHash) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -858,7 +858,7 @@ public:
     
     virtual void asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo transaction ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 

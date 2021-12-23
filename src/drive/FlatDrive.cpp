@@ -381,7 +381,7 @@ public:
     {
         if ( auto session = m_session.lock(); session )
         {
-            session->lt_session().get_context().post( task );
+            boost::asio::post(session->lt_session().get_context(), task);
         }
     }
 

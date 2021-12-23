@@ -219,7 +219,7 @@ public:
         }
         else
         {
-            lt_session().get_context().post( [=] {
+            boost::asio::post(lt_session().get_context(), [=] {
                 endNotification();
             });
         }

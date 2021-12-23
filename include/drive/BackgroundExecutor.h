@@ -7,6 +7,8 @@
 
 #include "drive/Session.h"
 
+#include <boost/asio/io_context.hpp>
+
 namespace sirius::drive {
 
 class BackgroundExecutor
@@ -14,7 +16,7 @@ class BackgroundExecutor
 public:
     BackgroundExecutor()
       :
-        m_work(m_context),
+        m_work(boost::asio::make_work_guard(m_context)),
         m_thread( std::thread( [this] { m_context.run(); } ))
     {
     }
@@ -35,13 +37,13 @@ public:
 
     void run( const std::function<void()>& task )
     {
-        m_context.post( [=] { task(); });
+        boost::asio::post(m_context, [=] { task(); });
     }
 
 private:
-    boost::asio::io_context         m_context;
-    boost::asio::io_context::work   m_work;
-    std::thread                     m_thread;
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> m_work;
+    boost::asio::io_context m_context;
+    std::thread m_thread;
 };
 
 }

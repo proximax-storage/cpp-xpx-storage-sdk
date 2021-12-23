@@ -56,7 +56,7 @@ public:
     
     void printReport( const std::array<uint8_t,32>&  transactionHash )
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             
             if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
             {
@@ -103,8 +103,7 @@ public:
 
     void printTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
-
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             DBG_MAIN_THREAD
               
             if ( const auto& it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
