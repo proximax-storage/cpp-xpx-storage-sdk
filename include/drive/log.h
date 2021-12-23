@@ -11,6 +11,11 @@
 
 inline std::mutex gLogMutex;
 
+//todo
+#ifndef DEBUG_OFF_CATAPULT
+#define DEBUG_OFF_CATAPULT
+#endif
+
 #define LOG(expr)
 
 // __LOG

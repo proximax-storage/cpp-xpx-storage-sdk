@@ -300,7 +300,14 @@ class Replicator;
     struct VerificationRequest
     {
         Hash256                     m_tx;
-        std::vector<Key>            m_replicator;
+        InfoHash                    m_actualRootHash;
+        std::vector<Key>            m_replicators;
+    };
+
+    struct VerificationCodes
+    {
+        VerificationRequest         m_request;
+        std::vector<uint64_t>       m_codes;
     };
 
     struct VerifyOpinion
@@ -446,9 +453,9 @@ class Replicator;
         
         virtual ReplicatorList getReplicators() = 0;
 
-        virtual Key getClient() const = 0;
+        virtual Key      getClient() const = 0;
 
-        virtual void updateReplicators(const ReplicatorList& replicators) = 0;
+        virtual void     updateReplicators(const ReplicatorList& replicators) = 0;
 
         virtual void     getSandboxDriveSizes( uint64_t& metaFilesSize, uint64_t&  driveSize ) const = 0;
 
@@ -457,6 +464,8 @@ class Replicator;
         virtual void     cancelModifyDrive( const Hash256& transactionHash ) = 0;
 
         virtual void     startDriveClosing( const Hash256& transactionHash ) = 0;
+
+        virtual void     startDriveVerification( VerificationRequest&& request ) = 0;
 
 //        virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
         

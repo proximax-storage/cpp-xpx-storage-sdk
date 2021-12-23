@@ -58,6 +58,7 @@
 #include <libtorrent/alert_types.hpp>
 
 #include <boost/multiprecision/cpp_int.hpp>
+#include <boost/crc.hpp>
 #include <numeric>
 
 namespace fs = std::filesystem;
@@ -173,6 +174,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     std::optional<Hash256>              m_modificationMustBeCanceledTx;
     std::optional<CatchingUpRequest>    m_newCatchingUpRequest;
     std::deque<ModifyRequest>           m_defferedModifyRequests;
+    std::deque<VerificationRequest>     m_defferedVerificationRequests;
 
     //
     // Task variable
@@ -182,6 +184,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     std::optional<Hash256>              m_modificationCanceledTx;
     std::optional<CatchingUpRequest>    m_catchingUpRequest;
     std::optional<ModifyRequest>        m_modifyRequest;
+    std::optional<VerificationRequest>  m_verificationRequest;
 
     //
     // Task data
@@ -192,6 +195,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     std::set<InfoHash>                  m_catchingUpFileSet;
     std::set<InfoHash>::iterator        m_catchingUpFileIt = m_catchingUpFileSet.end();
+
+    VerificationCodes                   m_verificationCodes;
 
     // FsTree
     FsTree        m_fsTree;
@@ -602,7 +607,8 @@ public:
         m_modificationCanceledTx.reset();
         m_catchingUpRequest.reset();
         m_modifyRequest.reset();
-
+        m_verificationRequest.reset();
+        
         m_taskMustBeBroken = false;
 
         if ( m_publishedTxDuringInitialization )
@@ -614,6 +620,8 @@ public:
             auto tx = std::move(m_publishedTxDuringInitialization);
             m_publishedTxDuringInitialization.reset();
             onApprovalTransactionHasBeenPublished(*tx);
+            //(???)
+            return;
         }
 
         if ( m_driveWillRemovedTx )
@@ -622,6 +630,20 @@ public:
             m_driveWillRemovedTx.reset();
             runDriveClosingTask( std::move(tx) );
             return;
+        }
+
+        //(???)
+        for( auto requestIt = m_defferedVerificationRequests.begin(); requestIt != m_defferedVerificationRequests.end(); requestIt++ )
+        {
+            if ( requestIt->m_actualRootHash == m_rootHash )
+            {
+                m_verificationRequest = *requestIt;
+                m_defferedVerificationRequests.erase( requestIt );
+                m_backgroundExecutor.run( [this] {
+                    runVerifyDriveTask();
+                });
+                return;
+            }
         }
 
         if ( m_modificationMustBeCanceledTx )
@@ -648,6 +670,7 @@ public:
             startModifyDriveTask( request );
             return;
         }
+
     }
     
     void breakTorrentDownloadAndRunNextTask()
@@ -696,6 +719,103 @@ public:
                 });
             }
         }
+    }
+    
+    uint64_t calcHash64( uint64_t initValue, uint8_t* begin, uint8_t* end )
+    {
+        _ASSERT( begin < end )
+        
+        uint64_t hash = initValue;
+        uint8_t* ptr = begin;
+        
+        for( ; ptr+8 <= end; ptr+=8 )
+        {
+            if ( hash&0x1 )
+            {
+                hash = (hash >> 1) | 0x8000000000000000;
+            }
+            else
+            {
+                hash = (hash >> 1);
+            }
+
+            hash ^= *reinterpret_cast<uint64_t*>(ptr);
+        }
+        
+        uint64_t lastValue = 0;
+        for( ; ptr < end; ptr++ )
+        {
+            lastValue |= *ptr;
+            lastValue = lastValue << 8;
+        }
+        
+        hash ^= *reinterpret_cast<uint64_t*>(ptr);
+
+        return hash;
+    }
+    
+    void runVerifyDriveTask()
+    {
+        DBG_BG_THREAD
+        
+        m_verificationCodes.m_codes.clear();
+        m_verificationCodes.m_codes = std::vector<uint64_t>( m_verificationCodes.m_request.m_replicators.size(), 0 );
+        
+        for( uint32_t i=0; i<m_verificationCodes.m_codes.size(); i++ )
+        {
+            uint64_t initHash = calcHash64( 0, m_verificationCodes.m_request.m_tx.begin() , m_verificationCodes.m_request.m_tx.end() );
+            initHash = calcHash64( initHash, m_verificationCodes.m_request.m_replicators[i].begin() , m_verificationCodes.m_request.m_replicators[i].end() );
+            m_verificationCodes.m_codes[i] = initHash;
+        }
+        
+        calculateVerifyCodes( m_fsTree );
+    }
+
+    void calculateVerifyCodes( const Folder& folder )
+    {
+        DBG_BG_THREAD
+        
+        for( const auto& child : folder.m_childs )
+        {
+            if ( isFolder(child) )
+            {
+                calculateVerifyCodes( getFolder(child) );
+            }
+            else
+            {
+                const auto& hash = getFile(child).m_hash;
+                std::string fileName = m_driveFolder / toString(hash);
+
+                std::error_code err;
+                if ( !fs::exists( fileName, err ) )
+                {
+                    _LOG_ERR( "calculateVerifyCodes: file is absent: " << toString(hash) );
+                    //TODO maybe break?
+                    return;
+                }
+                
+                uint8_t buffer[4096];
+                FILE* file = fopen( fileName.c_str(), "rb" );
+                
+                for(;;)
+                {
+                    auto byteCount = fread( buffer, 1, 4096, file );
+                    if ( byteCount==0 )
+                        break;
+                    
+                    for( uint32_t i=0; i<m_verificationCodes.m_codes.size(); i++ )
+                    {
+                        
+                        uint64_t& hash = m_verificationCodes.m_codes[i];
+                        hash = calcHash64( hash, buffer, buffer+byteCount );
+                    }
+                }
+            }
+        }
+        
+        executeOnSessionThread( [/*this*/] {
+            //todo
+        });
     }
 
     // It tries to start next modify
@@ -829,7 +949,7 @@ public:
 
         if ( !m_driveIsInitializing )
         {
-            if ( m_modifyRequest || m_catchingUpRequest || m_modificationCanceledTx )
+            if ( m_modifyRequest || m_catchingUpRequest || m_modificationCanceledTx || m_verificationRequest )
             {
                 breakTorrentDownloadAndRunNextTask();
             }
@@ -837,6 +957,27 @@ public:
             {
                 runNextTask();
             }
+        }
+    }
+
+    void startDriveVerification( VerificationRequest&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        m_defferedVerificationRequests.emplace_back( request );
+        
+        if ( m_driveIsInitializing )
+        {
+            return;
+        }
+        
+        if ( m_modifyRequest || m_catchingUpRequest || m_modificationCanceledTx )
+        {
+            // wait the end of the current task
+        }
+        else
+        {
+            runNextTask();
         }
     }
 
@@ -899,7 +1040,8 @@ public:
         m_replicatorList = modifyRequest.m_replicatorList;
 
         // ModificationIsCanceling check is redundant now
-        if ( m_modifyRequest || m_catchingUpRequest || m_newCatchingUpRequest || m_modificationCanceledTx || m_driveIsInitializing )
+        if ( m_modifyRequest || m_catchingUpRequest || m_newCatchingUpRequest ||
+             m_modificationCanceledTx || m_verificationRequest || m_driveIsInitializing )
         {
             _LOG( "startModifyDrive: queue modifyRequest" );
             m_defferedModifyRequests.emplace_back( std::move(modifyRequest) );

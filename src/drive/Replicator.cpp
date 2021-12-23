@@ -348,9 +348,20 @@ public:
         });//post
     }
     
-    void asyncStartDriveVerification( Key driveKey, VerificationRequest ) override
+    void asyncStartDriveVerification( Key driveKey, VerificationRequest&& request ) override
     {
-        //TODO
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
+            DBG_MAIN_THREAD
+
+            if ( const auto drive = getDrive(driveKey); drive )
+            {
+                drive->startDriveVerification( std::move(request) );
+                return;
+            }
+
+            _LOG( "cancelModify: unknown drive: " << driveKey );
+        });//post
     }
 
     
