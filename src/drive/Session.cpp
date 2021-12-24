@@ -404,10 +404,10 @@ public:
             throw std::runtime_error("downloadFile: torrent handle is not valid");
 
         // connect to peers
-//        for( const auto& it : list ) {
-//            //LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
-//            tHandle.connect_peer( it.m_endpoint );
-//        }
+        for( const auto& it : list ) {
+            //LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
+            tHandle.connect_peer( it.m_endpoint );
+        }
 
         // save download handler
         std::lock_guard locker(m_downloadMapMutex);
@@ -482,9 +482,9 @@ public:
             throw std::runtime_error("connectPeers: libtorrent session is not valid");
 
         //TODO check if not set m_lastTorrentFileHandle
-//        for( const auto& endpoint : list ) {
-//            tHandle.connect_peer(endpoint);
-//        }
+        for( const auto& endpoint : list ) {
+            tHandle.connect_peer(endpoint);
+        }
     }
 
     void      printActiveTorrents() override
