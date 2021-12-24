@@ -54,6 +54,8 @@ private:
     
     ReplicatorEventHandler& m_eventHandler;
     DbgReplicatorEventHandler*  m_dbgEventHandler;
+
+    std::map<Key, boost::asio::ip::tcp::endpoint> m_knownEndpoints;
     
 public:
     DefaultReplicator (
@@ -435,7 +437,22 @@ public:
         }
     }
 
-    virtual void asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) override
+    void onEndpointDiscovered(const std::array<uint8_t, 32> &key,
+                              const boost::asio::ip::tcp::endpoint &endpoint) override
+    {
+        DBG_MAIN_THREAD
+
+        _LOG( "Explored" )
+        Key publicKey = { key };
+        auto it = m_knownEndpoints.find(publicKey);
+        if ( it == m_knownEndpoints.end() || it->second != endpoint )
+        {
+            m_knownEndpoints[key] = endpoint;
+            // TODO Maybe sent some information to this node
+        }
+    }
+
+        virtual void asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
 

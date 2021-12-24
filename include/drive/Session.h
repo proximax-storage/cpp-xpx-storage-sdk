@@ -156,6 +156,8 @@ public:
     virtual void      sendMessage( const std::string& query, boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
     virtual void      sendMessage( const std::string& query, boost::asio::ip::udp::endpoint, const std::string& ) = 0;
     
+    virtual void      announceStoreDrive( const Key& driveKey ) = 0;
+
     virtual std::optional<boost::asio::high_resolution_timer> startTimer( int miliseconds, const std::function<void()>& func ) = 0;
 
 

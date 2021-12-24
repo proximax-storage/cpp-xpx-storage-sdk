@@ -71,6 +71,9 @@ private:
     //
     lt::session             m_session;
 
+    // Truncated drive public keys
+    std::set<lt::sha1_hash> m_truncatedDrivePublicKeys;
+
     // see comments to 'RemoveSets'
     //
     RemoveContexts          m_removeContexts;
@@ -134,7 +137,10 @@ public:
     }
 
     // for dbg
-    lt::session&  lt_session() override { return m_session; }
+    lt::session &lt_session() override
+    {
+        return m_session;
+    }
 
 
     // createSession
@@ -143,7 +149,6 @@ public:
         lt::settings_pack settingsPack;
 
         settingsPack.set_int( lt::settings_pack::alert_mask, ~0 );//lt::alert_category::all );
-        settingsPack.set_str( lt::settings_pack::dht_bootstrap_nodes, "" );
 
         // todo public_key?
         char todoPubKey[32];
@@ -165,7 +170,7 @@ public:
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
         settingsPack.set_bool( lt::settings_pack::enable_upnp, false );
-        settingsPack.set_str(  lt::settings_pack::dht_bootstrap_nodes, "" );
+        settingsPack.set_str(  lt::settings_pack::dht_bootstrap_nodes, "192.168.2.200:5550" );
 
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
         settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, false );
@@ -399,10 +404,10 @@ public:
             throw std::runtime_error("downloadFile: torrent handle is not valid");
 
         // connect to peers
-        for( const auto& it : list ) {
-            //LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
-            tHandle.connect_peer( it.m_endpoint );
-        }
+//        for( const auto& it : list ) {
+//            //LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
+//            tHandle.connect_peer( it.m_endpoint );
+//        }
 
         // save download handler
         std::lock_guard locker(m_downloadMapMutex);
@@ -477,9 +482,9 @@ public:
             throw std::runtime_error("connectPeers: libtorrent session is not valid");
 
         //TODO check if not set m_lastTorrentFileHandle
-        for( const auto& endpoint : list ) {
-            tHandle.connect_peer(endpoint);
-        }
+//        for( const auto& endpoint : list ) {
+//            tHandle.connect_peer(endpoint);
+//        }
     }
 
     void      printActiveTorrents() override
@@ -512,7 +517,7 @@ public:
 
         bool on_dht_request(
             lt::string_view                         query,
-            boost::asio::ip::udp::endpoint const&   /*source*/,
+            boost::asio::ip::udp::endpoint const&   source,
             lt::bdecode_node const&                 message,
             lt::entry&                              response ) override
         {
@@ -630,7 +635,16 @@ public:
         m_session.dht_direct_request( endPoint, entry );
     }
 
-    void handleResponse( lt::bdecode_node response )
+    void announceStoreDrive( const Key& driveKey ) override
+    {
+        lt::info_hash_t driveInfoHash;
+        std::memcpy(reinterpret_cast<uint8_t *>(driveInfoHash.v2.data()), driveKey.data(), Key_Size);
+        auto bestHash = driveInfoHash.get_best();
+        m_session.dht_announce(bestHash);
+        m_session.dht_get_peers(bestHash);
+    }
+
+        void handleResponse( lt::bdecode_node response )
     {
         LOG( "lt::bdecode_node response: " << response );
         LOG( "lt::bdecode_node response: " << response );
@@ -689,6 +703,17 @@ private:
 //                    _LOG(  ": peer_log_alert: " << alert->message())
 //                    break;
 //                }
+
+                case lt::dht_get_peers_reply_alert::alert_type: {
+
+                    auto* theAlert = dynamic_cast<lt::dht_get_peers_reply_alert*>(alert);
+                    _LOG( "Received Peer " << " " << theAlert->message())
+//                    if ( m_truncatedDrivePublicKeys.contains(theAlert->info_hash) )
+//                    {
+//
+//                    }
+                    break;
+                }
 
                 case lt::add_torrent_alert::        alert_type: {
                     auto* theAlert = dynamic_cast<lt::add_torrent_alert*>(alert);

@@ -140,6 +140,40 @@ struct ModifyDriveInfo
 using ModifyDriveMap    = std::map<std::array<uint8_t,32>, ModifyDriveInfo>;
 
 
+struct DhtHandshake
+{
+    std::array<uint8_t, 32> m_replicatorPublicKey;
+    std::array<uint8_t, 32> m_drivePublicKey;
+    Signature m_signature;
+
+    void Sign( const crypto::KeyPair& keyPair ) {
+        crypto::Sign(
+                keyPair,
+                {
+                    utils::RawBuffer{ m_replicatorPublicKey }
+                },
+                m_signature );
+    }
+
+    void Verify( const crypto::KeyPair& keyPair ) {
+        crypto::Verify(
+                m_replicatorPublicKey,
+                {
+                        utils::RawBuffer{m_drivePublicKey},
+                },
+                m_signature);
+    }
+
+
+    template<class Archive>
+    void serialize(Archive &arch)
+    {
+        arch(m_replicatorPublicKey);
+        arch(m_drivePublicKey);
+        arch(cereal::binary_data(m_signature.data(), m_signature.size()));
+    }
+};
+
 //
 // Replicator
 //

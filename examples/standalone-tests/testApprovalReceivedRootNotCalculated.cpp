@@ -97,6 +97,8 @@ namespace sirius::drive::test
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
+        EXLOG( "Actionlist Hash" << toString(client.m_actionListHashes.back()) )
+
         EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);
     }
