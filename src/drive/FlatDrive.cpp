@@ -67,6 +67,7 @@ namespace sirius::drive {
 
 #define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
 #define DBG_BG_THREAD { assert( m_dbgThreadId != std::this_thread::get_id() ); }
+#define DBG_VERIFY_THREAD { assert( m_verifyThread.get_id() != std::this_thread::get_id() ); }
 
 //
 // DrivePaths - drive paths, used at replicator side
@@ -139,6 +140,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     Replicator&             m_replicator;
 
     BackgroundExecutor      m_backgroundExecutor;
+    std::thread             m_verifyThread;
 
     size_t                  m_maxSize;
 
@@ -174,7 +176,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     std::optional<Hash256>              m_modificationMustBeCanceledTx;
     std::optional<CatchingUpRequest>    m_newCatchingUpRequest;
     std::deque<ModifyRequest>           m_defferedModifyRequests;
-    std::deque<VerificationRequest>     m_defferedVerificationRequests;
+    std::optional<VerificationRequest>  m_defferedVerificationRequest;
 
     //
     // Task variable
@@ -607,7 +609,6 @@ public:
         m_modificationCanceledTx.reset();
         m_catchingUpRequest.reset();
         m_modifyRequest.reset();
-        m_verificationRequest.reset();
         
         m_taskMustBeBroken = false;
 
@@ -632,17 +633,13 @@ public:
             return;
         }
 
-        //(???)
-        for( auto requestIt = m_defferedVerificationRequests.begin(); requestIt != m_defferedVerificationRequests.end(); requestIt++ )
+        if( m_defferedVerificationRequest )
         {
-            if ( requestIt->m_actualRootHash == m_rootHash )
+            if ( m_defferedVerificationRequest->m_actualRootHash == m_rootHash )
             {
-                m_verificationRequest = *requestIt;
-                m_defferedVerificationRequests.erase( requestIt );
-                m_backgroundExecutor.run( [this] {
-                    runVerifyDriveTask();
-                });
-                return;
+                m_verificationRequest = std::move( m_defferedVerificationRequest );
+                m_defferedVerificationRequest.reset();
+                runVerifyDriveTaskOnSeparateThread();
             }
         }
 
@@ -754,26 +751,33 @@ public:
         return hash;
     }
     
-    void runVerifyDriveTask()
+    void runVerifyDriveTaskOnSeparateThread()
     {
-        DBG_BG_THREAD
-        
-        m_verificationCodes.m_codes.clear();
-        m_verificationCodes.m_codes = std::vector<uint64_t>( m_verificationCodes.m_request.m_replicators.size(), 0 );
-        
-        for( uint32_t i=0; i<m_verificationCodes.m_codes.size(); i++ )
+        m_verifyThread = std::thread( [this]
         {
-            uint64_t initHash = calcHash64( 0, m_verificationCodes.m_request.m_tx.begin() , m_verificationCodes.m_request.m_tx.end() );
-            initHash = calcHash64( initHash, m_verificationCodes.m_request.m_replicators[i].begin() , m_verificationCodes.m_request.m_replicators[i].end() );
-            m_verificationCodes.m_codes[i] = initHash;
-        }
-        
-        calculateVerifyCodes( m_fsTree );
+            DBG_VERIFY_THREAD
+            
+            m_verificationCodes.m_codes.clear();
+            m_verificationCodes.m_codes = std::vector<uint64_t>( m_verificationCodes.m_request.m_replicators.size(), 0 );
+            
+            for( uint32_t i=0; i<m_verificationCodes.m_codes.size(); i++ )
+            {
+                uint64_t initHash = calcHash64( 0, m_verificationCodes.m_request.m_tx.begin() , m_verificationCodes.m_request.m_tx.end() );
+                initHash = calcHash64( initHash, m_verificationCodes.m_request.m_replicators[i].begin() , m_verificationCodes.m_request.m_replicators[i].end() );
+                m_verificationCodes.m_codes[i] = initHash;
+            }
+            
+            calculateVerifyCodes( m_fsTree );
+            
+            executeOnSessionThread( [this] {
+                verificationCodesCompleted();
+            });
+        });
     }
 
     void calculateVerifyCodes( const Folder& folder )
     {
-        DBG_BG_THREAD
+        DBG_VERIFY_THREAD
         
         for( const auto& child : folder.m_childs )
         {
@@ -812,12 +816,42 @@ public:
                 }
             }
         }
-        
-        executeOnSessionThread( [/*this*/] {
-            //todo
-        });
     }
 
+    void verificationCodesCompleted()
+    {
+        DBG_MAIN_THREAD
+        
+        //
+        // Get our key and verification code
+        //
+        const auto& replicators = m_verificationCodes.m_request.m_replicators;
+        const auto& ourKey = m_replicator.replicatorKey();
+        auto keyIt = std::find_if( replicators.begin(), replicators.end(), [&ourKey] (const auto& it) {
+                                  return it == ourKey;
+                              });
+        auto ourIndex = std::distance( replicators.begin(), keyIt );
+        uint64_t ourCode = m_verificationCodes.m_codes[ ourIndex ];
+        
+        //
+        // Prepare message
+        //
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( ourCode );
+        archive( ourKey.array() );
+
+        //
+        // Send message to other replicators
+        //
+        for( auto& replicatorKey: m_verificationRequest->m_replicators )
+        {
+            m_replicator.sendMessage( "verification_code", replicatorKey.array(), os.str() );
+        }
+        
+        //todo start timer?
+    }
+    
     // It tries to start next modify
     void modifyIsCompleted()
     {
@@ -949,7 +983,7 @@ public:
 
         if ( !m_driveIsInitializing )
         {
-            if ( m_modifyRequest || m_catchingUpRequest || m_modificationCanceledTx || m_verificationRequest )
+            if ( m_modifyRequest || m_catchingUpRequest || m_modificationCanceledTx )
             {
                 breakTorrentDownloadAndRunNextTask();
             }
@@ -964,16 +998,25 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_defferedVerificationRequests.emplace_back( request );
+        m_defferedVerificationRequest = request;
         
         if ( m_driveIsInitializing )
         {
             return;
         }
+
+        if ( request.m_actualRootHash == m_rootHash )
+        {
+            m_verificationRequest = std::move( m_defferedVerificationRequest );
+            m_defferedVerificationRequest.reset();
+            runVerifyDriveTaskOnSeparateThread();
+            return;
+        }
         
-        if ( m_modifyRequest || m_catchingUpRequest || m_modificationCanceledTx )
+        if ( m_modifyRequest || m_catchingUpRequest || m_modificationCanceledTx || m_driveWillRemovedTx )
         {
             // wait the end of the current task
+            return;
         }
         else
         {
@@ -1041,7 +1084,7 @@ public:
 
         // ModificationIsCanceling check is redundant now
         if ( m_modifyRequest || m_catchingUpRequest || m_newCatchingUpRequest ||
-             m_modificationCanceledTx || m_verificationRequest || m_driveIsInitializing )
+             m_modificationCanceledTx || m_driveIsInitializing )
         {
             _LOG( "startModifyDrive: queue modifyRequest" );
             m_defferedModifyRequests.emplace_back( std::move(modifyRequest) );

@@ -880,6 +880,13 @@ public:
         m_session->sendMessage( query, { endpoint.address(), endpoint.port() }, message );
     }
     
+    virtual void sendMessage( const std::string&             query,
+                              const std::array<uint8_t,32>&  replicatorKey,
+                              const std::string&             message ) override
+    {
+        //TODO
+    }
+
     virtual void onMessageReceived( const std::string& query, const std::string& message ) override try
     {
         DBG_MAIN_THREAD

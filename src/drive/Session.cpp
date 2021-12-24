@@ -701,14 +701,15 @@ private:
                     break;
                 }
 
-                case lt::dht_direct_response_alert::alert_type: {
-                    auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
-                    auto response = theAlert->response();
-                    handleResponse( response );
-//                    LOG( m_addressAndPort << " " << theAlert->what() << ":("<< alert->type() <<")  " << alert->message() );
-//                    LOG( m_addressAndPort << " " << response );
-                    break;
-                }
+//                case lt::dht_direct_response_alert::alert_type: {
+//                    auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
+////                    _LOG( " *** dht_direct_response_alert " << theAlert->endpoint << "; " );
+////                    _LOG( "response:  " << theAlert->response() );
+//                    auto response = theAlert->response();
+//                    handleResponse( response );
+//                    _LOG( "*** dht_direct_response_alert: " << theAlert->what() << ":("<< alert->type() <<")  " << alert->message() );
+//                    break;
+//                }
 
                 case lt::incoming_request_alert::alert_type: {
 //                    auto* theAlert = dynamic_cast<lt::incoming_request_alert*>(alert);

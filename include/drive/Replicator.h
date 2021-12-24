@@ -242,6 +242,10 @@ public:
     // Message exchange
     virtual void        sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint, const std::string& ) = 0;
     
+    virtual void        sendMessage( const std::string&             query,
+                                     const std::array<uint8_t,32>&  replicatorKey,
+                                     const std::string&             message ) = 0;
+
     // It was moveed into ;session_delegate'
     //virtual void        onMessageReceived( const std::string& query, const std::string& ) = 0;
     
