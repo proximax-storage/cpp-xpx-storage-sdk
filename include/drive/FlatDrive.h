@@ -310,16 +310,19 @@ class Replicator;
         std::vector<uint64_t>       m_codes;
     };
 
-    struct VerifyOpinion
+    struct VerificationReply
     {
         bool                        m_opinion;
         std::array<uint8_t,32>      m_replicatorKey;
     };
 
-    struct VerifyOpinions
+    struct VerifyApprovalInfo
     {
-        std::array<uint8_t,32>      m_publicKey;
-        std::vector<VerifyOpinion>  m_opinions;
+        std::array<uint8_t,32>          m_publicKey;
+        std::array<uint8_t,32>          m_tx;
+        std::array<uint8_t,32>          m_drivePublicKey;
+        //???std::array<uint8_t,32>          m_shardId;
+        std::vector<VerificationReply>  m_opinions;
         
         // our publicKey, m_tx, m_driveKey, m_shardId, m_opinions
         Signature                   m_signature;
@@ -327,10 +330,10 @@ class Replicator;
 
     struct VerifyApprovalTransactionInfo
     {
-        std::array<uint8_t,32>      m_tx;
-        std::array<uint8_t,32>      m_driveKey;
-        uint32_t                    m_shardId = 0;
-        std::vector<VerifyOpinion>  m_opinions;
+        std::array<uint8_t,32>          m_tx;
+        std::array<uint8_t,32>          m_driveKey;
+        uint32_t                        m_shardId = 0;
+        std::vector<VerifyApprovalInfo> m_opinions;
     };
 
     // Iterface for storage extension

@@ -528,7 +528,7 @@ public:
 //            _LOG( "message: " << message );
 //            _LOG( "response: " << response );
 
-            if ( query == "opinion" || query == "dnopinion" )
+            if ( query == "opinion" || query == "dnopinion" || query == "verification_code" )
             {
                 auto str = message.dict_find_string_value("x");
                 std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
@@ -542,7 +542,8 @@ public:
                 return true;
             }
             
-            if ( message.dict_find_string_value("q") == "rcpt" )
+            else if ( query == "rcpt" )
+//            else if ( message.dict_find_string_value("q") == "rcpt" )
             {
                 auto str = message.dict_find_string_value("x");
 
@@ -551,9 +552,13 @@ public:
                 std::array<uint8_t,32>  replicatorPublicKey;
                 uint64_t                totalDownloadedSize;
                 Signature               signature;
+                
+                auto messageSize = downloadChannelId.size() + clientPublicKey.size() + replicatorPublicKey.size() + sizeof(totalDownloadedSize) + signature.size();
 
-                //todo ignore invalid packet
-                assert( str.size() == downloadChannelId.size() + clientPublicKey.size() + replicatorPublicKey.size() + 8 + signature.size() );
+                // skip bad size messages
+                if ( str.size() != messageSize )
+                    return false;
+                
                 uint8_t* ptr = (uint8_t*)str.data();
                 memcpy( downloadChannelId.data(), ptr, downloadChannelId.size() );
                 ptr += downloadChannelId.size();
@@ -566,7 +571,6 @@ public:
                 memcpy( signature.data(), ptr, signature.size() );
                 //ptr += signature.size();
 
-                
                 // it will be verifyed in acceptReceiptFromAnotherReplicator()
                 //assert( m_replicator->verifyReceipt( downloadChannelId, clientPublicKey, replicatorPublicKey, totalDownloadedSize, signature.array() ) );
 
@@ -578,25 +582,12 @@ public:
                                                                     totalDownloadedSize,
                                                                     signature.array() );
                 }
-            }
-            
-//            if ( message.dict_find_string_value("q") == "sirius_message" )
-//            {
-//                if ( message.dict_find_string_value("cmd") == "root_hash" )
-//                {
-//                    auto drivePublicKey = message.dict_find_string_value("drive");
-//
-//                    if ( auto replicator = m_replicator.lock(); replicator )
-//                    {
-//                        InfoHash hash = replicator->dbgGetRootHash( std::string(drivePublicKey) );
-//                        response["root_hash"] = toString( hash );
-//                    }
-//                    return true;
-//                }
+
                 response["r"]["ret"] = "ok";
                 return true;
-//            }
-            return true;
+            }
+
+            return false;
         }
     };
 

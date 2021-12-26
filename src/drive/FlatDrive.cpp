@@ -848,10 +848,12 @@ public:
         //
         for( auto& replicatorKey: m_verificationRequest->m_replicators )
         {
-            m_replicator.sendMessage( "verification_code", replicatorKey.array(), os.str() );
+//TODO            m_replicator.sendMessage( "verification_code", replicatorKey.array(), os.str() );
+            auto it = std::find_if( m_replicatorList.begin(), m_replicatorList.end(), [replicatorKey] (const auto& it) {
+                return it.m_publicKey.array() == replicatorKey;
+            });
+            m_replicator.sendMessage( "verification_code", it->m_endpoint, os.str() );
         }
-        
-        //todo start timer?
     }
     
     // It tries to start next modify

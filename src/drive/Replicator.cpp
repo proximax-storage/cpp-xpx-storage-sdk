@@ -57,6 +57,9 @@ private:
 
     std::map<Key, boost::asio::ip::tcp::endpoint> m_knownEndpoints;
     
+    // key is verify tx
+    std::map<std::array<uint8_t,32>, VerifyApprovalInfo> m_verifyApprovalMap;
+
 public:
     DefaultReplicator (
                const crypto::KeyPair& keyPair,
@@ -919,7 +922,7 @@ public:
             processOpinion(info);
             return;
         }
-        else if ( query ==  "dnopinion" )
+        else if ( query == "dnopinion" )
         {
             std::istringstream is( message, std::ios::binary );
             cereal::PortableBinaryInputArchive iarchive(is);
@@ -927,6 +930,21 @@ public:
             iarchive( info );
 
             processDownloadOpinion(info);
+            return;
+        }
+        else if ( query == "verification_code" )
+        {
+            std::istringstream is( message, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            
+            uint64_t                verificationCode;
+            std::array<uint8_t,32> tx;
+            std::array<uint8_t,32> replicatorKey;
+            iarchive( verificationCode );
+            iarchive( tx );
+            iarchive( replicatorKey );
+
+            processVerificationCode( tx, replicatorKey, verificationCode );
             return;
         }
         
@@ -938,6 +956,23 @@ public:
     }
 
 
+    void processVerificationCode( const std::array<uint8_t,32>& tx, const std::array<uint8_t,32>& replicatorKey, uint64_t verificationCode )
+    {
+        //TODO verify sign!!!
+        
+        auto verifyIt = m_verifyApprovalMap.lower_bound(tx);
+
+        if ( verifyIt == m_verifyApprovalMap.end() )
+        {
+            m_verifyApprovalMap.insert( verifyIt, {} );
+        }
+        else
+        {
+            
+        }
+    }
+
+    
     ReplicatorEventHandler& eventHandler() override
     {
         return m_eventHandler;
