@@ -205,6 +205,38 @@ protected:
         return ok;
     }
 
+    bool verifyMutableItem(const std::vector<char>& value,
+                               const int64_t& seq,
+                               const std::string& salt,
+                               const std::array<uint8_t, 32>& pk,
+                               const std::array<uint8_t, 64>& sig) override
+    {
+
+        return crypto::Verify(Key{pk},
+                              {
+                                      utils::RawBuffer{reinterpret_cast<const uint8_t *>(value.data()),
+                                                       value.size()},
+                                      utils::RawBuffer{reinterpret_cast<const uint8_t *>(&seq), sizeof(int64_t)},
+                                      utils::RawBuffer{reinterpret_cast<const uint8_t *>(salt.data()), salt.size()}
+                              },
+                              reinterpret_cast<const Signature &>(sig));
+    }
+
+    void signMutableItem(const std::vector<char> &value,
+                         const int64_t& seq,
+                         const std::string& salt,
+                         std::array<uint8_t, 64>& sig) override
+    {
+        Signature signature;
+        crypto::Sign(m_keyPair,
+                     {
+                             utils::RawBuffer{reinterpret_cast<const uint8_t *>(value.data()), value.size()},
+                             utils::RawBuffer{reinterpret_cast<const uint8_t *>(&seq), sizeof(int64_t)},
+                             utils::RawBuffer{reinterpret_cast<const uint8_t *>(salt.data()), salt.size()}
+                     },
+                     reinterpret_cast<Signature &>(sig));
+    }
+
     const std::array<uint8_t,32>& publicKey() override
     {
         return m_keyPair.publicKey().array();

@@ -265,7 +265,7 @@ public:
     {
         m_dbgThreadId = std::this_thread::get_id();
 
-        session->announceStoreDrive(m_drivePubKey);
+//        session->announceStoreDrive(m_drivePubKey);
 
         m_backgroundExecutor.run( [this]
         {
@@ -850,7 +850,7 @@ public:
         {
 //TODO            m_replicator.sendMessage( "verification_code", replicatorKey.array(), os.str() );
             auto it = std::find_if( m_replicatorList.begin(), m_replicatorList.end(), [replicatorKey] (const auto& it) {
-                return it.m_publicKey.array() == replicatorKey;
+                return it.m_publicKey == replicatorKey;
             });
             m_replicator.sendMessage( "verification_code", it->m_endpoint, os.str() );
         }

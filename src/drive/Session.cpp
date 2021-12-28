@@ -170,7 +170,7 @@ public:
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
         settingsPack.set_bool( lt::settings_pack::enable_upnp, false );
-        settingsPack.set_str(  lt::settings_pack::dht_bootstrap_nodes, "192.168.2.200:5550" );
+        settingsPack.set_str(  lt::settings_pack::dht_bootstrap_nodes, "10.168.2.200:5550" );
 
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
         settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, false );
@@ -404,10 +404,10 @@ public:
             throw std::runtime_error("downloadFile: torrent handle is not valid");
 
         // connect to peers
-        for( const auto& it : list ) {
-            //LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
-            tHandle.connect_peer( it.m_endpoint );
-        }
+//        for( const auto& it : list ) {
+//            //LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
+//            tHandle.connect_peer( it.m_endpoint );
+//        }
 
         // save download handler
         std::lock_guard locker(m_downloadMapMutex);
@@ -481,10 +481,10 @@ public:
         if ( !m_session.is_valid() )
             throw std::runtime_error("connectPeers: libtorrent session is not valid");
 
-        //TODO check if not set m_lastTorrentFileHandle
-        for( const auto& endpoint : list ) {
-            tHandle.connect_peer(endpoint);
-        }
+//        //TODO check if not set m_lastTorrentFileHandle
+//        for( const auto& endpoint : list ) {
+//            tHandle.connect_peer(endpoint);
+//        }
     }
 
     void      printActiveTorrents() override
@@ -522,7 +522,10 @@ public:
             lt::entry&                              response ) override
         {
             if ( query == "get_peers" || query == "announce_peer" )
+            {
+                __LOG ( query )
                 return false;
+            }
 
 //            _LOG( "query: " << query );
 //            _LOG( "message: " << message );
@@ -626,13 +629,31 @@ public:
         m_session.dht_direct_request( endPoint, entry );
     }
 
-    void announceStoreDrive( const Key& driveKey ) override
+    void announceExternalAddress( const boost::asio::ip::tcp::endpoint& endpoint ) override
     {
-        lt::info_hash_t driveInfoHash;
-        std::memcpy(reinterpret_cast<uint8_t *>(driveInfoHash.v2.data()), driveKey.data(), Key_Size);
-        auto bestHash = driveInfoHash.get_best();
-        m_session.dht_announce(bestHash);
-        m_session.dht_get_peers(bestHash);
+        if ( auto limiter = m_downloadLimiter.lock(); limiter )
+        {
+            std::string data(reinterpret_cast<const char *>(endpoint.data()), endpoint.size());
+            std::array<char, 32> publicKey{};
+            std::copy(limiter->publicKey().begin(), limiter->publicKey().end(), publicKey.begin());
+            m_session.dht_put_item(publicKey,
+                                   [limiter = m_downloadLimiter, d = std::move(data)]
+                                           (lt::entry &e, std::array<char, 64> &sig, std::int64_t &seq,
+                                            std::string const &salt)
+                                   {
+                                       if ( auto p = limiter.lock(); p )
+                                       {
+                                           e = d;
+                                           std::vector<char> buf;
+                                           bencode(std::back_inserter(buf), e);
+                                           seq++;
+                                           std::array<uint8_t, 64> signature{};
+                                           p->signMutableItem(buf, seq, salt, signature);
+                                           std::copy(signature.begin(), signature.end(), sig.begin());
+                                       }
+                                   },
+                                   "ip");
+        }
     }
 
         void handleResponse( lt::bdecode_node response )
@@ -694,6 +715,12 @@ private:
 //                    _LOG(  ": peer_log_alert: " << alert->message())
 //                    break;
 //                }
+
+                case lt::external_ip_alert::alert_type: {
+                    auto* theAlert = dynamic_cast<lt::external_ip_alert*>(alert);
+                    _LOG( "External Ip Alert " << " " << theAlert->message())
+                    break;
+                }
 
                 case lt::dht_get_peers_reply_alert::alert_type: {
 
