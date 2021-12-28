@@ -445,7 +445,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _LOG( "Explored" )
+//        _LOG( "Explored" )
         Key publicKey = { key };
         auto it = m_knownEndpoints.find(publicKey);
         if ( it == m_knownEndpoints.end() || it->second != endpoint )
