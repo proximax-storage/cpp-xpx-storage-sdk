@@ -16,6 +16,7 @@ class BackgroundExecutor
 public:
     BackgroundExecutor()
       :
+		m_context(),
         m_work(boost::asio::make_work_guard(m_context)),
         m_thread( std::thread( [this] { m_context.run(); } ))
     {

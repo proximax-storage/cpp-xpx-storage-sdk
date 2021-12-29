@@ -140,6 +140,40 @@ struct ModifyDriveInfo
 using ModifyDriveMap    = std::map<std::array<uint8_t,32>, ModifyDriveInfo>;
 
 
+struct DhtHandshake
+{
+    std::array<uint8_t, 32> m_replicatorPublicKey;
+    std::array<uint8_t, 32> m_drivePublicKey;
+    Signature m_signature;
+
+    void Sign( const crypto::KeyPair& keyPair ) {
+        crypto::Sign(
+                keyPair,
+                {
+                    utils::RawBuffer{ m_replicatorPublicKey }
+                },
+                m_signature );
+    }
+
+    void Verify( const crypto::KeyPair& keyPair ) {
+        crypto::Verify(
+                m_replicatorPublicKey,
+                {
+                        utils::RawBuffer{m_drivePublicKey},
+                },
+                m_signature);
+    }
+
+
+    template<class Archive>
+    void serialize(Archive &arch)
+    {
+        arch(m_replicatorPublicKey);
+        arch(m_drivePublicKey);
+        arch(cereal::binary_data(m_signature.data(), m_signature.size()));
+    }
+};
+
 //
 // Replicator
 //
@@ -216,6 +250,9 @@ public:
     // It will be called after 'single MODIFY approval transaction' has been published
     virtual void        asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo transaction ) = 0;
 
+    // It will be called after 'VERIFY approval transaction' has been published
+    virtual void        asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
+
     // It continues drive closing (initiates DownloadApprovalTransaction and then removes drive)
     virtual void        closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) = 0;
     
@@ -236,12 +273,18 @@ public:
     virtual void        setDownloadApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual void        setModifyApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual int         getModifyApprovalTransactionTimerDelay() = 0;
+    virtual void        setVerifyApprovalTransactionTimerDelay( int milliseconds ) = 0;
+    virtual int         getVerifyApprovalTransactionTimerDelay() = 0;
     virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
 
     
     // Message exchange
     virtual void        sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint, const std::string& ) = 0;
     
+    virtual void        sendMessage( const std::string&             query,
+                                     const std::array<uint8_t,32>&  replicatorKey,
+                                     const std::string&             message ) = 0;
+
     // It was moveed into ;session_delegate'
     //virtual void        onMessageReceived( const std::string& query, const std::string& ) = 0;
     

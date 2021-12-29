@@ -71,6 +71,9 @@ private:
     //
     lt::session             m_session;
 
+    // Truncated drive public keys
+    std::set<lt::sha1_hash> m_truncatedDrivePublicKeys;
+
     // see comments to 'RemoveSets'
     //
     RemoveContexts          m_removeContexts;
@@ -134,7 +137,10 @@ public:
     }
 
     // for dbg
-    lt::session&  lt_session() override { return m_session; }
+    lt::session &lt_session() override
+    {
+        return m_session;
+    }
 
 
     // createSession
@@ -143,7 +149,6 @@ public:
         lt::settings_pack settingsPack;
 
         settingsPack.set_int( lt::settings_pack::alert_mask, ~0 );//lt::alert_category::all );
-        settingsPack.set_str( lt::settings_pack::dht_bootstrap_nodes, "" );
 
         // todo public_key?
         char todoPubKey[32];
@@ -165,7 +170,7 @@ public:
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
         settingsPack.set_bool( lt::settings_pack::enable_upnp, false );
-        settingsPack.set_str(  lt::settings_pack::dht_bootstrap_nodes, "" );
+        settingsPack.set_str(  lt::settings_pack::dht_bootstrap_nodes, "10.168.2.200:5550" );
 
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
         settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, false );
@@ -512,18 +517,21 @@ public:
 
         bool on_dht_request(
             lt::string_view                         query,
-            boost::asio::ip::udp::endpoint const&   /*source*/,
+            boost::asio::ip::udp::endpoint const&   source,
             lt::bdecode_node const&                 message,
             lt::entry&                              response ) override
         {
             if ( query == "get_peers" || query == "announce_peer" )
+            {
+//                __LOG ( query )
                 return false;
+            }
 
 //            _LOG( "query: " << query );
 //            _LOG( "message: " << message );
 //            _LOG( "response: " << response );
 
-            if ( query == "opinion" || query == "dnopinion" )
+            if ( query == "opinion" || query == "dnopinion" || query == "verification_code" )
             {
                 auto str = message.dict_find_string_value("x");
                 std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
@@ -537,7 +545,8 @@ public:
                 return true;
             }
             
-            if ( message.dict_find_string_value("q") == "rcpt" )
+            else if ( query == "rcpt" )
+//            else if ( message.dict_find_string_value("q") == "rcpt" )
             {
                 auto str = message.dict_find_string_value("x");
 
@@ -546,9 +555,13 @@ public:
                 std::array<uint8_t,32>  replicatorPublicKey;
                 uint64_t                totalDownloadedSize;
                 Signature               signature;
+                
+                auto messageSize = downloadChannelId.size() + clientPublicKey.size() + replicatorPublicKey.size() + sizeof(totalDownloadedSize) + signature.size();
 
-                //todo ignore invalid packet
-                assert( str.size() == downloadChannelId.size() + clientPublicKey.size() + replicatorPublicKey.size() + 8 + signature.size() );
+                // skip bad size messages
+                if ( str.size() != messageSize )
+                    return false;
+                
                 uint8_t* ptr = (uint8_t*)str.data();
                 memcpy( downloadChannelId.data(), ptr, downloadChannelId.size() );
                 ptr += downloadChannelId.size();
@@ -561,7 +574,6 @@ public:
                 memcpy( signature.data(), ptr, signature.size() );
                 //ptr += signature.size();
 
-                
                 // it will be verifyed in acceptReceiptFromAnotherReplicator()
                 //assert( m_replicator->verifyReceipt( downloadChannelId, clientPublicKey, replicatorPublicKey, totalDownloadedSize, signature.array() ) );
 
@@ -573,25 +585,12 @@ public:
                                                                     totalDownloadedSize,
                                                                     signature.array() );
                 }
-            }
-            
-//            if ( message.dict_find_string_value("q") == "sirius_message" )
-//            {
-//                if ( message.dict_find_string_value("cmd") == "root_hash" )
-//                {
-//                    auto drivePublicKey = message.dict_find_string_value("drive");
-//
-//                    if ( auto replicator = m_replicator.lock(); replicator )
-//                    {
-//                        InfoHash hash = replicator->dbgGetRootHash( std::string(drivePublicKey) );
-//                        response["root_hash"] = toString( hash );
-//                    }
-//                    return true;
-//                }
+
                 response["r"]["ret"] = "ok";
                 return true;
-//            }
-            return true;
+            }
+
+            return false;
         }
     };
 
@@ -630,7 +629,34 @@ public:
         m_session.dht_direct_request( endPoint, entry );
     }
 
-    void handleResponse( lt::bdecode_node response )
+    void announceExternalAddress( const boost::asio::ip::tcp::endpoint& endpoint ) override
+    {
+        if ( auto limiter = m_downloadLimiter.lock(); limiter )
+        {
+            std::string data(reinterpret_cast<const char *>(endpoint.data()), endpoint.size());
+            std::array<char, 32> publicKey{};
+            std::copy(limiter->publicKey().begin(), limiter->publicKey().end(), publicKey.begin());
+            m_session.dht_put_item(publicKey,
+                                   [limiter = m_downloadLimiter, d = std::move(data)]
+                                           (lt::entry &e, std::array<char, 64> &sig, std::int64_t &seq,
+                                            std::string const &salt)
+                                   {
+                                       if ( auto p = limiter.lock(); p )
+                                       {
+                                           e = d;
+                                           std::vector<char> buf;
+                                           bencode(std::back_inserter(buf), e);
+                                           seq++;
+                                           std::array<uint8_t, 64> signature{};
+                                           p->signMutableItem(buf, seq, salt, signature);
+                                           std::copy(signature.begin(), signature.end(), sig.begin());
+                                       }
+                                   },
+                                   "ip");
+        }
+    }
+
+        void handleResponse( lt::bdecode_node response )
     {
         LOG( "lt::bdecode_node response: " << response );
         LOG( "lt::bdecode_node response: " << response );
@@ -690,6 +716,23 @@ private:
 //                    break;
 //                }
 
+                case lt::external_ip_alert::alert_type: {
+                    auto* theAlert = dynamic_cast<lt::external_ip_alert*>(alert);
+                    _LOG( "External Ip Alert " << " " << theAlert->message())
+                    break;
+                }
+
+                case lt::dht_get_peers_reply_alert::alert_type: {
+
+                    auto* theAlert = dynamic_cast<lt::dht_get_peers_reply_alert*>(alert);
+                    _LOG( "Received Peer " << " " << theAlert->message())
+//                    if ( m_truncatedDrivePublicKeys.contains(theAlert->info_hash) )
+//                    {
+//
+//                    }
+                    break;
+                }
+
                 case lt::add_torrent_alert::        alert_type: {
                     auto* theAlert = dynamic_cast<lt::add_torrent_alert*>(alert);
                     _LOG("*** add_torrent_alert: " << theAlert->message());
@@ -701,14 +744,15 @@ private:
                     break;
                 }
 
-                case lt::dht_direct_response_alert::alert_type: {
-                    auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
-                    auto response = theAlert->response();
-                    handleResponse( response );
-//                    LOG( m_addressAndPort << " " << theAlert->what() << ":("<< alert->type() <<")  " << alert->message() );
-//                    LOG( m_addressAndPort << " " << response );
-                    break;
-                }
+//                case lt::dht_direct_response_alert::alert_type: {
+//                    auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
+////                    _LOG( " *** dht_direct_response_alert " << theAlert->endpoint << "; " );
+////                    _LOG( "response:  " << theAlert->response() );
+//                    auto response = theAlert->response();
+//                    handleResponse( response );
+//                    _LOG( "*** dht_direct_response_alert: " << theAlert->what() << ":("<< alert->type() <<")  " << alert->message() );
+//                    break;
+//                }
 
                 case lt::incoming_request_alert::alert_type: {
 //                    auto* theAlert = dynamic_cast<lt::incoming_request_alert*>(alert);

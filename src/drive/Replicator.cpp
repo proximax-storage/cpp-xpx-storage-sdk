@@ -47,6 +47,7 @@ private:
     
     int         m_downloadApprovalTransactionTimerDelayMs = 60*1000;
     int         m_modifyApprovalTransactionTimerDelayMs   = 60*1000;
+    int         m_verifyApprovalTransactionTimerDelayMs   = 60*1000;
     std::mutex  m_replicatorDestructingMutex;
     bool        m_replicatorIsDestructing = false;
 
@@ -54,6 +55,8 @@ private:
     
     ReplicatorEventHandler& m_eventHandler;
     DbgReplicatorEventHandler*  m_dbgEventHandler;
+
+    std::map<Key, boost::asio::ip::tcp::endpoint> m_knownEndpoints;
     
 public:
     DefaultReplicator (
@@ -435,7 +438,22 @@ public:
         }
     }
 
-    virtual void asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) override
+    void onEndpointDiscovered(const std::array<uint8_t, 32> &key,
+                              const boost::asio::ip::tcp::endpoint &endpoint) override
+    {
+        DBG_MAIN_THREAD
+
+//        _LOG( "Explored" )
+        Key publicKey = { key };
+        auto it = m_knownEndpoints.find(publicKey);
+        if ( it == m_knownEndpoints.end() || it->second != endpoint )
+        {
+            m_knownEndpoints[key] = endpoint;
+            // TODO Maybe sent some information to this node
+        }
+    }
+
+        virtual void asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) override
     {
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
@@ -873,6 +891,23 @@ public:
         });//post
     }
     
+    virtual void asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) override
+    {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
+            DBG_MAIN_THREAD
+
+            if ( auto drive = getDrive( info.m_driveKey ); drive )
+            {
+                drive->onVerifyApprovalTransactionHasBeenPublished( info );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found" );
+            }
+        });//post
+    }
+    
     virtual void sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint endpoint, const std::string& message ) override
     {
         DBG_MAIN_THREAD
@@ -880,6 +915,13 @@ public:
         m_session->sendMessage( query, { endpoint.address(), endpoint.port() }, message );
     }
     
+    virtual void sendMessage( const std::string&             query,
+                              const std::array<uint8_t,32>&  replicatorKey,
+                              const std::string&             message ) override
+    {
+        //TODO
+    }
+
     virtual void onMessageReceived( const std::string& query, const std::string& message ) override try
     {
         DBG_MAIN_THREAD
@@ -895,7 +937,7 @@ public:
             processOpinion(info);
             return;
         }
-        else if ( query ==  "dnopinion" )
+        else if ( query == "dnopinion" )
         {
             std::istringstream is( message, std::ios::binary );
             cereal::PortableBinaryInputArchive iarchive(is);
@@ -903,6 +945,23 @@ public:
             iarchive( info );
 
             processDownloadOpinion(info);
+            return;
+        }
+        else if ( query == "verification_code" )
+        {
+            std::istringstream is( message, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            
+            uint64_t               verificationCode;
+            std::array<uint8_t,32> tx;
+            std::array<uint8_t,32> replicatorKey;
+            std::array<uint8_t,32> driveKey;
+            iarchive( verificationCode );
+            iarchive( tx );
+            iarchive( replicatorKey );
+            iarchive( driveKey );
+
+            processVerificationCode( verificationCode, tx, replicatorKey, driveKey );
             return;
         }
         
@@ -914,6 +973,25 @@ public:
     }
 
 
+    void processVerificationCode( uint64_t                      verificationCode,
+                                  const std::array<uint8_t,32>& tx,
+                                  const std::array<uint8_t,32>& replicatorKey,
+                                  const std::array<uint8_t,32>& driveKey )
+    {
+        DBG_MAIN_THREAD
+        
+        //TODO verify sign???
+        
+        if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+        {
+            driveIt->second->processVerificationCode( verificationCode, tx, replicatorKey );
+            return;
+        }
+        
+        _LOG_WARN( "processVerificationCode: unknown drive: " << Key(driveKey) );
+    }
+
+    
     ReplicatorEventHandler& eventHandler() override
     {
         return m_eventHandler;
@@ -932,6 +1010,16 @@ public:
     int         getModifyApprovalTransactionTimerDelay() override
     {
         return m_modifyApprovalTransactionTimerDelayMs;
+    }
+
+    void        setVerifyApprovalTransactionTimerDelay( int miliseconds ) override
+    {
+        m_verifyApprovalTransactionTimerDelayMs = miliseconds;
+    }
+    
+    int         getVerifyApprovalTransactionTimerDelay() override
+    {
+        return m_verifyApprovalTransactionTimerDelayMs;
     }
 
     void        setSessionSettings(const lt::settings_pack& settings, bool localNodes) override
