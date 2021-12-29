@@ -6,10 +6,10 @@
 
 #include <random>
 #include <fstream>
-#include "drive/RpcReplicatorClient.h"
+#include "emulator/RpcReplicatorClient.h"
 #include "crypto/Hashes.h"
 
-namespace sirius::drive {
+namespace sirius::emulator {
     RpcReplicatorClient::RpcReplicatorClient( const crypto::KeyPair& keyPair,
                                               const std::string& remoteRpcAddress,
                                               const int remoteRpcPort,
@@ -35,7 +35,7 @@ namespace sirius::drive {
             }
         };
 
-        m_clientSession = createClientSession(
+        m_clientSession = drive::createClientSession(
                 m_keyPair,
                 incomingAddress + ":" + std::to_string(incomingPort),
                 sessionHandler,
@@ -155,7 +155,7 @@ namespace sirius::drive {
     }
 
     void RpcReplicatorClient::modifyDrive( const Key& driveKey,
-                                           const ActionList& actionList,
+                                           const drive::ActionList& actionList,
                                            const uint64_t maxDataSize,
                                            std::function<void()> endDriveModificationCallback) {
         std::cout << "Client. modifyDrive: " << driveKey << std::endl;
@@ -173,7 +173,7 @@ namespace sirius::drive {
         std::filesystem::create_directories( tmpFolder );
 
         // start file uploading
-        const InfoHash infoHash = m_clientSession->addActionListToSession( actionList, m_keyPair.publicKey(), rpcDriveInfo.getReplicators(), tmpFolder);
+        const drive::InfoHash infoHash = m_clientSession->addActionListToSession( actionList, m_keyPair.publicKey(), rpcDriveInfo.getReplicators(), tmpFolder);
 
         std::cout << "Client. modifyDrive. New InfoHash: " << infoHash << std::endl;
 
@@ -230,34 +230,34 @@ namespace sirius::drive {
 
         pathToFsTree += drivePubKeyHex + "/fstree";
 
-        auto handler = [drivePubKey, callback, drivePubKeyHex, pathToFsTree](download_status::code code,
-                                  const InfoHash& infoHash,
+        auto handler = [drivePubKey, callback, drivePubKeyHex, pathToFsTree](drive::download_status::code code,
+                                  const drive::InfoHash& infoHash,
                                   const std::filesystem::path filePath,
                                   size_t downloaded,
                                   size_t fileSize,
                                   const std::string& errorText) {
-            FsTree fsTree;
-            if ( code == download_status::download_complete )
+            drive::FsTree fsTree;
+            if ( code == drive::download_status::download_complete )
             {
-                std::cout << "Client. downloadHandler. Client received FsTree: " << toString(infoHash) << std::endl;
+                std::cout << "Client. downloadHandler. Client received FsTree: " << drive::toString(infoHash) << std::endl;
 
                 fsTree.deserialize( pathToFsTree + "/FsTree.bin" );
                 fsTree.dbgPrint();
 
                 callback(fsTree, code);
             }
-            else if ( code == download_status::failed )
+            else if ( code == drive::download_status::failed )
             {
                 std::cout << "Client. downloadHandler. Error receiving FsTree: " << code << " errorText: " << errorText <<std::endl;
                 callback(fsTree, code);
             }
         };
 
-        DownloadContext downloadContext( DownloadContext::fs_tree, handler, rpcDriveInfo.m_rootHash, channelKey, 0 );
+        drive::DownloadContext downloadContext( drive::DownloadContext::fs_tree, handler, rpcDriveInfo.m_rootHash, channelKey, 0 );
         m_clientSession->download( std::move(downloadContext), pathToFsTree);
     }
 
-    void RpcReplicatorClient::downloadData(const Folder& folder, const std::string& destinationFolder, DownloadDataCallabck callback) {
+    void RpcReplicatorClient::downloadData(const drive::Folder& folder, const std::string& destinationFolder, DownloadDataCallabck callback) {
         std::cout << "Client. downloadData. Folder: " << folder.name() << std::endl;
 
         for( const auto& child: folder.childs() )
@@ -268,16 +268,16 @@ namespace sirius::drive {
             }
             else
             {
-                const File& file = getFile(child);
+                const drive::File& file = getFile(child);
                 std::string folderName = "root";
                 if ( folder.name() != "/" )
                     folderName = folder.name();
 
-                std::cout << "Client. downloadData. Client started download file " << hashToFileName( file.hash() ) << std::endl;
+                std::cout << "Client. downloadData. Client started download file " << drive::hashToFileName( file.hash() ) << std::endl;
                 std::cout << "Client. downloadData. to " << destinationFolder + "/" + folderName + "/" + file.name() << std::endl;
 
-                auto handler = [callback](download_status::code code,
-                                              const InfoHash& infoHash,
+                auto handler = [callback](drive::download_status::code code,
+                                              const drive::InfoHash& infoHash,
                                               const std::filesystem::path filePath,
                                               size_t downloaded,
                                               size_t fileSize,
@@ -285,7 +285,7 @@ namespace sirius::drive {
                     callback(code, infoHash, filePath, downloaded, fileSize, errorText);
                 };
 
-                DownloadContext downloadContext(DownloadContext::file_from_drive,
+                drive::DownloadContext downloadContext(drive::DownloadContext::file_from_drive,
                                                 handler,
                                                 file.hash(),
                                                 {},
@@ -298,11 +298,11 @@ namespace sirius::drive {
         }
     }
 
-    void RpcReplicatorClient::downloadData(const InfoHash& hash, const std::string& tempFolder, const std::string& destinationFolder, DownloadDataCallabck callback) {
-        std::cout << "Client. downloadData. Client started download file: " << hashToFileName( hash ) << " : hash: " << toString(hash) << std::endl;
+    void RpcReplicatorClient::downloadData(const drive::InfoHash& hash, const std::string& tempFolder, const std::string& destinationFolder, DownloadDataCallabck callback) {
+        std::cout << "Client. downloadData. Client started download file: " << drive::hashToFileName( hash ) << " : hash: " << drive::toString(hash) << std::endl;
 
-        auto handler = [callback](download_status::code code,
-                                  const InfoHash& infoHash,
+        auto handler = [callback](drive::download_status::code code,
+                                  const drive::InfoHash& infoHash,
                                   const std::filesystem::path filePath,
                                   size_t downloaded,
                                   size_t fileSize,
@@ -310,12 +310,12 @@ namespace sirius::drive {
             callback(code, infoHash, filePath, downloaded, fileSize, errorText);
         };
 
-        DownloadContext downloadContext(DownloadContext::file_from_drive,
-                                        handler,
-                                        hash,
-                                        {},
-                                        0,
-                                        destinationFolder);
+        drive::DownloadContext downloadContext(drive::DownloadContext::file_from_drive,
+                                               handler,
+                                               hash,
+                                               {},
+                                               0,
+                                               destinationFolder);
 
         m_clientSession->download( std::move(downloadContext), tempFolder );
     }

@@ -27,6 +27,7 @@ else()
     target_link_libraries(replicator2
             drive
             crypto
+            emulator
             librpc.a
             Threads::Threads)
 endif()

@@ -18,7 +18,9 @@
 #include <rpc/client.h>
 
 
-namespace sirius::drive {
+namespace sirius::emulator {
+
+using namespace sirius::drive;
 
 class PLUGIN_API RpcReplicator : public ReplicatorEventHandler, DbgReplicatorEventHandler
 {

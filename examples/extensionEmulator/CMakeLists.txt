@@ -4,8 +4,10 @@ project(extensionEmulator)
 set(CMAKE_CXX_STANDARD 20)
 
 add_definitions(-DRPC_DRIVE)
-include_directories(SYSTEM "../../../libtorrent/include" "../../rpclib/include")
-include_directories(${PROJECT_SOURCE_DIR}/include)
+
+include_directories(../../include)
+include_directories(../../libtorrent)
+include_directories(../../rpclib)
 
 find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
@@ -22,9 +24,5 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 #        "-framework CoreFoundation" "-framework SystemConfiguration"
 #        )
 else()
-    target_link_libraries(extensionEmulator
-            drive
-            crypto
-            librpc.a
-            Threads::Threads)
+    target_link_libraries(extensionEmulator sdk_external crypto emulator Threads::Threads)
 endif()

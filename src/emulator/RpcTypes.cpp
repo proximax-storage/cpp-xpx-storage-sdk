@@ -4,10 +4,10 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "drive/RpcTypes.h"
+#include "emulator/RpcTypes.h"
 
 
-namespace sirius::drive::types {
+namespace sirius::emulator::types {
 
     bool RpcReplicatorInfo::operator==(const RpcReplicatorInfo& replicator) const {
         return replicator.m_replicatorPubKey == m_replicatorPubKey;
@@ -30,10 +30,10 @@ namespace sirius::drive::types {
         }
     }
 
-    ReplicatorList RpcDownloadChannelInfo::getReplicators() const {
-        ReplicatorList replicators;
+    drive::ReplicatorList RpcDownloadChannelInfo::getReplicators() const {
+        drive::ReplicatorList replicators;
         for (const RpcReplicatorInfo& rpcReplicatorInfo : m_rpcReplicators) {
-            boost::asio::ip::address address = boost::asio::ip::address::from_string(rpcReplicatorInfo.m_replicatorAddress);
+            boost::asio::ip::address address = boost::asio::ip::make_address(rpcReplicatorInfo.m_replicatorAddress);
             replicators.emplace_back( drive::ReplicatorInfo{ {
                                                                      address,
                                                                      rpcReplicatorInfo.m_replicatorPort
@@ -43,10 +43,10 @@ namespace sirius::drive::types {
         return replicators;
     }
 
-    ReplicatorList RpcDataModification::getReplicators() const {
-        ReplicatorList replicators;
+    drive::ReplicatorList RpcDataModification::getReplicators() const {
+        drive::ReplicatorList replicators;
         for (const RpcReplicatorInfo &rpcReplicatorInfo: m_rpcReplicators) {
-            boost::asio::ip::address address = boost::asio::ip::address::from_string(
+            boost::asio::ip::address address = boost::asio::ip::make_address(
                     rpcReplicatorInfo.m_replicatorAddress);
             replicators.emplace_back(drive::ReplicatorInfo{{
                                                                    address,
@@ -57,7 +57,7 @@ namespace sirius::drive::types {
         return replicators;
     }
 
-    void RpcSingleOpinion::setUploadLayout(const std::vector<KeyAndBytes>& uploadLayout)
+    void RpcSingleOpinion::setUploadLayout(const std::vector<drive::KeyAndBytes>& uploadLayout)
     {
         m_uploadLayout.clear();
         for (const auto& item: uploadLayout) {
@@ -65,17 +65,17 @@ namespace sirius::drive::types {
         }
     }
 
-    std::vector<KeyAndBytes> RpcSingleOpinion::getUploadLayout() const
+    std::vector<drive::KeyAndBytes> RpcSingleOpinion::getUploadLayout() const
     {
-        std::vector<KeyAndBytes> uploadLayout;
+        std::vector<drive::KeyAndBytes> uploadLayout;
         for (const auto& item: m_uploadLayout) {
             uploadLayout.push_back( { item.m_key, item.m_uploadedBytes} );
         }
         return uploadLayout;
     }
 
-    ApprovalTransactionInfo RpcModifyApprovalTransactionInfo::getApprovalTransactionInfo() const {
-        ApprovalTransactionInfo approvalTransactionInfo;
+    drive::ApprovalTransactionInfo RpcModifyApprovalTransactionInfo::getApprovalTransactionInfo() const {
+        drive::ApprovalTransactionInfo approvalTransactionInfo;
         approvalTransactionInfo.m_driveKey = m_drivePubKey;
         approvalTransactionInfo.m_modifyTransactionHash = m_modifyTransactionHash;
         approvalTransactionInfo.m_rootHash = m_rootHash;
@@ -84,7 +84,7 @@ namespace sirius::drive::types {
         approvalTransactionInfo.m_driveSize = m_driveSize;
 
         for (const RpcSingleOpinion& rpcOpinion : m_opinions) {
-            SingleOpinion singleOpinion;
+            drive::SingleOpinion singleOpinion;
             singleOpinion.m_replicatorKey = rpcOpinion.m_replicatorKey;
             singleOpinion.m_clientUploadBytes = rpcOpinion.m_clientUploadBytes;
             singleOpinion.m_uploadLayout = rpcOpinion.getUploadLayout();
@@ -95,7 +95,7 @@ namespace sirius::drive::types {
         return approvalTransactionInfo;
     }
 
-    RpcModifyApprovalTransactionInfo RpcModifyApprovalTransactionInfo::getRpcModifyApprovalTransactionInfo(const std::array<uint8_t,32>& replicatorPubKey, ApprovalTransactionInfo&& transactionInfo) {
+    RpcModifyApprovalTransactionInfo RpcModifyApprovalTransactionInfo::getRpcModifyApprovalTransactionInfo(const std::array<uint8_t,32>& replicatorPubKey, drive::ApprovalTransactionInfo&& transactionInfo) {
         types::RpcModifyApprovalTransactionInfo rpcModifyApprovalTransactionInfo;
         rpcModifyApprovalTransactionInfo.m_drivePubKey = transactionInfo.m_driveKey;
         rpcModifyApprovalTransactionInfo.m_replicatorPubKey = replicatorPubKey;
@@ -109,8 +109,8 @@ namespace sirius::drive::types {
         return rpcModifyApprovalTransactionInfo;
     }
 
-    void RpcModifyApprovalTransactionInfo::setOpinions(const std::vector<SingleOpinion>& opinions) {
-        for (const SingleOpinion& opinion : opinions) {
+    void RpcModifyApprovalTransactionInfo::setOpinions(const std::vector<drive::SingleOpinion>& opinions) {
+        for (const drive::SingleOpinion& opinion : opinions) {
             RpcSingleOpinion rpcSingleOpinion;
             rpcSingleOpinion.m_replicatorKey = opinion.m_replicatorKey;
             rpcSingleOpinion.m_clientUploadBytes = opinion.m_clientUploadBytes;
@@ -120,10 +120,10 @@ namespace sirius::drive::types {
         }
     }
 
-    ReplicatorList RpcPrepareDriveTransactionInfo::getReplicators() const {
-        ReplicatorList replicators;
+    drive::ReplicatorList RpcPrepareDriveTransactionInfo::getReplicators() const {
+        drive::ReplicatorList replicators;
         for (const RpcReplicatorInfo& rpcReplicatorInfo : m_rpcReplicators) {
-            boost::asio::ip::address address = boost::asio::ip::address::from_string(rpcReplicatorInfo.m_replicatorAddress);
+            boost::asio::ip::address address = boost::asio::ip::make_address(rpcReplicatorInfo.m_replicatorAddress);
             replicators.emplace_back( drive::ReplicatorInfo{
                     { address, rpcReplicatorInfo.m_replicatorPort },
                     rpcReplicatorInfo.m_replicatorPubKey } );
@@ -132,8 +132,8 @@ namespace sirius::drive::types {
         return replicators;
     }
 
-    void RpcDriveInfo::setReplicators(const ReplicatorList& replicators) {
-        for (const ReplicatorInfo& replicator : replicators) {
+    void RpcDriveInfo::setReplicators(const drive::ReplicatorList& replicators) {
+        for (const drive::ReplicatorInfo& replicator : replicators) {
             RpcReplicatorInfo rpcReplicatorInfo;
             rpcReplicatorInfo.m_replicatorAddress = replicator.m_endpoint.address().to_string();
             rpcReplicatorInfo.m_replicatorPort = replicator.m_endpoint.port();
@@ -146,10 +146,10 @@ namespace sirius::drive::types {
         }
     }
 
-    ReplicatorList RpcDriveInfo::getReplicators() const {
-        ReplicatorList replicators;
+    drive::ReplicatorList RpcDriveInfo::getReplicators() const {
+        drive::ReplicatorList replicators;
         for (const RpcReplicatorInfo& rpcReplicatorInfo : m_rpcReplicators) {
-            boost::asio::ip::address address = boost::asio::ip::address::from_string(rpcReplicatorInfo.m_replicatorAddress);
+            boost::asio::ip::address address = boost::asio::ip::make_address(rpcReplicatorInfo.m_replicatorAddress);
             replicators.emplace_back( drive::ReplicatorInfo{
                     { address, rpcReplicatorInfo.m_replicatorPort },
                     rpcReplicatorInfo.m_replicatorPubKey } );

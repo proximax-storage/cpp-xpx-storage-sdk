@@ -1,4 +1,4 @@
-#include "drive/RpcReplicator.h"
+#include "emulator/RpcReplicator.h"
 #include <array>
 #include <condition_variable>
 
@@ -19,6 +19,7 @@
 
 namespace fs = std::filesystem;
 
+using namespace sirius::emulator;
 using namespace sirius::drive;
 
 inline std::mutex gExLogMutex;

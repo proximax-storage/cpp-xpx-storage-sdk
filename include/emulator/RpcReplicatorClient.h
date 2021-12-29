@@ -12,27 +12,27 @@
 #include "RpcTypes.h"
 #include "rpc/client.h"
 #include "rpc/server.h"
-#include "ClientSession.h"
-#include "Utils.h"
-#include "FsTree.h"
+#include "drive/ClientSession.h"
+#include "drive/Utils.h"
+#include "drive/FsTree.h"
 #include "../../rpclib/include/rpc/server.h"
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
 
-namespace sirius::drive {
+namespace sirius::emulator {
 
 class PLUGIN_API RpcReplicatorClient
 {
 public:
-    using DownloadDataCallabck = std::function<void(download_status::code code,
-                                                    const InfoHash& infoHash,
+    using DownloadDataCallabck = std::function<void(drive::download_status::code code,
+                                                    const drive::InfoHash& infoHash,
                                                     const std::filesystem::path filePath,
                                                     size_t downloaded,
                                                     size_t fileSize,
                                                     const std::string& errorText)>;
 
-    using DownloadFsTreeCallback = std::function<void(const FsTree& fsTree,
-                                                      download_status::code code)>;
+    using DownloadFsTreeCallback = std::function<void(const drive::FsTree& fsTree,
+                                                      drive::download_status::code code)>;
 
     using AddDriveCallback = std::function<void(const std::array<uint8_t,32>& drivePubKey)>;
 
@@ -62,7 +62,7 @@ public:
     void closeDownloadChannel(const std::array<uint8_t,32>& channelKey);
 
     void modifyDrive( const Key& driveKey,
-                      const ActionList& actionList,
+                      const drive::ActionList& actionList,
                       const uint64_t maxDataSize,
                       std::function<void()> endDriveModificationCallback);
 
@@ -72,8 +72,8 @@ public:
                         DownloadFsTreeCallback callback,
                         const uint64_t downloadLimit = 0);
 
-    void downloadData(const Folder& folder, const std::string& destinationFolder, DownloadDataCallabck callback);
-    void downloadData(const InfoHash& hash, const std::string& tempFolder, const std::string& destinationFolder, DownloadDataCallabck callback);
+    void downloadData(const drive::Folder& folder, const std::string& destinationFolder, DownloadDataCallabck callback);
+    void downloadData(const drive::InfoHash& hash, const std::string& tempFolder, const std::string& destinationFolder, DownloadDataCallabck callback);
 
     std::filesystem::path createClientFiles( size_t bigFileSize );
 
@@ -93,7 +93,7 @@ private:
     std::thread m_rpcServerThread;
     std::map<std::array<uint8_t,32>, std::function<void()>> m_endDriveModificationHashes;
     std::map<std::array<uint8_t,32>, std::function<void(const std::array<uint8_t,32>& drivePubKey)>> m_addedDrives;
-    std::shared_ptr<ClientSession> m_clientSession;
+    std::shared_ptr<drive::ClientSession> m_clientSession;
     std::shared_ptr<rpc::client> m_rpcClient;
     std::shared_ptr<rpc::server> m_rpcServer;
     std::filesystem::path m_rootFolder;
