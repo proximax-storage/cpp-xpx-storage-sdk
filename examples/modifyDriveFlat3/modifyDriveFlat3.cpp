@@ -222,6 +222,11 @@ public:
         }
     }
 
+    virtual void verifyApprovalTransactionIsReady( Replicator& replicator, VerifyApprovalInfo&& info ) override
+    {
+        //TODO
+    }
+
     // It will be called when rootHash is calculated in sandbox
     virtual void rootHashIsCalculated( Replicator&                    replicator,
                                        const sirius::Key&             driveKey,
@@ -622,6 +627,7 @@ static std::shared_ptr<Replicator> createReplicator(
 
     replicator->setDownloadApprovalTransactionTimerDelay(1);
     replicator->setModifyApprovalTransactionTimerDelay(1);
+    replicator->setVerifyApprovalTransactionTimerDelay(1);
     replicator->start();
     replicator->asyncAddDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, replicatorList, clientKeyPair.publicKey()} );
     

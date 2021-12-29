@@ -47,6 +47,7 @@ private:
     
     int         m_downloadApprovalTransactionTimerDelayMs = 60*1000;
     int         m_modifyApprovalTransactionTimerDelayMs   = 60*1000;
+    int         m_verifyApprovalTransactionTimerDelayMs   = 60*1000;
     std::mutex  m_replicatorDestructingMutex;
     bool        m_replicatorIsDestructing = false;
 
@@ -57,9 +58,6 @@ private:
 
     std::map<Key, boost::asio::ip::tcp::endpoint> m_knownEndpoints;
     
-    // key is verify tx
-    std::map<std::array<uint8_t,32>, VerifyApprovalInfo> m_verifyApprovalMap;
-
 public:
     DefaultReplicator (
                const crypto::KeyPair& keyPair,
@@ -893,6 +891,23 @@ public:
         });//post
     }
     
+    virtual void asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) override
+    {
+        m_session->lt_session().get_context().post( [=,this]() mutable {
+        
+            DBG_MAIN_THREAD
+
+            if ( auto drive = getDrive( info.m_driveKey ); drive )
+            {
+                drive->onVerifyApprovalTransactionHasBeenPublished( info );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found" );
+            }
+        });//post
+    }
+    
     virtual void sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint endpoint, const std::string& message ) override
     {
         DBG_MAIN_THREAD
@@ -937,14 +952,16 @@ public:
             std::istringstream is( message, std::ios::binary );
             cereal::PortableBinaryInputArchive iarchive(is);
             
-            uint64_t                verificationCode;
+            uint64_t               verificationCode;
             std::array<uint8_t,32> tx;
             std::array<uint8_t,32> replicatorKey;
+            std::array<uint8_t,32> driveKey;
             iarchive( verificationCode );
             iarchive( tx );
             iarchive( replicatorKey );
+            iarchive( driveKey );
 
-            processVerificationCode( tx, replicatorKey, verificationCode );
+            processVerificationCode( verificationCode, tx, replicatorKey, driveKey );
             return;
         }
         
@@ -956,20 +973,22 @@ public:
     }
 
 
-    void processVerificationCode( const std::array<uint8_t,32>& tx, const std::array<uint8_t,32>& replicatorKey, uint64_t verificationCode )
+    void processVerificationCode( uint64_t                      verificationCode,
+                                  const std::array<uint8_t,32>& tx,
+                                  const std::array<uint8_t,32>& replicatorKey,
+                                  const std::array<uint8_t,32>& driveKey )
     {
-        //TODO verify sign!!!
+        DBG_MAIN_THREAD
         
-        auto verifyIt = m_verifyApprovalMap.lower_bound(tx);
-
-        if ( verifyIt == m_verifyApprovalMap.end() )
+        //TODO verify sign???
+        
+        if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
         {
-            m_verifyApprovalMap.insert( verifyIt, {} );
+            driveIt->second->processVerificationCode( verificationCode, tx, replicatorKey );
+            return;
         }
-        else
-        {
-            
-        }
+        
+        _LOG_WARN( "processVerificationCode: unknown drive: " << Key(driveKey) );
     }
 
     
@@ -991,6 +1010,16 @@ public:
     int         getModifyApprovalTransactionTimerDelay() override
     {
         return m_modifyApprovalTransactionTimerDelayMs;
+    }
+
+    void        setVerifyApprovalTransactionTimerDelay( int miliseconds ) override
+    {
+        m_verifyApprovalTransactionTimerDelayMs = miliseconds;
+    }
+    
+    int         getVerifyApprovalTransactionTimerDelay() override
+    {
+        return m_verifyApprovalTransactionTimerDelayMs;
     }
 
     void        setSessionSettings(const lt::settings_pack& settings, bool localNodes) override

@@ -226,7 +226,6 @@ protected:
                          const std::string& salt,
                          std::array<uint8_t, 64>& sig) override
     {
-        Signature signature;
         crypto::Sign(m_keyPair,
                      {
                              utils::RawBuffer{reinterpret_cast<const uint8_t *>(value.data()), value.size()},

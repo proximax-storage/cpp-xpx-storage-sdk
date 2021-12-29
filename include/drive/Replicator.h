@@ -250,6 +250,9 @@ public:
     // It will be called after 'single MODIFY approval transaction' has been published
     virtual void        asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo transaction ) = 0;
 
+    // It will be called after 'VERIFY approval transaction' has been published
+    virtual void        asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
+
     // It continues drive closing (initiates DownloadApprovalTransaction and then removes drive)
     virtual void        closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) = 0;
     
@@ -270,6 +273,8 @@ public:
     virtual void        setDownloadApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual void        setModifyApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual int         getModifyApprovalTransactionTimerDelay() = 0;
+    virtual void        setVerifyApprovalTransactionTimerDelay( int milliseconds ) = 0;
+    virtual int         getVerifyApprovalTransactionTimerDelay() = 0;
     virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
 
     

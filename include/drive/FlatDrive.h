@@ -176,6 +176,15 @@ class Replicator;
         std::array<uint8_t, 32> m_modifyTransactionHash;
     };
 
+    struct PublishedVerificationApprovalTransactionInfo
+    {
+        // requested tx
+        std::array<uint8_t, 32> m_tx;
+
+        // Drive public key
+        std::array<uint8_t, 32> m_driveKey;
+    };
+
     // It is used in 2 cases:
     // - as 'DataModificationApprovalTransaction '
     // - as 'DataModificationSingleApprovalTransaction' (in this case vector 'm_opinions' has single element)
@@ -306,14 +315,20 @@ class Replicator;
 
     struct VerificationCodes
     {
-        VerificationRequest         m_request;
         std::vector<uint64_t>       m_codes;
     };
 
-    struct VerificationReply
+    struct VerificationOpinion
     {
-        bool                        m_opinion;
+        bool                        m_opinion = false;
         std::array<uint8_t,32>      m_replicatorKey;
+        uint64_t                    m_verificationCode;
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_opinion );
+            arch( m_replicatorKey );
+        }
     };
 
     struct VerifyApprovalInfo
@@ -322,7 +337,7 @@ class Replicator;
         std::array<uint8_t,32>          m_tx;
         std::array<uint8_t,32>          m_drivePublicKey;
         //???std::array<uint8_t,32>          m_shardId;
-        std::vector<VerificationReply>  m_opinions;
+        std::vector<VerificationOpinion> m_opinions;
         
         // our publicKey, m_tx, m_driveKey, m_shardId, m_opinions
         Signature                   m_signature;
@@ -357,6 +372,12 @@ class Replicator;
         
         // It will be called when transaction could not be completed
         virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
+
+        // It will initiate the approving of verify transaction
+        virtual void verifyApprovalTransactionIsReady( Replicator& replicator, VerifyApprovalInfo&& info )
+        {
+            //TODO make it 'pure virtual'
+        }
 
         virtual void opinionHasBeenReceived(  Replicator& replicator,
                                               const ApprovalTransactionInfo& ) = 0;
@@ -469,6 +490,12 @@ class Replicator;
         virtual void     startDriveClosing( const Hash256& transactionHash ) = 0;
 
         virtual void     startDriveVerification( VerificationRequest&& request ) = 0;
+
+        virtual void     onVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
+
+        virtual void     processVerificationCode( uint64_t                      verificationCode,
+                                                  const std::array<uint8_t,32>& tx,
+                                                  const std::array<uint8_t,32>& replicatorKey ) = 0;
 
 //        virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
         

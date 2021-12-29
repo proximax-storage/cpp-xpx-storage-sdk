@@ -570,7 +570,6 @@ public:
    {
        DBG_MAIN_THREAD
 
-       Signature signature;
        crypto::Sign(m_keyPair,
                     {
                         utils::RawBuffer{reinterpret_cast<const uint8_t *>(value.data()), value.size()},
