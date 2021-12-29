@@ -893,7 +893,7 @@ public:
     
     virtual void asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
