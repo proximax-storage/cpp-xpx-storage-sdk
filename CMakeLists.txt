@@ -5,13 +5,14 @@ include(CMakeGlobalSettings.cmake)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Libtorrent
 option(BUILD_SHARED_LIBS "Build the shared library" ON)
-option(XPX_STORAGE_SDK_BUILD_EMULATOR "Build XPX-STORAGE SDK emulator." OFF)
-option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build XPX-STORAGE SDK examples." OFF)
+option(XPX_STORAGE_SDK_BUILD_EMULATOR "Build XPX-STORAGE SDK emulator." ON)
+option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build XPX-STORAGE SDK examples." ON)
 
 ### setup boost
 find_package(Boost COMPONENTS atomic system date_time regex timer chrono log thread filesystem program_options random REQUIRED)
@@ -21,7 +22,7 @@ include_directories(cereal/include)
 add_subdirectory(libtorrent)
 
 if (XPX_STORAGE_SDK_BUILD_EMULATOR)
-    include_directories(SYSTEM "rpclib/include")
+    add_subdirectory(rpclib)
 endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
