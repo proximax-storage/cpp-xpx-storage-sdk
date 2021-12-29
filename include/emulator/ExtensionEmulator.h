@@ -14,7 +14,7 @@
 #include "rpc/server.h"
 #include "rpc/this_handler.h"
 
-namespace sirius::drive {
+namespace sirius::emulator {
     class PLUGIN_API ExtensionEmulator {
     public:
         ExtensionEmulator(const std::string& address, const unsigned short& port);

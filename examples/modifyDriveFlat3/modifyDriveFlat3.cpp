@@ -414,15 +414,15 @@ int main(int,char**)
     ///
     /// Make the list of replicator addresses
     ///
-    boost::asio::ip::address e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR);
+    boost::asio::ip::address e = boost::asio::ip::make_address(REPLICATOR_IP_ADDR);
     replicatorList.emplace_back( ReplicatorInfo{ {e, REPLICATOR_PORT},
         sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY)).publicKey() } );
     
-    boost::asio::ip::address e2 = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_2);
+    boost::asio::ip::address e2 = boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2);
     replicatorList.emplace_back( ReplicatorInfo{ {e2, REPLICATOR_PORT_2},
         sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_2)).publicKey() } );
 
-    boost::asio::ip::address e3 = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_3);
+    boost::asio::ip::address e3 = boost::asio::ip::make_address(REPLICATOR_IP_ADDR_3);
     replicatorList.emplace_back( ReplicatorInfo{ {e3, REPLICATOR_PORT_3},
         sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3)).publicKey() } );
 

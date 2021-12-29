@@ -1,10 +1,11 @@
-#include "drive/RpcReplicatorClient.h"
-#include "drive/RpcReplicator.h"
+#include "emulator/RpcReplicatorClient.h"
+#include "emulator/RpcReplicator.h"
 #include "drive/ClientSession.h"
-#include "drive/ExtensionEmulator.h"
+#include "emulator/ExtensionEmulator.h"
 #include <filesystem>
 #include <array>
 
+using namespace sirius::emulator;
 using namespace sirius::drive;
 
 int main() {

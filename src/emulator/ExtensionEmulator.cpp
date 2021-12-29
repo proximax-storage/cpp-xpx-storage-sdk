@@ -4,9 +4,9 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "drive/ExtensionEmulator.h"
+#include "emulator/ExtensionEmulator.h"
 
-namespace sirius::drive {
+namespace sirius::emulator {
     ExtensionEmulator::ExtensionEmulator(const std::string& address, const unsigned short& port)
     {
         m_address = address;
