@@ -9,7 +9,6 @@ set(CMAKE_CXX_EXTENSIONS ON)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Libtorrent
-option(BUILD_SHARED_LIBS "Build the shared library" ON)
 option(XPX_STORAGE_SDK_BUILD_EMULATOR "Build XPX-STORAGE SDK emulator." OFF)
 option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build XPX-STORAGE SDK examples." OFF)
 
