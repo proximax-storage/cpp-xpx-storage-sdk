@@ -21,5 +21,5 @@ else()
         target_link_libraries(drive librpc.a)
     endif()
 
-	target_link_libraries(drive torrent-sirius)
+	target_link_libraries(drive crypto torrent-sirius)
 endif()
