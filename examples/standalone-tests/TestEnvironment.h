@@ -87,7 +87,7 @@ namespace sirius::drive::test {
 
                 //EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(replicatorKeyPair.publicKey().array()[0]) );
 
-                boost::asio::ip::tcp::endpoint point = {boost::asio::ip::address::from_string(ipAddr),
+                boost::asio::ip::tcp::endpoint point = {boost::asio::ip::make_address(ipAddr),
                                                         static_cast<ushort>(port)};
 
                 if (i <= startReplicator)

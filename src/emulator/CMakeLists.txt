@@ -16,6 +16,6 @@ else()
 	target_link_libraries(emulator drive)
 
     if (XPX_STORAGE_SDK_BUILD_EMULATOR)
-        target_link_libraries(emulator librpc.a)
+        target_link_libraries(emulator xpx.rpc)
     endif()
 endif()

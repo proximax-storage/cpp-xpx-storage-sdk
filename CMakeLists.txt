@@ -9,8 +9,8 @@ set(CMAKE_CXX_EXTENSIONS ON)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Libtorrent
-option(XPX_STORAGE_SDK_BUILD_EMULATOR "Build XPX-STORAGE SDK emulator." OFF)
-option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build XPX-STORAGE SDK examples." OFF)
+option(XPX_STORAGE_SDK_BUILD_EMULATOR "Build XPX-STORAGE SDK emulator." ON)
+option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build XPX-STORAGE SDK examples." ON)
 
 ### setup boost
 find_package(Boost COMPONENTS atomic system date_time regex timer chrono log thread filesystem program_options random REQUIRED)
