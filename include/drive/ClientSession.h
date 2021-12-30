@@ -285,7 +285,7 @@ protected:
         return m_receivedSize[peerPublicKey];
     }
     
-    virtual void onMessageReceived( const std::string& query, const std::string& message ) override
+    virtual void onMessageReceived( const std::string& query, const std::string& message, const boost::asio::ip::udp::endpoint& source ) override
     {
     }
 
