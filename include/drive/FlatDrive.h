@@ -309,6 +309,7 @@ class Replicator;
     struct VerificationRequest
     {
         Hash256                     m_tx;
+        uint32_t                    m_shardId = 0;
         InfoHash                    m_actualRootHash;
         std::vector<Key>            m_replicators;
     };
@@ -320,27 +321,45 @@ class Replicator;
 
     struct VerificationOpinion
     {
-        bool                        m_opinion = false;
+        bool                        m_isValid = false;
         std::array<uint8_t,32>      m_replicatorKey;
+        
+        // it is used by drive only (and should not be signed)
         uint64_t                    m_verificationCode;
 
         template <class Archive> void serialize( Archive & arch )
         {
-            arch( m_opinion );
+            arch( m_isValid );
             arch( m_replicatorKey );
         }
     };
 
     struct VerifyApprovalInfo
     {
-        std::array<uint8_t,32>          m_publicKey;
-        std::array<uint8_t,32>          m_tx;
-        std::array<uint8_t,32>          m_drivePublicKey;
-        //???std::array<uint8_t,32>          m_shardId;
+        std::array<uint8_t,32>           m_publicKey;
+        //std::array<uint8_t,32>           m_tx;
+        //std::array<uint8_t,32>           m_driveKey;
+        //uint32_t                         m_shardId;
         std::vector<VerificationOpinion> m_opinions;
         
         // our publicKey, m_tx, m_driveKey, m_shardId, m_opinions
         Signature                   m_signature;
+        
+        void Sign( const crypto::KeyPair& keyPair,
+                   const Hash256&   tx,
+                   const Key&       driveKey,
+                   uint32_t         shardId )
+        {
+            //TODO
+        }
+
+        bool Verify( const Hash256& tx,
+                     const Key&     driveKey,
+                     uint32_t       shardId )
+        {
+            //TODO
+            return true;
+        }
     };
 
     struct VerifyApprovalTransactionInfo

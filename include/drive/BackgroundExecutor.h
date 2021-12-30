@@ -13,9 +13,14 @@ namespace sirius::drive {
 
 class BackgroundExecutor
 {
+    boost::asio::io_context m_context;
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> m_work;
+    std::thread m_thread;
+
 public:
     BackgroundExecutor()
       :
+        m_context(),
         m_work(boost::asio::make_work_guard(m_context)),
         m_thread( std::thread( [this] { m_context.run(); } ))
     {
@@ -39,11 +44,6 @@ public:
     {
         boost::asio::post(m_context, [=] { task(); });
     }
-
-private:
-    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> m_work;
-    boost::asio::io_context m_context;
-    std::thread m_thread;
 };
 
 }
