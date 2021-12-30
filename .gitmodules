@@ -1,10 +1,10 @@
 [submodule "cereal"]
 	path = cereal
 	url = https://github.com/USCiLab/cereal.git
-[submodule "rpclib"]
-	path = rpclib
-	url = https://github.com/rpclib/rpclib
 [submodule "libtorrent"]
 	path = libtorrent
 	url = https://github.com/proximax-storage/libtorrent
 	branch = xpx-work
+[submodule "cpp-xpx-rpclib"]
+	path = cpp-xpx-rpclib
+	url = https://github.com/proximax-storage/cpp-xpx-rpclib.git
