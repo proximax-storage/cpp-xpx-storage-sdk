@@ -5,7 +5,6 @@ include(CMakeGlobalSettings.cmake)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
@@ -22,7 +21,7 @@ include_directories(cereal/include)
 add_subdirectory(libtorrent)
 
 if (XPX_STORAGE_SDK_BUILD_EMULATOR)
-    add_subdirectory(rpclib)
+    add_subdirectory(cpp-xpx-rpclib)
 endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
