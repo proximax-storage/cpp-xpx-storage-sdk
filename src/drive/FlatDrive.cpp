@@ -169,11 +169,14 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     std::optional<Hash256>      m_receivedModifyApproveTx;
 
     // Verify status
-    bool                            m_verifyCodesCalculated        = false;
-    bool                            m_verifyApproveTransactionSent = false;
-    VerifyApprovalInfo              m_verifyApprovalInfo;
+    bool                            m_verifyCodesCalculated = false;
+    bool                            m_verifyApproveTxSent   = false;
     std::optional<Hash256>          m_receivedVerifyApproveTx;
+    VerifyApprovalInfo              m_verifyApprovalInfo;
     std::vector<UnknownVerifyCode>  m_verifyOpinionQueue;
+
+    // Verification will be canceled, after any modify tx has beenbublished
+    bool                            m_verificationCanceled   = false;
 
     //
     // Drive state
@@ -657,6 +660,10 @@ public:
                 m_verificationRequest = std::move( m_defferedVerificationRequest );
                 m_defferedVerificationRequest.reset();
                 runVerifyDriveTaskOnSeparateThread();
+                
+                // Verification will performed on separate thread.
+                // And we should try to run other task.
+                // So, do not return;
             }
         }
 
@@ -774,16 +781,20 @@ public:
         
         _ASSERT( m_verificationRequest )
         
-        m_verifyCodesCalculated        = false;
-        m_verifyApproveTransactionSent = false;
-        m_verifyApprovalInfo = VerifyApprovalInfo {
-                                    m_replicator.replicatorKey().array(),
-                                    m_verificationRequest->m_tx.array(),
-                                    m_drivePubKey.array(),
-                                    {}, {}
-        };
+        // Reset verification variables
+        m_verifyCodesCalculated = false;
+        m_verifyApproveTxSent   = false;
+        m_verificationCanceled  = false;
         m_receivedVerifyApproveTx.reset();
         
+        // Prepare 'Verify Approval Tx Info'
+        m_verifyApprovalInfo = VerifyApprovalInfo { m_replicator.replicatorKey().array(), {}, {} };
+//                                    m_verificationRequest->m_tx.array(),
+//                                    m_drivePubKey.array(),
+//                                    {}, {}
+//        };
+        
+        // Add early received 'verification codes' from other replicators
         for( auto& verifyCode: m_verifyOpinionQueue )
         {
             if ( verifyCode.m_tx == m_verificationRequest->m_tx.array() )
@@ -803,6 +814,7 @@ public:
             }
         }
 
+        // Run verification task on separate thread
         m_verifyThread = std::thread( [this]
         {
             DBG_VERIFY_THREAD
@@ -851,7 +863,7 @@ public:
                 uint8_t buffer[4096];
                 FILE* file = fopen( fileName.c_str(), "rb" );
                 
-                for(;;)
+                while( !m_verificationCanceled )
                 {
                     auto byteCount = fread( buffer, 1, 4096, file );
                     if ( byteCount==0 )
@@ -876,8 +888,9 @@ public:
         
         m_verifyCodesCalculated = true;
         
-        if ( m_receivedVerifyApproveTx )
+        if ( m_receivedVerifyApproveTx || m_verificationCanceled )
         {
+            // 'Verify Approval Tx' already published or canceled (we are late)
             m_verificationRequest.reset();
             return;
         }
@@ -1077,11 +1090,12 @@ public:
     {
         DBG_MAIN_THREAD
         
+        // Save verification opinion in queue, if we so far does not received verificationRequest
         if ( !m_verificationRequest || tx != m_verificationRequest->m_tx.array() )
         {
             if ( m_verificationRequest )
             {
-                _LOG( "m_verificationRequest->m_tx: " << m_verificationRequest->m_tx )
+                _LOG( "processVerificationCode: m_verificationRequest->m_tx: " << m_verificationRequest->m_tx )
             }
             _LOG( "processVerificationCode: unknown tx: " << Key(tx) )
             
@@ -1089,6 +1103,9 @@ public:
             return;
         }
         
+        //
+        // Check replicator key, it must be in replicatorList
+        //
         auto& replicatorKeys = m_verificationRequest->m_replicators;
         auto keyIt = std::find_if( replicatorKeys.begin(), replicatorKeys.end(), [&replicatorKey] (const auto& it) {
             return it.array() == replicatorKey;
@@ -1098,19 +1115,18 @@ public:
         {
             _LOG_WARN( "processVerificationCode: unknown replicatorKey" << Key(replicatorKey) );
         }
-        
-        VerificationOpinion opinion{ false, replicatorKey, verificationCode };
-        
+
+        // Remove opinion with same key, to prevent duplicate opinions
         auto& opinions = m_verifyApprovalInfo.m_opinions;
         std::remove_if( opinions.begin(), opinions.end(), [&replicatorKey] (const auto& it ) {
             return it.m_replicatorKey == replicatorKey;
         });
 
+        // Add opinion
+        VerificationOpinion opinion{ false, replicatorKey, verificationCode };
         opinions.push_back( opinion );
         
-        _ASSERT( m_verificationRequest );
-        
-        if ( m_verificationCodes.m_codes.size() == m_verificationRequest->m_replicators.size() )
+        if ( m_verifyCodesCalculated )
         {
             checkVerifyOpinionNumberAndStartTimer();
         }
@@ -1126,7 +1142,7 @@ public:
 
         // check opinion number
         if ( m_verifyApprovalInfo.m_opinions.size() >= ((replicatorNumber)*2)/3
-            && !m_verifyApproveTransactionSent && !m_receivedVerifyApproveTx )
+            && !m_verifyApproveTxSent && !m_receivedVerifyApproveTx )
         {
             // start timer if it is not started
             if ( !m_verifyOpinionTimer )
@@ -1144,8 +1160,17 @@ public:
     {
         DBG_MAIN_THREAD
         
-        if ( m_verifyApproveTransactionSent || m_receivedVerifyApproveTx )
+        if ( m_verifyApproveTxSent || m_receivedVerifyApproveTx )
             return;
+        
+        _ASSERT( m_verificationRequest );
+        
+        VerifyApprovalTransactionInfo txInfo{
+                                m_verificationRequest->m_tx.array(),
+                                m_drivePubKey.array(),
+                                m_verificationRequest->m_shardId, {} };
+        
+        m_eventHandler.verificationTransactionIsReady( m_replicator, std::move(txInfo) );
         
 //        ApprovalTransactionInfo info = {    m_drivePubKey.array(),
 //                                            m_myOpinion->m_modifyTransactionHash,
@@ -1164,7 +1189,7 @@ public:
 //        // notify event handler
 //        m_eventHandler.modifyApprovalTransactionIsReady( m_replicator, std::move(info) );
 
-        m_verifyApproveTransactionSent = true;
+        m_verifyApproveTxSent = true;
     }
     
     void startDriveVerification( VerificationRequest&& request ) override
@@ -1185,16 +1210,17 @@ public:
             runVerifyDriveTaskOnSeparateThread();
             return;
         }
-        
-        if ( m_modifyRequest || m_catchingUpRequest || m_modificationCanceledTx || m_driveWillRemovedTx )
-        {
-            // wait the end of the current task
-            return;
-        }
-        else
-        {
-            runNextTask();
-        }
+
+//(???)
+//        if ( m_modifyRequest || m_catchingUpRequest || m_modificationCanceledTx || m_driveWillRemovedTx )
+//        {
+//            // wait the end of the current task
+//            return;
+//        }
+//        else
+//        {
+//            runNextTask();
+//        }
     }
 
     void runDriveClosingTask( std::optional<Hash256>&& transactionHash )
@@ -2032,6 +2058,8 @@ public:
     {
         DBG_MAIN_THREAD
 
+        m_verificationCanceled = true;
+
         if ( m_driveIsInitializing )
         {
             m_publishedTxDuringInitialization = transaction;
@@ -2044,6 +2072,7 @@ public:
             return;
         }
 
+        //(???)
         m_receivedModifyApproveTx = transaction.m_modifyTransactionHash;
 
         // stop timer
@@ -2162,6 +2191,7 @@ public:
 
     void onSingleApprovalTransactionHasBeenPublished( const PublishedModificationSingleApprovalTransactionInfo& transaction ) override
     {
+        m_verificationCanceled = true;
         _LOG( "onSingleApprovalTransactionHasBeenPublished()" );
     }
 
