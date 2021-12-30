@@ -15,7 +15,7 @@
 #include "drive/ClientSession.h"
 #include "drive/Utils.h"
 #include "drive/FsTree.h"
-#include "../../rpclib/include/rpc/server.h"
+#include "../../cpp-xpx-rpclib/include/rpc/server.h"
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
 
