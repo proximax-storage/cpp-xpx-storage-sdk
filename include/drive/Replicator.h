@@ -139,39 +139,98 @@ struct ModifyDriveInfo
 // The key is a transaction hash
 using ModifyDriveMap    = std::map<std::array<uint8_t,32>, ModifyDriveInfo>;
 
+struct ExternalEndpointRequest {
+
+    std::array<uint8_t, 32> m_requestTo;
+    std::array<uint8_t, 32> m_challenge;
+
+    template<class Archive>
+    void serialize(Archive &arch)
+    {
+        arch(m_requestTo);
+        arch(m_challenge);
+    }
+};
+
+struct ExternalEndpointResponse {
+
+    std::array<uint8_t, 32> m_requestTo;
+    std::array<uint8_t, 32> m_challenge;
+    std::array<uint8_t, sizeof(boost::asio::ip::tcp::endpoint)> m_endpoint;
+    Signature m_signature;
+
+    void Sign( const crypto::KeyPair& keyPair )
+    {
+        crypto::Sign(keyPair,
+                     {
+            utils::RawBuffer{ m_challenge },
+            utils::RawBuffer{ m_endpoint }
+            },
+            m_signature);
+    }
+
+    bool Verify() const
+    {
+        return crypto::Verify(m_requestTo,
+                       {
+                               utils::RawBuffer{m_challenge},
+                               utils::RawBuffer{m_endpoint}
+                       },
+                       m_signature);
+    }
+
+    template<class Archive>
+    void serialize(Archive &arch)
+    {
+        arch(m_requestTo);
+        arch(m_challenge);
+        arch(m_endpoint);
+        arch(cereal::binary_data(m_signature.data(), m_signature.size()));
+    }
+};
 
 struct DhtHandshake
 {
-    std::array<uint8_t, 32> m_replicatorPublicKey;
-    std::array<uint8_t, 32> m_drivePublicKey;
+    std::array<uint8_t, 32> m_fromPublicKey;
+    std::array<uint8_t, 32> m_toPublicKey;
+    std::array<uint8_t, sizeof(boost::asio::ip::tcp::endpoint)> m_endpoint;
     Signature m_signature;
 
-    void Sign( const crypto::KeyPair& keyPair ) {
-        crypto::Sign(
-                keyPair,
-                {
-                    utils::RawBuffer{ m_replicatorPublicKey }
-                },
-                m_signature );
+    void Sign( const crypto::KeyPair& keyPair )
+    {
+        crypto::Sign(keyPair,
+                     {
+                             utils::RawBuffer{ m_toPublicKey },
+                             utils::RawBuffer{ m_endpoint }
+                     },
+                     m_signature);
     }
 
-    void Verify( const crypto::KeyPair& keyPair ) {
-        crypto::Verify(
-                m_replicatorPublicKey,
-                {
-                        utils::RawBuffer{m_drivePublicKey},
-                },
-                m_signature);
+    bool Verify() const
+    {
+        return crypto::Verify(m_fromPublicKey,
+                       {
+                               utils::RawBuffer{m_toPublicKey},
+                               utils::RawBuffer{m_endpoint}
+                       },
+                       m_signature);
     }
 
 
     template<class Archive>
     void serialize(Archive &arch)
     {
-        arch(m_replicatorPublicKey);
-        arch(m_drivePublicKey);
+        arch(m_fromPublicKey);
+        arch(m_toPublicKey);
+        arch(m_endpoint);
         arch(cereal::binary_data(m_signature.data(), m_signature.size()));
     }
+};
+
+struct EndpointInformation
+{
+    std::optional<boost::asio::ip::tcp::endpoint> m_endpoint;
+    std::optional<boost::asio::high_resolution_timer> m_timer;
 };
 
 //

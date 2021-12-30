@@ -553,7 +553,6 @@ public:
                             const std::array<uint8_t,32>& pk,
                             const std::array<uint8_t,64>& sig ) override
     {
-
         return crypto::Verify(Key{pk},
                        {
                                utils::RawBuffer{reinterpret_cast<const uint8_t *>(value.data()), value.size()},

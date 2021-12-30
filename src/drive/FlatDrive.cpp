@@ -265,8 +265,6 @@ public:
     {
         m_dbgThreadId = std::this_thread::get_id();
 
-//        session->announceStoreDrive(m_drivePubKey);
-
         m_backgroundExecutor.run( [this]
         {
             initializeDrive();

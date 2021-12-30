@@ -26,6 +26,187 @@ namespace sirius::drive {
 
 #define USE_OUR_IO_CONTEXT
 
+class EndpointsManager
+{
+public:
+
+    EndpointsManager(Replicator& replicator, std::weak_ptr<Session> session)
+        : m_replicator(replicator)
+        , m_session(session)
+    {}
+
+    void start()
+    {
+        onUpdateExternalEndpointTimerTick();
+    }
+
+    void addEndpointEntry(const Key& key )
+    {
+        if ( m_endpointsMap.contains(key) )
+        {
+            return;
+        }
+        auto it = m_unknownEndpointsMap.find(key);
+        if ( it != m_unknownEndpointsMap.end() )
+        {
+            m_endpointsMap[key].m_endpoint = it->second;
+            if ( auto session = m_session.lock(); session )
+            {
+                m_endpointsMap[key].m_timer = session->startTimer(m_standardExternalEndpointDelayMs, [this, key]
+                {
+                    requestEndpoint(key);
+                });
+            }
+            m_unknownEndpointsMap.erase(it);
+        }
+        else {
+            m_endpointsMap[key] = {};
+            requestEndpoint(key);
+        }
+    }
+
+    void addEndpointEntries(const std::vector<Key>& keys)
+    {
+        for ( const auto& key: keys )
+        {
+            addEndpointEntry(key);
+        }
+    }
+
+    void updateEndpoint(const Key& key, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint )
+    {
+        auto it = m_endpointsMap.find(key);
+        if ( it != m_endpointsMap.end() )
+        {
+            int delay;
+            if ( endpoint )
+            {
+                it->second.m_endpoint = endpoint;
+                delay = m_standardExternalEndpointDelayMs;
+            }
+            else {
+                delay = m_noResponseExternalEndpointDelayMs;
+            }
+            if ( auto session = m_session.lock(); session )
+            {
+                it->second.m_timer = session->startTimer( delay, [this, key]
+                {
+                    requestEndpoint(key);
+                });
+            }
+        }
+        else
+        {
+            assert( endpoint );
+            m_unknownEndpointsMap[key] = *endpoint;
+        }
+    }
+
+    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint( const Key& key )
+    {
+        if ( auto it = m_endpointsMap.find(key); it != m_endpointsMap.end() )
+        {
+            return it->second.m_endpoint;
+        }
+//        _ASSERT( m_unknownEndpointsMap.find(key) == m_unknownEndpointsMap.end() )
+        return {};
+    }
+
+    void updateExternalEndpoint( const ExternalEndpointResponse& response )
+    {
+        if ( !m_externalEndpointRequest ||
+             m_externalEndpointRequest->m_challenge != response.m_challenge ||
+             m_externalEndpointRequest->m_requestTo != response.m_requestTo )
+        {
+            return;
+        }
+        if ( !response.Verify() )
+        {
+            return;
+        }
+        auto externalEndpoint = *reinterpret_cast<const boost::asio::ip::tcp::endpoint *>(&response.m_endpoint);
+        if ( !m_externalEndpoint || m_externalEndpoint != externalEndpoint )
+        {
+            // *** long operation?
+            for (const auto& [key, point]: m_endpointsMap)
+            {
+                sendHandshake(key);
+            }
+        }
+        m_externalEndpoint = externalEndpoint;
+        m_externalEndpointRequest.reset();
+        if ( auto session = m_session.lock(); session ) {
+            session->announceExternalAddress(externalEndpoint);
+            m_externalPointUpdateTimer = session->startTimer( m_standardExternalEndpointDelayMs, [this]
+            {
+                onUpdateExternalEndpointTimerTick();
+            });
+        };
+    }
+
+private:
+
+    void sendHandshake( const Key& to )
+    {
+        auto addressTo = getEndpoint(to);
+        if ( addressTo )
+        {
+            DhtHandshake handshake;
+            handshake.m_fromPublicKey = m_replicator.replicatorKey().array();
+            handshake.Sign( m_replicator.keyPair() );
+            std::ostringstream os( std::ios::binary );
+            cereal::PortableBinaryOutputArchive archive( os );
+            archive( handshake );
+            m_replicator.sendMessage( "handshake", *addressTo, os.str() );
+        }
+    }
+
+    void onUpdateExternalEndpointTimerTick()
+    {
+        int bootstrapToAsk = random() % m_bootstraps.size();
+        m_externalEndpointRequest =
+                {
+                        m_bootstraps[bootstrapToAsk].m_publicKey.array(),
+                        randomByteArray<Hash256>().array()
+                };
+
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( *m_externalEndpointRequest );
+        m_replicator.sendMessage( "endpoint_request", m_bootstraps[bootstrapToAsk].m_endpoint, os.str());
+
+        if ( auto session = m_session.lock(); session ) {
+            m_externalPointUpdateTimer = session->startTimer( m_noResponseExternalEndpointDelayMs, [this]
+            {
+                onUpdateExternalEndpointTimerTick();
+            });
+        };
+    }
+
+    void requestEndpoint( const Key& key )
+    {
+        if ( auto session = m_session.lock(); session )
+        {
+            session->findAddress(key);
+        }
+    }
+
+    std::map<Key, EndpointInformation> m_endpointsMap;
+    std::map<Key, boost::asio::ip::tcp::endpoint> m_unknownEndpointsMap;
+
+    Replicator& m_replicator;
+    std::weak_ptr<Session> m_session;
+
+    std::optional<boost::asio::high_resolution_timer> m_externalPointUpdateTimer;
+
+    std::optional<boost::asio::ip::tcp::endpoint> m_externalEndpoint;
+    std::optional<ExternalEndpointRequest> m_externalEndpointRequest;
+    std::vector<ReplicatorInfo> m_bootstraps;
+
+    const int m_standardExternalEndpointDelayMs = 1000 * 60 * 60;
+    const int m_noResponseExternalEndpointDelayMs = 1000 * 15;
+};
+
 //
 // DefaultReplicator
 //
@@ -55,8 +236,8 @@ private:
     ReplicatorEventHandler& m_eventHandler;
     DbgReplicatorEventHandler*  m_dbgEventHandler;
 
-    std::map<Key, boost::asio::ip::tcp::endpoint> m_knownEndpoints;
-    
+    EndpointsManager m_endpointsManager;
+
     // key is verify tx
     std::map<std::array<uint8_t,32>, VerifyApprovalInfo> m_verifyApprovalMap;
 
@@ -78,7 +259,8 @@ public:
         m_sandboxDirectory( std::move(sandboxDirectory) ),
         m_useTcpSocket( useTcpSocket ),
         m_eventHandler( handler ),
-        m_dbgEventHandler( dbgEventHandler )
+        m_dbgEventHandler( dbgEventHandler ),
+        m_endpointsManager( *this, m_session )
     {
     }
 
@@ -157,6 +339,11 @@ public:
             _LOG( "libtorrentThread ended" );
 #endif
         });
+
+        m_session->lt_session().get_context().post([this] {
+            m_endpointsManager.start();
+        });
+
         m_dbgThreadId = m_libtorrentThread.get_id();
 #else
         std::mutex waitMutex;
@@ -267,6 +454,11 @@ public:
                         m_dbgEventHandler );
 
                 m_driveMap[driveKey] = drive;
+
+                for ( auto& replicator: driveRequest.replicators )
+                {
+                    m_endpointsManager.addEndpointEntry(replicator.m_publicKey);
+                }
 
 //            if ( actualRootHash && drive->rootHash() != actualRootHash )
 //            {
@@ -445,17 +637,37 @@ public:
     {
         DBG_MAIN_THREAD
 
-//        _LOG( "Explored" )
-        Key publicKey = { key };
-        auto it = m_knownEndpoints.find(publicKey);
-        if ( it == m_knownEndpoints.end() || it->second != endpoint )
+        m_endpointsManager.updateEndpoint(key, endpoint);
+    }
+
+    void processHandshake( const DhtHandshake& info, const boost::asio::ip::tcp::endpoint &endpoint )
+    {
+        if ( !crypto::Verify(info.m_fromPublicKey, {}, info.m_signature) )
         {
-            m_knownEndpoints[key] = endpoint;
-            // TODO Maybe sent some information to this node
+            return;
+        }
+        onEndpointDiscovered(info.m_fromPublicKey, endpoint );
+    }
+
+    void processEndpointRequest( const ExternalEndpointRequest& request, const boost::asio::ip::tcp::endpoint& endpoint )
+    {
+        if ( m_keyPair.publicKey() == request.m_requestTo )
+        {
+            ExternalEndpointResponse response;
+            response.m_requestTo = request.m_requestTo;
+            response.m_challenge = request.m_challenge;
+            response.m_endpoint = *reinterpret_cast<const std::array<uint8_t, sizeof(endpoint)> *>(&endpoint);
+            response.Sign(m_keyPair);
+
+            std::ostringstream os( std::ios::binary );
+            cereal::PortableBinaryOutputArchive archive( os );
+            archive( response );
+
+            sendMessage( "endpoint_response", endpoint, os.str() );
         }
     }
 
-        virtual void asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) override
+    virtual void asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
 
@@ -907,10 +1119,12 @@ public:
         //TODO
     }
 
-    virtual void onMessageReceived( const std::string& query, const std::string& message ) override try
+    virtual void onMessageReceived( const std::string& query,
+                                    const std::string& message,
+                                    const boost::asio::ip::udp::endpoint& source ) override try
     {
         DBG_MAIN_THREAD
-        
+
         //todo
         if ( query == "opinion" )
         {
@@ -946,6 +1160,30 @@ public:
 
             processVerificationCode( tx, replicatorKey, verificationCode );
             return;
+        }
+        else if ( query == "handshake" )
+        {
+            std::istringstream is( message, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            DhtHandshake handshake;
+            iarchive( handshake );
+
+//            processHandshake( handshake );
+            return;
+        }
+        else if ( query == "endpoint_request" ) {
+            std::istringstream is( message, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            ExternalEndpointRequest request;
+            iarchive( request );
+            processEndpointRequest(request, {source.address(), source.port()});
+        }
+        else if ( query == "endpoint_response" ) {
+            std::istringstream is( message, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            ExternalEndpointResponse response;
+            iarchive( response );
+            m_endpointsManager.updateExternalEndpoint(response);
         }
         
         assert(0);
