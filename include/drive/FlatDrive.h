@@ -314,18 +314,51 @@ class Replicator;
         std::vector<Key>            m_replicators;
     };
 
-    struct VerificationCodes
+    struct VerificationCodeInfo
     {
-        std::vector<uint64_t>       m_codes;
+        std::array<uint8_t,32> m_tx;
+        std::array<uint8_t,32> m_replicatorKey;
+        std::array<uint8_t,32> m_driveKey;
+        uint64_t               m_code;
+
+        Signature              m_signature;
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_tx );
+            arch( m_replicatorKey );
+            arch( m_driveKey );
+            arch( m_code );
+            arch( cereal::binary_data( m_signature.data(), m_signature.size() ) );
+        }
+
+        void Sign( const crypto::KeyPair& keyPair )
+        {
+            crypto::Sign( keyPair,
+                          {
+                            utils::RawBuffer{m_tx},
+                            utils::RawBuffer{m_driveKey},
+                            utils::RawBuffer{ (const uint8_t*) &m_code, sizeof(m_code) },
+                          },
+                          m_signature );
+        }
+
+        bool Verify() const
+        {
+            return crypto::Verify( m_replicatorKey,
+                                   {
+                                        utils::RawBuffer{m_tx},
+                                        utils::RawBuffer{m_driveKey},
+                                        utils::RawBuffer{ (const uint8_t*) &m_code, sizeof(m_code) },
+                                   },
+                                   m_signature );
+        }
     };
 
-    struct VerificationOpinion
+    struct VerifyOpinion
     {
-        bool                        m_isValid = false;
+        uint8_t                     m_isValid = 0; // 0 or 1
         std::array<uint8_t,32>      m_replicatorKey;
-        
-        // it is used by drive only (and should not be signed)
-        uint64_t                    m_verificationCode;
 
         template <class Archive> void serialize( Archive & arch )
         {
@@ -336,29 +369,52 @@ class Replicator;
 
     struct VerifyApprovalInfo
     {
-        std::array<uint8_t,32>           m_publicKey;
+        std::array<uint8_t,32>              m_publicKey;
         //std::array<uint8_t,32>           m_tx;
         //std::array<uint8_t,32>           m_driveKey;
         //uint32_t                         m_shardId;
-        std::vector<VerificationOpinion> m_opinions;
-        
+        std::vector<std::array<uint8_t,32>> m_opinionKeys;
+        std::vector<uint8_t>                   m_opinions;
+
         // our publicKey, m_tx, m_driveKey, m_shardId, m_opinions
         Signature                   m_signature;
         
-        void Sign( const crypto::KeyPair& keyPair,
-                   const Hash256&   tx,
-                   const Key&       driveKey,
-                   uint32_t         shardId )
+        template <class Archive> void serialize( Archive & arch )
         {
-            //TODO
+            arch( m_publicKey );
+            arch( m_opinions );
+            arch( cereal::binary_data( m_signature.data(), m_signature.size() ) );
         }
 
-        bool Verify( const Hash256& tx,
-                     const Key&     driveKey,
-                     uint32_t       shardId )
+        void Sign( const crypto::KeyPair&           keyPair,
+                   const std::array<uint8_t,32>&    tx,
+                   const std::array<uint8_t,32>&    driveKey,
+                   uint32_t                         shardId )
+       {
+            crypto::Sign( keyPair,
+                          {
+                            utils::RawBuffer{tx},
+                            utils::RawBuffer{driveKey},
+                            utils::RawBuffer{(const uint8_t*) &shardId, sizeof(shardId)},
+                            utils::RawBuffer{(const uint8_t*) &m_opinionKeys[0], m_opinionKeys.size()*sizeof(m_opinionKeys[0])},
+                            utils::RawBuffer{m_opinions},
+                          },
+                          m_signature );
+        }
+
+        bool Verify( const std::array<uint8_t,32>&    tx,
+                     const std::array<uint8_t,32>&    driveKey,
+                     uint32_t                         shardId ) const
         {
-            //TODO
-            return true;
+            return crypto::Verify( m_publicKey,
+                                  {
+                                    utils::RawBuffer{tx},
+                                    utils::RawBuffer{driveKey},
+                                    utils::RawBuffer{(const uint8_t*) &shardId, sizeof(shardId)},
+                                    utils::RawBuffer{(const uint8_t*) &m_opinionKeys[0], m_opinionKeys.size()*sizeof(m_opinionKeys[0])},
+                                    utils::RawBuffer{m_opinions},
+                                  },
+                                  m_signature );
         }
     };
 
@@ -368,6 +424,14 @@ class Replicator;
         std::array<uint8_t,32>          m_driveKey;
         uint32_t                        m_shardId = 0;
         std::vector<VerifyApprovalInfo> m_opinions;
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_tx );
+            arch( m_driveKey );
+            arch( m_shardId );
+            arch( m_opinions );
+        }
     };
 
     // Iterface for storage extension
@@ -512,9 +576,7 @@ class Replicator;
 
         virtual void     onVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
 
-        virtual void     processVerificationCode( uint64_t                      verificationCode,
-                                                  const std::array<uint8_t,32>& tx,
-                                                  const std::array<uint8_t,32>& replicatorKey ) = 0;
+        virtual void     processVerificationCode( mobj<VerificationCodeInfo>&& info ) = 0;
 
 //        virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
         

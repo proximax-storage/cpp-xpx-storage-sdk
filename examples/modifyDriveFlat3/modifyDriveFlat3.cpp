@@ -519,7 +519,7 @@ int main(int,char**)
     
     ///TODO
 //    sleep(1);
-//    gReplicator->sendMessage( "dnopinion", replicatorList[0].m_endpoint, "str" );
+//    gReplicator->sendMessage( "dn_opinion", replicatorList[0].m_endpoint, "str" );
 //    sleep(1);
 //    usleep(1000);
     //_EXLOG( "replicatorList[0].m_endpoint" << replicatorList[0].m_endpoint );
@@ -627,6 +627,7 @@ static std::shared_ptr<Replicator> createReplicator(
 
     replicator->setDownloadApprovalTransactionTimerDelay(1);
     replicator->setModifyApprovalTransactionTimerDelay(1);
+    replicator->setVerifyCodeTimerDelay(100);
     replicator->setVerifyApprovalTransactionTimerDelay(1);
     replicator->start();
     replicator->asyncAddDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, replicatorList, clientKeyPair.publicKey()} );

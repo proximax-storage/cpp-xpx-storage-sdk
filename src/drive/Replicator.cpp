@@ -47,6 +47,7 @@ private:
     
     int         m_downloadApprovalTransactionTimerDelayMs = 60*1000;
     int         m_modifyApprovalTransactionTimerDelayMs   = 60*1000;
+    int         m_verifyCodeTimerDelayMs                  = 60*60*1000;
     int         m_verifyApprovalTransactionTimerDelayMs   = 60*1000;
     std::mutex  m_replicatorDestructingMutex;
     bool        m_replicatorIsDestructing = false;
@@ -628,7 +629,7 @@ public:
                 if ( replicatorIt.m_publicKey != publicKey() )
                 {
                     //_LOG( "replicatorIt.m_endpoint: " << replicatorIt.m_endpoint << " " << os.str().length() << " " << dbgReplicatorName() );
-                    sendMessage( "dnopinion", replicatorIt.m_endpoint, os.str() );
+                    sendMessage( "dn_opinion", replicatorIt.m_endpoint, os.str() );
                 }
             }
 
@@ -937,7 +938,7 @@ public:
             processOpinion(info);
             return;
         }
-        else if ( query == "dnopinion" )
+        else if ( query == "dn_opinion" )
         {
             std::istringstream is( message, std::ios::binary );
             cereal::PortableBinaryInputArchive iarchive(is);
@@ -947,21 +948,32 @@ public:
             processDownloadOpinion(info);
             return;
         }
-        else if ( query == "verification_code" )
+        else if ( query == "code_verify" )
         {
             std::istringstream is( message, std::ios::binary );
             cereal::PortableBinaryInputArchive iarchive(is);
             
-            uint64_t               verificationCode;
-            std::array<uint8_t,32> tx;
-            std::array<uint8_t,32> replicatorKey;
-            std::array<uint8_t,32> driveKey;
-            iarchive( verificationCode );
-            iarchive( tx );
-            iarchive( replicatorKey );
-            iarchive( driveKey );
-
-            processVerificationCode( verificationCode, tx, replicatorKey, driveKey );
+            VerificationCodeInfo info;
+            iarchive( info );
+            processVerificationCode( std::move(info) );
+            return;
+        }
+        
+        else if ( query == "verify_opinion" )
+        {
+//            std::istringstream is( message, std::ios::binary );
+//            cereal::PortableBinaryInputArchive iarchive(is);
+//
+//            uint64_t               verificationCode;
+//            std::array<uint8_t,32> tx;
+//            std::array<uint8_t,32> replicatorKey;
+//            std::array<uint8_t,32> driveKey;
+//            iarchive( verificationCode );
+//            iarchive( tx );
+//            iarchive( replicatorKey );
+//            iarchive( driveKey );
+//
+//            processVerificationOpinion( verificationCode, tx, replicatorKey, driveKey );
             return;
         }
         
@@ -973,22 +985,19 @@ public:
     }
 
 
-    void processVerificationCode( uint64_t                      verificationCode,
-                                  const std::array<uint8_t,32>& tx,
-                                  const std::array<uint8_t,32>& replicatorKey,
-                                  const std::array<uint8_t,32>& driveKey )
+    void processVerificationCode( mobj<VerificationCodeInfo>&& info )
     {
         DBG_MAIN_THREAD
         
         //TODO verify sign???
         
-        if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+        if ( auto driveIt = m_driveMap.find( info->m_driveKey ); driveIt != m_driveMap.end() )
         {
-            driveIt->second->processVerificationCode( verificationCode, tx, replicatorKey );
+            driveIt->second->processVerificationCode( std::move(info) );
             return;
         }
         
-        _LOG_WARN( "processVerificationCode: unknown drive: " << Key(driveKey) );
+        _LOG_WARN( "processVerificationCode: unknown drive: " << Key(info->m_driveKey) );
     }
 
     
@@ -1010,6 +1019,16 @@ public:
     int         getModifyApprovalTransactionTimerDelay() override
     {
         return m_modifyApprovalTransactionTimerDelayMs;
+    }
+
+    void        setVerifyCodeTimerDelay( int miliseconds ) override
+    {
+        m_verifyCodeTimerDelayMs = miliseconds;
+    }
+    
+    int         getVerifyCodeTimerDelay() override
+    {
+        return m_verifyCodeTimerDelayMs;
     }
 
     void        setVerifyApprovalTransactionTimerDelay( int miliseconds ) override

@@ -531,7 +531,7 @@ public:
 //            _LOG( "message: " << message );
 //            _LOG( "response: " << response );
 
-            if ( query == "opinion" || query == "dnopinion" || query == "verification_code" )
+            if ( query == "opinion" || query == "dn_opinion" || query == "code_verify" || query == "verify_opinion" )
             {
                 auto str = message.dict_find_string_value("x");
                 std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
