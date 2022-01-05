@@ -333,7 +333,9 @@ public:
 
     
     // Message exchange
-    virtual void        sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint, const std::string& ) = 0;
+    virtual void        sendMessage( const std::string& query,
+                                     const std::array<uint8_t,32>&  replicatorKey,
+                                     const std::vector<uint8_t>& ) = 0;
     
     virtual void        sendMessage( const std::string&             query,
                                      const std::array<uint8_t,32>&  replicatorKey,
@@ -367,6 +369,7 @@ PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(
                                                std::string&&  port,
                                                std::string&&  storageDirectory,
                                                std::string&&  sandboxDirectory,
+                                               const std::vector<ReplicatorInfo>&  bootstraps,
                                                bool           useTcpSocket, // use TCP socket (instead of uTP)
                                                ReplicatorEventHandler&,
                                                DbgReplicatorEventHandler*  dbgEventHandler = nullptr,

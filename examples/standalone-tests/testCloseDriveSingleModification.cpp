@@ -14,7 +14,8 @@
 
 using namespace sirius::drive::test;
 
-namespace sirius::drive::test {
+namespace sirius::drive::test
+{
 
 /// change this macro for your test
 #define TEST_NAME CloseDriveSingleModification
@@ -22,9 +23,10 @@ namespace sirius::drive::test {
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 #define RUN_TEST void JOIN(run, TEST_NAME)()
 
-class ENVIRONMENT_CLASS : public TestEnvironment {
+    class ENVIRONMENT_CLASS : public TestEnvironment
+    {
     public:
-    ENVIRONMENT_CLASS(
+        ENVIRONMENT_CLASS(
                 int numberOfReplicators,
                 const std::string &ipAddr0,
                 int port0,
@@ -35,30 +37,36 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
                 int downloadApprovalDelay,
                 int startReplicator = -1)
                 : TestEnvironment(
-                        numberOfReplicators,
-                        ipAddr0,
-                        port0,
-                        rootFolder0,
-                        sandboxRootFolder0,
-                        useTcpSocket,
-                        modifyApprovalDelay,
-                        downloadApprovalDelay,
-                        startReplicator)
+                numberOfReplicators,
+                ipAddr0,
+                port0,
+                rootFolder0,
+                sandboxRootFolder0,
+                useTcpSocket,
+                modifyApprovalDelay,
+                downloadApprovalDelay,
+                startReplicator)
         {}
     };
 
-    TEST(ModificationTest, TEST_NAME) {
+    TEST(ModificationTest, TEST_NAME)
+    {
         fs::remove_all(ROOT_FOLDER);
 
         auto startTime = std::clock();
 
-        lt::settings_pack pack;
-        pack.set_int(lt::settings_pack::upload_rate_limit, 0);
-        TestClient client(pack);
-
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
                 SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1);
+
+        lt::settings_pack pack;
+        pack.set_int(lt::settings_pack::upload_rate_limit, 0);
+        endpoint_list bootstraps;
+        for ( const auto& b: env.m_bootstraps )
+        {
+            bootstraps.push_back( b.m_endpoint );
+        }
+        TestClient client(bootstraps, pack);
 
         EXLOG("\n# Client started: 1-st upload");
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
@@ -76,14 +84,15 @@ class ENVIRONMENT_CLASS : public TestEnvironment {
 
         EXLOG("\n# Client asked to close drive");
 
-        std::thread([] {
-            std::this_thread::sleep_for(std::chrono::seconds(10));
-            ASSERT_EQ(true, false);
-        }).detach();
+        std::thread([]
+                    {
+                        std::this_thread::sleep_for(std::chrono::seconds(10));
+                        ASSERT_EQ(true, false);
+                    }).detach();
 
         env.closeDrive(DRIVE_PUB_KEY);
         env.waitDriveClosure();
     }
-}
 
 #undef TEST_NAME
+}

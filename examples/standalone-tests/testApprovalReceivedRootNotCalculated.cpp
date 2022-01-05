@@ -77,14 +77,19 @@ namespace sirius::drive::test
 
         auto startTime = std::clock();
 
-        lt::settings_pack pack;
-        TestClient client(pack);
-
         EXLOG("");
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
                 SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 1024 * 1024);
+
+        lt::settings_pack pack;
+        endpoint_list bootstraps;
+        for ( const auto& b: env.m_bootstraps )
+        {
+            bootstraps.push_back( b.m_endpoint );
+        }
+        TestClient client(bootstraps, pack);
 
         EXLOG("\n# Client started: 1-st upload");
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
@@ -97,7 +102,7 @@ namespace sirius::drive::test
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        EXLOG( "Actionlist Hash" << toString(client.m_actionListHashes.back()) )
+        EXLOG("Actionlist Hash" << toString(client.m_actionListHashes.back()))
 
         EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);

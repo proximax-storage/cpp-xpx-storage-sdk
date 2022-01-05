@@ -51,8 +51,8 @@ public:
         {
             for( uint32_t i=0; i<replicatorList.size(); i++ )
             {
-                m_receivedSize[replicatorList[i].m_publicKey.array()]  = alreadyReceivedSize[i];
-                m_requestedSize[replicatorList[i].m_publicKey.array()] = alreadyReceivedSize[i];
+                m_receivedSize[replicatorList[i].array()]  = alreadyReceivedSize[i];
+                m_requestedSize[replicatorList[i].array()] = alreadyReceivedSize[i];
             }
         }
     }
@@ -80,6 +80,11 @@ public:
         m_session->download( std::move(downloadParameters), tmpFolder, m_downloadReplicatorList );
     }
 
+    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint(const std::array<uint8_t, 32> &key) override
+    {
+            return {};
+    }
+
     // prepare session to modify action
     InfoHash addActionListToSession( const ActionList&  actionList,
                                      const Key&         clientPublicKey,
@@ -95,8 +100,8 @@ public:
 
         // create endpoint list for libtorrent
         endpoint_list endpointList;
-        for( const auto& it : replicatorList )
-            endpointList.emplace_back( it.m_endpoint );
+//        for( const auto& it : replicatorList )
+//            endpointList.emplace_back( it );
 
         auto modificationWorkFolder = workFolder + "/" + drive::toString(drive::randomByteArray<Hash256>());
 
@@ -298,6 +303,7 @@ private:
     friend std::shared_ptr<ClientSession> createClientSession( const crypto::KeyPair&,
                                                                const std::string&,
                                                                const LibTorrentErrorHandler&,
+                                                               const endpoint_list&,
                                                                bool,
                                                                const char* );
 
@@ -308,13 +314,14 @@ private:
 inline std::shared_ptr<ClientSession> createClientSession(  const crypto::KeyPair&        keyPair,
                                                             const std::string&            address,
                                                             const LibTorrentErrorHandler& errorHandler,
+                                                            const endpoint_list&          bootstraps,
                                                             bool                          useTcpSocket, // instead of uTP
                                                             const char*                   dbgClientName = "" )
 {
     //LOG( "creating: " << dbgClientName << " with key: " <<  int(keyPair.publicKey().array()[0]) )
 
     std::shared_ptr<ClientSession> clientSession = std::make_shared<ClientSession>( keyPair, dbgClientName );
-    clientSession->m_session = createDefaultSession( address, errorHandler, clientSession, useTcpSocket );
+    clientSession->m_session = createDefaultSession( address, errorHandler, clientSession, bootstraps, useTcpSocket );
     clientSession->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     return clientSession;
 }

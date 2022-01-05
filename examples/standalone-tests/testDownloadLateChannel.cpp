@@ -13,14 +13,16 @@
 
 using namespace sirius::drive::test;
 
-namespace sirius::drive::test {
+namespace sirius::drive::test
+{
 
     /// change this macro for your test
 #define TEST_NAME DownloadLateChannel
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
-    class ENVIRONMENT_CLASS : public TestEnvironment {
+    class ENVIRONMENT_CLASS : public TestEnvironment
+    {
     public:
         ENVIRONMENT_CLASS(
                 int numberOfReplicators,
@@ -41,20 +43,28 @@ namespace sirius::drive::test {
                 useTcpSocket,
                 modifyApprovalDelay,
                 downloadApprovalDelay,
-                startReplicator) {}
+                startReplicator)
+        {}
     };
 
-    TEST(ModificationTest, TEST_NAME) {
+    TEST(ModificationTest, TEST_NAME)
+    {
         fs::remove_all(ROOT_FOLDER);
 
-        lt::settings_pack pack;
-        TestClient client(pack);
-
         EXLOG("");
+
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
                 SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000);
+
+        lt::settings_pack pack;
+        endpoint_list bootstraps;
+        for ( const auto& b: env.m_bootstraps )
+        {
+            bootstraps.push_back( b.m_endpoint );
+        }
+        TestClient client(bootstraps, pack);
 
         EXLOG("\n# Client started: 1-st upload");
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
@@ -72,11 +82,13 @@ namespace sirius::drive::test {
 
         auto downloadChannel = randomByteArray<Key>();
         EXLOG("Download Channel: " << (int) downloadChannel.array()[0]);
-        client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification->m_modifyTransactionHash], downloadChannel, env.m_addrList);
+        client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification->m_modifyTransactionHash],
+                                 downloadChannel, env.m_addrList);
 
         std::this_thread::sleep_for(std::chrono::minutes(5));
 
-        ASSERT_EQ(client.m_downloadCompleted[env.m_rootHashes[env.m_lastApprovedModification->m_modifyTransactionHash]], false);
+        ASSERT_EQ(client.m_downloadCompleted[env.m_rootHashes[env.m_lastApprovedModification->m_modifyTransactionHash]],
+                  false);
 
         env.downloadFromDrive(DRIVE_PUB_KEY, DownloadRequest{
                 downloadChannel,

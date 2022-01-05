@@ -99,35 +99,37 @@ public:
                     std::string                          address,
                     const LibTorrentErrorHandler&        alertHandler,
                     std::weak_ptr<lt::session_delegate>  downloadLimiter,
-                    bool                                 useTcpSocket
+                    bool                                 useTcpSocket,
+                    const endpoint_list&                 bootstraps
                     )
         : m_addressAndPort(address)
-        , m_session( lt::session_params{}, context, {})
+        , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps) }, context, {})
         , m_alertHandler(alertHandler)
         , m_downloadLimiter(downloadLimiter)
     {
         if ( downloadLimiter.lock() )
             m_dbgOurPeerName = downloadLimiter.lock()->dbgOurPeerName();
         
-        createSession( useTcpSocket );
+        continueSessionCreation();
         m_session.setDelegate( m_downloadLimiter );
         _LOG( "DefaultSession created: " << m_addressAndPort );
     }
 
-    DefaultSession( std::string address,
-                    LibTorrentErrorHandler alertHandler
-                    ,std::weak_ptr<lt::session_delegate> downloadLimiter
-                    ,bool useTcpSocket
+    DefaultSession( std::string                             address,
+                    LibTorrentErrorHandler                  alertHandler,
+                    std::weak_ptr<lt::session_delegate>     downloadLimiter,
+                    bool                                    useTcpSocket,
+                    const endpoint_list&                    bootstraps
                     )
         : m_addressAndPort(address)
-        , m_session()
+        , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
         , m_alertHandler(alertHandler)
         , m_downloadLimiter(downloadLimiter)
     {
         if ( downloadLimiter.lock() )
             m_dbgOurPeerName = downloadLimiter.lock()->dbgOurPeerName();
         
-        createSession( useTcpSocket );
+        continueSessionCreation();
         m_session.setDelegate( m_downloadLimiter );
         _LOG( "DefaultSession created: " << m_addressAndPort );
     }
@@ -142,10 +144,8 @@ public:
         return m_session;
     }
 
-
-    // createSession
-    void createSession( bool useTcpSocket ) {
-
+    lt::settings_pack generateSessionSettings(bool useTcpSocket, const endpoint_list& bootstraps)
+    {
         lt::settings_pack settingsPack;
 
         settingsPack.set_int( lt::settings_pack::alert_mask, ~0 );//lt::alert_category::all );
@@ -170,14 +170,25 @@ public:
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
         settingsPack.set_bool( lt::settings_pack::enable_upnp, false );
-        settingsPack.set_str(  lt::settings_pack::dht_bootstrap_nodes, "192.168.2.200:5550" );
+
+        std::ostringstream bootstrapsBuilder;
+        for ( const auto& bootstrap: bootstraps )
+        {
+            bootstrapsBuilder << bootstrap.address().to_string() << ":" << std::to_string(bootstrap.port()) << ",";
+        }
+
+        std::string bootstrapList = bootstrapsBuilder.str();
+
+        settingsPack.set_str(  lt::settings_pack::dht_bootstrap_nodes, bootstrapList);
 
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
         settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, false );
+        return settingsPack;
+    }
 
-        m_session.apply_settings(settingsPack);
+    // createSession
+    void continueSessionCreation() {
         m_session.set_alert_notify( [this] { alertHandler(); } );
-
         addDhtRequestPlugin();
     }
 
@@ -285,7 +296,7 @@ public:
 //            tHandle.set_download_limit(100000);
 //        }
 
-        connectPeers( tHandle, list );
+//        connectPeers( tHandle, list );
 
         return tHandle;
     }
@@ -404,10 +415,17 @@ public:
             throw std::runtime_error("downloadFile: torrent handle is not valid");
 
         // connect to peers
-//        for( const auto& it : list ) {
-//            //LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
-//            tHandle.connect_peer( it.m_endpoint );
-//        }
+        if ( auto limiter = m_downloadLimiter.lock(); limiter )
+        {
+            for( const auto& it : list ) {
+                //LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
+                auto endpoint = limiter->getEndpoint( it.array() );
+                if ( endpoint )
+                {
+                    tHandle.connect_peer( *endpoint );
+                }
+            }
+        }
 
         // save download handler
         std::lock_guard locker(m_downloadMapMutex);
@@ -482,9 +500,9 @@ public:
             throw std::runtime_error("connectPeers: libtorrent session is not valid");
 
         //TODO check if not set m_lastTorrentFileHandle
-//        for( const auto& endpoint : list ) {
-//            tHandle.connect_peer(endpoint);
-//        }
+        for( const auto& endpoint : list ) {
+            tHandle.connect_peer(endpoint);
+        }
     }
 
     void      printActiveTorrents() override
@@ -640,7 +658,7 @@ public:
     {
         if ( auto limiter = m_downloadLimiter.lock(); limiter )
         {
-            std::string data(reinterpret_cast<const char *>(&endpoint), endpoint.size());
+            std::string data(reinterpret_cast<const char *>(&endpoint), sizeof(boost::asio::ip::tcp::endpoint));
             auto publicKey = *reinterpret_cast<const std::array<char, 32> *>(limiter->publicKey().data());
             m_session.dht_put_item(publicKey,
                                    [limiter = m_downloadLimiter, d = std::move(data)]
@@ -674,7 +692,10 @@ public:
         
         timer.expires_after( std::chrono::milliseconds( miliseconds ) );
         timer.async_wait( [func=func] (boost::system::error_code const& e) {
-            func();
+            if ( !e )
+            {
+                func();
+            }
         });
         
         return timer;
@@ -685,18 +706,23 @@ private:
 
     void processEndpointItem(lt::dht_mutable_item_alert* theAlert)
     {
-        if ( theAlert->seq <= 0 )
+        if ( theAlert->seq < 0 )
         {
             return;
         }
         auto limiter = m_downloadLimiter.lock();
-        if ( limiter )
+        if ( !limiter )
         {
             return;
         }
         auto publicKey = *reinterpret_cast<std::array<uint8_t, 32> *>( &theAlert->key );
+        if ( theAlert->seq == 0 )
+        {
+            limiter->onEndpointDiscovered(publicKey, {});
+            return;
+        }
         auto response = theAlert->item.string();
-        if ( response.size() != sizeof( boost::asio::ip::tcp::endpoint ))
+        if ( response.size() != sizeof(boost::asio::ip::tcp::endpoint) )
         {
             return;
         }
@@ -1412,17 +1438,19 @@ std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&         
                                                std::string                          address,
                                                const LibTorrentErrorHandler&        alertHandler,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
-                                               bool                                 useTcpSocket )
+                                               const endpoint_list&                 bootstraps,
+                                               bool                                 useTcpSocket)
 {
-    return std::make_shared<DefaultSession>( context, address, alertHandler, downloadLimiter, useTcpSocket );
+    return std::make_shared<DefaultSession>( context, address, alertHandler, downloadLimiter, useTcpSocket, bootstraps );
 }
 
 std::shared_ptr<Session> createDefaultSession( std::string                          address,
                                                const LibTorrentErrorHandler&        alertHandler,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
-                                               bool                                 useTcpSocket )
+                                               const endpoint_list&                 bootstraps,
+                                               bool                                 useTcpSocket)
 {
-    return std::make_shared<DefaultSession>( address, alertHandler, downloadLimiter, useTcpSocket );
+    return std::make_shared<DefaultSession>( address, alertHandler, downloadLimiter, useTcpSocket, bootstraps );
 }
 
 }

@@ -56,13 +56,16 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
         std::map<Hash256, std::condition_variable> m_downloadCondVars;
         std::mutex m_downloadCompleteMutex;
 
-        TestClient(const lt::settings_pack &pack = lt::settings_pack(), const fs::path& clientFolder = fs::path(".") / "111" / "client_drive") :
+        TestClient( const endpoint_list & bootstraps,
+                    const lt::settings_pack &pack = lt::settings_pack(),
+                    const fs::path& clientFolder = fs::path(".") / "111" / "client_drive" ) :
                 m_clientKeyPair(sirius::crypto::KeyPair::FromPrivate(
                         sirius::crypto::PrivateKey::FromString(
                                 "0000000000010203040501020304050102030405010203040501020304050102"))),
                 m_clientSession(createClientSession(std::move(m_clientKeyPair),
                                                     CLIENT_ADDRESS ":5550",
                                                     clientSessionErrorHandler,
+                                                    bootstraps,
                                                     USE_TCP,
                                                     "client")),
                 m_clientFolder(clientFolder)

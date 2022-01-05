@@ -13,14 +13,16 @@
 
 using namespace sirius::drive::test;
 
-namespace sirius::drive::test {
+namespace sirius::drive::test
+{
 
     /// change this macro for your test
 #define TEST_NAME DownloadNormalChannel
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
-    class ENVIRONMENT_CLASS : public TestEnvironment {
+    class ENVIRONMENT_CLASS : public TestEnvironment
+    {
     public:
         ENVIRONMENT_CLASS(
                 int numberOfReplicators,
@@ -46,9 +48,9 @@ namespace sirius::drive::test {
             lt::settings_pack pack;
 //            pack.set_int(lt::settings_pack::download_rate_limit, 1024 * 1024);
 //            pack.set_int(lt::settings_pack::upload_rate_limit, 1024 * 1024);
-            for ( auto replicator: m_replicators )
+            for (auto replicator: m_replicators)
             {
-                if ( replicator )
+                if (replicator)
                 {
                     replicator->setSessionSettings(pack, true);
                 }
@@ -56,27 +58,28 @@ namespace sirius::drive::test {
         }
     };
 
-    TEST(ModificationTest, TEST_NAME) {
+    TEST(ModificationTest, TEST_NAME)
+    {
         fs::remove_all(ROOT_FOLDER);
 
         auto startTime = std::clock();
 
-        lt::settings_pack pack;
-//        pack.set_int(lt::settings_pack::download_rate_limit, 1024 * 1024);
-//        pack.set_int(lt::settings_pack::upload_rate_limit, 1024 * 1024);
-        TestClient client(pack);
-
         EXLOG("");
+
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
                 SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000);
 
-        for (uint i = 1; i <= env.m_addrList.size(); i++)
+        lt::settings_pack pack;
+        //        pack.set_int(lt::settings_pack::download_rate_limit, 1024 * 1024);
+        //        pack.set_int(lt::settings_pack::upload_rate_limit, 1024 * 1024);
+        endpoint_list bootstraps;
+        for ( const auto& b: env.m_bootstraps )
         {
-            EXLOG( "Replicator " << i << " " << int(env.m_addrList[i - 1].m_publicKey[0]) )
+            bootstraps.push_back( b.m_endpoint );
         }
-        EXLOG( "Client " <<  int(client.m_clientKeyPair.publicKey()[0]) )
+        TestClient client(bootstraps, pack);
 
         EXLOG("\n# Client started: 1-st upload");
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
@@ -95,10 +98,10 @@ namespace sirius::drive::test {
         auto downloadChannel = randomByteArray<Key>();
 
         env.downloadFromDrive(DRIVE_PUB_KEY, DownloadRequest{
-            downloadChannel,
-            BIG_FILE_SIZE + 1024 * 1024,
-            env.m_addrList,
-            {client.m_clientKeyPair.publicKey()}
+                downloadChannel,
+                BIG_FILE_SIZE + 1024 * 1024,
+                env.m_addrList,
+                {client.m_clientKeyPair.publicKey()}
         });
 
         client.downloadFromDrive(env.m_lastApprovedModification->m_rootHash, downloadChannel, env.m_addrList);
@@ -106,11 +109,11 @@ namespace sirius::drive::test {
         client.waitForDownloadComplete(env.m_lastApprovedModification->m_rootHash);
 
         auto files = client.getFsTreeFiles();
-        for (const auto& file: files)
+        for (const auto &file: files)
         {
             client.downloadFromDrive(file, downloadChannel, env.m_addrList);
             client.waitForDownloadComplete(file);
-            EXLOG( "downloaded by client " << toString(file));
+            EXLOG("downloaded by client " << toString(file));
         }
     }
 

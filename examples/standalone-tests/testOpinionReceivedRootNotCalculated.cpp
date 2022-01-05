@@ -12,15 +12,18 @@
 #include "drive/FlatDrive.h"
 #include "drive/Utils.h"
 
-namespace sirius::drive::test {
+namespace sirius::drive::test
+{
 
 /// change this macro for your test
 #define TEST_NAME OpinionReceivedRootNotCalculated
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
-    namespace {
-        class ENVIRONMENT_CLASS : public TestEnvironment {
+    namespace
+    {
+        class ENVIRONMENT_CLASS : public TestEnvironment
+        {
         public:
             ENVIRONMENT_CLASS(
                     int numberOfReplicators,
@@ -42,22 +45,26 @@ namespace sirius::drive::test {
                     useTcpSocket,
                     modifyApprovalDelay,
                     downloadApprovalDelay,
-                    startReplicator) {
+                    startReplicator)
+            {
                 lt::settings_pack pack;
                 pack.set_int(lt::settings_pack::download_rate_limit, backDownloadRate);
                 m_replicators.back()->setSessionSettings(pack, true);
             }
 
             void modifyApprovalTransactionIsReady(Replicator &replicator,
-                                                  ApprovalTransactionInfo &&transactionInfo) override {
+                                                  ApprovalTransactionInfo &&transactionInfo) override
+            {
                 EXLOG("modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
                 const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
 
-                for (const auto &opinion: transactionInfo.m_opinions) {
+                for (const auto &opinion: transactionInfo.m_opinions)
+                {
                     std::cout << " key:" << int(opinion.m_replicatorKey[0]) << " ";
-                    for (size_t i = 0; i < opinion.m_uploadLayout.size(); i++) {
+                    for (size_t i = 0; i < opinion.m_uploadLayout.size(); i++)
+                    {
                         std::cout << int(opinion.m_uploadLayout[i].m_key[0]) << ":"
-                        << opinion.m_uploadLayout[i].m_uploadedBytes << " ";
+                                  << opinion.m_uploadLayout[i].m_uploadedBytes << " ";
                     }
                     std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
                 }
@@ -69,18 +76,17 @@ namespace sirius::drive::test {
 
                 if (replicator.keyPair().publicKey() == m_replicators.back()->replicatorKey())
                 {
-
-                    ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size());
-
                     std::set<uint64_t> sizes;
-                    for (const auto& opinion: transactionInfo.m_opinions) {
+                    for (const auto &opinion: transactionInfo.m_opinions)
+                    {
                         auto size =
                                 std::accumulate(opinion.m_uploadLayout.begin(),
                                                 opinion.m_uploadLayout.end(),
                                                 opinion.m_clientUploadBytes,
-                                                [] (const auto& sum, const auto& item) {
-                                    return sum + item.m_uploadedBytes;
-                                });
+                                                [](const auto &sum, const auto &item)
+                                                {
+                                                    return sum + item.m_uploadedBytes;
+                                                });
                         sizes.insert(size);
                     }
 
@@ -89,7 +95,8 @@ namespace sirius::drive::test {
                     m_pendingModifications.pop_front();
                     m_lastApprovedModification = transactionInfo;
 
-                    for (const auto &r: m_replicators) {
+                    for (const auto &r: m_replicators)
+                    {
                         r->asyncApprovalTransactionHasBeenPublished(transactionInfo);
                     }
                 }
@@ -97,19 +104,30 @@ namespace sirius::drive::test {
         };
     }
 
-    TEST(ModificationTest, TEST_NAME) {
+    TEST(ModificationTest, TEST_NAME)
+    {
         fs::remove_all(ROOT_FOLDER);
 
         auto startTime = std::clock();
-
-        lt::settings_pack pack;
-        TestClient client(pack);
 
         EXLOG("");
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
                 SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 100 * 1024 * 1024);
+
+        for ( uint i = 0; i < env.m_addrList.size(); i++ )
+        {
+            __LOG( "Replicator" << i + 1 << " " << int(env.m_addrList[i][0]) )
+        }
+
+        lt::settings_pack pack;
+        endpoint_list bootstraps;
+        for ( const auto& b: env.m_bootstraps )
+        {
+            bootstraps.push_back( b.m_endpoint );
+        }
+        TestClient client(bootstraps, pack);
 
         EXLOG("\n# Client started: 1-st upload");
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
@@ -123,10 +141,11 @@ namespace sirius::drive::test {
                                         client.m_clientKeyPair.publicKey()});
 
         EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
-        std::thread([] {
-            std::this_thread::sleep_for(std::chrono::seconds(60));
-            ASSERT_EQ(true, false);
-        }).detach();
+        std::thread([]
+                    {
+                        std::this_thread::sleep_for(std::chrono::seconds(180));
+                        ASSERT_EQ(true, false);
+                    }).detach();
         env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);
     }
 

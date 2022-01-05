@@ -80,7 +80,7 @@ namespace sirius {
             Key                             m_publicKey;
         };
 
-        using ReplicatorList = std::vector<ReplicatorInfo>;
+        using ReplicatorList = std::vector<Key>;
     }
 
     // smart unique ptr

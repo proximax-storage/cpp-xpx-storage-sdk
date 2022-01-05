@@ -111,14 +111,15 @@ std::map<sirius::Key,std::shared_ptr<Replicator>> gReplicatorMap;
 class MyReplicatorEventHandler;
 
 static std::shared_ptr<Replicator> createReplicator(
-        const sirius::crypto::KeyPair&  keyPair,
-        std::string&&       ipAddr,
-        int                 port,
-        std::string&&       rootFolder,
-        std::string&&       sandboxRootFolder,
-        bool                useTcpSocket,
-        MyReplicatorEventHandler& handler,
-        const char*         dbgReplicatorName );
+        const sirius::crypto::KeyPair&      keyPair,
+        std::string&&                       ipAddr,
+        int                                 port,
+        std::string&&                       rootFolder,
+        std::string&&                       sandboxRootFolder,
+        bool                                useTcpSocket,
+        const std::vector<ReplicatorInfo>&  bootstraps,
+        MyReplicatorEventHandler&           handler,
+        const char*                         dbgReplicatorName );
 
 static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const sirius::Key&             driveKey,
@@ -343,7 +344,7 @@ auto replicatorKeyPair_3 = sirius::crypto::KeyPair::FromPrivate(
 ///
 /// Create replicators
 ///
-void createReplicators()
+void createReplicators(const std::vector<ReplicatorInfo>&  bootstraps)
 {
     gReplicator = createReplicator( replicatorKeyPair,
                                     REPLICATOR_IP_ADDR,
@@ -351,6 +352,7 @@ void createReplicators()
                                     std::string( REPLICATOR_ROOT_FOLDER ),
                                     std::string( REPLICATOR_SANDBOX_ROOT_FOLDER ),
                                     TRANSPORT_PROTOCOL,
+                                    bootstraps,
                                     gMyReplicatorEventHandler,
                                     "replicator1" );
     gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
@@ -376,6 +378,7 @@ void createReplicators()
                                     std::string( REPLICATOR_ROOT_FOLDER_2 ),
                                     std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_2 ),
                                     TRANSPORT_PROTOCOL,
+                                    bootstraps,
                                     gMyReplicatorEventHandler2,
                                     "replicator2" );
     gReplicatorMap[gReplicator2->replicatorKey()] = gReplicator2;
@@ -386,6 +389,7 @@ void createReplicators()
                                     std::string( REPLICATOR_ROOT_FOLDER_3 ),
                                     std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_3 ),
                                     TRANSPORT_PROTOCOL,
+                                    bootstraps,
                                     gMyReplicatorEventHandler3,
                                     "replicator3" );
     gReplicatorMap[gReplicator3->replicatorKey()] = gReplicator3;
@@ -409,35 +413,32 @@ int main(int,char**)
     ///
     /// Make the list of replicator addresses
     ///
-    boost::asio::ip::address e = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR);
-    replicatorList.emplace_back( ReplicatorInfo{ {e, REPLICATOR_PORT},
-        sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY)).publicKey() } );
+    replicatorList.emplace_back( sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY)).publicKey() );
     
-    boost::asio::ip::address e2 = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_2);
-    replicatorList.emplace_back( ReplicatorInfo{ {e2, REPLICATOR_PORT_2},
-        sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_2)).publicKey() } );
+    replicatorList.emplace_back( sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_2)).publicKey() );
 
-    boost::asio::ip::address e3 = boost::asio::ip::address::from_string(REPLICATOR_IP_ADDR_3);
-    replicatorList.emplace_back( ReplicatorInfo{ {e3, REPLICATOR_PORT_3},
-        sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3)).publicKey() } );
+    replicatorList.emplace_back( sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3)).publicKey() );
 
     printf( "client key[0] :      0x%x %i\n", clientKeyPair.publicKey().array()[0], clientKeyPair.publicKey().array()[0] );
-    printf( "replicator1 key[0] : 0x%x %i\n", replicatorList[0].m_publicKey[0], replicatorList[0].m_publicKey[0] );
-    printf( "replicator2 key[0] : 0x%x %i\n", replicatorList[1].m_publicKey[0], replicatorList[1].m_publicKey[0] );
-    printf( "replicator3 key[0] : 0x%x %i\n", replicatorList[2].m_publicKey[0], replicatorList[2].m_publicKey[0] );
+    printf( "replicator1 key[0] : 0x%x %i\n", replicatorList[0][0], replicatorList[0][0] );
+    printf( "replicator2 key[0] : 0x%x %i\n", replicatorList[1][0], replicatorList[1][0] );
+    printf( "replicator3 key[0] : 0x%x %i\n", replicatorList[2][0], replicatorList[2][0] );
 
 
     ///
     /// Create client session
     ///
+
     gClientFolder  = createClientFiles(BIG_FILE_SIZE);
-    gClientSession = createClientSession( std::move(clientKeyPair),
+    gClientSession = createClientSession( clientKeyPair,
                                          CLIENT_IP_ADDR ":5000",
                                          clientSessionErrorHandler,
                                          TRANSPORT_PROTOCOL,
                                          "client" );
 
-    createReplicators();
+    std::vector<ReplicatorInfo> bootstraps = { { { boost::asio::ip::address::from_string(CLIENT_IP_ADDR), CLIENT_PORT },
+                                                 clientKeyPair.publicKey() } };
+    createReplicators( bootstraps );
     sleep(1);
 
     
@@ -570,8 +571,8 @@ int main(int,char**)
     gReplicator2.reset();
     gReplicatorMap.erase( gReplicator3->replicatorKey() );
     gReplicator3.reset();
-    
-    createReplicators();
+
+    createReplicators(bootstraps);
 
     /// Client: read new fsTree (3)
     EXLOG( "# Client started FsTree download !!!!! " );
@@ -598,14 +599,15 @@ int main(int,char**)
 #endif
 
 static std::shared_ptr<Replicator> createReplicator(
-        const sirius::crypto::KeyPair&  keyPair,
-        std::string&&       ipAddr,
-        int                 port,
-        std::string&&       rootFolder,
-        std::string&&       sandboxRootFolder,
-        bool                useTcpSocket,
-        MyReplicatorEventHandler& handler,
-        const char*         dbgReplicatorName )
+        const sirius::crypto::KeyPair&      keyPair,
+        std::string&&                       ipAddr,
+        int                                 port,
+        std::string&&                       rootFolder,
+        std::string&&                       sandboxRootFolder,
+        bool                                useTcpSocket,
+        const std::vector<ReplicatorInfo>&  bootstraps,
+        MyReplicatorEventHandler&           handler,
+        const char*                         dbgReplicatorName )
 {
     EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(keyPair.publicKey().array()[0]) );
 
@@ -615,6 +617,7 @@ static std::shared_ptr<Replicator> createReplicator(
             std::to_string(port),
             std::move( rootFolder ),
             std::move( sandboxRootFolder ),
+            bootstraps,
             useTcpSocket,
             handler,
             &handler,

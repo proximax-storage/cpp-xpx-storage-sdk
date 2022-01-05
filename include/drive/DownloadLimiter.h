@@ -216,8 +216,8 @@ public:
         ReplicatorUploadMap map;
         for( const auto& it : replicatorsList )
         {
-            if ( it.m_publicKey.array() != publicKey() )
-                map.insert( { it.m_publicKey.array(), {}} );
+            if ( it.array() != publicKey() )
+                map.insert( { it.array(), {}} );
         }
         
         m_downloadChannelMap[channelId] = DownloadChannelInfo{ false, prepaidDownloadSize, 0, 0, 0, driveKey.array(), replicatorsList, map, clients, {} };
@@ -250,11 +250,11 @@ public:
         }
     }
 
-    void addModifyDriveInfo( const Key&             modifyTransactionHash,
-                             const Key&             driveKey,
-                             uint64_t               dataSize,
-                             const Key&             clientPublicKey,
-                             const ReplicatorList&  replicatorsList )
+    void addModifyDriveInfo( const Key&                 modifyTransactionHash,
+                             const Key&                 driveKey,
+                             uint64_t                   dataSize,
+                             const Key&                 clientPublicKey,
+                             const std::vector<Key>&    replicatorsList )
     {
         DBG_MAIN_THREAD
 
@@ -272,11 +272,11 @@ public:
         std::vector<std::array<uint8_t,32>> clients;
         for( const auto& it : replicatorsList )
         {
-            if ( it.m_publicKey.array() != publicKey() )
+            if ( it.array() != publicKey() )
             {
                 //_LOG( dbgOurPeerName() << " pubKey: " << (int)it.m_publicKey.array()[0] );
-                trafficMap.insert( { it.m_publicKey.array(), {0,0}} );
-                clients.emplace_back( it.m_publicKey.array() );
+                trafficMap.insert( { it.array(), {0,0}} );
+                clients.emplace_back( it.array() );
             }
         }
         
@@ -303,10 +303,7 @@ public:
         DBG_MAIN_THREAD
         
         auto& replicatorList = drive.replicatorList();
-        auto replicatorIt = std::find_if( replicatorList.begin(), replicatorList.end(), [&peerPublicKey] (const auto& it) {
-            return it.m_publicKey.array() == peerPublicKey;
-        });
-        
+        auto replicatorIt = std::find( replicatorList.begin(), replicatorList.end(), peerPublicKey);
         //_LOG( m_dbgOurPeerName << ": isPeerReplicator(): peerPublicKey: " << Key(peerPublicKey) );
 
         return replicatorIt != replicatorList.end();
@@ -523,10 +520,6 @@ public:
         DBG_MAIN_THREAD
         
         //_LOG( "verifyHandshake: " << int(signature[0]) )
-        bool ok = crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );;
-        if ( !ok ) {
-            _LOG_ERR( "PROOBLEMS " );
-        }
         return crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
     }
 
@@ -651,8 +644,7 @@ public:
         if ( replicatorIt == it->second.m_replicatorUploadMap.end() )
         {
             const auto& v = it->second.m_replicatorsList2;
-            if (std::find_if(v.begin(), v.end(), [&replicatorPublicKey](const auto &element)
-            { return element.m_publicKey.array() == replicatorPublicKey; }) == v.end())
+            if (std::find(v.begin(), v.end(), replicatorPublicKey) == v.end())
             {
                 _LOG_WARN("verifyReceipt: bad replicator key; it is ignored");
                 return false;

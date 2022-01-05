@@ -48,14 +48,16 @@ namespace sirius::drive::test
         }
 
         virtual void
-        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override {
+        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override
+        {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
 
-            if (m_pendingModifications.front().m_transactionHash == transactionInfo.m_modifyTransactionHash) {
+            if (m_pendingModifications.front().m_transactionHash == transactionInfo.m_modifyTransactionHash)
+            {
                 EXLOG("modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
                 m_expectingApproval = transactionInfo;
 
-                drive->second.expectedCumulativeDownloadSize += m_pendingModifications.front().m_maxDataSize;
+                drive->second.m_expectedCumulativeDownloadSize += m_pendingModifications.front().m_maxDataSize;
                 m_pendingModifications.pop_front();
                 m_lastApprovedModification = transactionInfo;
                 m_rootHashes[m_lastApprovedModification->m_modifyTransactionHash] = transactionInfo.m_rootHash;
@@ -70,35 +72,39 @@ namespace sirius::drive::test
         {
             auto transactionInfo = *m_expectingApproval;
             m_expectingApproval.reset();
-            EXLOG( toString(transactionInfo.m_modifyTransactionHash) );
+            EXLOG(toString(transactionInfo.m_modifyTransactionHash));
 
-            for (const auto &opinion: transactionInfo.m_opinions) {
+            for (const auto &opinion: transactionInfo.m_opinions)
+            {
                 std::cout << " key:" << int(opinion.m_replicatorKey[0]) << " ";
-                for (size_t i = 0; i < opinion.m_uploadLayout.size(); i++) {
+                for (size_t i = 0; i < opinion.m_uploadLayout.size(); i++)
+                {
                     std::cout << int(opinion.m_uploadLayout[i].m_key[0]) << ":"
-                    << opinion.m_uploadLayout[i].m_uploadedBytes << " ";
+                              << opinion.m_uploadLayout[i].m_uploadedBytes << " ";
                 }
                 std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
             }
 
-            for (uint i = 0; i < m_replicators.size(); i++) {
+            for (uint i = 0; i < m_replicators.size(); i++)
+            {
                 const auto &r = m_replicators[i];
-                if ( r )
+                if (r)
                 {
                     r->asyncApprovalTransactionHasBeenPublished(
                             ApprovalTransactionInfo(transactionInfo));
                 }
             }
 
-            for (const auto& opinion: transactionInfo.m_opinions)
+            for (const auto &opinion: transactionInfo.m_opinions)
             {
                 auto size =
                         std::accumulate(opinion.m_uploadLayout.begin(),
                                         opinion.m_uploadLayout.end(),
                                         opinion.m_clientUploadBytes,
-                                        [] (const auto& sum, const auto& item) {
-                            return sum + item.m_uploadedBytes;
-                        });
+                                        [](const auto &sum, const auto &item)
+                                        {
+                                            return sum + item.m_uploadedBytes;
+                                        });
                 m_modificationSizes[transactionInfo.m_modifyTransactionHash].insert(size);
             }
 
@@ -108,17 +114,17 @@ namespace sirius::drive::test
         virtual void singleModifyApprovalTransactionIsReady(Replicator &replicator,
                                                             ApprovalTransactionInfo &&transactionInfo) override
         {
-            EXLOG( "single " << toString(transactionInfo.m_modifyTransactionHash) )
-            if ( auto it =
-                    std::find(m_forbiddenTransaction.begin(),
-                              m_forbiddenTransaction.end(),
-                              transactionInfo.m_modifyTransactionHash); it != m_forbiddenTransaction.end() )
+            EXLOG("single " << toString(transactionInfo.m_modifyTransactionHash))
+            if (auto it =
+                        std::find(m_forbiddenTransaction.begin(),
+                                  m_forbiddenTransaction.end(),
+                                  transactionInfo.m_modifyTransactionHash); it != m_forbiddenTransaction.end())
             {
                 const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
-                ASSERT_EQ( m_expectingApproval.has_value(), true );
+                ASSERT_EQ(m_expectingApproval.has_value(), true);
                 approveModification();
-            }
-            else {
+            } else
+            {
                 TestEnvironment::singleModifyApprovalTransactionIsReady(replicator,
                                                                         ApprovalTransactionInfo(transactionInfo));
             }
@@ -132,15 +138,21 @@ namespace sirius::drive::test
     {
         fs::remove_all(ROOT_FOLDER);
 
-        lt::settings_pack pack;
-        pack.set_int(lt::settings_pack::upload_rate_limit, 0);
-        TestClient client(pack);
-
         EXLOG("");
+
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
                 SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 1024 * 1024);
+
+        lt::settings_pack pack;
+        pack.set_int(lt::settings_pack::upload_rate_limit, 0);
+        endpoint_list bootstraps;
+        for ( const auto& b: env.m_bootstraps )
+        {
+            bootstraps.push_back( b.m_endpoint );
+        }
+        TestClient client(bootstraps, pack);
 
         EXLOG("\n# Client started: 1-st upload");
         client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList);
@@ -157,7 +169,7 @@ namespace sirius::drive::test
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        EXLOG( "Required modification " << toString(client.m_modificationTransactionHashes[0] ));
+        EXLOG("Required modification " << toString(client.m_modificationTransactionHashes[0]));
 
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[1],
                                         client.m_modificationTransactionHashes[1],
@@ -165,7 +177,7 @@ namespace sirius::drive::test
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        EXLOG( "Required modification " << toString(client.m_modificationTransactionHashes[1] ));
+        EXLOG("Required modification " << toString(client.m_modificationTransactionHashes[1]));
 
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[2],
                                         client.m_modificationTransactionHashes[2],
@@ -173,10 +185,10 @@ namespace sirius::drive::test
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        EXLOG( "Required modification " << toString(client.m_modificationTransactionHashes[2] ));
+        EXLOG("Required modification " << toString(client.m_modificationTransactionHashes[2]));
 
         env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS);
     }
-}
 
 #undef TEST_NAME
+}

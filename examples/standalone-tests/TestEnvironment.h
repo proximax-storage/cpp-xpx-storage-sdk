@@ -37,6 +37,7 @@ namespace sirius::drive::test {
         std::vector<std::shared_ptr<Replicator>> m_replicators;
         std::vector<std::shared_ptr<sirius::crypto::KeyPair>> m_keys;
         ReplicatorList m_addrList;
+        std::vector<ReplicatorInfo> m_bootstraps;
 
         std::map<Hash256, std::condition_variable> modifyCompleteCondVars;
         std::map<Hash256, int> modifyCompleteCounters;
@@ -85,10 +86,14 @@ namespace sirius::drive::test {
                         sirius::crypto::PrivateKey::FromString(privateKey));
                 m_keys.emplace_back(std::make_shared<sirius::crypto::KeyPair>(std::move(keyPair)));
 
-                //EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(replicatorKeyPair.publicKey().array()[0]) );
+                // First Replicator is a bootstrap node
+                if ( i == 1 )
+                {
+                    m_bootstraps = { { { boost::asio::ip::address::from_string(ipAddr), (unsigned short) port },
+                                       m_keys.back()->publicKey() } };
+                }
 
-                boost::asio::ip::tcp::endpoint point = {boost::asio::ip::address::from_string(ipAddr),
-                                                        static_cast<ushort>(port)};
+                //EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(replicatorKeyPair.publicKey().array()[0]) );
 
                 if (i <= startReplicator)
                 {
@@ -98,6 +103,7 @@ namespace sirius::drive::test {
                             std::to_string(port),
                             std::move(rootFolder),
                             std::move(sandboxRootFolder),
+                            m_bootstraps,
                             useTcpSocket,
                             *this,
                             this,
@@ -112,7 +118,7 @@ namespace sirius::drive::test {
                     m_replicators.emplace_back(std::shared_ptr<Replicator>(nullptr));
                 }
 
-                m_addrList.emplace_back(ReplicatorInfo{point, m_keys.back()->publicKey()});
+                m_addrList.emplace_back(m_keys.back()->publicKey());
             }
         }
 
@@ -142,6 +148,7 @@ namespace sirius::drive::test {
                         std::to_string(port),
                         std::move(rootFolder),
                         std::move(sandboxRootFolder),
+                        m_bootstraps,
                         useTcpSocket,
                         *this,
                         this,
@@ -286,7 +293,7 @@ namespace sirius::drive::test {
                     std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
                 }
 
-                drive->second.expectedCumulativeDownloadSize += m_pendingModifications.front().m_maxDataSize;
+                drive->second.m_expectedCumulativeDownloadSize += m_pendingModifications.front().m_maxDataSize;
                 m_pendingModifications.pop_front();
                 m_lastApprovedModification = transactionInfo;
                 m_rootHashes[m_lastApprovedModification->m_modifyTransactionHash] = transactionInfo.m_rootHash;

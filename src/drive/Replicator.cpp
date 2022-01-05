@@ -30,18 +30,41 @@ class EndpointsManager
 {
 public:
 
-    EndpointsManager(Replicator& replicator, std::weak_ptr<Session> session)
+    EndpointsManager(Replicator& replicator,
+                     const std::vector<ReplicatorInfo>& bootstraps,
+                     const std::string& dbgOurPeerName)
         : m_replicator(replicator)
-        , m_session(session)
-    {}
-
-    void start()
+        , m_bootstraps(bootstraps)
+        , m_dbgOurPeerName(dbgOurPeerName)
     {
+        for (const auto& [endpoint, key] : bootstraps)
+        {
+            m_endpointsMap[key] = { endpoint, {} };
+        }
+    }
+
+    void start(std::weak_ptr<Session> session)
+    {
+        m_session = session;
+        m_dbgThreadId = std::this_thread::get_id();
         onUpdateExternalEndpointTimerTick();
     }
 
-    void addEndpointEntry(const Key& key )
+    void stop()
     {
+        DBG_MAIN_THREAD
+
+        m_externalPointUpdateTimer.reset();
+        for ( auto& [key, value]: m_endpointsMap )
+        {
+            value.m_timer.reset();
+        }
+    }
+
+    void addEndpointEntry( const Key& key )
+    {
+        DBG_MAIN_THREAD
+
         if ( m_endpointsMap.contains(key) )
         {
             return;
@@ -50,6 +73,7 @@ public:
         if ( it != m_unknownEndpointsMap.end() )
         {
             m_endpointsMap[key].m_endpoint = it->second;
+#ifdef UPDATE_ENDPOINTS_PERIODICALLY
             if ( auto session = m_session.lock(); session )
             {
                 m_endpointsMap[key].m_timer = session->startTimer(m_standardExternalEndpointDelayMs, [this, key]
@@ -57,6 +81,7 @@ public:
                     requestEndpoint(key);
                 });
             }
+#endif
             m_unknownEndpointsMap.erase(it);
         }
         else {
@@ -65,8 +90,10 @@ public:
         }
     }
 
-    void addEndpointEntries(const std::vector<Key>& keys)
+    void addEndpointsEntries(const std::vector<Key>& keys)
     {
+        DBG_MAIN_THREAD
+
         for ( const auto& key: keys )
         {
             addEndpointEntry(key);
@@ -75,68 +102,96 @@ public:
 
     void updateEndpoint(const Key& key, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint )
     {
+        DBG_MAIN_THREAD
+
+        _LOG ("Update Endpoint of " << int(key[0]) << " at " << endpoint->address() << " " << endpoint->port() );
+
         auto it = m_endpointsMap.find(key);
         if ( it != m_endpointsMap.end() )
         {
-            int delay;
             if ( endpoint )
             {
                 it->second.m_endpoint = endpoint;
-                delay = m_standardExternalEndpointDelayMs;
+#ifdef UPDATE_ENDPOINTS_PERIODICALLY
+                if ( auto session = m_session.lock(); session )
+                {
+                    it->second.m_timer = session->startTimer( m_standardExternalEndpointDelayMs, [this, key]
+                    {
+                        requestEndpoint(key);
+                    });
+                }
+#else
+                it->second.m_timer.reset();
+#endif
             }
             else {
-                delay = m_noResponseExternalEndpointDelayMs;
-            }
-            if ( auto session = m_session.lock(); session )
-            {
-                it->second.m_timer = session->startTimer( delay, [this, key]
+                if ( auto session = m_session.lock(); session )
                 {
-                    requestEndpoint(key);
-                });
+                    it->second.m_timer = session->startTimer( m_noResponseExternalEndpointDelayMs, [this, key]
+                    {
+                        requestEndpoint(key);
+                    });
+                }
             }
         }
         else
         {
-            assert( endpoint );
+            _ASSERT( endpoint )
             m_unknownEndpointsMap[key] = *endpoint;
         }
     }
 
     std::optional<boost::asio::ip::tcp::endpoint> getEndpoint( const Key& key )
     {
+        DBG_MAIN_THREAD
+
         if ( auto it = m_endpointsMap.find(key); it != m_endpointsMap.end() )
         {
             return it->second.m_endpoint;
         }
-//        _ASSERT( m_unknownEndpointsMap.find(key) == m_unknownEndpointsMap.end() )
+        _ASSERT( m_unknownEndpointsMap.find(key) == m_unknownEndpointsMap.end() )
         return {};
     }
 
     void updateExternalEndpoint( const ExternalEndpointResponse& response )
     {
+        DBG_MAIN_THREAD
+
         if ( !m_externalEndpointRequest ||
              m_externalEndpointRequest->m_challenge != response.m_challenge ||
              m_externalEndpointRequest->m_requestTo != response.m_requestTo )
         {
             return;
         }
+
         if ( !response.Verify() )
         {
             return;
         }
+
         auto externalEndpoint = *reinterpret_cast<const boost::asio::ip::tcp::endpoint *>(&response.m_endpoint);
         if ( !m_externalEndpoint || m_externalEndpoint != externalEndpoint )
         {
-            // *** long operation?
+            _LOG( "External Endpoint Discovered " << externalEndpoint.address() << " " << externalEndpoint.port() )
+
+            // We expect that this operation does not take place too often
+            // So the loop does not influence performance
             for (const auto& [key, point]: m_endpointsMap)
             {
                 sendHandshake(key);
             }
         }
+
+        if ( m_externalEndpoint &&  m_externalEndpoint != externalEndpoint )
+        {
+            _LOG_WARN( "Ip Changed" )
+        }
+
         m_externalEndpoint = externalEndpoint;
         m_externalEndpointRequest.reset();
         if ( auto session = m_session.lock(); session ) {
             session->announceExternalAddress(externalEndpoint);
+
             m_externalPointUpdateTimer = session->startTimer( m_standardExternalEndpointDelayMs, [this]
             {
                 onUpdateExternalEndpointTimerTick();
@@ -144,67 +199,95 @@ public:
         };
     }
 
+    const std::vector<ReplicatorInfo>& getBootstraps()
+    {
+        return m_bootstraps;
+    }
+
 private:
 
     void sendHandshake( const Key& to )
     {
-        auto addressTo = getEndpoint(to);
-        if ( addressTo )
-        {
-            DhtHandshake handshake;
-            handshake.m_fromPublicKey = m_replicator.replicatorKey().array();
-            handshake.Sign( m_replicator.keyPair() );
-            std::ostringstream os( std::ios::binary );
-            cereal::PortableBinaryOutputArchive archive( os );
-            archive( handshake );
-            m_replicator.sendMessage( "handshake", *addressTo, os.str() );
-        }
+        DBG_MAIN_THREAD
+
+        DhtHandshake handshake;
+        handshake.m_fromPublicKey = m_replicator.replicatorKey().array();
+        handshake.m_toPublicKey = to.array();
+        handshake.m_endpoint = *reinterpret_cast<const std::array<uint8_t, sizeof(boost::asio::ip::tcp::endpoint)> *>(m_externalEndpoint->data());
+        handshake.Sign( m_replicator.keyPair() );
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( handshake );
+        m_replicator.sendMessage("handshake", to.array(), os.str() );
+        _LOG ( "Try to Send Handshake to " << int(to[0]) )
     }
 
     void onUpdateExternalEndpointTimerTick()
     {
-        int bootstrapToAsk = random() % m_bootstraps.size();
+        DBG_MAIN_THREAD
+
+        int bootstrapToAskIndex = random() % m_bootstraps.size();
+        const auto& bootstrapToAsk = m_bootstraps[bootstrapToAskIndex];
         m_externalEndpointRequest =
                 {
-                        m_bootstraps[bootstrapToAsk].m_publicKey.array(),
+                        bootstrapToAsk.m_publicKey.array(),
                         randomByteArray<Hash256>().array()
                 };
 
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
         archive( *m_externalEndpointRequest );
-        m_replicator.sendMessage( "endpoint_request", m_bootstraps[bootstrapToAsk].m_endpoint, os.str());
+        m_replicator.sendMessage( "endpoint_request", bootstrapToAsk.m_publicKey.array(), os.str());
+
+        if ( m_externalEndpoint )
+        {
+            _LOG( "Time To Update External Endpoint" )
+        }
+
+        _LOG ( "Requested External Endpoint from " <<
+                int(bootstrapToAsk.m_publicKey[0]) <<
+                " at " <<
+                bootstrapToAsk.m_endpoint.address() <<
+                ":" <<
+                bootstrapToAsk.m_endpoint.port() )
 
         if ( auto session = m_session.lock(); session ) {
             m_externalPointUpdateTimer = session->startTimer( m_noResponseExternalEndpointDelayMs, [this]
             {
-                onUpdateExternalEndpointTimerTick();
+                 onUpdateExternalEndpointTimerTick();
             });
         };
     }
 
     void requestEndpoint( const Key& key )
     {
+        DBG_MAIN_THREAD
+
+        _LOG ( "Requested Endpoint of " << int(key[0]));
+
         if ( auto session = m_session.lock(); session )
         {
             session->findAddress(key);
         }
     }
 
-    std::map<Key, EndpointInformation> m_endpointsMap;
-    std::map<Key, boost::asio::ip::tcp::endpoint> m_unknownEndpointsMap;
+    std::map<Key, EndpointInformation>              m_endpointsMap;
+    std::map<Key, boost::asio::ip::tcp::endpoint>   m_unknownEndpointsMap;
 
-    Replicator& m_replicator;
-    std::weak_ptr<Session> m_session;
+    Replicator&                                     m_replicator;
+    std::weak_ptr<Session>                          m_session;
 
     std::optional<boost::asio::high_resolution_timer> m_externalPointUpdateTimer;
 
-    std::optional<boost::asio::ip::tcp::endpoint> m_externalEndpoint;
-    std::optional<ExternalEndpointRequest> m_externalEndpointRequest;
-    std::vector<ReplicatorInfo> m_bootstraps;
+    std::optional<boost::asio::ip::tcp::endpoint>   m_externalEndpoint;
+    std::optional<ExternalEndpointRequest>          m_externalEndpointRequest;
+    std::vector<ReplicatorInfo>                     m_bootstraps;
 
-    const int m_standardExternalEndpointDelayMs = 1000 * 60 * 60;
-    const int m_noResponseExternalEndpointDelayMs = 1000 * 15;
+    const int                                       m_standardExternalEndpointDelayMs = 1000 * 60 * 60;
+    const int                                       m_noResponseExternalEndpointDelayMs = 1000 * 5;
+
+    std::thread::id                                 m_dbgThreadId;
+    std::string                                     m_dbgOurPeerName;
 };
 
 //
@@ -251,6 +334,7 @@ public:
                bool          useTcpSocket,
                ReplicatorEventHandler& handler,
                DbgReplicatorEventHandler*  dbgEventHandler,
+               const std::vector<ReplicatorInfo>& bootstraps,
                const char*   dbgReplicatorName ) : DownloadLimiter( keyPair, dbgReplicatorName ),
 
         m_address( std::move(address) ),
@@ -260,7 +344,7 @@ public:
         m_useTcpSocket( useTcpSocket ),
         m_eventHandler( handler ),
         m_dbgEventHandler( dbgEventHandler ),
-        m_endpointsManager( *this, m_session )
+        m_endpointsManager( *this, bootstraps, m_dbgOurPeerName)
     {
     }
 
@@ -285,6 +369,7 @@ public:
             m_downloadChannelMap.clear();
             m_modifyDriveMap.clear();
             m_driveMap.clear();
+            m_endpointsManager.stop();
         });
         
         m_session->endSession();
@@ -305,6 +390,11 @@ public:
     
     void start() override
     {
+        endpoint_list bootstrapEndpoints;
+        for ( const auto& info: m_endpointsManager.getBootstraps() )
+        {
+            bootstrapEndpoints.push_back( info.m_endpoint );
+        }
 #ifdef USE_OUR_IO_CONTEXT
         m_session = createDefaultSession( m_replicatorContext, m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
                                          {
@@ -316,7 +406,8 @@ public:
                                              }
                                          },
                                          weak_from_this(),
-                                         m_useTcpSocket );
+                                         bootstrapEndpoints,
+                                         m_useTcpSocket);
 #else
         m_session = createDefaultSession( m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
                                          {
@@ -328,6 +419,7 @@ public:
                                              }
                                          },
                                          weak_from_this(),
+                                         bootstrapEndpoints,
                                          m_useTcpSocket );
 #endif
         m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName.c_str();
@@ -341,7 +433,7 @@ public:
         });
 
         m_session->lt_session().get_context().post([this] {
-            m_endpointsManager.start();
+            m_endpointsManager.start(m_session);
         });
 
         m_dbgThreadId = m_libtorrentThread.get_id();
@@ -409,8 +501,6 @@ public:
 
     }
 
-    // 'actualRootHash' is not used
-    //
     void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest) override
     {
         m_session->lt_session().get_context().post( [=,this]() mutable {
@@ -431,11 +521,11 @@ public:
                 }
 
                 // Exclude itself from replicator list
-                for( auto it = driveRequest.replicators.begin();  it != driveRequest.replicators.end(); it++ )
+                for( auto it = driveRequest.m_replicators.begin();  it != driveRequest.m_replicators.end(); it++ )
                 {
-                    if ( it->m_publicKey == publicKey() )
+                    if ( *it == publicKey() )
                     {
-                        driveRequest.replicators.erase( it );
+                        driveRequest.m_replicators.erase( it );
                         break;
                     }
                 }
@@ -445,20 +535,17 @@ public:
                         m_storageDirectory,
                         m_sandboxDirectory,
                         driveKey,
-                        driveRequest.client,
-                        driveRequest.driveSize,
-                        driveRequest.expectedCumulativeDownloadSize,
+                        driveRequest.m_client,
+                        driveRequest.m_driveSize,
+                        driveRequest.m_expectedCumulativeDownloadSize,
                         m_eventHandler,
                         *this,
-                        driveRequest.replicators,
+                        driveRequest.m_replicators,
                         m_dbgEventHandler );
 
                 m_driveMap[driveKey] = drive;
 
-                for ( auto& replicator: driveRequest.replicators )
-                {
-                    m_endpointsManager.addEndpointEntry(replicator.m_publicKey);
-                }
+                m_endpointsManager.addEndpointsEntries( driveRequest.m_replicators );
 
 //            if ( actualRootHash && drive->rootHash() != actualRootHash )
 //            {
@@ -514,13 +601,13 @@ public:
                                 driveKey,
                                 modifyRequest.m_maxDataSize,
                                 modifyRequest.m_clientPublicKey,
-                                modifyRequest.m_replicatorList );
+                                modifyRequest.m_replicators);
 
-            for( auto it = modifyRequest.m_replicatorList.begin();  it != modifyRequest.m_replicatorList.end(); it++ )
+            for( auto it = modifyRequest.m_replicators.begin();  it != modifyRequest.m_replicators.end(); it++ )
             {
-                if ( it->m_publicKey == publicKey() )
+                if ( *it == publicKey() )
                 {
-                    modifyRequest.m_replicatorList.erase( it );
+                    modifyRequest.m_replicators.erase( it );
                     break;
                 }
             }
@@ -574,7 +661,7 @@ public:
             addChannelInfo( request.m_channelKey.array(),
                             request.m_prepaidDownloadSize,
                             driveKey,
-                            request.m_addrList,
+                            request.m_replicators,
                             clientList);
         });//post
     }
@@ -623,17 +710,17 @@ public:
             // go throw replictor list
             for( auto replicatorIt = it->second.m_replicatorsList2.begin(); replicatorIt != it->second.m_replicatorsList2.end(); replicatorIt++ )
             {
-                if ( replicatorIt->m_publicKey != replicatorPublicKey )
+                if ( *replicatorIt != replicatorPublicKey )
                 {
                     //_LOG( "todo++++ sendMessage(rcpt) " << m_dbgOurPeerName << " " << int(downloadChannelId[0]) );
-                    m_session->sendMessage( "rcpt", { replicatorIt->m_endpoint.address(), replicatorIt->m_endpoint.port() }, message );
+                    sendMessage( "rcpt", replicatorIt->array(), message );
                 }
             }
         }
     }
 
     void onEndpointDiscovered(const std::array<uint8_t, 32> &key,
-                              const boost::asio::ip::tcp::endpoint &endpoint) override
+                              const std::optional<boost::asio::ip::tcp::endpoint>& endpoint) override
     {
         DBG_MAIN_THREAD
 
@@ -642,10 +729,18 @@ public:
 
     void processHandshake( const DhtHandshake& info, const boost::asio::ip::tcp::endpoint &endpoint )
     {
-        if ( !crypto::Verify(info.m_fromPublicKey, {}, info.m_signature) )
+        if ( info.m_toPublicKey != m_keyPair.publicKey().array() )
         {
             return;
         }
+
+        if ( !info.Verify() )
+        {
+            return;
+        }
+
+        _LOG ( "Received Handshake from " << int(info.m_fromPublicKey[0]) << " at " << endpoint.address().to_string() )
+
         onEndpointDiscovered(info.m_fromPublicKey, endpoint );
     }
 
@@ -656,15 +751,20 @@ public:
             ExternalEndpointResponse response;
             response.m_requestTo = request.m_requestTo;
             response.m_challenge = request.m_challenge;
-            response.m_endpoint = *reinterpret_cast<const std::array<uint8_t, sizeof(endpoint)> *>(&endpoint);
+            response.m_endpoint = *reinterpret_cast<const std::array<uint8_t, sizeof(boost::asio::ip::tcp::endpoint)> *>(&endpoint);
             response.Sign(m_keyPair);
 
             std::ostringstream os( std::ios::binary );
             cereal::PortableBinaryOutputArchive archive( os );
             archive( response );
 
-            sendMessage( "endpoint_response", endpoint, os.str() );
+            m_session->sendMessage( "endpoint_response", { endpoint.address(), endpoint.port() }, os.str() );
         }
+    }
+
+    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint( const std::array<uint8_t,32>& key ) override
+    {
+        return m_endpointsManager.getEndpoint( key );
     }
 
     virtual void asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) override
@@ -698,17 +798,17 @@ public:
 
         for( const auto& replicatorIt : info.m_replicatorsList2 )
         {
-            if ( auto downloadedIt = info.m_replicatorUploadMap.find( replicatorIt.m_publicKey.array()); downloadedIt != info.m_replicatorUploadMap.end() )
+            if ( auto downloadedIt = info.m_replicatorUploadMap.find( replicatorIt.array()); downloadedIt != info.m_replicatorUploadMap.end() )
             {
                 myOpinion.m_downloadLayout.push_back( {downloadedIt->first, downloadedIt->second.m_uploadedSize} );
             }
-            else if ( replicatorIt.m_publicKey == publicKey() )
+            else if ( replicatorIt == publicKey() )
             {
                 myOpinion.m_downloadLayout.push_back( { publicKey(), info.m_uploadedSize } );
             }
             else
             {
-                myOpinion.m_downloadLayout.push_back( { replicatorIt.m_publicKey.array(), 0 } );
+                myOpinion.m_downloadLayout.push_back( { replicatorIt.array(), 0 } );
             }
         }
         
@@ -741,7 +841,7 @@ public:
 
         if (channelIt == m_downloadChannelMap.end())
         {
-            _LOG_ERR("Attempt to add opinion for a non-existing channel");
+            _LOG_WARN("Attempt to add opinion for a non-existing channel");
             return;
         }
 
@@ -839,10 +939,10 @@ public:
 
             for( const auto& replicatorIt : replicatorsList )
             {
-                if ( replicatorIt.m_publicKey != publicKey() )
+                if ( replicatorIt != publicKey() )
                 {
                     //_LOG( "replicatorIt.m_endpoint: " << replicatorIt.m_endpoint << " " << os.str().length() << " " << dbgReplicatorName() );
-                    sendMessage( "dnopinion", replicatorIt.m_endpoint, os.str() );
+                    sendMessage( "dnopinion", replicatorIt.array(), os.str() );
                 }
             }
 
@@ -878,7 +978,9 @@ public:
             }
         }
 #endif
-        
+
+        _LOG( "deleteDriveImmediately" )
+
         if ( deleteDriveImmediately )
         {
             deleteDrive( drive.drivePublicKey().array() );
@@ -1104,20 +1206,32 @@ public:
             }
         });//post
     }
-    
-    virtual void sendMessage( const std::string& query, boost::asio::ip::tcp::endpoint endpoint, const std::string& message ) override
-    {
-        DBG_MAIN_THREAD
-        
-        m_session->sendMessage( query, { endpoint.address(), endpoint.port() }, message );
-    }
-    
+
     virtual void sendMessage( const std::string&             query,
                               const std::array<uint8_t,32>&  replicatorKey,
                               const std::string&             message ) override
     {
-        //TODO
+        DBG_MAIN_THREAD
+
+        auto endpointTo = m_endpointsManager.getEndpoint( replicatorKey );
+        if ( endpointTo )
+        {
+            m_session->sendMessage( query, { endpointTo->address(), endpointTo->port() }, message );
+        }
     }
+
+    virtual void sendMessage( const std::string&                      query,
+                              const std::array<uint8_t,32>&           replicatorKey,
+                              const std::vector<uint8_t>&             message ) override
+  {
+        DBG_MAIN_THREAD
+
+        auto endpointTo = m_endpointsManager.getEndpoint( replicatorKey );
+        if ( endpointTo )
+        {
+            m_session->sendMessage( query, { endpointTo->address(), endpointTo->port() }, message );
+        }
+  }
 
     virtual void onMessageReceived( const std::string& query,
                                     const std::string& message,
@@ -1168,7 +1282,7 @@ public:
             DhtHandshake handshake;
             iarchive( handshake );
 
-//            processHandshake( handshake );
+            processHandshake( handshake, {source.address(), source.port()} );
             return;
         }
         else if ( query == "endpoint_request" ) {
@@ -1176,14 +1290,18 @@ public:
             cereal::PortableBinaryInputArchive iarchive(is);
             ExternalEndpointRequest request;
             iarchive( request );
+
             processEndpointRequest(request, {source.address(), source.port()});
+            return;
         }
         else if ( query == "endpoint_response" ) {
             std::istringstream is( message, std::ios::binary );
             cereal::PortableBinaryInputArchive iarchive(is);
             ExternalEndpointResponse response;
             iarchive( response );
+
             m_endpointsManager.updateExternalEndpoint(response);
+            return;
         }
         
         assert(0);
@@ -1292,10 +1410,11 @@ std::shared_ptr<Replicator> createDefaultReplicator(
                                         std::string&&       port,
                                         std::string&&       storageDirectory,
                                         std::string&&       sandboxDirectory,
-                                        bool                useTcpSocket,
-                                        ReplicatorEventHandler&     handler,
-                                        DbgReplicatorEventHandler*  dbgEventHandler,
-                                        const char*         dbgReplicatorName )
+                                        const std::vector<ReplicatorInfo>&  bootstraps,
+                                        bool                                useTcpSocket,
+                                        ReplicatorEventHandler&             handler,
+                                        DbgReplicatorEventHandler*          dbgEventHandler,
+                                        const char*                         dbgReplicatorName )
 {
     return std::make_shared<DefaultReplicator>(
                                                keyPair,
@@ -1306,6 +1425,7 @@ std::shared_ptr<Replicator> createDefaultReplicator(
                                                useTcpSocket,
                                                handler,
                                                dbgEventHandler,
+                                               bootstraps,
                                                dbgReplicatorName );
 }
 

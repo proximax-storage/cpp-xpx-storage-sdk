@@ -145,7 +145,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     size_t                  m_maxSize;
 
     // List of replicators that support this drive
-    ReplicatorList          m_replicatorList;
+    ReplicatorList         m_replicatorList;
 
     // Client of the drive
     Key                     m_client;
@@ -211,7 +211,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     //
     // 'modify' opinion
     //
-    std::optional<ApprovalTransactionInfo>      m_myOpinion; // (***)
+    std::optional<ApprovalTransactionInfo>              m_myOpinion; // (***)
+    std::optional<boost::asio::high_resolution_timer>   m_shareMyOpinionTimer;
     
     // It is needed for right calculation of my 'modify' opinion
     std::optional<std::array<uint8_t,32>>       m_opinionTrafficIdentifier; // (***)
@@ -338,7 +339,7 @@ public:
             return;
         }
 
-        for (const ReplicatorInfo& ri : replicators) {
+        for (const auto& ri : replicators) {
             const auto& r = std::find(m_replicatorList.begin(), m_replicatorList.end(), ri);
             if(r != m_replicatorList.end()) {
                 *r = ri;
@@ -847,10 +848,8 @@ public:
         for( auto& replicatorKey: m_verificationRequest->m_replicators )
         {
 //TODO            m_replicator.sendMessage( "verification_code", replicatorKey.array(), os.str() );
-            auto it = std::find_if( m_replicatorList.begin(), m_replicatorList.end(), [replicatorKey] (const auto& it) {
-                return it.m_publicKey == replicatorKey;
-            });
-            m_replicator.sendMessage( "verification_code", it->m_endpoint, os.str() );
+            auto it = std::find( m_replicatorList.begin(), m_replicatorList.end(), replicatorKey);
+            m_replicator.sendMessage( "verification_code", it->array(), os.str() );
         }
     }
     
@@ -936,7 +935,6 @@ public:
             }
             
             m_defferedModifyRequests.erase( it );
-            m_replicator.removeModifyDriveInfo( transactionHash.array() );
         }
     }
 
@@ -1082,7 +1080,7 @@ public:
     {
         DBG_MAIN_THREAD
         
-        m_replicatorList = modifyRequest.m_replicatorList;
+        m_replicatorList = modifyRequest.m_replicators;
 
         // ModificationIsCanceling check is redundant now
         if ( m_modifyRequest || m_catchingUpRequest || m_newCatchingUpRequest ||
@@ -1445,7 +1443,7 @@ public:
         for (const auto &replicatorIt : m_replicatorList)
         {
             // get data size received from 'replicatorIt.m_publicKey'
-            if (auto it = modifyTrafficMap.find(replicatorIt.m_publicKey.array());
+            if (auto it = modifyTrafficMap.find(replicatorIt.array());
                     it != modifyTrafficMap.end())
             {
                 m_lastAccountedUploads[it->first] = it->second.m_receivedSize;
@@ -1497,8 +1495,8 @@ public:
         SingleOpinion opinion( m_replicator.replicatorKey().array() );
         for( const auto& replicatorIt : m_replicatorList )
         {
-            auto it = m_cumulativeUploads.find( replicatorIt.m_publicKey.array() );
-            opinion.m_uploadLayout.push_back( {replicatorIt.m_publicKey.array(), it->second} );
+            auto it = m_cumulativeUploads.find( replicatorIt.array() );
+            opinion.m_uploadLayout.push_back( {replicatorIt.array(), it->second} );
         }
 
         {
@@ -1562,6 +1560,11 @@ public:
             return;
         }
 
+        if ( strcmp(m_dbgOurPeerName, "replicator_04") == 0 )
+        {
+            std::cout << "ready" << std::endl;
+        }
+
         // Notify
         if ( m_dbgEventHandler )
             m_dbgEventHandler->rootHashIsCalculated( m_replicator, m_drivePubKey, m_modifyRequest->m_transactionHash, m_sandboxRootHash );
@@ -1606,6 +1609,12 @@ public:
 
             // Send my opinion to other replicators
             shareMyOpinion();
+            if ( auto session = m_session.lock(); session )
+            {
+                m_shareMyOpinionTimer = session->startTimer(1000 * 60 * 2, [this] {
+                    shareMyOpinion();
+                });
+            }
 
             // validate already received opinions
             auto& transactionOpinions = m_otherOpinions[m_modifyRequest->m_transactionHash];
@@ -1626,9 +1635,9 @@ public:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( *m_myOpinion );
         
-        for( const auto& replicatorIt : m_modifyRequest->m_replicatorList )
+        for( const auto& replicatorIt : m_modifyRequest->m_replicators )
         {
-            m_replicator.sendMessage( "opinion", replicatorIt.m_endpoint, os.str() );
+            m_replicator.sendMessage( "opinion", replicatorIt.array(), os.str() );
         }
     }
     
@@ -1637,7 +1646,7 @@ public:
         DBG_MAIN_THREAD
         
         // m_replicatorList is the list of other replicators (it does not contain our replicator)
-        auto replicatorNumber = m_modifyRequest->m_replicatorList.size();//todo++++ +1;
+        auto replicatorNumber = m_modifyRequest->m_replicators.size();//todo++++ +1;
 
         // check opinion number
         if ( m_myOpinion && m_otherOpinions[m_modifyRequest->m_transactionHash].size() >= ((replicatorNumber)*2)/3
@@ -1877,6 +1886,7 @@ public:
 
         // stop timer
         m_modifyOpinionTimer.reset();
+        m_shareMyOpinionTimer.reset();
         m_otherOpinions.erase(transaction.m_modifyTransactionHash);
 
         if ( m_modificationCanceledTx || m_modificationMustBeCanceledTx )
@@ -2014,16 +2024,21 @@ public:
                                });
         if ( it != m_defferedModifyRequests.end() )
         {
-            it++;
             while ( !m_defferedModifyRequests.empty() and it != m_defferedModifyRequests.begin() )
             {
-                m_expectedCumulativeDownload += m_defferedModifyRequests.front().m_maxDataSize;
                 if ( !m_opinionTrafficIdentifier
                      || *m_opinionTrafficIdentifier != m_defferedModifyRequests.front().m_transactionHash.array() )
                 {
                     m_replicator.removeModifyDriveInfo(m_defferedModifyRequests.front().m_transactionHash.array());
                 }
                 m_defferedModifyRequests.pop_front();
+            }
+            m_expectedCumulativeDownload += m_defferedModifyRequests.front().m_maxDataSize;
+            m_defferedModifyRequests.pop_front();
+            if ( m_opinionTrafficIdentifier &&
+                *m_opinionTrafficIdentifier != m_defferedModifyRequests.front().m_transactionHash.array() )
+            {
+                m_replicator.removeModifyDriveInfo(m_defferedModifyRequests.front().m_transactionHash.array());
             }
         }
 
@@ -2526,7 +2541,7 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
         size_t                   usedDriveSizeExcludingMetafiles,
         ReplicatorEventHandler&  eventHandler,
         Replicator&              replicator,
-        const ReplicatorList&    replicators,
+        const std::vector<Key>&    replicators,
         DbgReplicatorEventHandler* dbgEventHandler )
 
 {

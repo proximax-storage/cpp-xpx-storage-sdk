@@ -28,10 +28,10 @@ class Replicator;
     };
 
     struct AddDriveRequest {
-        uint64_t          driveSize;
-        uint64_t          expectedCumulativeDownloadSize;
-        ReplicatorList    replicators;
-        Key               client;
+        uint64_t          m_driveSize;
+        uint64_t          m_expectedCumulativeDownloadSize;
+        ReplicatorList    m_replicators;
+        Key               m_client;
     };
 
     using DriveModifyHandler = std::function<void( modify_status::code, const FlatDrive& drive, const std::string& error )>;
@@ -41,7 +41,7 @@ class Replicator;
         InfoHash m_clientDataInfoHash;
         Hash256 m_transactionHash;
         uint64_t m_maxDataSize;
-        ReplicatorList m_replicatorList;
+        ReplicatorList m_replicators;
         Key m_clientPublicKey;
 
         bool m_isCanceled = false;
@@ -51,13 +51,12 @@ class Replicator;
     {
         InfoHash            m_rootHash;
         Hash256             m_modifyTransactionHash;
-//        uint64_t            m_uploadSize;
     };
 
     struct DownloadRequest {
         Key                  m_channelKey;
         uint64_t             m_prepaidDownloadSize;
-        ReplicatorList       m_addrList;
+        std::vector<Key>     m_replicators;
         std::vector<Key>     m_clients;
     };
 
@@ -454,11 +453,11 @@ class Replicator;
 
         virtual uint64_t sandboxFsTreeSize() const = 0;
         
-        virtual ReplicatorList getReplicators() = 0;
+        virtual std::vector<Key> getReplicators() = 0;
 
         virtual Key      getClient() const = 0;
 
-        virtual void     updateReplicators(const ReplicatorList& replicators) = 0;
+        virtual void     updateReplicators(const std::vector<Key>& replicators) = 0;
 
         virtual void     getSandboxDriveSizes( uint64_t& metaFilesSize, uint64_t&  driveSize ) const = 0;
 
@@ -509,7 +508,7 @@ class Replicator;
                                                        size_t                   expectedCumulativeDownload,
                                                        ReplicatorEventHandler&  eventHandler,
                                                        Replicator&              replicator,
-                                                       const ReplicatorList&    replicators,
+                                                       const std::vector<Key>&    replicators,
                                                        DbgReplicatorEventHandler* dbgEventHandler = nullptr );
 }
 

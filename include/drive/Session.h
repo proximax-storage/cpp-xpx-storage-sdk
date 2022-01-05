@@ -154,7 +154,7 @@ public:
 
     virtual void      sendMessage( boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
     virtual void      sendMessage( const std::string& query, boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
-    virtual void      sendMessage( const std::string& query, boost::asio::ip::udp::endpoint, const std::string& ) = 0;
+    virtual void      sendMessage(const std::string& query, boost::asio::ip::udp::endpoint, const std::string& ) = 0;
     
     virtual void      findAddress( const Key& key ) = 0;
     virtual void      announceExternalAddress( const boost::asio::ip::tcp::endpoint& endpoint ) = 0;
@@ -197,11 +197,13 @@ PLUGIN_API std::shared_ptr<Session> createDefaultSession( boost::asio::io_contex
                                                           std::string address,
                                                           const LibTorrentErrorHandler&,
                                                           std::weak_ptr<lt::session_delegate>,
+                                                          const endpoint_list& bootstraps,
                                                           bool useTcpSocket = true );
 
 PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address,
                                                           const LibTorrentErrorHandler&,
                                                           std::weak_ptr<lt::session_delegate>,
+                                                          const endpoint_list& bootstraps,
                                                           bool useTcpSocket = true );
 
 }

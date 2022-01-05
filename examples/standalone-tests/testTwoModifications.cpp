@@ -53,8 +53,10 @@ namespace sirius::drive::test
         std::optional<Hash256> m_forbiddenTransaction;
 
         virtual void
-        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override {
-            if (transactionInfo.m_opinions.size() == m_replicators.size()) {
+        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override
+        {
+            if (transactionInfo.m_opinions.size() == m_replicators.size())
+            {
                 transactionInfo.m_opinions.pop_back();
             }
             TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
@@ -75,15 +77,20 @@ namespace sirius::drive::test
     {
         fs::remove_all(ROOT_FOLDER);
 
-        lt::settings_pack pack;
-        pack.set_int(lt::settings_pack::upload_rate_limit, 0);
-        TestClient client(pack);
-
         EXLOG("");
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
                 SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 1024 * 1024);
+
+        lt::settings_pack pack;
+        pack.set_int(lt::settings_pack::upload_rate_limit, 0);
+        endpoint_list bootstraps;
+        for ( const auto& b: env.m_bootstraps )
+        {
+            bootstraps.push_back( b.m_endpoint );
+        }
+        TestClient client(bootstraps, pack);
 
         EXLOG("\n# Client started: 1-st upload");
         client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList);
@@ -98,7 +105,7 @@ namespace sirius::drive::test
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        EXLOG( "Required modification " << toString(client.m_modificationTransactionHashes[0] ));
+        EXLOG("Required modification " << toString(client.m_modificationTransactionHashes[0]));
 
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[1],
                                         client.m_modificationTransactionHashes[1],
@@ -106,10 +113,10 @@ namespace sirius::drive::test
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        EXLOG( "Required modification " << toString(client.m_modificationTransactionHashes[1] ));
+        EXLOG("Required modification " << toString(client.m_modificationTransactionHashes[1]));
 
         env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS);
     }
-}
 
 #undef TEST_NAME
+}
