@@ -953,27 +953,20 @@ public:
             std::istringstream is( message, std::ios::binary );
             cereal::PortableBinaryInputArchive iarchive(is);
             
-            VerificationCodeInfo info;
-            iarchive( info );
+            mobj<VerificationCodeInfo> info{VerificationCodeInfo{}};
+            iarchive( *info );
             processVerificationCode( std::move(info) );
             return;
         }
         
         else if ( query == "verify_opinion" )
         {
-//            std::istringstream is( message, std::ios::binary );
-//            cereal::PortableBinaryInputArchive iarchive(is);
-//
-//            uint64_t               verificationCode;
-//            std::array<uint8_t,32> tx;
-//            std::array<uint8_t,32> replicatorKey;
-//            std::array<uint8_t,32> driveKey;
-//            iarchive( verificationCode );
-//            iarchive( tx );
-//            iarchive( replicatorKey );
-//            iarchive( driveKey );
-//
-//            processVerificationOpinion( verificationCode, tx, replicatorKey, driveKey );
+            std::istringstream is( message, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            
+            mobj<VerifyApprovalTxInfo> info{VerifyApprovalTxInfo{}};
+            iarchive( *info );
+            processVerificationOpinion( std::move(info) );
             return;
         }
         
@@ -989,7 +982,11 @@ public:
     {
         DBG_MAIN_THREAD
         
-        //TODO verify sign???
+        if ( !info->Verify() )
+        {
+            _LOG_WARN("processVerificationCode: bad sign: " << Hash256(info->m_tx) )
+            return;
+        }
         
         if ( auto driveIt = m_driveMap.find( info->m_driveKey ); driveIt != m_driveMap.end() )
         {
@@ -1000,7 +997,31 @@ public:
         _LOG_WARN( "processVerificationCode: unknown drive: " << Key(info->m_driveKey) );
     }
 
-    
+    void processVerificationOpinion( mobj<VerifyApprovalTxInfo>&& info )
+    {
+        DBG_MAIN_THREAD
+        
+        if ( info->m_opinions.size() != 1 )
+        {
+            _LOG_WARN("processVerificationOpinion: invalid opinion size: " << info->m_opinions.size() )
+            return;
+        }
+        
+        if ( !info->m_opinions[0].Verify( info->m_tx, info->m_driveKey, info->m_shardId ) )
+        {
+            _LOG_WARN("processVerificationOpinion: bad sign: " << Key(info->m_opinions[0].m_publicKey) )
+            return;
+        }
+        
+        if ( auto driveIt = m_driveMap.find( info->m_driveKey ); driveIt != m_driveMap.end() )
+        {
+            driveIt->second->processVerificationOpinion( std::move(info) );
+            return;
+        }
+        
+        _LOG_WARN( "processVerificationCode: unknown drive: " << Key(info->m_driveKey) );
+    }
+
     ReplicatorEventHandler& eventHandler() override
     {
         return m_eventHandler;

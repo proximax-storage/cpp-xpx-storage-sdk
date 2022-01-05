@@ -418,7 +418,7 @@ class Replicator;
         }
     };
 
-    struct VerifyApprovalTransactionInfo
+    struct VerifyApprovalTxInfo
     {
         std::array<uint8_t,32>          m_tx;
         std::array<uint8_t,32>          m_driveKey;
@@ -442,7 +442,7 @@ class Replicator;
         virtual ~ReplicatorEventHandler() = default;
 
         virtual void verificationTransactionIsReady( Replicator&                    replicator,
-                                                    VerifyApprovalTransactionInfo&& transactionInfo
+                                                    VerifyApprovalTxInfo&& transactionInfo
                                                     )
         {
         }
@@ -577,6 +577,8 @@ class Replicator;
         virtual void     onVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
 
         virtual void     processVerificationCode( mobj<VerificationCodeInfo>&& info ) = 0;
+
+        virtual void     processVerificationOpinion( mobj<VerifyApprovalTxInfo>&& info ) = 0;
 
 //        virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
         

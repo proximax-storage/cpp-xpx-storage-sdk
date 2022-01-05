@@ -172,8 +172,10 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     bool                            m_verifyCodesCalculated = false;
     bool                            m_verifyApproveTxSent   = false;
     std::optional<Hash256>          m_receivedVerifyApproveTx;
-    std::vector<mobj<VerificationCodeInfo>> m_unknownVerifyOpinionQueue;
-    std::map<std::array<uint8_t,32>,mobj<VerificationCodeInfo>> m_verifyOpinions;
+    std::vector<mobj<VerificationCodeInfo>> m_unknownVerificationCodeQueue;
+    std::map<std::array<uint8_t,32>,mobj<VerificationCodeInfo>> m_receivedVerificationCodes;
+    
+    mobj<VerifyApprovalTxInfo>      m_verifyAprovalTxInfo;
 
     // Verification will be canceled, after any modify tx has beenbublished
     bool                            m_verificationCanceled   = false;
@@ -786,9 +788,10 @@ public:
         m_verifyApproveTxSent   = false;
         m_verificationCanceled  = false;
         m_receivedVerifyApproveTx.reset();
+        m_verifyAprovalTxInfo.reset();
         
         // Add early received 'verification codes' from other replicators
-        for( auto& verifyCode: m_unknownVerifyOpinionQueue )
+        for( auto& verifyCode: m_unknownVerificationCodeQueue )
         {
             if ( verifyCode && verifyCode->m_tx == m_verificationRequest->m_tx.array() )
             {
@@ -803,12 +806,12 @@ public:
                     return;
                 }
 
-                m_verifyOpinions[verifyCode->m_replicatorKey] = std::move(verifyCode);
+                m_receivedVerificationCodes[verifyCode->m_replicatorKey] = std::move(verifyCode);
             }
         }
         
         // clear queue
-        std::remove_if( m_unknownVerifyOpinionQueue.begin(), m_unknownVerifyOpinionQueue.end(), []( const auto& it ) {
+        std::remove_if( m_unknownVerificationCodeQueue.begin(), m_unknownVerificationCodeQueue.end(), []( const auto& it ) {
             return !it;
         });
 
@@ -1091,7 +1094,7 @@ public:
             }
             _LOG( "processVerificationCode: unknown tx: " << Key(info->m_tx) )
             
-            m_unknownVerifyOpinionQueue.emplace_back( std::move(info) );
+            m_unknownVerificationCodeQueue.emplace_back( std::move(info) );
             return;
         }
         
@@ -1108,20 +1111,76 @@ public:
             _LOG_WARN( "processVerificationCode: unknown replicatorKey" << Key(info->m_replicatorKey) );
         }
 
-        // Remove opinion with same key, to prevent duplicate opinions
-//        auto& opinions = m_verifyOpinions;
-//        std::remove_if( opinions.begin(), opinions.end(), [&key=info->m_replicatorKey] (const auto& it ) {
-//            return it->m_replicatorKey == key;
-//        });
-//
-//        // Add opinion
-//        opinions.push_back( std::move(info) );
-        
-        m_verifyOpinions[info->m_replicatorKey] = std::move(info);
+        m_receivedVerificationCodes[info->m_replicatorKey] = std::move(info);
 
         if ( m_verifyCodesCalculated )
         {
             checkReceivedVerifyCodeNumberAndStartTimer();
+        }
+    }
+
+    void processVerificationOpinion( mobj<VerifyApprovalTxInfo>&& info ) override
+    {
+        DBG_MAIN_THREAD
+        
+        _ASSERT( info->m_opinions.size() == 1 )
+        
+        if ( m_receivedVerifyApproveTx == info->m_tx )
+        {
+            _LOG( "processVerificationOpinion: verificaty approval tx already published: " << Hash256(info->m_tx) )
+            return;
+        }
+        
+        if ( m_verificationRequest && m_verificationRequest->m_tx != info->m_tx )
+        {
+            // (???) it is old or new?
+            //std::vector<mobj<VerifyApprovalTxInfo>>  m_UNKNOWN_verifyAprovalTxInfo;
+
+            _LOG_WARN( "processVerificationOpinion: received unknown verification opinion: " << Hash256(info->m_tx) )
+            return;
+        }
+        
+        if ( !m_verifyAprovalTxInfo )
+        {
+            // (???) opinion received before verifyRequest?
+            m_verifyAprovalTxInfo = std::move(info);
+            return;
+        }
+        
+        _ASSERT( m_verifyAprovalTxInfo->m_tx == info->m_tx )
+        
+        if ( m_verifyAprovalTxInfo->m_shardId != info->m_shardId )
+        {
+            _LOG_WARN( "processVerificationOpinion: received opinion with different m_shardId: " << info->m_shardId << " vs " << m_verifyAprovalTxInfo->m_shardId )
+            return;
+        }
+        
+        // At any case remove opinions with the same replicator key must be removed
+        //
+        auto& opinions = m_verifyAprovalTxInfo->m_opinions;
+        std::remove_if( opinions.begin(), opinions.end(), [&info] (const auto& it) {
+            return it.m_publicKey == info->m_opinions[0].m_publicKey;
+        });
+        
+        // Check sender replicator key
+        //
+        const auto& keys = m_verificationRequest->m_replicators;
+        bool isUnexpected = std::find_if( keys.begin(), keys.end(), [&info] (const auto& it) {
+            return it.array() == info->m_opinions[0].m_publicKey;
+        }) == keys.end();
+
+        if ( isUnexpected )
+        {
+            _LOG_WARN( "processVerificationOpinion: received opinion from unexpected replicator: " << Key(info->m_opinions[0].m_publicKey) )
+            return;
+        }
+        
+        m_verifyAprovalTxInfo->m_opinions.emplace_back( info->m_opinions[0] );
+        
+        if ( m_verifyAprovalTxInfo->m_opinions.size() > (m_verificationRequest->m_replicators.size() *2)/3 )
+        {
+            //TODO start timer
+            
         }
     }
 
@@ -1135,7 +1194,7 @@ public:
         auto replicatorNumber = m_verificationRequest->m_replicators.size() -1; //TODO remove -1;
 
         // check opinion number
-        if ( m_verifyOpinions.size() <= replicatorNumber
+        if ( m_receivedVerificationCodes.size() <= replicatorNumber
             && !m_verifyApproveTxSent && !m_receivedVerifyApproveTx )
         {
             // start timer if it is not started
@@ -1165,7 +1224,7 @@ public:
         _ASSERT( m_verificationRequest );
 
         // Prepare 'Verify Approval Tx Info'
-        VerifyApprovalTransactionInfo info {
+        VerifyApprovalTxInfo info {
                                         m_verificationRequest->m_tx.array(),
                                         m_drivePubKey.array(),
                                         m_verificationRequest->m_shardId,
@@ -1189,7 +1248,7 @@ public:
             }
             else
             {
-                if ( auto verifyInfoIt = m_verifyOpinions.find(key); verifyInfoIt != m_verifyOpinions.end() )
+                if ( auto verifyInfoIt = m_receivedVerificationCodes.find(key); verifyInfoIt != m_receivedVerificationCodes.end() )
                 {
                     myOpinion.m_opinions[i] = (verifyInfoIt->second->m_code == m_verificationCodes[i]);
                 }
@@ -1201,6 +1260,8 @@ public:
         }
         
         myOpinion.Sign( m_replicator.keyPair(), m_verificationRequest->m_tx.array(), m_drivePubKey.array(), m_verificationRequest->m_shardId );
+        
+        processVerificationOpinion( {info} );
 
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
