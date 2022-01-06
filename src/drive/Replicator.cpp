@@ -348,7 +348,7 @@ public:
                 return;
             }
 
-            _LOG( "cancelModify: unknown drive: " << driveKey );
+            _LOG( "asyncCancelModify: unknown drive: " << driveKey );
         });//post
     }
     
@@ -360,15 +360,31 @@ public:
 
             if ( const auto drive = getDrive(driveKey); drive )
             {
-                drive->startDriveVerification( std::move(request) );
+                drive->startVerification( std::move(request) );
                 return;
             }
 
-            _LOG( "cancelModify: unknown drive: " << driveKey );
+            _LOG( "asyncStartDriveVerification: unknown drive: " << driveKey );
         });//post
     }
 
-    
+    void asyncCancelDriveVerification( Key driveKey, const Hash256& tx ) override
+    {
+        //TODO
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+         
+             DBG_MAIN_THREAD
+
+             if ( const auto drive = getDrive(driveKey); drive )
+             {
+                 drive->cancelVerification( tx );
+                 return;
+             }
+
+             _LOG( "asyncCancelDriveVerification: unknown drive: " << driveKey );
+         });//post
+    }
+
     void asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&& request ) override
     {
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {

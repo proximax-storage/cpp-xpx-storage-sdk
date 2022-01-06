@@ -442,10 +442,14 @@ class Replicator;
         virtual ~ReplicatorEventHandler() = default;
 
         virtual void verificationTransactionIsReady( Replicator&                    replicator,
-                                                    VerifyApprovalTxInfo&& transactionInfo
+                                                    const VerifyApprovalTxInfo&     transactionInfo
                                                     )
         {
         }
+        
+        //
+        // TODO: replace 'ApprovalTransactionInfo&& transactionInfo' by 'const ApprovalTransactionInfo& transactionInfo'
+        // (also VerifyApprovalInfo)
         
         // It will initiate the approving of modify transaction
         virtual void modifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
@@ -572,7 +576,9 @@ class Replicator;
 
         virtual void     startDriveClosing( const Hash256& transactionHash ) = 0;
 
-        virtual void     startDriveVerification( VerificationRequest&& request ) = 0;
+        virtual void     startVerification( mobj<VerificationRequest>&& request ) = 0;
+
+        virtual void     cancelVerification( const Hash256& tx ) = 0;
 
         virtual void     onVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
 

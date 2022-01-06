@@ -88,6 +88,10 @@ namespace sirius {
     class mobj : public std::unique_ptr<T>
     {
     public:
+        mobj() : std::unique_ptr<T>()
+        {
+        }
+
         template <typename... Args>
         mobj( Args... args ) : std::unique_ptr<T>( new T{args...} )
         {
