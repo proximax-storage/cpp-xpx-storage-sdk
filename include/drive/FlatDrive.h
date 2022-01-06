@@ -578,7 +578,7 @@ class Replicator;
 
         virtual void     startVerification( mobj<VerificationRequest>&& request ) = 0;
 
-        virtual void     cancelVerification( const Hash256& tx ) = 0;
+        virtual void     cancelVerification( mobj<Hash256>&& tx ) = 0;
 
         virtual void     onVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
 

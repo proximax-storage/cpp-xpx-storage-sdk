@@ -68,6 +68,7 @@ auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
 const sirius::Hash256 downloadChannelHash1 = std::array<uint8_t,32>{1,1,1,1};
 const sirius::Hash256 downloadChannelHash2 = std::array<uint8_t,32>{2,2,2,2};
 const sirius::Hash256 downloadChannelHash3 = std::array<uint8_t,32>{3,3,3,3};
+const sirius::Hash256 verifyTx             = std::array<uint8_t,32>{8,8,8,8};
 
 const sirius::Hash256 initApprovalHash = std::array<uint8_t,32>{0xf,0,0,0};
 
@@ -164,6 +165,10 @@ ReplicatorList              replicatorList;
 std::condition_variable     modifyCompleteCondVar;
 std::atomic<int>            modifyCompleteCounter{0};
 std::mutex                  modifyCompleteMutex;
+
+std::condition_variable     verifyCompleteCondVar;
+std::atomic<int>            verifyCompleteCounter{0};
+std::mutex                  verifyCompleteMutex;
 
 // Listen (socket) error handle
 //
@@ -285,6 +290,19 @@ public:
     virtual void singleModifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
     {
         EXLOG( "singleModifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName() );
+    }
+
+    void verificationTransactionIsReady( Replicator&                    replicator,
+                                         const VerifyApprovalTxInfo&    transactionInfo ) override
+    {
+        EXLOG( "" );
+        EXLOG( "@ verification_is_ready:" << replicator.dbgReplicatorName() );
+
+        {
+            std::unique_lock<std::mutex> lock(verifyCompleteMutex);
+            verifyCompleteCounter++;
+        }
+        verifyCompleteCondVar.notify_all();
     }
 
     // It will be called after the drive is synchronized with sandbox
@@ -528,6 +546,26 @@ int main(int,char**)
     std::thread( [&]() { gReplicator3->asyncInitiateDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
     EXLOG( "" );
     //sleep(1000);
+
+    //
+    // Start verification
+    //
+    
+    auto actualRootHash = gReplicator->dbgGetRootHash( DRIVE_PUB_KEY );
+
+    std::vector<sirius::Key> replicatorKeys;
+    replicatorKeys.push_back( gReplicator->replicatorKey() );
+    replicatorKeys.push_back( gReplicator2->replicatorKey() );
+    replicatorKeys.push_back( gReplicator3->replicatorKey() );
+
+    gReplicator->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys}} );
+    gReplicator2->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys}} );
+    gReplicator3->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys}} );
+
+    {
+        std::unique_lock<std::mutex> lock(verifyCompleteMutex);
+        verifyCompleteCondVar.wait( lock, [] { return verifyCompleteCounter == 3; } );
+    }
 
     /// Client: modify drive (2)
 #if 1

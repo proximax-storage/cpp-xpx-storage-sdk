@@ -67,7 +67,7 @@ namespace sirius::drive {
 
 #define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
 #define DBG_BG_THREAD { assert( m_dbgThreadId != std::this_thread::get_id() ); }
-#define DBG_VERIFY_THREAD { assert( m_verifyThread.get_id() != std::this_thread::get_id() ); }
+#define DBG_VERIFY_THREAD { assert( m_verifyThread.get_id() == std::this_thread::get_id() ); }
 
 //
 // DrivePaths - drive paths, used at replicator side
@@ -636,6 +636,7 @@ public:
         m_modifyRequest.reset();
         
         m_isSynchronizing = false;
+        //_LOG( "$$$$$$$$$$ m_isSynchronizing = false;" )
         m_taskMustBeBroken = false;
 
         if ( m_publishedTxDuringInitialization )
@@ -1304,6 +1305,7 @@ public:
         
         myOpinion.Sign( m_replicator.keyPair(), m_verificationRequest->m_tx.array(), m_drivePubKey.array(), m_verificationRequest->m_shardId );
         
+        info.m_opinions.push_back( myOpinion );
         processVerificationOpinion( {info} );
 
         std::ostringstream os( std::ios::binary );
@@ -1344,7 +1346,7 @@ public:
 //        }
 //    }
     
-    void cancelVerification( const Hash256& tx ) override
+    void cancelVerification( mobj<Hash256>&& tx ) override
     {
         DBG_MAIN_THREAD
         
@@ -1354,7 +1356,7 @@ public:
             return;
         }
         
-        if ( tx.array() != m_verificationRequest->m_tx )
+        if ( tx->array() != m_verificationRequest->m_tx )
         {
             _LOG_ERR( "cancelVerification: internal error: bad tx:" << tx )
             return;
@@ -1389,9 +1391,9 @@ public:
             _LOG_ERR("startVerification: internal error: m_verificationRequest != null")
         }
         
-        if ( request->m_actualRootHash == m_rootHash )
+        if ( m_defferedVerificationRequest->m_actualRootHash == m_rootHash )
         {
-            if ( !m_isSynchronizing )
+            if ( m_isSynchronizing )
             {
                 // Outdated request root hash (not properly extracted rootHash from blockchain)
                 _LOG_ERR( "startVerification: m_isSynchronizing must be false" )
@@ -1447,7 +1449,8 @@ public:
         _ASSERT( m_modifyRequest || m_catchingUpRequest );
 
         m_isSynchronizing = true;
-        
+        //_LOG( "$$$$$$$$$$ m_isSynchronizing = true;" )
+
         updateDrive_1( [this]
         {
             updateDrive_2();
