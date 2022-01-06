@@ -175,6 +175,15 @@ class Replicator;
         std::array<uint8_t, 32> m_modifyTransactionHash;
     };
 
+    struct PublishedVerificationApprovalTransactionInfo
+    {
+        // requested tx
+        std::array<uint8_t, 32> m_tx;
+
+        // Drive public key
+        std::array<uint8_t, 32> m_driveKey;
+    };
+
     // It is used in 2 cases:
     // - as 'DataModificationApprovalTransaction '
     // - as 'DataModificationSingleApprovalTransaction' (in this case vector 'm_opinions' has single element)
@@ -299,40 +308,129 @@ class Replicator;
     struct VerificationRequest
     {
         Hash256                     m_tx;
+        uint32_t                    m_shardId = 0;
         InfoHash                    m_actualRootHash;
         std::vector<Key>            m_replicators;
     };
 
-    struct VerificationCodes
+    struct VerificationCodeInfo
     {
-        VerificationRequest         m_request;
-        std::vector<uint64_t>       m_codes;
+        std::array<uint8_t,32> m_tx;
+        std::array<uint8_t,32> m_replicatorKey;
+        std::array<uint8_t,32> m_driveKey;
+        uint64_t               m_code;
+
+        Signature              m_signature;
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_tx );
+            arch( m_replicatorKey );
+            arch( m_driveKey );
+            arch( m_code );
+            arch( cereal::binary_data( m_signature.data(), m_signature.size() ) );
+        }
+
+        void Sign( const crypto::KeyPair& keyPair )
+        {
+            crypto::Sign( keyPair,
+                          {
+                            utils::RawBuffer{m_tx},
+                            utils::RawBuffer{m_driveKey},
+                            utils::RawBuffer{ (const uint8_t*) &m_code, sizeof(m_code) },
+                          },
+                          m_signature );
+        }
+
+        bool Verify() const
+        {
+            return crypto::Verify( m_replicatorKey,
+                                   {
+                                        utils::RawBuffer{m_tx},
+                                        utils::RawBuffer{m_driveKey},
+                                        utils::RawBuffer{ (const uint8_t*) &m_code, sizeof(m_code) },
+                                   },
+                                   m_signature );
+        }
     };
 
-    struct VerificationReply
+    struct VerifyOpinion
     {
-        bool                        m_opinion;
+        uint8_t                     m_isValid = 0; // 0 or 1
         std::array<uint8_t,32>      m_replicatorKey;
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_isValid );
+            arch( m_replicatorKey );
+        }
     };
 
     struct VerifyApprovalInfo
     {
-        std::array<uint8_t,32>          m_publicKey;
-        std::array<uint8_t,32>          m_tx;
-        std::array<uint8_t,32>          m_drivePublicKey;
-        //???std::array<uint8_t,32>          m_shardId;
-        std::vector<VerificationReply>  m_opinions;
-        
+        std::array<uint8_t,32>              m_publicKey;
+        //std::array<uint8_t,32>           m_tx;
+        //std::array<uint8_t,32>           m_driveKey;
+        //uint32_t                         m_shardId;
+        std::vector<std::array<uint8_t,32>> m_opinionKeys;
+        std::vector<uint8_t>                   m_opinions;
+
         // our publicKey, m_tx, m_driveKey, m_shardId, m_opinions
         Signature                   m_signature;
+        
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_publicKey );
+            arch( m_opinions );
+            arch( cereal::binary_data( m_signature.data(), m_signature.size() ) );
+        }
+
+        void Sign( const crypto::KeyPair&           keyPair,
+                   const std::array<uint8_t,32>&    tx,
+                   const std::array<uint8_t,32>&    driveKey,
+                   uint32_t                         shardId )
+       {
+            crypto::Sign( keyPair,
+                          {
+                            utils::RawBuffer{tx},
+                            utils::RawBuffer{driveKey},
+                            utils::RawBuffer{(const uint8_t*) &shardId, sizeof(shardId)},
+                            utils::RawBuffer{(const uint8_t*) &m_opinionKeys[0], m_opinionKeys.size()*sizeof(m_opinionKeys[0])},
+                            utils::RawBuffer{m_opinions},
+                          },
+                          m_signature );
+        }
+
+        bool Verify( const std::array<uint8_t,32>&    tx,
+                     const std::array<uint8_t,32>&    driveKey,
+                     uint32_t                         shardId ) const
+        {
+            return crypto::Verify( m_publicKey,
+                                  {
+                                    utils::RawBuffer{tx},
+                                    utils::RawBuffer{driveKey},
+                                    utils::RawBuffer{(const uint8_t*) &shardId, sizeof(shardId)},
+                                    utils::RawBuffer{(const uint8_t*) &m_opinionKeys[0], m_opinionKeys.size()*sizeof(m_opinionKeys[0])},
+                                    utils::RawBuffer{m_opinions},
+                                  },
+                                  m_signature );
+        }
     };
 
-    struct VerifyApprovalTransactionInfo
+    struct VerifyApprovalTxInfo
     {
         std::array<uint8_t,32>          m_tx;
         std::array<uint8_t,32>          m_driveKey;
         uint32_t                        m_shardId = 0;
         std::vector<VerifyApprovalInfo> m_opinions;
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_tx );
+            arch( m_driveKey );
+            arch( m_shardId );
+            arch( m_opinions );
+        }
     };
 
     // Iterface for storage extension
@@ -343,10 +441,14 @@ class Replicator;
         virtual ~ReplicatorEventHandler() = default;
 
         virtual void verificationTransactionIsReady( Replicator&                    replicator,
-                                                    VerifyApprovalTransactionInfo&& transactionInfo
+                                                    const VerifyApprovalTxInfo&     transactionInfo
                                                     )
         {
         }
+        
+        //
+        // TODO: replace 'ApprovalTransactionInfo&& transactionInfo' by 'const ApprovalTransactionInfo& transactionInfo'
+        // (also VerifyApprovalInfo)
         
         // It will initiate the approving of modify transaction
         virtual void modifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
@@ -356,6 +458,12 @@ class Replicator;
         
         // It will be called when transaction could not be completed
         virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
+
+        // It will initiate the approving of verify transaction
+        virtual void verifyApprovalTransactionIsReady( Replicator& replicator, VerifyApprovalInfo&& info )
+        {
+            //TODO make it 'pure virtual'
+        }
 
         virtual void opinionHasBeenReceived(  Replicator& replicator,
                                               const ApprovalTransactionInfo& ) = 0;
@@ -467,7 +575,15 @@ class Replicator;
 
         virtual void     startDriveClosing( const Hash256& transactionHash ) = 0;
 
-        virtual void     startDriveVerification( VerificationRequest&& request ) = 0;
+        virtual void     startVerification( mobj<VerificationRequest>&& request ) = 0;
+
+        virtual void     cancelVerification( const Hash256& tx ) = 0;
+
+        virtual void     onVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
+
+        virtual void     processVerificationCode( mobj<VerificationCodeInfo>&& info ) = 0;
+
+        virtual void     processVerificationOpinion( mobj<VerifyApprovalTxInfo>&& info ) = 0;
 
 //        virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
         

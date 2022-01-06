@@ -8,16 +8,20 @@ set(CMAKE_CXX_EXTENSIONS ON)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-option(BUILD_STATIC_LIBS "Build the static library" ON)
-option(BUILD_SHARED_LIBS "Build the shared library" OFF)
+# Libtorrent
+option(XPX_STORAGE_SDK_BUILD_EMULATOR "Build XPX-STORAGE SDK emulator." ON)
+option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build XPX-STORAGE SDK examples." ON)
 
 ### setup boost
 find_package(Boost COMPONENTS atomic system date_time regex timer chrono log thread filesystem program_options random REQUIRED)
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 
-include_directories(SYSTEM "cereal/include")
-include_directories(SYSTEM "libtorrent/include")
-include_directories(SYSTEM "rpclib/include")
+include_directories(cereal/include)
+add_subdirectory(libtorrent)
+
+if (XPX_STORAGE_SDK_BUILD_EMULATOR)
+    add_subdirectory(cpp-xpx-rpclib)
+endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(CMAKE_VERBOSE_MAKEFILE ON)
@@ -38,8 +42,11 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     #include_directories(SYSTEM "/usr/local/include/" "/Library/Developer/CommandLineTools/SDKs/MacOSX12.0.sdk/usr/include/")
     #include_directories(SYSTEM "/Library/Developer/CommandLineTools/SDKs/MacOSX12.0.sdk/usr/include/")
 
+    add_subdirectory(examples)
 endif()
 
 add_subdirectory(src)
 
-add_subdirectory(examples)
+if (XPX_STORAGE_SDK_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()

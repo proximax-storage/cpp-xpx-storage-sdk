@@ -235,7 +235,7 @@ public:
         }
         else
         {
-            lt_session().get_context().post( [=] {
+            boost::asio::post(lt_session().get_context(), [=] {
                 endNotification();
             });
         }
@@ -549,7 +549,7 @@ public:
 //            _LOG( "response: " << response );
 
             const std::set<lt::string_view> supportedQueries =
-                    { "opinion", "dnopinion", "verification_code", "handshake", "endpoint_request", "endpoint_response" };
+                    { "opinion", "dn_opinion", "code_verify", "handshake", "verify_opinion", "endpoint_request", "endpoint_response" };
             if ( supportedQueries.contains(query) )
             {
                 auto str = message.dict_find_string_value("x");

@@ -18,7 +18,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     target_link_libraries(modifyDriveFlat3
             #${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
             ${CMAKE_SOURCE_DIR}/libtorrent/cmake-build-debug/libtorrent-sirius.dylib
-            ${CMAKE_SOURCE_DIR}/rpclib/build/librpc.a
+#            ${CMAKE_SOURCE_DIR}/rpclib/build/librpc.a
             crypto
             )
     #        /usr/local/opt/openssl/lib/libssl.dylib

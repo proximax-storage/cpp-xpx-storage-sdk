@@ -83,17 +83,21 @@ namespace sirius {
         using ReplicatorList = std::vector<Key>;
     }
 
-    // smart unique ptr
+    // movable/nullable object with Args... constructor
     template< class T >
-    class movable_ptr : public std::unique_ptr<T>
+    class mobj : public std::unique_ptr<T>
     {
     public:
-        template <typename... Args>
-        movable_ptr( Args... args ) : std::unique_ptr<T>( new T{args...} )
+        mobj() : std::unique_ptr<T>()
         {
         }
 
-//        movable_ptr( std::unique_ptr<T> ptr ) : std::unique_ptr<T>( ptr )
+        template <typename... Args>
+        mobj( Args... args ) : std::unique_ptr<T>( new T{args...} )
+        {
+        }
+
+//        mobj( std::unique_ptr<T> ptr ) : std::unique_ptr<T>( ptr )
 //        {
 //        }
 //

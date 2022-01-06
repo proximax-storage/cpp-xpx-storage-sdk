@@ -271,6 +271,7 @@ public:
     virtual void        asyncCancelModify( Key driveKey, Hash256  transactionHash ) = 0;
     
     virtual void        asyncStartDriveVerification( Key driveKey, VerificationRequest&& ) = 0;
+    virtual void        asyncCancelDriveVerification( Key driveKey, const Hash256& tx ) = 0;
 
     // 'replicatorsList' is used to notify other replictors
     // (it does not contain its own endpoint)
@@ -309,6 +310,9 @@ public:
     // It will be called after 'single MODIFY approval transaction' has been published
     virtual void        asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo transaction ) = 0;
 
+    // It will be called after 'VERIFY approval transaction' has been published
+    virtual void        asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
+
     // It continues drive closing (initiates DownloadApprovalTransaction and then removes drive)
     virtual void        closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) = 0;
     
@@ -329,6 +333,10 @@ public:
     virtual void        setDownloadApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual void        setModifyApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual int         getModifyApprovalTransactionTimerDelay() = 0;
+    virtual void        setVerifyCodeTimerDelay( int milliseconds ) = 0;
+    virtual int         getVerifyCodeTimerDelay() = 0;
+    virtual void        setVerifyApprovalTransactionTimerDelay( int milliseconds ) = 0;
+    virtual int         getVerifyApprovalTransactionTimerDelay() = 0;
     virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
 
     

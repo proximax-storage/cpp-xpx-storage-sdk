@@ -312,6 +312,8 @@ private:
     
     int         m_downloadApprovalTransactionTimerDelayMs = 60*1000;
     int         m_modifyApprovalTransactionTimerDelayMs   = 60*1000;
+    int         m_verifyCodeTimerDelayMs                  = 60*60*1000;
+    int         m_verifyApprovalTransactionTimerDelayMs   = 60*1000;
     std::mutex  m_replicatorDestructingMutex;
     bool        m_replicatorIsDestructing = false;
 
@@ -366,7 +368,7 @@ public:
             drive->terminate();
         }
 
-        m_session->lt_session().get_context().post( [this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [this]() mutable {
             m_downloadChannelMap.clear();
             m_modifyDriveMap.clear();
             m_driveMap.clear();
@@ -441,7 +443,7 @@ public:
 #else
         std::mutex waitMutex;
         waitMutex.lock();
-        m_session->lt_session().get_context().post( [=,&waitMutex,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,&waitMutex,this]() mutable {
             m_dbgThreadId = std::this_thread::get_id();
             waitMutex.unlock();
         });//post
@@ -504,7 +506,7 @@ public:
 
     void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
             
@@ -563,7 +565,7 @@ public:
 
     void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -581,7 +583,7 @@ public:
 
     void asyncModify( Key driveKey, ModifyRequest modifyRequest ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -619,7 +621,7 @@ public:
     
     void asyncCancelModify( Key driveKey, Hash256 transactionHash ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -629,30 +631,46 @@ public:
                 return;
             }
 
-            _LOG( "cancelModify: unknown drive: " << driveKey );
+            _LOG( "asyncCancelModify: unknown drive: " << driveKey );
         });//post
     }
     
     void asyncStartDriveVerification( Key driveKey, VerificationRequest&& request ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
             if ( const auto drive = getDrive(driveKey); drive )
             {
-                drive->startDriveVerification( std::move(request) );
+                drive->startVerification( std::move(request) );
                 return;
             }
 
-            _LOG( "cancelModify: unknown drive: " << driveKey );
+            _LOG( "asyncStartDriveVerification: unknown drive: " << driveKey );
         });//post
     }
 
-    
+    void asyncCancelDriveVerification( Key driveKey, const Hash256& tx ) override
+    {
+        //TODO
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+
+             DBG_MAIN_THREAD
+
+             if ( const auto drive = getDrive(driveKey); drive )
+             {
+                 drive->cancelVerification( tx );
+                 return;
+             }
+
+             _LOG( "asyncCancelDriveVerification: unknown drive: " << driveKey );
+         });//post
+    }
+
     void asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&& request ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -669,7 +687,7 @@ public:
 
     void removeDownloadChannelInfo( const std::array<uint8_t,32>& channelKey ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
             
@@ -770,7 +788,7 @@ public:
 
     virtual void asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -901,7 +919,7 @@ public:
     {
         //todo make queue for several simultaneous requests of the same channelId
 
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
             doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
@@ -943,7 +961,7 @@ public:
                 if ( replicatorIt != publicKey() )
                 {
                     //_LOG( "replicatorIt.m_endpoint: " << replicatorIt.m_endpoint << " " << os.str().length() << " " << dbgReplicatorName() );
-                    sendMessage( "dnopinion", replicatorIt.array(), os.str() );
+                    sendMessage( "dn_opinion", replicatorIt.array(), os.str() );
                 }
             }
 
@@ -990,7 +1008,7 @@ public:
 
     void asyncDownloadApprovalTransactionHasFailedInvalidOpinions( Hash256 eventHash, Hash256 channelId ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -1039,7 +1057,7 @@ public:
     
     virtual void asyncDownloadApprovalTransactionHasBeenPublished( Hash256 eventHash, Hash256 channelId, bool driveIsClosed ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
             
@@ -1128,7 +1146,7 @@ public:
     
     virtual void asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -1153,7 +1171,7 @@ public:
     
     virtual void asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo transaction ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -1176,7 +1194,7 @@ public:
 
     void asyncApprovalTransactionHasFailedInvalidSignatures(Key driveKey, Hash256 transactionHash) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -1193,13 +1211,30 @@ public:
     
     virtual void asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo transaction ) override
     {
-        m_session->lt_session().get_context().post( [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
             if ( auto drive = getDrive( transaction.m_driveKey ); drive )
             {
                 drive->onSingleApprovalTransactionHasBeenPublished( transaction );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found" );
+            }
+        });//post
+    }
+
+    virtual void asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+
+            DBG_MAIN_THREAD
+
+            if ( auto drive = getDrive( info.m_driveKey ); drive )
+            {
+                drive->onVerifyApprovalTransactionHasBeenPublished( info );
             }
             else
             {
@@ -1251,7 +1286,7 @@ public:
             processOpinion(info);
             return;
         }
-        else if ( query == "dnopinion" )
+        else if ( query == "dn_opinion" )
         {
             std::istringstream is( message, std::ios::binary );
             cereal::PortableBinaryInputArchive iarchive(is);
@@ -1261,19 +1296,25 @@ public:
             processDownloadOpinion(info);
             return;
         }
-        else if ( query == "verification_code" )
+        else if ( query == "code_verify" )
+        {
+            std::istringstream is( message, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+
+            mobj<VerificationCodeInfo> info{VerificationCodeInfo{}};
+            iarchive( *info );
+            processVerificationCode( std::move(info) );
+            return;
+        }
+
+        else if ( query == "verify_opinion" )
         {
             std::istringstream is( message, std::ios::binary );
             cereal::PortableBinaryInputArchive iarchive(is);
             
-            uint64_t                verificationCode;
-            std::array<uint8_t,32> tx;
-            std::array<uint8_t,32> replicatorKey;
-            iarchive( verificationCode );
-            iarchive( tx );
-            iarchive( replicatorKey );
-
-            processVerificationCode( tx, replicatorKey, verificationCode );
+            mobj<VerifyApprovalTxInfo> info{VerifyApprovalTxInfo{}};
+            iarchive( *info );
+            processVerificationOpinion( std::move(info) );
             return;
         }
         else if ( query == "handshake" )
@@ -1304,7 +1345,7 @@ public:
             m_endpointsManager.updateExternalEndpoint(response);
             return;
         }
-        
+
         assert(0);
     }
     catch(...)
@@ -1313,23 +1354,50 @@ public:
     }
 
 
-    void processVerificationCode( const std::array<uint8_t,32>& tx, const std::array<uint8_t,32>& replicatorKey, uint64_t verificationCode )
+    void processVerificationCode( mobj<VerificationCodeInfo>&& info )
     {
-        //TODO verify sign!!!
+        DBG_MAIN_THREAD
         
-        auto verifyIt = m_verifyApprovalMap.lower_bound(tx);
+        if ( !info->Verify() )
+        {
+            _LOG_WARN("processVerificationCode: bad sign: " << Hash256(info->m_tx) )
+            return;
+        }
 
-        if ( verifyIt == m_verifyApprovalMap.end() )
+        if ( auto driveIt = m_driveMap.find( info->m_driveKey ); driveIt != m_driveMap.end() )
         {
-            m_verifyApprovalMap.insert( verifyIt, {} );
+            driveIt->second->processVerificationCode( std::move(info) );
+            return;
         }
-        else
-        {
-            
-        }
+
+        _LOG_WARN( "processVerificationCode: unknown drive: " << Key(info->m_driveKey) );
     }
 
-    
+    void processVerificationOpinion( mobj<VerifyApprovalTxInfo>&& info )
+    {
+        DBG_MAIN_THREAD
+
+        if ( info->m_opinions.size() != 1 )
+        {
+            _LOG_WARN("processVerificationOpinion: invalid opinion size: " << info->m_opinions.size() )
+            return;
+        }
+
+        if ( !info->m_opinions[0].Verify( info->m_tx, info->m_driveKey, info->m_shardId ) )
+        {
+            _LOG_WARN("processVerificationOpinion: bad sign: " << Key(info->m_opinions[0].m_publicKey) )
+            return;
+        }
+
+        if ( auto driveIt = m_driveMap.find( info->m_driveKey ); driveIt != m_driveMap.end() )
+        {
+            driveIt->second->processVerificationOpinion( std::move(info) );
+            return;
+        }
+
+        _LOG_WARN( "processVerificationCode: unknown drive: " << Key(info->m_driveKey) );
+    }
+
     ReplicatorEventHandler& eventHandler() override
     {
         return m_eventHandler;
@@ -1348,6 +1416,26 @@ public:
     int         getModifyApprovalTransactionTimerDelay() override
     {
         return m_modifyApprovalTransactionTimerDelayMs;
+    }
+
+    void        setVerifyCodeTimerDelay( int miliseconds ) override
+    {
+        m_verifyCodeTimerDelayMs = miliseconds;
+    }
+
+    int         getVerifyCodeTimerDelay() override
+    {
+        return m_verifyCodeTimerDelayMs;
+    }
+
+    void        setVerifyApprovalTransactionTimerDelay( int miliseconds ) override
+    {
+        m_verifyApprovalTransactionTimerDelayMs = miliseconds;
+    }
+
+    int         getVerifyApprovalTransactionTimerDelay() override
+    {
+        return m_verifyApprovalTransactionTimerDelayMs;
     }
 
     void        setSessionSettings(const lt::settings_pack& settings, bool localNodes) override

@@ -7,7 +7,6 @@
 
 #include <iostream>
 #include <mutex>
-#include "utils/Logging.h"
 
 inline std::mutex gLogMutex;
 
