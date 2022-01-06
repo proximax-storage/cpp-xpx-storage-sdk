@@ -630,11 +630,12 @@ public:
             m_myOpinion.reset();
         }
         
-        m_driveWillRemovedTx.reset();
+        _ASSERT( !m_driveWillRemovedTx )
         m_modificationCanceledTx.reset();
         m_catchingUpRequest.reset();
         m_modifyRequest.reset();
         
+        m_isSynchronizing = false;
         m_taskMustBeBroken = false;
 
         if ( m_publishedTxDuringInitialization )
@@ -784,12 +785,34 @@ public:
         
         _ASSERT( m_verificationRequest )
         
+        //
+        // At first, prepare verification on session/main thread
+        //
+
         // Reset verification variables
         m_myVerifyCodesCalculated = false;
         m_verifyApproveTxSent   = false;
         m_verificationCanceled  = false;
         m_receivedVerifyApproveTx.reset();
         m_myVerifyAprovalTxInfo.reset();
+        
+        // add unknown opinions in 'myVerifyAprovalTxInfo'
+        for( auto& opinion: m_unknownOpinions )
+        {
+            if ( opinion->m_tx == m_verificationRequest->m_tx.array() )
+            {
+                if ( !m_myVerifyAprovalTxInfo )
+                {
+                    m_myVerifyAprovalTxInfo = std::move(opinion);
+                }
+                else
+                {
+                    m_myVerifyAprovalTxInfo->m_opinions.push_back( opinion->m_opinions[0] );
+                }
+            }
+        }
+        // clear 'unknownOpinions'
+        m_unknownOpinions.clear();
         
         // Add early received 'verification codes' from other replicators
         for( auto& verifyCode: m_unknownVerificationCodeQueue )
@@ -816,7 +839,9 @@ public:
             return !it;
         });
 
+        //
         // Run verification task on separate thread
+        //
         m_verifyThread = std::thread( [this,verificationRequest=*m_verificationRequest] () mutable
         {
             DBG_VERIFY_THREAD
@@ -955,8 +980,6 @@ public:
 
         if ( m_dbgEventHandler )
             m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, modificationHash, m_rootHash );
-
-        m_isSynchronizing = false;
 
         runNextTask();
     }
