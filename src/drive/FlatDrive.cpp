@@ -473,6 +473,7 @@ public:
             m_dbgEventHandler->driveIsInitialized( m_replicator, drivePublicKey(), m_rootHash );
         }
 
+        _LOG ( "Initialized" )
         runNextTask(true);
     }
 
@@ -596,6 +597,7 @@ public:
 
         if ( runAfterInitializing )
         {
+            _LOG ( "Task after init" )
             m_driveIsInitializing = false;
         }
         
@@ -2354,9 +2356,12 @@ public:
     
     void removeAllDriveData() override
     {
+        _LOG ( "In Remove all drive data" );
         m_backgroundExecutor.run( [this]
         {
             DBG_BG_THREAD
+
+            _LOG ( "In BG remove" );
 
             try {
                 // remove drive root folder and sandbox

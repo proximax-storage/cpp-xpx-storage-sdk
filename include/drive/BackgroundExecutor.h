@@ -40,6 +40,8 @@ public:
 
     void run( const std::function<void()>& task )
     {
+        __LOG ( "In Executor Run")
+        assert( m_thread.joinable() );
         m_context.post( [=] { task(); });
     }
 };

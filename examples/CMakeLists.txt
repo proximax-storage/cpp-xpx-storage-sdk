@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.9)
 
 add_definitions(-DSIRIUS_DRIVE_MULTI)
-add_definitions(-DCHANNELS_NOT_OWNED_BY_DRIVES)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 

@@ -25,6 +25,7 @@
 namespace sirius::drive {
 
 #define USE_OUR_IO_CONTEXT
+#define CHANNELS_NOT_OWNED_BY_DRIVES
 
 class EndpointsManager
 {
