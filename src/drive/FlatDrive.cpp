@@ -196,8 +196,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     std::optional<Hash256>              m_removeDriveTx = {};
     std::optional<Hash256>              m_modificationMustBeCanceledTx;
     std::optional<CatchingUpRequest>    m_newCatchingUpRequest;
-    std::deque<ModifyRequest>           m_defferedModifyRequests;
-    mobj<VerificationRequest>           m_defferedVerificationRequest;
+    std::deque<ModifyRequest>           m_deferredModifyRequests;
+    mobj<VerificationRequest>           m_deferredVerificationRequest;
 
     //
     // Task variable
@@ -234,6 +234,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     //
     std::optional<ApprovalTransactionInfo>              m_myOpinion; // (***)
     std::optional<boost::asio::high_resolution_timer>   m_shareMyOpinionTimer;
+
+    const int                                           m_shareMyOpinionTimerDelayMs = 1000 * 60 * 5;
     
     // It is needed for right calculation of my 'modify' opinion
     std::optional<std::array<uint8_t,32>>       m_opinionTrafficIdentifier; // (***)
@@ -303,7 +305,12 @@ public:
     void terminate() override
     {
         _ASSERT( m_dbgThreadId != std::this_thread::get_id() );
-        
+
+        m_shareMyOpinionTimer.reset();
+        m_verifyCodeTimer.reset();
+        m_modifyOpinionTimer.reset();
+        m_verifyOpinionTimer.reset();
+
         //LOG_ERR ("Not fully implemented?");
         m_backgroundExecutor.stop();
         
@@ -351,6 +358,13 @@ public:
     Key getClient() const override
     {
         return m_client;
+    }
+
+    ReplicatorList getUploaders()
+    {
+        auto replicators = getReplicators();
+        replicators.push_back( getClient() );
+        return replicators;
     }
 
     void updateReplicators(const ReplicatorList& replicators) override
@@ -659,11 +673,11 @@ public:
             return;
         }
 
-        if( m_defferedVerificationRequest )
+        if( m_deferredVerificationRequest )
         {
-            if ( m_defferedVerificationRequest->m_actualRootHash == m_rootHash )
+            if (m_deferredVerificationRequest->m_actualRootHash == m_rootHash )
             {
-                m_verificationRequest = std::move( m_defferedVerificationRequest );
+                m_verificationRequest = std::move(m_deferredVerificationRequest );
                 runVerifyDriveTaskOnSeparateThread();
 
                 // Verification will performed on separate thread.
@@ -688,10 +702,10 @@ public:
             return;
         }
         
-        if ( !m_defferedModifyRequests.empty() )
+        if ( !m_deferredModifyRequests.empty() )
         {
-            auto request = m_defferedModifyRequests.front();
-            m_defferedModifyRequests.pop_front();
+            auto request = m_deferredModifyRequests.front();
+            m_deferredModifyRequests.pop_front();
             
             startModifyDriveTask( request );
             return;
@@ -993,12 +1007,12 @@ public:
 
         if ( m_driveIsInitializing )
         {
-            auto it = std::find_if( m_defferedModifyRequests.begin(), m_defferedModifyRequests.end(), [&transactionHash](const auto& item)
+            auto it = std::find_if(m_deferredModifyRequests.begin(), m_deferredModifyRequests.end(), [&transactionHash](const auto& item)
                                 { return item.m_transactionHash == transactionHash; });
             
-            if ( it != m_defferedModifyRequests.end() )
+            if (it != m_deferredModifyRequests.end() )
             {
-                m_defferedModifyRequests.erase( it );
+                m_deferredModifyRequests.erase(it );
                 m_replicator.removeModifyDriveInfo( transactionHash.array() );
             }
             return;
@@ -1027,16 +1041,16 @@ public:
         }
         else
         {
-            auto it = std::find_if( m_defferedModifyRequests.begin(), m_defferedModifyRequests.end(), [&transactionHash](const auto& item)
+            auto it = std::find_if(m_deferredModifyRequests.begin(), m_deferredModifyRequests.end(), [&transactionHash](const auto& item)
                                 { return item.m_transactionHash == transactionHash; });
             
-            if ( it == m_defferedModifyRequests.end() )
+            if (it == m_deferredModifyRequests.end() )
             {
                 _LOG_ERR( "cancelModifyDrive(): invalid transactionHash: " << transactionHash );
                 return;
             }
             
-            m_defferedModifyRequests.erase( it );
+            m_deferredModifyRequests.erase(it );
         }
     }
 
@@ -1351,9 +1365,9 @@ public:
             return;
         }
         
-        if ( tx->array() != m_verificationRequest->m_tx )
+        if ( tx->array() != m_verificationRequest->m_tx.array() )
         {
-            _LOG_ERR( "cancelVerification: internal error: bad tx:" << tx )
+//            _LOG_ERR( "cancelVerification: internal error: bad tx:" << tx )
             return;
         }
 
@@ -1374,7 +1388,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_defferedVerificationRequest = std::move(request);
+        m_deferredVerificationRequest = std::move(request);
 
         if ( m_driveIsInitializing )
         {
@@ -1386,7 +1400,7 @@ public:
             _LOG_ERR("startVerification: internal error: m_verificationRequest != null")
         }
         
-        if ( m_defferedVerificationRequest->m_actualRootHash == m_rootHash )
+        if (m_deferredVerificationRequest->m_actualRootHash == m_rootHash )
         {
             if ( m_isSynchronizing )
             {
@@ -1394,7 +1408,7 @@ public:
                 _LOG_ERR( "startVerification: m_isSynchronizing must be false" )
             }
             _ASSERT( !m_isSynchronizing )
-            m_verificationRequest = std::move( m_defferedVerificationRequest );
+            m_verificationRequest = std::move(m_deferredVerificationRequest );
             runVerifyDriveTaskOnSeparateThread();
         }
     }
@@ -1465,7 +1479,7 @@ public:
              m_modificationCanceledTx || m_driveIsInitializing )
         {
             _LOG( "startModifyDrive: queue modifyRequest" );
-            m_defferedModifyRequests.emplace_back( std::move(modifyRequest) );
+            m_deferredModifyRequests.emplace_back(std::move(modifyRequest) );
             return;
         }
         startModifyDriveTask( modifyRequest );
@@ -1502,7 +1516,7 @@ public:
                                                 ""),
                                                        m_sandboxRootPath,
                                                        //{} );
-                                                m_replicatorList );
+                                                getUploaders() );
         }
     }
 
@@ -2400,30 +2414,31 @@ public:
         _ASSERT( actualCatchingRequest )
 
         // clear modification queue - we will not execute these modifications
-        auto it = std::find_if(m_defferedModifyRequests.begin(),
-                               m_defferedModifyRequests.end(),
+        auto it = std::find_if(m_deferredModifyRequests.begin(),
+                               m_deferredModifyRequests.end(),
                                [&](const auto &item)
                                {
                                    return item.m_transactionHash ==
                                           actualCatchingRequest->m_modifyTransactionHash;
                                });
-        if ( it != m_defferedModifyRequests.end() )
+        if (it != m_deferredModifyRequests.end() )
         {
-            while ( !m_defferedModifyRequests.empty() and it != m_defferedModifyRequests.begin() )
+            while (!m_deferredModifyRequests.empty() and it != m_deferredModifyRequests.begin() )
             {
                 if ( !m_opinionTrafficIdentifier
-                     || *m_opinionTrafficIdentifier != m_defferedModifyRequests.front().m_transactionHash.array() )
+                     || *m_opinionTrafficIdentifier != m_deferredModifyRequests.front().m_transactionHash.array() )
                 {
-                    m_replicator.removeModifyDriveInfo(m_defferedModifyRequests.front().m_transactionHash.array());
+                    m_replicator.removeModifyDriveInfo(m_deferredModifyRequests.front().m_transactionHash.array());
                 }
-                m_defferedModifyRequests.pop_front();
+                m_expectedCumulativeDownload += m_deferredModifyRequests.front().m_maxDataSize;
+                m_deferredModifyRequests.pop_front();
             }
-            m_expectedCumulativeDownload += m_defferedModifyRequests.front().m_maxDataSize;
-            m_defferedModifyRequests.pop_front();
+            m_expectedCumulativeDownload += m_deferredModifyRequests.front().m_maxDataSize;
+            m_deferredModifyRequests.pop_front();
             if ( m_opinionTrafficIdentifier &&
-                *m_opinionTrafficIdentifier != m_defferedModifyRequests.front().m_transactionHash.array() )
+                 *m_opinionTrafficIdentifier != m_deferredModifyRequests.front().m_transactionHash.array() )
             {
-                m_replicator.removeModifyDriveInfo(m_defferedModifyRequests.front().m_transactionHash.array());
+                m_replicator.removeModifyDriveInfo(m_deferredModifyRequests.front().m_transactionHash.array());
             }
         }
 
@@ -2454,7 +2469,7 @@ public:
                                             //toString( *m_catchingUpRootHash ) ),
                                             m_sandboxRootPath,
                                                    //{} );
-                                            m_replicatorList );
+                                            getUploaders() );
         }
     }
     
@@ -2597,7 +2612,7 @@ public:
                                                  0,
                                                  ""),
                                                  m_sandboxRootPath,
-                                                 m_replicatorList );
+                                                 getUploaders() );
             }
         }
     }

@@ -162,6 +162,7 @@ std::mutex                  clientMutex;
 std::shared_ptr<InfoHash>   driveRootHash;
 
 ReplicatorList              replicatorList;
+endpoint_list               endpointList;
 
 std::condition_variable     modifyCompleteCondVar;
 std::atomic<int>            modifyCompleteCounter{0};
@@ -437,10 +438,15 @@ int main(int,char**)
     /// Make the list of replicator addresses
     ///
     replicatorList.emplace_back( sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY)).publicKey() );
-    
     replicatorList.emplace_back( sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_2)).publicKey() );
-
     replicatorList.emplace_back( sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3)).publicKey() );
+
+    boost::asio::ip::address e1 = boost::asio::ip::make_address(REPLICATOR_IP_ADDR);
+    boost::asio::ip::address e2 = boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2);
+    boost::asio::ip::address e3 = boost::asio::ip::make_address(REPLICATOR_IP_ADDR_3);
+    endpointList.push_back( {e1, REPLICATOR_PORT} );
+    endpointList.push_back( {e2, REPLICATOR_PORT_2} );
+    endpointList.push_back( {e3, REPLICATOR_PORT_3} );
 
     printf( "client key[0] :      0x%x %i\n", clientKeyPair.publicKey().array()[0], clientKeyPair.publicKey().array()[0] );
     printf( "replicator1 key[0] : 0x%x %i\n", replicatorList[0][0], replicatorList[0][0] );
@@ -749,7 +755,8 @@ static void clientDownloadFsTree()
                                     clientDownloadHandler,
                                     rootHash,
                                     *gClientSession->downloadChannelId(), 0 ),
-                                    gClientFolder / "fsTree-folder" );
+                                    gClientFolder / "fsTree-folder",
+                                    endpointList);
 
     /// wait the end of file downloading
     {
@@ -850,7 +857,7 @@ static void clientDownloadFilesR( const Folder& folder )
                     {}, 0,
                     gClientFolder / "downloaded_files" / folderName / file.name() ),
                                       //gClientFolder / "downloaded_files" / folderName / toString(file.hash()) ),
-                                      gClientFolder / "downloaded_files" );
+                                      gClientFolder / "downloaded_files", endpointList );
         }
     }
 }

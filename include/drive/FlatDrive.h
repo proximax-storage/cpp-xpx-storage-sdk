@@ -433,7 +433,7 @@ class Replicator;
         }
     };
 
-    // Iterface for storage extension
+    // Interface for storage extension
     class ReplicatorEventHandler
     {
     public:
@@ -550,7 +550,7 @@ class Replicator;
     public:
 
         virtual ~FlatDrive() = default;
-        
+
         virtual void terminate() = 0;
 
         virtual const Key& drivePublicKey() const = 0;

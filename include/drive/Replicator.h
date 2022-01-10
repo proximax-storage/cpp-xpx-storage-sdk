@@ -34,6 +34,7 @@ struct DownloadOpinionMapValue
     bool                                                m_modifyApproveTransactionSent = false;
     bool                                                m_approveTransactionReceived = false;
     std::optional<boost::asio::high_resolution_timer>   m_timer = {};
+    std::optional<boost::asio::high_resolution_timer>   m_opinionShareTimer = {};
     boost::posix_time::ptime                            m_creationTime = boost::posix_time::microsec_clock::universal_time();
 
     DownloadOpinionMapValue() {}
@@ -251,12 +252,32 @@ public:
     virtual const crypto::KeyPair& keyPair() const = 0;
 
     // All of the below functions return error string (or empty string)
-    
+
+    // It is called as soon as all drives and channels are added
+    virtual void asyncInitializationFinished() = 0;
+
     // It will be called in 2 cases:
     // - when received transaction about drive creation (in this case 'actualRootHash' should be empty)
     // - when storage-extension restarts and initiates the drive (that already was created)
     //
-    virtual void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest) = 0;
+    virtual void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest ) = 0;
+
+    // It is called when the Replicator is removed from the Drive
+    virtual void asyncRemoveDrive( Key driveKey ) = 0;
+
+    // It is called when the Replicator becomes the member of another Replicator's shard
+    virtual void asyncAddUploadShard( Key driveKey, Key shardOwner ) = 0;
+
+    // It is called when the Replicator is removed form the members of another Replicator's shard
+    virtual void asyncRemoveUploadShard( Key driveKey, Key shardOwner ) = 0;
+
+    // It is called when a new Replicator is added to this Replicator's shard,
+    // and so we are allowed to download from the Replicator
+    virtual void asyncAddToMyUploadShard( Key driveKey, Key replicator ) = 0;
+
+    // It is called when a Replicator is removed from this Replicator's shard,
+    // and so we are not allowed to download from the Replicator
+    virtual void asyncRemoveFromMyUploadShard( Key driveKey, Key replicator ) = 0;
 
     // it starts drive closing
     virtual void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) = 0;
@@ -273,12 +294,11 @@ public:
     virtual void        asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& ) = 0;
     virtual void        asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) = 0;
 
-    // 'replicatorsList' is used to notify other replictors
-    // (it does not contain its own endpoint)
+    // It is called when Replicator is added to the Download Channel Shard
     virtual void        asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&&  downloadRequest ) = 0;
 
-    //todo is it needed??
-    virtual void        removeDownloadChannelInfo( const std::array<uint8_t,32>& channelId ) = 0;
+    // It is called when Replicator leaves the Download Channel Shard
+    virtual void        asyncRemoveDownloadChannelInfo( Key driveKey, Key channelId ) = 0;
 
     // it will be called when dht message is received
     virtual void        asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) = 0;
@@ -312,6 +332,9 @@ public:
 
     // It will be called after 'VERIFY approval transaction' has been published
     virtual void        asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
+
+    // It will be called if transaction sent by the Replicator has failed because of invalid Replicators list
+    virtual void        asyncVerifyApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 verificationId ) = 0;
 
     // It continues drive closing (initiates DownloadApprovalTransaction and then removes drive)
     virtual void        closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) = 0;

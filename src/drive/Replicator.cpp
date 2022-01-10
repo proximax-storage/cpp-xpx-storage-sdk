@@ -62,7 +62,7 @@ public:
         }
     }
 
-    void addEndpointEntry( const Key& key )
+    void addEndpointEntry( const Key& key, bool shouldRequestEndpoint = true )
     {
         DBG_MAIN_THREAD
 
@@ -87,17 +87,21 @@ public:
         }
         else {
             m_endpointsMap[key] = {};
-            requestEndpoint(key);
+            if ( shouldRequestEndpoint )
+            {
+                // Now we should not request client's ip since it is not in dht
+                requestEndpoint(key);
+            }
         }
     }
 
-    void addEndpointsEntries(const std::vector<Key>& keys)
+    void addEndpointsEntries(const std::vector<Key>& keys, bool shouldRequestEndpoint = true)
     {
         DBG_MAIN_THREAD
 
         for ( const auto& key: keys )
         {
-            addEndpointEntry(key);
+            addEndpointEntry(key, shouldRequestEndpoint);
         }
     }
 
@@ -227,6 +231,12 @@ private:
     {
         DBG_MAIN_THREAD
 
+        if ( m_bootstraps.size() == 0 )
+        {
+            // TODO maybe ask other nodes?
+            return;
+        }
+
         int bootstrapToAskIndex = random() % m_bootstraps.size();
         const auto& bootstrapToAsk = m_bootstraps[bootstrapToAskIndex];
         m_externalEndpointRequest =
@@ -310,10 +320,11 @@ private:
     std::string m_storageDirectory;
     std::string m_sandboxDirectory;
     
-    int         m_downloadApprovalTransactionTimerDelayMs = 60*1000;
-    int         m_modifyApprovalTransactionTimerDelayMs   = 60*1000;
-    int         m_verifyCodeTimerDelayMs                  = 60*60*1000;
-    int         m_verifyApprovalTransactionTimerDelayMs   = 60*1000;
+    int         m_downloadApprovalTransactionTimerDelayMs = 60 * 1000;
+    int         m_modifyApprovalTransactionTimerDelayMs   = 60 * 1000;
+    int         m_verifyCodeTimerDelayMs                  = 60 * 60 * 1000;
+    int         m_verifyApprovalTransactionTimerDelayMs   = 60 * 1000;
+    int         m_shareMyDownloadOpinionTimerDelayMs      = 5 * 60 * 1000;
     std::mutex  m_replicatorDestructingMutex;
     bool        m_replicatorIsDestructing = false;
 
@@ -504,7 +515,10 @@ public:
 
     }
 
-    void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest) override
+    void asyncInitializationFinished() override
+    {}
+
+    void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest ) override
     {
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
@@ -549,7 +563,7 @@ public:
                 m_driveMap[driveKey] = drive;
 
                 m_endpointsManager.addEndpointsEntries( driveRequest.m_replicators );
-                m_endpointsManager.addEndpointEntry( driveRequest.m_client );
+                m_endpointsManager.addEndpointEntry( driveRequest.m_client, false );
 
 //            if ( actualRootHash && drive->rootHash() != actualRootHash )
 //            {
@@ -563,6 +577,21 @@ public:
             }
         });//post
     }
+
+    void asyncRemoveDrive( Key driveKey ) override
+    {}
+
+    void asyncAddUploadShard( Key driveKey, Key shardOwner ) override
+    {}
+
+    void asyncAddToMyUploadShard( Key driveKey, Key replicator ) override
+    {}
+
+    void asyncRemoveUploadShard( Key driveKey, Key shardOwner ) override
+    {}
+
+    void asyncRemoveFromMyUploadShard( Key driveKey, Key replicator ) override
+    {}
 
     void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {
@@ -686,14 +715,14 @@ public:
         });//post
     }
 
-    void removeDownloadChannelInfo( const std::array<uint8_t,32>& channelKey ) override
+    void asyncRemoveDownloadChannelInfo( Key driveKey, Key channelId ) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-
-            DBG_MAIN_THREAD
-            
-            removeChannelInfo(channelKey);
-        });
+//       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+//
+//            DBG_MAIN_THREAD
+//
+//            removeChannelInfo(channelKey);
+//        });
     }
 
     virtual void sendReceiptToOtherReplicators( const std::array<uint8_t,32>&  downloadChannelId,
@@ -835,7 +864,7 @@ public:
         return myOpinion;
     }
 
-    void addOpinion(DownloadApprovalTransactionInfo &&opinion)
+    void addOpinion(DownloadApprovalTransactionInfo&& opinion)
     {
         DBG_MAIN_THREAD
 
@@ -935,8 +964,6 @@ public:
         
         if ( auto it = m_downloadChannelMap.find( channelId.array() ); it != m_downloadChannelMap.end() )
         {
-            const auto& replicatorsList = it->second.m_replicatorsList2;
-
             //
             // Create my opinion
             //
@@ -949,31 +976,51 @@ public:
                                                             channelId.array(),
                                                             { myOpinion }};
             
-            //
-            // Send my opinion to other replicators
-            //
-
-            std::ostringstream os( std::ios::binary );
-            cereal::PortableBinaryOutputArchive archive( os );
-            archive( transactionInfo );
-
-            for( const auto& replicatorIt : replicatorsList )
-            {
-                if ( replicatorIt != publicKey() )
-                {
-                    //_LOG( "replicatorIt.m_endpoint: " << replicatorIt.m_endpoint << " " << os.str().length() << " " << dbgReplicatorName() );
-                    sendMessage( "dn_opinion", replicatorIt.array(), os.str() );
-                }
-            }
-
             addOpinion( std::move(transactionInfo) );
+            shareDownloadOpinion( channelId, blockHash );
         }
         else
         {
             _LOG_ERR( "channelId not found" );
         }
     }
-    
+
+    void shareDownloadOpinion( const Hash256& downloadChannel, const Hash256& eventHash )
+    {
+        DBG_MAIN_THREAD
+
+        auto it = m_downloadChannelMap.find( downloadChannel.array() );
+        _ASSERT( it != m_downloadChannelMap.end() );
+
+        auto eventIt = it->second.m_downloadOpinionMap.find( eventHash.array() );
+        _ASSERT( eventIt !=  it->second.m_downloadOpinionMap.end() )
+
+        auto myOpinion = eventIt->second.m_opinions.find(publicKey());
+        _ASSERT( myOpinion != eventIt->second.m_opinions.end() );
+
+        DownloadApprovalTransactionInfo opinionToShare = { eventHash.array(), downloadChannel.array(), { myOpinion->second } };
+
+        // send opinion to other Replicators
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( opinionToShare );
+
+        for( const auto& replicatorIt : it->second.m_replicatorsList2 )
+        {
+            if ( replicatorIt != publicKey() )
+            {
+                //_LOG( "replicatorIt.m_endpoint: " << replicatorIt.m_endpoint << " " << os.str().length() << " " << dbgReplicatorName() );
+                sendMessage( "dn_opinion", replicatorIt.array(), os.str() );
+            }
+        }
+
+        // Repeat opinion sharing
+        eventIt->second.m_opinionShareTimer = m_session->startTimer(m_shareMyDownloadOpinionTimerDelayMs, [=, this]
+        {
+            shareDownloadOpinion(downloadChannel, eventHash);
+        });
+    };
+
     // It is called when drive is closing
     virtual void closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) override
     {
@@ -1068,10 +1115,8 @@ public:
                 auto& opinions = channelIt->second.m_downloadOpinionMap;
                 if ( auto it = opinions.find( eventHash.array() ); it != opinions.end() )
                 {
-                    if ( it->second.m_timer )
-                    {
-                        it->second.m_timer.reset();
-                    }
+                    it->second.m_timer.reset();
+                    it->second.m_opinionShareTimer.reset();
                     it->second.m_approveTransactionReceived = true;
                 }
                 else
@@ -1138,7 +1183,7 @@ public:
         std::unique_lock<std::shared_mutex> lock(m_driveMutex);
 
         auto driveIt = m_driveMap.find( driveKey );
-        assert( driveIt != m_driveMap.end() );
+        _ASSERT( driveIt != m_driveMap.end() );
 
         driveIt->second->removeAllDriveData();
     }
@@ -1248,6 +1293,9 @@ public:
             }
         });//post
     }
+
+    void asyncVerifyApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 verificationId ) override
+    {}
 
     virtual void sendMessage( const std::string&             query,
                               const std::array<uint8_t,32>&  replicatorKey,

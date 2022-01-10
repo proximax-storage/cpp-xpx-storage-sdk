@@ -63,8 +63,9 @@ public:
     }
 
     // Initiate file downloading (identified by downloadParameters.m_infoHash)
-    void download( DownloadContext&&   downloadParameters,
-                   const std::string&  tmpFolder )
+    void download( DownloadContext&&    downloadParameters,
+                   const std::string&   tmpFolder,
+                   const endpoint_list& endpointsHints = {})
     {
         // check that download channel was set
         if ( !m_downloadChannelId )
@@ -77,7 +78,7 @@ public:
             throw std::runtime_error("downloadChannel is not set");
 
         // start downloading
-        m_session->download( std::move(downloadParameters), tmpFolder, m_downloadReplicatorList );
+        m_session->download( std::move(downloadParameters), tmpFolder, m_downloadReplicatorList, endpointsHints);
     }
 
     std::optional<boost::asio::ip::tcp::endpoint> getEndpoint(const std::array<uint8_t, 32> &key) override
