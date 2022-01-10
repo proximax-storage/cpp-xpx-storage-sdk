@@ -169,7 +169,7 @@ public:
 
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
-        settingsPack.set_bool( lt::settings_pack::enable_upnp, false );
+        settingsPack.set_bool( lt::settings_pack::enable_upnp, true );
 
         std::ostringstream bootstrapsBuilder;
         for ( const auto& bootstrap: bootstraps )
@@ -380,9 +380,10 @@ public:
     }
 
     // downloadFile
-    virtual lt_handle download( DownloadContext&&    downloadContext,
-                                const std::string&   tmpFolder,
-                                ReplicatorList       list  ) override {
+    virtual lt_handle download( DownloadContext&&          downloadContext,
+                                const std::string&         tmpFolder,
+                                const ReplicatorList&      keysHints,
+                                const endpoint_list&       endpointsHints) override {
 
         // create add_torrent_params
         lt::error_code ec;
@@ -417,14 +418,19 @@ public:
         // connect to peers
         if ( auto limiter = m_downloadLimiter.lock(); limiter )
         {
-            for( const auto& it : list ) {
+            for( const auto& key : keysHints ) {
                 //LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
-                auto endpoint = limiter->getEndpoint( it.array() );
+                auto endpoint = limiter->getEndpoint( key.array() );
                 if ( endpoint )
                 {
                     tHandle.connect_peer( *endpoint );
                 }
             }
+        }
+
+        for ( const auto& endpoint: endpointsHints )
+        {
+            tHandle.connect_peer( endpoint );
         }
 
         // save download handler
@@ -766,6 +772,11 @@ private:
 
 //                case lt::peer_log_alert::alert_type: {
 //                    _LOG(  ": peer_log_alert: " << alert->message())
+//                    break;
+//                }
+//
+//                case lt::log_alert::alert_type: {
+//                    _LOG(  ": session_log_alert: " << alert->message())
 //                    break;
 //                }
 
@@ -1246,15 +1257,6 @@ private:
 //                            LOG("Upload. Total upload: " << pi.total_upload)
 //                        }
 //                    }
-                    break;
-                }
-
-                case lt::log_alert::alert_type: {
-                    auto *theAlert = dynamic_cast<lt::file_error_alert *>(alert);
-
-                    if ( theAlert ) {
-                        LOG(  "log_alert: " << theAlert->message())
-                    }
                     break;
                 }
 

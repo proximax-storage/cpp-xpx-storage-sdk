@@ -42,7 +42,9 @@ public:
 
     void run( const std::function<void()>& task )
     {
-        boost::asio::post(m_context, [=] { task(); });
+        boost::asio::post(m_context, [=] {
+            task();
+        });
     }
 };
 

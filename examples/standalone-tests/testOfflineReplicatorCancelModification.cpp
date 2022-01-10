@@ -1,4 +1,3 @@
-#include <drive/ExtensionEmulator.h>
 #include "TestEnvironment.h"
 #include "utils.h"
 #include <set>
@@ -44,7 +43,7 @@ namespace sirius::drive::test
                 modifyApprovalDelay,
                 downloadApprovalDelay,
                 startReplicator),
-                  m_offlineWork(m_offlineContext)
+                m_offlineWork(boost::asio::make_work_guard(m_offlineContext))
         {
             for (const auto &replicator: m_replicators)
             {
@@ -74,7 +73,7 @@ namespace sirius::drive::test
                                 replicator->asyncModify(driveKey, ModifyRequest(request));
                             }).detach();
             }
-            m_offlineContext.post([=, this]
+            boost::asio::post(m_offlineContext, [=, this]
                                   {
                                       m_replicators.back()->asyncModify(driveKey, ModifyRequest(request));
                                   });
@@ -95,7 +94,7 @@ namespace sirius::drive::test
                                 replicator->asyncCancelModify(driveKey, transactionHash);
                             }).detach();
             }
-            m_offlineContext.post([=, this]
+            boost::asio::post(m_offlineContext, [=, this]
                                   {
                                       m_replicators.back()->asyncCancelModify(driveKey, transactionHash);
                                   });
@@ -148,7 +147,7 @@ namespace sirius::drive::test
                     r->asyncApprovalTransactionHasBeenPublished(
                             ApprovalTransactionInfo(transactionInfo));
                 }
-                m_offlineContext.post([=, this]
+                boost::asio::post(m_offlineContext, [=, this]
                                       {
                                           m_replicators.back()->asyncApprovalTransactionHasBeenPublished(
                                                   transactionInfo);
@@ -187,7 +186,7 @@ namespace sirius::drive::test
                     replicator.asyncSingleApprovalTransactionHasBeenPublished(transactionInfo);
                 } else
                 {
-                    m_offlineContext.post([=, &replicator]
+                    boost::asio::post(m_offlineContext, [=, &replicator]
                                           {
                                               replicator.asyncSingleApprovalTransactionHasBeenPublished(
                                                       transactionInfo);
@@ -204,7 +203,7 @@ namespace sirius::drive::test
 
 
         boost::asio::io_context m_offlineContext;
-        boost::asio::io_context::work m_offlineWork;
+        boost::asio::executor_work_guard<boost::asio::io_context::executor_type> m_offlineWork;
         std::thread m_offlineThread;
     };
 

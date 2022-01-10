@@ -434,16 +434,25 @@ int main(int,char**)
     /// Create client session
     ///
 
+    std::vector<ReplicatorInfo> bootstraps = { { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 },
+                                                 replicatorKeyPair_2.publicKey() } };
+
+    endpoint_list bootstrapEndpoints;
+    for ( const auto& bootstrap: bootstraps )
+    {
+        bootstrapEndpoints.push_back( bootstrap.m_endpoint );
+    }
+
+    createReplicators( bootstraps );
+
     gClientFolder  = createClientFiles(BIG_FILE_SIZE);
     gClientSession = createClientSession( clientKeyPair,
-                                         CLIENT_IP_ADDR ":5000",
-                                         clientSessionErrorHandler,
-                                         TRANSPORT_PROTOCOL,
-                                         "client" );
+                                          CLIENT_IP_ADDR ":5000",
+                                          clientSessionErrorHandler,
+                                          bootstrapEndpoints,
+                                          TRANSPORT_PROTOCOL,
+                                          "client" );
 
-    std::vector<ReplicatorInfo> bootstraps = { { { boost::asio::ip::address::from_string(CLIENT_IP_ADDR), CLIENT_PORT },
-                                                 clientKeyPair.publicKey() } };
-    createReplicators( bootstraps );
     sleep(1);
 
     
@@ -791,15 +800,18 @@ static void clientDownloadFilesR( const Folder& folder )
             std::string folderName = "root";
             if ( folder.name() != "/" )
                 folderName = folder.name();
-            EXLOG( "# Client started download file " << hashToFileName( file.hash() ) );
-            EXLOG( "#  to " << gClientFolder / "downloaded_files" / folderName  / file.name() );
+            if ( toString(file.hash()).find("48") != std::string::npos )
+            {
+                EXLOG( "# Client started download file " << hashToFileName( file.hash() ) );
+                EXLOG( "#  to " << gClientFolder / "downloaded_files" / folderName  / file.name() );
+            }
             gClientSession->download( DownloadContext(
-                                              DownloadContext::file_from_drive,
-                                              clientDownloadFilesHandler,
-                                              file.hash(),
-                                              {}, 0,
-                                              gClientFolder / "downloaded_files" / folderName / file.name() ),
-                    //gClientFolder / "downloaded_files" / folderName / toString(file.hash()) ),
+                    DownloadContext::file_from_drive,
+                    clientDownloadFilesHandler,
+                    file.hash(),
+                    {}, 0,
+                    gClientFolder / "downloaded_files" / folderName / file.name() ),
+                                      //gClientFolder / "downloaded_files" / folderName / toString(file.hash()) ),
                                       gClientFolder / "downloaded_files" );
         }
     }

@@ -620,7 +620,6 @@ public:
 
         if ( runAfterInitializing )
         {
-            _LOG ( "Task after init" )
             m_driveIsInitializing = false;
         }
         
@@ -631,7 +630,7 @@ public:
             m_myOpinion.reset();
         }
         
-        _ASSERT( !m_driveWillRemovedTx )
+        m_removeDriveTx.reset();
         m_modificationCanceledTx.reset();
         m_catchingUpRequest.reset();
         m_modifyRequest.reset();
@@ -1283,7 +1282,7 @@ public:
 
             myOpinion.m_opinionKeys[i] = key;
 
-            if ( key == m_replicator.replicatorKey() )
+            if ( key == m_replicator.replicatorKey().array() )
             {
                 myOpinion.m_opinions[i] = 1;
             }
@@ -1312,7 +1311,7 @@ public:
         {
 //TODO?            m_replicator.sendMessage( "code_verify", replicatorKey.array(), os.str() );
             auto it = std::find( m_replicatorList.begin(), m_replicatorList.end(), replicatorKey);
-            m_replicator.sendMessage( "verify_opinion", *it, os.str() );
+            m_replicator.sendMessage( "verify_opinion", it->array(), os.str() );
         }
     }
 
@@ -1350,7 +1349,7 @@ public:
             return;
         }
 
-        if ( tx.array() != m_verificationRequest->m_tx )
+        if ( tx != m_verificationRequest->m_tx )
         {
             _LOG_ERR( "cancelVerification: internal error: bad tx:" << tx )
             return;
@@ -2742,8 +2741,6 @@ public:
         {
             DBG_BG_THREAD
 
-            _LOG ( "In BG remove" );
-
             try {
                 // remove drive root folder and sandbox
                 fs::remove_all( m_sandboxRootPath );
@@ -2758,6 +2755,13 @@ public:
             if ( m_dbgEventHandler )
             {
                 m_dbgEventHandler->driveIsClosed( m_replicator, m_drivePubKey, *m_removeDriveTx );
+            }
+
+            if ( auto session = m_session.lock(); session )
+            {
+                boost::asio::post(session->lt_session().get_context(), [this] {
+                    m_replicator.finishDriveClosure( drivePublicKey() );
+                });
             }
         });
     }

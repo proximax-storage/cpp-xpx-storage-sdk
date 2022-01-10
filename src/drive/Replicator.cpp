@@ -435,7 +435,7 @@ public:
 #endif
         });
 
-        m_session->lt_session().get_context().post([this] {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             m_endpointsManager.start(m_session);
         });
 
@@ -549,6 +549,7 @@ public:
                 m_driveMap[driveKey] = drive;
 
                 m_endpointsManager.addEndpointsEntries( driveRequest.m_replicators );
+                m_endpointsManager.addEndpointEntry( driveRequest.m_client );
 
 //            if ( actualRootHash && drive->rootHash() != actualRootHash )
 //            {
@@ -1140,8 +1141,13 @@ public:
         assert( driveIt != m_driveMap.end() );
 
         driveIt->second->removeAllDriveData();
-        
-        m_driveMap.erase( driveIt );
+    }
+
+    void finishDriveClosure ( const Key& driveKey ) override
+    {
+        DBG_MAIN_THREAD
+
+        m_driveMap.erase( driveKey );
     }
     
     virtual void asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) override

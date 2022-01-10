@@ -144,9 +144,13 @@ public:
                                               endpoint_list list = {} ) = 0;
 
     // It starts downloading of 'modify data' (identified by downloadParameters.m_infoHash)
-    virtual lt_handle download( DownloadContext&&   downloadParameters,
-                                const std::string&  tmpFolder,
-                                ReplicatorList      list = {} ) = 0;
+    // keysHints and endpointsHints are independent hits about peers to download the torrent from
+    // It is not necessary to mention the hints: libtorrent will try to find the peers itself
+    // But it can speed up downloading
+    virtual lt_handle download( DownloadContext&&          downloadParameters,
+                                const std::string&         tmpFolder,
+                                const ReplicatorList&      keysHints = {},
+                                const endpoint_list&       endpointsHints = {}) = 0;
 
     // Remove download context
     // (It prevents call of downloadHandler)

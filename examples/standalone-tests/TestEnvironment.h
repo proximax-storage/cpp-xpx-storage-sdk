@@ -89,7 +89,7 @@ namespace sirius::drive::test {
                 // First Replicator is a bootstrap node
                 if ( i == 1 )
                 {
-                    m_bootstraps = { { { boost::asio::ip::address::from_string(ipAddr), (unsigned short) port },
+                    m_bootstraps = { { { boost::asio::ip::make_address(ipAddr), (unsigned short) port },
                                        m_keys.back()->publicKey() } };
                 }
 
