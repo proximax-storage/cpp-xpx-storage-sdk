@@ -92,10 +92,24 @@ namespace sirius {
         {
         }
 
+//        template <typename... Args>
+//        mobj& operator = ( Args... args )
+//        {
+//            *this = std::move( std::unique_ptr<T>( new T{args...} ) );
+//            return *this;
+//        }
+
         template <typename... Args>
         mobj( Args... args ) : std::unique_ptr<T>( new T{args...} )
         {
         }
+        
+//        mobj& operator = ( mobj& obj )
+//        {
+//            *this = std::move(obj);
+//            return *this;
+//        }
+
 
 //        mobj( std::unique_ptr<T> ptr ) : std::unique_ptr<T>( ptr )
 //        {

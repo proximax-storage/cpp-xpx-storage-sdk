@@ -270,8 +270,8 @@ public:
 
     virtual void        asyncCancelModify( Key driveKey, Hash256  transactionHash ) = 0;
     
-    virtual void        asyncStartDriveVerification( Key driveKey, VerificationRequest&& ) = 0;
-    virtual void        asyncCancelDriveVerification( Key driveKey, const Hash256& tx ) = 0;
+    virtual void        asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& ) = 0;
+    virtual void        asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) = 0;
 
     // 'replicatorsList' is used to notify other replictors
     // (it does not contain its own endpoint)

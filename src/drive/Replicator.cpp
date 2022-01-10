@@ -636,9 +636,9 @@ public:
         });//post
     }
     
-    void asyncStartDriveVerification( Key driveKey, VerificationRequest&& request ) override
+    void asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& request ) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,request=std::move(request),this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -652,16 +652,16 @@ public:
         });//post
     }
 
-    void asyncCancelDriveVerification( Key driveKey, const Hash256& tx ) override
+    void asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) override
     {
         //TODO
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-
+        boost::asio::post(m_session->lt_session().get_context(), [=,tx=std::move(tx),this]() mutable {
+         
              DBG_MAIN_THREAD
 
              if ( const auto drive = getDrive(driveKey); drive )
              {
-                 drive->cancelVerification( tx );
+                 drive->cancelVerification( std::move(tx) );
                  return;
              }
 
