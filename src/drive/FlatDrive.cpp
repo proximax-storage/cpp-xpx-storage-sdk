@@ -304,7 +304,7 @@ public:
 
     void terminate() override
     {
-        _ASSERT( m_dbgThreadId != std::this_thread::get_id() );
+        DBG_MAIN_THREAD
 
         m_shareMyOpinionTimer.reset();
         m_verifyCodeTimer.reset();
@@ -767,9 +767,12 @@ public:
         
         uint64_t hash = initValue;
         uint8_t* ptr = begin;
-        
+
+        // At first, we process 8-bytes chunks
         for( ; ptr+8 <= end; ptr+=8 )
         {
+            hash ^= *reinterpret_cast<uint64_t*>(ptr);
+
             if ( hash&0x1 )
             {
                 hash = (hash >> 1) | 0x8000000000000000;
@@ -778,18 +781,25 @@ public:
             {
                 hash = (hash >> 1);
             }
-
-            hash ^= *reinterpret_cast<uint64_t*>(ptr);
         }
-        
+
+        // At the end, we process tail
         uint64_t lastValue = 0;
         for( ; ptr < end; ptr++ )
         {
             lastValue |= *ptr;
             lastValue = lastValue << 8;
         }
-        
-        hash ^= *reinterpret_cast<uint64_t*>(ptr);
+
+        hash ^= lastValue;
+        if ( hash&0x1 )
+        {
+            hash = (hash >> 1) | 0x8000000000000000;
+        }
+        else
+        {
+            hash = (hash >> 1);
+        }
 
         return hash;
     }
@@ -850,6 +860,7 @@ public:
         }
 
         // clear queue
+        // ???
         std::remove_if( m_unknownVerificationCodeQueue.begin(), m_unknownVerificationCodeQueue.end(), []( const auto& it ) {
             return !it;
         });

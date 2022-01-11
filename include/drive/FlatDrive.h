@@ -508,7 +508,7 @@ class Replicator;
         }
 
         // It will be called after drive initializing
-        virtual void driveAdded( const sirius::Key& driveKey, const InfoHash& rootHash ) {
+        virtual void driveAdded( const sirius::Key& driveKey ) {
         }
 
         // It will be called when rootHash is calculated in sandbox

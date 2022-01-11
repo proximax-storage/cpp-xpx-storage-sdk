@@ -45,7 +45,6 @@ protected:
     
     // Drives
     std::map<Key, std::shared_ptr<FlatDrive>> m_driveMap;
-    std::shared_mutex  m_driveMutex;
 
     std::thread::id     m_dbgThreadId;
 
@@ -719,7 +718,8 @@ public:
     
     std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key driveKey )
     {
-        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
+        DBG_MAIN_THREAD
+
         if ( auto it = m_driveMap.find(driveKey); it != m_driveMap.end() )
         {
             return it->second;

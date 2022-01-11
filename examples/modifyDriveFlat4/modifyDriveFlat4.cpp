@@ -18,8 +18,11 @@ int main() {
 
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
+    const std::string bootstrapPrivateKey = "1000000000000000000000000000000000000000000000000000000000000000";
+    std::vector<ReplicatorInfo> bootstraps = { { { boost::asio::ip::make_address("192.168.0.102"), 5550 }, sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( bootstrapPrivateKey )).publicKey() } };
+
     // Run replicators
-    std::thread replicator1([]{
+    std::thread replicator1([=]{
         const std::string replicatorPrivateKey = "1000000000000000000000000000000000000000000000000000000000000000";
         const auto keyPair = sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( replicatorPrivateKey ));
         RpcReplicator replicator( keyPair,
@@ -30,7 +33,8 @@ int main() {
                                   (std::string(getenv("HOME"))+"/111/replicator1/sandbox_root"),
                                   5510,
                                   "192.168.0.101",
-                                  5510);
+                                  5510,
+                                  bootstraps);
         replicator.setModifyApprovalTransactionTimerDelay(1);
         replicator.setDownloadApprovalTransactionTimerDelay(1);
         replicator.run();
@@ -112,7 +116,7 @@ int main() {
     std::this_thread::sleep_for(std::chrono::seconds(3));
 
     // Client
-    std::thread client([]{
+    std::thread client([=]{
         const std::string clientPrivateKey = "0000000000010203040501020304050102030405010203040501020304050102";
         const auto keyPair = sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( clientPrivateKey ));
         const std::string remoteRpcAddress = "192.168.0.101";
@@ -122,13 +126,20 @@ int main() {
         const int incomingRpcPort = 5510;
         const std::filesystem::path workFolder = std::filesystem::path(getenv("HOME")) / "111" / "client_work_folder";
 
-        RpcReplicatorClient rpcReplicatorClient(keyPair, remoteRpcAddress, remoteRpcPort, incomingAddress, incomingPort, incomingRpcPort, workFolder, "client1");
+        endpoint_list bootstrapEndpoints;
+        for ( const auto& bootstrap: bootstraps )
+        {
+            bootstrapEndpoints.push_back(bootstrap.m_endpoint);
+        }
+        RpcReplicatorClient rpcReplicatorClient(keyPair, remoteRpcAddress, remoteRpcPort, incomingAddress, incomingPort, incomingRpcPort, bootstrapEndpoints, workFolder, "client1");
         rpcReplicatorClient.createClientFiles(10 * 1024*1024);
 
         const std::array<uint8_t,32> drivePubKey{0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,1};
         const std::array<uint8_t,32> channelKey{0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0, 0,123};
 
         auto addDriveCallback = [&rpcReplicatorClient, &workFolder, channelKey](const auto& drivePubKey) {
+
+            std::cout << "added" << std::endl;
 
             ActionList actionList;
             actionList.push_back( Action::newFolder( "fff1" ) );
@@ -144,7 +155,7 @@ int main() {
             auto endDriveModificationCallback = [&rpcReplicatorClient, drivePubKey, channelKey, workFolder]() {
                 std::cout << "Client. endDriveModificationCallback." << std::endl;
 
-                const size_t prepaidDownloadSize = 10 * 1024*1024;
+                const size_t prepaidDownloadSize = 1024 * 1024 * 1024;
                 rpcReplicatorClient.openDownloadChannel(channelKey, prepaidDownloadSize, drivePubKey, {rpcReplicatorClient.getPubKey()});
 
                 auto downloadDataCallback = [](download_status::code code,

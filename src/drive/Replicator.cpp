@@ -10,6 +10,7 @@
 #include "drive/Utils.h"
 #include "drive/Session.h"
 #include "drive/DownloadLimiter.h"
+#include "drive/EndpointsManager.h"
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/array.hpp>
@@ -24,282 +25,7 @@
 
 namespace sirius::drive {
 
-#define USE_OUR_IO_CONTEXT
 #define CHANNELS_NOT_OWNED_BY_DRIVES
-
-class EndpointsManager
-{
-public:
-
-    EndpointsManager(Replicator& replicator,
-                     const std::vector<ReplicatorInfo>& bootstraps,
-                     const std::string& dbgOurPeerName)
-        : m_replicator(replicator)
-        , m_bootstraps(bootstraps)
-        , m_dbgOurPeerName(dbgOurPeerName)
-    {
-        for (const auto& [endpoint, key] : bootstraps)
-        {
-            m_endpointsMap[key] = { endpoint, {} };
-        }
-    }
-
-    void start(std::weak_ptr<Session> session)
-    {
-        m_session = session;
-        m_dbgThreadId = std::this_thread::get_id();
-        onUpdateExternalEndpointTimerTick();
-    }
-
-    void stop()
-    {
-        DBG_MAIN_THREAD
-
-        m_externalPointUpdateTimer.reset();
-        for ( auto& [key, value]: m_endpointsMap )
-        {
-            value.m_timer.reset();
-        }
-    }
-
-    void addEndpointEntry( const Key& key, bool shouldRequestEndpoint = true )
-    {
-        DBG_MAIN_THREAD
-
-        if ( m_endpointsMap.contains(key) )
-        {
-            return;
-        }
-        auto it = m_unknownEndpointsMap.find(key);
-        if ( it != m_unknownEndpointsMap.end() )
-        {
-            m_endpointsMap[key].m_endpoint = it->second;
-#ifdef UPDATE_ENDPOINTS_PERIODICALLY
-            if ( auto session = m_session.lock(); session )
-            {
-                m_endpointsMap[key].m_timer = session->startTimer(m_standardExternalEndpointDelayMs, [this, key]
-                {
-                    requestEndpoint(key);
-                });
-            }
-#endif
-            m_unknownEndpointsMap.erase(it);
-        }
-        else {
-            m_endpointsMap[key] = {};
-            if ( shouldRequestEndpoint )
-            {
-                // Now we should not request client's ip since it is not in dht
-                requestEndpoint(key);
-            }
-        }
-    }
-
-    void addEndpointsEntries(const std::vector<Key>& keys, bool shouldRequestEndpoint = true)
-    {
-        DBG_MAIN_THREAD
-
-        for ( const auto& key: keys )
-        {
-            addEndpointEntry(key, shouldRequestEndpoint);
-        }
-    }
-
-    void updateEndpoint(const Key& key, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint )
-    {
-        DBG_MAIN_THREAD
-
-        _LOG ("Update Endpoint of " << int(key[0]) << " at " << endpoint->address() << " " << endpoint->port() );
-
-        auto it = m_endpointsMap.find(key);
-        if ( it != m_endpointsMap.end() )
-        {
-            if ( endpoint )
-            {
-                it->second.m_endpoint = endpoint;
-#ifdef UPDATE_ENDPOINTS_PERIODICALLY
-                if ( auto session = m_session.lock(); session )
-                {
-                    it->second.m_timer = session->startTimer( m_standardExternalEndpointDelayMs, [this, key]
-                    {
-                        requestEndpoint(key);
-                    });
-                }
-#else
-                it->second.m_timer.reset();
-#endif
-            }
-            else {
-                if ( auto session = m_session.lock(); session )
-                {
-                    it->second.m_timer = session->startTimer( m_noResponseExternalEndpointDelayMs, [this, key]
-                    {
-                        requestEndpoint(key);
-                    });
-                }
-            }
-        }
-        else
-        {
-            _ASSERT( endpoint )
-            m_unknownEndpointsMap[key] = *endpoint;
-        }
-    }
-
-    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint( const Key& key )
-    {
-        DBG_MAIN_THREAD
-
-        if ( auto it = m_endpointsMap.find(key); it != m_endpointsMap.end() )
-        {
-            return it->second.m_endpoint;
-        }
-        _ASSERT( m_unknownEndpointsMap.find(key) == m_unknownEndpointsMap.end() )
-        return {};
-    }
-
-    void updateExternalEndpoint( const ExternalEndpointResponse& response )
-    {
-        DBG_MAIN_THREAD
-
-        if ( !m_externalEndpointRequest ||
-             m_externalEndpointRequest->m_challenge != response.m_challenge ||
-             m_externalEndpointRequest->m_requestTo != response.m_requestTo )
-        {
-            return;
-        }
-
-        if ( !response.Verify() )
-        {
-            return;
-        }
-
-        auto externalEndpoint = *reinterpret_cast<const boost::asio::ip::tcp::endpoint *>(&response.m_endpoint);
-        if ( !m_externalEndpoint || m_externalEndpoint != externalEndpoint )
-        {
-            _LOG( "External Endpoint Discovered " << externalEndpoint.address() << " " << externalEndpoint.port() )
-
-            // We expect that this operation does not take place too often
-            // So the loop does not influence performance
-            for (const auto& [key, point]: m_endpointsMap)
-            {
-                sendHandshake(key);
-            }
-        }
-
-        if ( m_externalEndpoint &&  m_externalEndpoint != externalEndpoint )
-        {
-            _LOG_WARN( "Ip Changed" )
-        }
-
-        m_externalEndpoint = externalEndpoint;
-        m_externalEndpointRequest.reset();
-        if ( auto session = m_session.lock(); session ) {
-            session->announceExternalAddress(externalEndpoint);
-
-            m_externalPointUpdateTimer = session->startTimer( m_standardExternalEndpointDelayMs, [this]
-            {
-                onUpdateExternalEndpointTimerTick();
-            });
-        };
-    }
-
-    const std::vector<ReplicatorInfo>& getBootstraps()
-    {
-        return m_bootstraps;
-    }
-
-private:
-
-    void sendHandshake( const Key& to )
-    {
-        DBG_MAIN_THREAD
-
-        DhtHandshake handshake;
-        handshake.m_fromPublicKey = m_replicator.replicatorKey().array();
-        handshake.m_toPublicKey = to.array();
-        handshake.m_endpoint = *reinterpret_cast<const std::array<uint8_t, sizeof(boost::asio::ip::tcp::endpoint)> *>(m_externalEndpoint->data());
-        handshake.Sign( m_replicator.keyPair() );
-        std::ostringstream os( std::ios::binary );
-        cereal::PortableBinaryOutputArchive archive( os );
-        archive( handshake );
-        m_replicator.sendMessage("handshake", to.array(), os.str() );
-        _LOG ( "Try to Send Handshake to " << int(to[0]) )
-    }
-
-    void onUpdateExternalEndpointTimerTick()
-    {
-        DBG_MAIN_THREAD
-
-        if ( m_bootstraps.size() == 0 )
-        {
-            // TODO maybe ask other nodes?
-            return;
-        }
-
-        int bootstrapToAskIndex = random() % m_bootstraps.size();
-        const auto& bootstrapToAsk = m_bootstraps[bootstrapToAskIndex];
-        m_externalEndpointRequest =
-                {
-                        bootstrapToAsk.m_publicKey.array(),
-                        randomByteArray<Hash256>().array()
-                };
-
-        std::ostringstream os( std::ios::binary );
-        cereal::PortableBinaryOutputArchive archive( os );
-        archive( *m_externalEndpointRequest );
-        m_replicator.sendMessage( "endpoint_request", bootstrapToAsk.m_publicKey.array(), os.str());
-
-        if ( m_externalEndpoint )
-        {
-            _LOG( "Time To Update External Endpoint" )
-        }
-
-        _LOG ( "Requested External Endpoint from " <<
-                int(bootstrapToAsk.m_publicKey[0]) <<
-                " at " <<
-                bootstrapToAsk.m_endpoint.address() <<
-                ":" <<
-                bootstrapToAsk.m_endpoint.port() )
-
-        if ( auto session = m_session.lock(); session ) {
-            m_externalPointUpdateTimer = session->startTimer( m_noResponseExternalEndpointDelayMs, [this]
-            {
-                 onUpdateExternalEndpointTimerTick();
-            });
-        };
-    }
-
-    void requestEndpoint( const Key& key )
-    {
-        DBG_MAIN_THREAD
-
-        _LOG ( "Requested Endpoint of " << int(key[0]));
-
-        if ( auto session = m_session.lock(); session )
-        {
-            session->findAddress(key);
-        }
-    }
-
-    std::map<Key, EndpointInformation>              m_endpointsMap;
-    std::map<Key, boost::asio::ip::tcp::endpoint>   m_unknownEndpointsMap;
-
-    Replicator&                                     m_replicator;
-    std::weak_ptr<Session>                          m_session;
-
-    std::optional<boost::asio::high_resolution_timer> m_externalPointUpdateTimer;
-
-    std::optional<boost::asio::ip::tcp::endpoint>   m_externalEndpoint;
-    std::optional<ExternalEndpointRequest>          m_externalEndpointRequest;
-    std::vector<ReplicatorInfo>                     m_bootstraps;
-
-    const int                                       m_standardExternalEndpointDelayMs = 1000 * 60 * 60;
-    const int                                       m_noResponseExternalEndpointDelayMs = 1000 * 5;
-
-    std::thread::id                                 m_dbgThreadId;
-    std::string                                     m_dbgOurPeerName;
-};
 
 //
 // DefaultReplicator
@@ -307,10 +33,8 @@ private:
 class DefaultReplicator : public DownloadLimiter // Replicator
 {
 private:
-#ifdef USE_OUR_IO_CONTEXT
     boost::asio::io_context m_replicatorContext;
     std::thread             m_libtorrentThread;
-#endif
     
     // Session listen interface
     std::string m_address;
@@ -325,7 +49,7 @@ private:
     int         m_verifyCodeTimerDelayMs                  = 60 * 60 * 1000;
     int         m_verifyApprovalTransactionTimerDelayMs   = 60 * 1000;
     int         m_shareMyDownloadOpinionTimerDelayMs      = 5 * 60 * 1000;
-    std::mutex  m_replicatorDestructingMutex;
+
     bool        m_replicatorIsDestructing = false;
 
     bool        m_useTcpSocket;
@@ -362,44 +86,60 @@ public:
     {
     }
 
-    virtual ~DefaultReplicator()
+    bool isStopped() override
     {
-#ifdef DEBUG_OFF_CATAPULT
-        _LOG( "~DefaultReplicator() ")
-#endif
-        
-        m_replicatorDestructingMutex.lock();
-        m_replicatorIsDestructing = true;
-        m_replicatorDestructingMutex.unlock();
+        DBG_MAIN_THREAD
 
-        std::unique_lock<std::shared_mutex> lock(m_driveMutex);
+        return m_replicatorIsDestructing;
+    }
+
+    void stop()
+    {
+        DBG_MAIN_THREAD
+
+        m_replicatorIsDestructing = true;
 
         for( auto& [key,drive]: m_driveMap )
         {
             drive->terminate();
         }
 
-       boost::asio::post(m_session->lt_session().get_context(), [this]() mutable {
-            m_downloadChannelMap.clear();
-            m_modifyDriveMap.clear();
-            m_driveMap.clear();
-            m_endpointsManager.stop();
-        });
-        
-        m_session->endSession();
-        
+        for ( auto& [channelId, value]: m_downloadChannelMap )
         {
-            auto blockedDestructor = m_session->lt_session().abort();
-            m_session.reset();
+            for ( auto& [event, opinion]: value.m_downloadOpinionMap )
+            {
+                opinion.m_timer.reset();
+                opinion.m_opinionShareTimer.reset();
+            }
+        }
 
-#ifdef USE_OUR_IO_CONTEXT
-        if ( m_libtorrentThread.joinable() )
-        {
-            m_libtorrentThread.join();
-        }
+        m_endpointsManager.stop();
+    }
+
+    virtual ~DefaultReplicator()
+    {
+#ifdef DEBUG_OFF_CATAPULT
+        _LOG( "~DefaultReplicator() ")
 #endif
-        saveDownloadChannelMap();
-        }
+
+       boost::asio::post(m_session->lt_session().get_context(), [this]() mutable {
+
+           DBG_MAIN_THREAD
+
+            stop();
+        });
+
+       m_session->endSession();
+
+       auto blockedDestructor = m_session->lt_session().abort();
+       m_session.reset();
+
+       if ( m_libtorrentThread.joinable() )
+       {
+           m_libtorrentThread.join();
+       }
+
+       saveDownloadChannelMap();
     }
     
     void start() override
@@ -409,7 +149,7 @@ public:
         {
             bootstrapEndpoints.push_back( info.m_endpoint );
         }
-#ifdef USE_OUR_IO_CONTEXT
+
         m_session = createDefaultSession( m_replicatorContext, m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
                                          {
                                              if ( pAlert->type() == lt::listen_failed_alert::alert_type )
@@ -422,23 +162,9 @@ public:
                                          weak_from_this(),
                                          bootstrapEndpoints,
                                          m_useTcpSocket);
-#else
-        m_session = createDefaultSession( m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
-                                         {
-                                             if ( pAlert->type() == lt::listen_failed_alert::alert_type )
-                                             {
-                                                 _LOG_WARN( "Replicator session alert: " << pAlert->message() );
-                                                 _LOG_WARN( "Port is busy?: " << port );
-                                                 m_eventHandler.onLibtorrentSessionError( pAlert->message() );
-                                             }
-                                         },
-                                         weak_from_this(),
-                                         bootstrapEndpoints,
-                                         m_useTcpSocket );
-#endif
+
         m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName.c_str();
         
-#ifdef USE_OUR_IO_CONTEXT
         m_libtorrentThread = std::thread( [this] {
             m_replicatorContext.run();
 #ifdef DEBUG_OFF_CATAPULT
@@ -447,19 +173,13 @@ public:
         });
 
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+
+            DBG_MAIN_THREAD
+
             m_endpointsManager.start(m_session);
         });
 
         m_dbgThreadId = m_libtorrentThread.get_id();
-#else
-        std::mutex waitMutex;
-        waitMutex.lock();
-       boost::asio::post(m_session->lt_session().get_context(), [=,&waitMutex,this]() mutable {
-            m_dbgThreadId = std::this_thread::get_id();
-            waitMutex.unlock();
-        });//post
-        waitMutex.lock();
-#endif
 
         removeDriveDataOfBrokenClose();
         loadDownloadChannelMap();
@@ -520,60 +240,59 @@ public:
 
     void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest ) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
-            
-            if ( m_replicatorDestructingMutex.try_lock() && !m_replicatorIsDestructing )
+
+            if ( m_replicatorIsDestructing )
             {
-                m_replicatorDestructingMutex.unlock();
+                return;
+            }
 
-                _LOG( "adding drive " << driveKey );
+            _LOG( "adding drive " << driveKey );
 
-                std::unique_lock<std::shared_mutex> lock(m_driveMutex);
-                
-                if (m_driveMap.find(driveKey) != m_driveMap.end()) {
-                    _LOG( "drive already added" );
-                    return;
-                }
+            if (m_driveMap.find(driveKey) != m_driveMap.end()) {
+                _LOG( "drive already added" );
+                return;
+            }
 
-                // Exclude itself from replicator list
-                for( auto it = driveRequest.m_replicators.begin();  it != driveRequest.m_replicators.end(); it++ )
+            // Exclude itself from replicator list
+            for( auto it = driveRequest.m_replicators.begin();  it != driveRequest.m_replicators.end(); it++ )
+            {
+                if ( *it == publicKey() )
                 {
-                    if ( *it == publicKey() )
-                    {
-                        driveRequest.m_replicators.erase( it );
-                        break;
-                    }
+                    driveRequest.m_replicators.erase( it );
+                    break;
                 }
+            }
 
-                auto drive = sirius::drive::createDefaultFlatDrive(
-                        session(),
-                        m_storageDirectory,
-                        m_sandboxDirectory,
-                        driveKey,
-                        driveRequest.m_client,
-                        driveRequest.m_driveSize,
-                        driveRequest.m_expectedCumulativeDownloadSize,
-                        m_eventHandler,
-                        *this,
-                        driveRequest.m_replicators,
-                        m_dbgEventHandler );
+            auto drive = sirius::drive::createDefaultFlatDrive(
+                    session(),
+                    m_storageDirectory,
+                    m_sandboxDirectory,
+                    driveKey,
+                    driveRequest.m_client,
+                    driveRequest.m_driveSize,
+                    driveRequest.m_expectedCumulativeDownloadSize,
+                    m_eventHandler,
+                    *this,
+                    driveRequest.m_replicators,
+                    m_dbgEventHandler );
 
-                m_driveMap[driveKey] = drive;
+            m_driveMap[driveKey] = drive;
 
-                m_endpointsManager.addEndpointsEntries( driveRequest.m_replicators );
-                m_endpointsManager.addEndpointEntry( driveRequest.m_client, false );
+            m_endpointsManager.addEndpointsEntries( driveRequest.m_replicators );
+            m_endpointsManager.addEndpointEntry( driveRequest.m_client, false );
 
-//            if ( actualRootHash && drive->rootHash() != actualRootHash )
-//            {
-//                drive->startCatchingUp( CatchingUpRequest{ *actualRootHash, {} } );
-//            }
+    //            if ( actualRootHash && drive->rootHash() != actualRootHash )
+    //            {
+    //                drive->startCatchingUp( CatchingUpRequest{ *actualRootHash, {} } );
+    //            }
 
-            // Notify
-//            if ( m_dbgEventHandler ) {
-//                m_dbgEventHandler->driveAdded(drive->drivePublicKey());
-//            }
+        // Notify
+            if ( m_dbgEventHandler )
+            {
+                m_dbgEventHandler->driveAdded(drive->drivePublicKey());
             }
         });//post
     }
@@ -599,6 +318,11 @@ public:
         
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             if ( auto drive = getDrive(driveKey); drive )
             {
                 drive->startDriveClosing( transactionHash );
@@ -616,6 +340,11 @@ public:
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             std::shared_ptr<sirius::drive::FlatDrive> pDrive;
             {
@@ -655,6 +384,11 @@ public:
         
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             if ( const auto drive = getDrive(driveKey); drive )
             {
                 drive->cancelModifyDrive( transactionHash );
@@ -670,6 +404,11 @@ public:
        boost::asio::post(m_session->lt_session().get_context(), [=,request=std::move(request),this]() mutable {
         
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             if ( const auto drive = getDrive(driveKey); drive )
             {
@@ -688,6 +427,11 @@ public:
          
              DBG_MAIN_THREAD
 
+             if ( m_replicatorIsDestructing )
+             {
+                 return;
+             }
+
              if ( const auto drive = getDrive(driveKey); drive )
              {
                  drive->cancelVerification( std::move(tx) );
@@ -703,6 +447,11 @@ public:
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             std::vector<std::array<uint8_t,32>> clientList;
             for( const auto& it : request.m_clients )
@@ -821,6 +570,11 @@ public:
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             if ( anOpinion.m_opinions.size() != 1 )
             {
@@ -952,6 +706,12 @@ public:
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
         });//post
     }
@@ -1060,6 +820,11 @@ public:
 
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end())
             {
                 if ( channelIt->second.m_isClosed )
@@ -1108,7 +873,12 @@ public:
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
-            
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             // clear opinion map
             if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end())
             {
@@ -1180,8 +950,6 @@ public:
             return item.second.m_driveKey == driveKey;
         });
 
-        std::unique_lock<std::shared_mutex> lock(m_driveMutex);
-
         auto driveIt = m_driveMap.find( driveKey );
         _ASSERT( driveIt != m_driveMap.end() );
 
@@ -1200,6 +968,11 @@ public:
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             if ( auto drive = getDrive( anOpinion.m_driveKey ); drive )
             {
@@ -1226,6 +999,11 @@ public:
 
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             if ( auto drive = getDrive( transaction.m_driveKey ); drive )
             {
                 addModifyDriveInfo( transaction.m_modifyTransactionHash,
@@ -1249,6 +1027,11 @@ public:
 
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             if ( auto drive = getDrive( driveKey ); drive )
             {
                 drive->onApprovalTransactionHasFailedInvalidOpinions( transactionHash );
@@ -1266,6 +1049,11 @@ public:
         
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             if ( auto drive = getDrive( transaction.m_driveKey ); drive )
             {
                 drive->onSingleApprovalTransactionHasBeenPublished( transaction );
@@ -1282,6 +1070,11 @@ public:
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             if ( auto drive = getDrive( info.m_driveKey ); drive )
             {
@@ -1507,7 +1300,6 @@ public:
     
     virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) override
     {
-        std::shared_lock<std::shared_mutex> lock(m_driveMutex);
         if ( auto it = m_driveMap.find(driveKey); it != m_driveMap.end() )
         {
             return it->second;

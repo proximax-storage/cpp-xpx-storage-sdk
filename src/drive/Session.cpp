@@ -694,6 +694,12 @@ public:
     
     virtual std::optional<boost::asio::high_resolution_timer> startTimer( int miliseconds, const std::function<void()>& func ) override
     {
+        auto delegate = m_downloadLimiter.lock();
+        if ( !delegate || delegate->isStopped() )
+        {
+            return {};
+        }
+
         boost::asio::high_resolution_timer timer( m_session.get_context() );
         
         timer.expires_after( std::chrono::milliseconds( miliseconds ) );

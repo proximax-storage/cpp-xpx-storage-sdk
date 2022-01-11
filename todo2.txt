@@ -1,14 +1,14 @@
 Download ActionList as separate torrent and then download all files in it
-Verifications
+------------- Verifications
 Modification overhead
 Many clients on Download Channel
-Use LibTorrent DHT for IP
+------------- Use LibTorrent DHT for IP
 Correctly Work with modifications that end with the same Root Hash
 modification ended with error should post an ordinary transaction (actually, such an error is a normal result of actionlist execution that does not change drive state)
-download limitations
+** download limitations
 send receipts from another replicator to replicators
-Ограничить запросы с клиента к фолтному репликатору
+Ограничить запросы с клиента к фолтному/нераздающему репликатору
 Сделать загрузку для репликатора не всегда unlimited
 Unexpected connections of Replicators
 Remove Download Channel when DownloadApproval with flag "channel is closed" is published
-Accept Connection in extended handshake с учетом ссылок на драйв и канал
+Add To Handshake Drive and Channel
