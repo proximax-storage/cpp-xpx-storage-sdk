@@ -667,7 +667,7 @@ public:
     
     void asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& request ) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,request=std::move(request),this]() mutable {
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -684,7 +684,7 @@ public:
     void asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) override
     {
         //TODO
-        boost::asio::post(m_session->lt_session().get_context(), [=,tx=std::move(tx),this]() mutable {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
          
              DBG_MAIN_THREAD
 

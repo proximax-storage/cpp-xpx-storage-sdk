@@ -88,34 +88,36 @@ namespace sirius {
     class mobj : public std::unique_ptr<T>
     {
     public:
-        mobj() : std::unique_ptr<T>()
-        {
-        }
 
-//        template <typename... Args>
-//        mobj& operator = ( Args... args )
-//        {
-//            *this = std::move( std::unique_ptr<T>( new T{args...} ) );
-//            return *this;
-//        }
+        mobj()                          = default;
+        mobj( mobj&& obj )              = default;
+        mobj& operator= ( mobj&& obj )  = default;
 
+        // disable to use 'mobj' as element of contaier
+        bool operator==(const mobj<T>&) = delete;
+        
         template <typename... Args>
         mobj( Args... args ) : std::unique_ptr<T>( new T{args...} )
         {
         }
         
-//        mobj& operator = ( mobj& obj )
-//        {
-//            *this = std::move(obj);
-//            return *this;
-//        }
+        template <typename... Args>
+        mobj& operator = ( Args... args )
+        {
+            *this = std::move( std::unique_ptr<T>( new T{args...} ) );
+            return *this;
+        }
 
-
-//        mobj( std::unique_ptr<T> ptr ) : std::unique_ptr<T>( ptr )
-//        {
-//        }
-//
-//        operator std::unique_ptr<T>() { return static_cast<std::unique_ptr<T>>(*this); }
+        mobj( const mobj& obj )
+        {
+            *this = std::move( const_cast<mobj&>(obj) );
+        }
+        
+        mobj& operator = ( const mobj& obj )
+        {
+            *this = std::move( const_cast<mobj&>(obj) );
+            return *this;
+        }
     };
 
 
