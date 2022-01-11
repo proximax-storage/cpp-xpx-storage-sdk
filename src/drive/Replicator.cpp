@@ -210,17 +210,19 @@ public:
 
     Hash256 dbgGetRootHash( const Key& driveKey ) override
     {
-        if ( const auto drive = getDrive(driveKey); drive )
+        std::promise<Hash256> thePromise;
+        auto future = thePromise.get_future();
+        
+        boost::asio::post(m_session->lt_session().get_context(), [=,&thePromise,this]()
         {
+            DBG_MAIN_THREAD
+            
+            const auto drive = getDrive(driveKey);
+            _ASSERT( drive );
             auto rootHash = drive->rootHash();
-            LOG( "getRootHash of: " << driveKey << " -> " << rootHash );
-            return rootHash;
-        }
-
-        _LOG_ERR( "unknown drive: " << driveKey );
-        throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
-
-        return Hash256();
+            thePromise.set_value( rootHash );
+        });
+        return future.get();
     }
 
     void printDriveStatus( const Key& driveKey ) override

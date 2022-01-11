@@ -493,6 +493,7 @@ int main(int,char**)
 
     // set root drive hash
     driveRootHash = std::make_shared<InfoHash>( gReplicator->dbgGetRootHash( DRIVE_PUB_KEY ) );
+    _EXLOG( "driveRootHash:" << *driveRootHash );
 
     fs::path clientFolder = gClientFolder / "client_files";
 
