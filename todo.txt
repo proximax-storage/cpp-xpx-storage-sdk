@@ -12,8 +12,6 @@ RpcTypes.cpp
 
 save/read downloadedSize map (between reboots?)
 
-Remove torrent that is still downloading?
-
 
 --------------------------
 Our 'libtorrent' implementation:
