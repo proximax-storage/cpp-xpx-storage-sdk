@@ -100,7 +100,7 @@ public:
         }
     }
 
-    void printTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) override
+    void dbgPrintTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) override
     {
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             DBG_MAIN_THREAD
@@ -284,7 +284,7 @@ public:
         // because replicators could download pieces from their neighbors
         //
         {
-            _LOG( "driveKey: " << driveKey )
+            //_LOG( "driveKey: " << driveKey )
             m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, dataSize, 0, 0, 0, driveKey.array(), replicatorsList, {}, clients, {}};
         }
     }
@@ -575,6 +575,8 @@ public:
                        uint64_t downloadedSize,
                        const std::array<uint8_t, 64> &signature) override
     {
+        //(???) At first, check that it is out client?
+        
         if ( !verifyReceipt(downloadChannelId,
                             clientPublicKey,
                             replicatorPublicKey,

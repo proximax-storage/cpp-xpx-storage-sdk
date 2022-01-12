@@ -93,9 +93,6 @@ namespace sirius {
         mobj(mobj &&obj) = default;
         mobj &operator=(mobj &&obj) = default;
 
-        // disable to use 'mobj' as element of contaier
-        bool operator==(const mobj<T> &) = delete;
-
         template<typename... Args>
         mobj(Args... args) : std::unique_ptr<T>(new T{args...})
         {

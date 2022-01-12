@@ -222,18 +222,24 @@ public:
             auto rootHash = drive->rootHash();
             thePromise.set_value( rootHash );
         });
+        
         return future.get();
     }
 
-    void printDriveStatus( const Key& driveKey ) override
+    void dbgPrintDriveStatus( const Key& driveKey ) override
     {
-        if ( const auto drive = getDrive(driveKey); drive )
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]()
         {
-            return drive->printDriveStatus();
-        }
+            DBG_MAIN_THREAD
 
-        _LOG_ERR( "unknown dive: " << driveKey );
-        throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
+            if ( const auto drive = getDrive(driveKey); drive )
+            {
+                return drive->dbgPrintDriveStatus();
+            }
+
+            _LOG_ERR( "unknown dive: " << driveKey );
+            throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
+        });
 
     }
 
@@ -300,7 +306,9 @@ public:
     }
 
     void asyncRemoveDrive( Key driveKey ) override
-    {}
+    {
+        //(???) Чем это отличается от asyncCloseDrive
+    }
 
     void asyncAddUploadShard( Key driveKey, Key shardOwner ) override
     {}
@@ -1008,6 +1016,7 @@ public:
 
             if ( auto drive = getDrive( transaction.m_driveKey ); drive )
             {
+                //(???)
                 addModifyDriveInfo( transaction.m_modifyTransactionHash,
                                     transaction.m_driveKey,
                                     LONG_LONG_MAX,
@@ -1245,11 +1254,6 @@ public:
         }
 
         _LOG_WARN( "processVerificationCode: unknown drive: " << Key(info->m_driveKey) );
-    }
-
-    ReplicatorEventHandler& eventHandler() override
-    {
-        return m_eventHandler;
     }
 
     void        setDownloadApprovalTransactionTimerDelay( int miliseconds ) override

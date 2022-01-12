@@ -608,7 +608,7 @@ class Replicator;
         virtual const ReplicatorList&  replicatorList() const = 0;
 
         // for testing and debugging
-        virtual void printDriveStatus() = 0;
+        virtual void dbgPrintDriveStatus() = 0;
         
         static std::string driveIsClosingPath( const std::string& driveRootPath );
     };

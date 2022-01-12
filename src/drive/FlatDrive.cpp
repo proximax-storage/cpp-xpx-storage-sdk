@@ -2614,7 +2614,7 @@ public:
                                                      }
                                                      else if ( code == download_status::failed )
                                                      {
-                                                         _LOG_ERR("???");
+                                                         _LOG_ERR("? is it possible now?");
                                                      }
                                                  },
 
@@ -2800,7 +2800,7 @@ public:
         return m_replicatorList;
     }
 
-    void printDriveStatus() override
+    void dbgPrintDriveStatus() override
     {
         LOG("Drive Status:")
         m_fsTree.dbgPrint();

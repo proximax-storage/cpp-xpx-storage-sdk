@@ -256,9 +256,10 @@ public:
     // It is called as soon as all drives and channels are added
     virtual void asyncInitializationFinished() = 0;
 
-    // It will be called in 2 cases:
+    // It will be called in 3 cases:
     // - when received transaction about drive creation (in this case 'actualRootHash' should be empty)
     // - when storage-extension restarts and initiates the drive (that already was created)
+    // - when replicator joined to existing drive
     //
     virtual void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest ) = 0;
 
@@ -351,10 +352,12 @@ public:
 //    virtual void        onTransactionCanceledByClient( ApprovalTransactionInfo&& transaction ) = 0;
 
     // Max difference between requested data and signed receipt
+    //
     virtual uint64_t    receiptLimit() const = 0;
-
     virtual void        setReceiptLimit( uint64_t newLimitInBytes ) = 0;
 
+    // Timeout delays
+    //
     virtual void        setDownloadApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual void        setModifyApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual int         getModifyApprovalTransactionTimerDelay() = 0;
@@ -377,23 +380,17 @@ public:
     // It was moveed into ;session_delegate'
     //virtual void        onMessageReceived( const std::string& query, const std::string& ) = 0;
     
-    virtual Hash256     dbgGetRootHash( const Key& driveKey ) = 0;
-    
     virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) const = 0;
 
     //virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;
 
-
-    virtual void        printDriveStatus( const Key& driveKey ) = 0;
-    
-    virtual void        printTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) = 0;
-    
-    virtual ReplicatorEventHandler& eventHandler() = 0;
-    
+    // Functions for debugging
+    //
+    virtual Hash256     dbgGetRootHash( const Key& driveKey ) = 0;
+    virtual void        dbgPrintDriveStatus( const Key& driveKey ) = 0;
+    virtual void        dbgPrintTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) = 0;
     virtual const char* dbgReplicatorName() const = 0;
-    
     virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) = 0;
-
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(

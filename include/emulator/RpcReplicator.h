@@ -175,7 +175,7 @@ public:
     {
         std::cout << "Replicator. driveModificationIsCompleted. DriveKey: " << driveKey << std::endl;
         std::cout << "Replicator. driveModificationIsCompleted: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
-        replicator.printDriveStatus(driveKey);
+        replicator.dbgPrintDriveStatus(driveKey);
 
         types::RpcEndDriveModificationInfo rpcEndDriveModificationInfo;
         rpcEndDriveModificationInfo.m_modifyTransactionHash = modifyTransactionHash.array();

@@ -270,9 +270,9 @@ public:
             std::cout << "client:" <<opinion.m_clientUploadBytes << std::endl;
         }
         
-        gReplicator3->printTrafficDistribution( modifyTransactionHash1.array() );
-        gReplicator->printTrafficDistribution( modifyTransactionHash1.array() );
-        gReplicator2->printTrafficDistribution( modifyTransactionHash1.array() );
+        gReplicator3->dbgPrintTrafficDistribution( modifyTransactionHash1.array() );
+        gReplicator->dbgPrintTrafficDistribution( modifyTransactionHash1.array() );
+        gReplicator2->dbgPrintTrafficDistribution( modifyTransactionHash1.array() );
 
         if ( !m_approvalTransactionInfo )
         {
@@ -313,18 +313,20 @@ public:
                                                const sirius::drive::InfoHash& modifyTransactionHash,
                                                const sirius::drive::InfoHash& rootHash ) override
     {
-        //EXLOG( "driveModificationIsCompleted: " << replicator.dbgReplicatorName() );
-        EXLOG( "" );
-        EXLOG( "@ update_completed:" << replicator.dbgReplicatorName() );
+        std::thread( [=,&replicator] {
+            //EXLOG( "driveModificationIsCompleted: " << replicator.dbgReplicatorName() );
+            EXLOG( "" );
+            EXLOG( "@ update_completed:" << replicator.dbgReplicatorName() );
 
-        driveRootHash = std::make_shared<InfoHash>( replicator.dbgGetRootHash( driveKey ) );
-        EXLOG( "@ Drive modified: " << replicator.dbgReplicatorName() << "      rootHash:" << rootHash );
+            driveRootHash = std::make_shared<InfoHash>( replicator.dbgGetRootHash( driveKey ) );
+            EXLOG( "@ Drive modified: " << replicator.dbgReplicatorName() << "      rootHash:" << rootHash );
 
-        std::lock_guard<std::mutex> autolock( gExLogMutex );
-        replicator.printDriveStatus( driveKey );
+            std::lock_guard<std::mutex> autolock( gExLogMutex );
+            replicator.dbgPrintDriveStatus( driveKey );
 
-        modifyCompleteCounter++;
-        modifyCompleteCondVar.notify_all();
+            modifyCompleteCounter++;
+            modifyCompleteCondVar.notify_all();
+        }).detach();
     }
 
     virtual void opinionHasBeenReceived(  Replicator& replicator,
