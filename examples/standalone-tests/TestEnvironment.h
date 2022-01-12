@@ -47,6 +47,8 @@ namespace sirius::drive::test {
         std::atomic<unsigned int> driveClosedCounter{0};
         std::mutex driveClosedMutex;
 
+        std::condition_variable m_downloadApprovedCondVar;
+
         std::optional<DownloadApprovalTransactionInfo> m_dnApprovalTransactionInfo;
         std::mutex m_transactionInfoMutex;
 
@@ -218,6 +220,18 @@ namespace sirius::drive::test {
             }
         }
 
+        virtual void closeDownloadChannel( const Key& channelId )
+        {
+            auto transactionHash = randomByteArray<Hash256>();
+            auto channelHash = *reinterpret_cast<const Hash256 *>(&channelId);
+            for (auto &replicator: m_replicators) {
+                if ( replicator )
+                {
+                    replicator->asyncInitiateDownloadApprovalTransactionInfo(transactionHash, channelHash);
+                }
+            }
+        }
+
         virtual void cancelModification(const Key& driveKey, const Hash256& transactionHash) {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
             std::erase_if(m_pendingModifications, [&] (const auto& item) {
@@ -255,6 +269,7 @@ namespace sirius::drive::test {
                                                                             true);
                     }
                 }
+                m_downloadApprovedCondVar.notify_all();
             }
         }
 
@@ -393,6 +408,13 @@ namespace sirius::drive::test {
             std::unique_lock<std::mutex> lock(driveClosedMutex);
             driveClosedCondVar.wait(lock, [this] {
                 return driveClosedCounter == m_replicators.size();
+            });
+        }
+
+        void waitDownloadApproval() {
+            std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+            m_downloadApprovedCondVar.wait(lock, [this] {
+                return m_dnApprovalTransactionInfo;
             });
         }
     };

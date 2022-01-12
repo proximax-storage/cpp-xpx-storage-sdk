@@ -115,6 +115,9 @@ namespace sirius::drive::test
             client.waitForDownloadComplete(file);
             EXLOG("downloaded by client " << toString(file));
         }
+
+        env.closeDownloadChannel(downloadChannel);
+        env.waitDownloadApproval();
     }
 
 #undef TEST_NAME

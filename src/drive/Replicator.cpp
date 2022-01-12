@@ -26,6 +26,7 @@
 namespace sirius::drive {
 
 #define CHANNELS_NOT_OWNED_BY_DRIVES
+#define DISABLE_VERIFICATIONS
 
 //
 // DefaultReplicator
@@ -139,7 +140,9 @@ public:
            m_libtorrentThread.join();
        }
 
+#if 0
        saveDownloadChannelMap();
+#endif
     }
     
     void start() override
@@ -411,6 +414,7 @@ public:
     
     void asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& request ) override
     {
+#ifndef DISABLE_VERIFICATIONS
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
@@ -428,6 +432,7 @@ public:
 
             _LOG( "asyncStartDriveVerification: unknown drive: " << driveKey );
         });//post
+#endif
     }
 
     void asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) override
@@ -677,8 +682,11 @@ public:
 
         // check opinion number
         //_LOG( "///// " << opinionInfo.m_opinions.size() << " " <<  (opinionInfo.m_replicatorNumber*2)/3 );
-        //todo not ">=..."!!! - "> (opinionInfo.m_replicatorNumber*2)/3
+#ifndef MINI_SIGNATURE
+        if (opinions.size() > (channel.m_replicatorsList2.size() * 2) / 3)
+#else
         if (opinions.size() >= (channel.m_replicatorsList2.size() * 2) / 3)
+#endif
         {
             // start timer if it is not started
             if (!opinionInfo.m_timer)

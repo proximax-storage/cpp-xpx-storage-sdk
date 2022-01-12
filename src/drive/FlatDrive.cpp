@@ -2049,7 +2049,11 @@ public:
         DBG_MAIN_THREAD
         
         // m_replicatorList is the list of other replicators (it does not contain our replicator)
+#ifndef MINI_SIGNATURE
+        auto replicatorNumber = m_modifyRequest->m_replicators.size() + 1;
+#else
         auto replicatorNumber = m_modifyRequest->m_replicators.size();//todo++++ +1;
+#endif
 
         // check opinion number
         if ( m_myOpinion && m_otherOpinions[m_modifyRequest->m_transactionHash].size() >= ((replicatorNumber)*2)/3
