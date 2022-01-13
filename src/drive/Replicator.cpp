@@ -26,7 +26,6 @@
 namespace sirius::drive {
 
 #define CHANNELS_NOT_OWNED_BY_DRIVES
-#define DISABLE_VERIFICATIONS
 
 //
 // DefaultReplicator
@@ -414,7 +413,7 @@ public:
     
     void asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& request ) override
     {
-#ifndef DISABLE_VERIFICATIONS
+#ifdef ENABLE_VERIFICATIONS
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD

@@ -13,6 +13,8 @@ add_executable(modifyDriveFlat3 modifyDriveFlat3.cpp ${SOURCES})
 #target_precompile_headers(modifyDriveFlat PRIVATE pch.h)
 
 add_definitions(-DDEBUG_OFF_CATAPULT)
+add_definitions(-DMINI_SIGNATURE)
+add_definitions(-DENABLE_VERIFICATIONS)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     target_link_libraries(modifyDriveFlat3
