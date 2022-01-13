@@ -688,8 +688,7 @@ public:
 
     void handleResponse( lt::bdecode_node response )
     {
-        LOG( "lt::bdecode_node response: " << response );
-        LOG( "lt::bdecode_node response: " << response );
+        //_LOG( ">>>>>>>>>>>>>>>>>lt::bdecode_node response: " << response );
     }
     
     virtual std::optional<boost::asio::high_resolution_timer> startTimer( int miliseconds, const std::function<void()>& func ) override
@@ -822,15 +821,14 @@ private:
                     break;
                 }
 
-//                case lt::dht_direct_response_alert::alert_type: {
-//                    auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
-////                    _LOG( " *** dht_direct_response_alert " << theAlert->endpoint << "; " );
-////                    _LOG( "response:  " << theAlert->response() );
-//                    auto response = theAlert->response();
-//                    handleResponse( response );
-//                    _LOG( "*** dht_direct_response_alert: " << theAlert->what() << ":("<< alert->type() <<")  " << alert->message() );
-//                    break;
-//                }
+                case lt::dht_direct_response_alert::alert_type: {
+                    break;
+                    // auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
+                    // auto response = theAlert->response();
+                    // handleResponse( response );
+                    // _LOG( "*** dht_direct_response_alert: " << theAlert->what() << ":("<< alert->type() <<")  " << alert->message() );
+                    // break;
+                }
 
                 case lt::incoming_request_alert::alert_type: {
 //                    auto* theAlert = dynamic_cast<lt::incoming_request_alert*>(alert);

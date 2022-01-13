@@ -193,7 +193,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     //
 
     std::optional<PublishedModificationApprovalTransactionInfo> m_publishedTxDuringInitialization;
-    std::optional<Hash256>              m_removeDriveTx = {};
+    mobj<Hash256>                       m_removeDriveTx = {};
     std::optional<Hash256>              m_modificationMustBeCanceledTx;
     std::optional<CatchingUpRequest>    m_newCatchingUpRequest;
     std::deque<ModifyRequest>           m_deferredModifyRequests;
@@ -202,8 +202,9 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     //
     // Task variable
     //
-    bool                                m_driveIsInitializing = true;
-    std::optional<Hash256>              m_driveWillRemovedTx = {};
+    bool                                m_driveIsInitializing  = true;
+    bool                                m_driveWillBeRemoved   = false;
+    mobj<Hash256>                       m_driveWillBeRemovedTx;
     std::optional<Hash256>              m_modificationCanceledTx;
     std::optional<CatchingUpRequest>    m_catchingUpRequest;
     std::optional<ModifyRequest>        m_modifyRequest;
@@ -665,11 +666,9 @@ public:
             return;
         }
 
-        if ( m_driveWillRemovedTx )
+        if ( m_driveWillBeRemovedTx )
         {
-            auto tx = std::move( m_driveWillRemovedTx );
-            m_driveWillRemovedTx.reset();
-            runDriveClosingTask( std::move(tx) );
+            runDriveClosingTask( std::move( m_driveWillBeRemovedTx ) );
             return;
         }
 
@@ -1091,11 +1090,12 @@ public:
     // CLOSE/REMOVE
     //
     
-    void startDriveClosing( const Hash256& transactionHash ) override
+    void startDriveClosing( mobj<Hash256>&& tx ) override
     {
         DBG_MAIN_THREAD
         
-        m_driveWillRemovedTx = transactionHash;
+        m_driveWillBeRemoved = true;
+        m_driveWillBeRemovedTx = tx;
 
         {
             std::error_code err;
@@ -1424,14 +1424,14 @@ public:
         }
     }
 
-    void runDriveClosingTask( std::optional<Hash256>&& transactionHash )
+    void runDriveClosingTask( mobj<Hash256>&& tx )
     {
         DBG_MAIN_THREAD
         
-        _ASSERT( transactionHash );
+        _ASSERT( tx );
         _ASSERT( !m_removeDriveTx );
 
-        m_removeDriveTx = std::move(transactionHash);
+        m_removeDriveTx = std::move(tx);
         
         //
         // Remove torrents from session
@@ -1448,8 +1448,9 @@ public:
 
         if ( auto session = m_session.lock(); session )
         {
-            session->removeTorrentsFromSession( tobeRemovedTorrents, [this](){
-                m_replicator.closeDriveChannels( *m_removeDriveTx, *this );
+            session->removeTorrentsFromSession( tobeRemovedTorrents, [this]()
+            {
+                m_replicator.closeDriveChannels( m_removeDriveTx, *this );
             });
         }
     }
@@ -1458,7 +1459,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_newCatchingUpRequest || m_modificationMustBeCanceledTx || m_removeDriveTx )
+        if ( m_newCatchingUpRequest || m_modificationMustBeCanceledTx || m_driveWillBeRemoved )
         {
             runNextTask();
             return;
@@ -1957,7 +1958,7 @@ public:
 
         _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
         
-        if ( m_newCatchingUpRequest || m_modificationMustBeCanceledTx || m_removeDriveTx )
+        if ( m_newCatchingUpRequest || m_modificationMustBeCanceledTx || m_driveWillBeRemoved )
         {
             runNextTask();
             return;
@@ -1983,7 +1984,7 @@ public:
         _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
         _ASSERT( m_myOpinion )
 
-        if ( m_newCatchingUpRequest || m_modificationMustBeCanceledTx || m_removeDriveTx )
+        if ( m_newCatchingUpRequest || m_modificationMustBeCanceledTx || m_driveWillBeRemoved )
         {
             runNextTask();
             return;
@@ -2762,9 +2763,9 @@ public:
         return m_catchingUpRequest.has_value();
     }
 
-    const std::optional<Hash256>& closingTxHash() const override
+    bool isItClosingTxHash( const Hash256& eventHash ) const override
     {
-        return m_removeDriveTx;
+        return m_removeDriveTx && (*m_removeDriveTx == eventHash);
     }
     
     void removeAllDriveData() override
@@ -2773,6 +2774,8 @@ public:
         m_backgroundExecutor.run( [this]
         {
             DBG_BG_THREAD
+            
+            _ASSERT( m_driveWillBeRemoved )
 
             try {
                 // remove drive root folder and sandbox
@@ -2787,7 +2790,14 @@ public:
 
             if ( m_dbgEventHandler )
             {
-                m_dbgEventHandler->driveIsClosed( m_replicator, m_drivePubKey, *m_removeDriveTx );
+                if ( m_removeDriveTx )
+                {
+                    m_dbgEventHandler->driveIsClosed( m_replicator, m_drivePubKey, *m_removeDriveTx );
+                }
+                else
+                {
+                    m_dbgEventHandler->driveIsRemoved( m_replicator, m_drivePubKey );
+                }
             }
 
             if ( auto session = m_session.lock(); session )

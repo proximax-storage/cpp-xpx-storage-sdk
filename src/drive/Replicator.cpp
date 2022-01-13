@@ -309,7 +309,24 @@ public:
 
     void asyncRemoveDrive( Key driveKey ) override
     {
-        //(???) Чем это отличается от asyncCloseDrive
+        DBG_MAIN_THREAD
+
+        //(???) What will happen after restart?
+        if ( m_replicatorIsDestructing )
+        {
+            return;
+        }
+
+        if ( auto drive = getDrive(driveKey); drive )
+        {
+            drive->startDriveClosing( {} );
+        }
+        else
+        {
+            _LOG( "removeDrive: drive not found: " << driveKey );
+            return;
+        }
+
     }
 
     void asyncAddUploadShard( Key driveKey, Key shardOwner ) override
@@ -733,7 +750,7 @@ public:
         });//post
     }
 
-    void doInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId )
+    void doInitiateDownloadApprovalTransactionInfo( const Hash256& blockHash, const Hash256& channelId )
     {
         DBG_MAIN_THREAD
         
@@ -799,7 +816,7 @@ public:
     };
 
     // It is called when drive is closing
-    virtual void closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) override
+    virtual void closeDriveChannels( const mobj<Hash256>& blockHash, FlatDrive& drive ) override
     {
         DBG_MAIN_THREAD
 
@@ -811,14 +828,17 @@ public:
         });
 
 #ifndef CHANNELS_NOT_OWNED_BY_DRIVES
-        for( auto& [channelId,channelInfo] : m_downloadChannelMap )
+        if ( blockHash )
         {
-            if ( channelInfo.m_driveKey == drive.drivePublicKey().array() && !channelInfo.m_isModifyTx )
+            for( auto& [channelId,channelInfo] : m_downloadChannelMap )
             {
-                doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
-                
-                // drive will be deleted in 'asyncDownloadApprovalTransactionHasBeenPublished()'
-                deleteDriveImmediately = false;
+                if ( channelInfo.m_driveKey == drive.drivePublicKey().array() && !channelInfo.m_isModifyTx )
+                {
+                    doInitiateDownloadApprovalTransactionInfo( *blockHash, channelId );
+                    
+                    // drive will be deleted in 'asyncDownloadApprovalTransactionHasBeenPublished()'
+                    deleteDriveImmediately = false;
+                }
             }
         }
 #endif
@@ -931,7 +951,7 @@ public:
                 {
                     bool driveWillBeDeleted = false;
 
-                    if ( drive->closingTxHash() == eventHash )
+                    if ( drive->isItClosingTxHash( eventHash ) )
                     {
                         channelIt->second.m_isClosed = true;
 
