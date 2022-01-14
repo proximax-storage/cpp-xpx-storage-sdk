@@ -719,6 +719,8 @@ public:
         {
             // Previous task has not been completed yet
             // So we wait for its completeness
+            // ???
+            _ASSERT( false )
             return;
         }
 
@@ -726,7 +728,16 @@ public:
 
         _ASSERT(m_modifyRequest || m_catchingUpRequest)
 
-        if ( !m_downloadingLtHandle )
+        // ???
+        if ( m_sandboxCalculated && ( m_modificationMustBeCanceledTx || m_driveWillRemovedTx || m_newCatchingUpRequest ) )
+        {
+            // We have already executed all actions for modification
+            m_backgroundExecutor.run( [this]
+            {
+                runNextTask();
+            });
+        }
+        else if ( !m_downloadingLtHandle )
         {
             // We cannot break torrent download.
             // Therefore, we will wait the end of current task, that will call runNextTask()
@@ -818,6 +829,7 @@ public:
         m_verifyApproveTxSent   = false;
         m_verificationMustBeInterrupted = false;
         m_myVerifyAprovalTxInfo.reset();
+        m_receivedVerificationCodes.clear();
 
         // add unknown opinions in 'myVerifyAprovalTxInfo'
         for( auto& opinion: m_unknownOpinions )
@@ -895,6 +907,11 @@ public:
         
         for( const auto& child : folder.m_childs )
         {
+            if ( m_verificationMustBeInterrupted )
+            {
+                break;
+            }
+
             if ( isFolder(child) )
             {
                 calculateVerifyCodes( getFolder(child) );
@@ -1389,7 +1406,7 @@ public:
         }
 
         m_verifyCodeTimer.reset();
-        m_verifyCodeTimer.reset();
+        m_verifyOpinionTimer.reset();
         m_verificationRequest.reset();
 
         interruptVerification();

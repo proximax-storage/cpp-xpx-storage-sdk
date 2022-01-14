@@ -268,6 +268,16 @@ namespace sirius::drive::test {
             }
         }
 
+        virtual void cancelVerification(const Key& driveKey, const Hash256& request)
+        {
+            for (auto &r: m_replicators) {
+                if ( r )
+                {
+                    r->asyncCancelDriveVerification(driveKey, request);
+                }
+            }
+        }
+
 #ifdef __APPLE__
 #pragma mark --ReplicatorEventHandler methods and variables
 #endif
