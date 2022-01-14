@@ -34,7 +34,6 @@ namespace sirius::drive::test {
     class TestEnvironment : public ReplicatorEventHandler, DbgReplicatorEventHandler {
     public:
 
-        std::vector<std::shared_ptr<Replicator>> m_replicators;
         std::vector<std::shared_ptr<sirius::crypto::KeyPair>> m_keys;
         ReplicatorList m_addrList;
         std::vector<ReplicatorInfo> m_bootstraps;
@@ -42,6 +41,10 @@ namespace sirius::drive::test {
         std::map<Hash256, std::condition_variable> modifyCompleteCondVars;
         std::map<Hash256, int> modifyCompleteCounters;
         std::mutex modifyCompleteMutex;
+
+        std::map<Hash256, std::condition_variable> m_rootHashCalculatedCondVars;
+        std::map<Hash256, int> m_rootHashCalculatedCounters;
+        std::mutex m_rootHashCalculatedMutex;
 
         std::condition_variable driveClosedCondVar;
         std::atomic<unsigned int> driveClosedCounter{0};
@@ -52,6 +55,9 @@ namespace sirius::drive::test {
         std::optional<DownloadApprovalTransactionInfo> m_dnApprovalTransactionInfo;
         std::mutex m_transactionInfoMutex;
 
+        std::condition_variable m_verificationCondVar;
+        std::map<Hash256, VerifyApprovalTxInfo> m_verifyApprovalTransactionInfo;
+
         std::deque<ModifyRequest> m_pendingModifications;
         std::optional<ApprovalTransactionInfo> m_lastApprovedModification;
         std::map<Hash256, InfoHash> m_rootHashes;
@@ -59,6 +65,10 @@ namespace sirius::drive::test {
         std::map<Key, std::set<uint64_t>> m_modificationSizes;
 
         std::optional<std::pair<Key, AddDriveRequest>> drive;
+
+        std::vector<std::string> m_rootFolders;
+        std::vector<std::string> m_sandboxFolders;
+        std::vector<std::shared_ptr<Replicator>> m_replicators;
 
     public:
         TestEnvironment(int numberOfReplicators,
@@ -96,6 +106,9 @@ namespace sirius::drive::test {
                 }
 
                 //EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(replicatorKeyPair.publicKey().array()[0]) );
+
+                m_rootFolders.push_back(rootFolder);
+                m_sandboxFolders.push_back(sandboxRootFolder);
 
                 if (i <= startReplicator)
                 {
@@ -245,6 +258,16 @@ namespace sirius::drive::test {
             }
         }
 
+        virtual void startVerification(const Key& driveKey, const VerificationRequest& request)
+        {
+            for (auto &r: m_replicators) {
+                if ( r )
+                {
+                    r->asyncStartDriveVerification(driveKey, request);
+                }
+            }
+        }
+
 #ifdef __APPLE__
 #pragma mark --ReplicatorEventHandler methods and variables
 #endif
@@ -256,7 +279,6 @@ namespace sirius::drive::test {
 
         virtual void downloadApprovalTransactionIsReady(Replicator &replicator,
                                                         const DownloadApprovalTransactionInfo &info) override {
-            std::cout << "downloadApproved" << std::endl;
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
             if ( !m_dnApprovalTransactionInfo )
             {
@@ -273,12 +295,31 @@ namespace sirius::drive::test {
             }
         }
 
+        virtual void verificationTransactionIsReady(Replicator &replicator,
+                                                        const VerifyApprovalTxInfo &info) override {
+            const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+            if ( !m_verifyApprovalTransactionInfo.contains(info.m_tx) )
+            {
+                m_verifyApprovalTransactionInfo[info.m_tx] = info;
+                for (auto &r: m_replicators) {
+                    if ( r )
+                    {
+                        r->asyncVerifyApprovalTransactionHasBeenPublished( info );
+                    }
+                }
+                m_verificationCondVar.notify_all();
+            }
+        }
+
 // It will be called when rootHash is calculated in sandbox
         virtual void rootHashIsCalculated(Replicator &replicator,
                                           const sirius::Key &driveKey,
                                           const sirius::drive::InfoHash &modifyTransactionHash,
                                           const sirius::drive::InfoHash &sandboxRootHash) override {
             EXLOG("rootHashIsCalculated: " << replicator.dbgReplicatorName());
+            std::unique_lock<std::mutex> lock(m_rootHashCalculatedMutex);
+            m_rootHashCalculatedCounters[modifyTransactionHash]++;
+            m_rootHashCalculatedCondVars[modifyTransactionHash].notify_all();
         }
 
         // It will be called when transaction could not be completed
@@ -367,10 +408,8 @@ namespace sirius::drive::test {
                                                   const sirius::drive::InfoHash &modifyTransactionHash,
                                                   const sirius::drive::InfoHash &rootHash) override {
             EXLOG("Completed modification " << replicator.dbgReplicatorName());
-            {
-                std::unique_lock<std::mutex> lock(modifyCompleteMutex);
-                modifyCompleteCounters[modifyTransactionHash] ++;
-            }
+            std::unique_lock<std::mutex> lock(modifyCompleteMutex);
+            modifyCompleteCounters[modifyTransactionHash] ++;
             modifyCompleteCondVars[modifyTransactionHash].notify_all();
         }
 
@@ -397,6 +436,13 @@ namespace sirius::drive::test {
             replicator.asyncOnDownloadOpinionReceived(info);
         }
 
+        void waitRootHashCalculated(const Hash256& modification, int number) {
+            std::unique_lock<std::mutex> lock(m_rootHashCalculatedMutex);
+            m_rootHashCalculatedCondVars[modification].wait(lock, [this, modification, number] {
+                return m_rootHashCalculatedCounters[modification] == number;
+            });
+        }
+
         void waitModificationEnd(const Hash256& modification, int number) {
             std::unique_lock<std::mutex> lock(modifyCompleteMutex);
             modifyCompleteCondVars[modification].wait(lock, [this, modification, number] {
@@ -415,6 +461,13 @@ namespace sirius::drive::test {
             std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
             m_downloadApprovedCondVar.wait(lock, [this] {
                 return m_dnApprovalTransactionInfo;
+            });
+        }
+
+        void waitVerificationApproval(const Hash256& tx) {
+            std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+            m_verificationCondVar.wait(lock, [=, this] {
+                return m_verifyApprovalTransactionInfo.contains(tx);
             });
         }
     };

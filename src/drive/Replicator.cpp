@@ -26,7 +26,6 @@
 namespace sirius::drive {
 
 #define CHANNELS_NOT_OWNED_BY_DRIVES
-#define DISABLE_VERIFICATIONS
 
 //
 // DefaultReplicator
@@ -61,7 +60,7 @@ private:
     EndpointsManager m_endpointsManager;
 
     // key is verify tx
-    std::map<std::array<uint8_t,32>, VerifyApprovalInfo> m_verifyApprovalMap;
+    std::map<std::array<uint8_t,32>, VerifyOpinion> m_verifyApprovalMap;
 
 public:
     DefaultReplicator (
@@ -140,9 +139,7 @@ public:
            m_libtorrentThread.join();
        }
 
-#if 0
        saveDownloadChannelMap();
-#endif
     }
     
     void start() override
@@ -1115,6 +1112,11 @@ public:
     {
         DBG_MAIN_THREAD
 
+        if ( m_replicatorIsDestructing )
+        {
+            return;
+        }
+
         auto endpointTo = m_endpointsManager.getEndpoint( replicatorKey );
         if ( endpointTo )
         {
@@ -1127,6 +1129,11 @@ public:
                               const std::vector<uint8_t>&             message ) override
   {
         DBG_MAIN_THREAD
+
+        if ( m_replicatorIsDestructing )
+        {
+            return;
+        }
 
         auto endpointTo = m_endpointsManager.getEndpoint( replicatorKey );
         if ( endpointTo )

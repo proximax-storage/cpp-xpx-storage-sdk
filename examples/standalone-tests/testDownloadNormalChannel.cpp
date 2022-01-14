@@ -99,7 +99,7 @@ namespace sirius::drive::test
 
         env.downloadFromDrive(DRIVE_PUB_KEY, DownloadRequest{
                 downloadChannel,
-                BIG_FILE_SIZE + 1024 * 1024,
+                2 * (BIG_FILE_SIZE + 1024 * 1024),
                 env.m_addrList,
                 {client.m_clientKeyPair.publicKey()}
         });

@@ -187,7 +187,7 @@ namespace sirius::drive::test
 
         EXLOG("Required modification " << toString(client.m_modificationTransactionHashes[2]));
 
-        env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS);
+        env.waitModificationEnd(client.m_modificationTransactionHashes[2], NUMBER_OF_REPLICATORS);
     }
 
 #undef TEST_NAME

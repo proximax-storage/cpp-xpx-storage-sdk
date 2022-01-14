@@ -356,24 +356,8 @@ class Replicator;
 
     struct VerifyOpinion
     {
-        uint8_t                     m_isValid = 0; // 0 or 1
-        std::array<uint8_t,32>      m_replicatorKey;
-
-        template <class Archive> void serialize( Archive & arch )
-        {
-            arch( m_isValid );
-            arch( m_replicatorKey );
-        }
-    };
-
-    struct VerifyApprovalInfo
-    {
         std::array<uint8_t,32>              m_publicKey;
-        //std::array<uint8_t,32>           m_tx;
-        //std::array<uint8_t,32>           m_driveKey;
-        //uint32_t                         m_shardId;
-        std::vector<std::array<uint8_t,32>> m_opinionKeys;
-        std::vector<uint8_t>                   m_opinions;
+        std::vector<uint8_t>                m_opinions;
 
         // our publicKey, m_tx, m_driveKey, m_shardId, m_opinions
         Signature                   m_signature;
@@ -395,7 +379,6 @@ class Replicator;
                             utils::RawBuffer{tx},
                             utils::RawBuffer{driveKey},
                             utils::RawBuffer{(const uint8_t*) &shardId, sizeof(shardId)},
-                            utils::RawBuffer{(const uint8_t*) &m_opinionKeys[0], m_opinionKeys.size()*sizeof(m_opinionKeys[0])},
                             utils::RawBuffer{m_opinions},
                           },
                           m_signature );
@@ -410,7 +393,6 @@ class Replicator;
                                     utils::RawBuffer{tx},
                                     utils::RawBuffer{driveKey},
                                     utils::RawBuffer{(const uint8_t*) &shardId, sizeof(shardId)},
-                                    utils::RawBuffer{(const uint8_t*) &m_opinionKeys[0], m_opinionKeys.size()*sizeof(m_opinionKeys[0])},
                                     utils::RawBuffer{m_opinions},
                                   },
                                   m_signature );
@@ -422,7 +404,7 @@ class Replicator;
         std::array<uint8_t,32>          m_tx;
         std::array<uint8_t,32>          m_driveKey;
         uint32_t                        m_shardId = 0;
-        std::vector<VerifyApprovalInfo> m_opinions;
+        std::vector<VerifyOpinion>      m_opinions;
 
         template <class Archive> void serialize( Archive & arch )
         {
@@ -430,6 +412,11 @@ class Replicator;
             arch( m_driveKey );
             arch( m_shardId );
             arch( m_opinions );
+        }
+
+        operator PublishedVerificationApprovalTransactionInfo() const
+        {
+            return { m_tx, m_driveKey };
         }
     };
 
@@ -460,7 +447,7 @@ class Replicator;
         virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
 
         // It will initiate the approving of verify transaction
-        virtual void verifyApprovalTransactionIsReady( Replicator& replicator, VerifyApprovalInfo&& info )
+        virtual void verifyApprovalTransactionIsReady( Replicator& replicator, VerifyOpinion&& info )
         {
             //TODO make it 'pure virtual'
         }
