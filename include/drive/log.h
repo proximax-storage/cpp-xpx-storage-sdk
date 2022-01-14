@@ -63,14 +63,14 @@ inline std::mutex gLogMutex;
 #ifdef DEBUG_OFF_CATAPULT
     #define _LOG_ERR(expr) { \
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        std::cerr << __FILE__ << ":" << __LINE__ << ": "<< expr << "\n" << std::flush; \
+        std::cerr << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< expr << "\n" << std::flush; \
         assert(0); \
     }
 #else
     #define _LOG_ERR(expr) { \
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
         std::ostringstream out; \
-        out << "ERROR!!! " << __FILE__ << ":" << __LINE__ << ": "<< expr; \
+        out << "ERROR!!! " << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< expr; \
         CATAPULT_LOG(error) << out.str(); \
     }
 #endif

@@ -309,37 +309,136 @@ public:
 
     void asyncRemoveDrive( Key driveKey ) override
     {
-        DBG_MAIN_THREAD
-
-        //(???) What will happen after restart?
-        if ( m_replicatorIsDestructing )
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
         {
-            return;
-        }
+            DBG_MAIN_THREAD
 
-        if ( auto drive = getDrive(driveKey); drive )
-        {
-            drive->startDriveClosing( {} );
-        }
-        else
-        {
-            _LOG( "removeDrive: drive not found: " << driveKey );
-            return;
-        }
+            //(???) What will happen after restart?
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+                drive->startDriveClosing( {} );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
+    }
+    
+    void asyncReplicatorAdded( Key driveKey, mobj<Key>&& replicatorKey ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+                drive->replicatorAdded( std::move(replicatorKey) );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
     }
 
-    void asyncAddUploadShard( Key driveKey, Key shardOwner ) override
-    {}
+    void asyncReplicatorRemoved( Key driveKey, mobj<Key>&& replicatorKey ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
 
-    void asyncAddToMyUploadShard( Key driveKey, Key replicator ) override
-    {}
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+                drive->replicatorRemoved( std::move(replicatorKey) );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
+    }
 
-    void asyncRemoveUploadShard( Key driveKey, Key shardOwner ) override
-    {}
 
-    void asyncRemoveFromMyUploadShard( Key driveKey, Key replicator ) override
-    {}
+    void asyncAddShardDistributor( Key driveKey, mobj<Key>&& replicatorKey ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+//                drive->( std::move(replicatorKey) );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
+    }
+
+    void asyncRemoveShardDistributor( Key driveKey, mobj<Key>&& replicatorKey ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+//                drive->( std::move(replicatorKey) );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
+    }
+
+    void asyncAddShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+//                drive->( std::move(replicatorKey) );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
+    }
+
+    void asyncRemoveShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+//                drive->( std::move(replicatorKey) );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
+    }
 
     void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {

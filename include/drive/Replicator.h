@@ -265,20 +265,16 @@ public:
 
     // It is called when the Replicator is removed from the Drive
     virtual void asyncRemoveDrive( Key driveKey ) = 0;
+    
+    // It notifyes about changes in drive replicator list 
+    virtual void asyncReplicatorAdded( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
+    virtual void asyncReplicatorRemoved( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
 
-    // It is called when the Replicator becomes the member of another Replicator's shard
-    virtual void asyncAddUploadShard( Key driveKey, Key shardOwner ) = 0;
-
-    // It is called when the Replicator is removed form the members of another Replicator's shard
-    virtual void asyncRemoveUploadShard( Key driveKey, Key shardOwner ) = 0;
-
-    // It is called when a new Replicator is added to this Replicator's shard,
-    // and so we are allowed to download from the Replicator
-    virtual void asyncAddToMyUploadShard( Key driveKey, Key replicator ) = 0;
-
-    // It is called when a Replicator is removed from this Replicator's shard,
-    // and so we are not allowed to download from the Replicator
-    virtual void asyncRemoveFromMyUploadShard( Key driveKey, Key replicator ) = 0;
+    // It notifyes about changes in drive shard
+    virtual void asyncAddShardDistributor( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
+    virtual void asyncRemoveShardDistributor( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
+    virtual void asyncAddShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
+    virtual void asyncRemoveShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
 
     // it starts drive closing
     virtual void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) = 0;

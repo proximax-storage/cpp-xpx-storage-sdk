@@ -368,6 +368,7 @@ public:
         return replicators;
     }
 
+    // (???) Is it needed?
     void updateReplicators(const ReplicatorList& replicators) override
     {
         DBG_MAIN_THREAD
@@ -386,6 +387,26 @@ public:
             }
         }
     }
+    
+    void replicatorAdded( mobj<Key>&& replicatorKey ) override
+    {
+        if ( *replicatorKey != m_replicator.replicatorKey() )
+        {
+            if ( std::find( m_replicatorList.begin(), m_replicatorList.end(), *replicatorKey ) == m_replicatorList.end() )
+            {
+                m_replicatorList.push_back( *replicatorKey );
+            }
+        }
+    }
+    
+    void replicatorRemoved( mobj<Key>&& replicatorKey ) override
+    {
+        std::remove_if( m_replicatorList.begin(), m_replicatorList.end(), [&] (const Key& it)
+        {
+            return it == *replicatorKey;
+        });
+    }
+
     
     uint64_t sandboxFsTreeSize() const override
     {
@@ -1085,6 +1106,7 @@ public:
         }
         runNextTask();
     }
+
     
     //
     // CLOSE/REMOVE
@@ -2053,7 +2075,7 @@ public:
 #ifndef MINI_SIGNATURE
         auto replicatorNumber = m_modifyRequest->m_replicators.size() + 1;
 #else
-        auto replicatorNumber = m_modifyRequest->m_replicators.size();//todo++++ +1;
+        auto replicatorNumber = m_modifyRequest->m_replicators.size();
 #endif
 
         // check opinion number
@@ -2803,6 +2825,7 @@ public:
             if ( auto session = m_session.lock(); session )
             {
                 boost::asio::post(session->lt_session().get_context(), [this] {
+                    terminate();
                     m_replicator.finishDriveClosure( drivePublicKey() );
                 });
             }
