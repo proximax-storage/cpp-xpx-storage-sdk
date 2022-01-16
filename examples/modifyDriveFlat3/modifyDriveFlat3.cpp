@@ -229,7 +229,7 @@ public:
         }
     }
 
-    virtual void verifyApprovalTransactionIsReady( Replicator& replicator, VerifyApprovalInfo&& info ) override
+    virtual void verifyApprovalTransactionIsReady( Replicator& replicator, VerifyApprovalTxInfo&& info ) override
     {
         //TODO
     }

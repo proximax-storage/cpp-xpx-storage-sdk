@@ -460,7 +460,7 @@ class Replicator;
         virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
 
         // It will initiate the approving of verify transaction
-        virtual void verifyApprovalTransactionIsReady( Replicator& replicator, VerifyApprovalInfo&& info )
+        virtual void verifyApprovalTransactionIsReady( Replicator& replicator, VerifyApprovalTxInfo&& info )
         {
             //TODO make it 'pure virtual'
         }
