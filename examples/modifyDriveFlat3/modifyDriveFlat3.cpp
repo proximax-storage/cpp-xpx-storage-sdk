@@ -229,11 +229,6 @@ public:
         }
     }
 
-    virtual void verifyApprovalTransactionIsReady( Replicator& replicator, VerifyOpinion&& info ) override
-    {
-        //TODO
-    }
-
     // It will be called when rootHash is calculated in sandbox
     virtual void rootHashIsCalculated( Replicator&                    replicator,
                                        const sirius::Key&             driveKey,

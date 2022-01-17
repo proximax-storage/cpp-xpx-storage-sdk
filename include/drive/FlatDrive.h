@@ -447,12 +447,6 @@ class Replicator;
         // It will be called when transaction could not be completed
         virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
 
-        // It will initiate the approving of verify transaction
-        virtual void verifyApprovalTransactionIsReady( Replicator& replicator, VerifyOpinion&& info )
-        {
-            //TODO make it 'pure virtual'
-        }
-
         virtual void opinionHasBeenReceived(  Replicator& replicator,
                                               const ApprovalTransactionInfo& ) = 0;
 
