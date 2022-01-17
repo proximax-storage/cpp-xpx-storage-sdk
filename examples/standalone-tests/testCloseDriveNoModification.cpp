@@ -1,4 +1,3 @@
-#include <emulator/ExtensionEmulator.h>
 #include "TestEnvironment.h"
 #include "utils.h"
 

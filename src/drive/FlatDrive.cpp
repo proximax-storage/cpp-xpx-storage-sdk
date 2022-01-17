@@ -1300,7 +1300,7 @@ public:
             {
                 if ( auto session = m_session.lock(); session )
                 {
-                    m_verifyCodeTimer = session->startTimer( m_replicator.getVerifyApprovalTransactionTimerDelay(),
+                    m_verifyOpinionTimer = session->startTimer( m_replicator.getVerifyApprovalTransactionTimerDelay(),
                                         [this]() { verifyOpinionTimerExpired(); } );
                 }
             }
@@ -1969,8 +1969,6 @@ public:
             return sum + add.second;
         });
 
-        _LOG( "cumulative before " << sumBefore);
-
         for (const auto&[uploaderKey, bytes]: m_lastAccountedUploads)
         {
             if (m_cumulativeUploads.find(uploaderKey) == m_cumulativeUploads.end())
@@ -1984,8 +1982,6 @@ public:
         {
             return sum + add.second;
         });
-
-        _LOG( "cumulative after " << sumAfter);
     }
     
     void createMyOpinion()

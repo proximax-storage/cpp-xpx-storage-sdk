@@ -1,4 +1,3 @@
-#include <emulator/ExtensionEmulator.h>
 #include <numeric>
 #include <set>
 #include "TestEnvironment.h"

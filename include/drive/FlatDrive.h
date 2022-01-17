@@ -311,7 +311,7 @@ class Replicator;
         uint32_t                    m_shardId = 0;
         InfoHash                    m_actualRootHash;
         std::vector<Key>            m_replicators;
-        std::uint32_t              m_durationMs;
+        std::uint32_t               m_durationMs;
     };
 
     struct VerificationCodeInfo
