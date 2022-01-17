@@ -1964,11 +1964,6 @@ public:
         m_replicator.removeModifyDriveInfo( *m_opinionTrafficIdentifier );
         m_opinionTrafficIdentifier.reset();
 
-        auto sumBefore = std::accumulate(m_cumulativeUploads.begin(), m_cumulativeUploads.end(), 0, [] (const auto& sum, const auto& add)
-        {
-            return sum + add.second;
-        });
-
         for (const auto&[uploaderKey, bytes]: m_lastAccountedUploads)
         {
             if (m_cumulativeUploads.find(uploaderKey) == m_cumulativeUploads.end())
@@ -1977,11 +1972,6 @@ public:
             }
             m_cumulativeUploads[uploaderKey] += bytes;
         }
-
-        auto sumAfter = std::accumulate(m_cumulativeUploads.begin(), m_cumulativeUploads.end(), 0, [] (const auto& sum, const auto& add)
-        {
-            return sum + add.second;
-        });
     }
     
     void createMyOpinion()
