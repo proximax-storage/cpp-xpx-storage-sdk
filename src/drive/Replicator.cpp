@@ -46,7 +46,7 @@ private:
     
     int         m_downloadApprovalTransactionTimerDelayMs = 60 * 1000;
     int         m_modifyApprovalTransactionTimerDelayMs   = 60 * 1000;
-    int         m_verifyCodeTimerDelayMs                  = 60 * 60 * 1000;
+    int         m_verifyCodeTimerDelayMs                  = 5 * 60 * 1000;
     int         m_verifyApprovalTransactionTimerDelayMs   = 60 * 1000;
     int         m_shareMyDownloadOpinionTimerDelayMs      = 5 * 60 * 1000;
 
@@ -645,7 +645,7 @@ public:
             std::erase_if(downloadChannel.m_downloadOpinionMap, [&now](const auto &item)
             {
                 const auto&[key, value] = item;
-                return (now - value.m_creationTime).seconds() > 60 * 60;
+                return (now - value.m_creationTime).total_seconds() > 60 * 60;
             });
         }
 

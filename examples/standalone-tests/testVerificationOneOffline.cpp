@@ -42,11 +42,12 @@ namespace sirius::drive::test
                 downloadApprovalDelay,
                 startReplicator)
         {
-            for ( const auto& replicator: m_replicators )
+            for ( const auto& r: m_replicators )
             {
-                if ( replicator )
+                if ( r )
                 {
-                    replicator->setVerifyCodeTimerDelay(20 * 1000);
+                    r->setVerifyCodeTimerDelay(0);
+                    r->setVerifyApprovalTransactionTimerDelay(10 * 1000);
                 }
             }
         }
@@ -89,7 +90,8 @@ namespace sirius::drive::test
             verification,
             0,
             env.m_lastApprovedModification->m_rootHash,
-            env.m_addrList
+            env.m_addrList,
+            10 * 1000
                               });
         env.waitVerificationApproval(verification);
 

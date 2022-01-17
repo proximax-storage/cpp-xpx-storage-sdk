@@ -170,8 +170,9 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     std::optional<Hash256>      m_receivedModifyApproveTx;
 
     // Verify status
-    bool                            m_myVerifyCodesCalculated = false;
-    bool                            m_verifyApproveTxSent   = false;
+    bool                                    m_myVerifyCodesCalculated = false;
+    bool                                    m_verifyApproveTxSent   = false;
+    std::optional<boost::posix_time::ptime> m_verificationStartedAt;
     std::vector<mobj<VerificationCodeInfo>> m_unknownVerificationCodeQueue;
     std::map<std::array<uint8_t,32>,mobj<VerificationCodeInfo>> m_receivedVerificationCodes;
     
@@ -446,6 +447,11 @@ public:
             }
         }
 
+        if ( !fs::exists( m_restartRootPath, err ) )
+        {
+            fs::create_directories( m_restartRootPath, err );
+        }
+
         // Load FsTree
         if ( fs::exists( m_fsTreeFile, err ) )
         {
@@ -503,7 +509,7 @@ public:
         loadAccountedCumulativeDownload();
         loadCumulativeUploads();
         loadLastAccountedUploads();
-        
+
         if ( m_dbgEventHandler )
         {
             m_dbgEventHandler->driveIsInitialized( m_replicator, drivePublicKey(), m_rootHash );
@@ -554,7 +560,7 @@ public:
         }
     }
 
-    void downgradeCumulativeUploads()
+    bool downgradeCumulativeUploads()
     {
         DBG_MAIN_THREAD
 
@@ -581,21 +587,7 @@ public:
         m_accountedCumulativeDownload -= m_modifyRequest->m_maxDataSize;
         m_expectedCumulativeDownload = m_accountedCumulativeDownload;
 
-        m_backgroundExecutor.run([=, this]
-        {
-            saveAccountedCumulativeDownload();
-            if ( !trafficIdentifierHasValue )
-            {
-                saveCumulativeUploads();
-            }
-            else
-            {
-                saveOpinionTrafficIdentifier();
-            }
-            executeOnSessionThread([this] {
-                continueCancelModifyDrive();
-            });
-        });
+        return !trafficIdentifierHasValue;
     }
 
     void runNextTask(bool runAfterInitializing = false)
@@ -678,7 +670,7 @@ public:
                 m_verificationRequest = std::move(m_deferredVerificationRequest );
                 runVerifyDriveTaskOnSeparateThread();
 
-                // Verification will performed on separate thread.
+                // Verification will be performed on separate thread.
                 // And we should try to run other task.
                 // So, do not return;
             }
@@ -720,7 +712,7 @@ public:
             // Previous task has not been completed yet
             // So we wait for its completeness
             // ???
-            _ASSERT( false )
+//            _ASSERT( false )
             return;
         }
 
@@ -729,7 +721,7 @@ public:
         _ASSERT(m_modifyRequest || m_catchingUpRequest)
 
         // ???
-        if ( m_sandboxCalculated && ( m_modificationMustBeCanceledTx || m_driveWillRemovedTx || m_newCatchingUpRequest ) )
+        if ( m_sandboxCalculated && ( m_modificationMustBeCanceledTx || m_driveWillRemovedTx ) )
         {
             // We have already executed all actions for modification
             m_backgroundExecutor.run( [this]
@@ -830,6 +822,9 @@ public:
         m_verificationMustBeInterrupted = false;
         m_myVerifyAprovalTxInfo.reset();
         m_receivedVerificationCodes.clear();
+
+        _ASSERT( !m_verificationStartedAt )
+        m_verificationStartedAt = boost::posix_time::microsec_clock::universal_time();
 
         // add unknown opinions in 'myVerifyAprovalTxInfo'
         for( auto& opinion: m_unknownOpinions )
@@ -1088,7 +1083,53 @@ public:
 
         m_modificationCanceledTx = transactionHash;
 
-        downgradeCumulativeUploads();
+
+        bool updatedCumulativeUploads = downgradeCumulativeUploads();
+
+        for( auto& it : m_torrentHandleMap )
+            it.second.m_isUsed = false;
+
+        markUsedFiles( m_fsTree );
+
+        m_backgroundExecutor.run([=, this]
+        {
+            saveAccountedCumulativeDownload();
+            if ( updatedCumulativeUploads )
+            {
+                saveCumulativeUploads();
+            }
+            else
+            {
+                saveOpinionTrafficIdentifier();
+            }
+
+            try
+            {
+                // remove unused files and torrent files from the drive
+                for( const auto& it : m_torrentHandleMap )
+                {
+                    const UseTorrentInfo& info = it.second;
+                    if ( !info.m_isUsed )
+                    {
+                        const auto& hash = it.first;
+                        std::string filename = hashToFileName( hash );
+                        fs::remove( fs::path(m_driveFolder) / filename );
+                        fs::remove( fs::path(m_torrentFolder) / filename );
+                    }
+                }
+
+                // remove unused data from 'fileMap'
+                std::erase_if( m_torrentHandleMap, [] (const auto& it) { return !it.second.m_isUsed; } );
+            }
+            catch ( const std::exception& ex )
+            {
+                _LOG_ERR( "exception during cancel: " << ex.what() );
+            }
+
+            executeOnSessionThread([this] {
+                continueCancelModifyDrive();
+            });
+        });
     }
 
     void continueCancelModifyDrive()
@@ -1153,6 +1194,7 @@ public:
         m_verifyCodeTimer.reset();
         m_verifyOpinionTimer.reset();
         m_verificationRequest.reset();
+        m_verificationStartedAt.reset();
 
         interruptVerification();
     }
@@ -1294,9 +1336,23 @@ public:
             // start timer if it is not started
             if ( !m_verifyCodeTimer )
             {
+                _ASSERT( m_verificationStartedAt )
+
+                auto secondsSinceVerificationStart =
+                        (boost::posix_time::microsec_clock::universal_time() - *m_verificationStartedAt).total_seconds();
+                int codesDelay;
+                if ( m_verificationRequest->m_durationMs > secondsSinceVerificationStart + m_replicator.getVerifyCodeTimerDelay() )
+                {
+                    codesDelay = int(m_verificationRequest->m_durationMs - secondsSinceVerificationStart + m_replicator.getVerifyCodeTimerDelay());
+                }
+                else
+                {
+                    codesDelay = 0;
+                }
+
                 if ( auto session = m_session.lock(); session )
                 {
-                    m_verifyCodeTimer = session->startTimer( m_replicator.getVerifyCodeTimerDelay(),
+                    m_verifyCodeTimer = session->startTimer( codesDelay,
                                         [this]() { verifyCodeTimerExpired(); } );
                 }
             }
@@ -1408,6 +1464,7 @@ public:
         m_verifyCodeTimer.reset();
         m_verifyOpinionTimer.reset();
         m_verificationRequest.reset();
+        m_verificationStartedAt.reset();
 
         interruptVerification();
     }
@@ -1847,6 +1904,8 @@ public:
 
     void normalizeUploads(std::map<std::array<uint8_t,32>, uint64_t>& modificationUploads, uint64_t targetSum)
     {
+        _ASSERT(modificationUploads.contains(getClient().array()))
+
         uint128_t longTargetSum = targetSum;
         uint128_t sumBefore = std::accumulate(modificationUploads.begin(),
                                               modificationUploads.end(),
@@ -1860,14 +1919,14 @@ public:
         if ( sumBefore > 0 )
         {
             for ( auto& [key, uploadBytes]: modificationUploads ) {
-                if ( key != m_modifyRequest->m_clientPublicKey.array() )
+                if ( key != getClient().array() )
                 {
                     auto longUploadBytes = (uploadBytes * longTargetSum) / sumBefore;
                     uploadBytes = longUploadBytes.convert_to<uint64_t>();
                     sumAfter += uploadBytes;
                 }
             }
-            modificationUploads[m_modifyRequest->m_clientPublicKey.array()] = targetSum - sumAfter;
+            modificationUploads[getClient().array()] = targetSum - sumAfter;
         }
     }
 
@@ -1883,20 +1942,20 @@ public:
             if (auto it = modifyTrafficMap.find(replicatorIt.array());
                     it != modifyTrafficMap.end())
             {
-                m_lastAccountedUploads[it->first] = it->second.m_receivedSize;
+                m_lastAccountedUploads[replicatorIt.array()] = it->second.m_receivedSize;
             } else
             {
-                m_lastAccountedUploads[it->first] = 0;
+                m_lastAccountedUploads[replicatorIt.array()] = 0;
             }
         }
 
-        if (auto it = modifyTrafficMap.find(m_modifyRequest->m_clientPublicKey.array());
+        if (auto it = modifyTrafficMap.find(getClient().array());
                 it != modifyTrafficMap.end())
         {
-            m_lastAccountedUploads[it->first] = it->second.m_receivedSize;
+            m_lastAccountedUploads[getClient().array()] = it->second.m_receivedSize;
         } else
         {
-            m_lastAccountedUploads[it->first] = 0;
+            m_lastAccountedUploads[getClient().array()] = 0;
         }
 
         uint64_t targetSize = m_expectedCumulativeDownload - m_accountedCumulativeDownload;
@@ -1904,6 +1963,13 @@ public:
         m_accountedCumulativeDownload = m_expectedCumulativeDownload;
         m_replicator.removeModifyDriveInfo( *m_opinionTrafficIdentifier );
         m_opinionTrafficIdentifier.reset();
+
+        auto sumBefore = std::accumulate(m_cumulativeUploads.begin(), m_cumulativeUploads.end(), 0, [] (const auto& sum, const auto& add)
+        {
+            return sum + add.second;
+        });
+
+        _LOG( "cumulative before " << sumBefore);
 
         for (const auto&[uploaderKey, bytes]: m_lastAccountedUploads)
         {
@@ -1913,12 +1979,18 @@ public:
             }
             m_cumulativeUploads[uploaderKey] += bytes;
         }
+
+        auto sumAfter = std::accumulate(m_cumulativeUploads.begin(), m_cumulativeUploads.end(), 0, [] (const auto& sum, const auto& add)
+        {
+            return sum + add.second;
+        });
+
+        _LOG( "cumulative after " << sumAfter);
     }
     
     void createMyOpinion()
     {
         DBG_MAIN_THREAD
-
         _ASSERT( m_opinionTrafficIdentifier )
         _ASSERT( !m_myOpinion )
         _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
@@ -1937,7 +2009,7 @@ public:
         }
 
         {
-            auto it = m_cumulativeUploads.find( m_modifyRequest->m_clientPublicKey.array() );
+            auto it = m_cumulativeUploads.find( getClient().array() );
             opinion.m_clientUploadBytes = it->second;
         }
 
@@ -2906,10 +2978,12 @@ public:
     template<class T>
     void saveRestartValue( T& value, std::string path )
     {
+        _ASSERT( fs::exists(m_restartRootPath) )
+
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
         archive( value );
-        
+
         saveRestartData( m_restartRootPath / path , os.str() );
     }
     
@@ -2937,6 +3011,7 @@ public:
                 std::ofstream fStream( outputFile +".tmp", std::ios::binary );
                 fStream << data;
             }
+            _ASSERT( fs::exists(outputFile + ".tmp") )
             std::error_code err;
             fs::remove( outputFile, err );
             fs::rename( outputFile +".tmp", outputFile , err );

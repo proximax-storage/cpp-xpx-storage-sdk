@@ -105,10 +105,8 @@ namespace sirius {
             return *this;
         }
 
-        mobj(mobj &obj) : std::unique_ptr<T>()
-        {
-            *this = std::move(obj);
-        }
+        mobj(mobj &obj) : mobj<T>(std::move(obj))
+        {}
 
         mobj &operator=(mobj &obj)
         {

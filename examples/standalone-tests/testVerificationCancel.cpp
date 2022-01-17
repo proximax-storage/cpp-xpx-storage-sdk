@@ -42,6 +42,14 @@ namespace sirius::drive::test
                 downloadApprovalDelay,
                 startReplicator)
         {
+            for ( const auto& r: m_replicators )
+            {
+                if ( r )
+                {
+                    r->setVerifyCodeTimerDelay(0);
+                    r->setVerifyApprovalTransactionTimerDelay(10 * 1000);
+                }
+            }
         }
     };
 
@@ -82,7 +90,8 @@ namespace sirius::drive::test
             verificationFirst,
                                       0,
                                       env.m_lastApprovedModification->m_rootHash,
-                                      env.m_addrList
+                                      env.m_addrList,
+                                      3 * 1000
                               });
         env.cancelVerification(DRIVE_PUB_KEY, verificationFirst);
 
@@ -92,7 +101,8 @@ namespace sirius::drive::test
                                       verificationSecond,
                                       0,
                                       env.m_lastApprovedModification->m_rootHash,
-                                      env.m_addrList
+                                      env.m_addrList,
+                                      3 * 1000
                               });
         env.waitVerificationApproval(verificationSecond);
 
