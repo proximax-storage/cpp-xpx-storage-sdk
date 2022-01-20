@@ -30,10 +30,12 @@
  */
 
 #include "drive/FlatDrive.h"
+#include "drive/FlatDrivePaths.h"
 #include "drive/Replicator.h"
 #include "drive/Session.h"
 #include "drive/BackgroundExecutor.h"
 #include "drive/ActionList.h"
+#include "drive/DriveTask.h"
 #include "drive/Utils.h"
 #include "drive/FsTree.h"
 #include "drive/log.h"
@@ -72,46 +74,6 @@ namespace sirius::drive {
 //
 // DrivePaths - drive paths, used at replicator side
 //
-class FlatDrivePaths {
-protected:
-    FlatDrivePaths( const std::string&  replicatorRootFolder,
-                const std::string&      replicatorSandboxRootFolder,
-                const Key&              drivePubKey )
-        :
-          m_drivePubKey( drivePubKey ),
-          m_replicatorRoot( replicatorRootFolder ),
-          m_replicatorSandboxRoot( replicatorSandboxRootFolder )
-    {}
-
-    virtual~FlatDrivePaths() {}
-
-protected:
-    const Key       m_drivePubKey;
-
-    const fs::path  m_replicatorRoot;
-    const fs::path  m_replicatorSandboxRoot;
-
-    // Drive paths
-    const fs::path  m_driveRootPath     = m_replicatorRoot / arrayToString(m_drivePubKey.array());
-    const fs::path  m_driveFolder       = m_driveRootPath  / "drive";
-    const fs::path  m_torrentFolder     = m_driveRootPath  / "torrent";
-    const fs::path  m_fsTreeFile        = m_driveRootPath  / "fs_tree" / FS_TREE_FILE_NAME;
-    const fs::path  m_fsTreeTorrent     = m_driveRootPath  / "fs_tree" / FS_TREE_FILE_NAME ".torrent";
-
-    // Sandbox paths
-    const fs::path  m_sandboxRootPath       = m_replicatorSandboxRoot / arrayToString(m_drivePubKey.array());
-    const fs::path  m_sandboxFsTreeFile     = m_sandboxRootPath / FS_TREE_FILE_NAME;
-    const fs::path  m_sandboxFsTreeTorrent  = m_sandboxRootPath / FS_TREE_FILE_NAME ".torrent";
-
-    // Client data paths (received action list and files)
-    const fs::path  m_clientDataFolder      = m_sandboxRootPath / "client-data";
-    const fs::path  m_clientDriveFolder     = m_clientDataFolder / "drive";
-    const fs::path  m_clientActionListFile  = m_clientDataFolder / "actionList.bin";
-
-    // Restart data
-    const fs::path  m_restartRootPath       = m_driveRootPath  / "restart-data";
-    const fs::path  m_driveIsClosingPath    = m_driveRootPath  / "restart-data" / "drive-is-closing";
-};
 
 std::string FlatDrive::driveIsClosingPath( const std::string& driveRootPath )
 {
@@ -126,20 +88,253 @@ struct UnknownVerifyCode
     uint64_t                      m_verificationCode;
 };
 
+class RestartValueSerializer
+{
+
+public:
+
+    fs::path            m_restartRootPath;
+
+    std::thread::id     m_dbgThreadId;
+    std::string         m_dbgOurPeerName;
+
+    RestartValueSerializer(
+            const fs::path& restartRootPath,
+            const std::string& dbgOurPeerName )
+            : m_restartRootPath( restartRootPath )
+            , m_dbgThreadId( std::this_thread::get_id())
+            , m_dbgOurPeerName( dbgOurPeerName )
+    {}
+
+    template<class T>
+    void saveRestartValue( T& value, std::string path ) const
+    {
+        DBG_BG_THREAD
+
+        _ASSERT( fs::exists( m_restartRootPath ))
+
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( value );
+
+        saveRestartData( m_restartRootPath / path, os.str());
+    }
+
+    template<class T>
+    bool loadRestartValue( T& value, std::string path ) const
+    {
+        DBG_BG_THREAD
+
+        std::string data;
+
+        if ( !loadRestartData( m_restartRootPath / path, data ))
+        {
+            return false;
+        }
+
+        std::istringstream is( data, std::ios::binary );
+        cereal::PortableBinaryInputArchive iarchive( is );
+        iarchive( value );
+        return true;
+    }
+
+private:
+
+    void saveRestartData( std::string outputFile, const std::string data ) const
+    {
+        try
+        {
+            {
+                std::ofstream fStream( outputFile + ".tmp", std::ios::binary );
+                fStream << data;
+            }
+            _ASSERT( fs::exists( outputFile + ".tmp" ))
+            std::error_code err;
+            fs::remove( outputFile, err );
+            fs::rename( outputFile + ".tmp", outputFile, err );
+        }
+        catch (const std::exception& ex)
+        {
+            _LOG_ERR( "exception during saveRestartData: " << ex.what());
+        }
+    }
+
+    bool loadRestartData( std::string outputFile, std::string& data ) const
+    {
+        std::error_code err;
+
+        if ( fs::exists( outputFile, err ))
+        {
+            std::ifstream ifStream( outputFile, std::ios::binary );
+            if ( ifStream.is_open())
+            {
+                std::ostringstream os;
+                os << ifStream.rdbuf();
+                data = os.str();
+                return true;
+            }
+        }
+
+        if ( fs::exists( outputFile + ".tmp", err ))
+        {
+            std::ifstream ifStream( outputFile + ".tmp", std::ios::binary );
+            if ( ifStream.is_open())
+            {
+                std::ostringstream os;
+                os << ifStream.rdbuf();
+                data = os.str();
+                return true;
+            }
+        }
+
+        //_LOG_WARN( "cannot loadRestartData: " << outputFile );
+
+        return false;
+    }
+};
+
+class DefaultModifyOpinionController: public ModifyOpinionController
+{
+
+private:
+
+    Key                                         m_driveKey;
+
+    const RestartValueSerializer&               m_serializer;
+
+    // It is needed for right calculation of my 'modify' opinion
+    std::optional<std::array<uint8_t,32>>       m_opinionTrafficIdentifier; // (***)
+    uint64_t                                    m_expectedCumulativeDownload;
+    uint64_t                                    m_accountedCumulativeDownload; // (***)
+    std::map<std::array<uint8_t,32>, uint64_t>  m_cumulativeUploads; // (***)
+    std::map<std::array<uint8_t,32>, uint64_t>  m_lastAccountedUploads; // (***)
+
+    // opinions from other replicators
+    // key of the outer map is modification id
+    // key of the inner map is a replicator key, one replicator one opinion
+    std::map<Hash256, std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>>    m_otherOpinions; // (***)
+
+    std::thread::id     m_dbgThreadId;
+    std::string         m_dbgOurPeerName;
+
+public:
+
+    DefaultModifyOpinionController(
+            const Key& driveKey,
+            const RestartValueSerializer& serializer,
+            uint64_t expectedCumulativeDownload,
+            const std::string& dbgOurPeerName )
+            : m_driveKey( driveKey )
+            , m_serializer( serializer )
+            , m_expectedCumulativeDownload( expectedCumulativeDownload )
+            , m_accountedCumulativeDownload( 0 )
+            , m_dbgThreadId( std::this_thread::get_id())
+            , m_dbgOurPeerName( dbgOurPeerName )
+    {}
+
+    void initialize()
+    {
+        DBG_BG_THREAD
+    }
+
+    void downgradeCumulativeUploads( const std::function<void()>& callback ) override
+    {
+        DBG_MAIN_THREAD
+    }
+
+    void increaseExpectedCumulativeDownload( uint64_t add ) override
+    {
+        DBG_MAIN_THREAD
+
+        m_expectedCumulativeDownload += add;
+    }
+
+    void createMyOpinion( const Hash256& sandboxRootHash, const uint64_t& sandboxDriveSize,
+                          const uint64_t& sandboxFsTreeSize, const uint64_t& sandboxMetafilesSize,
+                          const std::function<void( const ApprovalTransactionInfo& )>& callback ) override
+    {
+        DBG_MAIN_THREAD
+    }
+
+    std::optional<Hash256>& getOpinionTrafficIdentifier() override
+    {
+        return <#initializer#>;
+    }
+
+    std::map<std::array<uint8_t, 32>, ApprovalTransactionInfo>& getOtherOpinions( const Hash256& modification ) override
+    {
+        return m_otherOpinions[modification];
+    }
+
+private:
+
+    // m_myOpinion
+    void saveEmptyOpinion()
+    {
+        std::optional<ApprovalTransactionInfo> opinion;
+        m_serializer.saveRestartValue( opinion, "myOpinion" );
+    }
+    void saveMyOpinion()
+    {
+        m_serializer.saveRestartValue( m_myOpinion, "myOpinion" );
+    }
+    void loadMyOpinion()
+    {
+        m_serializer.loadRestartValue( m_myOpinion, "myOpinion" );
+    }
+
+    // m_opinionTrafficIdentifier
+    void saveOpinionTrafficIdentifier()
+    {
+        m_serializer.saveRestartValue( m_opinionTrafficIdentifier, "opinionTrafficIdentifier" );
+    }
+    void loadOpinionTrafficIdentifier()
+    {
+        m_serializer.loadRestartValue( m_opinionTrafficIdentifier, "opinionTrafficIdentifier" );
+    }
+
+    // m_accountedCumulativeDownload
+    void saveAccountedCumulativeDownload()
+    {
+        m_serializer.saveRestartValue( m_accountedCumulativeDownload, "accountedCumulativeDownload" );
+    }
+    void loadAccountedCumulativeDownload()
+    {
+        if ( !m_serializer.loadRestartValue( m_accountedCumulativeDownload, "accountedCumulativeDownload" ) )
+        {
+            m_accountedCumulativeDownload = 0;
+        }
+    }
+
+    // m_cumulativeUploads
+    void saveCumulativeUploads()
+    {
+        m_serializer.saveRestartValue( m_cumulativeUploads, "cumulativeUploads" );
+    }
+    void loadCumulativeUploads()
+    {
+        m_serializer.loadRestartValue( m_cumulativeUploads, "cumulativeUploads" );
+    }
+
+    // m_lastAccountedUploads
+    void saveLastAccountedUploads()
+    {
+        m_serializer.saveRestartValue( m_lastAccountedUploads, "lastAccountedUploads" );
+    }
+    void loadLastAccountedUploads()
+    {
+        m_serializer.loadRestartValue(  m_lastAccountedUploads, "lastAccountedUploads" );
+    }
+};
+
 //
 // DefaultDrive - it manages all user files at replicator side
 //
-class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
+class DefaultFlatDrive: public FlatDrive,
+                        public TaskController,
+                        protected FlatDrivePaths {
 
-    using lt_handle = Session::lt_handle;
     using uint128_t = boost::multiprecision::uint128_t;
-
-    // UseTorrentInfo is used to avoid adding torrents into session with the same hash
-    // and for deleting unused files and torrents from session
-    struct UseTorrentInfo {
-        lt_handle m_ltHandle = {};
-        bool      m_isUsed = true;
-    };
 
     std::weak_ptr<Session>  m_session;
 
@@ -160,7 +355,13 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     // Replicator event handlers
     ReplicatorEventHandler&     m_eventHandler;
     DbgReplicatorEventHandler*  m_dbgEventHandler = nullptr;
-    
+
+    // Serializer
+    RestartValueSerializer          m_serializer;
+
+    // Opinion Controller
+    DefaultModifyOpinionController  m_opinionController;
+
 
     // Modify status
     bool                        m_modifyUserDataReceived       = false;
@@ -196,7 +397,7 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     std::optional<Hash256>              m_removeDriveTx = {};
     std::optional<Hash256>              m_modificationMustBeCanceledTx;
     std::optional<CatchingUpRequest>    m_newCatchingUpRequest;
-    std::deque<ModifyRequest>           m_deferredModifyRequests;
+    std::deque<ModificationRequest>     m_deferredModifyRequests;
     mobj<VerificationRequest>           m_deferredVerificationRequest;
 
     //
@@ -216,14 +417,10 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
 
     std::optional<lt_handle>             m_downloadingLtHandle; // used for removing torrent from session
 
-    std::set<InfoHash>                  m_catchingUpFileSet;
-    std::set<InfoHash>::iterator        m_catchingUpFileIt = m_catchingUpFileSet.end();
-
     std::vector<uint64_t>               m_verificationCodes;
 
     // FsTree
     FsTree        m_fsTree;
-    FsTree        m_sandboxFsTree;
     lt_handle     m_fsTreeLtHandle; // used for removing FsTree torrent from session
 
     // Root hashes
@@ -233,23 +430,8 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     // 'modify' opinion
     //
     std::optional<ApprovalTransactionInfo>              m_myOpinion; // (***)
-    std::optional<boost::asio::high_resolution_timer>   m_shareMyOpinionTimer;
 
-    const int                                           m_shareMyOpinionTimerDelayMs = 1000 * 60 * 5;
-    
-    // It is needed for right calculation of my 'modify' opinion
-    std::optional<std::array<uint8_t,32>>       m_opinionTrafficIdentifier; // (***)
-    uint64_t                                    m_expectedCumulativeDownload;
-    uint64_t                                    m_accountedCumulativeDownload = 0; // (***)
-    std::map<std::array<uint8_t,32>, uint64_t>  m_cumulativeUploads; // (***)
-    std::map<std::array<uint8_t,32>, uint64_t>  m_lastAccountedUploads; // (***)
 
-    // opinions from other replicators
-    // key of the outer map is modification id
-    // key of the inner map is a replicator key, one replicator one opinion
-    std::map<Hash256, std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>>    m_otherOpinions; // (***)
-    
-    std::optional<boost::asio::high_resolution_timer> m_modifyOpinionTimer;
     std::optional<boost::asio::high_resolution_timer> m_verifyCodeTimer;
     std::optional<boost::asio::high_resolution_timer> m_verifyOpinionTimer;
 
@@ -263,7 +445,11 @@ class DefaultFlatDrive: public FlatDrive, protected FlatDrivePaths {
     const char*                             m_dbgOurPeerName = "";
     std::thread::id                         m_dbgThreadId;
 
+    //
+    std::shared_ptr<BaseDriveTask> m_task;
+
 public:
+
     DefaultFlatDrive(
                   std::shared_ptr<Session>  session,
                   const std::string&        replicatorRootFolder,
@@ -286,7 +472,8 @@ public:
           m_client(clientPubKey),
           m_eventHandler(eventHandler),
           m_dbgEventHandler(dbgEventHandler),
-          m_expectedCumulativeDownload(expectedCumulativeDownload),
+          m_serializer(m_restartRootPath, replicator.dbgReplicatorName()),
+          m_opinionController(m_drivePubKey, m_serializer, expectedCumulativeDownload, replicator.dbgReplicatorName() ),
           m_dbgOurPeerName(replicator.dbgReplicatorName())
     {
         m_dbgThreadId = std::this_thread::get_id();
@@ -383,37 +570,6 @@ public:
             } else {
                 m_replicatorList.push_back(ri);
             }
-        }
-    }
-    
-    uint64_t sandboxFsTreeSize() const override
-    {
-        std::error_code err;
-        
-        if ( fs::exists(m_sandboxFsTreeFile,err) )
-        {
-            return fs::file_size( m_sandboxFsTreeFile, err );
-        }
-        return 0;
-    }
-
-    void getSandboxDriveSizes( uint64_t& metaFilesSize, uint64_t& driveSize ) const override
-    {
-        // TODO move to BG thread
-
-        std::error_code err;
-
-        if ( fs::exists(m_sandboxRootPath,err) )
-        {
-            metaFilesSize = fs::file_size( m_sandboxFsTreeTorrent);
-            driveSize = 0;
-            m_sandboxFsTree.getSizes( m_driveFolder, m_torrentFolder, metaFilesSize, driveSize );
-            driveSize += metaFilesSize;
-        }
-        else
-        {
-            metaFilesSize = 0;
-            driveSize = 0;
         }
     }
     
@@ -590,6 +746,14 @@ public:
         return !trafficIdentifierHasValue;
     }
 
+    void maybeRunTask()
+    {
+        if ( !m_task )
+        {
+            _ASSERT( !m_deferredTasks.empty() )
+        }
+    }
+
     void runNextTask(bool runAfterInitializing = false)
     {
         m_backgroundExecutor.run([=, this]
@@ -703,64 +867,7 @@ public:
 
     }
     
-    void breakTorrentDownloadAndRunNextTask()
-    {
-        DBG_MAIN_THREAD
 
-        if( m_taskMustBeBroken )
-        {
-            // Previous task has not been completed yet
-            // So we wait for its completeness
-            // ???
-//            _ASSERT( false )
-            return;
-        }
-
-        m_taskMustBeBroken = true;
-
-        _ASSERT(m_modifyRequest || m_catchingUpRequest)
-
-        // ???
-        if ( m_sandboxCalculated && ( m_modificationMustBeCanceledTx || m_driveWillRemovedTx ) )
-        {
-            // We have already executed all actions for modification
-            m_backgroundExecutor.run( [this]
-            {
-                runNextTask();
-            });
-        }
-        else if ( !m_downloadingLtHandle )
-        {
-            // We cannot break torrent download.
-            // Therefore, we will wait the end of current task, that will call runNextTask()
-        }
-        else
-        {
-            if ( auto session = m_session.lock(); session )
-            {
-                //
-                // We must break torrent downloading because it could be unavailable
-                //
-                session->removeDownloadContext( *m_downloadingLtHandle );
-                
-                lt_handle torrentHandle = *m_downloadingLtHandle;
-                m_downloadingLtHandle.reset();
-
-                session->removeTorrentsFromSession( {torrentHandle}, [=, this]
-                {
-                    DBG_MAIN_THREAD
-                    _LOG( "breakTorrentDownloadAndRunNextTask: torrent is removed");
-
-                    m_backgroundExecutor.run( [this]
-                    {
-                        //TODO: move downloaded files from sandbox to drive (for catching-up only)
-
-                        runNextTask();
-                    });
-                });
-            }
-        }
-    }
     
     uint64_t calcHash64( uint64_t initValue, uint8_t* begin, uint8_t* end )
     {
@@ -988,35 +1095,6 @@ public:
 
         checkVerifyCodeNumber();
     }
-    
-    // It tries to start next modify
-    void modifyIsCompleted()
-    {
-        DBG_MAIN_THREAD
-
-        _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
-
-        m_fsTree = m_sandboxFsTree;
-        m_rootHash = m_sandboxRootHash;
-        m_isSynchronizing = false;
-
-        Hash256 modificationHash;
-        if ( m_modifyRequest )
-        {
-            _LOG( "modifyIsCompleted" );
-            modificationHash = m_modifyRequest->m_transactionHash;
-        }
-        else
-        {
-            _LOG( "catchingUpIsCompleted" );
-            modificationHash = m_catchingUpRequest->m_modifyTransactionHash;
-        }
-
-        if ( m_dbgEventHandler )
-            m_dbgEventHandler->driveModificationIsCompleted( m_replicator, m_drivePubKey, modificationHash, m_rootHash );
-
-        runNextTask();
-    }
 
     //
     // CANCEL
@@ -1103,32 +1181,7 @@ public:
                 saveOpinionTrafficIdentifier();
             }
 
-            try
-            {
-                // remove unused files and torrent files from the drive
-                for( const auto& it : m_torrentHandleMap )
-                {
-                    const UseTorrentInfo& info = it.second;
-                    if ( !info.m_isUsed )
-                    {
-                        const auto& hash = it.first;
-                        std::string filename = hashToFileName( hash );
-                        fs::remove( fs::path(m_driveFolder) / filename );
-                        fs::remove( fs::path(m_torrentFolder) / filename );
-                    }
-                }
 
-                // remove unused data from 'fileMap'
-                std::erase_if( m_torrentHandleMap, [] (const auto& it) { return !it.second.m_isUsed; } );
-            }
-            catch ( const std::exception& ex )
-            {
-                _LOG_ERR( "exception during cancel: " << ex.what() );
-            }
-
-            executeOnSessionThread([this] {
-                continueCancelModifyDrive();
-            });
         });
     }
 
@@ -1148,7 +1201,7 @@ public:
     void startDriveClosing( const Hash256& transactionHash ) override
     {
         DBG_MAIN_THREAD
-        
+
         m_driveWillRemovedTx = transactionHash;
 
         {
@@ -1517,55 +1570,7 @@ public:
 
     void runDriveClosingTask( std::optional<Hash256>&& transactionHash )
     {
-        DBG_MAIN_THREAD
-        
-        _ASSERT( transactionHash );
-        _ASSERT( !m_removeDriveTx );
 
-        m_removeDriveTx = std::move(transactionHash);
-        
-        //
-        // Remove torrents from session
-        //
-        
-        std::set<lt_handle> tobeRemovedTorrents;
-
-        for( auto& [key,value]: m_torrentHandleMap )
-        {
-            tobeRemovedTorrents.insert( value.m_ltHandle );
-        }
-        
-        tobeRemovedTorrents.insert( m_fsTreeLtHandle );
-
-        if ( auto session = m_session.lock(); session )
-        {
-            session->removeTorrentsFromSession( tobeRemovedTorrents, [this](){
-                m_replicator.closeDriveChannels( *m_removeDriveTx, *this );
-            });
-        }
-    }
-
-    void synchronizeDriveWithSandbox()
-    {
-        DBG_MAIN_THREAD
-
-        if ( m_newCatchingUpRequest || m_modificationMustBeCanceledTx || m_removeDriveTx )
-        {
-            runNextTask();
-            return;
-        }
-        
-        _ASSERT( m_sandboxCalculated );
-        _ASSERT( !m_modifyRequest->m_isCanceled );
-        _ASSERT( m_modifyRequest || m_catchingUpRequest );
-
-        m_isSynchronizing = true;
-        //_LOG( "$$$$$$$$$$ m_isSynchronizing = true;" )
-
-        updateDrive_1( [this]
-        {
-            updateDrive_2();
-        });
     }
 
     // startModifyDrive - should be called after client 'modify request'
@@ -1589,74 +1594,7 @@ public:
     
     void startModifyDriveTask( const ModifyRequest& modifyRequest )
     {
-        m_modifyUserDataReceived       = false;
-        m_sandboxCalculated            = false;
-        m_modifyApproveTransactionSent = false;
-        m_receivedModifyApproveTx.reset();
 
-        m_modifyRequest = modifyRequest;
-
-        using namespace std::placeholders;  // for _1, _2, _3
-
-        m_expectedCumulativeDownload += m_modifyRequest->m_maxDataSize;
-
-        _ASSERT( !m_opinionTrafficIdentifier );
-
-        _LOG( "started modification" )
-
-        m_opinionTrafficIdentifier = m_modifyRequest->m_transactionHash.array();
-        
-        if ( auto session = m_session.lock(); session )
-        {
-            _ASSERT( m_opinionTrafficIdentifier )
-            m_downloadingLtHandle = session->download( DownloadContext(
-                                                DownloadContext::client_data,
-                                                std::bind( &DefaultFlatDrive::modifyDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
-                                                m_modifyRequest->m_clientDataInfoHash,
-                                                *m_opinionTrafficIdentifier,
-                                                0, //todo
-                                                ""),
-                                                       m_sandboxRootPath,
-                                                       //{} );
-                                                getUploaders() );
-        }
-    }
-
-    // will be called by Session
-    void modifyDownloadHandler( download_status::code code,
-                                const InfoHash& infoHash,
-                                const std::filesystem::path /*filePath*/,
-                                size_t /*downloaded*/,
-                                size_t /*fileSize*/,
-                                const std::string& errorText )
-    {
-        DBG_MAIN_THREAD
-    
-        _ASSERT( m_modifyRequest )
-        _ASSERT( m_modifyRequest->m_clientDataInfoHash == infoHash )
-
-        if ( code == download_status::failed )
-        {
-            if ( m_dbgEventHandler )
-            {
-                m_dbgEventHandler->modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, errorText, 0 );
-            }
-            modifyIsCompleted();
-            return;
-        }
-
-        if ( code == download_status::download_complete )
-        {
-            _ASSERT( !m_taskMustBeBroken );
-
-            m_downloadingLtHandle.reset();
-
-            m_modifyUserDataReceived = true;
-            m_backgroundExecutor.run( [this]
-            {
-                modifyDriveInSandbox();
-            });
-        }
     }
 
     // client data is received,
@@ -1973,14 +1911,21 @@ public:
             m_cumulativeUploads[uploaderKey] += bytes;
         }
     }
+
+
+    //////////////// Opinion Task Controller
     
-    void createMyOpinion()
+    void createMyOpinion( const Hash256& sandboxRootHash,
+                          const uint64_t& sandboxDriveSize,
+                          const uint64_t& sandboxFsTreeSize,
+                          const uint64_t& sandboxMetafilesSize,
+                          const std::function<void( const ApprovalTransactionInfo& )>& callback ) override
     {
         DBG_MAIN_THREAD
-        _ASSERT( m_opinionTrafficIdentifier )
-        _ASSERT( !m_myOpinion )
-        _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
-        _ASSERT( !m_modificationCanceledTx )
+//        _ASSERT( m_opinionTrafficIdentifier )
+//        _ASSERT( !m_myOpinion )
+//        _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
+//        _ASSERT( !m_modificationCanceledTx )
 
         updateCumulativeUploads();
 
@@ -1999,49 +1944,36 @@ public:
             opinion.m_clientUploadBytes = it->second;
         }
 
-        // Calculate size of torrent files and total drive size
-        uint64_t metaFilesSize;
-        uint64_t driveSize;
-        getSandboxDriveSizes( metaFilesSize, driveSize );
-        uint64_t fsTreeSize = sandboxFsTreeSize();
-
-        Hash256 modificationToBeApproved;
-        if ( m_modifyRequest )
-        {
-            modificationToBeApproved = m_modifyRequest->m_transactionHash;
-        }
-        else
-        {
-            modificationToBeApproved = m_catchingUpRequest->m_modifyTransactionHash;
-        }
-
         opinion.Sign( m_replicator.keyPair(),
                       drivePublicKey(),
-                      modificationToBeApproved,
-                      m_sandboxRootHash,
-                      fsTreeSize,
-                      metaFilesSize,
-                      driveSize);
+                      modificationId,
+                      sandboxRootHash,
+                      sandboxFsTreeSize,
+                      sandboxMetafilesSize,
+                      sandboxDriveSize);
 
         m_myOpinion = std::optional<ApprovalTransactionInfo> {{ m_drivePubKey.array(),
-                                                                modificationToBeApproved.array(),
+                                                                modificationId.array(),
                                                                 m_sandboxRootHash.array(),
-                                                                fsTreeSize,
-                                                                metaFilesSize,
-                                                                driveSize,
+                                                                sandboxFsTreeSize,
+                                                                sandboxMetafilesSize,
+                                                                sandboxDriveSize,
                                                                 { std::move(opinion) }}};
 
-        m_backgroundExecutor.run([this] {
+        m_backgroundExecutor.run([=, this] {
             saveMyOpinion();
             saveOpinionTrafficIdentifier();
             saveCumulativeUploads();
             saveLastAccountedUploads();
             saveAccountedCumulativeDownload();
-            executeOnSessionThread([this] {
-                myOpinionIsCreated();
+            executeOnSessionThread([=] {
+                callback(m_myOpinion);
             });
         });
     }
+
+
+    ////////////////
 
     void myRootHashIsCalculated()
     {
@@ -2065,250 +1997,7 @@ public:
 
     void myOpinionIsCreated()
     {
-        DBG_MAIN_THREAD
 
-        _ASSERT( m_modifyRequest.has_value() != m_catchingUpRequest.has_value() )
-        _ASSERT( m_myOpinion )
-
-        if ( m_newCatchingUpRequest || m_modificationMustBeCanceledTx || m_removeDriveTx )
-        {
-            runNextTask();
-            return;
-        }
-
-        m_sandboxCalculated = true;
-
-        if ( m_receivedModifyApproveTx )
-        {
-            sendSingleApprovalTransaction();
-            if ( m_catchingUpRequest )
-            {
-                updateDrive_1( [this]
-                {
-                    completeCatchingUp();
-                });
-            }
-            else
-            {
-                synchronizeDriveWithSandbox();
-            }
-        }
-        else
-        {
-            _ASSERT( m_modifyRequest )
-
-            // Send my opinion to other replicators
-            shareMyOpinion();
-            if ( auto session = m_session.lock(); session )
-            {
-                m_shareMyOpinionTimer = session->startTimer(m_shareMyOpinionTimerDelayMs, [this] {
-                    shareMyOpinion();
-                });
-            }
-
-            // validate already received opinions
-            auto& transactionOpinions = m_otherOpinions[m_modifyRequest->m_transactionHash];
-            std::erase_if( transactionOpinions, [this] (const auto& item) {
-               return !validateOpinion(item.second);
-            });
-
-            // Maybe send approval transaction
-            checkOpinionNumberAndStartTimer();
-        }
-    }
-    
-    void shareMyOpinion()
-    {
-        DBG_MAIN_THREAD
-        
-        std::ostringstream os( std::ios::binary );
-        cereal::PortableBinaryOutputArchive archive( os );
-        archive( *m_myOpinion );
-        
-        for( const auto& replicatorIt : m_modifyRequest->m_replicators )
-        {
-            m_replicator.sendMessage( "opinion", replicatorIt.array(), os.str() );
-        }
-    }
-    
-    void checkOpinionNumberAndStartTimer()
-    {
-        DBG_MAIN_THREAD
-        
-        // m_replicatorList is the list of other replicators (it does not contain our replicator)
-#ifndef MINI_SIGNATURE
-        auto replicatorNumber = m_modifyRequest->m_replicators.size() + 1;
-#else
-        auto replicatorNumber = m_modifyRequest->m_replicators.size();//todo++++ +1;
-#endif
-
-        // check opinion number
-        if ( m_myOpinion && m_otherOpinions[m_modifyRequest->m_transactionHash].size() >= ((replicatorNumber)*2)/3
-            && !m_modifyApproveTransactionSent && !m_receivedModifyApproveTx )
-        {
-            // start timer if it is not started
-            if ( !m_modifyOpinionTimer )
-            {
-                if ( auto session = m_session.lock(); session )
-                {
-                    m_modifyOpinionTimer = session->startTimer( m_replicator.getModifyApprovalTransactionTimerDelay(),
-                                        [this]() { opinionTimerExpired(); } );
-                }
-            }
-        }
-    }
-    
-    // updates drive (1st step after approve)
-    // - remove torrents from session
-    //
-    void updateDrive_1( const std::function<void()>& nextStep )
-    {
-        DBG_MAIN_THREAD
-        
-        _LOG( "updateDrive_1:" << m_replicator.dbgReplicatorName() );
-        
-        // Prepare map for detecting of used files
-        for( auto& it : m_torrentHandleMap )
-            it.second.m_isUsed = false;
-
-        // Mark used files
-        markUsedFiles( m_sandboxFsTree );
-
-        // Prepare set<> for to be removed torrents
-        std::set<lt::torrent_handle> toBeRemovedTorrents;
-
-        // Add unused files into set<>
-        for( const auto& it : m_torrentHandleMap )
-        {
-            const UseTorrentInfo& info = it.second;
-            if ( !info.m_isUsed )
-            {
-                if ( info.m_ltHandle.is_valid() )
-                    toBeRemovedTorrents.insert( info.m_ltHandle );
-            }
-        }
-
-        // Add current fsTree torrent handle
-        toBeRemovedTorrents.insert( m_fsTreeLtHandle );
-
-        // Remove unused torrents
-        if ( auto session = m_session.lock(); session )
-        {
-            session->removeTorrentsFromSession( toBeRemovedTorrents, [this, nextStep]
-            {
-                m_backgroundExecutor.run( [nextStep]
-                {
-                    nextStep();
-                });
-            });
-        }
-    }
-
-    // updates drive (2st phase after fsTree torrent removed)
-    // - remove unused files and torrent files
-    // - add new torrents to session
-    //
-    void updateDrive_2()
-    {
-        DBG_BG_THREAD
-        
-        try
-        {
-            _LOG( "IN UPDATE 2")
-
-            // update FsTree file & torrent
-            fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
-            fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
-
-            // remove unused files and torrent files from the drive
-            for( const auto& it : m_torrentHandleMap )
-            {
-                const UseTorrentInfo& info = it.second;
-                if ( !info.m_isUsed )
-                {
-                    const auto& hash = it.first;
-                    std::string filename = hashToFileName( hash );
-                    fs::remove( fs::path(m_driveFolder) / filename );
-                    fs::remove( fs::path(m_torrentFolder) / filename );
-                }
-            }
-
-            // remove unused data from 'fileMap'
-            std::erase_if( m_torrentHandleMap, [] (const auto& it) { return !it.second.m_isUsed; } );
-
-            //
-            // Add torrents into session
-            //
-            for( auto& it : m_torrentHandleMap )
-            {
-                // load torrent (if it is not loaded)
-                if ( !it.second.m_ltHandle.is_valid() )
-                {
-                    if ( auto session = m_session.lock(); session )
-                    {
-                        std::string fileName = hashToFileName( it.first );
-                        it.second.m_ltHandle = session->addTorrentFileToSession( m_torrentFolder / fileName,
-                                                                                   m_driveFolder,
-                                                                                   lt::sf_is_replicator );
-                    }
-                }
-            }
-
-            // Add FsTree torrent to session
-            _LOG( "Add FsTree torrent to session: " << toString(m_rootHash) );
-            if ( auto session = m_session.lock(); session )
-            {
-                m_fsTreeLtHandle = session->addTorrentFileToSession( m_fsTreeTorrent,
-                                                                     m_fsTreeTorrent.parent_path(),
-                                                                     lt::sf_is_replicator );
-            }
-
-            executeOnSessionThread( [=,this]
-            {
-                modifyIsCompleted();
-            });
-        }
-        catch ( const std::exception& ex )
-        {
-            _LOG_ERR( "exception during updateDrive_2: " << ex.what() );
-            runNextTask();
-        }
-    }
-
-    // Recursively marks 'm_toBeRemoved' as false
-    //
-    void markUsedFiles( const Folder& folder )
-    {
-        DBG_MAIN_THREAD
-        
-        for( const auto& child : folder.m_childs )
-        {
-            if ( isFolder(child) )
-            {
-                markUsedFiles( getFolder(child) );
-            }
-            else
-            {
-                auto& hash = getFile(child).m_hash;
-                
-                if ( const auto& it = m_torrentHandleMap.find(hash); it != m_torrentHandleMap.end() )
-                {
-                    it->second.m_isUsed = true;
-                }
-                else
-                {
-                    LOG( "markUsedFiles: internal error");
-                }
-            }
-        }
-    }
-
-    bool validateOpinion(const ApprovalTransactionInfo& anOpinion ) {
-        bool equal = m_myOpinion->m_rootHash == anOpinion.m_rootHash &&
-                     m_myOpinion->m_fsTreeFileSize == anOpinion.m_fsTreeFileSize &&
-                     m_myOpinion->m_metaFilesSize == anOpinion.m_metaFilesSize &&
-                     m_myOpinion->m_driveSize == anOpinion.m_driveSize;
-        return equal;
     }
 
     void onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) override
@@ -2317,47 +2006,10 @@ public:
         
         // Preliminary opinion verification takes place at extension
 
-        // In this case Replicator is able to verify all data in the opinion
-        if ( m_modifyRequest &&
-            anOpinion.m_modifyTransactionHash == m_modifyRequest->m_transactionHash.array() &&
-            m_myOpinion)
+        if ( !m_task || !m_task->processedOpinion(anOpinion))
         {
-            if ( !validateOpinion(anOpinion) )
-            {
-                return;
-            }
+            m_otherOpinions[anOpinion.m_modifyTransactionHash][anOpinion.m_opinions[0].m_replicatorKey] = anOpinion;
         }
-
-        // May be send approval transaction
-        m_otherOpinions[anOpinion.m_modifyTransactionHash][anOpinion.m_opinions[0].m_replicatorKey] = anOpinion;
-        checkOpinionNumberAndStartTimer();
-    }
-    
-    void opinionTimerExpired()
-    {
-        DBG_MAIN_THREAD
-        
-        if ( m_modifyApproveTransactionSent || m_receivedModifyApproveTx )
-            return;
-        
-        ApprovalTransactionInfo info = {    m_drivePubKey.array(),
-                                            m_myOpinion->m_modifyTransactionHash,
-                                            m_myOpinion->m_rootHash,
-                                            m_myOpinion->m_fsTreeFileSize,
-                                            m_myOpinion->m_metaFilesSize,
-                                            m_myOpinion->m_driveSize,
-                                            {}};
-        
-        info.m_opinions.reserve( m_otherOpinions[m_modifyRequest->m_transactionHash].size()+1 );
-        info.m_opinions.emplace_back(  m_myOpinion->m_opinions[0] );
-        for( const auto& otherOpinion : m_otherOpinions[m_modifyRequest->m_transactionHash] ) {
-            info.m_opinions.emplace_back( otherOpinion.second.m_opinions[0] );
-        }
-        
-        // notify event handler
-        m_eventHandler.modifyApprovalTransactionIsReady( m_replicator, std::move(info) );
-
-        m_modifyApproveTransactionSent = true;
     }
 
     void onApprovalTransactionHasBeenPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
@@ -2368,6 +2020,16 @@ public:
         {
             m_publishedTxDuringInitialization = transaction;
             return;
+        }
+
+        if ( !m_task || m_task->shouldCatchUp( transaction ) != NotificationProcessResult::SUCCESS )
+        {
+            m_newCatchingUpRequest = { transaction.m_rootHash, transaction.m_modifyTransactionHash };
+
+            if ( !m_task )
+            {
+                runNextTask();
+            }
         }
 
         if ( m_receivedModifyApproveTx &&  *m_receivedModifyApproveTx == transaction.m_modifyTransactionHash )
@@ -2454,17 +2116,7 @@ public:
         }
         else
         {
-            const auto& v = transaction.m_replicatorKeys;
-            auto it = std::find( v.begin(), v.end(), m_replicator.replicatorKey().array());
 
-            // Is my opinion present
-            if ( it == v.end() )
-            {
-                // Send Single Approval Transaction At First
-                sendSingleApprovalTransaction();
-            }
-
-            synchronizeDriveWithSandbox();
         }
     }
 
@@ -2489,16 +2141,6 @@ public:
         }
     }
 
-    void sendSingleApprovalTransaction()
-    {
-        DBG_MAIN_THREAD
-
-        _ASSERT( m_myOpinion )
-
-        auto copy = *m_myOpinion;
-        m_eventHandler.singleModifyApprovalTransactionIsReady( m_replicator, std::move(copy) );
-    }
-
     void onSingleApprovalTransactionHasBeenPublished( const PublishedModificationSingleApprovalTransactionInfo& transaction ) override
     {
         _LOG( "onSingleApprovalTransactionHasBeenPublished()" );
@@ -2506,288 +2148,12 @@ public:
 
     void startCatchingUpTask( std::optional<CatchingUpRequest>&& actualCatchingRequest )
     {
-        DBG_MAIN_THREAD
-        
-        _ASSERT( !m_modificationCanceledTx );
-        _ASSERT( !m_modifyRequest );
-        _ASSERT( !m_removeDriveTx );
 
-        _ASSERT( actualCatchingRequest )
-
-        // clear modification queue - we will not execute these modifications
-        auto it = std::find_if(m_deferredModifyRequests.begin(),
-                               m_deferredModifyRequests.end(),
-                               [&](const auto &item)
-                               {
-                                   return item.m_transactionHash ==
-                                          actualCatchingRequest->m_modifyTransactionHash;
-                               });
-        if (it != m_deferredModifyRequests.end() )
-        {
-            while (!m_deferredModifyRequests.empty() and it != m_deferredModifyRequests.begin() )
-            {
-                if ( !m_opinionTrafficIdentifier
-                     || *m_opinionTrafficIdentifier != m_deferredModifyRequests.front().m_transactionHash.array() )
-                {
-                    m_replicator.removeModifyDriveInfo(m_deferredModifyRequests.front().m_transactionHash.array());
-                }
-                m_expectedCumulativeDownload += m_deferredModifyRequests.front().m_maxDataSize;
-                m_deferredModifyRequests.pop_front();
-            }
-            m_expectedCumulativeDownload += m_deferredModifyRequests.front().m_maxDataSize;
-            m_deferredModifyRequests.pop_front();
-            if ( m_opinionTrafficIdentifier &&
-                 *m_opinionTrafficIdentifier != m_deferredModifyRequests.front().m_transactionHash.array() )
-            {
-                m_replicator.removeModifyDriveInfo(m_deferredModifyRequests.front().m_transactionHash.array());
-            }
-        }
-
-        m_catchingUpRequest = std::move( actualCatchingRequest );
-        
-        //
-        // Start download fsTree
-        //
-        using namespace std::placeholders;  // for _1, _2, _3
-
-        _LOG( "Late: download FsTree:" << m_catchingUpRequest->m_rootHash )
-        
-        if ( !m_opinionTrafficIdentifier )
-        {
-            m_opinionTrafficIdentifier = m_catchingUpRequest->m_modifyTransactionHash.array();
-        }
-
-        if ( auto session = m_session.lock(); session )
-        {
-            _ASSERT( m_opinionTrafficIdentifier )
-            m_downloadingLtHandle = session->download( DownloadContext(
-                                            DownloadContext::missing_files,
-                                            std::bind( &DefaultFlatDrive::catchingUpFsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
-                                            m_catchingUpRequest->m_rootHash,
-                                            *m_opinionTrafficIdentifier,
-                                            0,
-                                            "" ),
-                                            //toString( *m_catchingUpRootHash ) ),
-                                            m_sandboxRootPath,
-                                                   //{} );
-                                            getUploaders() );
-        }
-    }
-    
-    // it will be called from Session
-    void catchingUpFsTreeDownloadHandler( download_status::code code,
-                                          const InfoHash& infoHash,
-                                          const std::filesystem::path /*filePath*/,
-                                          size_t /*downloaded*/,
-                                          size_t /*fileSize*/,
-                                          const std::string& errorText )
-    {
-        DBG_MAIN_THREAD
-
-        _ASSERT( !m_newCatchingUpRequest )
-
-        if ( code == download_status::failed )
-        {
-            //todo is it possible?
-            _ASSERT(0);
-            return;
-        }
-
-        if ( code == download_status::download_complete )
-        {
-            _ASSERT( !m_taskMustBeBroken );
-
-            m_downloadingLtHandle.reset();
-
-            startDownloadMissingFiles();
-        }
-    }
-
-    void startDownloadMissingFiles()
-    {
-        DBG_MAIN_THREAD
-
-        _LOG( "startDownloadMissingFiles: removeTorrentsFromSession: " << m_downloadingLtHandle->id()  << " " << m_downloadingLtHandle->info_hashes().v2  );
-
-        //
-        // Deserialize FsTree
-        //
-        try
-        {
-            m_sandboxFsTree.deserialize( m_sandboxFsTreeFile );
-        }
-        catch(...)
-        {
-            _LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
-        }
-        
-        //
-        // Prepare missing list and start download
-        //
-        m_catchingUpFileSet.clear();
-        createCatchingUpFileList( m_sandboxFsTree );
-
-        m_catchingUpFileIt = m_catchingUpFileSet.begin();
-        downloadMissingFiles();
-    }
-
-    void createCatchingUpFileList( const Folder& folder )
-    {
-        DBG_MAIN_THREAD
-
-        for( const auto& child : folder.m_childs )
-        {
-            if ( isFolder(child) )
-            {
-                createCatchingUpFileList( getFolder(child) );
-            }
-            else
-            {
-                const auto& hash = getFile(child).m_hash;
-                std::error_code err;
-                
-                if ( !fs::exists( m_driveFolder / toString(hash), err ) )
-                {
-                    m_catchingUpFileSet.emplace( hash );
-                }
-            }
-        }
-    }
-
-    // Download file by file
-    void downloadMissingFiles()
-    {
-        DBG_MAIN_THREAD
-        
-        _ASSERT( !m_taskMustBeBroken );
-
-        if ( m_catchingUpFileIt == m_catchingUpFileSet.end() )
-        {
-            m_downloadingLtHandle.reset();
-            
-            // it is the end of list
-            m_backgroundExecutor.run([this]
-            {
-                modifyDriveInSandbox();
-            });
-        }
-        else
-        {
-            if ( m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash == m_catchingUpRequest->m_rootHash )
-            {
-                // TODO Check this situation
-                _LOG_ERR( "Not Implemented" );
-                return;
-            }
-
-            auto missingFileHash = *m_catchingUpFileIt;
-            m_catchingUpFileIt++;
-
-            if ( auto session = m_session.lock(); session )
-            {
-                _ASSERT( m_opinionTrafficIdentifier )
-                m_downloadingLtHandle = session->download( DownloadContext(
-                                                                         
-                                                 DownloadContext::missing_files,
-
-                                                 [this] ( download_status::code code,
-                                                           const InfoHash& infoHash,
-                                                           const std::filesystem::path saveAs,
-                                                           size_t /*downloaded*/,
-                                                           size_t /*fileSize*/,
-                                                           const std::string& errorText )
-                                                 {
-                                                     if ( code == download_status::download_complete )
-                                                     {
-                                                         _LOG( "catchedUp: " << toString(infoHash) );
-                                                         downloadMissingFiles();
-                                                     }
-                                                     else if ( code == download_status::failed )
-                                                     {
-                                                         _LOG_ERR("? is it possible now?");
-                                                     }
-                                                 },
-
-                                                 missingFileHash,
-                                                 *m_opinionTrafficIdentifier,
-                                                 0,
-                                                 ""),
-                                                 m_sandboxRootPath,
-                                                 getUploaders() );
-            }
-        }
     }
     
     void completeCatchingUp()
     {
-        DBG_BG_THREAD
-        
-        try
-        {
-            //
-            // Check RootHash Before All
-            //
-            _LOG("m_sandboxRootHash: " << m_sandboxRootHash );
-            _LOG("m_catchingUpRootHash: " << m_catchingUpRequest->m_rootHash );
-            _ASSERT( m_sandboxRootHash == m_catchingUpRequest->m_rootHash );
 
-            fs::rename( m_sandboxFsTreeFile, m_fsTreeFile );
-            fs::rename( m_sandboxFsTreeTorrent, m_fsTreeTorrent );
-
-            // remove unused files and torrent files from the drive
-            for( const auto& it : m_torrentHandleMap )
-            {
-                const UseTorrentInfo& info = it.second;
-                if ( !info.m_isUsed )
-                {
-                    const auto& hash = it.first;
-                    std::string filename = hashToFileName( hash );
-                    fs::remove( fs::path(m_driveFolder) / filename );
-                    fs::remove( fs::path(m_torrentFolder) / filename );
-                }
-            }
-
-            //
-            // Add missing files
-            //
-            for( const auto& fileHash : m_catchingUpFileSet )
-            {
-                auto fileName = toString( fileHash );
-
-                // Add torrent into session
-                if ( auto session = m_session.lock(); session )
-                {
-                    auto tHandle = session->addTorrentFileToSession( m_torrentFolder / fileName,
-                                                                       m_driveFolder,
-                                                                       lt::sf_is_replicator );
-                    _ASSERT( tHandle.is_valid() );
-                    m_torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{tHandle,true} );
-                }
-            }
-
-            // Add FsTree torrent to session
-            if ( auto session = m_session.lock(); session )
-            {
-                m_fsTreeLtHandle = session->addTorrentFileToSession( m_fsTreeTorrent,
-                                                                       m_fsTreeTorrent.parent_path(),
-                                                                       lt::sf_is_replicator );
-            }
-
-            // remove unused data from 'torrentMap'
-            std::erase_if( m_torrentHandleMap, [] (const auto& it) { return !it.second.m_isUsed; } );
-
-            LOG( "drive is synchronized" );
-
-            executeOnSessionThread( [=,this]
-            {
-                modifyIsCompleted();
-            });
-        }
-        catch ( const std::exception& ex )
-        {
-            _LOG_ERR( "exception during completeCatchingUp: " << ex.what() );
-            runNextTask();
-        }
     }
     
 // It will be used after restart to clear disc !!!
@@ -2899,147 +2265,19 @@ public:
             session->printActiveTorrents();
         }
     }
+
+    virtual uint64_t& getExpectedCumulativeDownload() override
+    {
+        return m_expectedCumulativeDownload;
+    }
+
+    virtual uint64_t& getAccountedCumulativeDownload() override
+    {
+        return m_accountedCumulativeDownload;
+    }
     
     
     //-----------------------------------------------------------------------------
-
-    // m_myOpinion
-    void saveEmptyOpinion()
-    {
-        std::optional<ApprovalTransactionInfo> opinion;
-        saveRestartValue( opinion, "myOpinion" );
-    }
-    void saveMyOpinion()
-    {
-        saveRestartValue( m_myOpinion, "myOpinion" );
-    }
-    void loadMyOpinion()
-    {
-        loadRestartValue( m_myOpinion, "myOpinion" );
-    }
-    
-    // m_opinionTrafficIdentifier
-    void saveOpinionTrafficIdentifier()
-    {
-        saveRestartValue( m_opinionTrafficIdentifier, "opinionTrafficIdentifier" );
-    }
-    void loadOpinionTrafficIdentifier()
-    {
-        loadRestartValue( m_opinionTrafficIdentifier, "opinionTrafficIdentifier" );
-    }
-    
-    // m_accountedCumulativeDownload
-    void saveAccountedCumulativeDownload()
-    {
-        saveRestartValue( m_accountedCumulativeDownload, "accountedCumulativeDownload" );
-    }
-    void loadAccountedCumulativeDownload()
-    {
-        if ( !loadRestartValue( m_accountedCumulativeDownload, "accountedCumulativeDownload" ) )
-        {
-            m_accountedCumulativeDownload = 0;
-        }
-    }
-
-    // m_cumulativeUploads
-    void saveCumulativeUploads()
-    {
-        saveRestartValue( m_cumulativeUploads, "cumulativeUploads" );
-    }
-    void loadCumulativeUploads()
-    {
-        loadRestartValue( m_cumulativeUploads, "cumulativeUploads" );
-    }
-
-    // m_lastAccountedUploads
-    void saveLastAccountedUploads()
-    {
-        saveRestartValue( m_lastAccountedUploads, "lastAccountedUploads" );
-    }
-    void loadLastAccountedUploads()
-    {
-        loadRestartValue(  m_lastAccountedUploads, "lastAccountedUploads" );
-    }
-
-    template<class T>
-    void saveRestartValue( T& value, std::string path )
-    {
-        _ASSERT( fs::exists(m_restartRootPath) )
-
-        std::ostringstream os( std::ios::binary );
-        cereal::PortableBinaryOutputArchive archive( os );
-        archive( value );
-
-        saveRestartData( m_restartRootPath / path , os.str() );
-    }
-    
-    template<class T>
-    bool loadRestartValue( T& value, std::string path )
-    {
-        std::string data;
-        
-        if ( !loadRestartData( m_restartRootPath / path, data ) )
-        {
-            return false;
-        }
-        
-        std::istringstream is( data, std::ios::binary );
-        cereal::PortableBinaryInputArchive iarchive(is);
-        iarchive( value );
-        return true;
-    }
-    
-    void saveRestartData( std::string outputFile, const std::string data )
-    {
-        try
-        {
-            {
-                std::ofstream fStream( outputFile +".tmp", std::ios::binary );
-                fStream << data;
-            }
-            _ASSERT( fs::exists(outputFile + ".tmp") )
-            std::error_code err;
-            fs::remove( outputFile, err );
-            fs::rename( outputFile +".tmp", outputFile , err );
-        }
-        catch( const std::exception& ex)
-        {
-            _LOG_ERR( "exception during saveRestartData: " << ex.what() );
-        }
-    }
-    
-    bool loadRestartData( std::string outputFile, std::string& data )
-    {
-        std::error_code err;
-
-        if ( fs::exists( outputFile, err ) )
-        {
-            std::ifstream ifStream( outputFile, std::ios::binary );
-            if ( ifStream.is_open() )
-            {
-                std::ostringstream os;
-                os << ifStream.rdbuf();
-                data = os.str();
-                return true;
-            }
-        }
-        
-        if ( fs::exists( outputFile +".tmp", err ) )
-        {
-            std::ifstream ifStream( outputFile +".tmp", std::ios::binary );
-            if ( ifStream.is_open() )
-            {
-                std::ostringstream os;
-                os << ifStream.rdbuf();
-                data = os.str();
-                return true;
-            }
-        }
-        
-        //_LOG_WARN( "cannot loadRestartData: " << outputFile );
-        
-        return false;
-    }
 };
 
 

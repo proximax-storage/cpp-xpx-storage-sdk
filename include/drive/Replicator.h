@@ -338,7 +338,7 @@ public:
     virtual void        asyncVerifyApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 verificationId ) = 0;
 
     // It continues drive closing (initiates DownloadApprovalTransaction and then removes drive)
-    virtual void        closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) = 0;
+    virtual void        closeDriveChannels( const Hash256& blockHash, const Key& driveKey ) = 0;
     
     virtual void        finishDriveClosure( const Key& driveKey ) = 0;
 

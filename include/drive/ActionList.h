@@ -114,8 +114,7 @@ namespace sirius { namespace drive {
         }
 
     private:
-        friend class DefaultDrive;
-        friend class DefaultFlatDrive;
+        friend class ModificationRequestDriveTask;
 
         mutable bool         m_isInvalid = false;
         lt_handle            m_ltHandle;

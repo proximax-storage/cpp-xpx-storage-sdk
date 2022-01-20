@@ -797,7 +797,7 @@ public:
     };
 
     // It is called when drive is closing
-    virtual void closeDriveChannels( const Hash256& blockHash, FlatDrive& drive ) override
+    virtual void closeDriveChannels( const Hash256& blockHash, const Key& driveKey ) override
     {
         DBG_MAIN_THREAD
 
@@ -811,7 +811,7 @@ public:
 #ifndef CHANNELS_NOT_OWNED_BY_DRIVES
         for( auto& [channelId,channelInfo] : m_downloadChannelMap )
         {
-            if ( channelInfo.m_driveKey == drive.drivePublicKey().array() && !channelInfo.m_isModifyTx )
+            if ( channelInfo.m_driveKey == driveKey.array() && !channelInfo.m_isModifyTx )
             {
                 doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
                 
@@ -825,7 +825,7 @@ public:
 
         if ( deleteDriveImmediately )
         {
-            deleteDrive( drive.drivePublicKey().array() );
+            deleteDrive( driveKey.array() );
         }
     }
 

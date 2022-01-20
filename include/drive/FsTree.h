@@ -43,8 +43,7 @@ public:
 private:
     friend class Folder;
     friend class FsTree;
-    friend class DefaultDrive;
-    friend class DefaultFlatDrive;
+    friend class CatchingUpTask;
 
     File( std::string name, const InfoHash hash, size_t size ) : m_name(name), m_hash(hash), m_size(size) {}
 
@@ -103,8 +102,8 @@ protected:
 
 protected:
     friend class FsTree;
-    friend class DefaultDrive;
-    friend class DefaultFlatDrive;
+    friend class CatchingUpTask;
+    friend class ModificationRequestDriveTask;
 
     std::string         m_name;
     std::list<Child>  m_childs;

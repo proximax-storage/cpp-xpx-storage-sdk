@@ -747,7 +747,7 @@ public:
             _LOG_WARN( "saveRestartData: cannot save" );
         }
     }
-    
+
     bool loadRestartData( std::string outputFile, std::string& data )
     {
         std::error_code err;

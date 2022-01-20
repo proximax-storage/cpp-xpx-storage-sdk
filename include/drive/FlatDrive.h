@@ -36,23 +36,6 @@ class Replicator;
 
     using DriveModifyHandler = std::function<void( modify_status::code, const FlatDrive& drive, const std::string& error )>;
 
-    struct ModifyRequest
-    {
-        InfoHash m_clientDataInfoHash;
-        Hash256 m_transactionHash;
-        uint64_t m_maxDataSize;
-        ReplicatorList m_replicators;
-        Key m_clientPublicKey;
-
-        bool m_isCanceled = false;
-    };
-
-    struct CatchingUpRequest
-    {
-        InfoHash            m_rootHash;
-        Hash256             m_modifyTransactionHash;
-    };
-
     struct DownloadRequest {
         Key                  m_channelKey;
         uint64_t             m_prepaidDownloadSize;
@@ -421,6 +404,13 @@ class Replicator;
         }
     };
 
+    // UseTorrentInfo is used to avoid adding torrents into session with the same hash
+    // and for deleting unused files and torrents from session
+    struct UseTorrentInfo {
+        Session::lt_handle  m_ltHandle = {};
+        bool                m_isUsed = true;
+    };
+
     // Interface for storage extension
     class ReplicatorEventHandler
     {
@@ -511,7 +501,7 @@ class Replicator;
         }
 
         // It will be called in response on CancelModifyTransaction
-        virtual void driveModificationIsCanceled(  Replicator&                  replicator,
+        virtual void  driveModificationIsCanceled(  Replicator&                  replicator,
                                                    const sirius::Key&           driveKey,
                                                    const Hash256&               modifyTransactionHash )
         {
@@ -529,6 +519,7 @@ class Replicator;
     // Drive
     //
     class FlatDrive {
+
     public:
 
         virtual ~FlatDrive() = default;
@@ -576,7 +567,7 @@ class Replicator;
         virtual void     onApprovalTransactionHasFailedInvalidOpinions(const Hash256& transactionHash) = 0;
 
         virtual void     onSingleApprovalTransactionHasBeenPublished( const PublishedModificationSingleApprovalTransactionInfo& transaction ) = 0;
-        
+
         // actualRootHash should not be empty if it is called from replicator::asyncAddDrive()
         //virtual void     startCatchingUp( std::optional<CatchingUpRequest>&& actualRootHash ) = 0;
         
