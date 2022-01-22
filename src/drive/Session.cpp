@@ -20,6 +20,12 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
+// cereal
+#include <cereal/types/vector.hpp>
+#include <cereal/types/array.hpp>
+#include <cereal/types/map.hpp>
+#include <cereal/archives/portable_binary.hpp>
+
 // libtorrent
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
@@ -88,16 +94,20 @@ private:
     //
     LibTorrentErrorHandler  m_alertHandler;
 
+    std::weak_ptr<Replicator>           m_replicator;
     std::weak_ptr<lt::session_delegate> m_downloadLimiter;
     
-    std::string m_dbgOurPeerName = "";
-    //int m_dbgPieceCounter = 0;
+    std::string             m_dbgOurPeerName = "";
+    //int                     m_dbgPieceCounter = 0;
 
 public:
     
+    // Constructor for Replicator
+    //
     DefaultSession( boost::asio::io_context&             context,
                     std::string                          address,
                     const LibTorrentErrorHandler&        alertHandler,
+                    std::weak_ptr<Replicator>            replicator,
                     std::weak_ptr<lt::session_delegate>  downloadLimiter,
                     bool                                 useTcpSocket,
                     const endpoint_list&                 bootstraps
@@ -105,16 +115,18 @@ public:
         : m_addressAndPort(address)
         , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps) }, context, {})
         , m_alertHandler(alertHandler)
+        , m_replicator(replicator)
         , m_downloadLimiter(downloadLimiter)
     {
-        if ( downloadLimiter.lock() )
-            m_dbgOurPeerName = downloadLimiter.lock()->dbgOurPeerName();
+        m_dbgOurPeerName = m_downloadLimiter.lock()->dbgOurPeerName();
         
         continueSessionCreation();
         m_session.setDelegate( m_downloadLimiter );
         _LOG( "DefaultSession created: " << m_addressAndPort );
     }
 
+    // Constructor for Client
+    //
     DefaultSession( std::string                             address,
                     LibTorrentErrorHandler                  alertHandler,
                     std::weak_ptr<lt::session_delegate>     downloadLimiter,
@@ -531,8 +543,10 @@ public:
     
     struct DhtRequestPlugin : lt::plugin
     {
-        std::weak_ptr<lt::session_delegate> m_replicator;
-        DhtRequestPlugin( std::weak_ptr<lt::session_delegate> replicator ) : m_replicator(replicator) {}
+//        std::weak_ptr<lt::session_delegate> m_replicator;
+//        DhtRequestPlugin( std::weak_ptr<lt::session_delegate> replicator ) : m_replicator(replicator) {}
+        std::weak_ptr<Replicator> m_replicator;
+        DhtRequestPlugin( std::weak_ptr<Replicator> replicator ) : m_replicator(replicator) {}
 
         feature_flags_t implemented_features() override
         {
@@ -550,7 +564,7 @@ public:
                 return false;
             }
 
-//            _LOG( "query: " << query );
+            __LOG( "on_dht_requestquery: " << query );
 //            _LOG( "message: " << message );
 //            _LOG( "response: " << response );
 
@@ -566,10 +580,50 @@ public:
                     replicator->onMessageReceived( std::string(query.begin(),query.end()), packet, source );
                 }
 
+                response["r"]["q"] = std::string(query);
                 response["r"]["ret"] = "ok";
                 return true;
             }
             
+            else if ( query == "get_dn_rcpts" )
+            {
+                auto str = message.dict_find_string_value("x");
+                std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
+
+                if ( auto replicator = m_replicator.lock(); replicator )
+                {
+                    std::array<uint8_t,32> driveKey;
+                    std::array<uint8_t,32> downloadChannelHash;
+                    uint8_t* ptr = (uint8_t*)str.data();
+                    memcpy( driveKey.data(), ptr, driveKey.size() );
+                    ptr += driveKey.size();
+                    memcpy( downloadChannelHash.data(), ptr, downloadChannelHash.size() );
+
+                    DownloadOpinion opinion;
+                    bool opinionExists = replicator->createSyncOpinion( driveKey, downloadChannelHash, opinion );
+
+                    std::ostringstream os( std::ios::binary );
+                    cereal::PortableBinaryOutputArchive archive( os );
+
+                    if ( opinionExists )
+                    {
+                        archive( uint8_t(1) );
+                        archive( m_replicator.lock()->replicatorKey().array() );
+                        archive( opinion );
+                    }
+                    else
+                    {
+                        archive( uint8_t(0) );
+                    }
+
+                    std::string m_dbgOurPeerName;
+                    _LOG( "response[r][q]: " << query );
+                    response["r"]["q"] = std::string(query);
+                    response["r"]["ret"] = os.str();
+                    return true;
+                }
+            }
+                
             else if ( query == "rcpt" )
 //            else if ( message.dict_find_string_value("q") == "rcpt" )
             {
@@ -611,6 +665,7 @@ public:
                                                                     signature.array() );
                 }
 
+                response["r"]["q"] = std::string(query);
                 response["r"]["ret"] = "ok";
                 return true;
             }
@@ -621,7 +676,7 @@ public:
 
     void addDhtRequestPlugin()
     {
-        m_session.add_extension(std::make_shared<DhtRequestPlugin>(  m_downloadLimiter ));
+        m_session.add_extension(std::make_shared<DhtRequestPlugin>(  m_replicator ));
     }
 
     void  sendMessage( boost::asio::ip::udp::endpoint udp, const std::vector<uint8_t>& ) override
@@ -635,14 +690,13 @@ public:
         m_session.dht_direct_request( udp, e, lt::client_data_t(reinterpret_cast<int*>(12345))  );
     }
 
-    void sendMessage( const std::string& query, boost::asio::ip::udp::endpoint endPoint, const std::vector<uint8_t>& message ) override
+    void sendMessage( const std::string& query, boost::asio::ip::udp::endpoint endPoint, const std::vector<uint8_t>& message, void* userdata ) override
     {
         lt::entry entry;
         entry["q"] = query;
         entry["x"] = std::string( message.begin(), message.end() );
 
-  //      lt::client_data_t client_data(this);
-        m_session.dht_direct_request( endPoint, entry );
+        m_session.dht_direct_request( endPoint, entry );//, lt::client_data_t(userdata) );
     }
 
     void sendMessage( const std::string& query, boost::asio::ip::udp::endpoint endPoint, const std::string& message ) override
@@ -653,6 +707,23 @@ public:
 
         m_session.dht_direct_request( endPoint, entry );
     }
+
+//    void requestDownloadReceipts( boost::asio::ip::udp::endpoint endPoint,
+//                                  const std::array<uint8_t,32>& driveKey,
+//                                  const std::array<uint8_t,32>& downloadChannelHash )// override
+//    {
+//        std::vector<uint8_t> message;
+//        message.insert( message.end(), driveKey.begin(), driveKey.end() );
+//        message.insert( message.end(), downloadChannelHash.begin(), downloadChannelHash.end() );
+//
+//        lt::entry entry;
+//        entry["q"] = "get_dn_repts";
+//        entry["x"] = std::string( message.begin(), message.end() );
+//
+//        m_session.dht_direct_request( endPoint, entry );
+//    }
+
+
 
     void findAddress( const Key& key ) override
     {
@@ -688,7 +759,20 @@ public:
 
     void handleResponse( lt::bdecode_node response )
     {
-        //_LOG( ">>>>>>>>>>>>>>>>>lt::bdecode_node response: " << response );
+        try
+        {
+            //auto r = response.dict_find_string_value("r");
+            auto rDict = response.dict_find_dict("r");
+            auto query = rDict.dict_find_string_value("q");
+            auto retString = rDict.dict_find_string_value("ret");
+            if ( query == "get_dn_rcpts" )
+            {
+                m_replicator.lock()->onSyncDnOpinionReceived( std::string( retString.begin(), retString.end() ) );
+            }
+        }
+        catch(...)
+        {
+        }
     }
     
     virtual std::optional<boost::asio::high_resolution_timer> startTimer( int miliseconds, const std::function<void()>& func ) override
@@ -785,6 +869,11 @@ private:
 //                    break;
 //                }
 
+                case lt::dht_bootstrap_alert::alert_type: {
+                    __LOG( "dht_bootstrap_alert: " << alert->message() )
+                    break;
+                }
+
                 case lt::external_ip_alert::alert_type: {
                     auto* theAlert = dynamic_cast<lt::external_ip_alert*>(alert);
                     _LOG( "External Ip Alert " << " " << theAlert->message())
@@ -822,12 +911,27 @@ private:
                 }
 
                 case lt::dht_direct_response_alert::alert_type: {
-                    break;
-                    // auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
-                    // auto response = theAlert->response();
-                    // handleResponse( response );
-                    // _LOG( "*** dht_direct_response_alert: " << theAlert->what() << ":("<< alert->type() <<")  " << alert->message() );
-                    // break;
+                     auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
+                    _LOG( "*** dht_direct_response_alert: " << theAlert->what() << ":("<< alert->type() <<")  " );
+                     auto response = theAlert->response();
+                     if ( response.type() == lt::bdecode_node::dict_t )
+                     {
+                         auto rDict = response.dict_find_dict("r");
+                         if ( rDict.type() == lt::bdecode_node::dict_t )
+                         {
+                             auto query = rDict.dict_find_string_value("q");
+                             _LOG( "dht_query: " << query )
+                             if ( query == "get_dn_rcpts" )
+                             {
+                                 handleResponse( response);
+                             }
+                         }
+                     }
+                    else
+                    {
+                        _LOG( "*** NULL dht_direct_response_alert: " << theAlert->what() << ":("<< alert->type() <<")  " << theAlert->message() );
+                    }
+                     break;
                 }
 
                 case lt::incoming_request_alert::alert_type: {
@@ -1108,6 +1212,7 @@ private:
                                         fs::create_directories( destFilePath.parent_path(), err );
                                     }
 
+                                    //???+++
                                     if ( fs::exists( destFilePath, err ) ) {
                                         fs::remove( destFilePath );
                                     }
@@ -1443,11 +1548,12 @@ InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
 std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&             context,
                                                std::string                          address,
                                                const LibTorrentErrorHandler&        alertHandler,
+                                               std::weak_ptr<Replicator>            replicator,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
                                                const endpoint_list&                 bootstraps,
                                                bool                                 useTcpSocket)
 {
-    return std::make_shared<DefaultSession>( context, address, alertHandler, downloadLimiter, useTcpSocket, bootstraps );
+    return std::make_shared<DefaultSession>( context, address, alertHandler, replicator, downloadLimiter, useTcpSocket, bootstraps );
 }
 
 std::shared_ptr<Session> createDefaultSession( std::string                          address,

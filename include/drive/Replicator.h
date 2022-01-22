@@ -71,9 +71,9 @@ struct DownloadOpinionMapValue
         arch(m_eventHash);
         arch(m_downloadChannelId);
         arch(m_opinions);
+        //(???) are they needed?
         arch(m_modifyApproveTransactionSent);
         arch(m_approveTransactionReceived);
-        //TODO ??m_creationTime
     }
 };
 
@@ -292,7 +292,7 @@ public:
     virtual void        asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) = 0;
 
     // It is called when Replicator is added to the Download Channel Shard
-    virtual void        asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&&  downloadRequest ) = 0;
+    virtual void        asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&&  downloadRequest, bool mustBeSyncronized = false ) = 0;
 
     // It is called when Replicator leaves the Download Channel Shard
     virtual void        asyncRemoveDownloadChannelInfo( Key driveKey, Key channelId ) = 0;
@@ -373,11 +373,31 @@ public:
                                      const std::array<uint8_t,32>&  replicatorKey,
                                      const std::string&             message ) = 0;
 
-    // It was moveed into ;session_delegate'
-    //virtual void        onMessageReceived( const std::string& query, const std::string& ) = 0;
-    
+    // will be called from Sesion
+    virtual void        onMessageReceived( const std::string& query, const std::string&, const boost::asio::ip::udp::endpoint& source ) = 0;
+    virtual bool        createSyncOpinion( const std::array<uint8_t,32>& driveKey,
+                                           const std::array<uint8_t,32>& channelId,
+                                           DownloadOpinion& outOpinion ) = 0;
+
+    virtual void        onSyncDnOpinionReceived( const std::string& retString ) = 0;
+
+    // will be called from Sesion
+    // when it receives message from another replicator
+    // (must be implemented by DownloadLimiter)
+    virtual void acceptReceiptFromAnotherReplicator( const std::array<uint8_t,32>&  downloadChannelId,
+                                                     const std::array<uint8_t,32>&  clientPublicKey,
+                                                     const std::array<uint8_t,32>&  replicatorPublicKey,
+                                                     uint64_t                       downloadedSize,
+                                                     const std::array<uint8_t,64>&  signature )
+    {
+        // 'client' does nothing
+        return;
+    }
+
     virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) const = 0;
 
+    virtual DownloadChannelInfo* getDownloadChannelInfo( const std::array<uint8_t,32>& driveKey, const std::array<uint8_t,32>& downloadChannelHash ) = 0;
+    
     //virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;
 
     // Functions for debugging

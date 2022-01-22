@@ -194,7 +194,7 @@ public:
         {
             // It is 'upgrade' of existing 'downloadChannel'
 
-            if ( it->second.m_prepaidDownloadSize <= prepaidDownloadSize )
+            if ( it->second.m_prepaidDownloadSize >= prepaidDownloadSize )
             {
                 _LOG_ERR( "addChannelInfo: invalid prepaidDownloadSize: " << it->second.m_prepaidDownloadSize << " <= " << prepaidDownloadSize );
             }

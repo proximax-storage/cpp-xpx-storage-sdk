@@ -569,7 +569,6 @@ class Replicator;
 
         virtual Key      getClient() const = 0;
 
-        virtual void     updateReplicators(const std::vector<Key>& replicators) = 0;
         virtual void     replicatorAdded( mobj<Key>&& replicatorKey ) = 0;
         virtual void     replicatorRemoved( mobj<Key>&& replicatorKey ) = 0;
 

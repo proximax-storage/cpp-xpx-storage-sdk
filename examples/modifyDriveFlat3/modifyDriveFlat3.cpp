@@ -479,8 +479,6 @@ int main(int,char**)
                                           TRANSPORT_PROTOCOL,
                                           "client" );
 
-    sleep(1);
-
     
 //    ///
 //    /// Create client session
@@ -554,6 +552,9 @@ int main(int,char**)
     /// Client: read files from drive
     clientDownloadFiles( 5, gFsTree );
     
+    //todo++
+    gReplicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash2.array(), 10*1024*1024+1, replicatorList, { clientKeyPair.publicKey() }}, true );
+
     ///TODO
 //    sleep(1);
 //    gReplicator->sendMessage( "dn_opinion", replicatorList[0].m_endpoint, "str" );

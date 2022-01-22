@@ -368,26 +368,6 @@ public:
         return replicators;
     }
 
-    // (???) Is it needed?
-    void updateReplicators(const ReplicatorList& replicators) override
-    {
-        DBG_MAIN_THREAD
-
-        if (replicators.empty()) {
-            _LOG_ERR( "ReplicatorList is empty!");
-            return;
-        }
-
-        for (const auto& ri : replicators) {
-            const auto& r = std::find(m_replicatorList.begin(), m_replicatorList.end(), ri);
-            if(r != m_replicatorList.end()) {
-                *r = ri;
-            } else {
-                m_replicatorList.push_back(ri);
-            }
-        }
-    }
-    
     void replicatorAdded( mobj<Key>&& replicatorKey ) override
     {
         if ( *replicatorKey != m_replicator.replicatorKey() )
@@ -687,7 +667,7 @@ public:
             return;
         }
 
-        if ( m_driveWillBeRemovedTx )
+        if ( m_driveWillBeRemoved )
         {
             runDriveClosingTask( std::move( m_driveWillBeRemovedTx ) );
             return;
@@ -1450,7 +1430,6 @@ public:
     {
         DBG_MAIN_THREAD
         
-        _ASSERT( tx );
         _ASSERT( !m_removeDriveTx );
 
         m_removeDriveTx = std::move(tx);
@@ -1564,6 +1543,7 @@ public:
     {
         DBG_MAIN_THREAD
     
+        _ASSERT( m_downloadingLtHandle )
         _ASSERT( m_modifyRequest )
         _ASSERT( m_modifyRequest->m_clientDataInfoHash == infoHash )
 
@@ -1611,7 +1591,7 @@ public:
             // Check that client data exist
             if ( !fs::exists(m_clientDataFolder,err) || !fs::is_directory(m_clientDataFolder,err) )
             {
-                _LOG_ERR( "modifyDriveInSandbox: 'client-data' is absent; m_clientDataFolder=" << m_clientDataFolder );
+                _LOG_WARN( "modifyDriveInSandbox: 'client-data' is absent; m_clientDataFolder=" << m_clientDataFolder );
                 if ( m_dbgEventHandler )
                 {
                     m_dbgEventHandler->modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'client-data' is absent", -1 );
@@ -1626,7 +1606,7 @@ public:
             // Check 'actionList.bin' is received
             if ( !fs::exists( m_clientActionListFile, err ) )
             {
-                _LOG_ERR( "modifyDriveInSandbox: 'ActionList.bin' is absent: " << m_clientActionListFile );
+                _LOG_WARN( "modifyDriveInSandbox: 'ActionList.bin' is absent: " << m_clientActionListFile );
                 if ( m_dbgEventHandler )
                 {
                     m_dbgEventHandler->modifyTransactionEndedWithError( m_replicator, m_drivePubKey, *m_modifyRequest, "modify drive: 'ActionList.bin' is absent", -1 );
@@ -2492,6 +2472,7 @@ public:
         if ( !m_opinionTrafficIdentifier )
         {
             m_opinionTrafficIdentifier = m_catchingUpRequest->m_modifyTransactionHash.array();
+            _LOG( "startCatchingUpTask: m_opinionTrafficIdentifier:" << m_catchingUpRequest->m_modifyTransactionHash )
         }
 
         if ( auto session = m_session.lock(); session )
@@ -2787,6 +2768,7 @@ public:
 
     bool isItClosingTxHash( const Hash256& eventHash ) const override
     {
+        DBG_MAIN_THREAD
         return m_removeDriveTx && (*m_removeDriveTx == eventHash);
     }
     
