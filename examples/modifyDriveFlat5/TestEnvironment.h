@@ -89,10 +89,10 @@ namespace sirius::drive::test {
                 m_keys.emplace_back(std::make_shared<sirius::crypto::KeyPair>(std::move(keyPair)));
 
                 // First Replicator is a bootstrap node
-                if ( i == 1 )
+                //if ( i == 1 )
                 {
-                    m_bootstraps = { { { boost::asio::ip::make_address(ipAddr), (unsigned short) port },
-                                       m_keys.back()->publicKey() } };
+                    m_bootstraps.push_back( { { boost::asio::ip::make_address(ipAddr), (unsigned short) port },
+                                       m_keys.back()->publicKey() } );
                 }
 
                 //EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(replicatorKeyPair.publicKey().array()[0]) );

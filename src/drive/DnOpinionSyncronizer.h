@@ -8,7 +8,6 @@
 
 #include "types.h"
 #include "drive/FlatDrive.h"
-//#include "crypto/Signer.h"
 #include "drive/Session.h"
 
 #include <array>
@@ -32,16 +31,18 @@ private:
         std::optional<Timer>        m_syncTimeoutTimer;
     };
     
-    using ChannelId     = std::array<uint8_t,32>;
-    using ChannelMap    = std::map<ChannelId,ChannelSyncInfo>;
+    using ChannelHash    = std::array<uint8_t,32>;
+    using SyncChannelMap = std::map<ChannelHash,ChannelSyncInfo>;
 
 public:
-    ChannelMap               m_channelMap;
+    SyncChannelMap           m_syncChannelMap;
     Replicator&              m_replicator;
     std::shared_ptr<Session> m_session;
 
+    std::string              m_dbgOurPeerName;
+
 public:
-    DnOpinionSyncronizer( Replicator& replicator ) : m_replicator(replicator) {}
+    DnOpinionSyncronizer( Replicator& replicator ) : m_replicator(replicator), m_dbgOurPeerName(replicator.dbgReplicatorName()) {}
     ~DnOpinionSyncronizer() {}
     
     void start( std::shared_ptr<Session>& session )
@@ -51,25 +52,25 @@ public:
     
     void stop()
     {
-        m_channelMap.clear();
+        m_syncChannelMap.clear();
         m_session.reset();
     }
     
-    void startSync( const ChannelId& channelId, std::shared_ptr<FlatDrive>& drive, size_t consensusThreshould )
+    void startSync( const ChannelHash& channelId, std::shared_ptr<FlatDrive>& drive, size_t consensusThreshould )
     {
-        auto channelIt = m_channelMap.lower_bound( channelId );
+        auto syncChannelIt = m_syncChannelMap.lower_bound( channelId );
 
-        if ( channelIt == m_channelMap.end() )
+        if ( syncChannelIt == m_syncChannelMap.end() )
         {
-            channelIt = m_channelMap.insert( channelIt, { channelId, ChannelSyncInfo{drive,consensusThreshould,{},{}} } );
+            syncChannelIt = m_syncChannelMap.insert( syncChannelIt, { channelId, ChannelSyncInfo{drive,consensusThreshould,{},{}} } );
         }
         
-        auto& channelSyncInfo = channelIt->second;
-        requestOpinons( channelIt->first, channelSyncInfo );
+        auto& channelSyncInfo = syncChannelIt->second;
+        requestOpinons( syncChannelIt->first, channelSyncInfo );
         return;
     }
 
-    void requestOpinons( const ChannelId& channelId, ChannelSyncInfo& channelSyncInfo )
+    void requestOpinons( const ChannelHash& channelId, ChannelSyncInfo& channelSyncInfo )
     {
         // request receipts from neighbors replicators
         //
@@ -92,48 +93,86 @@ public:
         } );
     }
     
-    void addSyncOpinion( const ChannelId& channelId, mobj<DownloadOpinion>&& opinion )
+    void addSyncOpinion( const ChannelHash& channelId, mobj<DownloadOpinion>&& opinion, ChannelMap& channelMap )
     {
-        auto channelIt = m_channelMap.lower_bound( channelId );
+        auto syncChannelIt = m_syncChannelMap.find( channelId );
 
-        if ( channelIt == m_channelMap.end() )
+        if ( syncChannelIt == m_syncChannelMap.end() )
         {
-            // ignore unknown opinion
+            _LOG_WARN( "Unknown sync channel id" << Key(channelId) )
             return;
         }
 
-        auto opinionIt = channelIt->second.m_opinionMap.find( opinion->m_replicatorKey );
-        if ( opinionIt != channelIt->second.m_opinionMap.end() )
+        auto opinionIt = syncChannelIt->second.m_opinionMap.find( opinion->m_replicatorKey );
+        if ( opinionIt != syncChannelIt->second.m_opinionMap.end() )
         {
             // replace opinion
             opinionIt->second = std::move(opinion);
         }
         else
         {
-            channelIt->second.m_opinionMap.insert( opinionIt, { opinion->m_replicatorKey, std::move(opinion) } );
+            syncChannelIt->second.m_opinionMap.insert( opinionIt, { opinion->m_replicatorKey, std::move(opinion) } );
             
-            if ( channelIt->second.m_opinionMap.size() >= channelIt->second.m_consensusThreshould )
+            _LOG( "syncChannelIt->second.m_opinionMap.size()=" << syncChannelIt->second.m_opinionMap.size() )
+            if ( syncChannelIt->second.m_opinionMap.size() >= syncChannelIt->second.m_consensusThreshould )
             {
-                struct cell{ uint64_t m_downloadedSize = 0; int opinonNumber = 0;};
+                //struct cell{ uint64_t m_downloadedSize = 0; int opinonNumber = 0;};
                 
                 std::map<std::array<uint8_t,32>,int>        frequnceMap;
-                std::map<std::array<uint8_t,32>,uint64_t>   downloadMap;
+                std::map<std::array<uint8_t,32>,uint64_t>   medianDownloadMap;
                 
-                for( auto& opinion: channelIt->second.m_opinionMap )
+                // Calculate cummulative opinion values
+                //
+                for( auto& opinion: syncChannelIt->second.m_opinionMap )
                 {
                     for( auto& keyAndBytes: opinion.second->m_downloadLayout )
                     {
-                        frequnceMap[keyAndBytes.m_key] ++;
-                        downloadMap[keyAndBytes.m_key] += keyAndBytes.m_uploadedBytes;
+                        frequnceMap[keyAndBytes.m_key]++;
+                        medianDownloadMap[keyAndBytes.m_key] += keyAndBytes.m_uploadedBytes;
                     }
                 }
 
-                for( auto& [key,value]: downloadMap )
+                // Normalize
+                //
+                for( auto& [key,downloadValueRef]: medianDownloadMap )
                 {
-                    auto freq = frequnceMap[key];
+                    auto& freq = frequnceMap[key];
                     if ( freq > 0 )
-                        value = value / freq;
+                        downloadValueRef = downloadValueRef / freq;
                 }
+
+                // Update download channel info
+                //
+                if ( auto channelInfoIt = channelMap.find(channelId); channelInfoIt != channelMap.end() )
+                {
+                    auto& replicatorUploadMap = channelInfoIt->second.m_replicatorUploadMap;
+                    for( const auto& [replicatorKey,downloadValue] : medianDownloadMap )
+                    {
+                        _LOG( "replicatorKey,downloadValue: " << int(replicatorKey[0]) << ", " << downloadValue )
+                        auto it = replicatorUploadMap.lower_bound( replicatorKey );
+                        if ( it == replicatorUploadMap.end() )
+                        {
+                            replicatorUploadMap.insert( it, { replicatorKey, {downloadValue} } );
+                        }
+                        else
+                        {
+                            if ( it->second.m_uploadedSize < downloadValue )
+                            {
+                                it->second.m_uploadedSize = downloadValue;
+                            }
+                        }
+                        channelInfoIt->second.m_isSyncronizing = false;
+                    }
+                }
+                else
+                {
+                    _LOG_WARN( "Unknown channel id" << Key(channelId) )
+                    return;
+                }
+                
+                // remove sync channel info
+                m_syncChannelMap.erase( syncChannelIt );
+                _LOG( "channel is synced: chId=" << int(channelId[0]) )
             }
         }
     }

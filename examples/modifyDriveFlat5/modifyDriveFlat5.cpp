@@ -139,7 +139,7 @@ int main()
     // Add Drive to 5-th replicator
     //
     env.m_replicators[4]->asyncAddDrive( DRIVE_PUB_KEY, env.drive->second );
-    env.m_replicators[4]->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest(downloadRequest) );
+    env.m_replicators[4]->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest(downloadRequest), true );
     env.m_replicators[4]->asyncModify( DRIVE_PUB_KEY, modifyRequest1 );
     env.m_replicators[4]->asyncApprovalTransactionHasBeenPublished(*env.m_lastApprovedModification);
 

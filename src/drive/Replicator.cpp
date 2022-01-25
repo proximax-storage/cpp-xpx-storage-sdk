@@ -594,7 +594,8 @@ public:
                             request.m_prepaidDownloadSize,
                             driveKey,
                             request.m_replicators,
-                            clientList);
+                            clientList,
+                            mustBeSyncronized );
            
            if ( mustBeSyncronized )
            {
@@ -1448,7 +1449,7 @@ public:
                 _LOG_WARN( "invalid download sync opinion from " << Key(opinion->m_replicatorKey) )
             }
             
-            m_dnOpinionSyncronizer.addSyncOpinion( channelHash, std::move(opinion) );
+            m_dnOpinionSyncronizer.addSyncOpinion( channelHash, std::move(opinion), m_downloadChannelMap );
         }
         catch(...)
         {

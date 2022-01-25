@@ -122,7 +122,7 @@ public:
         
         continueSessionCreation();
         m_session.setDelegate( m_downloadLimiter );
-        _LOG( "DefaultSession created: " << m_addressAndPort );
+        _LOG( "DefaultSession created: " << m_addressAndPort << " " << int(m_replicator.lock()->replicatorKey()[0]) );
     }
 
     // Constructor for Client
@@ -284,8 +284,8 @@ public:
         params.m_siriusFlags    = siriusFlags;
 
         //dbg///////////////////////////////////////////////////
-        auto tInfo = lt::torrent_info(buffer, lt::from_span);
-        _LOG( "addTorrentToSession: " << torrentFilename << "; infoHash:" << tInfo.info_hashes().v2 );
+//        auto tInfo = lt::torrent_info(buffer, lt::from_span);
+//        _LOG( "addTorrentToSession: " << torrentFilename << "; infoHash:" << tInfo.info_hashes().v2 );
         
 //        LOG( tInfo.info_hashes().v2 ) );
 //        LOG( "add torrent: torrent filename:" << torrentFilename );
@@ -559,12 +559,14 @@ public:
             lt::bdecode_node const&                 message,
             lt::entry&                              response ) override
         {
+            //__LOG( "on_dht_request: query: " << query );
+
             if ( query == "get_peers" || query == "announce_peer" )
             {
+                //(???) NULL dht_direct_response_alert?
                 return false;
             }
 
-            __LOG( "on_dht_requestquery: " << query );
 //            _LOG( "message: " << message );
 //            _LOG( "response: " << response );
 
@@ -608,7 +610,8 @@ public:
                     if ( opinionExists )
                     {
                         archive( uint8_t(1) );
-                        archive( m_replicator.lock()->replicatorKey().array() );
+                        archive( driveKey );
+                        archive( downloadChannelHash );
                         archive( opinion );
                     }
                     else
@@ -912,7 +915,7 @@ private:
 
                 case lt::dht_direct_response_alert::alert_type: {
                      auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
-                    _LOG( "*** dht_direct_response_alert: " << theAlert->what() << ":("<< alert->type() <<")  " );
+                    _LOG( "*** dht_direct_response_alert: " );
                      auto response = theAlert->response();
                      if ( response.type() == lt::bdecode_node::dict_t )
                      {
@@ -929,7 +932,7 @@ private:
                      }
                     else
                     {
-                        _LOG( "*** NULL dht_direct_response_alert: " << theAlert->what() << ":("<< alert->type() <<")  " << theAlert->message() );
+                        _LOG_WARN( "*** NULL dht_direct_response_alert: " << theAlert->what() << ":("<< alert->type() <<")  " << theAlert->message() );
                     }
                      break;
                 }

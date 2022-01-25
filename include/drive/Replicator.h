@@ -83,6 +83,7 @@ using DownloadOpinionMap = std::map<std::array<uint8_t,32>, DownloadOpinionMapVa
 struct DownloadChannelInfo
 {
     bool m_isModifyTx;
+    bool m_isSyncronizing;
 
     uint64_t m_prepaidDownloadSize;
     uint64_t m_totalReceiptsSize = 0;
