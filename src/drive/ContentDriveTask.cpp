@@ -22,8 +22,6 @@
 #include <cereal/types/optional.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
-#define MINI_SIGNATURE
-
 namespace sirius::drive
 {
 

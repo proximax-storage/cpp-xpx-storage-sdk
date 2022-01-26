@@ -27,7 +27,6 @@
 namespace sirius::drive {
 
 #define CHANNELS_NOT_OWNED_BY_DRIVES
-//#define MINI_SIGNATURE
 
 //
 // DefaultReplicator

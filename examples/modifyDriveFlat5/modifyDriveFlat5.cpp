@@ -36,13 +36,13 @@ public:
             startReplicator)
     {}
 
-    void modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override
+    void modifyApprovalTransactionIsReady(Replicator &replicator, const ApprovalTransactionInfo& transactionInfo) override
     {
         TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
     }
 
     void singleModifyApprovalTransactionIsReady(Replicator &replicator,
-                                                ApprovalTransactionInfo &&transactionInfo) override
+                                                const ApprovalTransactionInfo& transactionInfo) override
     {
         TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
     };
@@ -108,12 +108,12 @@ int main()
     auto actionList = createActionList(CLIENT_WORK_FOLDER);
     client.modifyDrive( actionList, env.m_addrList );
 
-    ModifyRequest modifyRequest1 {  client.m_actionListHashes.back(),
+    ModificationRequest modificationRequest1 {  client.m_actionListHashes.back(),
                                     client.m_modificationTransactionHashes.back(),
                                     BIG_FILE_SIZE + 1024,
                                     env.m_addrList,
         client.m_clientKeyPair.publicKey()};
-    env.modifyDrive( DRIVE_PUB_KEY, modifyRequest1 );
+    env.modifyDrive( DRIVE_PUB_KEY, modificationRequest1 );
                     
     // Wait Modification End
     env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS-1);
@@ -140,7 +140,7 @@ int main()
     //
     env.m_replicators[4]->asyncAddDrive( DRIVE_PUB_KEY, env.drive->second );
     env.m_replicators[4]->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest(downloadRequest), true );
-    env.m_replicators[4]->asyncModify( DRIVE_PUB_KEY, modifyRequest1 );
+    env.m_replicators[4]->asyncModify( DRIVE_PUB_KEY, modificationRequest1 );
     env.m_replicators[4]->asyncApprovalTransactionHasBeenPublished(*env.m_lastApprovedModification);
 
     env.m_replicators[0]->asyncReplicatorAdded( DRIVE_PUB_KEY, env.m_replicators[4]->replicatorKey() );

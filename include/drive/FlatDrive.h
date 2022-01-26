@@ -604,8 +604,6 @@ class Replicator;
 
         // It will be called by replicator
         virtual bool isItClosingTxHash( const Hash256& eventHash ) const = 0;
-        
-        virtual void removeAllDriveData() = 0;
 
         virtual const ReplicatorList&  replicatorList() const = 0;
 

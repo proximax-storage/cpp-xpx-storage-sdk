@@ -244,7 +244,8 @@ public:
 
             if ( backupIt->second.m_prepaidDownloadSize > prepaidDownloadSize )
             {
-                _LOG_ERR( "addChannelInfo: channel size decreased" );
+                /// !!! (???)
+//                _LOG_ERR( "addChannelInfo: channel size decreased" );
             }
 
             auto it = m_downloadChannelMap.find(channelId);

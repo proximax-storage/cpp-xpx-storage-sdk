@@ -434,8 +434,12 @@ public:
             m_task->terminate();
         }
 
+        if ( m_verificationTask )
+        {
+            m_verificationTask->terminate();
+        }
+
         m_backgroundExecutor.stop();
-        interruptVerification();
 
 #if 0
         std::set<lt::torrent_handle> toBeRemovedTorrents;
@@ -872,7 +876,7 @@ public:
     bool isItClosingTxHash( const Hash256& eventHash ) const override
     {
         DBG_MAIN_THREAD
-        return m_removeDriveTx && (*m_removeDriveTx == eventHash);
+        return m_closeDriveRequest && (m_closeDriveRequest->m_removeDriveTx == eventHash);
     }
 
     const ReplicatorList&  replicatorList() const override

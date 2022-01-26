@@ -35,6 +35,6 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 else()
     enable_testing()
     add_test(standalone-tests "./standalone-tests")
-    target_link_libraries(standalone-tests drive crypto emulator torrent-sirius Threads::Threads ${GTEST_LIBRARIES} gtest_main)
+    target_link_libraries(standalone-tests drive crypto torrent-sirius Threads::Threads ${GTEST_LIBRARIES} gtest_main)
 endif()
 
