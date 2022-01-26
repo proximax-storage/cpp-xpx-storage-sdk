@@ -26,6 +26,7 @@
 namespace sirius::drive {
 
 #define CHANNELS_NOT_OWNED_BY_DRIVES
+#define MINI_SIGNATURE
 
 //
 // DefaultReplicator
@@ -44,10 +45,10 @@ private:
     std::string m_storageDirectory;
     std::string m_sandboxDirectory;
     
-    int         m_downloadApprovalTransactionTimerDelayMs = 60 * 1000;
-    int         m_modifyApprovalTransactionTimerDelayMs   = 60 * 1000;
+    int         m_downloadApprovalTransactionTimerDelayMs = 10 * 1000;
+    int         m_modifyApprovalTransactionTimerDelayMs   = 10 * 1000;
     int         m_verifyCodeTimerDelayMs                  = 5 * 60 * 1000;
-    int         m_verifyApprovalTransactionTimerDelayMs   = 60 * 1000;
+    int         m_verifyApprovalTransactionTimerDelayMs   = 10 * 1000;
     int         m_shareMyDownloadOpinionTimerDelayMs      = 5 * 60 * 1000;
 
     bool        m_replicatorIsDestructing = false;

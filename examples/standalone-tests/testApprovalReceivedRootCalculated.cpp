@@ -57,8 +57,8 @@ namespace sirius::drive::test
                 }
             }
             transaction.m_opinions.pop_back();
-            ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size() - 1);
-            TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
+            ASSERT_EQ(transaction.m_opinions.size(), m_replicators.size() - 1);
+            TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transaction));
         }
 
         void singleModifyApprovalTransactionIsReady(Replicator &replicator,

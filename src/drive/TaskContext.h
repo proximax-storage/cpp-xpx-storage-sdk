@@ -216,8 +216,12 @@ public:
     InfoHash m_rootHash;
 
     // FsTree
-    mobj <FsTree> m_fsTree;
+    std::unique_ptr <FsTree> m_fsTree;
     lt_handle m_fsTreeLtHandle; // used for removing FsTree torrent from session
+
+    // For debugging:
+    const std::string                       m_dbgOurPeerName;
+    const std::thread::id                   m_dbgThreadId;
 
 protected:
 
@@ -238,6 +242,9 @@ protected:
             , m_eventHandler( eventHandler )
             , m_dbgEventHandler( dbgEventHandler )
             , m_serializer(m_restartRootPath, dbgOurPeerName)
+            , m_fsTree( std::make_unique<FsTree>() )
+            , m_dbgOurPeerName( dbgOurPeerName )
+            , m_dbgThreadId( std::this_thread::get_id())
     {}
 
     virtual ~TaskContext() = default;

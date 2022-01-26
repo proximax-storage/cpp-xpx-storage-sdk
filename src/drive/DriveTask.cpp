@@ -22,6 +22,8 @@
 #include <cereal/types/optional.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
+#define MINI_SIGNATURE
+
 namespace sirius::drive
 {
 
@@ -38,7 +40,7 @@ protected:
 
     std::optional<ApprovalTransactionInfo> m_myOpinion;
 
-    mobj<FsTree> m_sandboxFsTree;
+    std::unique_ptr<FsTree> m_sandboxFsTree;
     std::optional<InfoHash> m_sandboxRootHash;
     uint64_t m_metaFilesSize = 0;
     uint64_t m_sandboxDriveSize = 0;
@@ -73,8 +75,11 @@ protected:
             const DriveTaskType& type,
             TaskContext& drive,
             ModifyOpinionController& opinionTaskController)
-            : BaseDriveTask( type, drive ), m_opinionController( opinionTaskController ),
-              m_sandboxCalculated( false ), m_stopped( false )
+            : BaseDriveTask( type, drive )
+            , m_opinionController( opinionTaskController )
+            , m_sandboxFsTree( std::make_unique<FsTree>() )
+            , m_sandboxCalculated( false )
+            , m_stopped( false )
     {}
 
     virtual void myRootHashIsCalculated()
@@ -112,7 +117,7 @@ protected:
 
         _ASSERT( m_sandboxRootHash )
 
-        m_drive.m_fsTree = m_sandboxFsTree;
+        m_drive.m_fsTree = std::move(m_sandboxFsTree);
         m_drive.m_rootHash = *m_sandboxRootHash;
         m_drive.m_fsTreeLtHandle = std::move( *m_sandboxFsTreeLtHandle );
 
@@ -275,7 +280,7 @@ private:
                       m_metaFilesSize,
                       m_sandboxDriveSize );
 
-        m_myOpinion = std::optional<ApprovalTransactionInfo>{{keyPair.publicKey().array(),
+        m_myOpinion = std::optional<ApprovalTransactionInfo>{{m_drive.m_driveKey.array(),
                                                                      getModificationTransactionHash().array(),
                                                                      m_sandboxRootHash->array(),
                                                                      m_fsTreeSize,
@@ -381,6 +386,7 @@ public:
              validateOpinion( anOpinion ))
         {
             m_receivedOpinions[anOpinion.m_opinions[0].m_replicatorKey] = anOpinion;
+            checkOpinionNumberAndStartTimer();
         }
         return true;
     }
@@ -804,7 +810,7 @@ private:
 #ifndef MINI_SIGNATURE
         auto replicatorNumber = m_drive.getReplicators().size() + 1;
 #else
-        auto replicatorNumber = m_modificationRequest.m_drive.getReplicator()s.size();//todo++++ +1;
+        auto replicatorNumber = m_drive.getReplicators().size();//todo++++ +1;
 #endif
 
 // check opinion number
@@ -851,7 +857,7 @@ private:
         }
 
         // notify event handler
-        m_drive.m_eventHandler.modifyApprovalTransactionIsReady( m_drive.m_replicator, std::move( info ));
+        m_drive.m_eventHandler.modifyApprovalTransactionIsReady( m_drive.m_replicator, info );
 
         m_modifyApproveTransactionSent = true;
     }
@@ -969,6 +975,8 @@ public:
             finishTask();
         }
 
+        _LOG( "started catching up" )
+
         //
         // Start download fsTree
         //
@@ -1029,6 +1037,15 @@ protected:
     const Hash256& getModificationTransactionHash() override
     {
         return m_request->m_modifyTransactionHash;
+    }
+
+    void modifyIsCompleted() override
+    {
+        _LOG( "catchingIsCompleted" );
+        m_drive.m_dbgEventHandler->driveModificationIsCompleted( m_drive.m_replicator, m_drive.m_driveKey,
+                                                                 m_request->m_modifyTransactionHash,
+                                                                 *m_sandboxRootHash );
+        ContentDriveTask::modifyIsCompleted();
     }
 
 private:

@@ -74,6 +74,8 @@ public:
     {
         DBG_MAIN_THREAD
 
+        _LOG ( "Started Verification" )
+
         m_verificationStartedAt = boost::posix_time::microsec_clock::universal_time();
 
         //
@@ -129,6 +131,8 @@ public:
     {
         DBG_MAIN_THREAD
 
+        _LOG( "processed verification code from "  << int(info.m_replicatorKey[0]) )
+
         // Save verification opinion in queue, if we so far does not received verificationRequest
         if ( info.m_tx != m_request->m_tx.array() )
         {
@@ -163,6 +167,8 @@ public:
     bool processedVerificationOpinion( const VerifyApprovalTxInfo& info ) final
     {
         DBG_MAIN_THREAD
+
+        _LOG( "processed verification opinion from "  << int(info.m_opinions[0].m_publicKey[0]) )
 
         _ASSERT( info.m_opinions.size() == 1 )
 
@@ -366,7 +372,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        if ( !m_verificationMustBeInterrupted )
+        if ( m_verificationMustBeInterrupted )
         {
             // 'Verify Approval Tx' already published or canceled (we are late)
             return;
@@ -400,8 +406,10 @@ private:
         for( auto& replicatorKey: m_request->m_replicators )
         {
             //TODO?            m_replicator.sendMessage( "code_verify", replicatorKey.array(), os.str() );
-            auto it = std::find( m_drive.getReplicators().begin(), m_drive.getReplicators().end(), replicatorKey);
-            m_drive.m_replicator.sendMessage( "code_verify", it->array(), os.str() );
+            if ( replicatorKey != m_drive.m_replicator.keyPair().publicKey() )
+            {
+                m_drive.m_replicator.sendMessage( "code_verify", replicatorKey.array(), os.str() );
+            }
         }
 
         checkVerifyCodeNumber();
@@ -453,7 +461,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        if ( !m_verificationMustBeInterrupted )
+        if ( m_verificationMustBeInterrupted )
         {
             return;
         }
@@ -469,7 +477,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        if ( !m_verificationMustBeInterrupted )
+        if ( m_verificationMustBeInterrupted )
         {
             return;
         }

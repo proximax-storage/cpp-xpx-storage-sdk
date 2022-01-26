@@ -143,7 +143,42 @@ public:
 
     void downgradeCumulativeUploads( const std::function<void()>& callback ) override
     {
+
         DBG_MAIN_THREAD
+
+        // We have already taken into account information
+        // about uploads of the modification to be canceled;
+        auto trafficIdentifierHasValue = m_opinionTrafficIdentifier.has_value();
+        if ( !trafficIdentifierHasValue )
+        {
+            for ( const auto&[uploaderKey, bytes]: m_lastAccountedUploads )
+            {
+                m_cumulativeUploads[uploaderKey] -= bytes;
+            }
+        }
+        else
+        {
+            m_replicator.removeModifyDriveInfo( *m_opinionTrafficIdentifier );
+            m_opinionTrafficIdentifier.reset();
+        }
+//        m_accountedCumulativeDownload -= m_modifyRequest->m_maxDataSize;
+//        m_expectedCumulativeDownload = m_accountedCumulativeDownload;
+
+//        m_backgroundExecutor.run( [=, this]
+//                                  {
+//                                      saveAccountedCumulativeDownload();
+//                                      if ( !trafficIdentifierHasValue )
+//                                      {
+//                                          saveCumulativeUploads();
+//                                      } else
+//                                      {
+//                                          saveOpinionTrafficIdentifier();
+//                                      }
+//                                      executeOnSessionThread( [this]
+//                                                              {
+//                                                                  continueCancelModifyDrive();
+//                                                              } );
+//                                  } );
     }
 
     void increaseExpectedCumulativeDownload( uint64_t add ) override
@@ -347,10 +382,6 @@ class DefaultFlatDrive: public FlatDrive,
     std::deque<mobj<ModificationRequest>> m_deferredModificationRequests;
     mobj<VerificationRequest> m_deferredVerificationRequest;
 
-    // For debugging:
-    const char*                             m_dbgOurPeerName = "";
-    std::thread::id                         m_dbgThreadId;
-
     std::map<Hash256, std::vector<VerificationCodeInfo>>  m_unknownVerificationCodeQueue;
 
     //
@@ -384,13 +415,9 @@ public:
             , m_replicatorList(replicatorList)
             , m_maxSize(maxSize)
             , m_opinionController(m_driveKey, m_client, m_replicator, m_serializer, *this, expectedCumulativeDownload, replicator.dbgReplicatorName() )
-            , m_dbgOurPeerName(replicator.dbgReplicatorName())
-            , m_dbgThreadId(std::this_thread::get_id())
+
     {
-        m_backgroundExecutor.run( [this]
-        {
-            runDriveInitializationTask();
-        });
+        runDriveInitializationTask();
     }
 
     virtual~DefaultFlatDrive() {
@@ -642,8 +669,8 @@ public:
         auto receivedCodes = std::move(m_unknownVerificationCodeQueue[m_deferredVerificationRequest->m_tx]);
         m_unknownVerificationOpinions.erase(m_deferredVerificationRequest->m_tx);
 
-        m_task = createDriveVerificationTask( std::move(m_deferredVerificationRequest), std::move(receivedOpinions), std::move(receivedCodes), *this);
-        m_task->run();
+        m_verificationTask = createDriveVerificationTask( std::move(m_deferredVerificationRequest), std::move(receivedOpinions), std::move(receivedCodes), *this);
+        m_verificationTask->run();
     }
     
     //
@@ -703,7 +730,7 @@ public:
 
         // Preliminary opinion verification takes place at extension
 
-        if ( !m_verificationTask || !m_task->processedVerificationOpinion( *anOpinion ))
+        if ( !m_verificationTask || !m_verificationTask->processedVerificationOpinion( *anOpinion ))
         {
             m_unknownVerificationOpinions[anOpinion->m_tx].push_back(*anOpinion);
         }
@@ -715,7 +742,7 @@ public:
 
         // Preliminary opinion verification takes place at extension
 
-        if ( !m_verificationTask || !m_task->processedVerificationCode( *code ))
+        if ( !m_verificationTask || !m_verificationTask->processedVerificationCode( *code ))
         {
 
             m_unknownVerificationCodeQueue[code->m_tx].push_back(*code);

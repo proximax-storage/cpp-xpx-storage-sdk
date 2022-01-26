@@ -46,8 +46,9 @@ public:
     BaseDriveTask(
             const DriveTaskType& type,
             TaskContext& drive)
-            : m_type( type ), m_drive( drive ),
-              m_dbgThreadId( std::this_thread::get_id()), m_dbgOurPeerName( "tmp" )
+            : m_type( type ), m_drive( drive )
+            , m_dbgThreadId( std::this_thread::get_id())
+            , m_dbgOurPeerName(  m_drive.m_dbgOurPeerName )
     {}
 
     virtual ~BaseDriveTask() = default;

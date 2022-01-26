@@ -55,11 +55,11 @@ namespace sirius::drive::test
         modifyApprovalTransactionIsReady(Replicator &replicator, const ApprovalTransactionInfo &transactionInfo) override
         {
             auto transaction = transactionInfo;
-            if (transactionInfo.m_opinions.size() == m_replicators.size())
+            if (transaction.m_opinions.size() == m_replicators.size())
             {
                 transaction.m_opinions.pop_back();
             }
-            TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
+            TestEnvironment::modifyApprovalTransactionIsReady(replicator, transaction);
         }
 
         virtual void singleModifyApprovalTransactionIsReady(Replicator &replicator,
