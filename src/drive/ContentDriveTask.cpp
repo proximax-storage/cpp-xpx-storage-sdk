@@ -40,7 +40,7 @@ protected:
 
     std::optional<ApprovalTransactionInfo> m_myOpinion;
 
-    std::unique_ptr<FsTree> m_sandboxFsTree;
+    mobj<FsTree> m_sandboxFsTree;
     std::optional<InfoHash> m_sandboxRootHash;
     uint64_t m_metaFilesSize = 0;
     uint64_t m_sandboxDriveSize = 0;
@@ -77,7 +77,7 @@ protected:
             ModifyOpinionController& opinionTaskController)
             : BaseDriveTask( type, drive )
             , m_opinionController( opinionTaskController )
-            , m_sandboxFsTree( std::make_unique<FsTree>() )
+            , m_sandboxFsTree( FsTree{} )
             , m_sandboxCalculated( false )
             , m_stopped( false )
     {}
