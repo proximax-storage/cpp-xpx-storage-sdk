@@ -50,7 +50,7 @@ namespace sirius::drive::test
         }
 
         void
-        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override
+        modifyApprovalTransactionIsReady(Replicator &replicator, const ApprovalTransactionInfo &transactionInfo) override
         {
             ASSERT_EQ(true, false);
         }

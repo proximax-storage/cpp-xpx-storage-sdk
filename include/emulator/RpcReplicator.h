@@ -136,7 +136,7 @@ public:
     // It will be called when transaction could not be completed
     virtual void modifyTransactionEndedWithError( Replicator& replicator,
                                               const sirius::Key&             driveKey,
-                                              const ModifyRequest&           modifyRequest,
+                                              const ModificationRequest&           modifyRequest,
                                               const std::string&             reason,
                                               int                            errorCode )  override
     {
@@ -145,25 +145,25 @@ public:
     }
 
     // It will initiate the approving of modify transaction
-    void modifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) override
+    void modifyApprovalTransactionIsReady( Replicator& replicator, const ApprovalTransactionInfo& transactionInfo ) override
     {
         std::cout << "Replicator. modifyApproveTransactionIsReady: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
         std::cout << "Replicator. modifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() << std::endl;
 
         rpc::client emulator(m_emulatorRpcAddress, m_emulatorRpcPort);
         emulator.call("modifyApproveTransactionIsReady", types::RpcModifyApprovalTransactionInfo::getRpcModifyApprovalTransactionInfo(
-                replicator.keyPair().publicKey().array(), std::move(transactionInfo)));
+                replicator.keyPair().publicKey().array(), transactionInfo));
     }
 
     // It will initiate the approving of single modify transaction
-    void singleModifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
+    void singleModifyApprovalTransactionIsReady( Replicator& replicator, const ApprovalTransactionInfo& transactionInfo )  override
     {
         std::cout << "Replicator. singleModifyApproveTransactionIsReady: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
         std::cout << "Replicator. singleModifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() << std::endl;
 
         rpc::client emulator(m_emulatorRpcAddress, m_emulatorRpcPort);
         emulator.call("singleModifyApproveTransactionIsReady", types::RpcModifyApprovalTransactionInfo::getRpcModifyApprovalTransactionInfo(
-                replicator.keyPair().publicKey().array(), std::move(transactionInfo)));
+                replicator.keyPair().publicKey().array(), transactionInfo));
     }
 
     // It will be called after the drive is synchronized with sandbox
@@ -250,7 +250,7 @@ private:
                   << utils::HexFormat(rpcDataModification.m_drivePubKey) << " Info hash: "
                   << utils::HexFormat(rpcDataModification.m_infoHash) << std::endl;
 
-        m_replicator->asyncModify(rpcDataModification.m_drivePubKey, ModifyRequest{
+        m_replicator->asyncModify(rpcDataModification.m_drivePubKey, ModificationRequest{
                 rpcDataModification.m_infoHash,
                 rpcDataModification.m_transactionHash,
                 rpcDataModification.m_maxDataSize,

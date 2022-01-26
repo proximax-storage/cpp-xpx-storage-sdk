@@ -47,7 +47,7 @@ namespace sirius::drive::test
         }
 
         virtual void
-        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override
+        modifyApprovalTransactionIsReady(Replicator &replicator, const ApprovalTransactionInfo &transactionInfo) override
         {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
 
@@ -111,7 +111,7 @@ namespace sirius::drive::test
         }
 
         virtual void singleModifyApprovalTransactionIsReady(Replicator &replicator,
-                                                            ApprovalTransactionInfo &&transactionInfo) override
+                                                            const ApprovalTransactionInfo &transactionInfo) override
         {
             EXLOG("single " << toString(transactionInfo.m_modifyTransactionHash))
             if (auto it =

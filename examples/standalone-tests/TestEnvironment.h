@@ -58,7 +58,7 @@ namespace sirius::drive::test {
         std::condition_variable m_verificationCondVar;
         std::map<Hash256, VerifyApprovalTxInfo> m_verifyApprovalTransactionInfo;
 
-        std::deque<ModifyRequest> m_pendingModifications;
+        std::deque<ModificationRequest> m_pendingModifications;
         std::optional<ApprovalTransactionInfo> m_lastApprovedModification;
         std::map<Hash256, InfoHash> m_rootHashes;
 
@@ -203,13 +203,13 @@ namespace sirius::drive::test {
             }
         }
 
-        virtual void modifyDrive(const Key &driveKey, const ModifyRequest &request) {
+        virtual void modifyDrive(const Key &driveKey, const ModificationRequest &request) {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
             m_pendingModifications.push_back(request);
             for (auto &replicator: m_replicators) {
                 if ( replicator )
                 {
-                    replicator->asyncModify(driveKey, ModifyRequest(request));
+                    replicator->asyncModify(driveKey, ModificationRequest(request));
                 }
             }
         }
@@ -335,14 +335,14 @@ namespace sirius::drive::test {
         // It will be called when transaction could not be completed
         virtual void modifyTransactionEndedWithError( Replicator& replicator,
                                                       const sirius::Key& driveKey,
-                                                      const ModifyRequest& modifyRequest,
+                                                      const ModificationRequest& modifyRequest,
                                                       const std::string& reason,
                                                       int errorCode ) override
         {}
 
         // It will initiate the approving of modify transaction
         virtual void
-        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override {
+        modifyApprovalTransactionIsReady(Replicator &replicator, const ApprovalTransactionInfo &transactionInfo) override {
             EXLOG("modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
 
@@ -388,7 +388,7 @@ namespace sirius::drive::test {
         }
 
         virtual void singleModifyApprovalTransactionIsReady(Replicator &replicator,
-                                                            ApprovalTransactionInfo &&transactionInfo) override {
+                                                            const ApprovalTransactionInfo &transactionInfo) override {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
             if (transactionInfo.m_modifyTransactionHash == m_lastApprovedModification->m_modifyTransactionHash)
             {

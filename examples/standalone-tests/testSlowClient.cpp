@@ -50,7 +50,7 @@ namespace sirius::drive::test
         {}
 
         void
-        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override
+        modifyApprovalTransactionIsReady(Replicator &replicator, const ApprovalTransactionInfo &transactionInfo) override
         {
             std::set<uint64_t> sizes;
             for (const auto &opinion: transactionInfo.m_opinions)
@@ -71,7 +71,7 @@ namespace sirius::drive::test
         }
 
         void singleModifyApprovalTransactionIsReady(Replicator &replicator,
-                                                    ApprovalTransactionInfo &&transactionInfo) override
+                                                    const ApprovalTransactionInfo & transactionInfo) override
         {
             TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
         }

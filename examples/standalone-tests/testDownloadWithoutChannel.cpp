@@ -46,10 +46,11 @@ namespace sirius::drive::test
         {}
 
         void
-        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override
+        modifyApprovalTransactionIsReady(Replicator &replicator, const ApprovalTransactionInfo &transactionInfo) override
         {
+            auto transaction = transactionInfo;
             m_ignoredReplicator = transactionInfo.m_opinions.back().m_replicatorKey;
-            transactionInfo.m_opinions.pop_back();
+            transaction.m_opinions.pop_back();
 
             TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
             ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size() - 1);
@@ -70,7 +71,7 @@ namespace sirius::drive::test
         }
 
         void singleModifyApprovalTransactionIsReady(Replicator &replicator,
-                                                    ApprovalTransactionInfo &&transactionInfo) override
+                                                    const ApprovalTransactionInfo& transactionInfo) override
         {
             TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
             ASSERT_EQ(replicator.keyPair().publicKey(), m_ignoredReplicator);

@@ -61,7 +61,7 @@ namespace sirius::drive::test
                                           });
         }
 
-        void modifyDrive(const Key &driveKey, const ModifyRequest &request) override
+        void modifyDrive(const Key &driveKey, const ModificationRequest &request) override
         {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
             m_pendingModifications.push_back(request);
@@ -70,12 +70,12 @@ namespace sirius::drive::test
                 auto &replicator = m_replicators[i];
                 std::thread([replicator, driveKey, request]
                             {
-                                replicator->asyncModify(driveKey, ModifyRequest(request));
+                                replicator->asyncModify(driveKey, ModificationRequest(request));
                             }).detach();
             }
             boost::asio::post(m_offlineContext, [=, this]
                                   {
-                                      m_replicators.back()->asyncModify(driveKey, ModifyRequest(request));
+                                      m_replicators.back()->asyncModify(driveKey, ModificationRequest(request));
                                   });
         }
 
@@ -102,7 +102,7 @@ namespace sirius::drive::test
 
         // It will initiate the approving of modify transaction
         void
-        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override
+        modifyApprovalTransactionIsReady(Replicator &replicator, const ApprovalTransactionInfo &transactionInfo) override
         {
             EXLOG("modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
@@ -156,7 +156,7 @@ namespace sirius::drive::test
         }
 
         void singleModifyApprovalTransactionIsReady(Replicator &replicator,
-                                                    ApprovalTransactionInfo &&transactionInfo) override
+                                                    const ApprovalTransactionInfo & transactionInfo) override
         {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
             if (transactionInfo.m_modifyTransactionHash == m_lastApprovedModification->m_modifyTransactionHash)

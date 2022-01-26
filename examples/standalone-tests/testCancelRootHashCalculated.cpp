@@ -50,7 +50,7 @@ namespace sirius::drive::test
         }
 
         void modifyApprovalTransactionIsReady(Replicator& replicator,
-                                                               ApprovalTransactionInfo&& transactionInfo) override
+                                                               const ApprovalTransactionInfo& transactionInfo) override
         {
             return;
         }

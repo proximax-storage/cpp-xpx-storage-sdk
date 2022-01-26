@@ -288,7 +288,7 @@ public:
 #endif
     
     // it begins modify operation, that will be performed on session thread
-    virtual void        asyncModify( Key driveKey, ModifyRequest  modifyRequest ) = 0;
+    virtual void        asyncModify( Key driveKey, ModificationRequest  modifyRequest ) = 0;
 
     virtual void        asyncCancelModify( Key driveKey, Hash256  transactionHash ) = 0;
     

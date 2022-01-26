@@ -242,7 +242,7 @@ public:
     // It will be called when transaction could not be completed
     virtual void modifyTransactionEndedWithError( Replicator& replicator,
                                                   const sirius::Key&             driveKey,
-                                                  const ModifyRequest&           modifyRequest,
+                                                  const ModificationRequest&     modifyRequest,
                                                   const std::string&             reason,
                                                   int                            errorCode )  override
     {
@@ -250,7 +250,7 @@ public:
     }
 
     // It will initiate the approving of modify transaction
-    virtual void modifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
+    virtual void modifyApprovalTransactionIsReady( Replicator& replicator, const ApprovalTransactionInfo& transactionInfo )  override
     {
         EXLOG( "modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName() );
         const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
@@ -284,7 +284,7 @@ public:
     }
 
     // It will initiate the approving of single modify transaction
-    virtual void singleModifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo )  override
+    virtual void singleModifyApprovalTransactionIsReady( Replicator& replicator, const ApprovalTransactionInfo& transactionInfo )  override
     {
         EXLOG( "singleModifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName() );
     }
@@ -701,7 +701,7 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const ReplicatorList&          replicatorList,
                          uint64_t                       maxDataSize )
 {
-    replicator->asyncModify( DRIVE_PUB_KEY, ModifyRequest{ clientDataInfoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey } );
+    replicator->asyncModify( DRIVE_PUB_KEY, ModificationRequest{ clientDataInfoHash, transactionHash, maxDataSize, replicatorList, clientPublicKey } );
 }
 
 //

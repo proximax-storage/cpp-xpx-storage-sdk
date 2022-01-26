@@ -76,7 +76,7 @@ namespace sirius::emulator::types {
         return approvalTransactionInfo;
     }
 
-    RpcModifyApprovalTransactionInfo RpcModifyApprovalTransactionInfo::getRpcModifyApprovalTransactionInfo(const std::array<uint8_t,32>& replicatorPubKey, drive::ApprovalTransactionInfo&& transactionInfo) {
+    RpcModifyApprovalTransactionInfo RpcModifyApprovalTransactionInfo::getRpcModifyApprovalTransactionInfo(const std::array<uint8_t,32>& replicatorPubKey, const drive::ApprovalTransactionInfo& transactionInfo) {
         types::RpcModifyApprovalTransactionInfo rpcModifyApprovalTransactionInfo;
         rpcModifyApprovalTransactionInfo.m_drivePubKey = transactionInfo.m_driveKey;
         rpcModifyApprovalTransactionInfo.m_replicatorPubKey = replicatorPubKey;

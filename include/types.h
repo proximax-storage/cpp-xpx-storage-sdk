@@ -94,7 +94,7 @@ namespace sirius {
         mobj &operator=(mobj &&obj) = default;
 
         template<typename... Args>
-        mobj(Args... args) : std::unique_ptr<T>(new T{args...})
+        mobj(Args&&... args) : std::unique_ptr<T>(new T{std::forward<Args>(args)...})
         {
         }
 

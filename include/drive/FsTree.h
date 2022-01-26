@@ -40,10 +40,14 @@ public:
         arch( m_size );
     }
 
+    const lt_handle& getLtHandle() const
+    {
+        return m_ltHandle;
+    }
+
 private:
     friend class Folder;
     friend class FsTree;
-    friend class CatchingUpTask;
 
     File( std::string name, const InfoHash hash, size_t size ) : m_name(name), m_hash(hash), m_size(size) {}
 
@@ -54,6 +58,7 @@ private:
     size_t      m_size;
 
 private:
+
     // only for drive side
     mutable lt_handle   m_ltHandle;
 };
@@ -66,8 +71,14 @@ public:
     Folder() = default;
     Folder( std::string folderName ) : m_name(folderName) {}
 
-    const std::string&          name()   const { return m_name; }
-    const std::list<Child>&   childs() const { return m_childs; }
+    const std::string& name() const
+    { return m_name; }
+
+    const std::list<Child>& childs() const
+    { return m_childs; }
+
+    std::string& name()
+    { return m_name; }
 
     bool initWithFolder( const std::string& pathToFolder );
     void dbgPrint( std::string leadingSpaces = "" ) const;
@@ -102,8 +113,6 @@ protected:
 
 protected:
     friend class FsTree;
-    friend class CatchingUpTask;
-    friend class ModificationRequestDriveTask;
 
     std::string         m_name;
     std::list<Child>  m_childs;

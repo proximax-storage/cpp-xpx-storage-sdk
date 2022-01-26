@@ -52,7 +52,7 @@ namespace sirius::drive::test
             }
 
             void modifyApprovalTransactionIsReady(Replicator &replicator,
-                                                  ApprovalTransactionInfo &&transactionInfo) override
+                                                  const ApprovalTransactionInfo & transactionInfo) override
             {
                 EXLOG("modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
                 const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);

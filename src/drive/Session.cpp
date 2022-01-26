@@ -296,7 +296,7 @@ public:
 //            tHandle.set_download_limit(100000);
 //        }
 
-//        connectPeers( tHandle, list );
+        connectPeers( tHandle, list );
 
         return tHandle;
     }

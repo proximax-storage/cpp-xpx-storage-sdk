@@ -9,6 +9,7 @@
 #include "log.h"
 #include "plugins.h"
 #include "crypto/Signer.h"
+#include "Session.h"
 #include <boost/asio/ip/tcp.hpp>
 #include <cereal/archives/binary.hpp>
 #include <memory>
@@ -35,6 +36,33 @@ class Replicator;
     };
 
     using DriveModifyHandler = std::function<void( modify_status::code, const FlatDrive& drive, const std::string& error )>;
+
+    struct ModificationRequest
+    {
+        InfoHash m_clientDataInfoHash;
+        Hash256 m_transactionHash;
+        uint64_t m_maxDataSize;
+        ReplicatorList m_replicators;
+        Key m_clientPublicKey;
+
+        bool m_isCanceled = false;
+    };
+
+    struct CatchingUpRequest
+    {
+        InfoHash m_rootHash;
+        Hash256 m_modifyTransactionHash;
+    };
+
+    struct ModificationCancelRequest
+    {
+        Hash256 m_modifyTransactionHash;
+    };
+
+    struct DriveClosureRequest
+    {
+        Hash256 m_removeDriveTx;
+    };
 
     struct DownloadRequest {
         Key                  m_channelKey;
@@ -429,10 +457,10 @@ class Replicator;
         // (also VerifyApprovalInfo)
         
         // It will initiate the approving of modify transaction
-        virtual void modifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
+        virtual void modifyApprovalTransactionIsReady( Replicator& replicator, const ApprovalTransactionInfo& transactionInfo ) = 0;
         
         // It will initiate the approving of single modify transaction
-        virtual void singleModifyApprovalTransactionIsReady( Replicator& replicator, ApprovalTransactionInfo&& transactionInfo ) = 0;
+        virtual void singleModifyApprovalTransactionIsReady( Replicator& replicator, const ApprovalTransactionInfo& transactionInfo ) = 0;
         
         // It will be called when transaction could not be completed
         virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& ) = 0;
@@ -510,9 +538,9 @@ class Replicator;
         // It will be called when modification ended with error (for example small disc space)
         virtual void modifyTransactionEndedWithError( Replicator&               replicator,
                                                      const sirius::Key&         driveKey,
-                                                     const ModifyRequest&       modifyRequest,
+                                                     const ModificationRequest& modifyRequest,
                                                      const std::string&         reason,
-                                                     int                        errorCode ) = 0;        
+                                                     int                        errorCode ) = 0;
     };
 
     //
@@ -527,26 +555,22 @@ class Replicator;
         virtual void terminate() = 0;
 
         virtual const Key& drivePublicKey() const = 0;
-        
+
         virtual uint64_t maxSize() const = 0;
 
         virtual InfoHash rootHash() const = 0;
 
-        virtual uint64_t sandboxFsTreeSize() const = 0;
-        
-        virtual std::vector<Key> getReplicators() = 0;
+        virtual const std::vector<Key>& getReplicators() const = 0;
 
-        virtual Key      getClient() const = 0;
+        virtual const Key&      getClient() const = 0;
 
         virtual void     updateReplicators(const std::vector<Key>& replicators) = 0;
 
-        virtual void     getSandboxDriveSizes( uint64_t& metaFilesSize, uint64_t&  driveSize ) const = 0;
+        virtual void     startModifyDrive( mobj<ModificationRequest>&& modifyRequest ) = 0;
 
-        virtual void     startModifyDrive( ModifyRequest&& modifyRequest ) = 0;
+        virtual void     cancelModifyDrive( mobj<ModificationCancelRequest>&& request ) = 0;
 
-        virtual void     cancelModifyDrive( const Hash256& transactionHash ) = 0;
-
-        virtual void     startDriveClosing( const Hash256& transactionHash ) = 0;
+        virtual void     startDriveClosing( mobj<DriveClosureRequest>&& request ) = 0;
 
         virtual void     startVerification( mobj<VerificationRequest>&& request ) = 0;
 
@@ -554,13 +578,13 @@ class Replicator;
 
         virtual void     onVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
 
-        virtual void     processVerificationCode( mobj<VerificationCodeInfo>&& info ) = 0;
+        virtual void     onVerificationCodeReceived( mobj<VerificationCodeInfo>&& info ) = 0;
 
-        virtual void     processVerificationOpinion( mobj<VerifyApprovalTxInfo>&& info ) = 0;
+        virtual void     onVerificationOpinionReceived( mobj<VerifyApprovalTxInfo>&& info ) = 0;
 
 //        virtual void     loadTorrent( const InfoHash& fileHash ) = 0;
-        
-        virtual void     onOpinionReceived( const ApprovalTransactionInfo& anOpinion ) = 0;
+
+        virtual void     onOpinionReceived( mobj<ApprovalTransactionInfo>&& anOpinion ) = 0;
 
         virtual void     onApprovalTransactionHasBeenPublished( const PublishedModificationApprovalTransactionInfo& transaction ) = 0;
 
@@ -570,19 +594,17 @@ class Replicator;
 
         // actualRootHash should not be empty if it is called from replicator::asyncAddDrive()
         //virtual void     startCatchingUp( std::optional<CatchingUpRequest>&& actualRootHash ) = 0;
-        
+
         virtual bool     isOutOfSync() const = 0;
-        
+
         // It will be called by replicator
-        virtual const std::optional<Hash256>& closingTxHash() const = 0;
-        
-        virtual void removeAllDriveData() = 0;
+        virtual std::optional<Hash256> closingTxHash() const = 0;
 
         virtual const ReplicatorList&  replicatorList() const = 0;
 
         // for testing and debugging
         virtual void dbgPrintDriveStatus() = 0;
-        
+
         static std::string driveIsClosingPath( const std::string& driveRootPath );
     };
 

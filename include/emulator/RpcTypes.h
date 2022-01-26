@@ -91,7 +91,7 @@ namespace sirius::emulator::types {
     struct PLUGIN_API RpcModifyApprovalTransactionInfo {
         drive::ApprovalTransactionInfo getApprovalTransactionInfo() const;
 
-        static RpcModifyApprovalTransactionInfo getRpcModifyApprovalTransactionInfo(const std::array<uint8_t,32>& replicatorPubKey, drive::ApprovalTransactionInfo&& transactionInfo);
+        static RpcModifyApprovalTransactionInfo getRpcModifyApprovalTransactionInfo(const std::array<uint8_t,32>& replicatorPubKey, const drive::ApprovalTransactionInfo& transactionInfo);
 
         void setOpinions(const std::vector<drive::SingleOpinion>& opinions);
 

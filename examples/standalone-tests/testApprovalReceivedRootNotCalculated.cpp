@@ -47,7 +47,7 @@ namespace sirius::drive::test
         }
 
         void
-        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override
+        modifyApprovalTransactionIsReady(Replicator &replicator, const ApprovalTransactionInfo &transactionInfo) override
         {
             TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transactionInfo));
 
@@ -62,7 +62,7 @@ namespace sirius::drive::test
         }
 
         virtual void singleModifyApprovalTransactionIsReady(Replicator &replicator,
-                                                            ApprovalTransactionInfo &&transactionInfo) override
+                                                            const ApprovalTransactionInfo &transactionInfo) override
         {
 
             ASSERT_EQ(replicator.keyPair().publicKey(), m_replicators.back()->keyPair().publicKey());

@@ -52,7 +52,7 @@ namespace sirius::drive::test
         std::optional<Hash256> m_forbiddenTransaction;
 
         void
-        modifyApprovalTransactionIsReady(Replicator &replicator, ApprovalTransactionInfo &&transactionInfo) override
+        modifyApprovalTransactionIsReady(Replicator &replicator, const ApprovalTransactionInfo &transactionInfo) override
         {
             if (m_forbiddenTransaction and m_forbiddenTransaction->array() == transactionInfo.m_modifyTransactionHash)
             {

@@ -21,6 +21,8 @@
 
 namespace sirius::drive {
 
+namespace fs = std::filesystem;
+
 //
 // DownloadLimiter - it manages all user files at replicator side
 //

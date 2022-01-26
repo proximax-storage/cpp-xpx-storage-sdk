@@ -345,7 +345,7 @@ public:
         });//post
     }
 
-    void asyncModify( Key driveKey, ModifyRequest modifyRequest ) override
+    void asyncModify( Key driveKey, ModificationRequest modifyRequest ) override
     {
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
@@ -964,11 +964,6 @@ public:
         std::erase_if( m_modifyDriveMap, [&driveKey] (const auto& item) {
             return item.second.m_driveKey == driveKey;
         });
-
-        auto driveIt = m_driveMap.find( driveKey );
-        _ASSERT( driveIt != m_driveMap.end() );
-
-        driveIt->second->removeAllDriveData();
     }
 
     void finishDriveClosure ( const Key& driveKey ) override
@@ -1239,7 +1234,7 @@ public:
 
         if ( auto driveIt = m_driveMap.find( info->m_driveKey ); driveIt != m_driveMap.end() )
         {
-            driveIt->second->processVerificationCode( std::move(info) );
+            driveIt->second->onVerificationCodeReceived( std::move(info) );
             return;
         }
 
@@ -1264,7 +1259,7 @@ public:
 
         if ( auto driveIt = m_driveMap.find( info->m_driveKey ); driveIt != m_driveMap.end() )
         {
-            driveIt->second->processVerificationOpinion( std::move(info) );
+            driveIt->second->onVerificationOpinionReceived( std::move(info) );
             return;
         }
 
