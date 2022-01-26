@@ -1,6 +1,17 @@
 cmake -DCMAKE_CONFIGURATION_TYPES=Debug -GXcode ..
 cmake -DCMAKE_BUILD_TYPE=Debug -GXcode ..
 
+
+-----modifyRequest
+
+DownloadChannelInfo::m_replicatorsList2;      //todo must be "synchronized?" with drive.m_replicatorList (in higher versions?)
+
+1) А если 2/3 не наберется
+2) Зомби-репликаторы
+3) asyncAddDownloadChannelInfo( alreadyExist )
+4) iarchive(is) - try/catch
+
+
 RpcReplicatorClient.cpp
 RpcTypes.cpp
 

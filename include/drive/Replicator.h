@@ -71,9 +71,9 @@ struct DownloadOpinionMapValue
         arch(m_eventHash);
         arch(m_downloadChannelId);
         arch(m_opinions);
+        //(???) are they needed?
         arch(m_modifyApproveTransactionSent);
         arch(m_approveTransactionReceived);
-        //TODO ??m_creationTime
     }
 };
 
@@ -83,6 +83,7 @@ using DownloadOpinionMap = std::map<std::array<uint8_t,32>, DownloadOpinionMapVa
 struct DownloadChannelInfo
 {
     bool m_isModifyTx;
+    bool m_isSyncronizing;
 
     uint64_t m_prepaidDownloadSize;
     uint64_t m_totalReceiptsSize = 0;
@@ -266,19 +267,15 @@ public:
     // It is called when the Replicator is removed from the Drive
     virtual void asyncRemoveDrive( Key driveKey ) = 0;
 
-    // It is called when the Replicator becomes the member of another Replicator's shard
-    virtual void asyncAddUploadShard( Key driveKey, Key shardOwner ) = 0;
+    // It notifyes about changes in drive replicator list
+    virtual void asyncReplicatorAdded( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
+    virtual void asyncReplicatorRemoved( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
 
-    // It is called when the Replicator is removed form the members of another Replicator's shard
-    virtual void asyncRemoveUploadShard( Key driveKey, Key shardOwner ) = 0;
-
-    // It is called when a new Replicator is added to this Replicator's shard,
-    // and so we are allowed to download from the Replicator
-    virtual void asyncAddToMyUploadShard( Key driveKey, Key replicator ) = 0;
-
-    // It is called when a Replicator is removed from this Replicator's shard,
-    // and so we are not allowed to download from the Replicator
-    virtual void asyncRemoveFromMyUploadShard( Key driveKey, Key replicator ) = 0;
+    // It notifyes about changes in drive shard
+    virtual void asyncAddShardDistributor( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
+    virtual void asyncRemoveShardDistributor( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
+    virtual void asyncAddShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
+    virtual void asyncRemoveShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
 
     // it starts drive closing
     virtual void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) = 0;
@@ -296,7 +293,7 @@ public:
     virtual void        asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) = 0;
 
     // It is called when Replicator is added to the Download Channel Shard
-    virtual void        asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&&  downloadRequest ) = 0;
+    virtual void        asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&&  downloadRequest, bool mustBeSyncronized = false ) = 0;
 
     // It is called when Replicator leaves the Download Channel Shard
     virtual void        asyncRemoveDownloadChannelInfo( Key driveKey, Key channelId ) = 0;
@@ -338,7 +335,7 @@ public:
     virtual void        asyncVerifyApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 verificationId ) = 0;
 
     // It continues drive closing (initiates DownloadApprovalTransaction and then removes drive)
-    virtual void        closeDriveChannels( const Hash256& blockHash, const Key& driveKey ) = 0;
+    virtual void        closeDriveChannels( const mobj<Hash256>& blockHash, const Key& driveKey ) = 0;
     
     virtual void        finishDriveClosure( const Key& driveKey ) = 0;
 
@@ -377,10 +374,30 @@ public:
                                      const std::array<uint8_t,32>&  replicatorKey,
                                      const std::string&             message ) = 0;
 
-    // It was moveed into ;session_delegate'
-    //virtual void        onMessageReceived( const std::string& query, const std::string& ) = 0;
-    
+    // will be called from Sesion
+    virtual void        onMessageReceived( const std::string& query, const std::string&, const boost::asio::ip::udp::endpoint& source ) = 0;
+    virtual bool        createSyncOpinion( const std::array<uint8_t,32>& driveKey,
+                                           const std::array<uint8_t,32>& channelId,
+                                           DownloadOpinion& outOpinion ) = 0;
+
+    virtual void        onSyncDnOpinionReceived( const std::string& retString ) = 0;
+
+    // will be called from Sesion
+    // when it receives message from another replicator
+    // (must be implemented by DownloadLimiter)
+    virtual void acceptReceiptFromAnotherReplicator( const std::array<uint8_t,32>&  downloadChannelId,
+                                                     const std::array<uint8_t,32>&  clientPublicKey,
+                                                     const std::array<uint8_t,32>&  replicatorPublicKey,
+                                                     uint64_t                       downloadedSize,
+                                                     const std::array<uint8_t,64>&  signature )
+    {
+        // 'client' does nothing
+        return;
+    }
+
     virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) const = 0;
+
+    virtual DownloadChannelInfo* getDownloadChannelInfo( const std::array<uint8_t,32>& driveKey, const std::array<uint8_t,32>& downloadChannelHash ) = 0;
 
     //virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;
 

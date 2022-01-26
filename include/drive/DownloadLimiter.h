@@ -157,6 +157,12 @@ public:
             return false;
         }
 
+        if ( it->second.m_isSyncronizing )
+        {
+            _LOG ("Check Download Limit: channel is syncronizing");
+            return false;
+        }
+
         auto replicatorIt = it->second.m_replicatorUploadMap.find( publicKey() );
 
         if( replicatorIt == it->second.m_replicatorUploadMap.end() )
@@ -188,7 +194,8 @@ public:
                          uint64_t                       prepaidDownloadSize,
                          const Key&                     driveKey,
                          const ReplicatorList&          replicatorsList,
-                         const std::vector<std::array<uint8_t,32>>&  clients )
+                         const std::vector<std::array<uint8_t,32>>&  clients,
+                         bool                           willBeSyncronized )
     {
         DBG_MAIN_THREAD
 
@@ -196,10 +203,11 @@ public:
         {
             // It is 'upgrade' of existing 'downloadChannel'
 
-            if ( it->second.m_prepaidDownloadSize <= prepaidDownloadSize )
+            if ( it->second.m_prepaidDownloadSize >= prepaidDownloadSize )
             {
                 _LOG_ERR( "addChannelInfo: invalid prepaidDownloadSize: " << it->second.m_prepaidDownloadSize << " <= " << prepaidDownloadSize );
             }
+            it->second.m_isSyncronizing      = willBeSyncronized;
             it->second.m_prepaidDownloadSize = prepaidDownloadSize;
 
 //            Possible problem with receipts
@@ -220,7 +228,8 @@ public:
                 map.insert( { it.array(), {}} );
         }
         
-        m_downloadChannelMap[channelId] = DownloadChannelInfo{ false, prepaidDownloadSize, 0, 0, 0, driveKey.array(), replicatorsList, map, clients, {} };
+        m_downloadChannelMap[channelId] = DownloadChannelInfo{ false,
+            willBeSyncronized, prepaidDownloadSize, 0, 0, 0, driveKey.array(), replicatorsList, map, clients, {} };
 
         if ( auto backupIt = m_downloadChannelMapBackup.find(channelId); backupIt != m_downloadChannelMapBackup.end() )
         {
@@ -287,7 +296,7 @@ public:
         //
         {
             //_LOG( "driveKey: " << driveKey )
-            m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, dataSize, 0, 0, 0, driveKey.array(), replicatorsList, {}, clients, {}};
+            m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, false, dataSize, 0, 0, 0, driveKey.array(), replicatorsList, {}, clients, {}};
         }
     }
     

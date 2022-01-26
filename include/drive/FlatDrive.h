@@ -525,7 +525,11 @@ class Replicator;
                                      const sirius::Key&         driveKey,
                                      const Hash256&             transactionHash )
         {
-            //todo make it pure virtual function?
+        }
+
+        virtual void driveIsRemoved(  Replicator&                replicator,
+                                      const sirius::Key&         driveKey )
+        {
         }
 
         // It will be called in response on CancelModifyTransaction
@@ -564,7 +568,8 @@ class Replicator;
 
         virtual const Key&      getClient() const = 0;
 
-        virtual void     updateReplicators(const std::vector<Key>& replicators) = 0;
+        virtual void     replicatorAdded( mobj<Key>&& replicatorKey ) = 0;
+        virtual void     replicatorRemoved( mobj<Key>&& replicatorKey ) = 0;
 
         virtual void     startModifyDrive( mobj<ModificationRequest>&& modifyRequest ) = 0;
 
@@ -598,7 +603,9 @@ class Replicator;
         virtual bool     isOutOfSync() const = 0;
 
         // It will be called by replicator
-        virtual std::optional<Hash256> closingTxHash() const = 0;
+        virtual bool isItClosingTxHash( const Hash256& eventHash ) const = 0;
+        
+        virtual void removeAllDriveData() = 0;
 
         virtual const ReplicatorList&  replicatorList() const = 0;
 

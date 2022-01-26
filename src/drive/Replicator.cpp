@@ -11,6 +11,7 @@
 #include "drive/Session.h"
 #include "drive/DownloadLimiter.h"
 #include "drive/EndpointsManager.h"
+#include "DnOpinionSyncronizer.h"
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/array.hpp>
@@ -26,7 +27,7 @@
 namespace sirius::drive {
 
 #define CHANNELS_NOT_OWNED_BY_DRIVES
-#define MINI_SIGNATURE
+//#define MINI_SIGNATURE
 
 //
 // DefaultReplicator
@@ -51,6 +52,7 @@ private:
     int         m_verifyApprovalTransactionTimerDelayMs   = 10 * 1000;
     int         m_shareMyDownloadOpinionTimerDelayMs      = 5 * 60 * 1000;
 
+
     bool        m_replicatorIsDestructing = false;
 
     bool        m_useTcpSocket;
@@ -58,7 +60,8 @@ private:
     ReplicatorEventHandler& m_eventHandler;
     DbgReplicatorEventHandler*  m_dbgEventHandler;
 
-    EndpointsManager m_endpointsManager;
+    EndpointsManager        m_endpointsManager;
+    DnOpinionSyncronizer    m_dnOpinionSyncronizer;
 
     // key is verify tx
     std::map<std::array<uint8_t,32>, VerifyOpinion> m_verifyApprovalMap;
@@ -83,7 +86,8 @@ public:
         m_useTcpSocket( useTcpSocket ),
         m_eventHandler( handler ),
         m_dbgEventHandler( dbgEventHandler ),
-        m_endpointsManager( *this, bootstraps, m_dbgOurPeerName)
+        m_endpointsManager( *this, bootstraps, m_dbgOurPeerName),
+        m_dnOpinionSyncronizer( *this )
     {
     }
 
@@ -99,6 +103,8 @@ public:
         DBG_MAIN_THREAD
 
         m_replicatorIsDestructing = true;
+
+        m_dnOpinionSyncronizer.stop();
 
         for( auto& [key,drive]: m_driveMap )
         {
@@ -161,6 +167,7 @@ public:
                                              }
                                          },
                                          weak_from_this(),
+                                         weak_from_this(),
                                          bootstrapEndpoints,
                                          m_useTcpSocket);
 
@@ -184,6 +191,8 @@ public:
 
         removeDriveDataOfBrokenClose();
         loadDownloadChannelMap();
+
+        m_dnOpinionSyncronizer.start( m_session );
     }
     
     void removeDriveDataOfBrokenClose()
@@ -293,12 +302,7 @@ public:
             m_endpointsManager.addEndpointsEntries( driveRequest.m_replicators );
             m_endpointsManager.addEndpointEntry( driveRequest.m_client, false );
 
-    //            if ( actualRootHash && drive->rootHash() != actualRootHash )
-    //            {
-    //                drive->startCatchingUp( CatchingUpRequest{ *actualRootHash, {} } );
-    //            }
-
-        // Notify
+            // Notify
             if ( m_dbgEventHandler )
             {
                 m_dbgEventHandler->driveAdded(drive->drivePublicKey());
@@ -308,20 +312,136 @@ public:
 
     void asyncRemoveDrive( Key driveKey ) override
     {
-        //(???) Чем это отличается от asyncCloseDrive
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            //(???) What will happen after restart?
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+                drive->startDriveClosing( {} );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
     }
 
-    void asyncAddUploadShard( Key driveKey, Key shardOwner ) override
-    {}
+    void asyncReplicatorAdded( Key driveKey, mobj<Key>&& replicatorKey ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
 
-    void asyncAddToMyUploadShard( Key driveKey, Key replicator ) override
-    {}
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+                drive->replicatorAdded( std::move(replicatorKey) );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
+    }
 
-    void asyncRemoveUploadShard( Key driveKey, Key shardOwner ) override
-    {}
+    void asyncReplicatorRemoved( Key driveKey, mobj<Key>&& replicatorKey ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
 
-    void asyncRemoveFromMyUploadShard( Key driveKey, Key replicator ) override
-    {}
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+                drive->replicatorRemoved( std::move(replicatorKey) );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
+    }
+
+
+    void asyncAddShardDistributor( Key driveKey, mobj<Key>&& replicatorKey ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+//                drive->( std::move(replicatorKey) );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
+    }
+
+    void asyncRemoveShardDistributor( Key driveKey, mobj<Key>&& replicatorKey ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+//                drive->( std::move(replicatorKey) );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
+    }
+
+    void asyncAddShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+//                drive->( std::move(replicatorKey) );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
+    }
+
+    void asyncRemoveShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+//                drive->( std::move(replicatorKey) );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
+    }
 
     void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {
@@ -412,7 +532,7 @@ public:
     
     void asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& request ) override
     {
-#ifndef DISABLE_VERIFICATIONS
+#ifdef ENABLE_VERIFICATIONS
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
@@ -455,7 +575,7 @@ public:
          });//post
     }
 
-    void asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&& request ) override
+    void asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&& request, bool mustBeSyncronized ) override
     {
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
@@ -473,9 +593,43 @@ public:
                             request.m_prepaidDownloadSize,
                             driveKey,
                             request.m_replicators,
-                            clientList);
+                            clientList,
+                            mustBeSyncronized );
+
+           if ( mustBeSyncronized )
+           {
+               if ( std::shared_ptr<sirius::drive::FlatDrive> drive = getDrive(driveKey); drive )
+               {
+                   auto replicators = drive->replicatorList();
+                   size_t consensusThreshould = std::min( (replicators.size()*3)/2, size_t(4) );
+
+                   m_dnOpinionSyncronizer.startSync( request.m_channelKey.array(), drive, consensusThreshould );
+               }
+               else
+               {
+                   _LOG_WARN( "unknown drive:" << driveKey );
+               }
+           }
         });//post
     }
+
+    virtual DownloadChannelInfo* getDownloadChannelInfo( const std::array<uint8_t,32>& driveKey, const std::array<uint8_t,32>& downloadChannelHash ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( auto infoIt = m_downloadChannelMap.find( downloadChannelHash ); infoIt != m_downloadChannelMap.end() )
+        {
+            if ( infoIt->second.m_driveKey != driveKey )
+            {
+                _LOG_ERR( "Invalid driveKey: " << Key(driveKey) << " vs: " << Key(infoIt->second.m_driveKey) );
+                return nullptr;
+            }
+            return &infoIt->second;
+        }
+
+        return nullptr;
+    }
+
 
     void asyncRemoveDownloadChannelInfo( Key driveKey, Key channelId ) override
     {
@@ -631,6 +785,44 @@ public:
         return myOpinion;
     }
 
+    bool createSyncOpinion( const std::array<uint8_t,32>& driveKey, const std::array<uint8_t,32>& channelId, DownloadOpinion& opinion ) override
+    {
+        DBG_MAIN_THREAD
+
+        opinion.m_replicatorKey = publicKey();
+        opinion.m_downloadLayout.clear();
+
+        if ( auto drive = getDrive( driveKey ); drive )
+        {
+            if ( auto channelInfoIt = m_downloadChannelMap.find(channelId); channelInfoIt != m_downloadChannelMap.end() )
+            {
+                DownloadChannelInfo& channelInfo = channelInfoIt->second;
+
+                // add our uploaded size
+                opinion.m_downloadLayout.push_back( { publicKey(), channelInfo.m_uploadedSize } );
+
+                // add other uploaded sizes
+                for( const auto& replicatorKey : drive->replicatorList() )
+                {
+                    if ( auto downloadedIt = channelInfo.m_replicatorUploadMap.find( replicatorKey.array());
+                        downloadedIt != channelInfo.m_replicatorUploadMap.end() )
+                    {
+                        opinion.m_downloadLayout.push_back( {downloadedIt->first, downloadedIt->second.m_uploadedSize} );
+                    }
+                }
+
+                // sign our opinion
+                opinion.Sign( keyPair(), driveKey, channelId );
+
+                return true;
+            }
+            return false;
+        }
+
+        _LOG_ERR( "drive not found" );
+        return false;
+    }
+
     void addOpinion(DownloadApprovalTransactionInfo&& opinion)
     {
         DBG_MAIN_THREAD
@@ -732,7 +924,7 @@ public:
         });//post
     }
 
-    void doInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId )
+    void doInitiateDownloadApprovalTransactionInfo( const Hash256& blockHash, const Hash256& channelId )
     {
         DBG_MAIN_THREAD
         
@@ -798,7 +990,7 @@ public:
     };
 
     // It is called when drive is closing
-    virtual void closeDriveChannels( const Hash256& blockHash, const Key& driveKey ) override
+    virtual void closeDriveChannels( const mobj<Hash256>& blockHash, const Key& driveKey ) override
     {
         DBG_MAIN_THREAD
 
@@ -810,14 +1002,17 @@ public:
         });
 
 #ifndef CHANNELS_NOT_OWNED_BY_DRIVES
-        for( auto& [channelId,channelInfo] : m_downloadChannelMap )
+        if ( blockHash )
         {
-            if ( channelInfo.m_driveKey == driveKey.array() && !channelInfo.m_isModifyTx )
+            for( auto& [channelId,channelInfo] : m_downloadChannelMap )
             {
-                doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
-                
-                // drive will be deleted in 'asyncDownloadApprovalTransactionHasBeenPublished()'
-                deleteDriveImmediately = false;
+                if ( channelInfo.m_driveKey == drive.drivePublicKey().array() && !channelInfo.m_isModifyTx )
+                {
+                    doInitiateDownloadApprovalTransactionInfo( *blockHash, channelId );
+
+                    // drive will be deleted in 'asyncDownloadApprovalTransactionHasBeenPublished()'
+                    deleteDriveImmediately = false;
+                }
             }
         }
 #endif
@@ -930,7 +1125,7 @@ public:
                 {
                     bool driveWillBeDeleted = false;
 
-                    if ( drive->closingTxHash() == eventHash )
+                    if ( drive->isItClosingTxHash( eventHash ) )
                     {
                         channelIt->second.m_isClosed = true;
 
@@ -1123,7 +1318,7 @@ public:
     virtual void sendMessage( const std::string&                      query,
                               const std::array<uint8_t,32>&           replicatorKey,
                               const std::vector<uint8_t>&             message ) override
-  {
+    {
         DBG_MAIN_THREAD
 
         if ( m_replicatorIsDestructing )
@@ -1134,14 +1329,21 @@ public:
         auto endpointTo = m_endpointsManager.getEndpoint( replicatorKey );
         if ( endpointTo )
         {
+            __LOG( "*** sendMessage: " << query << " to: " << *endpointTo << " " << int(replicatorKey[0]) );
             m_session->sendMessage( query, { endpointTo->address(), endpointTo->port() }, message );
         }
-  }
+        else
+        {
+            __LOG( "sendMessage: absent: " << int(replicatorKey[0]) );
+        }
+    }
 
     virtual void onMessageReceived( const std::string& query,
                                     const std::string& message,
-                                    const boost::asio::ip::udp::endpoint& source ) override try
+                                    const boost::asio::ip::udp::endpoint& source ) override
     {
+        try {
+
         DBG_MAIN_THREAD
 
         //todo
@@ -1215,13 +1417,50 @@ public:
             return;
         }
 
-        assert(0);
-    }
-    catch(...)
-    {
-        _LOG_ERR( "onMessageReceived: invalid message format: query=" << query );
+        _ASSERT(0);
+
+        } catch(...)
+        {
+            _LOG_ERR( "onMessageReceived: invalid message format: query=" << query );
+        }
     }
 
+    void onSyncDnOpinionReceived( const std::string& retString ) override
+    {
+        try
+        {
+            // parse response
+            //
+            std::istringstream is( retString, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            uint8_t hasResponse;
+            iarchive( hasResponse );
+            if ( !hasResponse )
+            {
+                // no opinion
+                return;
+            }
+
+            std::array<uint8_t,32> driveKey;
+            std::array<uint8_t,32> channelHash;
+            mobj<DownloadOpinion> opinion{DownloadOpinion{}};
+            iarchive( driveKey );
+            iarchive( channelHash );
+            iarchive( *opinion );
+
+            if ( !opinion->Verify( driveKey, channelHash ) )
+            {
+                _LOG_WARN( "invalid download sync opinion from " << Key(opinion->m_replicatorKey) )
+            }
+
+            m_dnOpinionSyncronizer.addSyncOpinion( channelHash, std::move(opinion), m_downloadChannelMap );
+        }
+        catch(...)
+        {
+            _LOG_WARN( "invalid 'get_dn_rcpts' response" )
+            return;
+        }
+    }
 
     void processVerificationCode( mobj<VerificationCodeInfo>&& info )
     {

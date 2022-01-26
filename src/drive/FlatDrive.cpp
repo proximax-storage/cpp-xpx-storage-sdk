@@ -355,7 +355,7 @@ private:
 //
 class DefaultFlatDrive: public FlatDrive,
                         public TaskContext {
-    
+
     // List of replicators that support this drive
     ReplicatorList m_replicatorList;
 
@@ -436,7 +436,7 @@ public:
 
         m_backgroundExecutor.stop();
         interruptVerification();
-        
+
 #if 0
         std::set<lt::torrent_handle> toBeRemovedTorrents;
         toBeRemovedTorrents.insert( m_fsTreeLtHandle );
@@ -483,25 +483,26 @@ public:
         return m_client;
     }
 
-    void updateReplicators(const ReplicatorList& replicators) override
+    void replicatorAdded( mobj<Key>&& replicatorKey ) override
     {
-        DBG_MAIN_THREAD
-
-        if (replicators.empty()) {
-            _LOG_ERR( "ReplicatorList is empty!");
-            return;
-        }
-
-        for (const auto& ri : replicators) {
-            const auto& r = std::find(m_replicatorList.begin(), m_replicatorList.end(), ri);
-            if(r != m_replicatorList.end()) {
-                *r = ri;
-            } else {
-                m_replicatorList.push_back(ri);
+        if ( *replicatorKey != m_replicator.replicatorKey() )
+        {
+            if ( std::find( m_replicatorList.begin(), m_replicatorList.end(), *replicatorKey ) == m_replicatorList.end() )
+            {
+                m_replicatorList.push_back( *replicatorKey );
             }
         }
     }
-    
+
+    void replicatorRemoved( mobj<Key>&& replicatorKey ) override
+    {
+        std::remove_if( m_replicatorList.begin(), m_replicatorList.end(), [&] (const Key& it)
+        {
+            return it == *replicatorKey;
+        });
+    }
+
+
     void executeOnSessionThread( const std::function<void()>& task ) override
     {
         if ( auto session = m_session.lock(); session )
@@ -672,16 +673,11 @@ public:
         m_verificationTask = createDriveVerificationTask( std::move(m_deferredVerificationRequest), std::move(receivedOpinions), std::move(receivedCodes), *this);
         m_verificationTask->run();
     }
-    
+
+
     //
     // CLOSE/REMOVE
     //
-
-    void interruptVerification()
-    {
-
-    }
-
 
     void startVerification( mobj<VerificationRequest>&& request ) override
     {
@@ -703,11 +699,6 @@ public:
         {
             runVerificationTask();
         }
-    }
-
-    void runDriveClosingTask( std::optional<Hash256>&& transactionHash )
-    {
-
     }
 
     /// Information Received from Other Replicators
@@ -878,13 +869,10 @@ public:
         return m_task && m_task->getTaskType() == DriveTaskType::CATCHING_UP;
     }
 
-    std::optional<Hash256> closingTxHash() const override
+    bool isItClosingTxHash( const Hash256& eventHash ) const override
     {
-        if ( !m_closeDriveRequest )
-        {
-            return {};
-        }
-        return m_closeDriveRequest->m_removeDriveTx;
+        DBG_MAIN_THREAD
+        return m_removeDriveTx && (*m_removeDriveTx == eventHash);
     }
 
     const ReplicatorList&  replicatorList() const override

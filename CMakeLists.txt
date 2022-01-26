@@ -47,6 +47,6 @@ endif()
 
 add_subdirectory(src)
 
-if (XPX_STORAGE_SDK_BUILD_EXAMPLES)
-    add_subdirectory(examples)
-endif()
+#if (XPX_STORAGE_SDK_BUILD_EXAMPLES)
+#    add_subdirectory(examples)
+#endif()
