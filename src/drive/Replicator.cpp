@@ -274,11 +274,11 @@ public:
             }
 
             // Exclude itself from replicator list
-            for( auto it = driveRequest.m_replicators.begin();  it != driveRequest.m_replicators.end(); it++ )
+            for( auto it = driveRequest.m_actualReplicatorList.begin();  it != driveRequest.m_actualReplicatorList.end(); it++ )
             {
                 if ( *it == publicKey() )
                 {
-                    driveRequest.m_replicators.erase( it );
+                    driveRequest.m_actualReplicatorList.erase( it );
                     break;
                 }
             }
@@ -293,12 +293,12 @@ public:
                     driveRequest.m_expectedCumulativeDownloadSize,
                     m_eventHandler,
                     *this,
-                    driveRequest.m_replicators,
+                    driveRequest.m_actualReplicatorList,
                     m_dbgEventHandler );
 
             m_driveMap[driveKey] = drive;
 
-            m_endpointsManager.addEndpointsEntries( driveRequest.m_replicators );
+            m_endpointsManager.addEndpointsEntries( driveRequest.m_actualReplicatorList );
             m_endpointsManager.addEndpointEntry( driveRequest.m_client, false );
 
             // Notify
@@ -493,13 +493,13 @@ public:
                                 driveKey,
                                 modifyRequest.m_maxDataSize,
                                 modifyRequest.m_clientPublicKey,
-                                modifyRequest.m_replicators);
+                                modifyRequest.m_replicatorShard);
 
-            for( auto it = modifyRequest.m_replicators.begin();  it != modifyRequest.m_replicators.end(); it++ )
+            for( auto it = modifyRequest.m_replicatorShard.begin();  it != modifyRequest.m_replicatorShard.end(); it++ )
             {
                 if ( *it == publicKey() )
                 {
-                    modifyRequest.m_replicators.erase( it );
+                    modifyRequest.m_replicatorShard.erase( it );
                     break;
                 }
             }
@@ -599,7 +599,7 @@ public:
            {
                if ( std::shared_ptr<sirius::drive::FlatDrive> drive = getDrive(driveKey); drive )
                {
-                   auto replicators = drive->replicatorList();
+                   auto replicators = drive->getAllReplicators();
                    size_t consensusThreshould = std::min( (replicators.size()*3)/2, size_t(4) );
 
                    m_dnOpinionSyncronizer.startSync( request.m_channelKey.array(), drive, consensusThreshould );
@@ -640,6 +640,7 @@ public:
 //        });
     }
 
+    // It sends received receipt from 'client' to other replicators
     virtual void sendReceiptToOtherReplicators( const std::array<uint8_t,32>&  downloadChannelId,
                                                 const std::array<uint8_t,32>&  clientPublicKey,
                                                 uint64_t                       downloadedSize,
@@ -649,19 +650,6 @@ public:
         
         auto replicatorPublicKey = publicKey();
 
-//        // check receipt
-//        if ( !DownloadLimiter::verifyReceipt(  downloadChannelId,
-//                                               clientPublicKey,
-//                                               replicatorPublicKey,
-//                                               downloadedSize,
-//                                               signature ) )
-//        {
-//            //todo log error?
-//            std::cerr << "ERROR! Invalid receipt" << std::endl << std::flush;
-//            assert(0);
-//            return;
-//        }
-        
         std::vector<uint8_t> message;
         message.insert( message.end(), downloadChannelId.begin(),   downloadChannelId.end() );
         message.insert( message.end(), clientPublicKey.begin(),     clientPublicKey.end() );
@@ -672,7 +660,7 @@ public:
         if ( auto it = m_downloadChannelMap.find(downloadChannelId); it != m_downloadChannelMap.end() )
         {
             // go throw replictor list
-            for( auto replicatorIt = it->second.m_replicatorsList2.begin(); replicatorIt != it->second.m_replicatorsList2.end(); replicatorIt++ )
+            for( auto replicatorIt = it->second.m_replicatorShard.begin(); replicatorIt != it->second.m_replicatorShard.end(); replicatorIt++ )
             {
                 if ( *replicatorIt != replicatorPublicKey )
                 {
@@ -765,7 +753,7 @@ public:
 
         DownloadOpinion myOpinion( publicKey() );
 
-        for( const auto& replicatorIt : info.m_replicatorsList2 )
+        for( const auto& replicatorIt : info.m_replicatorShard )
         {
             if ( auto downloadedIt = info.m_replicatorUploadMap.find( replicatorIt.array()); downloadedIt != info.m_replicatorUploadMap.end() )
             {
@@ -801,7 +789,7 @@ public:
                 opinion.m_downloadLayout.push_back( { publicKey(), channelInfo.m_uploadedSize } );
 
                 // add other uploaded sizes
-                for( const auto& replicatorKey : drive->replicatorList() )
+                for( const auto& replicatorKey : drive->getAllReplicators() )
                 {
                     if ( auto downloadedIt = channelInfo.m_replicatorUploadMap.find( replicatorKey.array());
                         downloadedIt != channelInfo.m_replicatorUploadMap.end() )
@@ -872,9 +860,9 @@ public:
         // check opinion number
         //_LOG( "///// " << opinionInfo.m_opinions.size() << " " <<  (opinionInfo.m_replicatorNumber*2)/3 );
 #ifndef MINI_SIGNATURE
-        if (opinions.size() > (channel.m_replicatorsList2.size() * 2) / 3)
+        if (opinions.size() > (channel.m_replicatorShard.size() * 2) / 3)
 #else
-        if (opinions.size() >= (channel.m_replicatorsList2.size() * 2) / 3)
+        if (opinions.size() >= (channel.m_replicatorShard.size() * 2) / 3)
 #endif
         {
             // start timer if it is not started
@@ -972,7 +960,7 @@ public:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( opinionToShare );
 
-        for( const auto& replicatorIt : it->second.m_replicatorsList2 )
+        for( const auto& replicatorIt : it->second.m_replicatorShard )
         {
             if ( replicatorIt != publicKey() )
             {
@@ -1211,12 +1199,12 @@ public:
 
             if ( auto drive = getDrive( transaction.m_driveKey ); drive )
             {
-                //(???)
+                //(???) drive->getAllReplicators()
                 addModifyDriveInfo( transaction.m_modifyTransactionHash,
                                     transaction.m_driveKey,
                                     LONG_LONG_MAX,
                                     drive->getClient(),
-                                    drive->getReplicators());
+                                    drive->getAllReplicators());
 
                 drive->onApprovalTransactionHasBeenPublished( transaction );
             }

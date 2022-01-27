@@ -74,7 +74,7 @@ public:
     {
         // request receipts from neighbors replicators
         //
-        for( auto key: channelSyncInfo.m_drive->replicatorList() )
+        for( auto key: channelSyncInfo.m_drive->getAllReplicators() )
         {
             // do not skip existing opinions
             //if ( channelSyncInfo.m_opinionMap.find(key.array()) == channelSyncInfo.m_opinionMap.end() )

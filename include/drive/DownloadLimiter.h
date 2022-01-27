@@ -312,7 +312,7 @@ public:
     {
         DBG_MAIN_THREAD
         
-        auto& replicatorList = drive.replicatorList();
+        auto& replicatorList = drive.getAllReplicators();
         auto replicatorIt = std::find( replicatorList.begin(), replicatorList.end(), peerPublicKey);
         //_LOG( m_dbgOurPeerName << ": isPeerReplicator(): peerPublicKey: " << Key(peerPublicKey) );
 
@@ -491,7 +491,7 @@ public:
 
 
     // will be called when one replicator informs another about downloaded size by client
-    virtual void acceptReceiptFromAnotherReplicator( const std::array<uint8_t,32>&  downloadChannelId,
+    virtual bool acceptReceiptFromAnotherReplicator( const std::array<uint8_t,32>&  downloadChannelId,
                                                      const std::array<uint8_t,32>&  clientPublicKey,
                                                      const std::array<uint8_t,32>&  replicatorPublicKey,
                                                      uint64_t                       downloadedSize,
@@ -499,11 +499,11 @@ public:
     {
         DBG_MAIN_THREAD
         
-        acceptReceipt(downloadChannelId,
-                      clientPublicKey,
-                      replicatorPublicKey,
-                      downloadedSize,
-                      signature);
+        return acceptReceipt( downloadChannelId,
+                              clientPublicKey,
+                              replicatorPublicKey,
+                              downloadedSize,
+                              signature);
     }
     
     void removeChannelInfo( const std::array<uint8_t,32>& channelId )
@@ -565,121 +565,135 @@ public:
                        reinterpret_cast<const Signature &>(sig));
     }
 
-   void signMutableItem( const std::vector<char>& value,
+    void signMutableItem( const std::vector<char>& value,
                          const int64_t& seq,
                          const std::string& salt,
                          std::array<uint8_t,64>& sig ) override
-   {
-       DBG_MAIN_THREAD
-
-       crypto::Sign(m_keyPair,
-                    {
-                        utils::RawBuffer{reinterpret_cast<const uint8_t *>(value.data()), value.size()},
-                        utils::RawBuffer{reinterpret_cast<const uint8_t *>(&seq), sizeof(int64_t)},
-                        utils::RawBuffer{reinterpret_cast<const uint8_t *>(salt.data()), salt.size()}
-                    },
-                    reinterpret_cast<Signature &>(sig));
-   }
-
-    bool acceptReceipt(const std::array<uint8_t, 32> &downloadChannelId,
-                       const std::array<uint8_t, 32> &clientPublicKey,
-                       const std::array<uint8_t, 32> &replicatorPublicKey,
-                       uint64_t downloadedSize,
-                       const std::array<uint8_t, 64> &signature) override
-    {
-        //(???) At first, check that it is out client?
-        
-        if ( !verifyReceipt(downloadChannelId,
-                            clientPublicKey,
-                            replicatorPublicKey,
-                            downloadedSize,
-                            signature))
-        {
-            return false;
-        }
-
-        auto& channelInfo = m_downloadChannelMap[downloadChannelId];
-        auto& replicatorUploadMap = channelInfo.m_replicatorUploadMap;
-        if (  !replicatorUploadMap.contains(replicatorPublicKey) ) {
-            replicatorUploadMap[replicatorPublicKey] = { 0 };
-        }
-        auto& replicatorInfo = replicatorUploadMap[replicatorPublicKey];
-        uint64_t lastAcceptedUploadSize = replicatorInfo.m_uploadedSize;
-        channelInfo.m_totalReceiptsSize = channelInfo.m_totalReceiptsSize - lastAcceptedUploadSize + downloadedSize;
-        replicatorInfo.m_uploadedSize = downloadedSize;
-
-        return true;
-    }
-    
-    bool verifyReceipt(  const std::array<uint8_t,32>&  downloadChannelId,
-                         const std::array<uint8_t,32>&  clientPublicKey,
-                         const std::array<uint8_t,32>&  replicatorPublicKey,
-                         uint64_t                       downloadedSize,
-                         const std::array<uint8_t,64>&  signature )
     {
         DBG_MAIN_THREAD
-        if ( !crypto::Verify( clientPublicKey,
-                               {
-                                    utils::RawBuffer{downloadChannelId},
-                                    utils::RawBuffer{clientPublicKey},
-                                    utils::RawBuffer{replicatorPublicKey},
-                                    utils::RawBuffer{(const uint8_t*)&downloadedSize,8}
-                               },
-                               reinterpret_cast<const Signature&>(signature) ))
-        {
-            _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature: " << int(downloadChannelId[0]) << " " << int(replicatorPublicKey[0]) );
-            return false;
-        }
 
-        auto it = m_downloadChannelMap.find( downloadChannelId );
-        if ( it == m_downloadChannelMap.end() )
+        crypto::Sign( m_keyPair,
+                {
+                    utils::RawBuffer{reinterpret_cast<const uint8_t *>(value.data()), value.size()},
+                    utils::RawBuffer{reinterpret_cast<const uint8_t *>(&seq), sizeof(int64_t)},
+                    utils::RawBuffer{reinterpret_cast<const uint8_t *>(salt.data()), salt.size()}
+                },
+                reinterpret_cast<Signature &>(sig) );
+    }
+
+    // 1) It is called when peer receives a peice-request (from either client or replicator)
+    // 2) It is also called when replicator receives receipt from another replicator
+    //
+    bool acceptReceipt( const std::array<uint8_t, 32>& downloadChannelId,
+                        const std::array<uint8_t, 32>& clientPublicKey,
+                        const std::array<uint8_t, 32>& replicatorKey, // our key or another replicator key
+                        uint64_t                       downloadedSize,
+                        const std::array<uint8_t, 64>& signature) override
+    {
+        // Get channel info
+        auto channelInfoIt = m_downloadChannelMap.find( downloadChannelId );
+        if ( channelInfoIt == m_downloadChannelMap.end() )
         {
-            _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: unknown channelId (maybe we are late): " << int(downloadChannelId[0]) << " " << int(replicatorPublicKey[0]) );
+            _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: unknown channelId (maybe we are late): " << int(downloadChannelId[0]) << " " << int(replicatorKey[0]) );
             return false;
         }
-        // check client key
-        if ( !it->second.m_isModifyTx )
+        
+        auto& channelInfo = channelInfoIt->second;
+
+        // Check client key
+        if ( ! channelInfoIt->second.m_isModifyTx )
         {
-            const auto& v = it->second.m_clients;
-            if ( std::find_if( v.begin(), v.end(), [&clientPublicKey](const auto& element)
-            { return element == clientPublicKey; } ) == v.end() )
+            const auto& v = channelInfoIt->second.m_clients;
+            if ( std::find_if( v.begin(), v.end(), [&clientPublicKey] (const auto& element)
+                              { return element == clientPublicKey; } ) == v.end() )
             {
                 _LOG_WARN( "verifyReceipt: bad client key; it is ignored" );
                 return false;
             }
         }
 
-        auto replicatorIt = it->second.m_replicatorUploadMap.find( replicatorPublicKey );
-
-        uint64_t lastAcceptedUploadSize;
-        if ( replicatorIt == it->second.m_replicatorUploadMap.end() )
+        //
+        // Check sign
+        //
+        if ( !crypto::Verify( clientPublicKey,
+                               {
+                                    utils::RawBuffer{downloadChannelId},
+                                    utils::RawBuffer{clientPublicKey},
+                                    utils::RawBuffer{replicatorKey},
+                                    utils::RawBuffer{(const uint8_t*)&downloadedSize,8}
+                               },
+                               reinterpret_cast<const Signature&>(signature) ))
         {
-            const auto& v = it->second.m_replicatorsList2;
-            if (std::find(v.begin(), v.end(), replicatorPublicKey) == v.end())
+            _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature: " << int(downloadChannelId[0]) << " " << int(replicatorKey[0]) );
+            return false;
+        }
+
+        if ( !acceptUploadSize( replicatorKey,
+                                downloadedSize,
+                                channelInfo ))
+        {
+            return false;
+        }
+
+        return true;
+    }
+    
+    bool acceptUploadSize( const std::array<uint8_t,32>&  replicatorKey,
+                           uint64_t                       downloadedSize,
+                           DownloadChannelInfo&           channelInfo )
+    {
+        DBG_MAIN_THREAD
+
+        auto replicatorInfoIt = channelInfo.m_replicatorUploadMap.lower_bound( replicatorKey );
+
+        //
+        // Get last uploaded size
+        //
+        uint64_t lastAcceptedUploadSize;
+        
+        if ( replicatorInfoIt == channelInfo.m_replicatorUploadMap.end() )
+        {
+            // It is first receipt for this replicator
+            // Check that it exists in our 'shard'
+            
+            // (???) m_replicatorShard modify! or download!
+            const auto& v = channelInfo.m_replicatorShard;
+            if ( std::find( v.begin(), v.end(), replicatorKey ) == v.end() )
             {
                 _LOG_WARN("verifyReceipt: bad replicator key; it is ignored");
                 return false;
             }
+            
+            replicatorInfoIt = channelInfo.m_replicatorUploadMap.insert( replicatorInfoIt, {replicatorKey,{}} );
             lastAcceptedUploadSize = 0;
         }
-        else {
-            lastAcceptedUploadSize = replicatorIt->second.m_uploadedSize;
+        else
+        {
+            lastAcceptedUploadSize = replicatorInfoIt->second.m_uploadedSize;
         }
+        
         if ( lastAcceptedUploadSize >= downloadedSize )
         {
-            _LOG_WARN("verifyReceipt: old receipt; it is ignored");
+            _LOG("verifyReceipt: old receipt; it is ignored");
             return false;
         }
-        if ( it->second.m_totalReceiptsSize - lastAcceptedUploadSize + downloadedSize > it->second.m_prepaidDownloadSize )
+        
+        if ( channelInfo.m_totalReceiptsSize - lastAcceptedUploadSize + downloadedSize > channelInfo.m_prepaidDownloadSize )
         {
-            _LOG_WARN("verifyReceipt: attempt to download more than prepaid; it is ignored ") ;
+            _LOG("verifyReceipt: attempt to download more than prepaid; it is ignored ") ;
             return false;
         }
-        if ( downloadedSize >= it ->second.m_uploadedSize + m_advancePaymentLimit )
+        
+        if ( downloadedSize >= channelInfo.m_uploadedSize + m_advancePaymentLimit )
         {
+            // (???) Is this text correct? (attempt to prepay)
             _LOG_WARN("verifyReceipt: attempt to prepay too much");
             return false;
         }
+        
+        channelInfo.m_totalReceiptsSize = channelInfo.m_totalReceiptsSize - replicatorInfoIt->second.m_uploadedSize + downloadedSize;
+        replicatorInfoIt->second.m_uploadedSize = downloadedSize;
+
         return true;
     }
 

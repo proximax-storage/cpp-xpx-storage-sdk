@@ -31,7 +31,7 @@ class Replicator;
     struct AddDriveRequest {
         uint64_t          m_driveSize;
         uint64_t          m_expectedCumulativeDownloadSize;
-        ReplicatorList    m_replicators;
+        ReplicatorList    m_actualReplicatorList;
         Key               m_client;
     };
 
@@ -42,7 +42,7 @@ class Replicator;
         InfoHash m_clientDataInfoHash;
         Hash256 m_transactionHash;
         uint64_t m_maxDataSize;
-        ReplicatorList m_replicators;
+        ReplicatorList m_replicatorShard;
         Key m_clientPublicKey;
 
         bool m_isCanceled = false;
@@ -564,7 +564,7 @@ class Replicator;
 
         virtual InfoHash rootHash() const = 0;
 
-        virtual const std::vector<Key>& getReplicators() const = 0;
+        virtual const ReplicatorList& getAllReplicators() const = 0;
 
         virtual const Key&      getClient() const = 0;
 
@@ -604,8 +604,6 @@ class Replicator;
 
         // It will be called by replicator
         virtual bool isItClosingTxHash( const Hash256& eventHash ) const = 0;
-
-        virtual const ReplicatorList&  replicatorList() const = 0;
 
         // for testing and debugging
         virtual void dbgPrintDriveStatus() = 0;

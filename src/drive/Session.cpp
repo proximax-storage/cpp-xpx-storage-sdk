@@ -656,9 +656,6 @@ public:
                 memcpy( signature.data(), ptr, signature.size() );
                 //ptr += signature.size();
 
-                // it will be verifyed in acceptReceiptFromAnotherReplicator()
-                //assert( m_replicator->verifyReceipt( downloadChannelId, clientPublicKey, replicatorPublicKey, totalDownloadedSize, signature.array() ) );
-
                 if ( auto replicator = m_replicator.lock(); replicator )
                 {
                     replicator->acceptReceiptFromAnotherReplicator( downloadChannelId,

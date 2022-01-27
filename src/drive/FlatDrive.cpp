@@ -4,31 +4,6 @@
 *** license that can be found in the LICENSE file.
 */
 
-/*
- add DriveId to torrent?
- 
- -----------------------------------
- Modify
- -----------------------------------
- 
- onSandboxCalculated()   -> sendMyPercentsToExtension() --
-                                                         --> sendApprovalTransaction() or sendSingleApprovalTransaction()
- onPercents()            -> sendPercentsToExtension()   --
- 
- onApprovalTransaction() -> move-sandbox-to-drive
- 
- onCancel()              -> cancel
- 
- -----------------------------------
- Download Channel
- -----------------------------------
-
- getReceipt()
- 
- //onSingleApprovalTransaction() -> nothing to do
- 
- */
-
 #include "drive/FlatDrive.h"
 #include "drive/Replicator.h"
 #include "drive/Session.h"
@@ -198,7 +173,8 @@ public:
         m_opinionTrafficIdentifier = identifier.array();
     }
 
-    void updateCumulativeUploads(const ReplicatorList& replicators, const std::function<void()>& callback ) override
+    //(???) Why 'replicators' as a parameter?
+    void updateCumulativeUploads( const ReplicatorList& replicators, const std::function<void()>& callback ) override
     {
         const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(*m_opinionTrafficIdentifier)
                 .m_modifyTrafficMap;
@@ -356,8 +332,9 @@ private:
 class DefaultFlatDrive: public FlatDrive,
                         public TaskContext {
 
-    // List of replicators that support this drive
-    ReplicatorList m_replicatorList;
+    // List of all replicators that support this drive
+    // (It does not contain our replicator key!)
+    ReplicatorList m_allReplicators;
 
     const size_t m_maxSize;
 
@@ -400,7 +377,7 @@ public:
             size_t expectedCumulativeDownload,
             ReplicatorEventHandler& eventHandler,
             Replicator& replicator,
-            const ReplicatorList& replicatorList,
+            const ReplicatorList& initialReplicatorList,
             DbgReplicatorEventHandler* dbgEventHandler )
             : TaskContext(
                     drivePubKey,
@@ -412,7 +389,7 @@ public:
                     replicatorRootFolder,
                     replicatorSandboxRootFolder,
                     replicator.dbgReplicatorName())
-            , m_replicatorList(replicatorList)
+            , m_allReplicators(initialReplicatorList)
             , m_maxSize(maxSize)
             , m_opinionController(m_driveKey, m_client, m_replicator, m_serializer, *this, expectedCumulativeDownload, replicator.dbgReplicatorName() )
 
@@ -478,8 +455,8 @@ public:
         return m_rootHash;
     }
     
-    const ReplicatorList& getReplicators() const override {
-        return m_replicatorList;
+    const ReplicatorList& getAllReplicators() const override {
+        return m_allReplicators;
     }
 
     const Key& getClient() const override
@@ -491,16 +468,16 @@ public:
     {
         if ( *replicatorKey != m_replicator.replicatorKey() )
         {
-            if ( std::find( m_replicatorList.begin(), m_replicatorList.end(), *replicatorKey ) == m_replicatorList.end() )
+            if ( std::find( m_allReplicators.begin(), m_allReplicators.end(), *replicatorKey ) == m_allReplicators.end() )
             {
-                m_replicatorList.push_back( *replicatorKey );
+                m_allReplicators.push_back( *replicatorKey );
             }
         }
     }
 
     void replicatorRemoved( mobj<Key>&& replicatorKey ) override
     {
-        std::remove_if( m_replicatorList.begin(), m_replicatorList.end(), [&] (const Key& it)
+        std::remove_if( m_allReplicators.begin(), m_allReplicators.end(), [&] (const Key& it)
         {
             return it == *replicatorKey;
         });
@@ -877,11 +854,6 @@ public:
     {
         DBG_MAIN_THREAD
         return m_closeDriveRequest && (m_closeDriveRequest->m_removeDriveTx == eventHash);
-    }
-
-    const ReplicatorList&  replicatorList() const override
-    {
-        return m_replicatorList;
     }
 
     void dbgPrintDriveStatus() override

@@ -15,6 +15,8 @@
 #include <cereal/types/optional.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
+#include <fstream>
+
 #define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
 #define DBG_BG_THREAD { assert( m_dbgThreadId != std::this_thread::get_id() ); }
 
@@ -251,7 +253,7 @@ protected:
 
 public:
 
-    virtual const ReplicatorList& getReplicators() const = 0;
+    virtual const ReplicatorList& getAllReplicators() const = 0;
 
     virtual void runNextTask() = 0;
 };

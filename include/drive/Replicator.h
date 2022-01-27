@@ -82,17 +82,20 @@ using DownloadOpinionMap = std::map<std::array<uint8_t,32>, DownloadOpinionMapVa
 
 struct DownloadChannelInfo
 {
-    bool m_isModifyTx;
-    bool m_isSyncronizing;
+    bool     m_isModifyTx;
+    bool     m_isSyncronizing;
 
     uint64_t m_prepaidDownloadSize;
     uint64_t m_totalReceiptsSize = 0;
     uint64_t m_requestedSize = 0;
     uint64_t m_uploadedSize = 0;
+
     std::array<uint8_t, 32> m_driveKey;
-    ReplicatorList m_replicatorsList2;      //todo must be synchronized with drive.m_replicatorList (in higher versions?)
-    ReplicatorUploadMap m_replicatorUploadMap;
+    ReplicatorList          m_replicatorShard;
+    ReplicatorUploadMap     m_replicatorUploadMap;
+    
     std::vector<std::array<uint8_t, 32>> m_clients; //todo
+    
     DownloadOpinionMap m_downloadOpinionMap;
 
     // it is used when drive is closing
@@ -385,14 +388,14 @@ public:
     // will be called from Sesion
     // when it receives message from another replicator
     // (must be implemented by DownloadLimiter)
-    virtual void acceptReceiptFromAnotherReplicator( const std::array<uint8_t,32>&  downloadChannelId,
+    virtual bool acceptReceiptFromAnotherReplicator( const std::array<uint8_t,32>&  downloadChannelId,
                                                      const std::array<uint8_t,32>&  clientPublicKey,
                                                      const std::array<uint8_t,32>&  replicatorPublicKey,
                                                      uint64_t                       downloadedSize,
                                                      const std::array<uint8_t,64>&  signature )
     {
         // 'client' does nothing
-        return;
+        return true;
     }
 
     virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) const = 0;

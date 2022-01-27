@@ -103,7 +103,7 @@ protected:
                     *m_sandboxRootHash );
         }
 
-        m_opinionController.updateCumulativeUploads( m_drive.getReplicators(), [this]
+        m_opinionController.updateCumulativeUploads( m_drive.getAllReplicators(), [this]
         {
             onCumulativeUploadsUpdated();
         } );
@@ -246,7 +246,7 @@ protected:
 
     ReplicatorList getUploaders()
     {
-        auto replicators = m_drive.getReplicators();
+        auto replicators = m_drive.getAllReplicators();
         replicators.push_back( m_drive.m_client );
         return replicators;
     }
@@ -794,7 +794,7 @@ private:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( *m_myOpinion );
 
-        for ( const auto& replicatorIt : m_drive.getReplicators())
+        for ( const auto& replicatorIt : m_drive.getAllReplicators())
         {
             m_drive.m_replicator.sendMessage( "opinion", replicatorIt.array(), os.str());
         }
@@ -808,7 +808,7 @@ private:
 #ifndef MINI_SIGNATURE
         auto replicatorNumber = m_drive.getReplicators().size() + 1;
 #else
-        auto replicatorNumber = m_drive.getReplicators().size();//todo++++ +1;
+        auto replicatorNumber = m_drive.getAllReplicators().size();//todo++++ +1;
 #endif
 
 // check opinion number
