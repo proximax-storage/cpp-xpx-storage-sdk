@@ -489,11 +489,16 @@ public:
             }
 
             // Add ModifyDriveInfo to DownloadLimiter
-            addModifyDriveInfo( modifyRequest.m_transactionHash.array(),
+            bool added = addModifyDriveInfo( modifyRequest.m_transactionHash.array(),
                                 driveKey,
                                 modifyRequest.m_maxDataSize,
                                 modifyRequest.m_clientPublicKey,
                                 modifyRequest.m_replicatorShard);
+
+           if ( ! added )
+           {
+               _LOG_ERR( "Internal Error: Modification Received after Approval or twice" )
+           }
 
             for( auto it = modifyRequest.m_replicatorShard.begin();  it != modifyRequest.m_replicatorShard.end(); it++ )
             {

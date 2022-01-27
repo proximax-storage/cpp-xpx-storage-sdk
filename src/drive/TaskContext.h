@@ -270,15 +270,17 @@ public:
 
     virtual void setOpinionTrafficIdentifier( const Hash256& ) = 0;
 
-    virtual void downgradeCumulativeUploads( const std::function<void()>& callback ) = 0;
+    virtual void approveCumulativeUploads( const std::function<void()>& callback ) = 0;
+
+    virtual void disapproveCumulativeUploads( const std::function<void()>& callback ) = 0;
 
     virtual void
-    updateCumulativeUploads( const ReplicatorList& replicators, const std::function<void()>& callback ) = 0;
+    updateCumulativeUploads( const ReplicatorList& replicators, uint64_t addCumulativeDownload, const std::function<void()>& callback ) = 0;
 
     virtual void fillOpinion( std::vector<KeyAndBytes>& replicatorsUploads,
                               uint64_t& clientUploads ) = 0;
 
-    virtual void increaseExpectedCumulativeDownload( uint64_t ) = 0;
+    virtual void increaseApprovedExpectedCumulativeDownload( uint64_t ) = 0;
 };
 
 }

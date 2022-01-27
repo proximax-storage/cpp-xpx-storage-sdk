@@ -103,10 +103,20 @@ protected:
                     *m_sandboxRootHash );
         }
 
-        m_opinionController.updateCumulativeUploads( m_drive.getAllReplicators(), [this]
+        m_opinionController.updateCumulativeUploads( m_drive.getAllReplicators(), getNotApprovedDownloadSize(), [this]
         {
             onCumulativeUploadsUpdated();
         } );
+    }
+
+    void synchronizationIsCompleted()
+    {
+        _ASSERT( !m_stopped )
+
+        m_opinionController.approveCumulativeUploads( [this]
+        {
+            modifyIsCompleted();
+        });
     }
 
     virtual void modifyIsCompleted()
@@ -169,6 +179,8 @@ protected:
     void startSynchronizingDriveWithSandbox()
     {
         DBG_MAIN_THREAD
+
+        _ASSERT( !m_stopped )
 
         auto& torrentHandleMap = m_drive.m_torrentHandleMap;
 
@@ -303,6 +315,8 @@ private:
 
     virtual void continueSynchronizingDriveWithSandbox() = 0;
 
+    virtual uint64_t getNotApprovedDownloadSize() = 0;
+
     virtual void myOpinionIsCreated() = 0;
 };
 
@@ -351,8 +365,6 @@ public:
     void run() override
     {
         using namespace std::placeholders;  // for _1, _2, _3
-
-        m_opinionController.increaseExpectedCumulativeDownload( m_request->m_maxDataSize );
 
         _ASSERT( !m_opinionController.getOpinionTrafficIdentifier());
 
@@ -417,6 +429,7 @@ public:
             return false;
         } else
         {
+            m_opinionController.increaseApprovedExpectedCumulativeDownload(m_request->m_maxDataSize);
             breakTorrentDownloadAndRunNextTask();
             return true;
         }
@@ -806,7 +819,7 @@ private:
 
         // m_drive.getReplicator()List is the list of other replicators (it does not contain our replicator)
 #ifndef MINI_SIGNATURE
-        auto replicatorNumber = m_drive.getReplicators().size() + 1;
+        auto replicatorNumber = m_drive.getAllReplicators().size() + 1;
 #else
         auto replicatorNumber = m_drive.getAllReplicators().size();//todo++++ +1;
 #endif
@@ -923,7 +936,7 @@ private:
 
             m_drive.executeOnSessionThread( [this]() mutable
                                             {
-                                                modifyIsCompleted();
+                                                synchronizationIsCompleted();
                                             } );
         }
         catch (const std::exception& ex)
@@ -940,6 +953,11 @@ private:
                      m_myOpinion->m_metaFilesSize == anOpinion.m_metaFilesSize &&
                      m_myOpinion->m_driveSize == anOpinion.m_driveSize;
         return equal;
+    }
+
+    uint64_t getNotApprovedDownloadSize() override
+    {
+        return m_request->m_maxDataSize;
     }
 };
 
@@ -1112,7 +1130,7 @@ private:
 
             m_drive.executeOnSessionThread( [=, this]
                                             {
-                                                modifyIsCompleted();
+                                                synchronizationIsCompleted();
                                             } );
         }
         catch (const std::exception& ex)
@@ -1322,6 +1340,11 @@ private:
                                         {
                                             myRootHashIsCalculated();
                                         } );
+    }
+
+    uint64_t getNotApprovedDownloadSize() override
+    {
+        return 0;
     }
 };
 

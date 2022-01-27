@@ -17,6 +17,8 @@
 #include <fstream>
 #include <sstream>
 
+#include <boost/stacktrace.hpp>
+
 #define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
 
 namespace sirius::drive {
@@ -203,7 +205,7 @@ public:
         {
             // It is 'upgrade' of existing 'downloadChannel'
 
-            if ( it->second.m_prepaidDownloadSize >= prepaidDownloadSize )
+            if ( it->second.m_prepaidDownloadSize > prepaidDownloadSize )
             {
                 _LOG_ERR( "addChannelInfo: invalid prepaidDownloadSize: " << it->second.m_prepaidDownloadSize << " <= " << prepaidDownloadSize );
             }
@@ -260,7 +262,7 @@ public:
         }
     }
 
-    void addModifyDriveInfo( const Key&                 modifyTransactionHash,
+    bool addModifyDriveInfo( const Key&                 modifyTransactionHash,
                              const Key&                 driveKey,
                              uint64_t                   dataSize,
                              const Key&                 clientPublicKey,
@@ -268,12 +270,14 @@ public:
     {
         DBG_MAIN_THREAD
 
+        _LOG( "add modify drive info " << modifyTransactionHash);
+
         auto driveMapIt = m_modifyDriveMap.lower_bound(modifyTransactionHash.array());
 
         if (driveMapIt != m_modifyDriveMap.end() && driveMapIt->first == modifyTransactionHash.array())
         {
             // already exists
-            return;
+            return false;
         }
 
         ModifyTrafficMap trafficMap;
@@ -299,11 +303,15 @@ public:
             //_LOG( "driveKey: " << driveKey )
             m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, false, dataSize, 0, 0, 0, driveKey.array(), replicatorsList, {}, clients, {}};
         }
+
+        return true;
     }
     
     void removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash ) override
     {
         DBG_MAIN_THREAD
+
+        _LOG( "remove modify drive info " << Hash256{modifyTransactionHash});
 
         m_modifyDriveMap.erase(modifyTransactionHash);
     }

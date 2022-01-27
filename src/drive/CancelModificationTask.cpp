@@ -37,8 +37,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_opinionTaskController.downgradeCumulativeUploads([this] {
-            onCumulativeUploadsDowngraded();
+        m_opinionTaskController.disapproveCumulativeUploads([this] {
+            onCumulativeUploadsDisapproved();
         });
     }
 
@@ -50,7 +50,7 @@ public:
 
 private:
 
-    void onCumulativeUploadsDowngraded()
+    void onCumulativeUploadsDisapproved()
     {
         DBG_MAIN_THREAD
 
@@ -66,7 +66,7 @@ private:
         std::set<InfoHash> filesToRemove;
 
         for ( auto it = torrentHandleMap.begin(); it != torrentHandleMap.end(); ) {
-            if ( it->second.m_isUsed )
+            if ( !it->second.m_isUsed )
             {
                 filesToRemove.insert( it->first );
                 it = torrentHandleMap.erase( it );

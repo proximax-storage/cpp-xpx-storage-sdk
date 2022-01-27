@@ -398,6 +398,16 @@ namespace sirius::drive::test {
 
                 ASSERT_EQ(transactionInfo.m_opinions.size(), 1);
 
+                {
+                    std::ostringstream str;
+                    str << "sizes before" ;
+                    for ( const auto& size: m_modificationSizes[transactionInfo.m_modifyTransactionHash] )
+                    {
+                        str << " " << size;
+                    }
+                    EXLOG( str.str() );
+                }
+
                 for (const auto& opinion: transactionInfo.m_opinions) {
                     auto size =
                             std::accumulate(opinion.m_uploadLayout.begin(),
@@ -407,6 +417,15 @@ namespace sirius::drive::test {
                                 return sum + item.m_uploadedBytes;
                             });
                     m_modificationSizes[transactionInfo.m_modifyTransactionHash].insert(size);
+                }
+                {
+                    std::ostringstream str;
+                    str << "sizes after" ;
+                    for ( const auto& size: m_modificationSizes[transactionInfo.m_modifyTransactionHash] )
+                    {
+                        str << " " << size;
+                    }
+                    EXLOG( str.str() );
                 }
                 ASSERT_EQ(m_modificationSizes[transactionInfo.m_modifyTransactionHash].size(), 1);
             }
