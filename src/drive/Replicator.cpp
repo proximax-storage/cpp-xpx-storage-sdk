@@ -665,7 +665,7 @@ public:
         if ( auto it = m_downloadChannelMap.find(downloadChannelId); it != m_downloadChannelMap.end() )
         {
             // go throw replictor list
-            for( auto replicatorIt = it->second.m_replicatorShard.begin(); replicatorIt != it->second.m_replicatorShard.end(); replicatorIt++ )
+            for( auto replicatorIt = it->second.m_dnReplicatorShard.begin(); replicatorIt != it->second.m_dnReplicatorShard.end(); replicatorIt++ )
             {
                 if ( *replicatorIt != replicatorPublicKey )
                 {
@@ -758,7 +758,7 @@ public:
 
         DownloadOpinion myOpinion( publicKey() );
 
-        for( const auto& replicatorIt : info.m_replicatorShard )
+        for( const auto& replicatorIt : info.m_dnReplicatorShard )
         {
             if ( auto downloadedIt = info.m_replicatorUploadMap.find( replicatorIt.array()); downloadedIt != info.m_replicatorUploadMap.end() )
             {
@@ -766,7 +766,7 @@ public:
             }
             else if ( replicatorIt == publicKey() )
             {
-                myOpinion.m_downloadLayout.push_back( { publicKey(), info.m_uploadedSize } );
+                myOpinion.m_downloadLayout.push_back( { publicKey(), info.m_myUploadedSize } );
             }
             else
             {
@@ -791,7 +791,7 @@ public:
                 DownloadChannelInfo& channelInfo = channelInfoIt->second;
 
                 // add our uploaded size
-                opinion.m_downloadLayout.push_back( { publicKey(), channelInfo.m_uploadedSize } );
+                opinion.m_downloadLayout.push_back( { publicKey(), channelInfo.m_myUploadedSize } );
 
                 // add other uploaded sizes
                 for( const auto& replicatorKey : drive->getAllReplicators() )
@@ -865,9 +865,9 @@ public:
         // check opinion number
         //_LOG( "///// " << opinionInfo.m_opinions.size() << " " <<  (opinionInfo.m_replicatorNumber*2)/3 );
 #ifndef MINI_SIGNATURE
-        if (opinions.size() > (channel.m_replicatorShard.size() * 2) / 3)
+        if (opinions.size() > (channel.m_dnReplicatorShard.size() * 2) / 3)
 #else
-        if (opinions.size() >= (channel.m_replicatorShard.size() * 2) / 3)
+        if (opinions.size() >= (channel.m_dnReplicatorShard.size() * 2) / 3)
 #endif
         {
             // start timer if it is not started
@@ -965,7 +965,7 @@ public:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( opinionToShare );
 
-        for( const auto& replicatorIt : it->second.m_replicatorShard )
+        for( const auto& replicatorIt : it->second.m_dnReplicatorShard )
         {
             if ( replicatorIt != publicKey() )
             {
@@ -1204,7 +1204,7 @@ public:
 
             if ( auto drive = getDrive( transaction.m_driveKey ); drive )
             {
-                //(???) drive->getAllReplicators()
+                //(???) remove replicator list from arguments
                 addModifyDriveInfo( transaction.m_modifyTransactionHash,
                                     transaction.m_driveKey,
                                     LONG_LONG_MAX,

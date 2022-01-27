@@ -136,7 +136,6 @@ public:
         m_opinionTrafficIdentifier = identifier.array();
     }
 
-    //(???) Why 'replicators' as a parameter?
     void updateCumulativeUploads( const ReplicatorList& replicators,
                                   uint64_t addCumulativeDownload,
                                   const std::function<void()>& callback ) override

@@ -10,7 +10,7 @@ send receipts from another replicator to replicators
 Ограничить запросы с клиента к фолтному/нераздающему репликатору
 Сделать загрузку для репликатора не всегда unlimited
 Unexpected connections of Replicators
-Remove Download Channel when DownloadApproval with flag "channel is closed" is published
++++++++++ Remove Download Channel when DownloadApproval with flag "channel is closed" is published
 Add To Handshake Drive and Channel
 Shards
 Drive Tasks as Classes

@@ -63,7 +63,7 @@ public:
             
             if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
             {
-                _LOG( "requestedSize=" << it->second.m_requestedSize << "; uploadedSize=" << it->second.m_uploadedSize );
+                _LOG( "requestedSize=" << it->second.m_requestedSize << "; uploadedSize=" << it->second.m_myUploadedSize );
                 return;
             }
 
@@ -173,7 +173,7 @@ public:
             return false;
         }
 
-        if ( it->second.m_uploadedSize > replicatorIt->second.m_uploadedSize + m_receiptLimit )
+        if ( it->second.m_myUploadedSize > replicatorIt->second.m_uploadedSize + m_receiptLimit )
         {
             _LOG ("Check Download Limit:  Receipts Size Exceeded");
             return false;
@@ -187,7 +187,7 @@ public:
 
         if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
         {
-            return it->second.m_uploadedSize;
+            return it->second.m_myUploadedSize;
         }
         return 0;
     }
@@ -254,7 +254,7 @@ public:
 
             //(+++)??? restore backup info
             it->second.m_requestedSize        = backupIt->second.m_requestedSize;
-            it->second.m_uploadedSize         = backupIt->second.m_uploadedSize;
+            it->second.m_myUploadedSize         = backupIt->second.m_myUploadedSize;
             it->second.m_replicatorUploadMap  = backupIt->second.m_replicatorUploadMap;
             it->second.m_downloadOpinionMap   = backupIt->second.m_downloadOpinionMap;
 
@@ -448,7 +448,7 @@ public:
         // Maybe this piece was sent to client (during data download)
         if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
         {
-            it->second.m_uploadedSize += pieceSize;
+            it->second.m_myUploadedSize += pieceSize;
             return;
         }
 
@@ -602,22 +602,26 @@ public:
         auto channelInfoIt = m_downloadChannelMap.find( downloadChannelId );
         if ( channelInfoIt == m_downloadChannelMap.end() )
         {
-            _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: unknown channelId (maybe we are late): " << int(downloadChannelId[0]) << " " << int(replicatorKey[0]) );
+            _LOG_WARN( dbgOurPeerName() << "unknown channelId (maybe we are late): " << int(downloadChannelId[0]) << " " << int(replicatorKey[0]) );
+            return false;
+        }
+
+        if ( channelInfoIt->second.m_isModifyTx )
+        {
+            _LOG_WARN( dbgOurPeerName() << "receipt for modification should never be received" << int(downloadChannelId[0]) << " " << int(replicatorKey[0]) )
             return false;
         }
         
         auto& channelInfo = channelInfoIt->second;
 
         // Check client key
-        if ( ! channelInfoIt->second.m_isModifyTx )
+
+        const auto& v = channelInfoIt->second.m_clients;
+        if ( std::find_if( v.begin(), v.end(), [&clientPublicKey] (const auto& element)
+                          { return element == clientPublicKey; } ) == v.end() )
         {
-            const auto& v = channelInfoIt->second.m_clients;
-            if ( std::find_if( v.begin(), v.end(), [&clientPublicKey] (const auto& element)
-                              { return element == clientPublicKey; } ) == v.end() )
-            {
-                _LOG_WARN( "verifyReceipt: bad client key; it is ignored" );
-                return false;
-            }
+            _LOG_WARN( "verifyReceipt: bad client key; it is ignored" );
+            return false;
         }
 
         //
@@ -636,7 +640,7 @@ public:
             return false;
         }
 
-        if ( !acceptUploadSize( replicatorKey,
+        if ( ! acceptUploadSize( replicatorKey,
                                 downloadedSize,
                                 channelInfo ))
         {
@@ -653,50 +657,43 @@ public:
         DBG_MAIN_THREAD
 
         auto replicatorInfoIt = channelInfo.m_replicatorUploadMap.lower_bound( replicatorKey );
-
-        //
-        // Get last uploaded size
-        //
-        uint64_t lastAcceptedUploadSize;
         
         if ( replicatorInfoIt == channelInfo.m_replicatorUploadMap.end() )
         {
             // It is first receipt for this replicator
             // Check that it exists in our 'shard'
-            
-            // (???) m_replicatorShard modify! or download!
-            const auto& v = channelInfo.m_replicatorShard;
+
+            const auto& v = channelInfo.m_dnReplicatorShard;
             if ( std::find( v.begin(), v.end(), replicatorKey ) == v.end() )
             {
-                _LOG_WARN("verifyReceipt: bad replicator key; it is ignored");
+                _LOG_WARN("bad replicator key; it is ignored");
                 return false;
             }
             
             replicatorInfoIt = channelInfo.m_replicatorUploadMap.insert( replicatorInfoIt, {replicatorKey,{}} );
-            lastAcceptedUploadSize = 0;
         }
-        else
-        {
-            lastAcceptedUploadSize = replicatorInfoIt->second.m_uploadedSize;
-        }
+        auto lastAcceptedUploadSize = replicatorInfoIt->second.m_uploadedSize;
         
         if ( lastAcceptedUploadSize >= downloadedSize )
         {
-            _LOG("verifyReceipt: old receipt; it is ignored");
+            _LOG("old receipt; it is ignored");
             return false;
         }
         
         if ( channelInfo.m_totalReceiptsSize - lastAcceptedUploadSize + downloadedSize > channelInfo.m_prepaidDownloadSize )
         {
-            _LOG("verifyReceipt: attempt to download more than prepaid; it is ignored ") ;
+            _LOG("attempt to download more than prepaid; it is ignored ");
             return false;
         }
-        
-        if ( downloadedSize >= channelInfo.m_uploadedSize + m_advancePaymentLimit )
+
+        if ( replicatorKey == keyPair().publicKey().array() )
         {
-            // (???) Is this text correct? (attempt to prepay)
-            _LOG_WARN("verifyReceipt: attempt to prepay too much");
-            return false;
+            if ( auto uploadDelta = downloadedSize - channelInfo.m_myUploadedSize; uploadDelta >= m_advancePaymentLimit )
+            {
+                // The client is forbidden to prepay too much in order to avoid an attack
+                _LOG_WARN("attempt to hand over large receipt");
+                return false;
+            }
         }
         
         channelInfo.m_totalReceiptsSize = channelInfo.m_totalReceiptsSize - replicatorInfoIt->second.m_uploadedSize + downloadedSize;

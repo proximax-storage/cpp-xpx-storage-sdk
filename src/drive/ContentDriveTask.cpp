@@ -103,6 +103,7 @@ protected:
                     *m_sandboxRootHash );
         }
 
+        /// (???) replace with replicators of the shard
         m_opinionController.updateCumulativeUploads( m_drive.getAllReplicators(), getNotApprovedDownloadSize(), [this]
         {
             onCumulativeUploadsUpdated();

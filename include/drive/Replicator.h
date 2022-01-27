@@ -88,10 +88,10 @@ struct DownloadChannelInfo
     uint64_t m_prepaidDownloadSize;
     uint64_t m_totalReceiptsSize = 0;
     uint64_t m_requestedSize = 0;
-    uint64_t m_uploadedSize = 0;
+    uint64_t m_myUploadedSize = 0;
 
     std::array<uint8_t, 32> m_driveKey;
-    ReplicatorList          m_replicatorShard;
+    ReplicatorList          m_dnReplicatorShard;
     ReplicatorUploadMap     m_replicatorUploadMap;
     
     std::vector<std::array<uint8_t, 32>> m_clients; //todo
@@ -105,7 +105,7 @@ struct DownloadChannelInfo
     {
         arch( m_isModifyTx );
         arch( m_prepaidDownloadSize );
-        arch( m_uploadedSize );
+        arch( m_myUploadedSize );
         arch( m_driveKey );
         arch(m_totalReceiptsSize );
         arch( m_replicatorUploadMap );
