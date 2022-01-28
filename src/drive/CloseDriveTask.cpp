@@ -48,15 +48,15 @@ public:
 
         if ( auto session = m_drive.m_session.lock(); session )
         {
-            session->removeTorrentsFromSession( tobeRemovedTorrents, [this](){
+            session->removeTorrentsFromSession( tobeRemovedTorrents, [this]()
+            {
                 m_drive.m_replicator.closeDriveChannels( m_request->m_removeDriveTx, m_drive.m_driveKey );
-            });
+                m_drive.executeOnBackgroundThread( [this]
+                                                   {
+                                                       removeAllDriveData();
+                                                   } );
+            } );
         }
-
-        m_drive.executeOnBackgroundThread( [this]
-                                           {
-                                               removeAllDriveData();
-                                           } );
     }
 
     void terminate() override

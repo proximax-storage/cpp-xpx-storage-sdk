@@ -362,7 +362,7 @@ class DefaultFlatDrive: public FlatDrive, public TaskContext
 
     //
     std::unique_ptr<BaseDriveTask> m_task;
-    std::unique_ptr<BaseDriveTask> m_verificationTask;
+    std::shared_ptr<BaseDriveTask> m_verificationTask;
 
     ReplicatorList m_modifyDonatorShard;
     ReplicatorList m_modifyRecipientShard;
@@ -416,6 +416,7 @@ public:
         if ( m_verificationTask )
         {
             m_verificationTask->terminate();
+            m_verificationTask.reset();
         }
 
         m_backgroundExecutor.stop();
@@ -602,16 +603,21 @@ public:
                 m_opinionController.increaseApprovedExpectedCumulativeDownload(m_deferredModificationRequests.front()->m_maxDataSize);
                 m_deferredModificationRequests.pop_front();
             }
-            m_opinionController.increaseApprovedExpectedCumulativeDownload(m_deferredModificationRequests.front()->m_maxDataSize);
-            m_deferredModificationRequests.pop_front();
+
+            _ASSERT( !m_deferredModificationRequests.empty() )
+
             if ( opinionTrafficIdentifier &&
             *opinionTrafficIdentifier != m_deferredModificationRequests.front()->m_transactionHash.array() )
             {
                 m_replicator.removeModifyDriveInfo(m_deferredModificationRequests.front()->m_transactionHash.array());
             }
+            m_opinionController.increaseApprovedExpectedCumulativeDownload(m_deferredModificationRequests.front()->m_maxDataSize);
+            m_deferredModificationRequests.pop_front();
         }
 
         m_task = createCatchingUpTask( std::move(m_catchingUpRequest), *this, m_opinionController );
+
+        _ASSERT ( !m_catchingUpRequest )
 
         _ASSERT( m_task->getTaskType() == DriveTaskType::CATCHING_UP )
 
@@ -775,6 +781,7 @@ public:
         }
 
         m_verificationTask->cancelVerification( info.m_tx );
+        m_verificationTask.reset();
     }
 
     ////////////
@@ -846,6 +853,7 @@ public:
         }
 
         m_verificationTask->cancelVerification( *tx );
+        m_verificationTask.reset();
     }
 
     void  addShardDonator( mobj<Key>&& replicatorKey ) override

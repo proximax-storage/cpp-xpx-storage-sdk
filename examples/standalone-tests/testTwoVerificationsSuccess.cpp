@@ -65,6 +65,8 @@ namespace sirius::drive::test
                               });
         env.waitVerificationApproval(verification);
 
+        EXLOG( "verification received" );
+
         const auto& verify_tx = env.m_verifyApprovalTransactionInfo[verification];
         for ( const auto& opinion: verify_tx.m_opinions )
         {

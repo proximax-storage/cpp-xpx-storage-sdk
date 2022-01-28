@@ -584,7 +584,7 @@ public:
     
     void asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& request ) override
     {
-#ifdef ENABLE_VERIFICATIONS
+//#ifdef ENABLE_VERIFICATIONS
        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
@@ -602,7 +602,7 @@ public:
 
             _LOG( "asyncStartDriveVerification: unknown drive: " << driveKey );
         });//post
-#endif
+//#endif
     }
 
     void asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) override
@@ -1352,6 +1352,10 @@ public:
         if ( endpointTo )
         {
             m_session->sendMessage( query, { endpointTo->address(), endpointTo->port() }, message );
+        }
+        else
+        {
+            _LOG_WARN( "Failed to send " << query << " to " << int(replicatorKey[0]) );
         }
     }
 

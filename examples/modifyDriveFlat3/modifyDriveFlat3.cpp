@@ -571,21 +571,21 @@ int main(int,char**)
     // Start verification
     //
     
-    auto actualRootHash = gReplicator->dbgGetRootHash( DRIVE_PUB_KEY );
+//    auto actualRootHash = gReplicator->dbgGetRootHash( DRIVE_PUB_KEY );
 
     std::vector<sirius::Key> replicatorKeys;
     replicatorKeys.push_back( gReplicator->replicatorKey() );
     replicatorKeys.push_back( gReplicator2->replicatorKey() );
     replicatorKeys.push_back( gReplicator3->replicatorKey() );
 
-    gReplicator->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
-    gReplicator2->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
-    gReplicator3->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
-
-    {
-        std::unique_lock<std::mutex> lock(verifyCompleteMutex);
-        verifyCompleteCondVar.wait( lock, [] { return verifyCompleteCounter == 3; } );
-    }
+//    gReplicator->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
+//    gReplicator2->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
+//    gReplicator3->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
+//
+//    {
+//        std::unique_lock<std::mutex> lock(verifyCompleteMutex);
+//        verifyCompleteCondVar.wait( lock, [] { return verifyCompleteCounter == 3; } );
+//    }
 
     /// Client: modify drive (2)
 #if 1

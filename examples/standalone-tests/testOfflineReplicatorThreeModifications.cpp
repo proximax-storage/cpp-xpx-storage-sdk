@@ -222,7 +222,6 @@ namespace sirius::drive::test
         }
         TestClient client(bootstraps, pack);
 
-        EXLOG("\n# Client started: 1-st upload");
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
         client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList);
         client.modifyDrive(createActionList_2(CLIENT_WORK_FOLDER), env.m_addrList);
@@ -246,6 +245,11 @@ namespace sirius::drive::test
                                         BIG_FILE_SIZE + 1024,
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
+
+        for (  const auto& modification: client.m_modificationTransactionHashes )
+        {
+            EXLOG( "modification: " << modification )
+        }
 
         env.waitModificationEnd(client.m_modificationTransactionHashes[2], NUMBER_OF_REPLICATORS - 1);
 

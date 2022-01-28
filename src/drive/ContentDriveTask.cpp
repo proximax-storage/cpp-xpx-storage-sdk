@@ -112,8 +112,6 @@ protected:
 
     void synchronizationIsCompleted()
     {
-        _ASSERT( !m_stopped )
-
         m_opinionController.approveCumulativeUploads( [this]
         {
             modifyIsCompleted();
@@ -162,13 +160,16 @@ protected:
 
                     finishTask();
                 } );
+                _LOG( "breakTorrentDownloadAndRunNextTask: remove torrents " )
             }
-        } else if ( m_sandboxCalculated )
+        } else if ( ! isFinishCallable() )
         {
             // We have already executed all actions for modification
+            _LOG( "breakTorrentDownloadAndRunNextTask: m_sandboxCalculated " )
             finishTask();
         } else
         {
+            _LOG( "breakTorrentDownloadAndRunNextTask: nothing " )
             // We cannot break torrent download.
             // Therefore, we will wait the end of current task, that will call m_drive.runNextTask()
         }
@@ -319,6 +320,9 @@ private:
     virtual uint64_t getNotApprovedDownloadSize() = 0;
 
     virtual void myOpinionIsCreated() = 0;
+
+    // Whether the finishTask can be called by the task itself
+    virtual bool isFinishCallable() = 0;
 };
 
 class ModificationRequestDriveTask : public ContentDriveTask
@@ -371,7 +375,9 @@ public:
 
         _LOG( "started modification" )
 
-        m_opinionController.setOpinionTrafficIdentifier( m_request->m_transactionHash.array());
+        m_opinionController.setOpinionTrafficIdentifier( m_request->m_transactionHash.array() );
+
+        _LOG ("modification opinion identifier: " << m_request->m_transactionHash );
 
         if ( auto session = m_drive.m_session.lock(); session )
         {
@@ -741,6 +747,11 @@ private:
                                         } );
     }
 
+    bool isFinishCallable() override
+    {
+        return !m_sandboxCalculated;
+    }
+
 protected:
 
     void modifyIsCompleted() override
@@ -787,6 +798,11 @@ private:
                 {
                     shareMyOpinion();
                 } );
+            }
+
+            if ( m_dbgOurPeerName == "replicator_04" )
+            {
+                _LOG( "calculated" )
             }
 
             // validate already received opinions
@@ -978,7 +994,7 @@ public:
                     TaskContext& drive,
                     ModifyOpinionController& opinionTaskController )
                     : ContentDriveTask(DriveTaskType::CATCHING_UP, drive, opinionTaskController)
-                    , m_request( request )
+                    , m_request( std::move(request) )
     {
         _ASSERT( m_request )
     }
@@ -990,6 +1006,7 @@ public:
         if ( m_request->m_rootHash == m_drive.m_rootHash )
         {
             finishTask();
+            return;
         }
 
         _LOG( "started catching up" )
@@ -1003,7 +1020,9 @@ public:
 
         if ( !m_opinionController.getOpinionTrafficIdentifier())
         {
-            m_opinionController.setOpinionTrafficIdentifier( m_request->m_modifyTransactionHash.array());
+            m_opinionController.setOpinionTrafficIdentifier( m_request->m_modifyTransactionHash.array() );
+
+            _LOG ("catching up opinion identifier: " << m_request->m_modifyTransactionHash );
         }
 
         if ( auto session = m_drive.m_session.lock(); session )
@@ -1346,6 +1365,11 @@ private:
     uint64_t getNotApprovedDownloadSize() override
     {
         return 0;
+    }
+
+    bool isFinishCallable() override
+    {
+        return true;
     }
 };
 

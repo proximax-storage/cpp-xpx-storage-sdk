@@ -20,7 +20,7 @@
 namespace sirius::drive
 {
 
-class VerificationDriveTask : public sirius::drive::BaseDriveTask
+class VerificationDriveTask : public sirius::drive::BaseDriveTask, std::enable_shared_from_this<VerificationDriveTask>
 {
 
 private:
@@ -270,9 +270,12 @@ private:
 
         calculateVerifyCodes( *m_drive.m_fsTree );
 
-        m_drive.executeOnSessionThread( [this]
+        m_drive.executeOnSessionThread( [t = weak_from_this()]
                                         {
-                                            verificationCodesCompleted();
+                                            if ( auto task = t.lock(); task )
+                                            {
+                                                task->verificationCodesCompleted();
+                                            }
                                         } );
     }
 
