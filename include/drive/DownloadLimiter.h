@@ -38,8 +38,8 @@ protected:
     // Replicator's keys
     const crypto::KeyPair& m_keyPair;
 
-    ChannelMap          m_downloadChannelMap; // will be saved only if not crashed
-    ChannelMap          m_downloadChannelMapBackup;
+    ChannelMap          m_dnChannelMap; // will be saved only if not crashed
+    ChannelMap          m_dnChannelMapBackup;
     ModifyDriveMap      m_modifyDriveMap;
 
     uint64_t            m_receiptLimit = 1024 * 1024;
@@ -61,7 +61,7 @@ public:
     {
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             
-            if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
+            if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
             {
                 _LOG( "requestedSize=" << it->second.m_requestedSize << "; uploadedSize=" << it->second.m_myUploadedSize );
                 return;
@@ -151,9 +151,9 @@ public:
     {
         DBG_MAIN_THREAD
 
-        auto it = m_downloadChannelMap.find( downloadChannelId );
+        auto it = m_dnChannelMap.find( downloadChannelId );
 
-        if ( it == m_downloadChannelMap.end() )
+        if ( it == m_dnChannelMap.end() )
         {
             _LOG ("Check Download Limit:  No Such a Download Channel");
             return false;
@@ -185,7 +185,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( auto it = m_downloadChannelMap.find( downloadChannelId ); it != m_downloadChannelMap.end() )
+        if ( auto it = m_dnChannelMap.find( downloadChannelId ); it != m_dnChannelMap.end() )
         {
             return it->second.m_myUploadedSize;
         }
@@ -201,7 +201,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( auto it = m_downloadChannelMap.find(channelId); it != m_downloadChannelMap.end() )
+        if ( auto it = m_dnChannelMap.find(channelId); it != m_dnChannelMap.end() )
         {
             // It is 'upgrade' of existing 'downloadChannel'
 
@@ -230,10 +230,10 @@ public:
                 map.insert( { it.array(), {}} );
         }
         
-        m_downloadChannelMap[channelId] = DownloadChannelInfo{ false,
+        m_dnChannelMap[channelId] = DownloadChannelInfo{ false,
             willBeSyncronized, prepaidDownloadSize, 0, 0, 0, driveKey.array(), replicatorsList, map, clients, {} };
 
-        if ( auto backupIt = m_downloadChannelMapBackup.find(channelId); backupIt != m_downloadChannelMapBackup.end() )
+        if ( auto backupIt = m_dnChannelMapBackup.find(channelId); backupIt != m_dnChannelMapBackup.end() )
         {
             // It will happen after restart only,
             // when 'storage-extension' inform us of the existing 'downloadChannels'
@@ -250,7 +250,7 @@ public:
 //                _LOG_ERR( "addChannelInfo: channel size decreased" );
             }
 
-            auto it = m_downloadChannelMap.find(channelId);
+            auto it = m_dnChannelMap.find(channelId);
 
             //(+++)??? restore backup info
             it->second.m_requestedSize        = backupIt->second.m_requestedSize;
@@ -258,7 +258,7 @@ public:
             it->second.m_replicatorUploadMap  = backupIt->second.m_replicatorUploadMap;
             it->second.m_downloadOpinionMap   = backupIt->second.m_downloadOpinionMap;
 
-            m_downloadChannelMapBackup.erase(backupIt);
+            m_dnChannelMapBackup.erase(backupIt);
         }
     }
 
@@ -296,12 +296,12 @@ public:
         
         m_modifyDriveMap.insert(driveMapIt, {modifyTransactionHash.array(), ModifyDriveInfo{ driveKey.array(), dataSize, replicatorsList, trafficMap, 0 }});
 
-        // we need to add modifyTransactionHash into 'm_downloadChannelMap'
+        // we need to add modifyTransactionHash into 'm_dnChannelMap'
         // because replicators could download pieces from their neighbors
         //
         {
             //_LOG( "driveKey: " << driveKey )
-            m_downloadChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, false, dataSize, 0, 0, 0, driveKey.array(), replicatorsList, {}, clients, {}};
+            m_dnChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, false, dataSize, 0, 0, 0, driveKey.array(), replicatorsList, {}, clients, {}};
         }
 
         return true;
@@ -320,9 +320,9 @@ public:
     {
         DBG_MAIN_THREAD
         
+        // (???+) todo++ drive.getRecipientShard
         auto& replicatorList = drive.getAllReplicators();
-        auto replicatorIt = std::find( replicatorList.begin(), replicatorList.end(), peerPublicKey);
-        //_LOG( m_dbgOurPeerName << ": isPeerReplicator(): peerPublicKey: " << Key(peerPublicKey) );
+        auto replicatorIt = std::find( replicatorList.begin(), replicatorList.end(), peerPublicKey );
 
         return replicatorIt != replicatorList.end();
     }
@@ -338,7 +338,7 @@ public:
     {
         DBG_MAIN_THREAD
         
-        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
+        if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
         {
             if ( it->second.m_isModifyTx )
             {
@@ -401,22 +401,23 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
+        if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
         {
             it->second.m_requestedSize += pieceSize;
             return;
         }
 
-        if ( auto drive = getDrive( transactionHash ); drive )
-        {
-            if ( isPeerReplicator( *drive, receiverPublicKey) )
-            {
-                //todo it is a late replicator
-                return;
-            }
-        }
-
-        _LOG_WARN( "ERROR: unknown transactionHash: " << (int)transactionHash[0] );
+        // (???+) it was checked in accepConnection!!!
+//        if ( auto drive = getDrive( transactionHash ); drive )
+//        {
+//            if ( isPeerReplicator( *drive, receiverPublicKey) )
+//            {
+//                //todo it is a late replicator
+//                return;
+//            }
+//        }
+//
+//        _LOG_WARN( "ERROR: unknown transactionHash: " << (int)transactionHash[0] );
     }
     
     void onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
@@ -425,7 +426,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
+        if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
         {
             it->second.m_requestedSize += pieceSize;
         }
@@ -446,7 +447,7 @@ public:
         DBG_MAIN_THREAD
 
         // Maybe this piece was sent to client (during data download)
-        if ( auto it = m_downloadChannelMap.find( transactionHash ); it != m_downloadChannelMap.end() )
+        if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
         {
             it->second.m_myUploadedSize += pieceSize;
             return;
@@ -484,6 +485,7 @@ public:
             _LOG_ERR( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
         }
 
+        // (???+) is this check needed?
         if ( auto drive = getDrive( transactionHash ); drive )
         {
             if ( isPeerReplicator( *drive, senderPublicKey ) )
@@ -518,7 +520,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_downloadChannelMap.erase( channelId );
+        m_dnChannelMap.erase( channelId );
     }
 
     bool isClient() const override { return false; }
@@ -599,8 +601,8 @@ public:
                         const std::array<uint8_t, 64>& signature) override
     {
         // Get channel info
-        auto channelInfoIt = m_downloadChannelMap.find( downloadChannelId );
-        if ( channelInfoIt == m_downloadChannelMap.end() )
+        auto channelInfoIt = m_dnChannelMap.find( downloadChannelId );
+        if ( channelInfoIt == m_dnChannelMap.end() )
         {
             _LOG_WARN( dbgOurPeerName() << "unknown channelId (maybe we are late): " << int(downloadChannelId[0]) << " " << int(replicatorKey[0]) );
             return false;

@@ -110,7 +110,7 @@ public:
             drive->terminate();
         }
 
-        for ( auto& [channelId, value]: m_downloadChannelMap )
+        for ( auto& [channelId, value]: m_dnChannelMap )
         {
             for ( auto& [event, opinion]: value.m_downloadOpinionMap )
             {
@@ -370,7 +370,7 @@ public:
     }
 
 
-    void asyncAddShardDistributor( Key driveKey, mobj<Key>&& replicatorKey ) override
+    void asyncAddShardDonator( Key driveKey, mobj<Key>&& replicatorKey ) override
     {
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
         {
@@ -378,7 +378,7 @@ public:
 
             if ( auto drive = getDrive(driveKey); drive )
             {
-//                drive->( std::move(replicatorKey) );
+                drive->addShardDonator( std::move(replicatorKey) );
             }
             else
             {
@@ -388,7 +388,7 @@ public:
         });
     }
 
-    void asyncRemoveShardDistributor( Key driveKey, mobj<Key>&& replicatorKey ) override
+    void asyncRemoveShardDonator( Key driveKey, mobj<Key>&& replicatorKey ) override
     {
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
         {
@@ -396,7 +396,7 @@ public:
 
             if ( auto drive = getDrive(driveKey); drive )
             {
-//                drive->( std::move(replicatorKey) );
+                drive->removeShardDonator( std::move(replicatorKey) );
             }
             else
             {
@@ -414,7 +414,7 @@ public:
 
             if ( auto drive = getDrive(driveKey); drive )
             {
-//                drive->( std::move(replicatorKey) );
+                drive->addShardRecipient( std::move(replicatorKey) );
             }
             else
             {
@@ -432,11 +432,59 @@ public:
 
             if ( auto drive = getDrive(driveKey); drive )
             {
-//                drive->( std::move(replicatorKey) );
+                drive->removeShardRecipient( std::move(replicatorKey) );
             }
             else
             {
                 _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
+    }
+    
+    virtual void asyncAddToChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( auto channelInfoIt = m_dnChannelMap.find( channelId->array() ); channelInfoIt != m_dnChannelMap.end() )
+            {
+                auto& shard = channelInfoIt->second.m_dnReplicatorShard;
+                auto it = std::find( shard.begin(), shard.end(), *replicatorKey );
+                if ( it != shard.end() )
+                {
+                    _LOG_WARN( "replicator already exists: " << *replicatorKey )
+                }
+                shard.push_back( replicatorKey->array() );
+            }
+            else
+            {
+                _LOG_ERR( "Unknown channel hash: " << *channelId );
+                return;
+            }
+        });
+    }
+
+    virtual void asyncRemoveFromChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) override
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( auto channelInfoIt = m_dnChannelMap.find( channelId->array() ); channelInfoIt != m_dnChannelMap.end() )
+            {
+                auto& shard = channelInfoIt->second.m_dnReplicatorShard;
+                auto it = std::find( shard.begin(), shard.end(), *replicatorKey );
+                if ( it == shard.end() )
+                {
+                    _LOG_WARN( "unknown replicatorKey: " << *replicatorKey )
+                }
+                shard.erase( it );
+            }
+            else
+            {
+                _LOG_ERR( "Unknown channel hash: " << *channelId );
                 return;
             }
         });
@@ -493,18 +541,18 @@ public:
                                 driveKey,
                                 modifyRequest.m_maxDataSize,
                                 modifyRequest.m_clientPublicKey,
-                                modifyRequest.m_replicatorShard);
+                                modifyRequest.m_unusedReplicatorList);
 
-           if ( ! added )
-           {
+            if ( ! added )
+            {
                _LOG_ERR( "Internal Error: Modification Received after Approval or twice" )
-           }
-
-            for( auto it = modifyRequest.m_replicatorShard.begin();  it != modifyRequest.m_replicatorShard.end(); it++ )
+            }
+           
+            for( auto it = modifyRequest.m_unusedReplicatorList.begin();  it != modifyRequest.m_unusedReplicatorList.end(); it++ )
             {
                 if ( *it == publicKey() )
                 {
-                    modifyRequest.m_replicatorShard.erase( it );
+                    modifyRequest.m_unusedReplicatorList.erase( it );
                     break;
                 }
             }
@@ -621,7 +669,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( auto infoIt = m_downloadChannelMap.find( downloadChannelHash ); infoIt != m_downloadChannelMap.end() )
+        if ( auto infoIt = m_dnChannelMap.find( downloadChannelHash ); infoIt != m_dnChannelMap.end() )
         {
             if ( infoIt->second.m_driveKey != driveKey )
             {
@@ -662,7 +710,7 @@ public:
         message.insert( message.end(), (uint8_t*)&downloadedSize,   ((uint8_t*)&downloadedSize)+8 );
         message.insert( message.end(), signature.begin(),           signature.end() );
         
-        if ( auto it = m_downloadChannelMap.find(downloadChannelId); it != m_downloadChannelMap.end() )
+        if ( auto it = m_dnChannelMap.find(downloadChannelId); it != m_dnChannelMap.end() )
         {
             // go throw replictor list
             for( auto replicatorIt = it->second.m_dnReplicatorShard.begin(); replicatorIt != it->second.m_dnReplicatorShard.end(); replicatorIt++ )
@@ -786,7 +834,7 @@ public:
 
         if ( auto drive = getDrive( driveKey ); drive )
         {
-            if ( auto channelInfoIt = m_downloadChannelMap.find(channelId); channelInfoIt != m_downloadChannelMap.end() )
+            if ( auto channelInfoIt = m_dnChannelMap.find(channelId); channelInfoIt != m_dnChannelMap.end() )
             {
                 DownloadChannelInfo& channelInfo = channelInfoIt->second;
 
@@ -824,7 +872,7 @@ public:
         //
         auto now = boost::posix_time::microsec_clock::universal_time();
 
-        for (auto &[downloadChannelId, downloadChannel]: m_downloadChannelMap)
+        for (auto &[downloadChannelId, downloadChannel]: m_dnChannelMap)
         {
             // TODO Potential performance bottleneck
             std::erase_if(downloadChannel.m_downloadOpinionMap, [&now](const auto &item)
@@ -837,9 +885,9 @@ public:
         //
         // add opinion
         //
-        auto channelIt = m_downloadChannelMap.find(opinion.m_downloadChannelId);
+        auto channelIt = m_dnChannelMap.find(opinion.m_downloadChannelId);
 
-        if (channelIt == m_downloadChannelMap.end())
+        if (channelIt == m_dnChannelMap.end())
         {
             _LOG_WARN("Attempt to add opinion for a non-existing channel");
             return;
@@ -922,7 +970,7 @@ public:
         
         //todo make queue for several simultaneous requests of the same channelId
         
-        if ( auto it = m_downloadChannelMap.find( channelId.array() ); it != m_downloadChannelMap.end() )
+        if ( auto it = m_dnChannelMap.find( channelId.array() ); it != m_dnChannelMap.end() )
         {
             //
             // Create my opinion
@@ -949,8 +997,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        auto it = m_downloadChannelMap.find( downloadChannel.array() );
-        _ASSERT( it != m_downloadChannelMap.end() );
+        auto it = m_dnChannelMap.find( downloadChannel.array() );
+        _ASSERT( it != m_dnChannelMap.end() );
 
         auto eventIt = it->second.m_downloadOpinionMap.find( eventHash.array() );
         _ASSERT( eventIt !=  it->second.m_downloadOpinionMap.end() )
@@ -988,7 +1036,7 @@ public:
 
         bool deleteDriveImmediately = true;
         
-        std::erase_if( m_downloadChannelMap, [](const auto& channelInfo )
+        std::erase_if( m_dnChannelMap, [](const auto& channelInfo )
         {
             return channelInfo.second.m_isModifyTx;
         });
@@ -996,7 +1044,7 @@ public:
 #ifndef CHANNELS_NOT_OWNED_BY_DRIVES
         if ( blockHash )
         {
-            for( auto& [channelId,channelInfo] : m_downloadChannelMap )
+            for( auto& [channelId,channelInfo] : m_dnChannelMap )
             {
                 if ( channelInfo.m_driveKey == drive.drivePublicKey().array() && !channelInfo.m_isModifyTx )
                 {
@@ -1028,7 +1076,7 @@ public:
                 return;
             }
 
-            if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end())
+            if ( auto channelIt = m_dnChannelMap.find( channelId.array() ); channelIt != m_dnChannelMap.end())
             {
                 if ( channelIt->second.m_isClosed )
                 {
@@ -1083,7 +1131,7 @@ public:
             }
 
             // clear opinion map
-            if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end())
+            if ( auto channelIt = m_dnChannelMap.find( channelId.array() ); channelIt != m_dnChannelMap.end())
             {
                 auto& opinions = channelIt->second.m_downloadOpinionMap;
                 if ( auto it = opinions.find( eventHash.array() ); it != opinions.end() )
@@ -1109,7 +1157,7 @@ public:
             }
 
             // Is it happened while drive is closing?
-            if ( auto channelIt = m_downloadChannelMap.find( channelId.array() ); channelIt != m_downloadChannelMap.end() )
+            if ( auto channelIt = m_dnChannelMap.find( channelId.array() ); channelIt != m_dnChannelMap.end() )
             {
                 const auto& driveKey = channelIt->second.m_driveKey;
 
@@ -1122,10 +1170,10 @@ public:
                         channelIt->second.m_isClosed = true;
 
                         // TODO Potential performance bottleneck
-                        driveWillBeDeleted = std::find_if(m_downloadChannelMap.begin(), m_downloadChannelMap.end(),[&driveKey] (const auto& value)
+                        driveWillBeDeleted = std::find_if(m_dnChannelMap.begin(), m_dnChannelMap.end(),[&driveKey] (const auto& value)
                               {
                                   return value.second.m_driveKey == driveKey && !value.second.m_isClosed;
-                              }) == m_downloadChannelMap.end();
+                              }) == m_dnChannelMap.end();
                     }
 
                     if ( driveWillBeDeleted )
@@ -1144,7 +1192,7 @@ public:
         DBG_MAIN_THREAD
 
 #ifndef CHANNELS_NOT_OWNED_BY_DRIVES
-        std::erase_if( m_downloadChannelMap, [&driveKey] (const auto& item) {
+        std::erase_if( m_dnChannelMap, [&driveKey] (const auto& item) {
             return item.second.m_driveKey == driveKey;
         });
 #endif
@@ -1445,7 +1493,7 @@ public:
                 _LOG_WARN( "invalid download sync opinion from " << Key(opinion->m_replicatorKey) )
             }
 
-            m_dnOpinionSyncronizer.addSyncOpinion( channelHash, std::move(opinion), m_downloadChannelMap );
+            m_dnOpinionSyncronizer.addSyncOpinion( channelHash, std::move(opinion), m_dnChannelMap );
         }
         catch(...)
         {
@@ -1559,7 +1607,7 @@ public:
     {
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
-        archive( m_downloadChannelMap );
+        archive( m_dnChannelMap );
 
         saveRestartData( fs::path(m_storageDirectory) / "downloadChannelMap", os.str() );
     }
@@ -1575,7 +1623,7 @@ public:
         
         std::istringstream is( data, std::ios::binary );
         cereal::PortableBinaryInputArchive iarchive(is);
-        iarchive( m_downloadChannelMapBackup );
+        iarchive( m_dnChannelMapBackup );
         return true;
     }
     

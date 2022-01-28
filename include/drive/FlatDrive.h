@@ -39,11 +39,12 @@ class Replicator;
 
     struct ModificationRequest
     {
-        InfoHash m_clientDataInfoHash;
-        Hash256 m_transactionHash;
-        uint64_t m_maxDataSize;
-        ReplicatorList m_replicatorShard;
-        Key m_clientPublicKey;
+        InfoHash        m_clientDataInfoHash;
+        Hash256         m_transactionHash;
+        uint64_t        m_maxDataSize;
+        ReplicatorList  m_unusedReplicatorList;
+        //(???+) m_clientPublicKey?
+        Key             m_clientPublicKey;
 
         bool m_isCanceled = false;
     };
@@ -580,6 +581,12 @@ class Replicator;
         virtual void     startVerification( mobj<VerificationRequest>&& request ) = 0;
 
         virtual void     cancelVerification( mobj<Hash256>&& tx ) = 0;
+        
+        // modify shards
+        virtual void     addShardDonator( mobj<Key>&& replicatorKey ) = 0;
+        virtual void     removeShardDonator( mobj<Key>&& replicatorKey ) = 0;
+        virtual void     addShardRecipient( mobj<Key>&& replicatorKey ) = 0;
+        virtual void     removeShardRecipient( mobj<Key>&& replicatorKey ) = 0;
 
         virtual void     onVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
 

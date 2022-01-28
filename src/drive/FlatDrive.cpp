@@ -329,9 +329,8 @@ private:
 //
 // DefaultDrive - it manages all user files at replicator side
 //
-class DefaultFlatDrive: public FlatDrive,
-                        public TaskContext {
-
+class DefaultFlatDrive: public FlatDrive, public TaskContext
+{
     // List of all replicators that support this drive
     // (It does not contain our replicator key!)
     ReplicatorList m_allReplicators;
@@ -364,6 +363,9 @@ class DefaultFlatDrive: public FlatDrive,
     //
     std::unique_ptr<BaseDriveTask> m_task;
     std::unique_ptr<BaseDriveTask> m_verificationTask;
+
+    ReplicatorList m_modifyDonatorShard;
+    ReplicatorList m_modifyRecipientShard;
 
 public:
 
@@ -844,6 +846,54 @@ public:
         }
 
         m_verificationTask->cancelVerification( *tx );
+    }
+
+    void  addShardDonator( mobj<Key>&& replicatorKey ) override
+    {
+        auto it = std::find( m_modifyDonatorShard.begin(), m_modifyDonatorShard.end(), *replicatorKey );
+        if ( it != m_modifyDonatorShard.end() )
+        {
+            _LOG_WARN( "duplicated key" << Key(*replicatorKey) )
+            return;
+        }
+        
+        m_modifyDonatorShard.push_back( *replicatorKey );
+    }
+    
+    void  removeShardDonator( mobj<Key>&& replicatorKey ) override
+    {
+        auto it = std::find( m_modifyDonatorShard.begin(), m_modifyDonatorShard.end(), *replicatorKey );
+        if ( it == m_modifyDonatorShard.end() )
+        {
+            _LOG_WARN( "unknown key" << Key(*replicatorKey) )
+            return;
+        }
+        
+        m_modifyDonatorShard.erase( it );
+    }
+    
+    void  addShardRecipient( mobj<Key>&& replicatorKey ) override
+    {
+        auto it = std::find( m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), *replicatorKey );
+        if ( it != m_modifyRecipientShard.end() )
+        {
+            _LOG_WARN( "duplicated key" << Key(*replicatorKey) )
+            return;
+        }
+        
+        m_modifyRecipientShard.push_back( *replicatorKey );
+    }
+    
+    void  removeShardRecipient( mobj<Key>&& replicatorKey ) override
+    {
+        auto it = std::find( m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), *replicatorKey );
+        if ( it == m_modifyRecipientShard.end() )
+        {
+            _LOG_WARN( "unknown key" << Key(*replicatorKey) )
+            return;
+        }
+        
+        m_modifyRecipientShard.erase( it );
     }
 
     ////////////

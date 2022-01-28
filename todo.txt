@@ -2,6 +2,9 @@ cmake -DCMAKE_CONFIGURATION_TYPES=Debug -GXcode ..
 cmake -DCMAKE_BUILD_TYPE=Debug -GXcode ..
 
 
+Почему каналы привязаны к драйвам
+Как ограничить данлоад/модифай-запрос, чтобы не запрашивал у не шардовых/чужых
+
 -----modifyRequest
 
 DownloadChannelInfo::m_replicatorsList2;      //todo must be "synchronized?" with drive.m_replicatorList (in higher versions?)

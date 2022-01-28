@@ -274,11 +274,15 @@ public:
     virtual void asyncReplicatorAdded( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
     virtual void asyncReplicatorRemoved( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
 
-    // It notifyes about changes in drive shard
-    virtual void asyncAddShardDistributor( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
-    virtual void asyncRemoveShardDistributor( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
+    // It notifyes about changes in modification shards
+    virtual void asyncAddShardDonator( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
+    virtual void asyncRemoveShardDonator( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
     virtual void asyncAddShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
     virtual void asyncRemoveShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
+
+    // It notifyes about changes in download channel shard
+    virtual void asyncAddToChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) = 0;
+    virtual void asyncRemoveFromChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) = 0;
 
     // it starts drive closing
     virtual void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) = 0;
