@@ -14,6 +14,7 @@ add_executable(standalone-tests utils.h utils.cpp TestEnvironment.h ${TEST_FILES
 include_directories(${GTEST_INCLUDE_DIRS})
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    add_definitions(-D_GNU_SOURCE)
     target_link_libraries(standalone-tests
             #${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
             ${CMAKE_SOURCE_DIR}/libtorrent/cmake-build-debug/libtorrent-sirius.dylib

@@ -335,9 +335,12 @@ class DefaultFlatDrive: public FlatDrive, public TaskContext
     // (It does not contain our replicator key!)
     ReplicatorList m_allReplicators;
 
-    const size_t m_maxSize;
+    ReplicatorList m_modifyDonatorShard;
+    ReplicatorList m_modifyRecipientShard;
 
-    BackgroundExecutor      m_backgroundExecutor;
+    const size_t        m_maxSize;
+
+    BackgroundExecutor  m_backgroundExecutor;
 
     // Opinion Controller
     DefaultModifyOpinionController  m_opinionController;
@@ -345,6 +348,7 @@ class DefaultFlatDrive: public FlatDrive, public TaskContext
     // opinions from other replicators
     // key of the outer map is modification id
     // key of the inner map is a replicator key, one replicator one opinion
+    //
     std::map<Hash256, std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>>    m_unknownModificationOpinions; // (***)
     std::map<Hash256, std::vector<VerifyApprovalTxInfo>>                           m_unknownVerificationOpinions;
 
@@ -352,11 +356,11 @@ class DefaultFlatDrive: public FlatDrive, public TaskContext
     // Request queue
     //
 
-    mobj<DriveClosureRequest> m_closeDriveRequest = {};
-    mobj<ModificationCancelRequest> m_modificationCancelRequest;
-    mobj<CatchingUpRequest> m_catchingUpRequest;
-    std::deque<mobj<ModificationRequest>> m_deferredModificationRequests;
-    mobj<VerificationRequest> m_deferredVerificationRequest;
+    mobj<DriveClosureRequest>               m_closeDriveRequest = {};
+    mobj<ModificationCancelRequest>         m_modificationCancelRequest;
+    mobj<CatchingUpRequest>                 m_catchingUpRequest;
+    std::deque<mobj<ModificationRequest>>   m_deferredModificationRequests;
+    mobj<VerificationRequest>               m_deferredVerificationRequest;
 
     std::map<Hash256, std::vector<VerificationCodeInfo>>  m_unknownVerificationCodeQueue;
 
@@ -364,34 +368,37 @@ class DefaultFlatDrive: public FlatDrive, public TaskContext
     std::unique_ptr<BaseDriveTask> m_task;
     std::shared_ptr<BaseDriveTask> m_verificationTask;
 
-    ReplicatorList m_modifyDonatorShard;
-    ReplicatorList m_modifyRecipientShard;
-
 public:
 
     DefaultFlatDrive(
-            std::shared_ptr<Session> session,
-            const std::string& replicatorRootFolder,
-            const std::string& replicatorSandboxRootFolder,
-            const Key& drivePubKey,
-            const Key& clientPubKey,
-            size_t maxSize,
-            size_t expectedCumulativeDownload,
-            ReplicatorEventHandler& eventHandler,
-            Replicator& replicator,
-            const ReplicatorList& initialReplicatorList,
-            DbgReplicatorEventHandler* dbgEventHandler )
+                std::shared_ptr<Session>    session,
+                const std::string&          replicatorRootFolder,
+                const std::string&          replicatorSandboxRootFolder,
+                const Key&                  drivePubKey,
+                const Key&                  clients,
+                size_t                      maxSize,
+                size_t                      expectedCumulativeDownload,
+                ReplicatorEventHandler&     eventHandler,
+                Replicator&                 replicator,
+                const ReplicatorList&       fullReplicatorList,
+                const ReplicatorList&       modifyDonatorShard,
+                const ReplicatorList&       modifyRecipientShard,
+                DbgReplicatorEventHandler*  dbgEventHandler
+            )
             : TaskContext(
                     drivePubKey,
-                    clientPubKey,
+                    clients,
                     session,
                     eventHandler,
                     replicator,
                     dbgEventHandler,
                     replicatorRootFolder,
                     replicatorSandboxRootFolder,
-                    replicator.dbgReplicatorName())
-            , m_allReplicators(initialReplicatorList)
+                    replicator.dbgReplicatorName()
+              )
+            , m_allReplicators(fullReplicatorList)
+            , m_modifyDonatorShard(modifyDonatorShard)
+            , m_modifyRecipientShard(modifyRecipientShard)
             , m_maxSize(maxSize)
             , m_opinionController(m_driveKey, m_client, m_replicator, m_serializer, *this, expectedCumulativeDownload, replicator.dbgReplicatorName() )
 
@@ -933,17 +940,19 @@ public:
 
 
 std::shared_ptr<FlatDrive> createDefaultFlatDrive(
-        std::shared_ptr<Session> session,
-        const std::string&       replicatorRootFolder,
-        const std::string&       replicatorSandboxRootFolder,
-        const Key&               drivePubKey,
-        const Key&               clientPubKey,
-        size_t                   maxSize,
-        size_t                   usedDriveSizeExcludingMetafiles,
-        ReplicatorEventHandler&  eventHandler,
-        Replicator&              replicator,
-        const std::vector<Key>&    replicators,
-        DbgReplicatorEventHandler* dbgEventHandler )
+        std::shared_ptr<Session>    session,
+        const std::string&          replicatorRootFolder,
+        const std::string&          replicatorSandboxRootFolder,
+        const Key&                  drivePubKey,
+        const Key&                  clientPubKey,
+        size_t                      maxSize,
+        size_t                      usedDriveSizeExcludingMetafiles,
+        ReplicatorEventHandler&     eventHandler,
+        Replicator&                 replicator,
+        const ReplicatorList&       fullReplicatorList,
+        const ReplicatorList&       modifyDonatorShard,
+        const ReplicatorList&       modifyRecipientShard,
+        DbgReplicatorEventHandler*  dbgEventHandler )
 
 {
     return std::make_shared<DefaultFlatDrive>( session,
@@ -955,7 +964,9 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
                                            usedDriveSizeExcludingMetafiles,
                                            eventHandler,
                                            replicator,
-                                           replicators,
+                                           fullReplicatorList,
+                                           modifyDonatorShard,
+                                           modifyRecipientShard,
                                            dbgEventHandler );
 }
 

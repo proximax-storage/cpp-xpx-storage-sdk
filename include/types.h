@@ -81,6 +81,7 @@ namespace sirius {
         };
 
         using ReplicatorList = std::vector<Key>;
+        using ClientList = std::vector<Key>;
     }
 
     // movable/nullable object with Args... constructor

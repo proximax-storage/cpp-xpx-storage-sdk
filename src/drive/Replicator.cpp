@@ -274,11 +274,11 @@ public:
             }
 
             // Exclude itself from replicator list
-            for( auto it = driveRequest.m_actualReplicatorList.begin();  it != driveRequest.m_actualReplicatorList.end(); it++ )
+            for( auto it = driveRequest.m_fullReplicatorList.begin();  it != driveRequest.m_fullReplicatorList.end(); it++ )
             {
                 if ( *it == publicKey() )
                 {
-                    driveRequest.m_actualReplicatorList.erase( it );
+                    driveRequest.m_fullReplicatorList.erase( it );
                     break;
                 }
             }
@@ -293,12 +293,14 @@ public:
                     driveRequest.m_expectedCumulativeDownloadSize,
                     m_eventHandler,
                     *this,
-                    driveRequest.m_actualReplicatorList,
+                    driveRequest.m_fullReplicatorList,
+                    driveRequest.m_modifyDonatorShard,
+                    driveRequest.m_modifyRecipientShard,
                     m_dbgEventHandler );
 
             m_driveMap[driveKey] = drive;
 
-            m_endpointsManager.addEndpointsEntries( driveRequest.m_actualReplicatorList );
+            m_endpointsManager.addEndpointsEntries( driveRequest.m_fullReplicatorList );
             m_endpointsManager.addEndpointEntry( driveRequest.m_client, false );
 
             // Notify
@@ -536,8 +538,8 @@ public:
                 }
             }
 
-            // Add ModifyDriveInfo to DownloadLimiter
-            bool added = addModifyDriveInfo( modifyRequest.m_transactionHash.array(),
+            // Add ModifyTrafficInfo to DownloadLimiter
+            bool added = addModifyTrafficInfo( modifyRequest.m_transactionHash.array(),
                                 driveKey,
                                 modifyRequest.m_maxDataSize,
                                 modifyRequest.m_clientPublicKey,
@@ -1253,7 +1255,7 @@ public:
             if ( auto drive = getDrive( transaction.m_driveKey ); drive )
             {
                 //(???) remove replicator list from arguments
-                addModifyDriveInfo( transaction.m_modifyTransactionHash,
+                addModifyTrafficInfo( transaction.m_modifyTransactionHash,
                                     transaction.m_driveKey,
                                     LONG_LONG_MAX,
                                     drive->getClient(),

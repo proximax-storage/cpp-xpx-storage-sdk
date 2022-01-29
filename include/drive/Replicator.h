@@ -119,7 +119,7 @@ using ChannelMap         = std::map<std::array<uint8_t,32>, DownloadChannelInfo>
 
 // It is used for mutual calculation of the replicators, when they download 'modify data'
 // (Note. Replicators could receive 'modify data' from client and from replicators, that already receives some piece)
-struct ModifyTrafficInfo
+struct ModifyTraffic
 {
     // It is the size received from another replicator or client
     uint64_t m_receivedSize = 0;
@@ -130,19 +130,18 @@ struct ModifyTrafficInfo
 };
 
 // The key is a transaction hash
-using ModifyTrafficMap = std::map<std::array<uint8_t,32>,ModifyTrafficInfo>;
+using ModifyTrafficMap = std::map<std::array<uint8_t,32>,ModifyTraffic>;
 
-struct ModifyDriveInfo
+struct ModifyTrafficInfo
 {
     std::array<uint8_t,32>  m_driveKey;
     uint64_t                m_maxDataSize;
-    ReplicatorList          m_replicatorsList;
     ModifyTrafficMap        m_modifyTrafficMap;
     uint64_t                m_totalReceivedSize = 0;
 };
 
 // The key is a transaction hash
-using ModifyDriveMap    = std::map<std::array<uint8_t,32>, ModifyDriveInfo>;
+using ModifyDriveMap    = std::map<std::array<uint8_t,32>, ModifyTrafficInfo>;
 
 struct ExternalEndpointRequest {
 
@@ -402,7 +401,7 @@ public:
         return true;
     }
 
-    virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) const = 0;
+    virtual ModifyTrafficInfo getMyDownloadOpinion( const Hash256& transactionHash ) const = 0;
 
     virtual DownloadChannelInfo* getDownloadChannelInfo( const std::array<uint8_t,32>& driveKey, const std::array<uint8_t,32>& downloadChannelHash ) = 0;
 

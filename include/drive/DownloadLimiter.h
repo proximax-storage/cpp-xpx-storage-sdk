@@ -131,7 +131,7 @@ public:
       });
     }
     
-    virtual ModifyDriveInfo getMyDownloadOpinion( const Hash256& transactionHash ) const override
+    virtual ModifyTrafficInfo getMyDownloadOpinion( const Hash256& transactionHash ) const override
     {
         DBG_MAIN_THREAD
 
@@ -262,7 +262,7 @@ public:
         }
     }
 
-    bool addModifyDriveInfo( const Key&                 modifyTransactionHash,
+    bool addModifyTrafficInfo( const Key&                 modifyTransactionHash,
                              const Key&                 driveKey,
                              uint64_t                   dataSize,
                              const Key&                 clientPublicKey,
@@ -294,7 +294,7 @@ public:
             }
         }
         
-        m_modifyDriveMap.insert(driveMapIt, {modifyTransactionHash.array(), ModifyDriveInfo{ driveKey.array(), dataSize, replicatorsList, trafficMap, 0 }});
+        m_modifyDriveMap.insert(driveMapIt, {modifyTransactionHash.array(), ModifyTrafficInfo{ driveKey.array(), dataSize, trafficMap, 0 }});
 
         // we need to add modifyTransactionHash into 'm_dnChannelMap'
         // because replicators could download pieces from their neighbors

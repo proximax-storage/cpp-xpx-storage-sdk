@@ -690,7 +690,7 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->setVerifyCodeTimerDelay(100);
     replicator->setVerifyApprovalTransactionTimerDelay(1);
     replicator->start();
-    replicator->asyncAddDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, replicatorList, clientKeyPair.publicKey()} );
+    replicator->asyncAddDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
     
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash1.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey() }} );

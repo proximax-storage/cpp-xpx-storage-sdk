@@ -31,8 +31,10 @@ class Replicator;
     struct AddDriveRequest {
         uint64_t          m_driveSize;
         uint64_t          m_expectedCumulativeDownloadSize;
-        ReplicatorList    m_actualReplicatorList;
+        ReplicatorList    m_fullReplicatorList;
         Key               m_client;
+        ReplicatorList    m_modifyDonatorShard;
+        ReplicatorList    m_modifyRecipientShard;
     };
 
     using DriveModifyHandler = std::function<void( modify_status::code, const FlatDrive& drive, const std::string& error )>;
@@ -621,15 +623,17 @@ class Replicator;
     class Session;
 
     PLUGIN_API std::shared_ptr<FlatDrive> createDefaultFlatDrive( std::shared_ptr<Session> session,
-                                                       const std::string&       replicatorRootFolder,
-                                                       const std::string&       replicatorSandboxRootFolder,
-                                                       const Key&               drivePubKey,
-                                                       const Key&               clientPubKey,
-                                                       size_t                   maxSize,
-                                                       size_t                   expectedCumulativeDownload,
-                                                       ReplicatorEventHandler&  eventHandler,
-                                                       Replicator&              replicator,
-                                                       const std::vector<Key>&    replicators,
-                                                       DbgReplicatorEventHandler* dbgEventHandler = nullptr );
+                                                       const std::string&           replicatorRootFolder,
+                                                       const std::string&           replicatorSandboxRootFolder,
+                                                       const Key&                   drivePubKey,
+                                                       const Key&                   clientPubKey,
+                                                       size_t                       maxSize,
+                                                       size_t                       expectedCumulativeDownload,
+                                                       ReplicatorEventHandler&      eventHandler,
+                                                       Replicator&                  replicator,
+                                                       const ReplicatorList&        fullReplicatorList,
+                                                       const ReplicatorList&        modifyDonatorShard,
+                                                       const ReplicatorList&        modifyRecipientShard,
+                                                       DbgReplicatorEventHandler*   dbgEventHandler = nullptr );
 }
 

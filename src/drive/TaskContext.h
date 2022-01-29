@@ -228,25 +228,26 @@ public:
 protected:
 
     TaskContext(
-            const Key& drivePubKey,
-            const Key& client,
-            std::shared_ptr<Session> session,
-            ReplicatorEventHandler& eventHandler,
-            Replicator& replicator,
-            DbgReplicatorEventHandler* dbgEventHandler,
-            const std::string& replicatorRootFolder,
-            const std::string& replicatorSandboxRootFolder,
-            const std::string& dbgOurPeerName)
-            : FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey)
-            , m_client(client)
-            , m_session( session )
-            , m_replicator( replicator )
-            , m_eventHandler( eventHandler )
-            , m_dbgEventHandler( dbgEventHandler )
-            , m_serializer(m_restartRootPath, dbgOurPeerName)
-            , m_fsTree( std::make_unique<FsTree>() )
-            , m_dbgOurPeerName( dbgOurPeerName )
-            , m_dbgThreadId( std::this_thread::get_id())
+            const Key&                  drivePubKey,
+            const Key&                  client,
+            std::shared_ptr<Session>    session,
+            ReplicatorEventHandler&     eventHandler,
+            Replicator&                 replicator,
+            DbgReplicatorEventHandler*  dbgEventHandler,
+            const std::string&          replicatorRootFolder,
+            const std::string&          replicatorSandboxRootFolder,
+            const std::string&          dbgOurPeerName
+        )
+        : FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey )
+        , m_client(client)
+        , m_session( session )
+        , m_replicator( replicator )
+        , m_eventHandler( eventHandler )
+        , m_dbgEventHandler( dbgEventHandler )
+        , m_serializer(m_restartRootPath, dbgOurPeerName)
+        , m_fsTree( std::make_unique<FsTree>() )
+        , m_dbgOurPeerName( dbgOurPeerName )
+        , m_dbgThreadId( std::this_thread::get_id())
     {}
 
     virtual ~TaskContext() = default;

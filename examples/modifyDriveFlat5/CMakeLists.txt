@@ -17,6 +17,7 @@ add_definitions(-DMINI_SIGNATURE)
 add_definitions(-DENABLE_VERIFICATIONS)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    add_definitions(-D_GNU_SOURCE)
     target_link_libraries(modifyDriveFlat5
             #${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
             ${CMAKE_SOURCE_DIR}/libtorrent/cmake-build-debug/libtorrent-sirius.dylib

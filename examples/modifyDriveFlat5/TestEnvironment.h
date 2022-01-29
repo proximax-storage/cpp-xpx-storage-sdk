@@ -181,7 +181,7 @@ namespace sirius::drive::test {
         {}
 
         virtual void addDrive(const Key &driveKey, const Key& client, uint64_t driveSize) {
-            drive = {driveKey, {driveSize, 0, m_addrList, client}};
+            drive = {driveKey, {driveSize, 0, m_addrList, client, m_addrList, m_addrList }};
             for (auto &replicator: m_replicators) {
                 if ( replicator )
                 {
