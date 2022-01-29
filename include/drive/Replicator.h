@@ -91,12 +91,11 @@ struct DownloadChannelInfo
     uint64_t m_myUploadedSize = 0;
 
     std::array<uint8_t, 32> m_driveKey;
+    ClientList              m_dnClients;
     ReplicatorList          m_dnReplicatorShard;
     ReplicatorUploadMap     m_replicatorUploadMap;
     
-    std::vector<std::array<uint8_t, 32>> m_clients; //todo
-    
-    DownloadOpinionMap m_downloadOpinionMap;
+    DownloadOpinionMap      m_downloadOpinionMap;
 
     // it is used when drive is closing
     bool m_isClosed = false;
@@ -109,7 +108,7 @@ struct DownloadChannelInfo
         arch( m_driveKey );
         arch(m_totalReceiptsSize );
         arch( m_replicatorUploadMap );
-        arch( m_clients );
+        arch( m_dnClients );
         arch( m_downloadOpinionMap );
     }
 };

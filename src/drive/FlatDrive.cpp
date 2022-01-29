@@ -375,7 +375,7 @@ public:
                 const std::string&          replicatorRootFolder,
                 const std::string&          replicatorSandboxRootFolder,
                 const Key&                  drivePubKey,
-                const Key&                  clients,
+                const Key&                  driveOwner,
                 size_t                      maxSize,
                 size_t                      expectedCumulativeDownload,
                 ReplicatorEventHandler&     eventHandler,
@@ -387,7 +387,7 @@ public:
             )
             : TaskContext(
                     drivePubKey,
-                    clients,
+                    driveOwner,
                     session,
                     eventHandler,
                     replicator,
@@ -400,7 +400,8 @@ public:
             , m_modifyDonatorShard(modifyDonatorShard)
             , m_modifyRecipientShard(modifyRecipientShard)
             , m_maxSize(maxSize)
-            , m_opinionController(m_driveKey, m_client, m_replicator, m_serializer, *this, expectedCumulativeDownload, replicator.dbgReplicatorName() )
+            //(???+)
+            , m_opinionController(m_driveKey, m_driveOwner, m_replicator, m_serializer, *this, expectedCumulativeDownload, replicator.dbgReplicatorName() )
 
     {
         runDriveInitializationTask();
@@ -469,9 +470,9 @@ public:
         return m_allReplicators;
     }
 
-    const Key& getClient() const override
+    const Key& driveOwner() const override
     {
-        return m_client;
+        return m_driveOwner;
     }
 
     void replicatorAdded( mobj<Key>&& replicatorKey ) override
@@ -910,6 +911,9 @@ public:
         
         m_modifyRecipientShard.erase( it );
     }
+
+    const ReplicatorList& donatorShard() const override { return m_modifyDonatorShard; }
+    const ReplicatorList& recipientShard() const override { return m_modifyRecipientShard; }
 
     ////////////
 

@@ -643,6 +643,7 @@ public:
             std::vector<std::array<uint8_t,32>> clientList;
             for( const auto& it : request.m_clients )
                 clientList.push_back( it.array() );
+           
             addChannelInfo( request.m_channelKey.array(),
                             request.m_prepaidDownloadSize,
                             driveKey,
@@ -1258,7 +1259,7 @@ public:
                 addModifyTrafficInfo( transaction.m_modifyTransactionHash,
                                     transaction.m_driveKey,
                                     LONG_LONG_MAX,
-                                    drive->getClient(),
+                                    drive->driveOwner(),
                                     drive->getAllReplicators());
 
                 drive->onApprovalTransactionHasBeenPublished( transaction );

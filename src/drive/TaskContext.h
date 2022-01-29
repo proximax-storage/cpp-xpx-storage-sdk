@@ -191,7 +191,7 @@ class TaskContext: public FlatDrivePaths, public ThreadManager
 
 public:
 
-    const Key m_client;
+    const Key m_driveOwner;
 
     std::weak_ptr<Session> m_session;
 
@@ -229,7 +229,7 @@ protected:
 
     TaskContext(
             const Key&                  drivePubKey,
-            const Key&                  client,
+            const Key&                  driveOwner,
             std::shared_ptr<Session>    session,
             ReplicatorEventHandler&     eventHandler,
             Replicator&                 replicator,
@@ -239,7 +239,7 @@ protected:
             const std::string&          dbgOurPeerName
         )
         : FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey )
-        , m_client(client)
+        , m_driveOwner(driveOwner)
         , m_session( session )
         , m_replicator( replicator )
         , m_eventHandler( eventHandler )

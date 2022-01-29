@@ -98,7 +98,7 @@ protected:
         {
             m_drive.m_dbgEventHandler->rootHashIsCalculated(
                     m_drive.m_replicator,
-                    m_drive.m_client,
+                    m_drive.m_driveOwner,
                     getModificationTransactionHash(),
                     *m_sandboxRootHash );
         }
@@ -261,7 +261,7 @@ protected:
     ReplicatorList getUploaders()
     {
         auto replicators = m_drive.getAllReplicators();
-        replicators.push_back( m_drive.m_client );
+        replicators.push_back( m_drive.m_driveOwner );
         return replicators;
     }
 

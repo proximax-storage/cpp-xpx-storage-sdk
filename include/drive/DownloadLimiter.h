@@ -231,7 +231,7 @@ public:
         }
         
         m_dnChannelMap[channelId] = DownloadChannelInfo{ false,
-            willBeSyncronized, prepaidDownloadSize, 0, 0, 0, driveKey.array(), replicatorsList, map, clients, {} };
+            willBeSyncronized, prepaidDownloadSize, 0, 0, 0, driveKey.array(), clients, replicatorsList, map, {} };
 
         if ( auto backupIt = m_dnChannelMapBackup.find(channelId); backupIt != m_dnChannelMapBackup.end() )
         {
@@ -283,14 +283,12 @@ public:
         ModifyTrafficMap trafficMap;
         trafficMap.insert( { clientPublicKey.array(), {0,0}} );
         
-        std::vector<std::array<uint8_t,32>> clients;
         for( const auto& it : replicatorsList )
         {
             if ( it.array() != publicKey() )
             {
                 //_LOG( dbgOurPeerName() << " pubKey: " << (int)it.m_publicKey.array()[0] );
                 trafficMap.insert( { it.array(), {0,0}} );
-                clients.emplace_back( it.array() );
             }
         }
         
@@ -301,7 +299,7 @@ public:
         //
         {
             //_LOG( "driveKey: " << driveKey )
-            m_dnChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, false, dataSize, 0, 0, 0, driveKey.array(), replicatorsList, {}, clients, {}};
+            m_dnChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, false, dataSize, 0, 0, 0, driveKey.array(), {}, replicatorsList, {}, {}};
         }
 
         return true;
@@ -316,20 +314,20 @@ public:
         m_modifyDriveMap.erase(modifyTransactionHash);
     }
 
-    bool isPeerReplicator( const FlatDrive& drive, const std::array<uint8_t,32>&  peerPublicKey )
+    bool isRecipient( const FlatDrive& drive, const std::array<uint8_t,32>&  peerPublicKey )
     {
         DBG_MAIN_THREAD
         
-        // (???+) todo++ drive.getRecipientShard
-        auto& replicatorList = drive.getAllReplicators();
-        auto replicatorIt = std::find( replicatorList.begin(), replicatorList.end(), peerPublicKey );
+        auto& list = drive.recipientShard();
+        auto replicatorIt = std::find( list.begin(), list.end(), peerPublicKey );
 
-        return replicatorIt != replicatorList.end();
+        return replicatorIt != list.end();
     }
 
-    bool isPeerClient( const FlatDrive& drive, const std::array<uint8_t,32>&  peerPublicKey )
+    bool isClient( const FlatDrive& drive, const std::array<uint8_t,32>&  peerPublicKey )
     {
-        return drive.getClient() == peerPublicKey;
+        //(???+)
+        return drive.driveOwner() == peerPublicKey;
     }
     
     bool acceptConnection( const std::array<uint8_t,32>&  transactionHash,
@@ -344,15 +342,15 @@ public:
             {
                 if ( auto drive = getDrive( it->second.m_driveKey ); drive )
                 {
-                    if ( isPeerReplicator( *drive, peerPublicKey) )
+                    if ( isRecipient( *drive, peerPublicKey) )
                     {
                         *outIsDownloadUnlimited = true;
                         return true;
                     }
-                    else if ( isPeerClient( *drive, peerPublicKey) )
-                    {
-                        return true;
-                    }
+//(???+)                    else if ( isClient( *drive, peerPublicKey) )
+//                    {
+//                        return true;
+//                    }
                     else
                     {
                         _LOG_WARN( "acceptConnection: unknown peerPublicKey: " << sirius::Key(peerPublicKey) );
@@ -367,7 +365,7 @@ public:
             }
             else // it is connection for download channel
             {
-                auto& clients = it->second.m_clients;
+                auto& clients = it->second.m_dnClients;
                 auto clientIt = std::find( clients.begin(), clients.end(), peerPublicKey);
                 if ( clientIt == clients.end() ) {
                     return false;
@@ -383,7 +381,7 @@ public:
         
 //        if ( auto drive = getDrive( transactionHash ); drive )
 //        {
-//            if ( isPeerReplicator( *drive, peerPublicKey) )
+//            if ( isRecipient( *drive, peerPublicKey) )
 //            {
 //                *outIsDownloadUnlimited = true;
 //                return true;
@@ -410,7 +408,7 @@ public:
         // (???+) it was checked in accepConnection!!!
 //        if ( auto drive = getDrive( transactionHash ); drive )
 //        {
-//            if ( isPeerReplicator( *drive, receiverPublicKey) )
+//            if ( isRecipient( *drive, receiverPublicKey) )
 //            {
 //                //todo it is a late replicator
 //                return;
@@ -486,14 +484,14 @@ public:
         }
 
         // (???+) is this check needed?
-        if ( auto drive = getDrive( transactionHash ); drive )
-        {
-            if ( isPeerReplicator( *drive, senderPublicKey ) )
-            {
-                //todo it is a late replicator
-                return;
-            }
-        }
+//        if ( auto drive = getDrive( transactionHash ); drive )
+//        {
+//            if ( isRecipient( *drive, senderPublicKey ) )
+//            {
+//                //todo it is a late replicator
+//                return;
+//            }
+//        }
         
         _LOG( "unknown transactionHash: " << (int)transactionHash[0] );
         _LOG_WARN( "ERROR(3): unknown transactionHash: " << (int)transactionHash[0] );
@@ -618,7 +616,7 @@ public:
 
         // Check client key
 
-        const auto& v = channelInfoIt->second.m_clients;
+        const auto& v = channelInfoIt->second.m_dnClients;
         if ( std::find_if( v.begin(), v.end(), [&clientPublicKey] (const auto& element)
                           { return element == clientPublicKey; } ) == v.end() )
         {

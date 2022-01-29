@@ -567,9 +567,9 @@ class Replicator;
 
         virtual InfoHash rootHash() const = 0;
 
-        virtual const ReplicatorList& getAllReplicators() const = 0;
+        virtual const ReplicatorList&  getAllReplicators() const = 0;
 
-        virtual const Key&      getClient() const = 0;
+        virtual const Key& driveOwner() const = 0;
 
         virtual void     replicatorAdded( mobj<Key>&& replicatorKey ) = 0;
         virtual void     replicatorRemoved( mobj<Key>&& replicatorKey ) = 0;
@@ -584,11 +584,14 @@ class Replicator;
 
         virtual void     cancelVerification( mobj<Hash256>&& tx ) = 0;
         
-        // modify shards
+        // modification shards
         virtual void     addShardDonator( mobj<Key>&& replicatorKey ) = 0;
         virtual void     removeShardDonator( mobj<Key>&& replicatorKey ) = 0;
         virtual void     addShardRecipient( mobj<Key>&& replicatorKey ) = 0;
         virtual void     removeShardRecipient( mobj<Key>&& replicatorKey ) = 0;
+
+        virtual const ReplicatorList& donatorShard()   const = 0;
+        virtual const ReplicatorList& recipientShard() const = 0;
 
         virtual void     onVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
 
