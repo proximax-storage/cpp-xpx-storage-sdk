@@ -20,7 +20,9 @@
 namespace sirius::drive
 {
 
-class VerificationDriveTask : public sirius::drive::BaseDriveTask, std::enable_shared_from_this<VerificationDriveTask>
+class VerificationDriveTask
+        : public sirius::drive::BaseDriveTask
+        , public std::enable_shared_from_this<VerificationDriveTask>
 {
 
 private:
@@ -269,6 +271,10 @@ private:
         }
 
         calculateVerifyCodes( *m_drive.m_fsTree );
+
+        _LOG ( "calculated" )
+
+        auto h = shared_from_this();
 
         m_drive.executeOnSessionThread( [t = weak_from_this()]
                                         {
@@ -542,12 +548,12 @@ private:
 
 };
 
-std::unique_ptr<BaseDriveTask> createDriveVerificationTask( mobj<VerificationRequest>&& request,
+std::shared_ptr<BaseDriveTask> createDriveVerificationTask( mobj<VerificationRequest>&& request,
                                                             std::vector<VerifyApprovalTxInfo>&& receivedOpinions,
                                                             std::vector<VerificationCodeInfo>&& receivedCodes,
                                                             TaskContext& drive )
 {
-    return std::make_unique<VerificationDriveTask>( std::move(request), std::move(receivedOpinions), std::move(receivedCodes), drive );
+    return std::make_shared<VerificationDriveTask>( std::move(request), std::move(receivedOpinions), std::move(receivedCodes), drive );
 }
 
 }

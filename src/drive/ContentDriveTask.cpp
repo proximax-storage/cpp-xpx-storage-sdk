@@ -336,7 +336,7 @@ private:
 
     bool m_modifyUserDataReceived;
     bool m_modifyApproveTransactionSent;
-    std::optional<Hash256> m_receivedModifyApproveTx;
+    bool m_modifyApproveTxReceived;
 
     std::optional<boost::asio::high_resolution_timer> m_shareMyOpinionTimer;
     const int m_shareMyOpinionTimerDelayMs = 1000 * 60 * 5;
@@ -416,6 +416,8 @@ public:
             return true;
         }
 
+        m_modifyApproveTxReceived = true;
+
         if ( m_request->m_transactionHash == transaction.m_modifyTransactionHash
              && m_modifyUserDataReceived )
         {
@@ -464,7 +466,7 @@ public:
 
         if ( m_request->m_transactionHash == transactionHash &&
              !m_stopped &&
-             !m_receivedModifyApproveTx )
+             !m_modifyApproveTxReceived )
         {
             m_modifyApproveTransactionSent = false;
             for ( const auto&[key, opinion]: m_receivedOpinions )
@@ -784,7 +786,7 @@ private:
 
         m_sandboxCalculated = true;
 
-        if ( m_receivedModifyApproveTx )
+        if ( m_modifyApproveTxReceived )
         {
             sendSingleApprovalTransaction( *m_myOpinion );
             startSynchronizingDriveWithSandbox();
@@ -846,7 +848,7 @@ private:
                 m_receivedOpinions.size() >=
              ((replicatorNumber) * 2) / 3 &&
              !m_modifyApproveTransactionSent &&
-             !m_receivedModifyApproveTx )
+             !m_modifyApproveTxReceived )
         {
             // start timer if it is not started
             if ( !m_modifyOpinionTimer )
@@ -866,7 +868,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        if ( m_modifyApproveTransactionSent || m_receivedModifyApproveTx )
+        if ( m_modifyApproveTransactionSent || m_modifyApproveTxReceived )
             return;
 
         ApprovalTransactionInfo info = {m_drive.m_driveKey.array(),

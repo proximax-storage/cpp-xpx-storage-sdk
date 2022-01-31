@@ -215,7 +215,7 @@ std::unique_ptr<BaseDriveTask> createModificationCancelTask( mobj<ModificationCa
 std::unique_ptr<BaseDriveTask> createDriveClosureTask( mobj<DriveClosureRequest>&& request,
                                                        TaskContext& drive );
 
-std::unique_ptr<BaseDriveTask> createDriveVerificationTask( mobj<VerificationRequest>&& request,
+std::shared_ptr<BaseDriveTask> createDriveVerificationTask( mobj<VerificationRequest>&& request,
                                                             std::vector<VerifyApprovalTxInfo>&& receivedOpinions,
                                                             std::vector<VerificationCodeInfo>&& receivedCodes,
                                                             TaskContext& drive );

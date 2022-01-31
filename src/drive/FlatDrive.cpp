@@ -749,6 +749,7 @@ public:
         if ( m_verificationTask )
         {
             _ASSERT ( !m_verificationTask->shouldCatchUp(transaction) )
+            m_verificationTask.reset();
         }
 
         if ( !m_task || m_task->shouldCatchUp( transaction ) )
