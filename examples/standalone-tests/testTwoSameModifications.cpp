@@ -50,7 +50,7 @@ namespace sirius::drive::test
                     {
                         if (replicator)
                         {
-                            replicator->setSessionSettings(pack, true);
+//                            replicator->setSessionSettings(pack, true);
                         }
                     }
                 }
@@ -79,24 +79,26 @@ namespace sirius::drive::test
 
         EXLOG("\n# Client started: 1-st upload");
         client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList);
+        client.modifyDrive( createActionList(CLIENT_WORK_FOLDER), env.m_addrList);
+        ASSERT_NE( client.m_actionListHashes[0], client.m_actionListHashes[1] );
 
-        env.addDrive(DRIVE_PUB_KEY, client.m_clientKeyPair.publicKey(), 100 * 1024 * 1024);
-        env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[0],
-                                        client.m_modificationTransactionHashes[0],
-                                        BIG_FILE_SIZE + 1024,
-                                        env.m_addrList,
-                                        client.m_clientKeyPair.publicKey()});
-
-        auto secondModification = randomByteArray<Hash256>();
-        env.addDrive(DRIVE_PUB_KEY_2, client.m_clientKeyPair.publicKey(), 100 * 1024 * 1024);
-        env.modifyDrive(DRIVE_PUB_KEY_2, {client.m_actionListHashes[0],
-                                          secondModification,
-                                        BIG_FILE_SIZE + 1024,
-                                        env.m_addrList,
-                                        client.m_clientKeyPair.publicKey()});
-
-        env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS);
-        env.waitModificationEnd(secondModification, NUMBER_OF_REPLICATORS);
+//        env.addDrive(DRIVE_PUB_KEY, client.m_clientKeyPair.publicKey(), 100 * 1024 * 1024);
+//        env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[0],
+//                                        client.m_modificationTransactionHashes[0],
+//                                        BIG_FILE_SIZE + 1024,
+//                                        env.m_addrList,
+//                                        client.m_clientKeyPair.publicKey()});
+//
+//        auto secondModification = randomByteArray<Hash256>();
+//        env.addDrive(DRIVE_PUB_KEY_2, client.m_clientKeyPair.publicKey(), 100 * 1024 * 1024);
+//        env.modifyDrive(DRIVE_PUB_KEY_2, {client.m_actionListHashes[0],
+//                                          secondModification,
+//                                        BIG_FILE_SIZE + 1024,
+//                                        env.m_addrList,
+//                                        client.m_clientKeyPair.publicKey()});
+//
+//        env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS);
+//        env.waitModificationEnd(secondModification, NUMBER_OF_REPLICATORS);
     }
 
 #undef TEST_NAME

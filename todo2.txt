@@ -1,7 +1,7 @@
 Download ActionList as separate torrent and then download all files in it
 ------------- Verifications
 Modification overhead
-Many clients on Download Channel
+************* many clients on Download Channel
 ------------- Use LibTorrent DHT for IP
 Correctly Work with modifications that end with the same Root Hash
 modification ended with error should post an ordinary transaction (actually, such an error is a normal result of actionlist execution that does not change drive state)
@@ -12,5 +12,5 @@ send receipts from another replicator to replicators
 Unexpected connections of Replicators
 +++++++++ Remove Download Channel when DownloadApproval with flag "channel is closed" is published
 Add To Handshake Drive and Channel
-Shards
-Drive Tasks as Classes
+------------- Shards
+------------- Drive Tasks as Classes
