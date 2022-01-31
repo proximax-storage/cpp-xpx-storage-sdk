@@ -51,15 +51,16 @@ namespace sirius::drive::test
         {
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
 
-            if (m_pendingModifications.front().m_transactionHash == transactionInfo.m_modifyTransactionHash)
+            if ( m_drives[transactionInfo.m_driveKey].m_pendingModifications.front().m_transactionHash ==
+                 transactionInfo.m_modifyTransactionHash )
             {
                 EXLOG("modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
                 m_expectingApproval = transactionInfo;
 
-                drive->second.m_expectedCumulativeDownloadSize += m_pendingModifications.front().m_maxDataSize;
-                m_pendingModifications.pop_front();
-                m_lastApprovedModification = transactionInfo;
-                m_rootHashes[m_lastApprovedModification->m_modifyTransactionHash] = transactionInfo.m_rootHash;
+                m_drives[transactionInfo.m_driveKey].m_driveRequest.m_expectedCumulativeDownloadSize += m_drives[transactionInfo.m_driveKey].m_pendingModifications.front().m_maxDataSize;
+                m_drives[transactionInfo.m_driveKey].m_pendingModifications.pop_front();
+                m_drives[transactionInfo.m_driveKey].m_lastApprovedModification = transactionInfo;
+                m_rootHashes[m_drives[transactionInfo.m_driveKey].m_lastApprovedModification->m_modifyTransactionHash] = transactionInfo.m_rootHash;
                 if (transactionInfo.m_modifyTransactionHash == m_forbiddenTransaction[0].array())
                 {
                     approveModification();

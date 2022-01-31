@@ -114,7 +114,7 @@ namespace sirius::drive::test
                               {
             verification,
             0,
-            env.m_lastApprovedModification->m_rootHash,
+            env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash,
             env.m_addrList,
             3 * 1000
                               });

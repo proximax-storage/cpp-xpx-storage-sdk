@@ -1,4 +1,3 @@
-#include <numeric>
 #include "TestEnvironment.h"
 #include "utils.h"
 
@@ -12,7 +11,7 @@ namespace sirius::drive::test
 {
 
     /// change this macro for your test
-#define TEST_NAME TwoVerificationsSuccess
+#define TEST_NAME TwoSameModifications
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -45,37 +44,19 @@ namespace sirius::drive::test
             {
                 if ( r )
                 {
-                    r->setVerifyCodeTimerDelay(0);
-                    r->setVerifyApprovalTransactionTimerDelay(10 * 1000);
+                    lt::settings_pack pack;
+                    pack.set_int(lt::settings_pack::download_rate_limit, 1024 * 1024);
+                    for (auto replicator: m_replicators)
+                    {
+                        if (replicator)
+                        {
+                            replicator->setSessionSettings(pack, true);
+                        }
+                    }
                 }
             }
         }
     };
-
-    void verify(ENVIRONMENT_CLASS& env)
-    {
-        auto verification = randomByteArray<Hash256>();
-        env.startVerification(DRIVE_PUB_KEY,
-                              {
-            verification,
-            0,
-            env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash,
-            env.m_addrList,
-            3 * 1000
-                              });
-        env.waitVerificationApproval(verification);
-
-        EXLOG( "verification received" );
-
-        const auto& verify_tx = env.m_verifyApprovalTransactionInfo[verification];
-        for ( const auto& opinion: verify_tx.m_opinions )
-        {
-            for ( const auto& res: opinion.m_opinions )
-            {
-                EXPECT_EQ(res, 1);
-            }
-        }
-    }
 
     TEST(ModificationTest, TEST_NAME)
     {
@@ -106,10 +87,16 @@ namespace sirius::drive::test
                                         env.m_addrList,
                                         client.m_clientKeyPair.publicKey()});
 
-        env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS);
+        auto secondModification = randomByteArray<Hash256>();
+        env.addDrive(DRIVE_PUB_KEY_2, client.m_clientKeyPair.publicKey(), 100 * 1024 * 1024);
+        env.modifyDrive(DRIVE_PUB_KEY_2, {client.m_actionListHashes[0],
+                                          secondModification,
+                                        BIG_FILE_SIZE + 1024,
+                                        env.m_addrList,
+                                        client.m_clientKeyPair.publicKey()});
 
-        verify(env);
-        verify(env);
+        env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS);
+        env.waitModificationEnd(secondModification, NUMBER_OF_REPLICATORS);
     }
 
 #undef TEST_NAME

@@ -88,7 +88,7 @@ namespace sirius::drive::test
                               {
             verificationFirst,
                                       0,
-                                      env.m_lastApprovedModification->m_rootHash,
+                                      env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash,
                                       env.m_addrList,
                                       3 * 60 * 1000
                               });
@@ -100,7 +100,7 @@ namespace sirius::drive::test
                               {
                                       verificationSecond,
                                       0,
-                                      env.m_lastApprovedModification->m_rootHash,
+                                      env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash,
                                       env.m_addrList,
                                       3 * 1000
                               });

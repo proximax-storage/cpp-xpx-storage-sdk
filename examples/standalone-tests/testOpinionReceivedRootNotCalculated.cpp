@@ -68,7 +68,7 @@ namespace sirius::drive::test
                     std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
                 }
 
-                if (m_pendingModifications.front().m_transactionHash != transactionInfo.m_modifyTransactionHash)
+                if (m_drives[transactionInfo.m_driveKey].m_pendingModifications.front().m_transactionHash != transactionInfo.m_modifyTransactionHash)
                 {
                     return;
                 }
@@ -91,8 +91,8 @@ namespace sirius::drive::test
 
                     ASSERT_EQ(sizes.size(), 1);
 
-                    m_pendingModifications.pop_front();
-                    m_lastApprovedModification = transactionInfo;
+                    m_drives[DRIVE_PUB_KEY].m_pendingModifications.pop_front();
+                    m_drives[DRIVE_PUB_KEY].m_lastApprovedModification = transactionInfo;
 
                     for (const auto &r: m_replicators)
                     {

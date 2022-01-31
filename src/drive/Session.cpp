@@ -462,7 +462,7 @@ public:
                 LOG("download: already downloading type=" << downloadContext.m_downloadType
                     << " infoHash=" << toString(downloadContext.m_infoHash) );
 
-                if ( downloadContext.m_downloadType == DownloadContext::fs_tree )
+                if (  downloadContext.m_downloadType == DownloadContext::fs_tree )
                     throw std::runtime_error("download(fs_tree): already downloading" );
 
                 if ( downloadContext.m_downloadType == DownloadContext::client_data )

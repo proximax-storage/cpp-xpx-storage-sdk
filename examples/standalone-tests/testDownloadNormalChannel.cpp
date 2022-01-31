@@ -103,9 +103,9 @@ namespace sirius::drive::test
                 {client.m_clientKeyPair.publicKey()}
         });
 
-        client.downloadFromDrive(env.m_lastApprovedModification->m_rootHash, downloadChannel, env.m_addrList);
+        client.downloadFromDrive(env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash, downloadChannel, env.m_addrList);
 
-        client.waitForDownloadComplete(env.m_lastApprovedModification->m_rootHash);
+        client.waitForDownloadComplete(env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash);
 
         auto files = client.getFsTreeFiles();
         for (const auto &file: files)

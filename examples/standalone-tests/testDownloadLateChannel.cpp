@@ -81,12 +81,13 @@ namespace sirius::drive::test
 
         auto downloadChannel = randomByteArray<Key>();
         EXLOG("Download Channel: " << (int) downloadChannel.array()[0]);
-        client.downloadFromDrive(env.m_rootHashes[env.m_lastApprovedModification->m_modifyTransactionHash],
+        client.downloadFromDrive(env.m_rootHashes[env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_modifyTransactionHash],
                                  downloadChannel, env.m_addrList);
 
         std::this_thread::sleep_for(std::chrono::minutes(5));
 
-        ASSERT_EQ(client.m_downloadCompleted[env.m_rootHashes[env.m_lastApprovedModification->m_modifyTransactionHash]],
+        auto driveKey = DRIVE_PUB_KEY;
+        ASSERT_EQ(client.m_downloadCompleted[env.m_rootHashes[env.m_drives[driveKey].m_lastApprovedModification->m_modifyTransactionHash]],
                   false);
 
         env.downloadFromDrive(DRIVE_PUB_KEY, DownloadRequest{
@@ -96,7 +97,7 @@ namespace sirius::drive::test
                 {client.m_clientKeyPair.publicKey()}
         });
 
-        client.waitForDownloadComplete(env.m_rootHashes[env.m_lastApprovedModification->m_modifyTransactionHash]);
+        client.waitForDownloadComplete(env.m_rootHashes[env.m_drives[driveKey].m_lastApprovedModification->m_modifyTransactionHash]);
     }
 
 #undef TEST_NAME
