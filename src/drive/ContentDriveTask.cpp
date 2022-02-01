@@ -339,7 +339,7 @@ private:
     bool m_modifyApproveTxReceived;
 
     std::optional<boost::asio::high_resolution_timer> m_shareMyOpinionTimer;
-    const int m_shareMyOpinionTimerDelayMs = 1000 * 60 * 5;
+    const int m_shareMyOpinionTimerDelayMs = 1000 * 60;
 
     std::optional<boost::asio::high_resolution_timer> m_modifyOpinionTimer;
 

@@ -867,11 +867,21 @@ public:
 
     void  addShardDonator( mobj<Key>&& replicatorKey ) override
     {
-        auto it = std::find( m_modifyDonatorShard.begin(), m_modifyDonatorShard.end(), *replicatorKey );
-        if ( it != m_modifyDonatorShard.end() )
         {
-            _LOG_WARN( "duplicated key" << Key(*replicatorKey) )
-            return;
+            auto it = std::find( m_modifyDonatorShard.begin(), m_modifyDonatorShard.end(), *replicatorKey );
+            if ( it != m_modifyDonatorShard.end() )
+            {
+                _LOG_WARN( "duplicated key" << Key(*replicatorKey) )
+                return;
+            }
+        }
+
+        {
+            auto it = std::find( m_allReplicators.begin(), m_allReplicators.end(), *replicatorKey );
+            if ( it == m_allReplicators.end() )
+            {
+                _LOG_ERR( "Unknown Replicator Added to Shard Donator" )
+            }
         }
         
         m_modifyDonatorShard.push_back( *replicatorKey );
@@ -891,11 +901,21 @@ public:
     
     void  addShardRecipient( mobj<Key>&& replicatorKey ) override
     {
-        auto it = std::find( m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), *replicatorKey );
-        if ( it != m_modifyRecipientShard.end() )
         {
-            _LOG_WARN( "duplicated key" << Key(*replicatorKey) )
-            return;
+            auto it = std::find( m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), *replicatorKey );
+            if ( it != m_modifyRecipientShard.end() )
+            {
+                _LOG_WARN( "duplicated key" << Key(*replicatorKey) )
+                return;
+            }
+        }
+
+        {
+            auto it = std::find( m_allReplicators.begin(), m_allReplicators.end(), *replicatorKey );
+            if ( it == m_allReplicators.end() )
+            {
+                _LOG_ERR( "Unknown Replicator Added to Shard Recipient" )
+            }
         }
         
         m_modifyRecipientShard.push_back( *replicatorKey );

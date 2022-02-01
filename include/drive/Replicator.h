@@ -280,7 +280,7 @@ public:
     // It is called when the Replicator is removed from the Drive
     virtual void asyncRemoveDrive( Key driveKey ) = 0;
 
-    // It notifyes about changes in drive replicator list
+    // It notifies about changes in drive replicator list
     virtual void asyncReplicatorAdded( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
     virtual void asyncReplicatorRemoved( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
 

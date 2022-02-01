@@ -49,7 +49,7 @@ private:
     int         m_modifyApprovalTransactionTimerDelayMs   = 10 * 1000;
     int         m_verifyCodeTimerDelayMs                  = 5 * 60 * 1000;
     int         m_verifyApprovalTransactionTimerDelayMs   = 10 * 1000;
-    int         m_shareMyDownloadOpinionTimerDelayMs      = 5 * 60 * 1000;
+    int         m_shareMyDownloadOpinionTimerDelayMs      = 60 * 1000;
 
 
     bool        m_replicatorIsDestructing = false;
@@ -343,6 +343,7 @@ public:
 
             if ( auto drive = getDrive(driveKey); drive )
             {
+                m_endpointsManager.addEndpointEntry( *replicatorKey );
                 drive->replicatorAdded( std::move(replicatorKey) );
             }
             else

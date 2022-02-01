@@ -187,14 +187,18 @@ public:
             m_replicators[i - 1] = replicator;
             for (const auto& [key, drive]: m_drives)
             {
-                replicator->asyncAddDrive( key, drive.m_driveRequest );
-                if ( drive.m_lastApprovedModification )
+                const auto& driveReplicators = drive.m_driveRequest.m_fullReplicatorList;
+                if ( std::find( driveReplicators.begin(), driveReplicators.end(), replicator->replicatorKey() ) != driveReplicators.end()  )
                 {
-                    replicator->asyncApprovalTransactionHasBeenPublished( *drive.m_lastApprovedModification );
-                }
-                for ( const auto& modification: drive.m_pendingModifications )
-                {
-                    replicator->asyncModify( key, modification );
+                    replicator->asyncAddDrive( key, drive.m_driveRequest );
+                    if ( drive.m_lastApprovedModification )
+                    {
+                        replicator->asyncApprovalTransactionHasBeenPublished( *drive.m_lastApprovedModification );
+                    }
+                    for ( const auto& modification: drive.m_pendingModifications )
+                    {
+                        replicator->asyncModify( key, modification );
+                    }
                 }
             }
         }
@@ -208,11 +212,18 @@ public:
     virtual ~TestEnvironment()
     {}
 
-    virtual void addDrive( const Key& driveKey, const Key& client, uint64_t driveSize )
+    virtual void addDrive( const Key& driveKey,
+                           const Key& client, uint64_t driveSize,
+                           ReplicatorList replicators = {} )
     {
-        m_drives[driveKey] = { {driveSize, 0, m_addrList, client, m_addrList, m_addrList}, {}, {}};
-        for ( auto& replicator: m_replicators )
+        if ( replicators.empty() )
         {
+            replicators = m_addrList;
+        }
+        m_drives[driveKey] = { {driveSize, 0, replicators, client, replicators, replicators}, {}, {}};
+        for ( auto& key: m_addrList )
+        {
+            auto replicator = getReplicator( key );
             if ( replicator )
             {
                 replicator->asyncAddDrive( driveKey, m_drives[driveKey].m_driveRequest );
@@ -220,12 +231,82 @@ public:
         }
     }
 
+    virtual void addReplicatorToDrive( const Key& driveKey, const Key& replicatorKey )
+    {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+
+        auto& drive = m_drives[driveKey];
+
+        drive.m_driveRequest.m_fullReplicatorList.push_back( replicatorKey );
+        drive.m_driveRequest.m_modifyDonatorShard.push_back( replicatorKey );
+        drive.m_driveRequest.m_modifyRecipientShard.push_back( replicatorKey );
+
+        for ( const auto& r: drive.m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( r );
+            if ( replicator )
+            {
+                replicator->asyncReplicatorAdded( driveKey, replicatorKey );
+                replicator->asyncAddShardDonator( driveKey,  replicatorKey );
+                replicator->asyncAddShardRecipient( driveKey, replicatorKey );
+            }
+        }
+
+        auto replicator = getReplicator(replicatorKey);
+        if ( replicator )
+        {
+            replicator->asyncAddDrive( driveKey, m_drives[driveKey].m_driveRequest );
+            const auto& driveReplicators = drive.m_driveRequest.m_fullReplicatorList;
+            if ( std::find( driveReplicators.begin(), driveReplicators.end(), replicator->replicatorKey() ) != driveReplicators.end()  )
+            {
+                replicator->asyncAddDrive( driveKey, drive.m_driveRequest );
+                if ( drive.m_lastApprovedModification )
+                {
+                    replicator->asyncApprovalTransactionHasBeenPublished( *drive.m_lastApprovedModification );
+                }
+                for ( const auto& modification: drive.m_pendingModifications )
+                {
+                    replicator->asyncModify( driveKey, modification );
+                }
+            }
+        }
+    }
+
+    virtual void removeReplicatorFromDrive( const Key& driveKey, const Key& replicatorKey )
+    {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+
+        auto& drive = m_drives[driveKey];
+
+        std::erase( drive.m_driveRequest.m_fullReplicatorList, replicatorKey );
+        std::erase( drive.m_driveRequest.m_modifyDonatorShard, replicatorKey );
+        std::erase( drive.m_driveRequest.m_modifyRecipientShard, replicatorKey );
+
+        for ( const auto& r: drive.m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( r );
+            if ( replicator )
+            {
+                replicator->asyncReplicatorRemoved( driveKey, replicatorKey );
+                replicator->asyncRemoveShardDonator( driveKey, replicatorKey );
+                replicator->asyncRemoveShardRecipient( driveKey, replicatorKey );
+            }
+        }
+
+        auto replicator = getReplicator( replicatorKey );
+        if ( replicator )
+        {
+            replicator->asyncRemoveDrive( driveKey );
+        }
+    }
+
     virtual void modifyDrive( const Key& driveKey, const ModificationRequest& request )
     {
         const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
         m_drives[driveKey].m_pendingModifications.push_back( request );
-        for ( auto& replicator: m_replicators )
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
         {
+            auto replicator = getReplicator( key );
             if ( replicator )
             {
                 replicator->asyncModify( driveKey, ModificationRequest( request ));
@@ -247,8 +328,9 @@ public:
     virtual void closeDrive( const Key& driveKey )
     {
         auto transactionHash = randomByteArray<Hash256>();
-        for ( auto& replicator: m_replicators )
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
         {
+            auto replicator = getReplicator( key );
             if ( replicator )
             {
                 replicator->asyncCloseDrive( driveKey, transactionHash );
@@ -276,8 +358,9 @@ public:
         {
             return item.m_transactionHash == transactionHash;
         } );
-        for ( auto& replicator: m_replicators )
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
         {
+            auto replicator = getReplicator( key );
             if ( replicator )
             {
                 replicator->asyncCancelModify( driveKey, transactionHash );
@@ -287,22 +370,23 @@ public:
 
     virtual void startVerification( const Key& driveKey, const VerificationRequest& request )
     {
-        for ( auto& r: m_replicators )
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
         {
-            if ( r )
+            auto replicator = getReplicator( key );
+            if ( replicator )
             {
-                r->asyncStartDriveVerification( driveKey, request );
+                replicator->asyncStartDriveVerification( driveKey, request );
             }
         }
     }
 
     virtual void cancelVerification( const Key& driveKey, const Hash256& request )
     {
-        for ( auto& r: m_replicators )
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
         {
-            if ( r )
+            auto replicator = getReplicator( key );
             {
-                r->asyncCancelDriveVerification( driveKey, request );
+                replicator->asyncCancelDriveVerification( driveKey, request );
             }
         }
     }
@@ -385,6 +469,26 @@ public:
         if ( m_drives[transactionInfo.m_driveKey].m_pendingModifications.front().m_transactionHash == transactionInfo.m_modifyTransactionHash )
         {
 
+            const auto & replicators = m_drives[transactionInfo.m_driveKey].m_driveRequest.m_fullReplicatorList;
+            for ( const auto& opinion: transactionInfo.m_opinions )
+            {
+                if ( std::find( replicators.begin(), replicators.end(), opinion.m_replicatorKey ) == replicators.end() )
+                {
+                    EXLOG( "Fault Replicator Opinion" )
+                    replicator.asyncApprovalTransactionHasFailedInvalidSignatures(
+                            transactionInfo.m_driveKey, transactionInfo.m_modifyTransactionHash );
+                    return;
+                }
+            }
+
+            if ( transactionInfo.m_opinions.size() <= (2 * replicators.size()) / 3 )
+            {
+                EXLOG( "Fault Opinions Number" )
+                replicator.asyncApprovalTransactionHasFailedInvalidSignatures(
+                        transactionInfo.m_driveKey, transactionInfo.m_modifyTransactionHash );
+                return;
+            }
+
             EXLOG( toString( transactionInfo.m_modifyTransactionHash ));
 
             for ( const auto& opinion: transactionInfo.m_opinions )
@@ -403,9 +507,9 @@ public:
             m_drives[transactionInfo.m_driveKey].m_pendingModifications.pop_front();
             m_drives[transactionInfo.m_driveKey].m_lastApprovedModification = transactionInfo;
             m_rootHashes[m_drives[transactionInfo.m_driveKey].m_lastApprovedModification->m_modifyTransactionHash] = transactionInfo.m_rootHash;
-            for ( const auto& r: m_replicators )
+            for ( auto& key: m_drives[transactionInfo.m_driveKey].m_driveRequest.m_fullReplicatorList )
             {
-                if ( r )
+                auto r = getReplicator( key );
                 {
                     r->asyncApprovalTransactionHasBeenPublished(
                             ApprovalTransactionInfo( transactionInfo ));
@@ -433,6 +537,16 @@ public:
                                                          const ApprovalTransactionInfo& transactionInfo ) override
     {
         const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+
+        const auto& replicators = m_drives[transactionInfo.m_driveKey].m_driveRequest.m_fullReplicatorList;
+
+        if ( std::find( replicators.begin(), replicators.end(), transactionInfo.m_opinions[0].m_replicatorKey )
+             == replicators.end())
+        {
+            EXLOG( "Fault Single Opinion" )
+            return;
+        }
+
         if ( transactionInfo.m_modifyTransactionHash == m_drives[transactionInfo.m_driveKey].m_lastApprovedModification->m_modifyTransactionHash )
         {
             EXLOG( "modifySingleApprovalTransactionIsReady: " << replicator.dbgReplicatorName()
@@ -557,6 +671,22 @@ public:
         {
             return m_verifyApprovalTransactionInfo.contains( tx );
         } );
+    }
+
+public:
+
+    std::shared_ptr<Replicator>&  getReplicator(const Key& replicator)
+    {
+        auto it = std::find_if(m_replicators.begin(), m_replicators.end(), [&] (const auto& item)
+        {
+            return item->replicatorKey() == replicator;
+        });
+
+        if ( it == m_replicators.end() )
+        {
+            throw std::runtime_error( "No Such a Replicator" );
+        }
+        return *it;
     }
 };
 }
