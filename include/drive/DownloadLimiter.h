@@ -61,9 +61,13 @@ public:
     {
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             
+            _LOG( "printReport:" );
             if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
             {
-                _LOG( "requestedSize=" << it->second.m_requestedSize << "; uploadedSize=" << it->second.m_myUploadedSize );
+                for( auto& [key,value] : it->second.m_dnClientMap )
+                {
+                    _LOG( "client: " << int(key[0]) << " " << "requestedSize=" << value.m_requestedSize << "; uploadedSize=" << value.m_uploadedSize );
+                }
                 return;
             }
 
@@ -165,19 +169,20 @@ public:
             return false;
         }
 
-        auto replicatorIt = it->second.m_replicatorUploadMap.find( publicKey() );
-
-        if( replicatorIt == it->second.m_replicatorUploadMap.end() )
-        {
-            _LOG ("Check Download Limit:  No Such a Replicator");
-            return false;
-        }
-
-        if ( it->second.m_myUploadedSize > replicatorIt->second.m_uploadedSize + m_receiptLimit )
-        {
-            _LOG ("Check Download Limit:  Receipts Size Exceeded");
-            return false;
-        }
+// (???+) TODO!!!
+//        auto replicatorIt = it->second.m_replicatorUploadMap.find( publicKey() );
+//
+//        if( replicatorIt == it->second.m_replicatorUploadMap.end() )
+//        {
+//            _LOG ("Check Download Limit:  No Such a Replicator");
+//            return false;
+//        }
+//
+//        if ( it->second.m_myUploadedSize > replicatorIt->second.m_uploadedSize + m_receiptLimit )
+//        {
+//            _LOG ("Check Download Limit:  Receipts Size Exceeded");
+//            return false;
+//        }
         return true;
     }
 
@@ -185,11 +190,15 @@ public:
     {
         DBG_MAIN_THREAD
 
+        uint64_t uploadedSize = 0;
         if ( auto it = m_dnChannelMap.find( downloadChannelId ); it != m_dnChannelMap.end() )
         {
-            return it->second.m_myUploadedSize;
+            for( auto& cell: it->second.m_dnClientMap )
+            {
+                uploadedSize += cell.second.m_uploadedSize;
+            }
         }
-        return 0;
+        return uploadedSize;
     }
 
     void addChannelInfo( const std::array<uint8_t,32>&  channelId,
@@ -221,17 +230,23 @@ public:
             return;
         }
 
-        // Libtorrent has no access to sirius::Key.
+        DownloadChannelInfo dnChannelInfo { false,
+            willBeSyncronized, prepaidDownloadSize, 0, {}, driveKey.array(), replicatorsList, {}, {} };
+        
+        // Every client has its own cell
+        for( auto& clientKey : clients )
+        {
+            dnChannelInfo.m_dnClientMap.insert( { clientKey, {} } );
+        }
+        
         // We prepare upload map that contains information about how much each Replicator has uploaded
-        ReplicatorUploadMap map;
         for( const auto& it : replicatorsList )
         {
             if ( it.array() != publicKey() )
-                map.insert( { it.array(), {}} );
+                dnChannelInfo.m_replicatorUploadMap.insert( { it.array(), {}} );
         }
         
-        m_dnChannelMap[channelId] = DownloadChannelInfo{ false,
-            willBeSyncronized, prepaidDownloadSize, 0, 0, 0, driveKey.array(), clients, replicatorsList, map, {} };
+        m_dnChannelMap.insert( { channelId, std::move(dnChannelInfo) } );
 
         if ( auto backupIt = m_dnChannelMapBackup.find(channelId); backupIt != m_dnChannelMapBackup.end() )
         {
@@ -253,8 +268,7 @@ public:
             auto it = m_dnChannelMap.find(channelId);
 
             //(+++)??? restore backup info
-            it->second.m_requestedSize        = backupIt->second.m_requestedSize;
-            it->second.m_myUploadedSize         = backupIt->second.m_myUploadedSize;
+            it->second.m_dnClientMap          = backupIt->second.m_dnClientMap;
             it->second.m_replicatorUploadMap  = backupIt->second.m_replicatorUploadMap;
             it->second.m_downloadOpinionMap   = backupIt->second.m_downloadOpinionMap;
 
@@ -299,7 +313,7 @@ public:
         //
         {
             //_LOG( "driveKey: " << driveKey )
-            m_dnChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, false, dataSize, 0, 0, 0, driveKey.array(), {}, replicatorsList, {}, {}};
+            m_dnChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, false, dataSize, 0, {}, driveKey.array(), replicatorsList, {}, {}};
         }
 
         return true;
@@ -324,12 +338,6 @@ public:
         return replicatorIt != list.end();
     }
 
-    bool isClient( const FlatDrive& drive, const std::array<uint8_t,32>&  peerPublicKey )
-    {
-        //(???+)
-        return drive.driveOwner() == peerPublicKey;
-    }
-    
     bool acceptConnection( const std::array<uint8_t,32>&  transactionHash,
                            const std::array<uint8_t,32>&  peerPublicKey,
                            bool*                          outIsDownloadUnlimited ) override
@@ -347,10 +355,10 @@ public:
                         *outIsDownloadUnlimited = true;
                         return true;
                     }
-//(???+)                    else if ( isClient( *drive, peerPublicKey) )
-//                    {
-//                        return true;
-//                    }
+                    else if ( drive->driveOwner() == peerPublicKey )
+                    {
+                        return true;
+                    }
                     else
                     {
                         _LOG_WARN( "acceptConnection: unknown peerPublicKey: " << sirius::Key(peerPublicKey) );
@@ -365,9 +373,8 @@ public:
             }
             else // it is connection for download channel
             {
-                auto& clients = it->second.m_dnClients;
-                auto clientIt = std::find( clients.begin(), clients.end(), peerPublicKey);
-                if ( clientIt == clients.end() ) {
+                const auto& clientMap = it->second.m_dnClientMap;
+                if ( clientMap.find(peerPublicKey) == clientMap.end() ) {
                     return false;
                 }
                 return it->second.m_totalReceiptsSize < it->second.m_prepaidDownloadSize;
@@ -397,25 +404,14 @@ public:
                          const std::array<uint8_t,32>&  receiverPublicKey,
                          uint64_t                       pieceSize ) override
     {
-        DBG_MAIN_THREAD
-
-        if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
-        {
-            it->second.m_requestedSize += pieceSize;
-            return;
-        }
-
-        // (???+) it was checked in accepConnection!!!
-//        if ( auto drive = getDrive( transactionHash ); drive )
-//        {
-//            if ( isRecipient( *drive, receiverPublicKey) )
-//            {
-//                //todo it is a late replicator
-//                return;
-//            }
-//        }
+// Replicator nothing does
+//        DBG_MAIN_THREAD
 //
-//        _LOG_WARN( "ERROR: unknown transactionHash: " << (int)transactionHash[0] );
+//        if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
+//        {
+//            it->second.m_requestedSize += pieceSize;
+//            return;
+//        }
     }
     
     void onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
@@ -424,11 +420,13 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
-        {
-            it->second.m_requestedSize += pieceSize;
-        }
+//(???+) is m_requestedSize needed in Replicator?
+//        if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
+//        {
+//            it->second.m_requestedSize += pieceSize;
+//        }
 
+        //(???+) is it needed?
         if ( auto it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
         {
             if ( auto peerIt = it->second.m_modifyTrafficMap.find(receiverPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
@@ -447,7 +445,14 @@ public:
         // Maybe this piece was sent to client (during data download)
         if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
         {
-            it->second.m_myUploadedSize += pieceSize;
+            if ( auto it2 = it->second.m_dnClientMap.find( receiverPublicKey ); it2 != it->second.m_dnClientMap.end() )
+            {
+                it2->second.m_uploadedSize += pieceSize;
+            }
+            else
+            {
+                _ASSERT( "unknown receiverPublicKey" );
+            }
             return;
         }
 
@@ -483,16 +488,6 @@ public:
             _LOG_ERR( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
         }
 
-        // (???+) is this check needed?
-//        if ( auto drive = getDrive( transactionHash ); drive )
-//        {
-//            if ( isRecipient( *drive, senderPublicKey ) )
-//            {
-//                //todo it is a late replicator
-//                return;
-//            }
-//        }
-        
         _LOG( "unknown transactionHash: " << (int)transactionHash[0] );
         _LOG_WARN( "ERROR(3): unknown transactionHash: " << (int)transactionHash[0] );
     }
@@ -616,9 +611,8 @@ public:
 
         // Check client key
 
-        const auto& v = channelInfoIt->second.m_dnClients;
-        if ( std::find_if( v.begin(), v.end(), [&clientPublicKey] (const auto& element)
-                          { return element == clientPublicKey; } ) == v.end() )
+        const auto& clientMap = channelInfoIt->second.m_dnClientMap;
+        if ( clientMap.find(clientPublicKey) == clientMap.end() )
         {
             _LOG_WARN( "verifyReceipt: bad client key; it is ignored" );
             return false;
@@ -640,9 +634,10 @@ public:
             return false;
         }
 
-        if ( ! acceptUploadSize( replicatorKey,
-                                downloadedSize,
-                                channelInfo ))
+        if ( ! acceptUploadSize( clientPublicKey,
+                                 replicatorKey,
+                                 downloadedSize,
+                                 channelInfo ))
         {
             return false;
         }
@@ -650,8 +645,9 @@ public:
         return true;
     }
     
-    bool acceptUploadSize( const std::array<uint8_t,32>&  replicatorKey,
-                           uint64_t                       downloadedSize,
+    bool acceptUploadSize( const std::array<uint8_t, 32>& clientPublicKey,
+                           const std::array<uint8_t,32>&  replicatorKey,
+                           uint64_t                       downloadedSize, // downloaded or to be downloaded size (in case of our replicator)
                            DownloadChannelInfo&           channelInfo )
     {
         DBG_MAIN_THREAD
@@ -688,11 +684,15 @@ public:
 
         if ( replicatorKey == keyPair().publicKey().array() )
         {
-            if ( auto uploadDelta = downloadedSize - channelInfo.m_myUploadedSize; uploadDelta >= m_advancePaymentLimit )
+            if ( auto clientSizesIt = channelInfo.m_dnClientMap.find( clientPublicKey ); clientSizesIt != channelInfo.m_dnClientMap.end() )
             {
-                // The client is forbidden to prepay too much in order to avoid an attack
-                _LOG_WARN("attempt to hand over large receipt");
-                return false;
+                auto requestedSize = downloadedSize - clientSizesIt->second.m_uploadedSize;
+                if ( requestedSize >= m_advancePaymentLimit )
+                {
+                    // The client is forbidden to prepay too much in order to avoid an attack
+                    _LOG_WARN("attempt to hand over large receipt");
+                    return false;
+                }
             }
         }
         

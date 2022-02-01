@@ -87,8 +87,7 @@ namespace sirius::drive::test
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes.back(),
                                         client.m_modificationTransactionHashes.back(),
                                         BIG_FILE_SIZE + 1024,
-                                        env.m_addrList,
-                                        client.m_clientKeyPair.publicKey()});
+                                        env.m_addrList });
 
         EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);

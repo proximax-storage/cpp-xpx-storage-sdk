@@ -45,8 +45,6 @@ class Replicator;
         Hash256         m_transactionHash;
         uint64_t        m_maxDataSize;
         ReplicatorList  m_unusedReplicatorList;
-        //(???+) m_clientPublicKey?
-        Key             m_clientPublicKey;
 
         bool m_isCanceled = false;
     };

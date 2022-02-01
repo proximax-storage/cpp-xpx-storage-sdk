@@ -111,8 +111,8 @@ int main()
     ModificationRequest modificationRequest1 {  client.m_actionListHashes.back(),
                                     client.m_modificationTransactionHashes.back(),
                                     BIG_FILE_SIZE + 1024,
-                                    env.m_addrList,
-        client.m_clientKeyPair.publicKey()};
+                                    env.m_addrList
+                                    };
     env.modifyDrive( DRIVE_PUB_KEY, modificationRequest1 );
                     
     // Wait Modification End
@@ -156,8 +156,7 @@ int main()
     env.modifyDrive( DRIVE_PUB_KEY, { client.m_actionListHashes[1],
                                       client.m_modificationTransactionHashes[1],
                                       BIG_FILE_SIZE + 1024,
-                                      env.m_addrList,
-                                      client.m_clientKeyPair.publicKey() });
+                                      env.m_addrList });
 
     // Wait Modification End
     env.waitModificationEnd( client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS );

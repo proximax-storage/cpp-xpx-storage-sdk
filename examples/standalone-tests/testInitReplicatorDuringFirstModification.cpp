@@ -109,8 +109,7 @@ namespace sirius::drive::test
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[0],
                                         client.m_modificationTransactionHashes[0],
                                         BIG_FILE_SIZE + 1024,
-                                        env.m_addrList,
-                                        client.m_clientKeyPair.publicKey()});
+                                        env.m_addrList });
 
         env.startReplicator(NUMBER_OF_REPLICATORS,
                             REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,

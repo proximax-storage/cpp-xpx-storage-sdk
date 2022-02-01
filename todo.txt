@@ -6,9 +6,19 @@ Libtorrent:
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=17  -GXcode ..
 ----------------------------------------------------------------------------
 
+!!!!Запоминать последний рецепт от каждого клиента
+
+Broadcasting of received download receipts into shard
+
+ClientKey,ReplicatorKey,TxHash,DnChannelKey,...
+
+
 Как ограничить данлоад/модифай-запрос, чтобы не запрашивал у не шардовых/чужых
 Или - как нам ограничить запросы на торренты только к тем репликаторам,
 которые в шарде?
+
+Uncomment "else if ( isClient( *drive, peerPublicKey) )" Иначе клиент (который за натом) не сможет приконнектиться к репликаторам
+
 
 -----modifyRequest
 

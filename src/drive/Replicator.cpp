@@ -542,7 +542,7 @@ public:
             bool added = addModifyTrafficInfo( modifyRequest.m_transactionHash.array(),
                                 driveKey,
                                 modifyRequest.m_maxDataSize,
-                                modifyRequest.m_clientPublicKey,
+                                pDrive->driveOwner(),
                                 modifyRequest.m_unusedReplicatorList);
 
             if ( ! added )
@@ -817,7 +817,12 @@ public:
             }
             else if ( replicatorIt == publicKey() )
             {
-                myOpinion.m_downloadLayout.push_back( { publicKey(), info.m_myUploadedSize } );
+                uint64_t uploadedSize = 0;
+                for( auto& cell: info.m_dnClientMap )
+                {
+                    uploadedSize += cell.second.m_uploadedSize;
+                }
+                myOpinion.m_downloadLayout.push_back( { publicKey(), uploadedSize } );
             }
             else
             {
@@ -842,7 +847,12 @@ public:
                 DownloadChannelInfo& channelInfo = channelInfoIt->second;
 
                 // add our uploaded size
-                opinion.m_downloadLayout.push_back( { publicKey(), channelInfo.m_myUploadedSize } );
+                uint64_t uploadedSize = 0;
+                for( auto& cell: channelInfo.m_dnClientMap )
+                {
+                    uploadedSize += cell.second.m_uploadedSize;
+                }
+                opinion.m_downloadLayout.push_back( { publicKey(), uploadedSize } );
 
                 // add other uploaded sizes
                 for( const auto& replicatorKey : drive->getAllReplicators() )
@@ -1358,7 +1368,7 @@ public:
         }
         else
         {
-            _LOG_WARN( "Failed to send " << query << " to " << int(replicatorKey[0]) );
+            _LOG_WARN( "Failed to send '" << query << "' to " << int(replicatorKey[0]) );
         }
     }
 

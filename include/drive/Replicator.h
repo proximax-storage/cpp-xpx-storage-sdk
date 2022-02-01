@@ -18,6 +18,7 @@ namespace sirius::drive {
 struct ReplicatorUploadInfo
 {
     // It is the size uploaded by another replicator
+    //(???+) all clients?
     uint64_t m_uploadedSize = 0;
     template <class Archive> void serialize( Archive & arch )
     {
@@ -82,16 +83,27 @@ using DownloadOpinionMap = std::map<std::array<uint8_t,32>, DownloadOpinionMapVa
 
 struct DownloadChannelInfo
 {
+    struct ClientSizes
+    {
+        uint64_t m_requestedSize = 0; // is it needed?
+        uint64_t m_uploadedSize = 0;
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_requestedSize );
+            arch( m_uploadedSize );
+        }
+    };
+
     bool     m_isModifyTx;
     bool     m_isSyncronizing;
 
     uint64_t m_prepaidDownloadSize;
     uint64_t m_totalReceiptsSize = 0;
-    uint64_t m_requestedSize = 0;
-    uint64_t m_myUploadedSize = 0;
 
-    std::array<uint8_t, 32> m_driveKey;
-    ClientList              m_dnClients;
+    std::map<std::array<uint8_t,32>,ClientSizes> m_dnClientMap;
+
+    std::array<uint8_t,32>  m_driveKey;
     ReplicatorList          m_dnReplicatorShard;
     ReplicatorUploadMap     m_replicatorUploadMap;
     
@@ -99,16 +111,16 @@ struct DownloadChannelInfo
 
     // it is used when drive is closing
     bool m_isClosed = false;
-    
+
+    // for saving/loading channel map before/after shutdown
     template <class Archive> void serialize( Archive & arch )
     {
         arch( m_isModifyTx );
         arch( m_prepaidDownloadSize );
-        arch( m_myUploadedSize );
         arch( m_driveKey );
         arch(m_totalReceiptsSize );
         arch( m_replicatorUploadMap );
-        arch( m_dnClients );
+        arch( m_dnClientMap );
         arch( m_downloadOpinionMap );
     }
 };
