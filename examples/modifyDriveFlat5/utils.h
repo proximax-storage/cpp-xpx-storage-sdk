@@ -80,14 +80,15 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
         }
 
         void modifyDrive(const ActionList &actionList,
-                         const ReplicatorList &replicatorList)
+                         const ReplicatorList &replicatorList,
+                         const Key& drivePubKey)
         {
             actionList.dbgPrint();
             // Create empty tmp folder for 'client modify data'
             //
             auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
             // start file uploading
-            InfoHash hash = m_clientSession->addActionListToSession(actionList, m_clientKeyPair.publicKey(), replicatorList, tmpFolder);
+            InfoHash hash = m_clientSession->addActionListToSession(actionList, drivePubKey, replicatorList, tmpFolder);
 
             // inform replicator
             m_actionListHashes.push_back(hash);

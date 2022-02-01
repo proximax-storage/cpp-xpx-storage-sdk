@@ -465,8 +465,8 @@ public:
                 if (  downloadContext.m_downloadType == DownloadContext::fs_tree )
                     throw std::runtime_error("download(fs_tree): already downloading" );
 
-                if ( downloadContext.m_downloadType == DownloadContext::client_data )
-                    throw std::runtime_error("download(client_data): already downloading" );
+//                if ( downloadContext.m_downloadType == DownloadContext::client_data )
+//                    throw std::runtime_error("download(client_data): already downloading" );
 
                 if ( downloadContext.m_downloadType == DownloadContext::missing_files )
                     throw std::runtime_error("download(missing_files): already downloading" );

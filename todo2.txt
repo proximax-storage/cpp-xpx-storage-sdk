@@ -14,3 +14,4 @@ Unexpected connections of Replicators
 Add To Handshake Drive and Channel
 ------------- Shards
 ------------- Drive Tasks as Classes
+Possible attack: a malicious client M asks modification of its Drive with the same hash as an honest client (so the malicious client breaks the rule that hash MUST depend on the DriveKey). Solution: the client should mention hash BEFORE concatenating with DrivePubKey, concatenation must take place at the Replicator's side.

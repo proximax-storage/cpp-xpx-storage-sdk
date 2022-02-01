@@ -789,7 +789,7 @@ static void clientModifyDrive( const ActionList& actionList,
     EXLOG( "# Client tmpFolder: " << tmpFolder );
 
     // start file uploading
-    InfoHash hash = gClientSession->addActionListToSession( actionList, clientKeyPair.publicKey(), replicatorList, tmpFolder );
+    InfoHash hash = gClientSession->addActionListToSession( actionList, DRIVE_PUB_KEY, replicatorList, tmpFolder );
 
     // inform replicator
     clientModifyHash = hash;

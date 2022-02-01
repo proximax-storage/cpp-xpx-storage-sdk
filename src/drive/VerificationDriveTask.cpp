@@ -59,7 +59,7 @@ public:
             , m_verifyApproveTxSent(false)
             , m_verificationMustBeInterrupted(false)
     {
-        // add unknown opinions in 'myVerifyAprovalTxInfo'
+        // add unknown opinions in 'myVerifyApprovalTxInfo'
         for ( const auto& opinion: receivedOpinions )
         {
             _ASSERT( processedVerificationOpinion(opinion) )

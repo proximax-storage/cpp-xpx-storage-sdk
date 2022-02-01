@@ -106,7 +106,7 @@ int main()
     //
     EXLOG("\n# Client started: 1-st upload");
     auto actionList = createActionList(CLIENT_WORK_FOLDER);
-    client.modifyDrive( actionList, env.m_addrList );
+    client.modifyDrive( actionList, env.m_addrList, DRIVE_PUB_KEY );
 
     ModificationRequest modificationRequest1 {  client.m_actionListHashes.back(),
                                     client.m_modificationTransactionHashes.back(),
@@ -151,7 +151,7 @@ int main()
     // Start 2-d Modification
     EXLOG("\n# Client started: 2-st upload");
     actionList = createActionList_2( CLIENT_WORK_FOLDER );
-    client.modifyDrive( actionList, env.m_addrList );
+    client.modifyDrive( actionList, env.m_addrList, DRIVE_PUB_KEY );
 
     env.modifyDrive( DRIVE_PUB_KEY, { client.m_actionListHashes[1],
                                       client.m_modificationTransactionHashes[1],

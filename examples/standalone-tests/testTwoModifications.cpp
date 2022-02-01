@@ -93,8 +93,8 @@ namespace sirius::drive::test
         TestClient client(bootstraps, pack);
 
         EXLOG("\n# Client started: 1-st upload");
-        client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList);
-        client.modifyDrive(createActionList_2(CLIENT_WORK_FOLDER), env.m_addrList);
+        client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList, DRIVE_PUB_KEY);
+        client.modifyDrive(createActionList_2(CLIENT_WORK_FOLDER), env.m_addrList, DRIVE_PUB_KEY);
 
         env.m_forbiddenTransaction.emplace(client.m_modificationTransactionHashes[0]);
 

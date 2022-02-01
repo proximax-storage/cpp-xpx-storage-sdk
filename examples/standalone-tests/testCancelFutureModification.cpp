@@ -83,8 +83,8 @@ namespace sirius::drive::test
 
         EXLOG("\n# Client started: 1-st upload");
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
-        client.modifyDrive(actionList, env.m_addrList);
-        client.modifyDrive(actionList, env.m_addrList);
+        client.modifyDrive(actionList, env.m_addrList, DRIVE_PUB_KEY);
+        client.modifyDrive(actionList, env.m_addrList, DRIVE_PUB_KEY);
 
         env.m_forbiddenTransaction.emplace(client.m_modificationTransactionHashes[1]);
 

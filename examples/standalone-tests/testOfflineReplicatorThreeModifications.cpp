@@ -223,9 +223,9 @@ namespace sirius::drive::test
         TestClient client(bootstraps, pack);
 
         auto actionList = createActionList(CLIENT_WORK_FOLDER);
-        client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList);
-        client.modifyDrive(createActionList_2(CLIENT_WORK_FOLDER), env.m_addrList);
-        client.modifyDrive(createActionList_3(CLIENT_WORK_FOLDER), env.m_addrList);
+        client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList, DRIVE_PUB_KEY);
+        client.modifyDrive(createActionList_2(CLIENT_WORK_FOLDER), env.m_addrList, DRIVE_PUB_KEY);
+        client.modifyDrive(createActionList_3(CLIENT_WORK_FOLDER), env.m_addrList, DRIVE_PUB_KEY);
 
         env.addDrive(DRIVE_PUB_KEY, client.m_clientKeyPair.publicKey(), 100 * 1024 * 1024);
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[0],
