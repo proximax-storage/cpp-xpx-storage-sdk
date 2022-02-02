@@ -15,6 +15,7 @@
 #include <fstream>
 #include <cstring>
 
+
 // boost
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
@@ -97,6 +98,8 @@ private:
     std::weak_ptr<Replicator>           m_replicator;
     std::weak_ptr<lt::session_delegate> m_downloadLimiter;
     
+    std::promise<void>                  m_bootstrapBarrier;
+    
     std::string             m_dbgOurPeerName = "";
     //int                     m_dbgPieceCounter = 0;
 
@@ -109,19 +112,23 @@ public:
                     const LibTorrentErrorHandler&        alertHandler,
                     std::weak_ptr<Replicator>            replicator,
                     std::weak_ptr<lt::session_delegate>  downloadLimiter,
-                    bool                                 useTcpSocket,
-                    const endpoint_list&                 bootstraps
+                    const endpoint_list&                 bootstraps,
+                    std::promise<void>&&                 bootstrapBarrier
                     )
         : m_addressAndPort(address)
-        , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps) }, context, {})
+        , m_session( lt::session_params{ generateSessionSettings( false, bootstraps) }, context, {})
         , m_alertHandler(alertHandler)
         , m_replicator(replicator)
         , m_downloadLimiter(downloadLimiter)
+        , m_bootstrapBarrier( std::move(bootstrapBarrier) )
     {
         m_dbgOurPeerName = m_downloadLimiter.lock()->dbgOurPeerName();
         
         continueSessionCreation();
         m_session.setDelegate( m_downloadLimiter );
+        _LOG( "DefaultSession created: " );
+        _LOG( "DefaultSession created: " << m_addressAndPort );
+        _LOG( "DefaultSession created: " << m_addressAndPort << " " << m_replicator.lock() );
         _LOG( "DefaultSession created: " << m_addressAndPort << " " << int(m_replicator.lock()->replicatorKey()[0]) );
     }
 
@@ -137,6 +144,7 @@ public:
         , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
         , m_alertHandler(alertHandler)
         , m_downloadLimiter(downloadLimiter)
+        , m_bootstrapBarrier()
     {
         if ( downloadLimiter.lock() )
             m_dbgOurPeerName = downloadLimiter.lock()->dbgOurPeerName();
@@ -870,7 +878,8 @@ private:
 //                }
 
                 case lt::dht_bootstrap_alert::alert_type: {
-                    __LOG( "dht_bootstrap_alert: " << alert->message() )
+                    _LOG( "dht_bootstrap_alert: " << alert->message() )
+                    m_bootstrapBarrier.set_value();
                     break;
                 }
 
@@ -920,7 +929,7 @@ private:
                          if ( rDict.type() == lt::bdecode_node::dict_t )
                          {
                              auto query = rDict.dict_find_string_value("q");
-                             _LOG( "dht_query: " << query )
+                             //_LOG( "dht_query: " << query )
                              if ( query == "get_dn_rcpts" )
                              {
                                  handleResponse( response);
@@ -1551,9 +1560,15 @@ std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&         
                                                std::weak_ptr<Replicator>            replicator,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
                                                const endpoint_list&                 bootstraps,
-                                               bool                                 useTcpSocket)
+                                               std::promise<void>&&                 bootstrapBarrier )
 {
-    return std::make_shared<DefaultSession>( context, address, alertHandler, replicator, downloadLimiter, useTcpSocket, bootstraps );
+    return std::make_shared<DefaultSession>( context,
+                                            address,
+                                            alertHandler,
+                                            replicator,
+                                            downloadLimiter,
+                                            bootstraps,
+                                            std::move(bootstrapBarrier) );
 }
 
 std::shared_ptr<Session> createDefaultSession( std::string                          address,

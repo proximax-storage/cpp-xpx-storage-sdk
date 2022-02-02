@@ -14,6 +14,7 @@
 #include <cereal/archives/binary.hpp>
 
 #include <filesystem>
+#include <future>
 #include <libtorrent/torrent_handle.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
@@ -205,7 +206,7 @@ PLUGIN_API std::shared_ptr<Session> createDefaultSession( boost::asio::io_contex
                                                           std::weak_ptr<Replicator>,
                                                           std::weak_ptr<lt::session_delegate>,
                                                           const endpoint_list& bootstraps,
-                                                          bool useTcpSocket = true );
+                                                          std::promise<void>&& bootstrapBarrier );
 
 PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address,
                                                           const LibTorrentErrorHandler&,

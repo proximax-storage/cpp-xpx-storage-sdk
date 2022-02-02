@@ -17,12 +17,26 @@ namespace sirius::drive {
 // It is used for calculation of total data size, downloaded by 'client'
 struct ReplicatorUploadInfo
 {
+    
     // It is the size uploaded by another replicator
     //(???+) all clients?
     uint64_t m_uploadedSize = 0;
+//    std::map<std::array<uint8_t,32>,uint64_t> m_clientMap;
+//
+//    uint64_t uploadedSize()
+//    {
+//        uint64_t uploadedSize = 0;
+//        for( auto& cell: m_clientMap )
+//        {
+//            uploadedSize += cell.second;
+//        }
+//        return uploadedSize;
+//    }
+    
     template <class Archive> void serialize( Archive & arch )
     {
         arch(m_uploadedSize);
+//        arch(m_clientMap);
     }
 };
 using ReplicatorUploadMap = std::map<std::array<uint8_t,32>,ReplicatorUploadInfo>;

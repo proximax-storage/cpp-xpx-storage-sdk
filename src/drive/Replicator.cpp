@@ -64,6 +64,8 @@ private:
 
     // key is verify tx
     std::map<std::array<uint8_t,32>, VerifyOpinion> m_verifyApprovalMap;
+    
+    std::future<void>       m_bootstrapFuture;
 
 public:
     DefaultReplicator (
@@ -156,6 +158,9 @@ public:
             bootstrapEndpoints.push_back( info.m_endpoint );
         }
 
+        std::promise<void> bootstrapBarrier;
+        m_bootstrapFuture = bootstrapBarrier.get_future();
+
         m_session = createDefaultSession( m_replicatorContext, m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
                                          {
                                              if ( pAlert->type() == lt::listen_failed_alert::alert_type )
@@ -168,7 +173,7 @@ public:
                                          weak_from_this(),
                                          weak_from_this(),
                                          bootstrapEndpoints,
-                                         m_useTcpSocket);
+                                         std::move(bootstrapBarrier) );
 
         m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName.c_str();
         
@@ -190,6 +195,9 @@ public:
 
         removeDriveDataOfBrokenClose();
         loadDownloadChannelMap();
+        
+        //(???+)
+        m_bootstrapFuture.wait();
 
         m_dnOpinionSyncronizer.start( m_session );
     }
@@ -1366,6 +1374,7 @@ public:
         if ( endpointTo )
         {
             m_session->sendMessage( query, { endpointTo->address(), endpointTo->port() }, message );
+            _LOG( "sendMessage '" << query << "' to " << int(replicatorKey[0]) );
         }
         else
         {
