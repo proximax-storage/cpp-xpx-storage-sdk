@@ -257,6 +257,7 @@ protected:
                          uint64_t                       pieceSize ) override
     {
         m_requestedSize[senderPublicKey] += pieceSize;
+        //__LOG( "#*** onPieceRequest: " << int(senderPublicKey[0])<< ": " << m_requestedSize[senderPublicKey] )
     }
     
     void onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
@@ -282,6 +283,7 @@ protected:
 
     uint64_t requestedSize( const std::array<uint8_t,32>&  peerPublicKey ) override
     {
+        //__LOG( "#*** requestedSize: " << int(peerPublicKey[0])<< ": " << m_requestedSize[peerPublicKey] )
         return m_requestedSize[peerPublicKey];
     }
 

@@ -77,6 +77,12 @@ inline bool gBreakOnError = true;
     }
 #endif
 
+#define _FUNC_ENTRY();
+//#define _FUNC_ENTRY() { \
+//        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+//        std::cout << m_dbgOurPeerName << ": call: " << __PRETTY_FUNCTION__ << std::endl << std::flush; \
+//    }
+
 #define _ASSERT(expr) { \
     if (!(expr)) {\
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
@@ -84,6 +90,15 @@ inline bool gBreakOnError = true;
             std::cerr << m_dbgOurPeerName << ": " << __FILE__ << ":" << __LINE__ << " failed: " << #expr << "\n" << std::flush; \
         else \
             std::cerr << m_dbgOurPeerName << ": failed assert: " << #expr << "\n" << std::flush; \
+        assert(0); \
+    }\
+}
+
+#define __ASSERT(expr) { \
+    if (!(expr)) {\
+        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+            std::cerr << __FILE__ << ":" << __LINE__ << " failed: " << #expr << "\n" << std::flush; \
+            std::cerr << "failed assert!!!: " << #expr << "\n" << std::flush; \
         assert(0); \
     }\
 }

@@ -80,8 +80,52 @@ namespace sirius {
             Key                             m_publicKey;
         };
 
+#define DECL_KEY(KeyName) \
+        struct KeyName : public Key \
+        { \
+            KeyName() = default; \
+            KeyName( const Key& key ) : Key(key) {} \
+            KeyName( const std::array<uint8_t,32>& array ) : Key(array) {} \
+            \
+            int operator[]( std::array<uint8_t,32>::size_type pos ) const { return (int) static_cast<const Key&>(*this)[pos]; } \
+            \
+            template<class Archive> \
+            void serialize(Archive &arch) \
+            { \
+                std::array<uint8_t,32>& theArray = (std::array<uint8_t,32>&)array(); \
+                arch( theArray ); \
+            } \
+        };
+    
+#define DECL_HASH(HashName) \
+        struct HashName : public Hash256 \
+        { \
+            HashName() = default; \
+            HashName( const Hash256& key ) : Hash256(key) {} \
+            HashName( const std::array<uint8_t,32>& array ) : Hash256(array) {} \
+            \
+            int operator[]( std::array<uint8_t,32>::size_type pos ) const { return (int) static_cast<const Hash256&>(*this)[pos]; } \
+            \
+            template<class Archive> \
+            void serialize(Archive &arch) \
+            { \
+                std::array<uint8_t,32>& theArray = (std::array<uint8_t,32>&)array(); \
+                arch( theArray ); \
+            } \
+        };
+    
+    DECL_KEY( DriveKey );
+    DECL_KEY( ReplicatorKey );
+    DECL_KEY( ClientKey );
+    DECL_HASH( ChannelId );
+    //using ChannelId   = HashArray<std::array<uint8_t,32>>;
+    //using TxHash   = HashArray<std::array<uint8_t,32>>;
+    //using ModifyTxHash   = HashArray<std::array<uint8_t,32>>;
+    //using VerifyTxHash   = HashArray<std::array<uint8_t,32>>;
+
         using ReplicatorList = std::vector<Key>;
-        using ClientList = std::vector<std::array<uint8_t,32>>;
+        using ClientList     = std::vector<std::array<uint8_t,32>>;
+        using Message        = std::vector<uint8_t>;
     }
 
     // movable/nullable object with Args... constructor

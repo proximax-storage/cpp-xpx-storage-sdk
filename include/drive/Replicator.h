@@ -17,29 +17,40 @@ namespace sirius::drive {
 // It is used for calculation of total data size, downloaded by 'client'
 struct ReplicatorUploadInfo
 {
+public:
+    // It is the size uploaded (to client) by another replicator
+    //
+    std::map<ClientKey,uint64_t> m_clientMap;
+
+    uint64_t uploadedSize() const
+    {
+        uint64_t uploadedSize = 0;
+        for( auto& cell: m_clientMap )
+        {
+            uploadedSize += cell.second;
+        }
+        return uploadedSize;
+    }
     
-    // It is the size uploaded by another replicator
-    //(???+) all clients?
-    uint64_t m_uploadedSize = 0;
-//    std::map<std::array<uint8_t,32>,uint64_t> m_clientMap;
-//
-//    uint64_t uploadedSize()
-//    {
-//        uint64_t uploadedSize = 0;
-//        for( auto& cell: m_clientMap )
-//        {
-//            uploadedSize += cell.second;
-//        }
-//        return uploadedSize;
-//    }
+    uint64_t uploadedSize( const ClientKey& clientKey )
+    {
+        return m_clientMap[clientKey];
+    }
+    
+    void acceptReceipt( const ClientKey& clientKey, uint64_t uploadedSize )
+    {
+        auto it = m_clientMap.lower_bound( clientKey );
+        __ASSERT( it != m_clientMap.end() )
+        __ASSERT( it->second < uploadedSize )
+        it->second = uploadedSize;
+    }
     
     template <class Archive> void serialize( Archive & arch )
     {
-        arch(m_uploadedSize);
-//        arch(m_clientMap);
+        arch(m_clientMap);
     }
 };
-using ReplicatorUploadMap = std::map<std::array<uint8_t,32>,ReplicatorUploadInfo>;
+using ReplicatorUploadMap = std::map<ReplicatorKey,ReplicatorUploadInfo>;
 
 struct DownloadOpinionMapValue
 {
@@ -95,6 +106,45 @@ struct DownloadOpinionMapValue
 // DownloadOpinionMap (key is a blockHash value)
 using DownloadOpinionMap = std::map<std::array<uint8_t,32>, DownloadOpinionMapValue>;
 
+struct RcptMessage : public std::vector<uint8_t>
+{
+    using Sign = std::array<uint8_t,64>;
+    
+    RcptMessage() = default;
+    RcptMessage( const RcptMessage& ) = default;
+    RcptMessage& operator=( const RcptMessage& ) = default;
+    RcptMessage( RcptMessage&& ) = default;
+    RcptMessage& operator=( RcptMessage&& ) = default;
+    
+    RcptMessage( const char* data, size_t dataSize ) : std::vector<uint8_t>( (const uint8_t*)data, ((const uint8_t*)data)+dataSize ) {}
+
+    RcptMessage( const ChannelId&     dnChannelId,
+                 const ClientKey&     clientKey,
+                 const ReplicatorKey& replicatorKey,
+                 uint64_t             downloadedSize,
+                 const Sign&          signature )
+    {
+        reserve( 96+64 );
+        insert( end(), dnChannelId.begin(),         dnChannelId.end() );
+        insert( end(), clientKey.begin(),           clientKey.end() );
+        insert( end(), replicatorKey.begin(),       replicatorKey.end() );
+        insert( end(), (uint8_t*)&downloadedSize,   ((uint8_t*)&downloadedSize)+8 );
+        insert( end(), signature.begin(),           signature.end() );
+    }
+    
+    bool isValid() const { return size() == sizeof(ChannelId)+sizeof(ClientKey)+sizeof(ReplicatorKey)+8+sizeof(Sign); }
+
+    const ChannelId&      channelId()      const { return *reinterpret_cast<const ChannelId*>(     &this->at(0) );   }
+    const ClientKey&      clientKey()      const { return *reinterpret_cast<const ClientKey*>(     &this->at(32) );  }
+    const ReplicatorKey&  replicatorKey()  const { return *reinterpret_cast<const ReplicatorKey*>( &this->at(64) );  }
+    uint64_t              downloadedSize() const { return *reinterpret_cast<const uint64_t*>(      &this->at(96) );  }
+    const uint64_t*       downloadedSizePtr() const { return (const uint64_t*)(    &this->at(96) );  }
+
+    const Sign&           signature()      const { return *reinterpret_cast<const Sign*>(          &this->at(104) ); }
+};
+
+using ClientReceipts = std::map<ReplicatorKey,RcptMessage>;
+
 struct DownloadChannelInfo
 {
     struct ClientSizes
@@ -115,13 +165,15 @@ struct DownloadChannelInfo
     uint64_t m_prepaidDownloadSize;
     uint64_t m_totalReceiptsSize = 0;
 
-    std::map<std::array<uint8_t,32>,ClientSizes> m_dnClientMap;
+    std::map<ClientKey,ClientSizes> m_dnClientMap;
 
     std::array<uint8_t,32>  m_driveKey;
     ReplicatorList          m_dnReplicatorShard;
     ReplicatorUploadMap     m_replicatorUploadMap;
     
     DownloadOpinionMap      m_downloadOpinionMap;
+    
+    std::map<ClientKey,ClientReceipts> m_clientReceiptMap = {};
 
     // it is used when drive is closing
     bool m_isClosed = false;
@@ -136,11 +188,12 @@ struct DownloadChannelInfo
         arch( m_replicatorUploadMap );
         arch( m_dnClientMap );
         arch( m_downloadOpinionMap );
+        arch( m_clientReceiptMap );
     }
 };
 
 // key is a channel hash
-using ChannelMap         = std::map<std::array<uint8_t,32>, DownloadChannelInfo>;
+using ChannelMap         = std::map<ChannelId, DownloadChannelInfo>;
 
 // It is used for mutual calculation of the replicators, when they download 'modify data'
 // (Note. Replicators could receive 'modify data' from client and from replicators, that already receives some piece)
@@ -416,15 +469,7 @@ public:
     // will be called from Sesion
     // when it receives message from another replicator
     // (must be implemented by DownloadLimiter)
-    virtual bool acceptReceiptFromAnotherReplicator( const std::array<uint8_t,32>&  downloadChannelId,
-                                                     const std::array<uint8_t,32>&  clientPublicKey,
-                                                     const std::array<uint8_t,32>&  replicatorPublicKey,
-                                                     uint64_t                       downloadedSize,
-                                                     const std::array<uint8_t,64>&  signature )
-    {
-        // 'client' does nothing
-        return true;
-    }
+    virtual bool acceptReceiptFromAnotherReplicator( RcptMessage&& message ) = 0;
 
     virtual ModifyTrafficInfo getMyDownloadOpinion( const Hash256& transactionHash ) const = 0;
 
@@ -434,7 +479,7 @@ public:
 
     // Functions for debugging
     //
-    virtual Hash256     dbgGetRootHash( const Key& driveKey ) = 0;
+    virtual Hash256     dbgGetRootHash( const DriveKey& driveKey ) = 0;
     virtual void        dbgPrintDriveStatus( const Key& driveKey ) = 0;
     virtual void        dbgPrintTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) = 0;
     virtual const char* dbgReplicatorName() const = 0;

@@ -433,6 +433,7 @@ public:
                     sendSingleApprovalTransaction( *m_myOpinion );
                 }
 
+                _LOG("???+ --1--")
                 startSynchronizingDriveWithSandbox();
             }
             return false;
@@ -789,6 +790,7 @@ private:
         if ( m_modifyApproveTxReceived )
         {
             sendSingleApprovalTransaction( *m_myOpinion );
+            _LOG("???+ --2--")
             startSynchronizingDriveWithSandbox();
         } else
         {
@@ -905,6 +907,14 @@ private:
             _LOG( "IN UPDATE 2" )
 
             // update FsTree file & torrent
+            if ( ! fs::exists( m_drive.m_sandboxFsTreeFile ) )
+            {
+                _LOG( "not exist 1: " << m_drive.m_sandboxFsTreeFile )
+            }
+            if ( ! fs::exists( m_drive.m_fsTreeFile.parent_path() ) )
+            {
+                _LOG( "not exist 2: " <<m_drive.m_fsTreeFile.parent_path() )
+            }
             fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
             fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
 
@@ -1178,6 +1188,7 @@ private:
 
         sendSingleApprovalTransaction( *m_myOpinion );
 
+        _LOG("???+ --3--")
         startSynchronizingDriveWithSandbox();
     }
 
@@ -1331,6 +1342,8 @@ private:
             // move file to drive folder
             try
             {
+                _LOG( "rename what:" << m_drive.m_sandboxRootPath / fileName )
+                _LOG( "rename to:"   << m_drive.m_driveFolder / fileName )
                 fs::rename( m_drive.m_sandboxRootPath / fileName, m_drive.m_driveFolder / fileName );
             }
             catch (const std::exception& ex)

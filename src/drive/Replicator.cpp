@@ -24,6 +24,9 @@
 #include <mutex>
 #include <future>
 
+#undef DBG_MAIN_THREAD
+#define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
+
 namespace sirius::drive {
 
 #define CHANNELS_NOT_OWNED_BY_DRIVES
@@ -196,8 +199,8 @@ public:
         removeDriveDataOfBrokenClose();
         loadDownloadChannelMap();
         
-        //(???+)
-        m_bootstrapFuture.wait();
+        //(???+) !!!
+        //m_bootstrapFuture.wait();
 
         m_dnOpinionSyncronizer.start( m_session );
     }
@@ -225,7 +228,7 @@ public:
         }
     }
 
-    Hash256 dbgGetRootHash( const Key& driveKey ) override
+    Hash256 dbgGetRootHash( const DriveKey& driveKey ) override
     {
         std::promise<Hash256> thePromise;
         auto future = thePromise.get_future();
@@ -265,6 +268,8 @@ public:
 
     void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest ) override
     {
+        _FUNC_ENTRY()
+
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
@@ -321,6 +326,8 @@ public:
 
     void asyncRemoveDrive( Key driveKey ) override
     {
+        _FUNC_ENTRY()
+
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
         {
             DBG_MAIN_THREAD
@@ -345,12 +352,16 @@ public:
 
     void asyncReplicatorAdded( Key driveKey, mobj<Key>&& replicatorKey ) override
     {
+        _FUNC_ENTRY()
+
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
         {
             DBG_MAIN_THREAD
 
             if ( auto drive = getDrive(driveKey); drive )
             {
+                //(???+++) !!!!
+                //todo+++
                 m_endpointsManager.addEndpointEntry( *replicatorKey );
                 drive->replicatorAdded( std::move(replicatorKey) );
             }
@@ -364,6 +375,8 @@ public:
 
     void asyncReplicatorRemoved( Key driveKey, mobj<Key>&& replicatorKey ) override
     {
+        _FUNC_ENTRY()
+
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
         {
             DBG_MAIN_THREAD
@@ -383,6 +396,8 @@ public:
 
     void asyncAddShardDonator( Key driveKey, mobj<Key>&& replicatorKey ) override
     {
+        _FUNC_ENTRY()
+
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
         {
             DBG_MAIN_THREAD
@@ -401,6 +416,8 @@ public:
 
     void asyncRemoveShardDonator( Key driveKey, mobj<Key>&& replicatorKey ) override
     {
+        _FUNC_ENTRY()
+
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
         {
             DBG_MAIN_THREAD
@@ -419,6 +436,8 @@ public:
 
     void asyncAddShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) override
     {
+        _FUNC_ENTRY()
+
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
         {
             DBG_MAIN_THREAD
@@ -437,6 +456,8 @@ public:
 
     void asyncRemoveShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) override
     {
+        _FUNC_ENTRY()
+
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
         {
             DBG_MAIN_THREAD
@@ -455,6 +476,8 @@ public:
     
     virtual void asyncAddToChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) override
     {
+        _FUNC_ENTRY()
+
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
         {
             DBG_MAIN_THREAD
@@ -479,6 +502,8 @@ public:
 
     virtual void asyncRemoveFromChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) override
     {
+        _FUNC_ENTRY()
+
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
         {
             DBG_MAIN_THREAD
@@ -503,7 +528,9 @@ public:
 
     void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        _FUNC_ENTRY()
+
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -526,7 +553,9 @@ public:
 
     void asyncModify( Key driveKey, ModificationRequest modifyRequest ) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        _FUNC_ENTRY()
+
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -574,7 +603,9 @@ public:
     
     void asyncCancelModify( Key driveKey, Hash256 transactionHash ) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        _FUNC_ENTRY()
+       
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -595,8 +626,9 @@ public:
     
     void asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& request ) override
     {
-//#ifdef ENABLE_VERIFICATIONS
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        _FUNC_ENTRY()
+
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -618,6 +650,8 @@ public:
 
     void asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) override
     {
+        _FUNC_ENTRY()
+
         //TODO
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
          
@@ -640,7 +674,9 @@ public:
 
     void asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&& request, bool mustBeSyncronized ) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        _FUNC_ENTRY()
+
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -697,6 +733,8 @@ public:
 
     void asyncRemoveDownloadChannelInfo( Key driveKey, Key channelId ) override
     {
+        _FUNC_ENTRY()
+
 //       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 //
 //            DBG_MAIN_THREAD
@@ -722,6 +760,8 @@ public:
         message.insert( message.end(), (uint8_t*)&downloadedSize,   ((uint8_t*)&downloadedSize)+8 );
         message.insert( message.end(), signature.begin(),           signature.end() );
         
+        RcptMessage msg( downloadChannelId, clientPublicKey, replicatorPublicKey, downloadedSize, signature );
+        
         if ( auto it = m_dnChannelMap.find(downloadChannelId); it != m_dnChannelMap.end() )
         {
             // go throw replictor list
@@ -729,8 +769,7 @@ public:
             {
                 if ( *replicatorIt != replicatorPublicKey )
                 {
-                    //_LOG( "todo++++ sendMessage(rcpt) " << m_dbgOurPeerName << " " << int(downloadChannelId[0]) );
-                    sendMessage( "rcpt", replicatorIt->array(), message );
+                    sendMessage( "rcpt", replicatorIt->array(), msg );
                 }
             }
         }
@@ -786,7 +825,9 @@ public:
 
     virtual void asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        _FUNC_ENTRY()
+        
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -822,7 +863,7 @@ public:
         {
             if ( auto downloadedIt = info.m_replicatorUploadMap.find( replicatorIt.array()); downloadedIt != info.m_replicatorUploadMap.end() )
             {
-                myOpinion.m_downloadLayout.push_back( {downloadedIt->first, downloadedIt->second.m_uploadedSize} );
+                myOpinion.m_downloadLayout.push_back( {downloadedIt->first.array(), downloadedIt->second.uploadedSize() } );
             }
             else if ( replicatorIt == publicKey() )
             {
@@ -869,7 +910,8 @@ public:
                     if ( auto downloadedIt = channelInfo.m_replicatorUploadMap.find( replicatorKey.array());
                         downloadedIt != channelInfo.m_replicatorUploadMap.end() )
                     {
-                        opinion.m_downloadLayout.push_back( {downloadedIt->first, downloadedIt->second.m_uploadedSize} );
+                        //(???+++)
+                        opinion.m_downloadLayout.push_back( {downloadedIt->first.array(), downloadedIt->second.uploadedSize() } );
                     }
                 }
 
@@ -973,7 +1015,9 @@ public:
     {
         //todo make queue for several simultaneous requests of the same channelId
 
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        _FUNC_ENTRY()
+        
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -1089,7 +1133,9 @@ public:
 
     void asyncDownloadApprovalTransactionHasFailedInvalidOpinions( Hash256 eventHash, Hash256 channelId ) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        _FUNC_ENTRY()
+       
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -1143,7 +1189,9 @@ public:
     
     virtual void asyncDownloadApprovalTransactionHasBeenPublished( Hash256 eventHash, Hash256 channelId, bool driveIsClosed ) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        _FUNC_ENTRY()
+        
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -1233,7 +1281,9 @@ public:
     
     virtual void asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        _FUNC_ENTRY()
+        
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -1263,7 +1313,9 @@ public:
     
     virtual void asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo transaction ) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        _FUNC_ENTRY()
+        
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -1292,7 +1344,9 @@ public:
 
     void asyncApprovalTransactionHasFailedInvalidSignatures(Key driveKey, Hash256 transactionHash) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        _FUNC_ENTRY()
+        
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -1314,7 +1368,9 @@ public:
     
     virtual void asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo transaction ) override
     {
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        _FUNC_ENTRY()
+       
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -1336,6 +1392,8 @@ public:
 
     virtual void asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) override
     {
+        _FUNC_ENTRY()
+        
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
             DBG_MAIN_THREAD
@@ -1396,12 +1454,12 @@ public:
         auto endpointTo = m_endpointsManager.getEndpoint( replicatorKey );
         if ( endpointTo )
         {
-            __LOG( "*** sendMessage: " << query << " to: " << *endpointTo << " " << int(replicatorKey[0]) );
+            //__LOG( "*** sendMessage: " << query << " to: " << *endpointTo << " " << int(replicatorKey[0]) );
             m_session->sendMessage( query, { endpointTo->address(), endpointTo->port() }, message );
         }
         else
         {
-            __LOG( "sendMessage: absent: " << int(replicatorKey[0]) );
+            __LOG( "sendMessage: absent endpoint: " << int(replicatorKey[0]) );
         }
     }
 

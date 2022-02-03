@@ -19,7 +19,9 @@
 
 #include <boost/stacktrace.hpp>
 
-#define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
+#undef DBG_MAIN_THREAD
+//#define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
+#define DBG_MAIN_THREAD { _FUNC_ENTRY(); assert( m_dbgThreadId == std::this_thread::get_id() ); }
 
 namespace sirius::drive {
 
@@ -243,7 +245,7 @@ public:
         for( const auto& it : replicatorsList )
         {
             if ( it.array() != publicKey() )
-                dnChannelInfo.m_replicatorUploadMap.insert( { it.array(), {}} );
+                dnChannelInfo.m_replicatorUploadMap.insert( { it, {}} );
         }
         
         m_dnChannelMap.insert( { channelId, std::move(dnChannelInfo) } );
@@ -494,19 +496,11 @@ public:
 
 
     // will be called when one replicator informs another about downloaded size by client
-    virtual bool acceptReceiptFromAnotherReplicator( const std::array<uint8_t,32>&  downloadChannelId,
-                                                     const std::array<uint8_t,32>&  clientPublicKey,
-                                                     const std::array<uint8_t,32>&  replicatorPublicKey,
-                                                     uint64_t                       downloadedSize,
-                                                     const std::array<uint8_t,64>&  signature ) override
+    virtual bool acceptReceiptFromAnotherReplicator( RcptMessage&& message ) override
     {
         DBG_MAIN_THREAD
         
-        return acceptReceipt( downloadChannelId,
-                              clientPublicKey,
-                              replicatorPublicKey,
-                              downloadedSize,
-                              signature);
+        return acceptReceiptImpl( std::move(message) );
     }
     
     void removeChannelInfo( const std::array<uint8_t,32>& channelId )
@@ -589,30 +583,38 @@ public:
     //
     bool acceptReceipt( const std::array<uint8_t, 32>& downloadChannelId,
                         const std::array<uint8_t, 32>& clientPublicKey,
-                        const std::array<uint8_t, 32>& replicatorKey, // our key or another replicator key
+                        const std::array<uint8_t, 32>& replicatorKey,
                         uint64_t                       downloadedSize,
                         const std::array<uint8_t, 64>& signature) override
     {
+        return acceptReceiptImpl(
+                    RcptMessage( ChannelId(downloadChannelId),
+                                 ClientKey(clientPublicKey),
+                                 ReplicatorKey(replicatorKey),
+                                 downloadedSize,
+                                 signature ) );
+    }
+    
+    bool acceptReceiptImpl( RcptMessage&& msg )
+    {
         // Get channel info
-        auto channelInfoIt = m_dnChannelMap.find( downloadChannelId );
+        auto channelInfoIt = m_dnChannelMap.find( msg.channelId() );
         if ( channelInfoIt == m_dnChannelMap.end() )
         {
-            _LOG_WARN( dbgOurPeerName() << "unknown channelId (maybe we are late): " << int(downloadChannelId[0]) << " " << int(replicatorKey[0]) );
+            _LOG_WARN( dbgOurPeerName() << "unknown channelId (maybe we are late): " << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) );
             return false;
         }
 
         if ( channelInfoIt->second.m_isModifyTx )
         {
-            _LOG_WARN( dbgOurPeerName() << "receipt for modification should never be received" << int(downloadChannelId[0]) << " " << int(replicatorKey[0]) )
+            _LOG_WARN( dbgOurPeerName() << "receipt for modification should never be received" << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) )
             return false;
         }
         
-        auto& channelInfo = channelInfoIt->second;
-
         // Check client key
-
+        //
         const auto& clientMap = channelInfoIt->second.m_dnClientMap;
-        if ( clientMap.find(clientPublicKey) == clientMap.end() )
+        if ( clientMap.find( msg.clientKey() ) == clientMap.end() )
         {
             _LOG_WARN( "verifyReceipt: bad client key; it is ignored" );
             return false;
@@ -621,23 +623,22 @@ public:
         //
         // Check sign
         //
-        if ( !crypto::Verify( clientPublicKey,
+        if ( !crypto::Verify( msg.clientKey(),
                                {
-                                    utils::RawBuffer{downloadChannelId},
-                                    utils::RawBuffer{clientPublicKey},
-                                    utils::RawBuffer{replicatorKey},
-                                    utils::RawBuffer{(const uint8_t*)&downloadedSize,8}
+                                    utils::RawBuffer{msg.channelId()},
+                                    utils::RawBuffer{msg.clientKey()},
+                                    utils::RawBuffer{msg.replicatorKey()},
+                                    utils::RawBuffer{(const uint8_t*)msg.downloadedSizePtr(),8}
                                },
-                               reinterpret_cast<const Signature&>(signature) ))
+                               reinterpret_cast<const Signature&>(msg.signature()) ))
         {
-            _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature: " << int(downloadChannelId[0]) << " " << int(replicatorKey[0]) );
+            _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature: " << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) )
             return false;
         }
 
-        if ( ! acceptUploadSize( clientPublicKey,
-                                 replicatorKey,
-                                 downloadedSize,
-                                 channelInfo ))
+        auto& channelInfo = channelInfoIt->second;
+
+        if ( ! acceptUploadSize( std::move(msg), channelInfo ) )
         {
             return false;
         }
@@ -645,14 +646,14 @@ public:
         return true;
     }
     
-    bool acceptUploadSize( const std::array<uint8_t, 32>& clientPublicKey,
-                           const std::array<uint8_t,32>&  replicatorKey,
-                           uint64_t                       downloadedSize, // downloaded or to be downloaded size (in case of our replicator)
-                           DownloadChannelInfo&           channelInfo )
+    bool acceptUploadSize( RcptMessage&& msg, DownloadChannelInfo& channelInfo )
     {
         DBG_MAIN_THREAD
+        
+        //(???++++)
+        return true;
 
-        auto replicatorInfoIt = channelInfo.m_replicatorUploadMap.lower_bound( replicatorKey );
+        auto replicatorInfoIt = channelInfo.m_replicatorUploadMap.lower_bound( msg.replicatorKey() );
         
         if ( replicatorInfoIt == channelInfo.m_replicatorUploadMap.end() )
         {
@@ -660,33 +661,35 @@ public:
             // Check that it exists in our 'shard'
 
             const auto& v = channelInfo.m_dnReplicatorShard;
-            if ( std::find( v.begin(), v.end(), replicatorKey ) == v.end() )
+            if ( std::find( v.begin(), v.end(), msg.replicatorKey() ) == v.end() )
             {
                 _LOG_WARN("bad replicator key; it is ignored");
                 return false;
             }
             
-            replicatorInfoIt = channelInfo.m_replicatorUploadMap.insert( replicatorInfoIt, {replicatorKey,{}} );
+            replicatorInfoIt = channelInfo.m_replicatorUploadMap.insert( replicatorInfoIt, {msg.replicatorKey(),{}} );
         }
-        auto lastAcceptedUploadSize = replicatorInfoIt->second.m_uploadedSize;
         
-        if ( lastAcceptedUploadSize >= downloadedSize )
+        auto lastAcceptedUploadSize = replicatorInfoIt->second.uploadedSize( msg.clientKey() );
+        
+        //_LOG("lastAcceptedUploadSize: " << int(msg.replicatorKey()[0]) << " " << lastAcceptedUploadSize << " " << msg.downloadedSize() );
+        if ( msg.downloadedSize() <= lastAcceptedUploadSize  )
         {
             _LOG("old receipt; it is ignored");
             return false;
         }
         
-        if ( channelInfo.m_totalReceiptsSize - lastAcceptedUploadSize + downloadedSize > channelInfo.m_prepaidDownloadSize )
+        if ( channelInfo.m_totalReceiptsSize - lastAcceptedUploadSize + msg.downloadedSize() > channelInfo.m_prepaidDownloadSize )
         {
             _LOG("attempt to download more than prepaid; it is ignored ");
             return false;
         }
 
-        if ( replicatorKey == keyPair().publicKey().array() )
+        if ( msg.replicatorKey() == keyPair().publicKey().array() )
         {
-            if ( auto clientSizesIt = channelInfo.m_dnClientMap.find( clientPublicKey ); clientSizesIt != channelInfo.m_dnClientMap.end() )
+            if ( auto clientSizesIt = channelInfo.m_dnClientMap.find( msg.clientKey() ); clientSizesIt != channelInfo.m_dnClientMap.end() )
             {
-                auto requestedSize = downloadedSize - clientSizesIt->second.m_uploadedSize;
+                auto requestedSize = msg.downloadedSize() - clientSizesIt->second.m_uploadedSize;
                 if ( requestedSize >= m_advancePaymentLimit )
                 {
                     // The client is forbidden to prepay too much in order to avoid an attack
@@ -696,8 +699,34 @@ public:
             }
         }
         
-        channelInfo.m_totalReceiptsSize = channelInfo.m_totalReceiptsSize - replicatorInfoIt->second.m_uploadedSize + downloadedSize;
-        replicatorInfoIt->second.m_uploadedSize = downloadedSize;
+        channelInfo.m_totalReceiptsSize += msg.downloadedSize() - lastAcceptedUploadSize;
+        replicatorInfoIt->second.acceptReceipt( msg.clientKey(), msg.downloadedSize() );
+        
+//        auto clientReceiptIt = channelInfo.m_clientReceiptMap.lower_bound( msg.clientKey() );
+        
+//        ClientReceipts receipts;
+//        receipts.insert( { msg.replicatorKey(), std::move(msg) } );
+        channelInfo.m_clientReceiptMap[ msg.clientKey() ] = {};
+        
+//        if ( clientReceiptIt == channelInfo.m_clientReceiptMap.end() )
+//        {
+//            ClientReceipts receipts;
+//            receipts.insert( { msg.replicatorKey(), std::move(msg) } );
+//            channelInfo.m_clientReceiptMap.insert( clientReceiptIt, { msg.clientKey(), std::move(receipts) } );
+//        }
+//        else
+//        {
+//            auto replicatorIt = clientReceiptIt->second.lower_bound( msg.clientKey() );
+//            if ( replicatorIt == clientReceiptIt->second.end() )
+//            {
+//                clientReceiptIt->second.insert( replicatorIt, { msg.replicatorKey(), std::move(msg) } );
+//            }
+//            else
+//            {
+//                _ASSERT( replicatorIt->second.downloadedSize() < msg.downloadedSize() );
+//                replicatorIt->second = std::move(msg);
+//            }
+//        }
 
         return true;
     }

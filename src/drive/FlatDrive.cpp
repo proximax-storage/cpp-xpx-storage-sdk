@@ -40,7 +40,9 @@ namespace fs = std::filesystem;
 
 namespace sirius::drive {
 
-#define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
+#undef DBG_MAIN_THREAD
+//#define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
+#define DBG_MAIN_THREAD { _FUNC_ENTRY(); assert( m_dbgThreadId == std::this_thread::get_id() ); }
 #define DBG_BG_THREAD { assert( m_dbgThreadId != std::this_thread::get_id() ); }
 #define DBG_VERIFY_THREAD { assert( m_verifyThread.get_id() == std::this_thread::get_id() ); }
 
@@ -660,6 +662,8 @@ public:
 
     void runVerificationTask()
     {
+        DBG_MAIN_THREAD
+        
         auto receivedOpinions = std::move(m_unknownVerificationOpinions[m_deferredVerificationRequest->m_tx]);
         m_unknownVerificationOpinions.erase(m_deferredVerificationRequest->m_tx);
 

@@ -19,7 +19,8 @@
 
 #include <sirius_drive/session_delegate.h>
 
-const bool testLateReplicator = true;
+//(???+) !!!
+const bool testLateReplicator = true; //true;
 
 //
 // This example shows interaction between 'client' and 'replicator'.
@@ -84,13 +85,12 @@ inline std::mutex gExLogMutex;
 static std::string now_str();
 
 #define EXLOG(expr) { \
-        std::lock_guard<std::mutex> autolock( gExLogMutex ); \
-        std::cout << now_str() << ": " << expr << std::endl << std::flush; \
+        __LOG( "exlog: " << now_str() << ": " << expr << std::endl << std::flush); \
     }
 
 #define _EXLOG(expr) { \
         std::lock_guard<std::mutex> autolock( gExLogMutex ); \
-        std::cout << ": " << expr << std::endl << std::flush; \
+        __LOG( "exlog: " <<  expr << std::endl << std::flush); \
     }
 
 // Replicators
@@ -277,14 +277,18 @@ public:
             std::thread( [] { gReplicator2->asyncApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
 
 
-            gReplicatorThread3 = std::thread( []
+            if ( testLateReplicator )
             {
-                if ( testLateReplicator )
-                {
+//                gReplicatorThread3 = std::thread( []
+//                {
                     modifyDrive( gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
-                }
-                gReplicator3->asyncApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo );
-            } );
+                    gReplicator3->asyncApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo );
+//                } );
+            }
+            else
+            {
+                std::thread( [] { gReplicator3->asyncApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
+            }
         }
     }
 
@@ -315,17 +319,19 @@ public:
     {
         std::thread( [=,&replicator] {
             //EXLOG( "driveModificationIsCompleted: " << replicator.dbgReplicatorName() );
-            EXLOG( "" );
-            EXLOG( "@ update_completed:" << replicator.dbgReplicatorName() );
-
-            driveRootHash = std::make_shared<InfoHash>( replicator.dbgGetRootHash( driveKey ) );
-            EXLOG( "@ Drive modified: " << replicator.dbgReplicatorName() << "      rootHash:" << rootHash );
+            __LOG( "" );
+            __LOG( "@ update_completed:" << replicator.dbgReplicatorName() );
 
             std::lock_guard<std::mutex> autolock( gExLogMutex );
             replicator.dbgPrintDriveStatus( driveKey );
 
             modifyCompleteCounter++;
+
+            driveRootHash = std::make_shared<InfoHash>( replicator.dbgGetRootHash( driveKey.array() ) );
+            __LOG( "@ Drive modified: counter=" << modifyCompleteCounter << ": " << replicator.dbgReplicatorName() << "      rootHash:" << rootHash );
+
             modifyCompleteCondVar.notify_all();
+
         }).detach();
     }
 
@@ -456,8 +462,15 @@ int main(int,char**)
     /// Create client session
     ///
 
-    std::vector<ReplicatorInfo> bootstraps = { { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 },
-                                                 replicatorKeyPair_2.publicKey() } };
+    //(???+) !!!
+//    std::vector<ReplicatorInfo> bootstraps = { { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 },
+//                                                 replicatorKeyPair_2.publicKey() } };
+    std::vector<ReplicatorInfo> bootstraps = {
+        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR), REPLICATOR_PORT },     replicatorKeyPair.publicKey() },
+        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 }, replicatorKeyPair_2.publicKey() },
+        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_3), REPLICATOR_PORT_3 }, replicatorKeyPair_3.publicKey() },
+
+    };
 
     endpoint_list bootstrapEndpoints;
     for ( const auto& bootstrap: bootstraps )
@@ -537,7 +550,7 @@ int main(int,char**)
 
     gReplicatorThread.join();
     gReplicatorThread2.join();
-    //if ( !testLateReplicator )
+    if ( !testLateReplicator )
         gReplicatorThread3.join();
     
     /// Client: read changed fsTree (2)
@@ -621,7 +634,8 @@ int main(int,char**)
 
     gReplicatorThread.join();
     gReplicatorThread2.join();
-    gReplicatorThread3.join();
+    if ( !testLateReplicator )
+        gReplicatorThread3.join();
     
     gReplicatorMap.erase( gReplicator->replicatorKey() );
     gReplicator.reset();

@@ -54,6 +54,11 @@ public:
     {
         m_session = session;
         m_dbgThreadId = std::this_thread::get_id();
+
+        //(???++++) !!!!!!
+#ifdef __APPLE__
+        return;
+#endif
         onUpdateExternalEndpointTimerTick();
     }
 
@@ -166,6 +171,11 @@ public:
     void updateExternalEndpoint(const ExternalEndpointResponse& response)
     {
         DBG_MAIN_THREAD
+        
+        //(???++++) !!!!!!
+#ifdef __APPLE__
+        return;
+#endif
 
         if (!m_externalEndpointRequest ||
             m_externalEndpointRequest->m_challenge != response.m_challenge ||

@@ -233,7 +233,8 @@ public:
 //            assert(torrentHandle.is_valid());
             if ( !torrentHandle.is_valid() )
             {
-                _LOG_ERR("TRY REMOVE NOT VALID TORRENT");
+                //(???++++)
+                _LOG_WARN("TRY REMOVE NOT VALID TORRENT");
             }
             else
             {
@@ -636,41 +637,25 @@ public:
             }
                 
             else if ( query == "rcpt" )
-//            else if ( message.dict_find_string_value("q") == "rcpt" )
             {
                 auto str = message.dict_find_string_value("x");
 
-                std::array<uint8_t,32>  downloadChannelId;
-                std::array<uint8_t,32>  clientPublicKey;
-                std::array<uint8_t,32>  replicatorPublicKey;
-                uint64_t                totalDownloadedSize;
-                Signature               signature;
+                RcptMessage msg( str.data(), str.size() );
                 
-                auto messageSize = downloadChannelId.size() + clientPublicKey.size() + replicatorPublicKey.size() + sizeof(totalDownloadedSize) + signature.size();
-
-                // skip bad size messages
-                if ( str.size() != messageSize )
+                if ( ! msg.isValid() )
+                {
+                    __LOG( "WARNING!!!: invalid rcpt size" )
                     return false;
+                }
                 
-                uint8_t* ptr = (uint8_t*)str.data();
-                memcpy( downloadChannelId.data(), ptr, downloadChannelId.size() );
-                ptr += downloadChannelId.size();
-                memcpy( clientPublicKey.data(), ptr, clientPublicKey.size() );
-                ptr += clientPublicKey.size();
-                memcpy( replicatorPublicKey.data(), ptr, clientPublicKey.size() );
-                ptr += replicatorPublicKey.size();
-                memcpy( &totalDownloadedSize, ptr, 8 );
-                ptr += 8;
-                memcpy( signature.data(), ptr, signature.size() );
-                //ptr += signature.size();
-
                 if ( auto replicator = m_replicator.lock(); replicator )
                 {
-                    replicator->acceptReceiptFromAnotherReplicator( downloadChannelId,
-                                                                    clientPublicKey,
-                                                                    replicatorPublicKey,
-                                                                    totalDownloadedSize,
-                                                                    signature.array() );
+                    replicator->acceptReceiptFromAnotherReplicator( std::move(msg) );
+//                        .channelId().array(),
+//                                                                    msg.clientKey().array(),
+//                                                                    msg.replicatorKey().array(),
+//                                                                    msg.downloadedSize(),
+//                                                                    msg.signature() );
                 }
 
                 response["r"]["q"] = std::string(query);
@@ -921,7 +906,7 @@ private:
 
                 case lt::dht_direct_response_alert::alert_type: {
                      auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
-                    _LOG( "*** dht_direct_response_alert: " );
+                    //_LOG( "*** dht_direct_response_alert: " );
                      auto response = theAlert->response();
                      if ( response.type() == lt::bdecode_node::dict_t )
                      {
