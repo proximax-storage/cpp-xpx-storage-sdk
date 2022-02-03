@@ -10,6 +10,7 @@
 #include "drive/BackgroundExecutor.h"
 #include "DriveTask.h"
 #include "TaskContext.h"
+#include "ModifyOpinionController.h"
 #include "drive/Utils.h"
 #include "drive/log.h"
 
@@ -63,271 +64,6 @@ struct UnknownVerifyCode
     uint64_t                      m_verificationCode;
 };
 
-class DefaultModifyOpinionController: public ModifyOpinionController
-{
-
-    using uint128_t = boost::multiprecision::uint128_t;
-
-private:
-
-    Key                                         m_driveKey;
-
-    Key                                         m_clientKey;
-
-    Replicator&                                 m_replicator;
-    const RestartValueSerializer&               m_serializer;
-    ThreadManager&                              m_threadManager;
-
-    // It is needed for right calculation of my 'modify' opinion
-    std::optional<std::array<uint8_t, 32>>      m_opinionTrafficIdentifier; // (***)
-    uint64_t                                    m_approvedExpectedCumulativeDownload;
-//    uint64_t                                    m_accountedCumulativeDownload; // (***)
-    std::map<std::array<uint8_t,32>, uint64_t>  m_approvedCumulativeUploads; // (***)
-    std::map<std::array<uint8_t,32>, uint64_t>  m_notApprovedAccountedUploads; // (***)
-
-    std::thread::id     m_dbgThreadId;
-    std::string         m_dbgOurPeerName;
-
-public:
-
-    DefaultModifyOpinionController(
-            const Key& driveKey,
-            const Key& client,
-            Replicator& replicator,
-            const RestartValueSerializer& serializer,
-            ThreadManager& threadManager,
-            uint64_t expectedCumulativeDownload,
-            const std::string& dbgOurPeerName )
-            : m_driveKey( driveKey ), m_clientKey( client )
-            , m_replicator( replicator )
-            , m_serializer( serializer )
-            , m_threadManager( threadManager )
-            , m_approvedExpectedCumulativeDownload( expectedCumulativeDownload )
-            , m_dbgThreadId( std::this_thread::get_id())
-            , m_dbgOurPeerName( dbgOurPeerName )
-    {}
-
-    void initialize() override
-    {
-        DBG_BG_THREAD
-
-        loadApprovedCumulativeUploads();
-        loadNotApprovedCumulativeUploads();
-    }
-
-    void increaseApprovedExpectedCumulativeDownload( uint64_t add ) override
-    {
-        DBG_MAIN_THREAD
-
-        _LOG( "increased " << add);
-
-        m_approvedExpectedCumulativeDownload += add;
-    }
-
-    std::optional<Hash256> getOpinionTrafficIdentifier() override
-    {
-        DBG_MAIN_THREAD
-
-        return m_opinionTrafficIdentifier;
-    }
-
-    void setOpinionTrafficIdentifier(const Hash256& identifier) override
-    {
-        DBG_MAIN_THREAD
-
-        m_opinionTrafficIdentifier = identifier.array();
-    }
-
-    void updateCumulativeUploads( const ReplicatorList& replicators,
-                                  uint64_t addCumulativeDownload,
-                                  const std::function<void()>& callback ) override
-    {
-        DBG_MAIN_THREAD
-
-        const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(*m_opinionTrafficIdentifier)
-                .m_modifyTrafficMap;
-
-        std::map<std::array<uint8_t,32>, uint64_t> currentUploads;
-        for (const auto &replicatorIt : replicators)
-        {
-            // get data size received from 'replicatorIt.m_publicKey'
-            if (auto it = modifyTrafficMap.find(replicatorIt.array());
-            it != modifyTrafficMap.end())
-            {
-                currentUploads[replicatorIt.array()] = it->second.m_receivedSize;
-            } else
-            {
-                currentUploads[replicatorIt.array()] = 0;
-            }
-        }
-
-        if (auto it = modifyTrafficMap.find(m_clientKey.array());
-        it != modifyTrafficMap.end())
-        {
-            currentUploads[m_clientKey.array()] = it->second.m_receivedSize;
-        } else
-        {
-            currentUploads[m_clientKey.array()] = 0;
-        }
-
-        auto accountedCumulativeDownload = std::accumulate( m_notApprovedAccountedUploads.begin(),
-                                                            m_notApprovedAccountedUploads.end(), 0,
-                                                            []( const auto& sum, const auto& item )
-                                                            {
-                                                                return sum + item.second;
-                                                            } );
-        auto expectedCumulativeDownload = m_approvedExpectedCumulativeDownload + addCumulativeDownload;
-
-        _ASSERT( expectedCumulativeDownload > 0 )
-
-        uint64_t targetSize = expectedCumulativeDownload - accountedCumulativeDownload;
-        normalizeUploads(currentUploads, targetSize);
-        m_replicator.removeModifyDriveInfo( *m_opinionTrafficIdentifier );
-        m_opinionTrafficIdentifier.reset();
-
-        for (const auto&[uploaderKey, bytes]: currentUploads)
-        {
-            if (m_notApprovedAccountedUploads.find(uploaderKey) == m_notApprovedAccountedUploads.end())
-            {
-                m_notApprovedAccountedUploads[uploaderKey] = 0;
-            }
-            m_notApprovedAccountedUploads[uploaderKey] += bytes;
-        }
-
-        m_threadManager.executeOnBackgroundThread([=, this] {
-            saveNotApprovedCumulativeUploads();
-            m_threadManager.executeOnSessionThread([=] {
-                callback();
-            });
-        });
-    }
-
-    void fillOpinion( std::vector<KeyAndBytes>& replicatorsUploads,
-                      uint64_t& clientUploads ) override
-    {
-        DBG_MAIN_THREAD
-
-        _ASSERT (replicatorsUploads.empty())
-
-        for ( const auto&[key, bytes] : m_notApprovedAccountedUploads )
-        {
-            if ( key != m_clientKey.array())
-            {
-                replicatorsUploads.push_back( {key, bytes} );
-            }
-            else {
-                clientUploads = bytes;
-            }
-        }
-    }
-
-    void approveCumulativeUploads( const std::function<void()>& callback ) override
-    {
-        DBG_MAIN_THREAD
-
-        m_approvedCumulativeUploads = m_notApprovedAccountedUploads;
-        m_approvedExpectedCumulativeDownload = std::accumulate( m_approvedCumulativeUploads.begin(),
-                                                                m_approvedCumulativeUploads.end(), 0,
-                                                                []( const auto& sum, const auto& item )
-                                                                {
-                                                                    return sum + item.second;
-                                                                } );
-
-        m_threadManager.executeOnBackgroundThread( [=, this]
-        {
-            saveApprovedCumulativeUploads();
-            m_threadManager.executeOnSessionThread( [=]
-            {
-                callback();
-            } );
-        } );
-    }
-
-    void disapproveCumulativeUploads( const std::function<void()>& callback ) override
-    {
-
-        DBG_MAIN_THREAD
-
-        // We have already taken into account information
-        // about uploads of the modification to be canceled;
-        auto trafficIdentifierHasValue = m_opinionTrafficIdentifier.has_value();
-        if ( trafficIdentifierHasValue )
-        {
-            m_replicator.removeModifyDriveInfo( *m_opinionTrafficIdentifier );
-            m_opinionTrafficIdentifier.reset();
-        }
-
-        m_notApprovedAccountedUploads = m_approvedCumulativeUploads;
-
-        m_threadManager.executeOnBackgroundThread( [=, this]
-                                                   {
-                                                       saveNotApprovedCumulativeUploads();
-                                                       m_threadManager.executeOnSessionThread( [=]
-                                                                                               {
-                                                                                                   callback();
-                                                                                               } );
-                                                   } );
-    }
-
-private:
-
-    void normalizeUploads(std::map<std::array<uint8_t,32>, uint64_t>& modificationUploads, uint64_t targetSum)
-    {
-        DBG_MAIN_THREAD
-
-        _ASSERT(modificationUploads.contains(m_clientKey.array()))
-
-        uint128_t longTargetSum = targetSum;
-        uint128_t sumBefore = std::accumulate(modificationUploads.begin(),
-                                              modificationUploads.end(),
-                                              0,
-                                              [] (const uint64_t& value, const std::pair<Key, int>& p)
-                                              { return value + p.second; }
-                                              );
-
-        uint64_t sumAfter = 0;
-
-        if ( sumBefore > 0 )
-        {
-            for ( auto& [key, uploadBytes]: modificationUploads ) {
-                if ( key != m_clientKey.array() )
-                {
-                    auto longUploadBytes = (uploadBytes * longTargetSum) / sumBefore;
-                    uploadBytes = longUploadBytes.convert_to<uint64_t>();
-                    sumAfter += uploadBytes;
-                }
-            }
-            modificationUploads[m_clientKey.array()] = targetSum - sumAfter;
-        }
-    }
-
-    void saveApprovedCumulativeUploads()
-    {
-        DBG_BG_THREAD
-
-        m_serializer.saveRestartValue( m_approvedCumulativeUploads, "cumulativeUploads" );
-    }
-    void loadApprovedCumulativeUploads()
-    {
-        DBG_BG_THREAD
-
-        m_serializer.loadRestartValue( m_notApprovedAccountedUploads, "cumulativeUploads" );
-    }
-
-    void saveNotApprovedCumulativeUploads()
-    {
-        DBG_BG_THREAD
-
-        m_serializer.saveRestartValue( m_notApprovedAccountedUploads, "lastAccountedUploads" );
-    }
-    void loadNotApprovedCumulativeUploads()
-    {
-        DBG_BG_THREAD
-
-        m_serializer.loadRestartValue(  m_notApprovedAccountedUploads, "lastAccountedUploads" );
-    }
-};
-
 //
 // DefaultDrive - it manages all user files at replicator side
 //
@@ -340,19 +76,20 @@ class DefaultFlatDrive: public FlatDrive, public TaskContext
     ReplicatorList m_modifyDonatorShard;
     ReplicatorList m_modifyRecipientShard;
 
-    const size_t        m_maxSize;
+    const size_t   m_maxSize;
 
     BackgroundExecutor  m_backgroundExecutor;
 
     // Opinion Controller
-    DefaultModifyOpinionController  m_opinionController;
+    ModifyOpinionController  m_opinionController;
 
     // opinions from other replicators
     // key of the outer map is modification id
     // key of the inner map is a replicator key, one replicator one opinion
     //
-    std::map<Hash256, std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>>    m_unknownModificationOpinions; // (***)
-    std::map<Hash256, std::vector<VerifyApprovalTxInfo>>                           m_unknownVerificationOpinions;
+    std::map<Hash256, std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>>     m_unknownModificationOpinions;
+    std::map<Hash256, std::vector<VerifyApprovalTxInfo>>                            m_unknownVerificationOpinions;
+    std::map<Hash256, std::vector<VerificationCodeInfo>>                            m_unknownVerificationCodeQueue;
 
     //
     // Request queue
@@ -364,9 +101,8 @@ class DefaultFlatDrive: public FlatDrive, public TaskContext
     std::deque<mobj<ModificationRequest>>   m_deferredModificationRequests;
     mobj<VerificationRequest>               m_deferredVerificationRequest;
 
-    std::map<Hash256, std::vector<VerificationCodeInfo>>  m_unknownVerificationCodeQueue;
 
-    //
+    // Executing Drive Tasks
     std::unique_ptr<BaseDriveTask> m_task;
     std::shared_ptr<BaseDriveTask> m_verificationTask;
 
@@ -602,7 +338,7 @@ public:
             } );
         if (it != m_deferredModificationRequests.end() )
         {
-            const auto& opinionTrafficIdentifier = m_opinionController.getOpinionTrafficIdentifier();
+            const auto& opinionTrafficIdentifier = m_opinionController.opinionTrafficTx();
             while (!m_deferredModificationRequests.empty() and it != m_deferredModificationRequests.begin() )
             {
                 if ( !opinionTrafficIdentifier

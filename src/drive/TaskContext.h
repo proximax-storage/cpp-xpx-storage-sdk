@@ -8,6 +8,7 @@
 #include "drive/Replicator.h"
 #include "drive/Session.h"
 #include "drive/FlatDrive.h"
+//#include "ModifyOpinionController.h"
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/array.hpp>
@@ -261,29 +262,29 @@ public:
     virtual void runNextTask() = 0;
 };
 
-class ModifyOpinionController
-{
-public:
-
-    virtual ~ModifyOpinionController() = default;
-
-    virtual void initialize() = 0;
-
-    virtual std::optional<Hash256> getOpinionTrafficIdentifier() = 0;
-
-    virtual void setOpinionTrafficIdentifier( const Hash256& ) = 0;
-
-    virtual void approveCumulativeUploads( const std::function<void()>& callback ) = 0;
-
-    virtual void disapproveCumulativeUploads( const std::function<void()>& callback ) = 0;
-
-    virtual void
-    updateCumulativeUploads( const ReplicatorList& replicators, uint64_t addCumulativeDownload, const std::function<void()>& callback ) = 0;
-
-    virtual void fillOpinion( std::vector<KeyAndBytes>& replicatorsUploads,
-                              uint64_t& clientUploads ) = 0;
-
-    virtual void increaseApprovedExpectedCumulativeDownload( uint64_t ) = 0;
-};
+//class ModifyOpinionController
+//{
+//public:
+//
+//    virtual ~ModifyOpinionController() = default;
+//
+//    virtual void initialize() = 0;
+//
+//    virtual std::optional<Hash256> opinionTrafficTx() = 0;
+//
+//    virtual void setOpinionTrafficTx( const Hash256& ) = 0;
+//
+//    virtual void approveCumulativeUploads( const std::function<void()>& callback ) = 0;
+//
+//    virtual void disapproveCumulativeUploads( const std::function<void()>& callback ) = 0;
+//
+//    virtual void
+//    updateCumulativeUploads( const ReplicatorList& replicators, uint64_t addCumulativeDownload, const std::function<void()>& callback ) = 0;
+//
+//    virtual void fillOpinion( std::vector<KeyAndBytes>& replicatorsUploads,
+//                              uint64_t& clientUploads ) = 0;
+//
+//    virtual void increaseApprovedExpectedCumulativeDownload( uint64_t ) = 0;
+//};
 
 }

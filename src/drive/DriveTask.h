@@ -10,6 +10,7 @@
 #include "drive/FlatDrivePaths.h"
 #include "drive/FsTree.h"
 #include "TaskContext.h"
+#include "ModifyOpinionController.h"
 
 #undef DBG_MAIN_THREAD
 //#define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
@@ -34,14 +35,14 @@ class BaseDriveTask
 
 private:
 
-    DriveTaskType m_type;
+    const DriveTaskType m_type;
 
 protected:
 
-    TaskContext& m_drive;
+    TaskContext&    m_drive;
 
     std::thread::id m_dbgThreadId;
-    std::string m_dbgOurPeerName;
+    std::string     m_dbgOurPeerName;
 
 public:
 
@@ -126,28 +127,28 @@ protected:
         DBG_MAIN_THREAD
 
         m_drive.executeOnBackgroundThread( [this]
+        {
+           DBG_BG_THREAD
+
+           std::error_code err;
+
+           if ( !fs::exists( m_drive.m_sandboxRootPath, err ))
+           {
+               fs::create_directories( m_drive.m_sandboxRootPath );
+           } else
+           {
+               for ( const auto& entry : std::filesystem::directory_iterator(
+                       m_drive.m_sandboxRootPath ))
+               {
+                   fs::remove_all( entry.path(), err );
+               }
+           }
+
+           m_drive.executeOnSessionThread( [this]
                                            {
-                                               DBG_BG_THREAD
-
-                                               std::error_code err;
-
-                                               if ( !fs::exists( m_drive.m_sandboxRootPath, err ))
-                                               {
-                                                   fs::create_directories( m_drive.m_sandboxRootPath );
-                                               } else
-                                               {
-                                                   for ( const auto& entry : std::filesystem::directory_iterator(
-                                                           m_drive.m_sandboxRootPath ))
-                                                   {
-                                                       fs::remove_all( entry.path(), err );
-                                                   }
-                                               }
-
-                                               m_drive.executeOnSessionThread( [this]
-                                                                               {
-                                                                                   m_drive.runNextTask();
-                                                                               } );
+                                               m_drive.runNextTask();
                                            } );
+        } );
     }
 
     // Recursively marks 'm_toBeRemoved' as false

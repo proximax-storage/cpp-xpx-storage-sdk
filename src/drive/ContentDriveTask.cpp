@@ -104,7 +104,7 @@ protected:
         }
 
         /// (???) replace with replicators of the shard
-        m_opinionController.updateCumulativeUploads( m_drive.getAllReplicators(), getNotApprovedDownloadSize(), [this]
+        m_opinionController.updateCumulativeUploads( m_drive.getAllReplicators(), getToBeApprovedDownloadSize(), [this]
         {
             onCumulativeUploadsUpdated();
         } );
@@ -317,7 +317,7 @@ private:
 
     virtual void continueSynchronizingDriveWithSandbox() = 0;
 
-    virtual uint64_t getNotApprovedDownloadSize() = 0;
+    virtual uint64_t getToBeApprovedDownloadSize() = 0;
 
     virtual void myOpinionIsCreated() = 0;
 
@@ -372,22 +372,22 @@ public:
     {
         using namespace std::placeholders;  // for _1, _2, _3
 
-        _ASSERT( !m_opinionController.getOpinionTrafficIdentifier());
+        _ASSERT( !m_opinionController.opinionTrafficTx());
 
         _LOG( "started modification" )
 
-        m_opinionController.setOpinionTrafficIdentifier( m_request->m_transactionHash.array() );
+        m_opinionController.setOpinionTrafficTx( m_request->m_transactionHash.array() );
 
         _LOG ("modification opinion identifier: " << m_request->m_transactionHash );
 
         if ( auto session = m_drive.m_session.lock(); session )
         {
-            _ASSERT( m_opinionController.getOpinionTrafficIdentifier())
+            _ASSERT( m_opinionController.opinionTrafficTx())
             m_downloadingLtHandle = session->download( DownloadContext(
                                                                DownloadContext::client_data,
                                                                std::bind( &ModificationRequestDriveTask::downloadHandler, this, _1, _2, _3, _4, _5, _6 ),
                                                                m_request->m_clientDataInfoHash,
-                                                               *m_opinionController.getOpinionTrafficIdentifier(),
+                                                               *m_opinionController.opinionTrafficTx(),
                                                                0, //todo
                                                                "" ),
                                                        m_drive.m_sandboxRootPath,
@@ -983,7 +983,7 @@ private:
         return equal;
     }
 
-    uint64_t getNotApprovedDownloadSize() override
+    uint64_t getToBeApprovedDownloadSize() override
     {
         return m_request->m_maxDataSize;
     }
@@ -1029,21 +1029,21 @@ public:
 
         _LOG( "Late: download FsTree:" << m_request->m_rootHash )
 
-        if ( !m_opinionController.getOpinionTrafficIdentifier())
+        if ( !m_opinionController.opinionTrafficTx())
         {
-            m_opinionController.setOpinionTrafficIdentifier( m_request->m_modifyTransactionHash.array() );
+            m_opinionController.setOpinionTrafficTx( m_request->m_modifyTransactionHash.array() );
 
             _LOG ("catching up opinion identifier: " << m_request->m_modifyTransactionHash );
         }
 
         if ( auto session = m_drive.m_session.lock(); session )
         {
-            _ASSERT( m_opinionController.getOpinionTrafficIdentifier())
+            _ASSERT( m_opinionController.opinionTrafficTx())
             m_downloadingLtHandle = session->download( DownloadContext(
                                                                DownloadContext::missing_files,
                                                                std::bind( &CatchingUpTask::catchingUpFsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
                                                                m_request->m_rootHash,
-                                                               *m_opinionController.getOpinionTrafficIdentifier(),
+                                                               *m_opinionController.opinionTrafficTx(),
                                                                0,
                                                                "" ),
                     //toString( *m_catchingUpRootHash ) ),
@@ -1299,7 +1299,7 @@ private:
 
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                _ASSERT( m_opinionController.getOpinionTrafficIdentifier())
+                _ASSERT( m_opinionController.opinionTrafficTx())
                 m_downloadingLtHandle = session->download( DownloadContext(
 
                                                                    DownloadContext::missing_files,
@@ -1322,7 +1322,7 @@ private:
                                                                    },
 
                                                                    missingFileHash,
-                                                                   *m_opinionController.getOpinionTrafficIdentifier(),
+                                                                   *m_opinionController.opinionTrafficTx(),
                                                                    0,
                                                                    "" ),
                                                            m_drive.m_sandboxRootPath,
@@ -1377,7 +1377,7 @@ private:
                                         } );
     }
 
-    uint64_t getNotApprovedDownloadSize() override
+    uint64_t getToBeApprovedDownloadSize() override
     {
         return 0;
     }
