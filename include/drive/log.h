@@ -77,11 +77,14 @@ inline bool gBreakOnError = true;
     }
 #endif
 
+#if 1
 #define _FUNC_ENTRY();
-//#define _FUNC_ENTRY() { \
-//        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-//        std::cout << m_dbgOurPeerName << ": call: " << __PRETTY_FUNCTION__ << std::endl << std::flush; \
-//    }
+#else
+#define _FUNC_ENTRY() { \
+        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::cout << m_dbgOurPeerName << ": call: " << __PRETTY_FUNCTION__ << std::endl << std::flush; \
+    }
+#endif
 
 #define _ASSERT(expr) { \
     if (!(expr)) {\

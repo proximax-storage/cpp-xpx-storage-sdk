@@ -649,9 +649,6 @@ public:
     bool acceptUploadSize( RcptMessage&& msg, DownloadChannelInfo& channelInfo )
     {
         DBG_MAIN_THREAD
-        
-        //(???++++)
-        return true;
 
         auto replicatorInfoIt = channelInfo.m_replicatorUploadMap.lower_bound( msg.replicatorKey() );
         

@@ -355,6 +355,7 @@ public:
             , m_receivedOpinions( std::move( receivedOpinions ))
             , m_modifyUserDataReceived( false )
             , m_modifyApproveTransactionSent( false )
+            , m_modifyApproveTxReceived( false )
     {
         _ASSERT( m_request )
     }
@@ -1061,6 +1062,8 @@ public:
 
     bool shouldCatchUp( const PublishedModificationApprovalTransactionInfo& transaction ) override
     {
+        DBG_MAIN_THREAD
+
         if ( m_stopped )
         {
             return true;
@@ -1393,9 +1396,6 @@ std::unique_ptr<BaseDriveTask> createModificationTask( mobj<ModificationRequest>
                                             TaskContext& drive,
                                             ModifyOpinionController& opinionTaskController)
 {
-//    auto s = ModificationRequestDriveTask(request, receivedOpinions, drive, opinionTaskController);
-//    mobj<ModificationRequestDriveTask> h
-//    = mobj<ModificationRequestDriveTask>( request, receivedOpinions, drive, opinionTaskController );
     return std::make_unique<ModificationRequestDriveTask>( std::move(request), std::move(receivedOpinions), drive, opinionTaskController );
 }
 
