@@ -434,7 +434,6 @@ public:
                     sendSingleApprovalTransaction( *m_myOpinion );
                 }
 
-                _LOG("???+ --1--")
                 startSynchronizingDriveWithSandbox();
             }
             return false;
@@ -791,7 +790,6 @@ private:
         if ( m_modifyApproveTxReceived )
         {
             sendSingleApprovalTransaction( *m_myOpinion );
-            _LOG("???+ --2--")
             startSynchronizingDriveWithSandbox();
         } else
         {
@@ -1191,7 +1189,6 @@ private:
 
         sendSingleApprovalTransaction( *m_myOpinion );
 
-        _LOG("???+ --3--")
         startSynchronizingDriveWithSandbox();
     }
 

@@ -462,15 +462,13 @@ int main(int,char**)
     /// Create client session
     ///
 
-    //(???+) !!!
-//    std::vector<ReplicatorInfo> bootstraps = { { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 },
-//                                                 replicatorKeyPair_2.publicKey() } };
-    std::vector<ReplicatorInfo> bootstraps = {
-        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR), REPLICATOR_PORT },     replicatorKeyPair.publicKey() },
-        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 }, replicatorKeyPair_2.publicKey() },
-        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_3), REPLICATOR_PORT_3 }, replicatorKeyPair_3.publicKey() },
-
-    };
+    std::vector<ReplicatorInfo> bootstraps = { { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 },
+                                                 replicatorKeyPair_2.publicKey() } };
+//    std::vector<ReplicatorInfo> bootstraps = {
+//        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR), REPLICATOR_PORT },     replicatorKeyPair.publicKey() },
+//        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 }, replicatorKeyPair_2.publicKey() },
+//        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_3), REPLICATOR_PORT_3 }, replicatorKeyPair_3.publicKey() },
+//    };
 
     endpoint_list bootstrapEndpoints;
     for ( const auto& bootstrap: bootstraps )

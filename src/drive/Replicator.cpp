@@ -360,8 +360,6 @@ public:
 
             if ( auto drive = getDrive(driveKey); drive )
             {
-                //(???+++) !!!!
-                //todo+++
                 m_endpointsManager.addEndpointEntry( *replicatorKey );
                 drive->replicatorAdded( std::move(replicatorKey) );
             }
@@ -910,7 +908,6 @@ public:
                     if ( auto downloadedIt = channelInfo.m_replicatorUploadMap.find( replicatorKey.array());
                         downloadedIt != channelInfo.m_replicatorUploadMap.end() )
                     {
-                        //(???+++)
                         opinion.m_downloadLayout.push_back( {downloadedIt->first.array(), downloadedIt->second.uploadedSize() } );
                     }
                 }

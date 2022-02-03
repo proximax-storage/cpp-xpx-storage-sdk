@@ -422,13 +422,6 @@ public:
     {
         DBG_MAIN_THREAD
 
-//(???+) is m_requestedSize needed in Replicator?
-//        if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
-//        {
-//            it->second.m_requestedSize += pieceSize;
-//        }
-
-        //(???+) is it needed?
         if ( auto it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
         {
             if ( auto peerIt = it->second.m_modifyTrafficMap.find(receiverPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
@@ -699,31 +692,26 @@ public:
         channelInfo.m_totalReceiptsSize += msg.downloadedSize() - lastAcceptedUploadSize;
         replicatorInfoIt->second.acceptReceipt( msg.clientKey(), msg.downloadedSize() );
         
-//        auto clientReceiptIt = channelInfo.m_clientReceiptMap.lower_bound( msg.clientKey() );
+        auto clientReceiptIt = channelInfo.m_clientReceiptMap.lower_bound( msg.clientKey() );
         
-//        ClientReceipts receipts;
-//        receipts.insert( { msg.replicatorKey(), std::move(msg) } );
-        channelInfo.m_clientReceiptMap[ msg.clientKey() ] = {};
-        
-//        if ( clientReceiptIt == channelInfo.m_clientReceiptMap.end() )
-//        {
-//            ClientReceipts receipts;
-//            receipts.insert( { msg.replicatorKey(), std::move(msg) } );
-//            channelInfo.m_clientReceiptMap.insert( clientReceiptIt, { msg.clientKey(), std::move(receipts) } );
-//        }
-//        else
-//        {
-//            auto replicatorIt = clientReceiptIt->second.lower_bound( msg.clientKey() );
-//            if ( replicatorIt == clientReceiptIt->second.end() )
-//            {
-//                clientReceiptIt->second.insert( replicatorIt, { msg.replicatorKey(), std::move(msg) } );
-//            }
-//            else
-//            {
-//                _ASSERT( replicatorIt->second.downloadedSize() < msg.downloadedSize() );
-//                replicatorIt->second = std::move(msg);
-//            }
-//        }
+        if ( clientReceiptIt == channelInfo.m_clientReceiptMap.end() )
+        {
+            ClientReceipts receipts;
+            channelInfo.m_clientReceiptMap.insert( clientReceiptIt, { msg.clientKey(), receipts } );
+        }
+        else
+        {
+            auto replicatorIt = clientReceiptIt->second.lower_bound( msg.clientKey() );
+            if ( replicatorIt == clientReceiptIt->second.end() )
+            {
+                clientReceiptIt->second.insert( replicatorIt, { msg.replicatorKey(), msg } );
+            }
+            else
+            {
+                //todo+++ (???++++) _ASSERT( replicatorIt->second.downloadedSize() <= msg.downloadedSize() );
+                replicatorIt->second = std::move(msg);
+            }
+        }
 
         return true;
     }
