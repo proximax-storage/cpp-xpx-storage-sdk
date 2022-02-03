@@ -383,7 +383,7 @@ public:
     virtual void        asyncRemoveDownloadChannelInfo( Key driveKey, Key channelId ) = 0;
 
     // it will be called when dht message is received
-    virtual void        asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) = 0;
+    virtual void        asyncOnDownloadOpinionReceived( mobj<DownloadApprovalTransactionInfo>&& anOpinion ) = 0;
     
     // Usually, DownloadApprovalTransactions are made once per 24 hours and paid by the Drive Owner
     // (It initiate opinion exchange, and then publishing of 'DownloadApprovalTransaction')

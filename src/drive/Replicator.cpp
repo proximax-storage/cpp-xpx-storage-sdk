@@ -821,7 +821,7 @@ public:
         return m_endpointsManager.getEndpoint( key );
     }
 
-    virtual void asyncOnDownloadOpinionReceived( DownloadApprovalTransactionInfo anOpinion ) override
+    virtual void asyncOnDownloadOpinionReceived( mobj<DownloadApprovalTransactionInfo>&& anOpinion ) override
     {
         _FUNC_ENTRY()
         
@@ -834,7 +834,7 @@ public:
                 return;
             }
 
-            if ( anOpinion.m_opinions.size() != 1 )
+            if ( anOpinion->m_opinions.size() != 1 )
             {
                 _LOG_ERR( "onDownloadOpinionReceived: invalid opinion format: anOpinion.m_opinions.size() != 1" )
                 return;
@@ -924,7 +924,7 @@ public:
         return false;
     }
 
-    void addOpinion(DownloadApprovalTransactionInfo&& opinion)
+    void addOpinion( mobj<DownloadApprovalTransactionInfo>&& opinion )
     {
         DBG_MAIN_THREAD
 
@@ -946,7 +946,7 @@ public:
         //
         // add opinion
         //
-        auto channelIt = m_dnChannelMap.find(opinion.m_downloadChannelId);
+        auto channelIt = m_dnChannelMap.find(opinion->m_downloadChannelId);
 
         if (channelIt == m_dnChannelMap.end())
         {
@@ -955,21 +955,21 @@ public:
         }
 
         auto &channel = channelIt->second;
-        auto blockHash = opinion.m_blockHash;
+        auto blockHash = opinion->m_blockHash;
 
-        if (channel.m_downloadOpinionMap.find(opinion.m_blockHash) == channel.m_downloadOpinionMap.end())
+        if (channel.m_downloadOpinionMap.find(opinion->m_blockHash) == channel.m_downloadOpinionMap.end())
         {
             channel.m_downloadOpinionMap.emplace( std::make_pair(blockHash, DownloadOpinionMapValue
                     (
-                            opinion.m_blockHash,
-                            opinion.m_downloadChannelId,
+                            opinion->m_blockHash,
+                            opinion->m_downloadChannelId,
                             {}
                      )));
         }
 
-        auto &opinionInfo = channel.m_downloadOpinionMap[blockHash];
-        auto &opinions = opinionInfo.m_opinions;
-        opinions[opinion.m_opinions[0].m_replicatorKey] = opinion.m_opinions[0];
+        auto& opinionInfo = channel.m_downloadOpinionMap[blockHash];
+        auto& opinions    = opinionInfo.m_opinions;
+        opinions[opinion->m_opinions[0].m_replicatorKey] = opinion->m_opinions[0];
 
         // check opinion number
         //_LOG( "///// " << opinionInfo.m_opinions.size() << " " <<  (opinionInfo.m_replicatorNumber*2)/3 );
