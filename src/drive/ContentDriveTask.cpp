@@ -49,9 +49,9 @@ protected:
 
     std::optional<lt_handle> m_downloadingLtHandle;
 
-    bool m_sandboxCalculated;
+    bool m_sandboxCalculated = false;
 
-    bool m_stopped;
+    bool m_stopped = false;
 
 public:
 
@@ -76,8 +76,6 @@ protected:
             : BaseDriveTask( type, drive )
             , m_opinionController( opinionTaskController )
             , m_sandboxFsTree( FsTree{} )
-            , m_sandboxCalculated( false )
-            , m_stopped( false )
     {}
 
     virtual void myRootHashIsCalculated()
@@ -334,9 +332,9 @@ private:
 
     std::map<std::array<uint8_t,32>,ApprovalTransactionInfo> m_receivedOpinions;
 
-    bool m_modifyUserDataReceived;
-    bool m_modifyApproveTransactionSent;
-    bool m_modifyApproveTxReceived;
+    bool m_modifyUserDataReceived = false;
+    bool m_modifyApproveTransactionSent = false;
+    bool m_modifyApproveTxReceived = false;
 
     std::optional<boost::asio::high_resolution_timer> m_shareMyOpinionTimer;
     const int m_shareMyOpinionTimerDelayMs = 1000 * 60;
@@ -353,9 +351,6 @@ public:
             : ContentDriveTask( DriveTaskType::MODIFICATION_REQUEST, drive, opinionTaskController )
             , m_request( std::move(request) )
             , m_receivedOpinions( std::move( receivedOpinions ))
-            , m_modifyUserDataReceived( false )
-            , m_modifyApproveTransactionSent( false )
-            , m_modifyApproveTxReceived( false )
     {
         _ASSERT( m_request )
     }
