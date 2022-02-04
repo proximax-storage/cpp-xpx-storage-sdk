@@ -95,10 +95,10 @@ int main()
     auto barrierFuture = env.getBarrierFuture();
     env.m_replicators[4]->asyncRemoveDrive( DRIVE_PUB_KEY );
 
-    env.m_replicators[0]->asyncReplicatorRemoved( DRIVE_PUB_KEY, env.m_replicators[4]->replicatorKey() );
-    env.m_replicators[1]->asyncReplicatorRemoved( DRIVE_PUB_KEY, env.m_replicators[4]->replicatorKey() );
-    env.m_replicators[2]->asyncReplicatorRemoved( DRIVE_PUB_KEY, env.m_replicators[4]->replicatorKey() );
-    env.m_replicators[3]->asyncReplicatorRemoved( DRIVE_PUB_KEY, env.m_replicators[4]->replicatorKey() );
+    env.m_replicators[0]->asyncReplicatorRemoved( DRIVE_PUB_KEY, env.m_replicators[4]->dbgReplicatorKey() );
+    env.m_replicators[1]->asyncReplicatorRemoved( DRIVE_PUB_KEY, env.m_replicators[4]->dbgReplicatorKey() );
+    env.m_replicators[2]->asyncReplicatorRemoved( DRIVE_PUB_KEY, env.m_replicators[4]->dbgReplicatorKey() );
+    env.m_replicators[3]->asyncReplicatorRemoved( DRIVE_PUB_KEY, env.m_replicators[4]->dbgReplicatorKey() );
     barrierFuture.wait();
 
     //
@@ -143,10 +143,10 @@ int main()
     env.m_replicators[4]->asyncModify( DRIVE_PUB_KEY, modificationRequest1 );
     env.m_replicators[4]->asyncApprovalTransactionHasBeenPublished(*env.m_lastApprovedModification);
 
-    env.m_replicators[0]->asyncReplicatorAdded( DRIVE_PUB_KEY, env.m_replicators[4]->replicatorKey() );
-    env.m_replicators[1]->asyncReplicatorAdded( DRIVE_PUB_KEY, env.m_replicators[4]->replicatorKey() );
-    env.m_replicators[2]->asyncReplicatorAdded( DRIVE_PUB_KEY, env.m_replicators[4]->replicatorKey() );
-    env.m_replicators[3]->asyncReplicatorAdded( DRIVE_PUB_KEY, env.m_replicators[4]->replicatorKey() );
+    env.m_replicators[0]->asyncReplicatorAdded( DRIVE_PUB_KEY, env.m_replicators[4]->dbgReplicatorKey() );
+    env.m_replicators[1]->asyncReplicatorAdded( DRIVE_PUB_KEY, env.m_replicators[4]->dbgReplicatorKey() );
+    env.m_replicators[2]->asyncReplicatorAdded( DRIVE_PUB_KEY, env.m_replicators[4]->dbgReplicatorKey() );
+    env.m_replicators[3]->asyncReplicatorAdded( DRIVE_PUB_KEY, env.m_replicators[4]->dbgReplicatorKey() );
 
     // Start 2-d Modification
     EXLOG("\n# Client started: 2-st upload");

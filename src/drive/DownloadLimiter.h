@@ -676,7 +676,7 @@ public:
             return false;
         }
 
-        if ( msg.replicatorKey() == keyPair().publicKey().array() )
+        if ( msg.replicatorKey() == dbgReplicatorKey().array() )
         {
             if ( auto clientSizesIt = channelInfo.m_dnClientMap.find( msg.clientKey() ); clientSizesIt != channelInfo.m_dnClientMap.end() )
             {
@@ -723,6 +723,11 @@ public:
     }
 
     const Key& replicatorKey() const override
+    {
+        return m_keyPair.publicKey();
+    }
+
+    const Key& dbgReplicatorKey() const override
     {
         return m_keyPair.publicKey();
     }

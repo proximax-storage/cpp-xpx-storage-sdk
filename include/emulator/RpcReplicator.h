@@ -118,7 +118,7 @@ public:
     // It will be called before 'replicator' shuts down
     void willBeTerminated( Replicator& replicator ) override
     {
-        std::cout << "Replicator. willBeTerminated: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. willBeTerminated: Replicator key: " << utils::HexFormat(replicator.dbgReplicatorKey().array()) << std::endl;
         std::cout << "Replicator. willBeTerminated. Replicator will be terminated: " << replicator.dbgReplicatorName() << std::endl;
     }
 
@@ -129,7 +129,7 @@ public:
                                        const sirius::drive::InfoHash& sandboxRootHash )  override
     {
         // send DataModificationApprovalTransaction
-        std::cout << "Replicator. modifyTransactionRootHashIsCalculated: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. modifyTransactionRootHashIsCalculated: Replicator key: " << utils::HexFormat(replicator.dbgReplicatorKey().array()) << std::endl;
         std::cout << "Replicator. modifyTransactionRootHashIsCalculated: " << replicator.dbgReplicatorName() << std::endl;
     }
 
@@ -140,30 +140,30 @@ public:
                                               const std::string&             reason,
                                               int                            errorCode )  override
     {
-        std::cout << "Replicator. modifyTransactionEndedWithError: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. modifyTransactionEndedWithError: Replicator key: " << utils::HexFormat(replicator.dbgReplicatorKey().array()) << std::endl;
         std::cout << "Replicator. modifyTransactionEndedWithError: " << replicator.dbgReplicatorName() << std::endl;
     }
 
     // It will initiate the approving of modify transaction
     void modifyApprovalTransactionIsReady( Replicator& replicator, const ApprovalTransactionInfo& transactionInfo ) override
     {
-        std::cout << "Replicator. modifyApproveTransactionIsReady: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. modifyApproveTransactionIsReady: Replicator key: " << utils::HexFormat(replicator.dbgReplicatorKey().array()) << std::endl;
         std::cout << "Replicator. modifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() << std::endl;
 
         rpc::client emulator(m_emulatorRpcAddress, m_emulatorRpcPort);
         emulator.call("modifyApproveTransactionIsReady", types::RpcModifyApprovalTransactionInfo::getRpcModifyApprovalTransactionInfo(
-                replicator.keyPair().publicKey().array(), transactionInfo));
+                replicator.dbgReplicatorKey().array(), transactionInfo));
     }
 
     // It will initiate the approving of single modify transaction
     void singleModifyApprovalTransactionIsReady( Replicator& replicator, const ApprovalTransactionInfo& transactionInfo )  override
     {
-        std::cout << "Replicator. singleModifyApproveTransactionIsReady: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. singleModifyApproveTransactionIsReady: Replicator key: " << utils::HexFormat(replicator.dbgReplicatorKey().array()) << std::endl;
         std::cout << "Replicator. singleModifyApproveTransactionIsReady: " << replicator.dbgReplicatorName() << std::endl;
 
         rpc::client emulator(m_emulatorRpcAddress, m_emulatorRpcPort);
         emulator.call("singleModifyApproveTransactionIsReady", types::RpcModifyApprovalTransactionInfo::getRpcModifyApprovalTransactionInfo(
-                replicator.keyPair().publicKey().array(), transactionInfo));
+                replicator.dbgReplicatorKey().array(), transactionInfo));
     }
 
     // It will be called after the drive is synchronized with sandbox
@@ -174,12 +174,12 @@ public:
                                                const sirius::drive::InfoHash& rootHash ) override
     {
         std::cout << "Replicator. driveModificationIsCompleted. DriveKey: " << driveKey << std::endl;
-        std::cout << "Replicator. driveModificationIsCompleted: Replicator key: " << utils::HexFormat(replicator.keyPair().publicKey().array()) << std::endl;
+        std::cout << "Replicator. driveModificationIsCompleted: Replicator key: " << utils::HexFormat(replicator.dbgReplicatorKey().array()) << std::endl;
         replicator.dbgPrintDriveStatus(driveKey);
 
         types::RpcEndDriveModificationInfo rpcEndDriveModificationInfo;
         rpcEndDriveModificationInfo.m_modifyTransactionHash = modifyTransactionHash.array();
-        rpcEndDriveModificationInfo.m_replicatorInfo.m_replicatorPubKey = replicator.keyPair().publicKey().array();
+        rpcEndDriveModificationInfo.m_replicatorInfo.m_replicatorPubKey = replicator.dbgReplicatorKey().array();
 
         rpc::client emulator(m_emulatorRpcAddress, m_emulatorRpcPort);
         emulator.call("driveModificationIsCompleted", rpcEndDriveModificationInfo);
@@ -240,7 +240,7 @@ private:
         rpcDriveInfo.setReplicators(drive->getReplicators());
 
         // Add itself back to replicators list
-        rpcDriveInfo.m_rpcReplicators.push_back(m_replicator->replicatorKey().array());
+        rpcDriveInfo.m_rpcReplicators.push_back(m_replicator->dbgReplicatorKey().array());
 
         return rpcDriveInfo;
     }
@@ -296,10 +296,10 @@ private:
 
     void replicatorOnboardingTransaction() {
         std::cout << "Replicator. replicatorOnboardingTransaction: " << m_replicator->dbgReplicatorName() << " : "
-                  << utils::HexFormat(m_replicator->replicatorKey().array()) << std::endl;
+                  << utils::HexFormat(m_replicator->dbgReplicatorKey().array()) << std::endl;
 
         types::RpcReplicatorInfo rpcReplicatorInfo;
-        rpcReplicatorInfo.m_replicatorPubKey = m_replicator->keyPair().publicKey().array();
+        rpcReplicatorInfo.m_replicatorPubKey = m_replicator->dbgReplicatorKey().array();
         rpcReplicatorInfo.m_rpcReplicatorPort = m_rpcReplicatorPort;
         rpcReplicatorInfo.m_replicatorAddress = m_replicatorAddress;
         rpcReplicatorInfo.m_replicatorPort = m_replicatorPort;

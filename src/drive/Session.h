@@ -196,14 +196,14 @@ namespace libtorrent {
     struct alert;
 }
 
-class Replicator;
+class ReplicatorInt;
 
 using LibTorrentErrorHandler = std::function<void( const lt::alert* )>;
 
 PLUGIN_API std::shared_ptr<Session> createDefaultSession( boost::asio::io_context& context,
                                                           std::string address,
                                                           const LibTorrentErrorHandler&,
-                                                          std::weak_ptr<Replicator>,
+                                                          std::weak_ptr<ReplicatorInt>,
                                                           std::weak_ptr<lt::session_delegate>,
                                                           const endpoint_list& bootstraps,
                                                           std::promise<void>&& bootstrapBarrier );

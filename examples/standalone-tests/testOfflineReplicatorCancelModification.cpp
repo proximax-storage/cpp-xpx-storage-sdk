@@ -181,7 +181,7 @@ namespace sirius::drive::test
                 }
                 ASSERT_EQ(m_modificationSizes[transactionInfo.m_modifyTransactionHash].size(), 1);
 
-                if (replicator.keyPair().publicKey() != m_replicators.back()->keyPair().publicKey())
+                if (replicator.dbgReplicatorKey() != m_replicators.back()->dbgReplicatorKey())
                 {
                     replicator.asyncSingleApprovalTransactionHasBeenPublished(transactionInfo);
                 } else

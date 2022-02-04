@@ -73,7 +73,7 @@ namespace sirius::drive::test
                     return;
                 }
 
-                if (replicator.keyPair().publicKey() == m_replicators.back()->replicatorKey())
+                if (replicator.dbgReplicatorKey() == m_replicators.back()->dbgReplicatorKey())
                 {
                     std::set<uint64_t> sizes;
                     for (const auto &opinion: transactionInfo.m_opinions)

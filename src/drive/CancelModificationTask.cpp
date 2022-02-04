@@ -112,7 +112,7 @@ private:
         auto * dbgEventHandler = m_drive.m_dbgEventHandler;
         if ( dbgEventHandler )
         {
-            dbgEventHandler->driveModificationIsCanceled( m_drive.m_replicator, m_drive.m_replicator.keyPair().publicKey(), m_request->m_modifyTransactionHash );
+            dbgEventHandler->driveModificationIsCanceled( m_drive.m_replicator, m_drive.m_replicator.dbgReplicatorKey(), m_request->m_modifyTransactionHash );
         }
         finishTask();
     }

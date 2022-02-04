@@ -419,9 +419,9 @@ void createReplicators(const std::vector<ReplicatorInfo>&  bootstraps)
     t2.join();
     t3.join();
 
-    gReplicatorMap[gReplicator->replicatorKey()] = gReplicator;
-    gReplicatorMap[gReplicator2->replicatorKey()] = gReplicator2;
-    gReplicatorMap[gReplicator3->replicatorKey()] = gReplicator3;
+    gReplicatorMap[gReplicator->dbgReplicatorKey()] = gReplicator;
+    gReplicatorMap[gReplicator2->dbgReplicatorKey()] = gReplicator2;
+    gReplicatorMap[gReplicator3->dbgReplicatorKey()] = gReplicator3;
 
 }
 
@@ -581,9 +581,9 @@ int main(int,char**)
 //    auto actualRootHash = gReplicator->dbgGetRootHash( DRIVE_PUB_KEY );
 
     std::vector<sirius::Key> replicatorKeys;
-    replicatorKeys.push_back( gReplicator->replicatorKey() );
-    replicatorKeys.push_back( gReplicator2->replicatorKey() );
-    replicatorKeys.push_back( gReplicator3->replicatorKey() );
+    replicatorKeys.push_back( gReplicator->dbgReplicatorKey() );
+    replicatorKeys.push_back( gReplicator2->dbgReplicatorKey() );
+    replicatorKeys.push_back( gReplicator3->dbgReplicatorKey() );
 
 //    gReplicator->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
 //    gReplicator2->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
@@ -635,11 +635,11 @@ int main(int,char**)
     if ( !testLateReplicator )
         gReplicatorThread3.join();
     
-    gReplicatorMap.erase( gReplicator->replicatorKey() );
+    gReplicatorMap.erase( gReplicator->dbgReplicatorKey() );
     gReplicator.reset();
-    gReplicatorMap.erase( gReplicator2->replicatorKey() );
+    gReplicatorMap.erase( gReplicator2->dbgReplicatorKey() );
     gReplicator2.reset();
-    gReplicatorMap.erase( gReplicator3->replicatorKey() );
+    gReplicatorMap.erase( gReplicator3->dbgReplicatorKey() );
     gReplicator3.reset();
 
     createReplicators(bootstraps);

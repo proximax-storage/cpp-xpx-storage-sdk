@@ -56,7 +56,7 @@ namespace sirius::drive::test
                                    [this](const SingleOpinion &opinion)
                                    {
                                        return opinion.m_replicatorKey ==
-                                              m_replicators.back()->keyPair().publicKey().array();
+                                              m_replicators.back()->dbgReplicatorKey().array();
                                    });
             ASSERT_EQ(it, transactionInfo.m_opinions.end());
         }
@@ -65,7 +65,7 @@ namespace sirius::drive::test
                                                             const ApprovalTransactionInfo &transactionInfo) override
         {
 
-            ASSERT_EQ(replicator.keyPair().publicKey(), m_replicators.back()->keyPair().publicKey());
+            ASSERT_EQ(replicator.dbgReplicatorKey(), m_replicators.back()->dbgReplicatorKey());
             TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, std::move(transactionInfo));
         }
     };

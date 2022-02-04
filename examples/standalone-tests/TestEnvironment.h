@@ -188,7 +188,7 @@ public:
             for (const auto& [key, drive]: m_drives)
             {
                 const auto& driveReplicators = drive.m_driveRequest.m_fullReplicatorList;
-                if ( std::find( driveReplicators.begin(), driveReplicators.end(), replicator->replicatorKey() ) != driveReplicators.end()  )
+                if ( std::find( driveReplicators.begin(), driveReplicators.end(), replicator->dbgReplicatorKey() ) != driveReplicators.end()  )
                 {
                     replicator->asyncAddDrive( key, drive.m_driveRequest );
                     if ( drive.m_lastApprovedModification )
@@ -257,7 +257,7 @@ public:
         {
             replicator->asyncAddDrive( driveKey, m_drives[driveKey].m_driveRequest );
             const auto& driveReplicators = drive.m_driveRequest.m_fullReplicatorList;
-            if ( std::find( driveReplicators.begin(), driveReplicators.end(), replicator->replicatorKey() ) != driveReplicators.end()  )
+            if ( std::find( driveReplicators.begin(), driveReplicators.end(), replicator->dbgReplicatorKey() ) != driveReplicators.end()  )
             {
                 replicator->asyncAddDrive( driveKey, drive.m_driveRequest );
                 if ( drive.m_lastApprovedModification )
@@ -679,7 +679,7 @@ public:
     {
         auto it = std::find_if(m_replicators.begin(), m_replicators.end(), [&] (const auto& item)
         {
-            return item->replicatorKey() == replicator;
+            return item->dbgReplicatorKey() == replicator;
         });
 
         if ( it == m_replicators.end() )

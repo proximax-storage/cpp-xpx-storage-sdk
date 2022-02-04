@@ -5,7 +5,7 @@
 */
 
 #include "Session.h"
-#include "drive/Replicator.h"
+#include "ReplicatorInt.h"
 #include "drive/Utils.h"
 #include "drive/log.h"
 
@@ -95,7 +95,7 @@ private:
     //
     LibTorrentErrorHandler  m_alertHandler;
 
-    std::weak_ptr<Replicator>           m_replicator;
+    std::weak_ptr<ReplicatorInt>        m_replicator;
     std::weak_ptr<lt::session_delegate> m_downloadLimiter;
     
     std::promise<void>                  m_bootstrapBarrier;
@@ -110,7 +110,7 @@ public:
     DefaultSession( boost::asio::io_context&             context,
                     std::string                          address,
                     const LibTorrentErrorHandler&        alertHandler,
-                    std::weak_ptr<Replicator>            replicator,
+                    std::weak_ptr<ReplicatorInt>         replicator,
                     std::weak_ptr<lt::session_delegate>  downloadLimiter,
                     const endpoint_list&                 bootstraps,
                     std::promise<void>&&                 bootstrapBarrier
@@ -554,8 +554,8 @@ public:
     {
 //        std::weak_ptr<lt::session_delegate> m_replicator;
 //        DhtRequestPlugin( std::weak_ptr<lt::session_delegate> replicator ) : m_replicator(replicator) {}
-        std::weak_ptr<Replicator> m_replicator;
-        DhtRequestPlugin( std::weak_ptr<Replicator> replicator ) : m_replicator(replicator) {}
+        std::weak_ptr<ReplicatorInt> m_replicator;
+        DhtRequestPlugin( std::weak_ptr<ReplicatorInt> replicator ) : m_replicator(replicator) {}
 
         feature_flags_t implemented_features() override
         {
@@ -628,8 +628,7 @@ public:
                         archive( uint8_t(0) );
                     }
 
-                    std::string m_dbgOurPeerName;
-                    _LOG( "response[r][q]: " << query );
+                    __LOG( "response[r][q]: " << query );
                     response["r"]["q"] = std::string(query);
                     response["r"]["ret"] = os.str();
                     return true;
@@ -1542,7 +1541,7 @@ InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
 std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&             context,
                                                std::string                          address,
                                                const LibTorrentErrorHandler&        alertHandler,
-                                               std::weak_ptr<Replicator>            replicator,
+                                               std::weak_ptr<ReplicatorInt>         replicator,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
                                                const endpoint_list&                 bootstraps,
                                                std::promise<void>&&                 bootstrapBarrier )

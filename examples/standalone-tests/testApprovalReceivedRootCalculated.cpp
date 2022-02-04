@@ -64,7 +64,7 @@ namespace sirius::drive::test
         void singleModifyApprovalTransactionIsReady(Replicator &replicator,
                                                     const ApprovalTransactionInfo & transactionInfo) override
         {
-            ASSERT_EQ(replicator.keyPair().publicKey(), m_ignoredReplicator);
+            ASSERT_EQ(replicator.dbgReplicatorKey(), m_ignoredReplicator);
             TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, transactionInfo);
         };
 

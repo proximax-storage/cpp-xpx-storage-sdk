@@ -75,7 +75,7 @@ namespace sirius::drive::test
                 return;
             }
 
-            if (replicator.keyPair().publicKey() == m_replicators.back()->replicatorKey())
+            if (replicator.dbgReplicatorKey() == m_replicators.back()->dbgReplicatorKey())
             {
                 ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size());
 

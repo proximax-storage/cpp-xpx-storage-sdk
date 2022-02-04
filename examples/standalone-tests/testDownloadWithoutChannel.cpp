@@ -74,7 +74,7 @@ namespace sirius::drive::test
                                                     const ApprovalTransactionInfo& transactionInfo) override
         {
             TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, transactionInfo);
-            ASSERT_EQ(replicator.keyPair().publicKey(), m_ignoredReplicator);
+            ASSERT_EQ(replicator.dbgReplicatorKey(), m_ignoredReplicator);
 
             const auto &opinion = transactionInfo.m_opinions.front();
             auto size =

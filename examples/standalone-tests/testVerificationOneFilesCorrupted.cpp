@@ -123,7 +123,7 @@ namespace sirius::drive::test
         for ( uint i = 0; i < verify_tx.m_opinions.size(); i++ )
         {
             const auto& opinion = verify_tx.m_opinions[i];
-            if ( opinion.m_publicKey == env.m_replicators.back()->keyPair().publicKey().array() )
+            if ( opinion.m_publicKey == env.m_replicators.back()->dbgReplicatorKey().array() )
             {
                 checkIncorrectOpinion(opinion.m_opinions);
             }
