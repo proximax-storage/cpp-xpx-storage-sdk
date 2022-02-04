@@ -327,6 +327,8 @@ public:
 
     virtual void start() = 0;
 
+    virtual const Key& replicatorKey() const = 0;
+
     // All of the below functions return error string (or empty string)
 
     // It is called as soon as all drives and channels are added
@@ -430,7 +432,7 @@ public:
     virtual void        dbgPrintTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) = 0;
     virtual const char* dbgReplicatorName() const = 0;
     virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) = 0;
-    virtual const Key& dbgReplicatorKey() const = 0;
+    virtual const Key&  dbgReplicatorKey() const = 0;
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(

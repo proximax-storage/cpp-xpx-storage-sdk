@@ -26,8 +26,6 @@ public:
     {
     }
 
-    virtual const Key& replicatorKey() const = 0;
-
     virtual const crypto::KeyPair& keyPair() const = 0;
 
 #ifdef __FOR_DEBUGGING__
