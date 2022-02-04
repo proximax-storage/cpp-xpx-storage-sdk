@@ -612,18 +612,18 @@ public:
 
                     std::ostringstream os( std::ios::binary );
                     cereal::PortableBinaryOutputArchive archive( os );
-                    bool opinionExists = replicator->createSyncOpinion( driveKey, downloadChannelHash, os );
-
-                    if ( opinionExists )
-                    {
-                        archive( uint8_t(1) );
-                        archive( driveKey );
-                        archive( downloadChannelHash );
-                    }
-                    else
-                    {
-                        archive( uint8_t(0) );
-                    }
+//                    bool opinionExists = replicator->createSyncOpinion( driveKey, downloadChannelHash, os );
+//
+//                    if ( opinionExists )
+//                    {
+//                        archive( uint8_t(1) );
+//                        archive( driveKey );
+//                        archive( downloadChannelHash );
+//                    }
+//                    else
+//                    {
+//                        archive( uint8_t(0) );
+//                    }
 
                     __LOG( "response[r][q]: " << query );
                     response["r"]["q"] = std::string(query);
