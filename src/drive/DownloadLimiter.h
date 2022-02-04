@@ -7,6 +7,7 @@
 #pragma once
 
 #include "drive/Replicator.h"
+#include "ReplicatorInt.h"
 #include <sirius_drive/session_delegate.h>
 #include "crypto/Signer.h"
 #include "types.h"
@@ -30,7 +31,7 @@ namespace fs = std::filesystem;
 //
 // DownloadLimiter - it manages all user files at replicator side
 //
-class DownloadLimiter : public Replicator,
+class DownloadLimiter : public ReplicatorInt,
                         public lt::session_delegate,
                         public std::enable_shared_from_this<DownloadLimiter>
 {
@@ -480,7 +481,7 @@ public:
                 return;
             }
             
-            _LOG_ERR( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
+            _LOG_WARN( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
         }
 
         _LOG( "unknown transactionHash: " << (int)transactionHash[0] );

@@ -8,9 +8,9 @@
 #include "drive/log.h"
 #include "drive/FlatDrive.h"
 #include "drive/Utils.h"
-#include "drive/Session.h"
-#include "drive/DownloadLimiter.h"
-#include "drive/EndpointsManager.h"
+#include "Session.h"
+#include "DownloadLimiter.h"
+#include "EndpointsManager.h"
 #include "DnOpinionSyncronizer.h"
 
 #include <cereal/types/vector.hpp>

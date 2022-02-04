@@ -10,7 +10,6 @@
 #include "plugins.h"
 #include "drive/FlatDrive.h"
 #include "crypto/Signer.h"
-#include "Session.h"
 
 namespace sirius::drive {
 

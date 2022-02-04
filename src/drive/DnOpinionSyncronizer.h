@@ -8,7 +8,7 @@
 
 #include "types.h"
 #include "drive/FlatDrive.h"
-#include "drive/Session.h"
+#include "Session.h"
 
 #include <array>
 #include <map>
@@ -35,13 +35,13 @@ private:
 
 public:
     SyncChannelMap           m_syncChannelMap;
-    Replicator&              m_replicator;
+    ReplicatorInt&              m_replicator;
     std::shared_ptr<Session> m_session;
 
     std::string              m_dbgOurPeerName;
 
 public:
-    DnOpinionSyncronizer( Replicator& replicator ) : m_replicator(replicator), m_dbgOurPeerName(replicator.dbgReplicatorName()) {}
+    DnOpinionSyncronizer( ReplicatorInt& replicator ) : m_replicator(replicator), m_dbgOurPeerName(replicator.dbgReplicatorName()) {}
     ~DnOpinionSyncronizer() {}
     
     void start( std::shared_ptr<Session>& session )

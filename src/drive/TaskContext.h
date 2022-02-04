@@ -6,8 +6,10 @@
 #pragma once
 
 #include "drive/Replicator.h"
-#include "drive/Session.h"
+#include "ReplicatorInt.h"
+#include "Session.h"
 #include "drive/FlatDrive.h"
+#include "drive/Utils.h"
 //#include "ModifyOpinionController.h"
 
 #include <cereal/types/vector.hpp>
@@ -199,7 +201,7 @@ public:
     std::weak_ptr<Session> m_session;
 
     // It is as 1-st parameter in functions of ReplicatorEventHandler (for debugging)
-    Replicator& m_replicator;
+    ReplicatorInt& m_replicator;
 
     // Replicator event handlers
     ReplicatorEventHandler& m_eventHandler;
@@ -235,7 +237,7 @@ protected:
             const Key&                  driveOwner,
             std::shared_ptr<Session>    session,
             ReplicatorEventHandler&     eventHandler,
-            Replicator&                 replicator,
+            ReplicatorInt&              replicator,
             DbgReplicatorEventHandler*  dbgEventHandler,
             const std::string&          replicatorRootFolder,
             const std::string&          replicatorSandboxRootFolder,

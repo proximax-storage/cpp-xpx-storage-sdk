@@ -7,7 +7,7 @@
 #pragma once
 
 #include "drive/Replicator.h"
-#include "drive/Session.h"
+#include "Session.h"
 
 #include <cereal/archives/portable_binary.hpp>
 
@@ -22,7 +22,7 @@ private:
     std::map<Key, EndpointInformation> m_endpointsMap;
     std::map<Key, boost::asio::ip::tcp::endpoint> m_unknownEndpointsMap;
 
-    Replicator& m_replicator;
+    ReplicatorInt& m_replicator;
     std::weak_ptr<Session> m_session;
 
     std::optional<boost::asio::high_resolution_timer> m_externalPointUpdateTimer;
@@ -39,7 +39,7 @@ private:
 
 public:
 
-    EndpointsManager(Replicator& replicator,
+    EndpointsManager(ReplicatorInt& replicator,
                      const std::vector<ReplicatorInfo>& bootstraps,
                      const std::string& dbgOurPeerName)
             : m_replicator(replicator), m_bootstraps(bootstraps), m_dbgOurPeerName(dbgOurPeerName)

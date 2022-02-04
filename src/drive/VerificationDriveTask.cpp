@@ -4,10 +4,9 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "drive/DownloadLimiter.h"
+#include "DownloadLimiter.h"
 #include "DriveTask.h"
 #include "drive/FlatDrive.h"
-#include "drive/FlatDrivePaths.h"
 #include "drive/FsTree.h"
 #include "drive/ActionList.h"
 

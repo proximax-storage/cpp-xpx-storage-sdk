@@ -9,7 +9,7 @@
 #include "log.h"
 #include "plugins.h"
 #include "crypto/Signer.h"
-#include "Session.h"
+#include "../../src/drive/Session.h"
 #include <boost/asio/ip/tcp.hpp>
 #include <cereal/archives/binary.hpp>
 #include <memory>

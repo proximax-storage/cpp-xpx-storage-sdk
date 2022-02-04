@@ -8,12 +8,14 @@
 
 #include "drive/FlatDrive.h"
 #include "drive/Replicator.h"
-#include "drive/Session.h"
-#include "drive/BackgroundExecutor.h"
+#include "Session.h"
+#include "BackgroundExecutor.h"
 #include "TaskContext.h"
 #include "drive/Utils.h"
 #include "drive/log.h"
+
 #include <boost/multiprecision/cpp_int.hpp>
+#include <numeric>
 
 namespace sirius::drive {
 
@@ -31,7 +33,7 @@ private:
 
     Key                                         m_clientKey;
 
-    Replicator&                                 m_replicator;
+    ReplicatorInt&                                 m_replicator;
     const RestartValueSerializer&               m_serializer;
     ThreadManager&                              m_threadManager;
 
@@ -50,7 +52,7 @@ public:
     ModifyOpinionController(
             const Key& driveKey,
             const Key& client,
-            Replicator& replicator,
+            ReplicatorInt& replicator,
             const RestartValueSerializer& serializer,
             ThreadManager& threadManager,
             uint64_t expectedCumulativeDownload,

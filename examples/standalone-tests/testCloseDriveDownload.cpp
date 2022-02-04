@@ -3,7 +3,7 @@
 #include "gtest/gtest.h"
 
 #include "types.h"
-#include "drive/Session.h"
+#include "../../src/drive/Session.h"
 #include "drive/ClientSession.h"
 #include "drive/Replicator.h"
 #include "drive/FlatDrive.h"

@@ -6,8 +6,8 @@
 
 #include "drive/FlatDrive.h"
 #include "drive/Replicator.h"
-#include "drive/Session.h"
-#include "drive/BackgroundExecutor.h"
+#include "Session.h"
+#include "BackgroundExecutor.h"
 #include "DriveTask.h"
 #include "TaskContext.h"
 #include "ModifyOpinionController.h"
@@ -117,7 +117,7 @@ public:
                 size_t                      maxSize,
                 size_t                      expectedCumulativeDownload,
                 ReplicatorEventHandler&     eventHandler,
-                Replicator&                 replicator,
+                ReplicatorInt&                 replicator,
                 const ReplicatorList&       fullReplicatorList,
                 const ReplicatorList&       modifyDonatorShard,
                 const ReplicatorList&       modifyRecipientShard,
@@ -728,7 +728,7 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
                                            maxSize,
                                            usedDriveSizeExcludingMetafiles,
                                            eventHandler,
-                                           replicator,
+                                           dynamic_cast<ReplicatorInt&>(replicator),
                                            fullReplicatorList,
                                            modifyDonatorShard,
                                            modifyRecipientShard,

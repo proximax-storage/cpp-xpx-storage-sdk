@@ -1,6 +1,6 @@
 #include "drive/RpcReplicatorClient.h"
 
-#include "drive/Session.h"
+#include "../../src/drive/Session.h"
 #include "drive/FsTree.h"
 #include "drive/Utils.h"
 
