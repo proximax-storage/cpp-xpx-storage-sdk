@@ -157,8 +157,8 @@ public:
     // (It prevents call of downloadHandler)
     virtual void      removeDownloadContext( lt::torrent_handle ) = 0;
 
-    virtual void      sendMessage( boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
-    virtual void      sendMessage( const std::string& query, boost::asio::ip::udp::endpoint, const std::vector<uint8_t>&, void* userdata = nullptr ) = 0;
+    //virtual void      sendMessage( boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
+    virtual void      sendMessage( const std::string& query, boost::asio::ip::udp::endpoint, const std::vector<uint8_t>&, const Signature* signature = nullptr ) = 0;
     virtual void      sendMessage(const std::string& query, boost::asio::ip::udp::endpoint, const std::string& ) = 0;
     
     virtual void      findAddress( const Key& key ) = 0;

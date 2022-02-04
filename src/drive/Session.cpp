@@ -610,18 +610,15 @@ public:
                     ptr += driveKey.size();
                     memcpy( downloadChannelHash.data(), ptr, downloadChannelHash.size() );
 
-                    DownloadOpinion opinion;
-                    bool opinionExists = replicator->createSyncOpinion( driveKey, downloadChannelHash, opinion );
-
                     std::ostringstream os( std::ios::binary );
                     cereal::PortableBinaryOutputArchive archive( os );
+                    bool opinionExists = replicator->createSyncOpinion( driveKey, downloadChannelHash, os );
 
                     if ( opinionExists )
                     {
                         archive( uint8_t(1) );
                         archive( driveKey );
                         archive( downloadChannelHash );
-                        archive( opinion );
                     }
                     else
                     {
@@ -641,7 +638,7 @@ public:
 
                 RcptMessage msg( str.data(), str.size() );
                 
-                if ( ! msg.isValid() )
+                if ( ! msg.isValidSize() )
                 {
                     __LOG( "WARNING!!!: invalid rcpt size" )
                     return false;
@@ -650,11 +647,6 @@ public:
                 if ( auto replicator = m_replicator.lock(); replicator )
                 {
                     replicator->acceptReceiptFromAnotherReplicator( std::move(msg) );
-//                        .channelId().array(),
-//                                                                    msg.clientKey().array(),
-//                                                                    msg.replicatorKey().array(),
-//                                                                    msg.downloadedSize(),
-//                                                                    msg.signature() );
                 }
 
                 response["r"]["q"] = std::string(query);
@@ -671,22 +663,30 @@ public:
         m_session.add_extension(std::make_shared<DhtRequestPlugin>(  m_replicator ));
     }
 
-    void  sendMessage( boost::asio::ip::udp::endpoint udp, const std::vector<uint8_t>& ) override
-    {
-        lt::entry e;
-        e["q"] = "sirius_message";
-        e["x"] = "-----------------------------------------------------------";
-        LOG( "lt::entry e: " << e );
+//    void  sendMessage( boost::asio::ip::udp::endpoint udp, const std::vector<uint8_t>& ) override
+//    {
+//        lt::entry e;
+//        e["q"] = "sirius_message";
+//        e["x"] = "-----------------------------------------------------------";
+//        LOG( "lt::entry e: " << e );
+//
+////        lt::client_data_t client_data(this);
+//        m_session.dht_direct_request( udp, e, lt::client_data_t(reinterpret_cast<int*>(12345))  );
+//    }
 
-//        lt::client_data_t client_data(this);
-        m_session.dht_direct_request( udp, e, lt::client_data_t(reinterpret_cast<int*>(12345))  );
-    }
-
-    void sendMessage( const std::string& query, boost::asio::ip::udp::endpoint endPoint, const std::vector<uint8_t>& message, void* userdata ) override
+    void sendMessage( const std::string&                query,
+                      boost::asio::ip::udp::endpoint    endPoint,
+                      const std::vector<uint8_t>&       message,
+                      const Signature*                  signature ) override
     {
         lt::entry entry;
         entry["q"] = query;
         entry["x"] = std::string( message.begin(), message.end() );
+        
+        if ( signature != nullptr )
+        {
+            entry["sign"] = std::string( signature->begin(), signature->end() );
+        }
 
         m_session.dht_direct_request( endPoint, entry );//, lt::client_data_t(userdata) );
     }
@@ -749,7 +749,7 @@ public:
         }
     }
 
-    void handleResponse( lt::bdecode_node response )
+    void handleDhtResponse( lt::bdecode_node response )
     {
         try
         {
@@ -759,7 +759,7 @@ public:
             auto retString = rDict.dict_find_string_value("ret");
             if ( query == "get_dn_rcpts" )
             {
-                m_replicator.lock()->onSyncDnOpinionReceived( std::string( retString.begin(), retString.end() ) );
+                m_replicator.lock()->onSyncRcptReceived( std::string( retString.begin(), retString.end() ) );
             }
         }
         catch(...)
@@ -916,7 +916,7 @@ private:
                              //_LOG( "dht_query: " << query )
                              if ( query == "get_dn_rcpts" )
                              {
-                                 handleResponse( response);
+                                 handleDhtResponse( response);
                              }
                          }
                      }

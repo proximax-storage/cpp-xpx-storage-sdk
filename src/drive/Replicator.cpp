@@ -11,7 +11,7 @@
 #include "Session.h"
 #include "DownloadLimiter.h"
 #include "EndpointsManager.h"
-#include "DnOpinionSyncronizer.h"
+#include "RcptSyncronizer.h"
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/array.hpp>
@@ -63,7 +63,7 @@ private:
     DbgReplicatorEventHandler*  m_dbgEventHandler;
 
     EndpointsManager        m_endpointsManager;
-    DnOpinionSyncronizer    m_dnOpinionSyncronizer;
+    RcptSyncronizer         m_dnOpinionSyncronizer;
 
     // key is verify tx
     std::map<std::array<uint8_t,32>, VerifyOpinion> m_verifyApprovalMap;
@@ -90,8 +90,8 @@ public:
         m_useTcpSocket( useTcpSocket ),
         m_eventHandler( handler ),
         m_dbgEventHandler( dbgEventHandler ),
-        m_endpointsManager( *this, bootstraps, m_dbgOurPeerName),
-        m_dnOpinionSyncronizer( *this )
+        m_endpointsManager( *this, bootstraps, m_dbgOurPeerName ),
+        m_dnOpinionSyncronizer( *this, m_dbgOurPeerName )
     {
     }
 
@@ -881,46 +881,56 @@ public:
         return myOpinion;
     }
 
-    bool createSyncOpinion( const std::array<uint8_t,32>& driveKey, const std::array<uint8_t,32>& channelId, DownloadOpinion& opinion ) override
+    bool createSyncOpinion( const DriveKey& driveKey, const ChannelId& channelId, std::ostringstream& os ) override
     {
         DBG_MAIN_THREAD
-
-        opinion.m_replicatorKey = publicKey();
-        opinion.m_downloadLayout.clear();
 
         if ( auto drive = getDrive( driveKey ); drive )
         {
             if ( auto channelInfoIt = m_dnChannelMap.find(channelId); channelInfoIt != m_dnChannelMap.end() )
             {
-                DownloadChannelInfo& channelInfo = channelInfoIt->second;
-
-                // add our uploaded size
-                uint64_t uploadedSize = 0;
-                for( auto& cell: channelInfo.m_dnClientMap )
+                uint32_t rcptCounter = 0;
+                for( auto& [clientKey,clientRcptMap] : channelInfoIt->second.m_clientReceiptMap )
                 {
-                    uploadedSize += cell.second.m_uploadedSize;
+                    rcptCounter += clientRcptMap.size();
                 }
-                opinion.m_downloadLayout.push_back( { publicKey(), uploadedSize } );
 
-                // add other uploaded sizes
-                for( const auto& replicatorKey : drive->getAllReplicators() )
+                cereal::PortableBinaryOutputArchive iarchive( os );
+//                ReplicatorKey replicatorKey = m_keyPair.publicKey();
+//                iarchive( replicatorKey );
+//                ChannelId channelId;
+//                iarchive( channelId );
+//                Signature sign;
+//                iarchive( cereal::binary_data( sign.data(), sign.size() ) );
+
+                // parse and accept receipts
+                //
+                uint32_t receiptNumber;
+                iarchive( receiptNumber );
+
+                for( uint32_t i=0; i<receiptNumber; i++ )
                 {
-                    if ( auto downloadedIt = channelInfo.m_replicatorUploadMap.find( replicatorKey.array());
-                        downloadedIt != channelInfo.m_replicatorUploadMap.end() )
-                    {
-                        opinion.m_downloadLayout.push_back( {downloadedIt->first.array(), downloadedIt->second.uploadedSize() } );
-                    }
+                    RcptMessage msg;
+                    iarchive( msg );
                 }
+//                for( auto& [clientKey,clientRcptMap] : channelInfoIt->second.m_clientReceiptMap )
+//                {
+//                    for( auto& [_,msg] : clientRcptMap )
+//                    {
+//                        LOG( msg[0] << _[0] )
+//                    }
+//                }
+
 
                 // sign our opinion
-                opinion.Sign( keyPair(), driveKey, channelId );
+//                opinion.Sign( keyPair(), driveKey, channelId );
 
                 return true;
             }
             return false;
         }
 
-        _LOG_ERR( "drive not found" );
+        _LOG_WARN( "drive not found" );
         return false;
     }
 
@@ -1437,9 +1447,9 @@ public:
         }
     }
 
-    virtual void sendMessage( const std::string&                      query,
-                              const std::array<uint8_t,32>&           replicatorKey,
-                              const std::vector<uint8_t>&             message ) override
+    virtual void sendMessage( const std::string&                    query,
+                              const std::array<uint8_t,32>&         replicatorKey,
+                              const std::vector<uint8_t>&           message ) override
     {
         DBG_MAIN_THREAD
 
@@ -1547,35 +1557,43 @@ public:
         }
     }
 
-    void onSyncDnOpinionReceived( const std::string& retString ) override
+    void onSyncRcptReceived( const std::string& retString ) override
     {
         try
         {
-            // parse response
-            //
             std::istringstream is( retString, std::ios::binary );
             cereal::PortableBinaryInputArchive iarchive(is);
-            uint8_t hasResponse;
-            iarchive( hasResponse );
-            if ( !hasResponse )
+
+            // Verify sign
+            //
+            //// get_dn_rcpts
+            ReplicatorKey otherReplicatorKey;
+            iarchive( otherReplicatorKey );
+            ChannelId channelId;
+            iarchive( channelId );
+            Signature sign;
+            iarchive( cereal::binary_data( sign.data(), sign.size() ) );
+
+            // parse and accept receipts
+            //
+            uint32_t receiptNumber;
+            iarchive( receiptNumber );
+
+            for( uint32_t i=0; i<receiptNumber; i++ )
             {
-                // no opinion
-                return;
+                RcptMessage msg;
+                iarchive( msg );
+
+                if ( ! msg.isValidSize() )
+                {
+                    _LOG_WARN( "invalid rcpt size" )
+                    return;
+                }
+                
+                acceptReceiptFromAnotherReplicator( std::move(msg) );
             }
-
-            std::array<uint8_t,32> driveKey;
-            std::array<uint8_t,32> channelHash;
-            mobj<DownloadOpinion> opinion{DownloadOpinion{}};
-            iarchive( driveKey );
-            iarchive( channelHash );
-            iarchive( *opinion );
-
-            if ( !opinion->Verify( driveKey, channelHash ) )
-            {
-                _LOG_WARN( "invalid download sync opinion from " << Key(opinion->m_replicatorKey) )
-            }
-
-            m_dnOpinionSyncronizer.addSyncOpinion( channelHash, std::move(opinion), m_dnChannelMap );
+            
+            m_dnOpinionSyncronizer.addSyncOpinion( channelId, otherReplicatorKey );
         }
         catch(...)
         {

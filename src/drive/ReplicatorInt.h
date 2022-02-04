@@ -63,12 +63,9 @@ public:
 
     // will be called from Sesion
     virtual void        onMessageReceived( const std::string& query, const std::string&, const boost::asio::ip::udp::endpoint& source ) = 0;
-    virtual bool        createSyncOpinion( const std::array<uint8_t,32>& driveKey,
-                                           const std::array<uint8_t,32>& channelId,
-                                           DownloadOpinion& outOpinion ) = 0;
-
-    virtual void        onSyncDnOpinionReceived( const std::string& retString ) = 0;
-
+    virtual bool        createSyncOpinion( const DriveKey& driveKey, const ChannelId& channelId, std::ostringstream& os ) = 0;
+    virtual void        onSyncRcptReceived( const std::string& retString ) = 0;
+    
     // will be called from Sesion
     // when it receives message from another replicator
     // (must be implemented by DownloadLimiter)

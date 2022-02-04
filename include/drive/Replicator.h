@@ -38,7 +38,7 @@ public:
     
     void acceptReceipt( const ClientKey& clientKey, uint64_t uploadedSize )
     {
-        auto it = m_clientMap.lower_bound( clientKey );
+        auto it = m_clientMap.find( clientKey );
         __ASSERT( it != m_clientMap.end() )
         __ASSERT( it->second < uploadedSize )
         it->second = uploadedSize;
@@ -131,7 +131,7 @@ struct RcptMessage : public std::vector<uint8_t>
         insert( end(), signature.begin(),           signature.end() );
     }
     
-    bool isValid() const { return size() == sizeof(ChannelId)+sizeof(ClientKey)+sizeof(ReplicatorKey)+8+sizeof(Sign); }
+    bool isValidSize() const { return size() == sizeof(ChannelId)+sizeof(ClientKey)+sizeof(ReplicatorKey)+8+sizeof(Sign); }
 
     const ChannelId&      channelId()      const { return *reinterpret_cast<const ChannelId*>(     &this->at(0) );   }
     const ClientKey&      clientKey()      const { return *reinterpret_cast<const ClientKey*>(     &this->at(32) );  }
