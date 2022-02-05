@@ -411,12 +411,12 @@ private:
         //
         // Send message to other replicators
         //
-        for( auto& replicatorKey: m_request->m_replicators )
+        for( const auto& replicatorKey: m_request->m_replicators )
         {
             //TODO?            m_replicator.sendMessage( "code_verify", replicatorKey.array(), os.str() );
             if ( replicatorKey != m_drive.m_replicator.dbgReplicatorKey() )
             {
-                m_drive.m_replicator.sendMessage( "code_verify", replicatorKey.array(), os.str() );
+                m_drive.m_replicator.sendMessage( "code_verify", replicatorKey, os.str() );
             }
         }
 

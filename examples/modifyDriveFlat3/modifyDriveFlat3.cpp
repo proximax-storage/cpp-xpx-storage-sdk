@@ -21,6 +21,7 @@
 
 //(???+) !!!
 const bool testLateReplicator = true; //true;
+bool gBreak_On_Warning = false;
 
 //
 // This example shows interaction between 'client' and 'replicator'.
@@ -434,6 +435,8 @@ void createReplicators(const std::vector<ReplicatorInfo>&  bootstraps)
 //
 int main(int,char**)
 {
+    gBreakOnWarning = gBreak_On_Warning;
+    
     fs::remove_all( ROOT_TEST_FOLDER );
 
     auto startTime = std::clock();

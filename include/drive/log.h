@@ -45,17 +45,36 @@ inline std::mutex gLogMutex;
         }
 #endif
 
+inline bool gBreakOnWarning = false;
+
 // LOG_WARN
 #ifdef DEBUG_OFF_CATAPULT
     #define _LOG_WARN(expr) { \
             const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-            std::cout << m_dbgOurPeerName << ": WARNING!!! " << expr << std::endl << std::flush; \
+            std::cout << m_dbgOurPeerName << ": WARNING!!! in " << __FUNCTION__ << "() " << expr << std::endl << std::flush; \
+            if ( gBreakOnWarning ) { assert(0); } \
         }
 #else
     #define _LOG_WARN(expr) { \
             std::ostringstream out; \
-            out << ": WARNING!!! " << ": " << expr; \
+            cout << m_dbgOurPeerName << ": WARNING!!! in " << __FUNCTION__ << "() " << expr; \
             CATAPULT_LOG(debug) << out.str(); \
+            if ( gBreakOnWarning ) { assert(0); } \
+        }
+#endif
+
+#ifdef DEBUG_OFF_CATAPULT
+    #define __LOG_WARN(expr) { \
+            const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+            std::cout << ": WARNING!!! in " << __FUNCTION__ << "() " << expr << std::endl << std::flush; \
+            if ( gBreakOnWarning ) { assert(0); } \
+        }
+#else
+    #define __LOG_WARN(expr) { \
+            std::ostringstream out; \
+            cout << ": WARNING!!! in " << __FUNCTION__ << "() " << expr; \
+            CATAPULT_LOG(debug) << out.str(); \
+            if ( gBreakOnWarning ) { assert(0); } \
         }
 #endif
 

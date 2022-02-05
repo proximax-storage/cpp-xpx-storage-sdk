@@ -598,36 +598,50 @@ public:
             
             else if ( query == "get_dn_rcpts" )
             {
+                // extract signature
+                auto sign = message.dict_find_string_value("sign");
+                Signature signature;
+                if ( sign.size() != signature.size() )
+                {
+                    __LOG_WARN( "invalid query 'get_dn_rcpts'" )
+                    return true;
+                }
+                memcpy( signature.data(), sign.data(), signature.size() );
+
+                // extract message
                 auto str = message.dict_find_string_value("x");
-                std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
+
+                // extract request fields
+                //
+                ReplicatorKey senderKey;
+                DriveKey      driveKey;
+                ChannelId     channelId;
+
+                uint8_t* ptr = (uint8_t*)str.data();
+                memcpy( senderKey.data(), ptr, senderKey.size() );
+                ptr += senderKey.size();
+                memcpy( driveKey.data(), ptr, driveKey.size() );
+                ptr += driveKey.size();
+                memcpy( channelId.data(), ptr, channelId.size() );
+
+                if ( ! crypto::Verify( senderKey, { utils::RawBuffer{(const uint8_t*) str.data(), str.size()} }, signature ) )
+                {
+                    __LOG_WARN( "invalid signature of 'get_dn_rcpts'" )
+                    return true;
+                }
+
 
                 if ( auto replicator = m_replicator.lock(); replicator )
                 {
-                    std::array<uint8_t,32> driveKey;
-                    std::array<uint8_t,32> downloadChannelHash;
-                    uint8_t* ptr = (uint8_t*)str.data();
-                    memcpy( driveKey.data(), ptr, driveKey.size() );
-                    ptr += driveKey.size();
-                    memcpy( downloadChannelHash.data(), ptr, downloadChannelHash.size() );
-
                     std::ostringstream os( std::ios::binary );
-                    cereal::PortableBinaryOutputArchive archive( os );
-//                    bool opinionExists = replicator->createSyncOpinion( driveKey, downloadChannelHash, os );
-//
-//                    if ( opinionExists )
-//                    {
-//                        archive( uint8_t(1) );
-//                        archive( driveKey );
-//                        archive( downloadChannelHash );
-//                    }
-//                    else
-//                    {
-//                        archive( uint8_t(0) );
-//                    }
-
-                    __LOG( "response[r][q]: " << query );
-                    response["r"]["q"] = std::string(query);
-                    response["r"]["ret"] = os.str();
+                    Signature responseSignature;
+                    if ( replicator->createSyncRcpts( driveKey, channelId, os, responseSignature ) )
+                    {
+                        __LOG( "response[r][q]: " << query );
+                        response["r"]["q"] = std::string(query);
+                        response["r"]["ret"] = os.str();
+                        response["r"]["sign"] = std::string( responseSignature.begin(), responseSignature.end() );
+                    }
                     return true;
                 }
             }
@@ -753,13 +767,13 @@ public:
     {
         try
         {
-            //auto r = response.dict_find_string_value("r");
             auto rDict = response.dict_find_dict("r");
             auto query = rDict.dict_find_string_value("q");
-            auto retString = rDict.dict_find_string_value("ret");
             if ( query == "get_dn_rcpts" )
             {
-                m_replicator.lock()->onSyncRcptReceived( std::string( retString.begin(), retString.end() ) );
+                lt::string_view response = rDict.dict_find_string_value("ret");
+                lt::string_view sign = rDict.dict_find_string_value("sign");
+                m_replicator.lock()->onSyncRcptReceived( response, sign );
             }
         }
         catch(...)

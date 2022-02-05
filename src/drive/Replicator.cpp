@@ -881,7 +881,10 @@ public:
         return myOpinion;
     }
 
-    bool createSyncOpinion( const DriveKey& driveKey, const ChannelId& channelId, std::ostringstream& os ) override
+    bool createSyncRcpts( const DriveKey&       driveKey,
+                          const ChannelId&      channelId,
+                          std::ostringstream&   outOs,
+                          Signature&            outSignature ) override
     {
         DBG_MAIN_THREAD
 
@@ -889,45 +892,34 @@ public:
         {
             if ( auto channelInfoIt = m_dnChannelMap.find(channelId); channelInfoIt != m_dnChannelMap.end() )
             {
-                uint32_t rcptCounter = 0;
-                for( auto& [clientKey,clientRcptMap] : channelInfoIt->second.m_clientReceiptMap )
-                {
-                    rcptCounter += clientRcptMap.size();
-                }
-
-                cereal::PortableBinaryOutputArchive iarchive( os );
-//                ReplicatorKey replicatorKey = m_keyPair.publicKey();
-//                iarchive( replicatorKey );
-//                ChannelId channelId;
-//                iarchive( channelId );
-//                Signature sign;
-//                iarchive( cereal::binary_data( sign.data(), sign.size() ) );
+                cereal::PortableBinaryOutputArchive archive( outOs );
+                ReplicatorKey replicatorKey = m_keyPair.publicKey();
+                archive( replicatorKey );
+                archive( channelId );
 
                 // parse and accept receipts
                 //
-                uint32_t receiptNumber;
-                iarchive( receiptNumber );
-
-                for( uint32_t i=0; i<receiptNumber; i++ )
+                for( auto& [clientKey,clientRcptMap] : channelInfoIt->second.m_clientReceiptMap )
                 {
-                    RcptMessage msg;
-                    iarchive( msg );
+                    for( auto& [key,msg] : clientRcptMap )
+                    {
+                        archive( msg );
+                    }
                 }
-//                for( auto& [clientKey,clientRcptMap] : channelInfoIt->second.m_clientReceiptMap )
+
+                auto str = outOs.str();
+                crypto::Sign( m_keyPair, { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature);
+                
+//                _LOG( "****+: " << replicatorKey[0] << " " << str.size()  << " " << outSignature )
+//                _LOG( "****+: " << replicatorKey[0] << " " << str.size()  << " " << str )
+//                if ( ! crypto::Verify( m_keyPair.publicKey(), { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature ) )
 //                {
-//                    for( auto& [_,msg] : clientRcptMap )
-//                    {
-//                        LOG( msg[0] << _[0] )
-//                    }
+//                    _LOG_WARN( "invalid sign of 'get_dn_rcpts' response" )
+//                    return false;
 //                }
-
-
-                // sign our opinion
-//                opinion.Sign( keyPair(), driveKey, channelId );
-
-                return true;
             }
-            return false;
+            
+            return true;
         }
 
         _LOG_WARN( "drive not found" );
@@ -1424,9 +1416,9 @@ public:
     void asyncVerifyApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 verificationId ) override
     {}
 
-    virtual void sendMessage( const std::string&             query,
-                              const std::array<uint8_t,32>&  replicatorKey,
-                              const std::string&             message ) override
+    virtual void sendMessage( const std::string&        query,
+                              const ReplicatorKey&      replicatorKey,
+                              const std::string&        message ) override
     {
         DBG_MAIN_THREAD
 
@@ -1443,13 +1435,13 @@ public:
         }
         else
         {
-            _LOG_WARN( "Failed to send '" << query << "' to " << int(replicatorKey[0]) );
+            _LOG( "WARN!!! Failed to send '" << query << "' to " << int(replicatorKey[0]) );
         }
     }
 
-    virtual void sendMessage( const std::string&                    query,
-                              const std::array<uint8_t,32>&         replicatorKey,
-                              const std::vector<uint8_t>&           message ) override
+    virtual void sendMessage( const std::string&           query,
+                              const ReplicatorKey&         replicatorKey,
+                              const std::vector<uint8_t>&  message ) override
     {
         DBG_MAIN_THREAD
 
@@ -1463,6 +1455,31 @@ public:
         {
             //__LOG( "*** sendMessage: " << query << " to: " << *endpointTo << " " << int(replicatorKey[0]) );
             m_session->sendMessage( query, { endpointTo->address(), endpointTo->port() }, message );
+        }
+        else
+        {
+            __LOG( "sendMessage: absent endpoint: " << int(replicatorKey[0]) );
+        }
+    }
+
+    virtual void sendSignedMessage( const std::string&           query,
+                                    const ReplicatorKey&         replicatorKey,
+                                    const std::vector<uint8_t>&  message ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( m_replicatorIsDestructing )
+        {
+            return;
+        }
+
+        auto endpointTo = m_endpointsManager.getEndpoint( replicatorKey );
+        if ( endpointTo )
+        {
+            Signature signature;
+            crypto::Sign( m_keyPair, { utils::RawBuffer{ message } }, signature);
+
+            m_session->sendMessage( query, { endpointTo->address(), endpointTo->port() }, message, &signature );
         }
         else
         {
@@ -1557,32 +1574,49 @@ public:
         }
     }
 
-    void onSyncRcptReceived( const std::string& retString ) override
+    void onSyncRcptReceived( const lt::string_view& response, const lt::string_view& sign ) override
     {
         try
         {
-            std::istringstream is( retString, std::ios::binary );
+            std::istringstream is( std::string( response.begin(), response.end() ), std::ios::binary );
             cereal::PortableBinaryInputArchive iarchive(is);
+
+            ReplicatorKey otherReplicatorKey;
+            ChannelId channelId;
+            iarchive( otherReplicatorKey );
+            iarchive( channelId );
 
             // Verify sign
             //
-            //// get_dn_rcpts
-            ReplicatorKey otherReplicatorKey;
-            iarchive( otherReplicatorKey );
-            ChannelId channelId;
-            iarchive( channelId );
-            Signature sign;
-            iarchive( cereal::binary_data( sign.data(), sign.size() ) );
+            Signature signature;
+            if ( sign.size() != signature.size() )
+            {
+                __LOG_WARN( "invalid sin size of 'get_dn_rcpts' response" )
+                return;
+            }
+            memcpy( signature.data(), sign.data(), signature.size() );
+
+//            if ( ! crypto::Verify( otherReplicatorKey, {utils::RawBuffer{ (const uint8_t*)response.begin(), response.size() }}, signature) );
+//            {
+//                //_LOG( "****?: " << otherReplicatorKey[0] << " " << response.size() << " "  << signature )
+//                _LOG( "****?: " << otherReplicatorKey[0] << " " << response.size() << " "  << response )
+//                // (???+++++)
+//                _LOG_WARN( "invalid sign of 'get_dn_rcpts' response" )
+//                return;
+//            }
+
+            m_dnOpinionSyncronizer.accpeptOpinion( channelId, otherReplicatorKey );
 
             // parse and accept receipts
             //
-            uint32_t receiptNumber;
-            iarchive( receiptNumber );
-
-            for( uint32_t i=0; i<receiptNumber; i++ )
+            for(;;)
             {
                 RcptMessage msg;
-                iarchive( msg );
+                try {
+                    iarchive( msg );
+                } catch (...) {
+                    return;
+                }
 
                 if ( ! msg.isValidSize() )
                 {
@@ -1592,8 +1626,6 @@ public:
                 
                 acceptReceiptFromAnotherReplicator( std::move(msg) );
             }
-            
-            m_dnOpinionSyncronizer.addSyncOpinion( channelId, otherReplicatorKey );
         }
         catch(...)
         {

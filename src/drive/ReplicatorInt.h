@@ -53,18 +53,22 @@ public:
 //    virtual void        onTransactionCanceledByClient( ApprovalTransactionInfo&& transaction ) = 0;
     
     // Message exchange
-    virtual void        sendMessage( const std::string& query,
-                                     const std::array<uint8_t,32>&  replicatorKey,
+    virtual void        sendMessage( const std::string&     query,
+                                     const ReplicatorKey&   replicatorKey,
                                      const std::vector<uint8_t>& ) = 0;
     
+    virtual void        sendSignedMessage( const std::string&   query,
+                                           const ReplicatorKey& replicatorKey,
+                                           const std::vector<uint8_t>& ) = 0;
+    
     virtual void        sendMessage( const std::string&             query,
-                                     const std::array<uint8_t,32>&  replicatorKey,
+                                     const ReplicatorKey&           replicatorKey,
                                      const std::string&             message ) = 0;
 
     // will be called from Sesion
     virtual void        onMessageReceived( const std::string& query, const std::string&, const boost::asio::ip::udp::endpoint& source ) = 0;
-    virtual bool        createSyncOpinion( const DriveKey& driveKey, const ChannelId& channelId, std::ostringstream& os ) = 0;
-    virtual void        onSyncRcptReceived( const std::string& retString ) = 0;
+    virtual bool        createSyncRcpts( const DriveKey&, const ChannelId&, std::ostringstream& outOs, Signature& outSignature ) = 0;
+    virtual void        onSyncRcptReceived( const lt::string_view& response, const lt::string_view& sign ) = 0;
     
     // will be called from Sesion
     // when it receives message from another replicator

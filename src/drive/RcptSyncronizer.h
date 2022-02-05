@@ -80,7 +80,7 @@ public:
                 message.insert( message.end(), m_replicator.replicatorKey().begin(), m_replicator.replicatorKey().end() );
                 message.insert( message.end(), driveKey.begin(), driveKey.end() );
                 message.insert( message.end(), channelId.begin(), channelId.end() );
-                m_replicator.sendMessage( "get_dn_rcpts", replicatorKey.array(), message );
+                m_replicator.sendSignedMessage( "get_dn_rcpts", replicatorKey.array(), message );
             }
         }
         
@@ -91,7 +91,7 @@ public:
         } );
     }
     
-    void addSyncOpinion( const ChannelId& channelId, const ReplicatorKey& replicatorKey )
+    void accpeptOpinion( const ChannelId& channelId, const ReplicatorKey& replicatorKey )
     {
         auto syncChannelIt = m_syncChannelMap.find( channelId );
 
