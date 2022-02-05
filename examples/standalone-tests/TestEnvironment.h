@@ -499,7 +499,6 @@ public:
                     std::cout << int( opinion.m_uploadLayout[i].m_key[0] ) << ":"
                               << opinion.m_uploadLayout[i].m_uploadedBytes << " ";
                 }
-                std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
             }
 
             m_drives[transactionInfo.m_driveKey].m_driveRequest.m_expectedCumulativeDownloadSize
@@ -521,7 +520,7 @@ public:
                 auto size =
                         std::accumulate( opinion.m_uploadLayout.begin(),
                                          opinion.m_uploadLayout.end(),
-                                         opinion.m_clientUploadBytes,
+                                         0,
                                          []( const auto& sum, const auto& item )
                                          {
                                              return sum + item.m_uploadedBytes;
@@ -571,7 +570,7 @@ public:
                 auto size =
                         std::accumulate( opinion.m_uploadLayout.begin(),
                                          opinion.m_uploadLayout.end(),
-                                         opinion.m_clientUploadBytes,
+                                         0,
                                          []( const auto& sum, const auto& item )
                                          {
                                              return sum + item.m_uploadedBytes;

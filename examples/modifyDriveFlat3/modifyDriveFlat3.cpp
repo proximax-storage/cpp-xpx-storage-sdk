@@ -263,7 +263,6 @@ public:
             {
                 std::cout << int(opinion.m_uploadLayout[i].m_key[0]) << ":" << opinion.m_uploadLayout[i].m_uploadedBytes << " ";
             }
-            std::cout << "client:" <<opinion.m_clientUploadBytes << std::endl;
         }
         
         gReplicator3->dbgPrintTrafficDistribution( modifyTransactionHash1.array() );

@@ -120,7 +120,6 @@ namespace sirius::drive::test
                         std::cout << int(opinion.m_uploadLayout[i].m_key[0]) << ":"
                                   << opinion.m_uploadLayout[i].m_uploadedBytes << " ";
                     }
-                    std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
                 }
 
                 for (const auto &opinion: transactionInfo.m_opinions)
@@ -128,7 +127,7 @@ namespace sirius::drive::test
                     auto size =
                             std::accumulate(opinion.m_uploadLayout.begin(),
                                             opinion.m_uploadLayout.end(),
-                                            opinion.m_clientUploadBytes,
+                                            0,
                                             [](const auto &sum, const auto &item)
                                             {
                                                 return sum + item.m_uploadedBytes;
@@ -172,7 +171,7 @@ namespace sirius::drive::test
                     auto size =
                             std::accumulate(opinion.m_uploadLayout.begin(),
                                             opinion.m_uploadLayout.end(),
-                                            opinion.m_clientUploadBytes,
+                                            0,
                                             [](const auto &sum, const auto &item)
                                             {
                                                 return sum + item.m_uploadedBytes;

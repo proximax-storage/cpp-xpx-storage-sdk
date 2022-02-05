@@ -279,7 +279,7 @@ private:
         const auto& keyPair = m_drive.m_replicator.keyPair();
         SingleOpinion opinion( keyPair.publicKey().array());
 
-        m_opinionController.fillOpinion( opinion.m_uploadLayout, opinion.m_clientUploadBytes );
+        m_opinionController.fillOpinion( opinion.m_uploadLayout );
 
         opinion.Sign( keyPair,
                       m_drive.m_driveKey,

@@ -163,22 +163,15 @@ public:
         });
     }
 
-    void fillOpinion( std::vector<KeyAndBytes>& replicatorsUploads,
-                      uint64_t& clientUploads )
+    void fillOpinion( std::vector<KeyAndBytes>& replicatorsUploads )
     {
         DBG_MAIN_THREAD
 
-        _ASSERT (replicatorsUploads.empty())
+        _ASSERT ( replicatorsUploads.empty() )
 
         for ( const auto&[key, bytes] : m_notApprovedCumulativeUploads )
         {
-            if ( key != m_clientKey.array())
-            {
-                replicatorsUploads.push_back( {key, bytes} );
-            }
-            else {
-                clientUploads = bytes;
-            }
+            replicatorsUploads.push_back( {key, bytes} );
         }
     }
 

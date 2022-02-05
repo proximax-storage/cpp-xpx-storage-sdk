@@ -67,7 +67,6 @@ namespace sirius::drive::test
                     std::cout << int(opinion.m_uploadLayout[i].m_key[0]) << ":"
                               << opinion.m_uploadLayout[i].m_uploadedBytes << " ";
                 }
-                std::cout << "client:" << opinion.m_clientUploadBytes << std::endl;
             }
 
             if (m_drives[DRIVE_PUB_KEY].m_pendingModifications.front().m_transactionHash != transactionInfo.m_modifyTransactionHash)
@@ -85,7 +84,7 @@ namespace sirius::drive::test
                     auto size =
                             std::accumulate(opinion.m_uploadLayout.begin(),
                                             opinion.m_uploadLayout.end(),
-                                            opinion.m_clientUploadBytes,
+                                            0,
                                             [](const auto &sum, const auto &item)
                                             {
                                                 return sum + item.m_uploadedBytes;
