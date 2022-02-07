@@ -29,8 +29,6 @@
 
 namespace sirius::drive {
 
-#define CHANNELS_NOT_OWNED_BY_DRIVES
-
 //
 // DefaultReplicator
 //
@@ -909,14 +907,6 @@ public:
 
                 auto str = outOs.str();
                 crypto::Sign( m_keyPair, { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature);
-                
-//                _LOG( "****+: " << replicatorKey[0] << " " << str.size()  << " " << outSignature )
-//                _LOG( "****+: " << replicatorKey[0] << " " << str.size()  << " " << str )
-//                if ( ! crypto::Verify( m_keyPair.publicKey(), { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature ) )
-//                {
-//                    _LOG_WARN( "invalid sign of 'get_dn_rcpts' response" )
-//                    return false;
-//                }
             }
             
             return true;
@@ -1099,35 +1089,22 @@ public:
     {
         DBG_MAIN_THREAD
 
-        bool deleteDriveImmediately = true;
-        
         std::erase_if( m_dnChannelMap, [](const auto& channelInfo )
         {
             return channelInfo.second.m_isModifyTx;
         });
 
-#ifndef CHANNELS_NOT_OWNED_BY_DRIVES
-        if ( blockHash )
+        _ASSERT( blockHash )
+        for( auto& [channelId,channelInfo] : m_dnChannelMap )
         {
-            for( auto& [channelId,channelInfo] : m_dnChannelMap )
+            _ASSERT( !channelInfo.m_isModifyTx )
+            if ( channelInfo.m_driveKey == driveKey )
             {
-                if ( channelInfo.m_driveKey == drive.drivePublicKey().array() && !channelInfo.m_isModifyTx )
-                {
-                    doInitiateDownloadApprovalTransactionInfo( *blockHash, channelId );
-
-                    // drive will be deleted in 'asyncDownloadApprovalTransactionHasBeenPublished()'
-                    deleteDriveImmediately = false;
-                }
+                doInitiateDownloadApprovalTransactionInfo( *blockHash, channelId );
             }
         }
-#endif
 
-        _LOG( "deleteDriveImmediately" )
-
-        if ( deleteDriveImmediately )
-        {
-            deleteDrive( driveKey.array() );
-        }
+        deleteDrive( driveKey.array() );
     }
 
     void asyncDownloadApprovalTransactionHasFailedInvalidOpinions( Hash256 eventHash, Hash256 channelId ) override
@@ -1186,7 +1163,7 @@ public:
         });//post
     }
     
-    virtual void asyncDownloadApprovalTransactionHasBeenPublished( Hash256 eventHash, Hash256 channelId, bool driveIsClosed ) override
+    virtual void asyncDownloadApprovalTransactionHasBeenPublished( Hash256 eventHash, Hash256 channelId, bool channelMustBeClosed ) override
     {
         _FUNC_ENTRY()
         
@@ -1205,9 +1182,16 @@ public:
                 auto& opinions = channelIt->second.m_downloadOpinionMap;
                 if ( auto it = opinions.find( eventHash.array() ); it != opinions.end() )
                 {
-                    it->second.m_timer.reset();
-                    it->second.m_opinionShareTimer.reset();
-                    it->second.m_approveTransactionReceived = true;
+                    if ( channelMustBeClosed )
+                    {
+                        m_dnChannelMap.erase( channelIt );
+                    }
+                    else
+                    {
+                        it->second.m_timer.reset();
+                        it->second.m_opinionShareTimer.reset();
+                        it->second.m_approveTransactionReceived = true;
+                    }
                 }
                 else
                 {
@@ -1218,53 +1202,12 @@ public:
             {
                 _LOG_ERR( "channelId not found" );
             }
-
-#ifndef CHANNELS_NOT_OWNED_BY_DRIVES
-            if ( !driveIsClosed )
-            {
-                return;
-            }
-
-            // Is it happened while drive is closing?
-            if ( auto channelIt = m_dnChannelMap.find( channelId.array() ); channelIt != m_dnChannelMap.end() )
-            {
-                const auto& driveKey = channelIt->second.m_driveKey;
-
-                if ( auto drive = getDrive( driveKey ); drive )
-                {
-                    bool driveWillBeDeleted = false;
-
-                    if ( drive->isItClosingTxHash( eventHash ) )
-                    {
-                        channelIt->second.m_isClosed = true;
-
-                        // TODO Potential performance bottleneck
-                        driveWillBeDeleted = std::find_if(m_dnChannelMap.begin(), m_dnChannelMap.end(),[&driveKey] (const auto& value)
-                              {
-                                  return value.second.m_driveKey == driveKey && !value.second.m_isClosed;
-                              }) == m_dnChannelMap.end();
-                    }
-
-                    if ( driveWillBeDeleted )
-                    {
-                        deleteDrive( driveKey );
-                    }
-                }
-
-            }
-#endif
         });//post
     }
 
     void deleteDrive( const std::array<uint8_t,32>& driveKey )
     {
         DBG_MAIN_THREAD
-
-#ifndef CHANNELS_NOT_OWNED_BY_DRIVES
-        std::erase_if( m_dnChannelMap, [&driveKey] (const auto& item) {
-            return item.second.m_driveKey == driveKey;
-        });
-#endif
 
         std::erase_if( m_modifyDriveMap, [&driveKey] (const auto& item) {
             return item.second.m_driveKey == driveKey;
@@ -1596,14 +1539,11 @@ public:
             }
             memcpy( signature.data(), sign.data(), signature.size() );
 
-//            if ( ! crypto::Verify( otherReplicatorKey, {utils::RawBuffer{ (const uint8_t*)response.begin(), response.size() }}, signature) );
-//            {
-//                //_LOG( "****?: " << otherReplicatorKey[0] << " " << response.size() << " "  << signature )
-//                _LOG( "****?: " << otherReplicatorKey[0] << " " << response.size() << " "  << response )
-//                // (???+++++)
-//                _LOG_WARN( "invalid sign of 'get_dn_rcpts' response" )
-//                return;
-//            }
+            if ( ! crypto::Verify( otherReplicatorKey, {utils::RawBuffer{ (const uint8_t*)response.begin(), response.size() }}, signature) )
+            {
+                _LOG_WARN( "invalid sign of 'get_dn_rcpts' response" )
+                return;
+            }
 
             m_dnOpinionSyncronizer.accpeptOpinion( channelId, otherReplicatorKey );
 

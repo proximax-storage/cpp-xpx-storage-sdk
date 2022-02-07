@@ -651,12 +651,13 @@ public:
             // It is first receipt for this replicator
             // Check that it exists in our 'shard'
 
-            const auto& v = channelInfo.m_dnReplicatorShard;
-            if ( std::find( v.begin(), v.end(), msg.replicatorKey() ) == v.end() )
-            {
-                _LOG_WARN("bad replicator key; it is ignored");
-                return false;
-            }
+            //(?) It must be the list of ALL replicators that
+//            const auto& v = channelInfo.m_dnReplicatorShard;
+//            if ( std::find( v.begin(), v.end(), msg.replicatorKey() ) == v.end() )
+//            {
+//                _LOG_WARN("bad replicator key; it is ignored");
+//                return false;
+//            }
             
             replicatorInfoIt = channelInfo.m_replicatorUploadMap.insert( replicatorInfoIt, {msg.replicatorKey(),{}} );
         }

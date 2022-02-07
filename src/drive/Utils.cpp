@@ -145,4 +145,23 @@ Hash256 stringToHash( const boost::string_view& str )
     return hash;
 }
 
+std::string hexToString( const void* begin, const void* end )
+{
+    uint8_t* ptr = (uint8_t*)begin;
+    uint8_t* ptrEnd = (uint8_t*)end;
+    assert( ptr < ptrEnd );
+    assert( ptrEnd-ptr < 10*1024 );
+    std::string str;
+    str.reserve( 2*(ptrEnd-ptr) );
+
+    for( ; ptr<ptrEnd; ptr++ ) {
+        str.append( 1, byteMap[*ptr][0] );
+        str.append( 1, byteMap[*ptr][1] );
+    }
+
+    return str;
+}
+
+
+
 }}

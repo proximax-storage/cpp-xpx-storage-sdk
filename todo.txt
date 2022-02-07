@@ -6,40 +6,25 @@ Libtorrent:
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=17  -GXcode ..
 ----------------------------------------------------------------------------
 
-!!!!Запоминать последний рецепт от каждого клиента
-
 Broadcasting of received download receipts into shard
-
-ClientKey,ReplicatorKey,TxHash,DnChannelKey,...
-
 
 Как ограничить данлоад/модифай-запрос, чтобы не запрашивал у не шардовых/чужых
 Или - как нам ограничить запросы на торренты только к тем репликаторам,
 которые в шарде?
 
+Тест для клиент за натом !!!
 Uncomment "else if ( isClient( *drive, peerPublicKey) )" Иначе клиент (который за натом) не сможет приконнектиться к репликаторам
 
 
------modifyRequest
-
-DownloadChannelInfo::m_replicatorsList2;      //todo must be "synchronized?" with drive.m_replicatorList (in higher versions?)
-
 1) А если 2/3 не наберется
 2) Зомби-репликаторы
-3) asyncAddDownloadChannelInfo( alreadyExist )
 4) iarchive(is) - try/catch
 
-
-RpcReplicatorClient.cpp
-RpcTypes.cpp
 
 - закончить свой io_context in ~Replicator() - remove mutex
 
 
 +? late channel-tx that replicator received (client could not download data)
-
-
-save/read downloadedSize map (between reboots?)
 
 
 --------------------------
@@ -48,24 +33,11 @@ Our 'libtorrent' implementation:
 Buffer-pool (16KB,32KB ?)
 
 
-?Раздача файлов из песочницы для streaming: каждый кусочек - это торрент
-
-Много клиентов на одном канале
-
-Удаление и добавление в список репликаторов
-
 //////
 Replicator exchange & checkDownloadLimit()
 //////
 
-Как только в блокчейне опубликовна транзакция DriveClosure, репликаторы будут пытаться назначить этого репликатора на другой Драйв. При этом на публикацию downloadApprovalTransactions может понадобиться достаточно много времени.Поэтому лучше сначала очищать содержимое Драйва - и быть готовым обслуживать другой Драйв, а потом уже заниматься утверждением транзакций
 
-вы последние дни поднимали вопрос, что делать если узел перезагружается в разрере drive closure transaction. Если узел перезагружается, то есть еще одна проблема - будут потеряны рецепты
-
-
-Рецепты для DownloadChannel (и для ModifyDrive?)
-
-если мы у репликаторов перешли на константные ссылки вместо rvalue, не имеет смысл у клиента тоже на них перейти для единообразия?
 
 - почистить мусор перед driveModificationIsCanceled() modifyTransactionEndedWithError()
 
@@ -78,28 +50,11 @@ Replicator exchange & checkDownloadLimit()
 Либо невалидные акт лист
 //////////////
 
-///////////
-DownloadApprovalTransactionInfo - MANY CLIENTS !!!
-///////////
-
-
-addDrive не снуля в 3-й версии
-
 CloseDrive - storageExt should remember that drive started closing and not completed!!!
 
-Test removeUnusedFiles()
+asyncInitializationFinished()
+После этого нужно поудалять все неиспользуемые драйвы и каналы!
 
-
-1) acceptConnection()
-!!!!!!!!!!!!!!!!!!!!!!!!!!!
-//        if ( auto driveIt = m_driveMap.find( transactionHash ); driveIt != m_driveMap.end() )
-//        {
-//            if ( isPeerReplicator( *driveIt->second, peerPublicKey) )
-//            {
-//                *outIsDownloadUnlimited = true;
-//                return true;
-//            }
-//        }
 
 
 2) drive publicKey будет нужен чтобы убедиться, что это репликатор из драйв-списка

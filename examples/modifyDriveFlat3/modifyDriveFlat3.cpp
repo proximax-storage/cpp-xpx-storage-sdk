@@ -21,7 +21,7 @@
 
 //(???+) !!!
 const bool testLateReplicator = true; //true;
-bool gBreak_On_Warning = false;
+bool gBreak_On_Warning = true;//false;
 
 //
 // This example shows interaction between 'client' and 'replicator'.
