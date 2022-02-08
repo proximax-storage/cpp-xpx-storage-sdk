@@ -95,7 +95,8 @@ namespace sirius::drive::test
 
                     for (const auto &r: m_replicators)
                     {
-                        r->asyncApprovalTransactionHasBeenPublished(transactionInfo);
+                        r->asyncApprovalTransactionHasBeenPublished(
+                            PublishedModificationApprovalTransactionInfo( transactionInfo ));
                     }
                 }
             }

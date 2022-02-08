@@ -264,7 +264,7 @@ public:
     void asyncInitializationFinished() override
     {}
 
-    void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest ) override
+    void asyncAddDrive( Key driveKey, mobj<AddDriveRequest>&& driveRequest ) override
     {
         _FUNC_ENTRY()
 
@@ -285,11 +285,11 @@ public:
             }
 
             // Exclude itself from replicator list
-            for( auto it = driveRequest.m_fullReplicatorList.begin();  it != driveRequest.m_fullReplicatorList.end(); it++ )
+            for( auto it = driveRequest->m_fullReplicatorList.begin();  it != driveRequest->m_fullReplicatorList.end(); it++ )
             {
                 if ( *it == publicKey() )
                 {
-                    driveRequest.m_fullReplicatorList.erase( it );
+                    driveRequest->m_fullReplicatorList.erase( it );
                     break;
                 }
             }
@@ -299,20 +299,20 @@ public:
                     m_storageDirectory,
                     m_sandboxDirectory,
                     driveKey,
-                    driveRequest.m_client,
-                    driveRequest.m_driveSize,
-                    driveRequest.m_expectedCumulativeDownloadSize,
+                    driveRequest->m_client,
+                    driveRequest->m_driveSize,
+                    driveRequest->m_expectedCumulativeDownloadSize,
                     m_eventHandler,
                     *this,
-                    driveRequest.m_fullReplicatorList,
-                    driveRequest.m_modifyDonatorShard,
-                    driveRequest.m_modifyRecipientShard,
+                    driveRequest->m_fullReplicatorList,
+                    driveRequest->m_modifyDonatorShard,
+                    driveRequest->m_modifyRecipientShard,
                     m_dbgEventHandler );
 
             m_driveMap[driveKey] = drive;
 
-            m_endpointsManager.addEndpointsEntries( driveRequest.m_fullReplicatorList );
-            m_endpointsManager.addEndpointEntry( driveRequest.m_client, false );
+            m_endpointsManager.addEndpointsEntries( driveRequest->m_fullReplicatorList );
+            m_endpointsManager.addEndpointEntry( driveRequest->m_client, false );
 
             // Notify
             if ( m_dbgEventHandler )
@@ -547,7 +547,7 @@ public:
         });//post
     }
 
-    void asyncModify( Key driveKey, ModificationRequest modifyRequest ) override
+    void asyncModify( Key driveKey, mobj<ModificationRequest>&& modifyRequest ) override
     {
         _FUNC_ENTRY()
 
@@ -573,22 +573,22 @@ public:
             }
 
             // Add ModifyTrafficInfo to DownloadLimiter
-            bool added = addModifyTrafficInfo( modifyRequest.m_transactionHash.array(),
+            bool added = addModifyTrafficInfo( modifyRequest->m_transactionHash.array(),
                                 driveKey,
-                                modifyRequest.m_maxDataSize,
+                                modifyRequest->m_maxDataSize,
                                 pDrive->driveOwner(),
-                                modifyRequest.m_unusedReplicatorList);
+                                modifyRequest->m_unusedReplicatorList);
 
             if ( ! added )
             {
                _LOG_ERR( "Internal Error: Modification Received after Approval or twice" )
             }
            
-            for( auto it = modifyRequest.m_unusedReplicatorList.begin();  it != modifyRequest.m_unusedReplicatorList.end(); it++ )
+            for( auto it = modifyRequest->m_unusedReplicatorList.begin();  it != modifyRequest->m_unusedReplicatorList.end(); it++ )
             {
                 if ( *it == publicKey() )
                 {
-                    modifyRequest.m_unusedReplicatorList.erase( it );
+                    modifyRequest->m_unusedReplicatorList.erase( it );
                     break;
                 }
             }
@@ -668,7 +668,7 @@ public:
          });//post
     }
 
-    void asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&& request, bool mustBeSyncronized ) override
+    void asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&& request, bool mustBeSyncronized ) override
     {
         _FUNC_ENTRY()
 
@@ -682,13 +682,13 @@ public:
             }
 
             std::vector<std::array<uint8_t,32>> clientList;
-            for( const auto& it : request.m_clients )
+            for( const auto& it : request->m_clients )
                 clientList.push_back( it.array() );
            
-            addChannelInfo( request.m_channelKey.array(),
-                            request.m_prepaidDownloadSize,
+            addChannelInfo( request->m_channelKey.array(),
+                            request->m_prepaidDownloadSize,
                             driveKey,
-                            request.m_replicators,
+                            request->m_replicators,
                             clientList,
                             mustBeSyncronized );
 
@@ -699,7 +699,7 @@ public:
                    auto replicators = drive->getAllReplicators();
                    size_t consensusThreshould = std::min( (replicators.size()*3)/2, size_t(4) );
 
-                   m_dnOpinionSyncronizer.startSync( request.m_channelKey.array(), drive, consensusThreshould );
+                   m_dnOpinionSyncronizer.startSync( request->m_channelKey.array(), drive, consensusThreshould );
                }
                else
                {
@@ -1253,7 +1253,7 @@ public:
         m_eventHandler.opinionHasBeenReceived(*this, anOpinion);
     }
     
-    virtual void asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo transaction ) override
+    virtual void asyncApprovalTransactionHasBeenPublished( mobj<PublishedModificationApprovalTransactionInfo>&& transaction ) override
     {
         _FUNC_ENTRY()
         
@@ -1266,16 +1266,16 @@ public:
                 return;
             }
 
-            if ( auto drive = getDrive( transaction.m_driveKey ); drive )
+            if ( auto drive = getDrive( transaction->m_driveKey ); drive )
             {
                 //(???) remove replicator list from arguments
-                addModifyTrafficInfo( transaction.m_modifyTransactionHash,
-                                    transaction.m_driveKey,
+                addModifyTrafficInfo( transaction->m_modifyTransactionHash,
+                                    transaction->m_driveKey,
                                     LONG_LONG_MAX,
                                     drive->driveOwner(),
                                     drive->getAllReplicators());
 
-                drive->onApprovalTransactionHasBeenPublished( transaction );
+                drive->onApprovalTransactionHasBeenPublished( *transaction );
             }
             else
             {
@@ -1308,7 +1308,7 @@ public:
         });//post
     }
     
-    virtual void asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo transaction ) override
+    virtual void asyncSingleApprovalTransactionHasBeenPublished( mobj<PublishedModificationSingleApprovalTransactionInfo>&& transaction ) override
     {
         _FUNC_ENTRY()
        
@@ -1321,9 +1321,9 @@ public:
                 return;
             }
 
-            if ( auto drive = getDrive( transaction.m_driveKey ); drive )
+            if ( auto drive = getDrive( transaction->m_driveKey ); drive )
             {
-                drive->onSingleApprovalTransactionHasBeenPublished( transaction );
+                drive->onSingleApprovalTransactionHasBeenPublished( *transaction );
             }
             else
             {

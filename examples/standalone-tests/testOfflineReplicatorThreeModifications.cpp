@@ -141,12 +141,13 @@ namespace sirius::drive::test
                 {
                     const auto &r = m_replicators[i];
                     r->asyncApprovalTransactionHasBeenPublished(
-                            ApprovalTransactionInfo(transactionInfo));
+                        PublishedModificationApprovalTransactionInfo(transactionInfo));
                 }
                 boost::asio::post(m_offlineContext, [=, this]
                                       {
                                           m_replicators.back()->asyncApprovalTransactionHasBeenPublished(
-                                                  transactionInfo);
+                                              PublishedModificationApprovalTransactionInfo(transactionInfo));
+
                                       });
             }
         }
@@ -179,13 +180,13 @@ namespace sirius::drive::test
 
                 if (replicator.dbgReplicatorKey() != m_replicators.back()->dbgReplicatorKey())
                 {
-                    replicator.asyncSingleApprovalTransactionHasBeenPublished(transactionInfo);
+                    replicator.asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo(transactionInfo) );
                 } else
                 {
                     boost::asio::post(m_offlineContext, [=, &replicator]
                                           {
                                               replicator.asyncSingleApprovalTransactionHasBeenPublished(
-                                                      transactionInfo);
+                                                PublishedModificationSingleApprovalTransactionInfo( transactionInfo ) );
                                           });
                 }
             }

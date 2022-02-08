@@ -339,7 +339,7 @@ public:
     // - when storage-extension restarts and initiates the drive (that already was created)
     // - when replicator joined to existing drive
     //
-    virtual void asyncAddDrive( Key driveKey, AddDriveRequest driveRequest ) = 0;
+    virtual void asyncAddDrive( Key driveKey, mobj<AddDriveRequest>&& driveRequest ) = 0;
 
     // It is called when the Replicator is removed from the Drive
     virtual void asyncRemoveDrive( Key driveKey ) = 0;
@@ -366,7 +366,7 @@ public:
 #endif
     
     // it begins modify operation, that will be performed on session thread
-    virtual void        asyncModify( Key driveKey, ModificationRequest  modifyRequest ) = 0;
+    virtual void        asyncModify( Key driveKey, mobj<ModificationRequest>&&  modifyRequest ) = 0;
 
     virtual void        asyncCancelModify( Key driveKey, Hash256  transactionHash ) = 0;
     
@@ -374,7 +374,7 @@ public:
     virtual void        asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) = 0;
 
     // It is called when Replicator is added to the Download Channel Shard
-    virtual void        asyncAddDownloadChannelInfo( Key driveKey, DownloadRequest&&  downloadRequest, bool mustBeSyncronized = false ) = 0;
+    virtual void        asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&&  downloadRequest, bool mustBeSyncronized = false ) = 0;
 
     // It is called when Replicator leaves the Download Channel Shard
     virtual void        asyncRemoveDownloadChannelInfo( Key driveKey, Key channelId ) = 0;
@@ -395,13 +395,13 @@ public:
     virtual void        asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) = 0;
     
     // It will be called after 'MODIFY approval transaction' has been published
-    virtual void        asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo transaction ) = 0;
+    virtual void        asyncApprovalTransactionHasBeenPublished( mobj<PublishedModificationApprovalTransactionInfo>&& transaction ) = 0;
 
     // It will be called if transaction sent by the Replicator has failed because of invalid Replicators list
     virtual void        asyncApprovalTransactionHasFailedInvalidSignatures( Key driveKey, Hash256 transactionHash ) = 0;
 
     // It will be called after 'single MODIFY approval transaction' has been published
-    virtual void        asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo transaction ) = 0;
+    virtual void        asyncSingleApprovalTransactionHasBeenPublished( mobj<PublishedModificationSingleApprovalTransactionInfo>&& transaction ) = 0;
 
     // It will be called after 'VERIFY approval transaction' has been published
     virtual void        asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;

@@ -280,10 +280,10 @@ public:
     }
 
     bool addModifyTrafficInfo( const Key&                 modifyTransactionHash,
-                             const Key&                 driveKey,
-                             uint64_t                   dataSize,
-                             const Key&                 clientPublicKey,
-                             const std::vector<Key>&    replicatorsList )
+                               const Key&                 driveKey,
+                               uint64_t                   dataSize,
+                               const Key&                 clientPublicKey,
+                               const std::vector<Key>&    replicatorsList )
     {
         DBG_MAIN_THREAD
 

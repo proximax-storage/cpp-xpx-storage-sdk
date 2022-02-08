@@ -141,7 +141,7 @@ int main()
     env.m_replicators[4]->asyncAddDrive( DRIVE_PUB_KEY, env.drive->second );
     env.m_replicators[4]->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest(downloadRequest), true );
     env.m_replicators[4]->asyncModify( DRIVE_PUB_KEY, modificationRequest1 );
-    env.m_replicators[4]->asyncApprovalTransactionHasBeenPublished(*env.m_lastApprovedModification);
+    env.m_replicators[4]->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*env.m_lastApprovedModification) );
 
     env.m_replicators[0]->asyncReplicatorAdded( DRIVE_PUB_KEY, env.m_replicators[4]->dbgReplicatorKey() );
     env.m_replicators[1]->asyncReplicatorAdded( DRIVE_PUB_KEY, env.m_replicators[4]->dbgReplicatorKey() );

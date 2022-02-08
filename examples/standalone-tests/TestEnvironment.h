@@ -193,7 +193,7 @@ public:
                     replicator->asyncAddDrive( key, drive.m_driveRequest );
                     if ( drive.m_lastApprovedModification )
                     {
-                        replicator->asyncApprovalTransactionHasBeenPublished( *drive.m_lastApprovedModification );
+                        replicator->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*drive.m_lastApprovedModification) );
                     }
                     for ( const auto& modification: drive.m_pendingModifications )
                     {
@@ -262,7 +262,7 @@ public:
                 replicator->asyncAddDrive( driveKey, drive.m_driveRequest );
                 if ( drive.m_lastApprovedModification )
                 {
-                    replicator->asyncApprovalTransactionHasBeenPublished( *drive.m_lastApprovedModification );
+                    replicator->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*drive.m_lastApprovedModification) );
                 }
                 for ( const auto& modification: drive.m_pendingModifications )
                 {
@@ -511,7 +511,7 @@ public:
                 auto r = getReplicator( key );
                 {
                     r->asyncApprovalTransactionHasBeenPublished(
-                            ApprovalTransactionInfo( transactionInfo ));
+                        PublishedModificationApprovalTransactionInfo( transactionInfo ));
                 }
             }
 
@@ -551,7 +551,7 @@ public:
             EXLOG( "modifySingleApprovalTransactionIsReady: " << replicator.dbgReplicatorName()
                                                               << " "
                                                               << toString( transactionInfo.m_modifyTransactionHash ));
-            replicator.asyncSingleApprovalTransactionHasBeenPublished( transactionInfo );
+            replicator.asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo(transactionInfo) );
 
             ASSERT_EQ( transactionInfo.m_opinions.size(), 1 );
 

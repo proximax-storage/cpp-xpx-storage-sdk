@@ -90,7 +90,8 @@ namespace sirius::drive::test
                 if (r)
                 {
                     r->asyncApprovalTransactionHasBeenPublished(
-                            ApprovalTransactionInfo(transactionInfo));
+                        PublishedModificationApprovalTransactionInfo( transactionInfo ));
+                                                            
                 }
             }
 

@@ -163,7 +163,7 @@ namespace sirius::drive::test {
                 replicator->asyncAddDrive(drive->first, drive->second);
                 if (m_lastApprovedModification)
                 {
-                    replicator->asyncApprovalTransactionHasBeenPublished(*m_lastApprovedModification);
+                    replicator->asyncApprovalTransactionHasBeenPublished(PublishedModificationApprovalTransactionInfo(*m_lastApprovedModification));
                 }
                 for (const auto& modification: m_pendingModifications)
                 {
@@ -315,7 +315,7 @@ namespace sirius::drive::test {
                     if ( r )
                     {
                         r->asyncApprovalTransactionHasBeenPublished(
-                                ApprovalTransactionInfo(transactionInfo));
+                                PublishedModificationApprovalTransactionInfo(transactionInfo));
                     }
                 }
 
@@ -341,8 +341,9 @@ namespace sirius::drive::test {
             if (transactionInfo.m_modifyTransactionHash == m_lastApprovedModification->m_modifyTransactionHash)
             {
                 EXLOG("modifySingleApprovalTransactionIsReady: " << replicator.dbgReplicatorName()
-                << " " << toString(transactionInfo.m_modifyTransactionHash) );
-                replicator.asyncSingleApprovalTransactionHasBeenPublished(transactionInfo);
+                        << " " << toString(transactionInfo.m_modifyTransactionHash) );
+                replicator.asyncSingleApprovalTransactionHasBeenPublished(
+                        PublishedModificationSingleApprovalTransactionInfo( transactionInfo) );
 
                 ASSERT_EQ(transactionInfo.m_opinions.size(), 1);
 

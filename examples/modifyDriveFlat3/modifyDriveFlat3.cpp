@@ -273,8 +273,8 @@ public:
         {
             m_approvalTransactionInfo = { std::move(transactionInfo) };
 
-            std::thread( [] { gReplicator->asyncApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
-            std::thread( [] { gReplicator2->asyncApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
+            std::thread( [] { gReplicator->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
+            std::thread( [] { gReplicator2->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
 
 
             if ( testLateReplicator )
@@ -282,12 +282,12 @@ public:
 //                gReplicatorThread3 = std::thread( []
 //                {
                     modifyDrive( gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, BIG_FILE_SIZE+1024 );
-                    gReplicator3->asyncApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo );
+                    gReplicator3->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) );
 //                } );
             }
             else
             {
-                std::thread( [] { gReplicator3->asyncApprovalTransactionHasBeenPublished( *MyReplicatorEventHandler::m_approvalTransactionInfo ); }).detach();
+                std::thread( [] { gReplicator3->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
             }
         }
     }
@@ -562,7 +562,7 @@ int main(int,char**)
     clientDownloadFiles( 5, gFsTree );
     
     //todo++
-    gReplicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash2.array(), 10*1024*1024+1, replicatorList, { clientKeyPair.publicKey() }}, true );
+    gReplicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024+1, replicatorList, { clientKeyPair.publicKey() }}, true );
 
     ///TODO
 //    sleep(1);
@@ -702,9 +702,9 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->start();
     replicator->asyncAddDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
     
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash1.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, { downloadChannelHash3.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash1.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash3.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
 
     return replicator;
 }

@@ -18,7 +18,6 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     target_link_libraries(standalone-tests
             #${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
             ${CMAKE_SOURCE_DIR}/libtorrent/cmake-build-debug/libtorrent-sirius.dylib
-            #${CMAKE_SOURCE_DIR}/rpclib/build/librpc.a
 
             drive
             crypto
