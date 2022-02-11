@@ -19,6 +19,12 @@ class ClientSession : public lt::session_delegate, std::enable_shared_from_this<
     using ModifyTransactionHash = std::optional<std::array<uint8_t,32>>;
     using ReplicatorTraficMap   = std::map<std::array<uint8_t,32>,uint64_t>;
 
+    struct ModifyTorrentInfo {
+        Session::lt_handle  m_ltHandle = {};
+        bool                m_isUsed = true;
+    };
+    using ModifyTorrentMap = std::map<InfoHash,ModifyTorrentInfo>;
+
     std::shared_ptr<Session>    m_session;
     const crypto::KeyPair&      m_keyPair;
 
@@ -26,9 +32,8 @@ class ClientSession : public lt::session_delegate, std::enable_shared_from_this<
     ReplicatorList              m_downloadReplicatorList;
     ReplicatorTraficMap         m_requestedSize;
     ReplicatorTraficMap         m_receivedSize;
-
-//    ModifyTransactionHash       m_modifyTransactionHash;
-//    ReplicatorList              m_modifyReplicatorList;
+    
+    ModifyTorrentMap            m_modifyTorrentMap;
 
     const char*                 m_dbgOurPeerName;
 
@@ -76,6 +81,31 @@ public:
         // check that replicator list is not empty
         if ( m_downloadReplicatorList.empty() )
             throw std::runtime_error("downloadChannel is not set");
+        
+        if ( auto it = m_modifyTorrentMap.find( downloadParameters.m_infoHash ); it != m_modifyTorrentMap.end() )
+        {
+            auto tHandle = it->second.m_ltHandle;
+            auto status = tHandle.status( lt::torrent_handle::query_save_path | lt::torrent_handle::query_name );
+            auto filePath = fs::path( status.save_path ) / status.name;
+            if ( fs::exists(filePath) && ! fs::is_directory(filePath) )
+            {
+                try {
+                    __LOG( "download: copy '" << filePath << "'" << " to '" << downloadParameters.m_saveAs << "'" )
+                    fs::copy( filePath, downloadParameters.m_saveAs );
+                    downloadParameters.m_downloadNotification( download_status::download_complete,
+                                                              downloadParameters.m_infoHash,
+                                                              downloadParameters.m_saveAs,
+                                                              0,
+                                                              0,
+                                                              "" );
+                    return;
+                } catch(...) {}
+            }
+            else
+            {
+                _LOG_WARN( "Invalid modify torrent? ");
+            }
+        }
 
         // start downloading
         m_session->download( std::move(downloadParameters), tmpFolder, m_downloadReplicatorList, endpointsHints);
@@ -92,15 +122,10 @@ public:
                                      const ReplicatorList& replicatorList,
                                      const std::string& workFolder )
     {
-//        m_modifyReplicatorList = replicatorList;
-//        m_modifyTransactionHash = transactionHash.array();
-        
-        // check that replicator list is not empty
-//        if ( replicatorList.empty() )
-//            throw std::runtime_error("modifyReplicatorList is empty");
-
         // create endpoint list for libtorrent
         endpoint_list endpointList;
+        
+        // (???+++)
 //        for( const auto& it : replicatorList )
 //            endpointList.emplace_back( it );
 
@@ -110,6 +135,161 @@ public:
         return hash;
     }
 
+#ifdef ONE_TORRENT_PER_ONE_FILE
+    InfoHash startModifyAction( const ActionList&    actionList,
+                                const Key&           drivePublicKey,
+                                const std::string&   sandboxFolder, // it is the folder where all ActionLists and file-links will be placed
+                                const endpoint_list& endpointList = {} // now it is not used (BUT MUST BE TESTED WITH OFF NAT!)
+                                )
+    {
+        fs::path workFolder = sandboxFolder;
+        std::error_code ec;
+        fs::create_directories( workFolder, ec );
+
+        // Create new action list
+        //
+        ActionList newActionList = actionList;
+        for( auto& action : newActionList )
+        {
+            switch ( action.m_actionId )
+            {
+                case action_list_id::upload:
+                {
+                    if ( ! fs::exists(action.m_param1) )
+                    {
+                        throw std::runtime_error( std::string("File is absent: ") + action.m_param1 );
+                        break;
+                    }
+
+                    if ( fs::is_directory(action.m_param1) )
+                    {
+                        throw std::runtime_error( std::string("Folder could not be added, only files: ") + action.m_param1 );
+                        break;
+                    }
+
+                    // calculate InfoHash
+                    InfoHash infoHash = createTorrentFile( action.m_param1, drivePublicKey, fs::path(action.m_param1).parent_path(), {} );
+                    if ( m_modifyTorrentMap.find(infoHash) == m_modifyTorrentMap.end() )
+                    {
+                        fs::path filenameInSandbox = workFolder/hashToFileName(infoHash);
+                        if ( ! fs::exists( filenameInSandbox ) )
+                        {
+                            try
+                            {
+                                fs::create_symlink( action.m_param1, filenameInSandbox );
+                            }
+                            catch(...)
+                            {
+                                throw std::runtime_error( "Internal error: fs::create_symlink( action.m_param1, filenameInSandbox );" );
+                            }
+                        }
+                    }
+                    action.m_param1 = hashToFileName(infoHash);
+                    break;
+                }
+                case action_list_id::move:
+                {
+                    if ( isPathInsideFolder( action.m_param1, action.m_param2 ) )
+                    {
+                        LOG( action.m_param1 );
+                        LOG( action.m_param2 );
+                        throw std::runtime_error( "invalid 'move/rename' action (destination is a child folder): " + action.m_param1
+                        + " -> " + action.m_param2 );
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+
+        newActionList.serialize( workFolder/"actionList.bin" );
+
+        InfoHash infoHash0 = createTorrentFile( workFolder/"actionList.bin", drivePublicKey, workFolder, {} );
+
+        if ( m_modifyTorrentMap.find(infoHash0) == m_modifyTorrentMap.end() )
+        {
+            fs::path filenameInSandbox = workFolder/hashToFileName(infoHash0);
+            fs::path torrentFilenameInSandbox = filenameInSandbox;
+            torrentFilenameInSandbox.replace_extension(".torrent");
+            try
+            {
+                fs::rename( workFolder/"actionList.bin", filenameInSandbox );
+            }
+            catch(...)
+            {
+                throw std::runtime_error( "Internal error: fs::rename( workFolder/actionList.bin, filenameInSandbox );" );
+            }
+
+            InfoHash infoHash2 = createTorrentFile( filenameInSandbox, drivePublicKey, workFolder, torrentFilenameInSandbox );
+            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox, workFolder, lt::sf_has_modify_data, infoHash0.array() );
+            m_modifyTorrentMap[infoHash2] = {torrentHandle,false};
+        }
+        
+        for( auto& action : newActionList )
+        {
+            switch ( action.m_actionId )
+            {
+                case action_list_id::upload:
+                {
+                    InfoHash infoHash = stringToHash( action.m_param1 );
+                    if ( m_modifyTorrentMap.find(infoHash) == m_modifyTorrentMap.end() )
+                    {
+                        fs::path filenameInSandbox = workFolder/action.m_param1;
+                        fs::path torrentFilenameInSandbox = filenameInSandbox;
+                        torrentFilenameInSandbox.replace_extension(".torrent");
+
+                        InfoHash infoHash2 = createTorrentFile( filenameInSandbox, drivePublicKey, workFolder, torrentFilenameInSandbox );
+                        __ASSERT( infoHash == infoHash2 );
+                        
+                        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox, workFolder, lt::sf_has_modify_data, infoHash.array() );
+                        m_modifyTorrentMap[infoHash2] = {torrentHandle,false};
+                    }
+                    break;
+                }
+                case action_list_id::move:
+                {
+                    if ( isPathInsideFolder( action.m_param1, action.m_param2 ) )
+                    {
+                        LOG( action.m_param1 );
+                        LOG( action.m_param2 );
+                        throw std::runtime_error( "invalid 'move/rename' action (destination is a child folder): " + action.m_param1
+                        + " -> " + action.m_param2 );
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+
+        return infoHash0;
+    }
+
+    void removeModifyTorrents()
+    {
+        std::set<lt::torrent_handle>  torrents;
+        
+        for( auto& [key,value]: m_modifyTorrentMap )
+        {
+            __LOG( "removeModifyTorrents: " << key )
+            torrents.insert( value.m_ltHandle );
+        }
+        
+        //m_session->dbgPrintActiveTorrents();
+        
+        std::promise<void> barrier;
+
+        m_session->removeTorrentsFromSession( torrents, [&] {
+            barrier.set_value();
+        } );
+        //m_session->dbgPrintActiveTorrents();
+        barrier.get_future().wait();
+        
+        m_modifyTorrentMap.clear();
+    }
+#endif // ONE_TORRENT_PER_ONE_FILE
+    
     const std::optional<std::array<uint8_t,32>> downloadChannelId()
     {
         return m_downloadChannelId;

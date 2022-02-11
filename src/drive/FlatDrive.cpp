@@ -695,7 +695,7 @@ public:
         m_fsTree->dbgPrint();
         if ( auto session = m_session.lock(); session )
         {
-            session->printActiveTorrents();
+            session->dbgPrintActiveTorrents();
         }
     }
     

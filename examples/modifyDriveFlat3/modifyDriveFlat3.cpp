@@ -20,7 +20,7 @@
 #include <sirius_drive/session_delegate.h>
 
 //(???+) !!!
-const bool testLateReplicator = true; //true;
+const bool testLateReplicator = false; //true;
 bool gBreak_On_Warning = true;//false;
 
 //
@@ -34,7 +34,9 @@ bool gBreak_On_Warning = true;//false;
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
 #define CLIENT_IP_ADDR          "192.168.2.200"
-#define CLIENT_PORT             5000
+#define CLIENT_PORT             ":2000"
+#define CLIENT_IP_ADDR1         "192.168.2.201"
+#define CLIENT_PORT1            ":2001"
 
 #define REPLICATOR_IP_ADDR      "192.168.2.101"
 #define REPLICATOR_PORT         5001
@@ -57,6 +59,8 @@ bool gBreak_On_Warning = true;//false;
 
 auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
         sirius::crypto::PrivateKey::FromString( "0000000000010203040501020304050102030405010203040501020304050102" ));
+auto clientKeyPair1 = sirius::crypto::KeyPair::FromPrivate(
+        sirius::crypto::PrivateKey::FromString( "0000000001110203040501020304050102030405010203040501020304050102" ));
 
 
 #define REPLICATOR_PRIVATE_KEY      "1000000000010203040501020304050102030405010203040501020304050102"
@@ -86,12 +90,12 @@ inline std::mutex gExLogMutex;
 static std::string now_str();
 
 #define EXLOG(expr) { \
-        __LOG( "exlog: " << now_str() << ": " << expr << std::endl << std::flush); \
+        __LOG( "+++ exlog: " << now_str() << ": " << expr << std::endl << std::flush); \
     }
 
 #define _EXLOG(expr) { \
         std::lock_guard<std::mutex> autolock( gExLogMutex ); \
-        __LOG( "exlog: " <<  expr << std::endl << std::flush); \
+        __LOG( "+++ exlog: " <<  expr << std::endl << std::flush); \
     }
 
 // Replicators
@@ -135,11 +139,11 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
 // Client functions
 //
 static fs::path createClientFiles( size_t bigFileSize );
-static void     clientDownloadFsTree();
+static void     clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession );
 static void     clientModifyDrive( const ActionList& actionList,
                                    const ReplicatorList& replicatorList,
                                    const sirius::Hash256& transactionHash );
-static void     clientDownloadFiles( int fileNumber, Folder& folder );
+static void     clientDownloadFiles( std::shared_ptr<ClientSession> clientSession, int fileNumber, Folder& folder );
 
 // FsTree
 FsTree gFsTree;
@@ -147,8 +151,9 @@ FsTree gFsTree;
 // Client folder for his files
 fs::path gClientFolder;
 
-// Libtorrent session
+// Libtorrent sessions
 std::shared_ptr<ClientSession> gClientSession;
+std::shared_ptr<ClientSession> gClientSession1;
 
 
 //
@@ -224,7 +229,7 @@ public:
                 EXLOG( "download opinion of: " << gReplicatorMap[opinion.m_replicatorKey]->dbgReplicatorName() );
                 for( const auto& downloadInfo : opinion.m_downloadLayout )
                 {
-                    EXLOG( "  bytes: " << downloadInfo.m_uploadedBytes );
+                    EXLOG( "  key: " << (int)downloadInfo.m_key[0] << ": " << downloadInfo.m_uploadedBytes );
                 }
             }
         }
@@ -424,6 +429,7 @@ void createReplicators(const std::vector<ReplicatorInfo>&  bootstraps)
     gReplicatorMap[gReplicator3->dbgReplicatorKey()] = gReplicator3;
 
 }
+endpoint_list bootstrapEndpoints;
 
 #ifdef __APPLE__
 #pragma mark --main()--
@@ -454,7 +460,8 @@ int main(int,char**)
     endpointList.push_back( {e2, REPLICATOR_PORT_2} );
     endpointList.push_back( {e3, REPLICATOR_PORT_3} );
 
-    printf( "client key[0] :      0x%x %i\n", clientKeyPair.publicKey().array()[0], clientKeyPair.publicKey().array()[0] );
+    printf( "client0 key[0] :      0x%x %i\n", clientKeyPair.publicKey().array()[0], clientKeyPair.publicKey().array()[0] );
+    printf( "client1 key[0] :      0x%x %i\n", clientKeyPair1.publicKey().array()[0], clientKeyPair1.publicKey().array()[0] );
     printf( "replicator1 key[0] : 0x%x %i\n", replicatorList[0][0], replicatorList[0][0] );
     printf( "replicator2 key[0] : 0x%x %i\n", replicatorList[1][0], replicatorList[1][0] );
     printf( "replicator3 key[0] : 0x%x %i\n", replicatorList[2][0], replicatorList[2][0] );
@@ -472,7 +479,6 @@ int main(int,char**)
 //        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_3), REPLICATOR_PORT_3 }, replicatorKeyPair_3.publicKey() },
 //    };
 
-    endpoint_list bootstrapEndpoints;
     for ( const auto& bootstrap: bootstraps )
     {
         bootstrapEndpoints.push_back( bootstrap.m_endpoint );
@@ -480,24 +486,25 @@ int main(int,char**)
 
     createReplicators( bootstraps );
 
+    ///
+    /// Create client session
+    ///
     gClientFolder  = createClientFiles(BIG_FILE_SIZE);
     gClientSession = createClientSession( clientKeyPair,
-                                          CLIENT_IP_ADDR ":5000",
+                                          CLIENT_IP_ADDR1 CLIENT_PORT,
                                           clientSessionErrorHandler,
                                           bootstrapEndpoints,
                                           TRANSPORT_PROTOCOL,
-                                          "client" );
+                                          "client0" );
 
-    
-//    ///
-//    /// Create client session
-//    ///
-//    gClientFolder  = createClientFiles(BIG_FILE_SIZE);
-//    gClientSession = createClientSession( std::move(clientKeyPair),
-//                                         CLIENT_IP_ADDR ":5000",
-//                                         clientSessionErrorHandler,
-//                                         TRANSPORT_PROTOCOL,
-//                                         "client" );
+    gClientSession1 = createClientSession( clientKeyPair1,
+                                          CLIENT_IP_ADDR1 CLIENT_PORT1,
+                                          clientSessionErrorHandler,
+                                          bootstrapEndpoints,
+                                          TRANSPORT_PROTOCOL,
+                                          "client1" );
+
+
     _EXLOG("");
 
     // set root drive hash
@@ -524,7 +531,9 @@ int main(int,char**)
 
         //actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
         actionList.push_back( Action::upload( clientFolder / "a.txt", "a2.txt" ) );
+#ifndef ONE_TORRENT_PER_ONE_FILE
         actionList.push_back( Action::upload( clientFolder / "b.txt", "a2.txt" ) );
+#endif
         actionList.push_back( Action::upload( clientFolder / "b.bin", "f1/b1.bin" ) );
         actionList.push_back( Action::upload( clientFolder / "b.bin", "f2/b2.bin" ) );
         actionList.push_back( Action::upload( clientFolder / "a.txt", "f2/a.txt" ) );
@@ -556,13 +565,19 @@ int main(int,char**)
     /// Client: read changed fsTree (2)
     ///
     gClientSession->setDownloadChannel( replicatorList, downloadChannelHash2 );
-    clientDownloadFsTree();
+    gClientSession1->setDownloadChannel( replicatorList, downloadChannelHash2 );
+    clientDownloadFsTree( gClientSession );
+
+#ifdef ONE_TORRENT_PER_ONE_FILE
+    gClientSession->removeModifyTorrents();
+#endif
 
     /// Client: read files from drive
-    clientDownloadFiles( 5, gFsTree );
-    
+    clientDownloadFiles( gClientSession1, 5, gFsTree );
+    //clientDownloadFiles( gClientSession, 5, gFsTree );
+
     //todo++
-    gReplicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024+1, replicatorList, { clientKeyPair.publicKey() }}, true );
+    gReplicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024+1, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }}, true );
 
     ///TODO
 //    sleep(1);
@@ -649,7 +664,7 @@ int main(int,char**)
     /// Client: read new fsTree (3)
     EXLOG( "# Client started FsTree download !!!!! " );
     gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
-    clientDownloadFsTree();
+    clientDownloadFsTree( gClientSession );
 #endif
     
     /// Delete client session and replicators
@@ -700,11 +715,11 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->setVerifyCodeTimerDelay(100);
     replicator->setVerifyApprovalTransactionTimerDelay(1);
     replicator->start();
-    replicator->asyncAddDrive( DRIVE_PUB_KEY, {100*1024*1024, 0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
+    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100*1024*1024, 0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
     
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash1.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash3.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash1.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash3.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );
 
     return replicator;
 }
@@ -754,7 +769,7 @@ static void clientDownloadHandler( download_status::code code,
 //
 // clientDownloadFsTree
 //
-static void clientDownloadFsTree()
+static void clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession )
 {
     InfoHash rootHash = *driveRootHash;
     driveRootHash.reset();
@@ -764,7 +779,7 @@ static void clientDownloadFsTree()
     LOG("");
     EXLOG( "# Client started FsTree download: " << toString(rootHash) );
 
-    gClientSession->download( DownloadContext(
+    clientSession->download( DownloadContext(
                                     DownloadContext::fs_tree,
                                     clientDownloadHandler,
                                     rootHash,
@@ -799,7 +814,11 @@ static void clientModifyDrive( const ActionList& actionList,
     EXLOG( "# Client tmpFolder: " << tmpFolder );
 
     // start file uploading
+#ifdef ONE_TORRENT_PER_ONE_FILE
+    InfoHash hash = gClientSession->startModifyAction(  actionList, DRIVE_PUB_KEY, tmpFolder );
+#else
     InfoHash hash = gClientSession->addActionListToSession( actionList, DRIVE_PUB_KEY, replicatorList, tmpFolder );
+#endif
 
     // inform replicator
     clientModifyHash = hash;
@@ -813,7 +832,7 @@ static void clientModifyDrive( const ActionList& actionList,
 int downloadFileCount;
 int downloadedFileCount;
 static void clientDownloadFilesHandler( download_status::code code,
-                                        const InfoHash& /*infoHash*/,
+                                        const InfoHash& infoHash,
                                         const std::filesystem::path filePath,
                                         size_t downloaded,
                                         size_t fileSize,
@@ -821,7 +840,7 @@ static void clientDownloadFilesHandler( download_status::code code,
 {
     if ( code == download_status::download_complete )
     {
-//        LOG( "@ hash: " << toString(context.m_infoHash) );
+        EXLOG( "@ download_completed: " << infoHash );
 //        LOG( "@ renameAs: " << context.m_renameAs );
 //        LOG( "@ saveFolder: " << context.m_saveFolder );
         if ( ++downloadedFileCount == downloadFileCount )
@@ -845,13 +864,13 @@ static void clientDownloadFilesHandler( download_status::code code,
 //
 // Client: read files
 //
-static void clientDownloadFilesR( const Folder& folder )
+static void clientDownloadFilesR( std::shared_ptr<ClientSession> clientSession, const Folder& folder )
 {
     for( const auto& child: folder.childs() )
     {
         if ( isFolder(child) )
         {
-            clientDownloadFilesR( getFolder(child) );
+            clientDownloadFilesR( clientSession, getFolder(child) );
         }
         else
         {
@@ -864,18 +883,18 @@ static void clientDownloadFilesR( const Folder& folder )
                 EXLOG( "# Client started download file " << hashToFileName( file.hash() ) );
                 EXLOG( "#  to " << gClientFolder / "downloaded_files" / folderName  / file.name() );
             }
-            gClientSession->download( DownloadContext(
+            clientSession->download( DownloadContext(
                     DownloadContext::file_from_drive,
                     clientDownloadFilesHandler,
                     file.hash(),
-                    {}, 0,
+                    {}, 0, false,
                     gClientFolder / "downloaded_files" / folderName / file.name() ),
                                       //gClientFolder / "downloaded_files" / folderName / toString(file.hash()) ),
                                       gClientFolder / "downloaded_files", endpointList );
         }
     }
 }
-static void clientDownloadFiles( int fileNumber, Folder& fsTree )
+static void clientDownloadFiles( std::shared_ptr<ClientSession> clientSession, int fileNumber, Folder& fsTree )
 {
     isDownloadCompleted = false;
 
@@ -899,7 +918,7 @@ static void clientDownloadFiles( int fileNumber, Folder& fsTree )
 
     EXLOG("#======================client start downloading=== " << downloadFileCount );
 
-    clientDownloadFilesR( fsTree );
+    clientDownloadFilesR( clientSession, fsTree );
 
     /// wait the end of file downloading
     {

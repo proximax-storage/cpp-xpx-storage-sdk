@@ -116,7 +116,11 @@ public:
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             DBG_MAIN_THREAD
               
-            if ( const auto& it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
+            if ( const auto& it = m_modifyDriveMap.find( transactionHash ); it == m_modifyDriveMap.end() )
+            {
+                _LOG( "\nTrafficDistribution NOT FOUND: " << dbgOurPeerName() << " (" << (int)publicKey()[0] << ")" );
+            }
+            else
             {
                 _LOG( "\nTrafficDistribution: " << dbgOurPeerName() << " (" << (int)publicKey()[0] << ")" );
                 for( const auto& replicatorIt : it->second.m_modifyTrafficMap )
@@ -364,6 +368,8 @@ public:
                     }
                     else
                     {
+                        return true;
+                        //(???++++)
                         _LOG_WARN( "acceptConnection: unknown peerPublicKey: " << sirius::Key(peerPublicKey) );
                         return false;
                     }
@@ -384,6 +390,7 @@ public:
             }
         }
 
+        _LOG( "Unknown channel (or modify tx): " << Key(transactionHash) << " from_peer:" << Key(peerPublicKey) )
         return false;
 
 //        //TODO!!!
@@ -601,6 +608,8 @@ public:
 
         if ( channelInfoIt->second.m_isModifyTx )
         {
+            //(???++++)
+            return true;
             _LOG_WARN( dbgOurPeerName() << "receipt for modification should never be received" << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) )
             return false;
         }

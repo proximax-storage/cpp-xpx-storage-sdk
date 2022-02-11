@@ -114,7 +114,7 @@ namespace sirius { namespace drive {
         }
 
     private:
-        friend class ModificationRequestDriveTask;
+        friend class ModifyDriveTask;
 
         mutable bool         m_isInvalid = false;
         lt_handle            m_ltHandle;

@@ -25,6 +25,11 @@
 #include <libtorrent/session.hpp>
 #endif
 
+#ifdef __APPLE__
+#define ONE_TORRENT_PER_ONE_FILE
+#endif
+
+
 using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
 
 namespace sirius::drive {
@@ -64,6 +69,7 @@ struct DownloadContext {
                      const InfoHash&       infoHash,
                      const Hash256&        transactionHash,
                      uint64_t              downloadLimit, // 0 means unlimited
+                     bool                  doNotDeleteTorrent = false,
                      std::filesystem::path saveAs = {} )
         :
           m_downloadType(downloadType),
@@ -71,7 +77,8 @@ struct DownloadContext {
           m_infoHash(infoHash),
           m_transactionHash(transactionHash),
           m_downloadLimit(downloadLimit),
-          m_saveAs(saveAs)
+          m_saveAs(saveAs),
+          m_doNotDeleteTorrent(doNotDeleteTorrent)
         {
             if ( m_downloadType == file_from_drive && m_saveAs.empty() )
                 throw std::runtime_error("m_downloadType == file_from_drive && m_saveAs.empty()");
@@ -87,6 +94,8 @@ struct DownloadContext {
     Hash256               m_transactionHash;
     uint64_t              m_downloadLimit; // for modify drive - all data size
     std::filesystem::path m_saveAs;
+    bool                  m_doNotDeleteTorrent = false;
+    
 };
 
 //
@@ -131,6 +140,7 @@ public:
     virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
                                                const std::string& folderWhereFileIsLocated,
                                                uint32_t           siriusFlags,
+                                               std::optional<std::array<uint8_t,32>> txHash = {},
                                                endpoint_list = {} ) = 0;
 
     // It removes torrents from session.
@@ -139,11 +149,20 @@ public:
     virtual void      removeTorrentsFromSession( const std::set<lt::torrent_handle>& torrents,
                                                  std::function<void()>               endNotification ) = 0;
 
+//#ifdef ONE_TORRENT_PER_ONE_FILE
+//    virtual InfoHash  addActionListToSession( const ActionList&,
+//                                              const Key&            clientPublicKey,
+//                                              const std::string&    workFolder,
+//                                              lt_handle&            outTorrentHandle,
+//                                              endpoint_list         list = {} ) = 0;
+//#else
     virtual InfoHash  addActionListToSession( const ActionList&,
                                               const Key& clientPublicKey,
                                               const std::string& workFolder,
                                               endpoint_list list = {} ) = 0;
+//#endif
 
+    
     // It starts downloading of 'modify data' (identified by downloadParameters.m_infoHash)
     // keysHints and endpointsHints are independent hits about peers to download the torrent from
     // It is not necessary to mention the hints: libtorrent will try to find the peers itself
@@ -168,7 +187,7 @@ public:
 
 
     // for testing and debugging
-    virtual void      printActiveTorrents() = 0;
+    virtual void      dbgPrintActiveTorrents() = 0;
 };
 
 // createTorrentFile
@@ -187,6 +206,9 @@ PLUGIN_API InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& fi
                                                            const Key&         drivePublicKey, // or client public key
                                                            const std::string& outputTorrentPath,
                                                            const std::string& outputTorrentFileExtension );
+
+PLUGIN_API InfoHash calculateInfoHash( const std::string& pathToFile, const Key& drivePublicKey );
+
 
 //
 // createDefaultLibTorrentSession
