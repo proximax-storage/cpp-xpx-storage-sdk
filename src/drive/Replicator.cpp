@@ -1100,7 +1100,7 @@ public:
         for( auto& [channelId,channelInfo] : m_dnChannelMap )
         {
             _ASSERT( !channelInfo.m_isModifyTx )
-            if ( channelInfo.m_driveKey == driveKey )
+            if ( channelInfo.m_driveKey == driveKey.array() )
             {
                 doInitiateDownloadApprovalTransactionInfo( *blockHash, channelId );
             }

@@ -26,7 +26,7 @@
 #endif
 
 //#ifdef __APPLE__
-//#define ONE_TORRENT_PER_ONE_FILE
+#define ONE_TORRENT_PER_ONE_FILE
 //#endif
 
 

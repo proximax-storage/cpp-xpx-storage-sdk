@@ -1320,6 +1320,10 @@ private:
                             //_LOG( "contextVector.size(): " << contextVector.size() );
                             for( size_t i=0; i<contextVector.size(); i++ )
                             {
+                                if ( contextVector[i].m_doNotDeleteTorrent )
+                                {
+                                    continue;
+                                }
                                 auto& context = contextVector[i];
 
                                 if ( !context.m_saveAs.empty() && context.m_downloadType == DownloadContext::file_from_drive )
