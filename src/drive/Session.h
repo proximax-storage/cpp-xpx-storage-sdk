@@ -25,9 +25,9 @@
 #include <libtorrent/session.hpp>
 #endif
 
-#ifdef __APPLE__
-#define ONE_TORRENT_PER_ONE_FILE
-#endif
+//#ifdef __APPLE__
+//#define ONE_TORRENT_PER_ONE_FILE
+//#endif
 
 
 using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;

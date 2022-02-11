@@ -116,6 +116,7 @@ public:
             return {};
     }
 
+#ifndef ONE_TORRENT_PER_ONE_FILE
     // prepare session to modify action
     InfoHash addActionListToSession( const ActionList&  actionList,
                                      const Key&         drivePublicKey,
@@ -135,12 +136,13 @@ public:
         return hash;
     }
 
-#ifdef ONE_TORRENT_PER_ONE_FILE
-    InfoHash startModifyAction( const ActionList&    actionList,
-                                const Key&           drivePublicKey,
-                                const std::string&   sandboxFolder, // it is the folder where all ActionLists and file-links will be placed
-                                const endpoint_list& endpointList = {} // now it is not used (BUT MUST BE TESTED WITH OFF NAT!)
-                                )
+#else
+    InfoHash addActionListToSession( const ActionList&    actionList,
+                                     const Key&           drivePublicKey,
+                                     const ReplicatorList& unused,
+                                     const std::string&   sandboxFolder, // it is the folder where all ActionLists and file-links will be placed
+                                     const endpoint_list& endpointList = {}
+                                   )
     {
         fs::path workFolder = sandboxFolder;
         std::error_code ec;
@@ -222,7 +224,7 @@ public:
             }
 
             InfoHash infoHash2 = createTorrentFile( filenameInSandbox, drivePublicKey, workFolder, torrentFilenameInSandbox );
-            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox, workFolder, lt::sf_has_modify_data, infoHash0.array() );
+            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox, workFolder, lt::sf_has_modify_data, infoHash0.array(), endpointList );
             m_modifyTorrentMap[infoHash2] = {torrentHandle,false};
         }
         

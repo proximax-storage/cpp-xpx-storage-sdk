@@ -815,7 +815,7 @@ static void clientModifyDrive( const ActionList& actionList,
 
     // start file uploading
 #ifdef ONE_TORRENT_PER_ONE_FILE
-    InfoHash hash = gClientSession->startModifyAction(  actionList, DRIVE_PUB_KEY, tmpFolder );
+    InfoHash hash = gClientSession->addActionListToSession(  actionList, DRIVE_PUB_KEY, replicatorList, tmpFolder );
 #else
     InfoHash hash = gClientSession->addActionListToSession( actionList, DRIVE_PUB_KEY, replicatorList, tmpFolder );
 #endif
