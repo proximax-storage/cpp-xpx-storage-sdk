@@ -1097,10 +1097,13 @@ protected:
     void modifyIsCompleted() override
     {
         _LOG( "modifyIsCompleted" );
-        m_drive.m_dbgEventHandler->driveModificationIsCompleted( m_drive.m_replicator, m_drive.m_driveKey,
-                                                                 m_request->m_transactionHash,
-                                                                 *m_sandboxRootHash );
-        ContentDriveTask::modifyIsCompleted();
+
+        if ( m_drive.m_dbgEventHandler ) {
+			m_drive.m_dbgEventHandler->driveModificationIsCompleted(
+					m_drive.m_replicator, m_drive.m_driveKey, m_request->m_transactionHash, *m_sandboxRootHash);
+		}
+
+		ContentDriveTask::modifyIsCompleted();
     }
 
     const Hash256& getModificationTransactionHash() override
