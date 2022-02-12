@@ -8,7 +8,7 @@
 #include "drive/Replicator.h"
 #include "Session.h"
 #include "BackgroundExecutor.h"
-#include "DriveTask.h"
+#include "DriveTaskBase.h"
 #include "TaskContext.h"
 #include "ModifyOpinionController.h"
 #include "drive/Utils.h"
@@ -103,8 +103,8 @@ class DefaultFlatDrive: public FlatDrive, public TaskContext
 
 
     // Executing Drive Tasks
-    std::unique_ptr<BaseDriveTask> m_task;
-    std::shared_ptr<BaseDriveTask> m_verificationTask;
+    std::unique_ptr<DriveTaskBase> m_task;
+    std::shared_ptr<DriveTaskBase> m_verificationTask;
 
 public:
 
@@ -488,12 +488,16 @@ public:
 
         if ( m_verificationTask )
         {
-            _ASSERT ( !m_verificationTask->shouldCatchUp(transaction) )
+            m_verificationTask->onApprovalTxPublished(transaction);
             m_verificationTask.reset();
         }
 
-        if ( !m_task || m_task->shouldCatchUp( transaction ) )
+        // Notify task about 'ApprovalTxPublished'
+        // and check that 'CatchingUp' should be started
+        //
+        if ( !m_task || m_task->onApprovalTxPublished( transaction ) )
         {
+            // 'CatchingUp' should be started
             m_catchingUpRequest = mobj<CatchingUpRequest>{transaction.m_rootHash, transaction.m_modifyTransactionHash };
 
             if ( !m_task )
@@ -509,7 +513,7 @@ public:
 
         if ( m_task )
         {
-            m_task->approvalTransactionHasFailed( transactionHash );
+            m_task->onAapprovalTxFailed( transactionHash );
         }
     }
 
@@ -677,17 +681,6 @@ public:
     const ReplicatorList& recipientShard() const override { return m_modifyRecipientShard; }
 
     ////////////
-
-    bool isOutOfSync() const override
-    {
-        return m_task && m_task->getTaskType() == DriveTaskType::CATCHING_UP;
-    }
-
-    bool isItClosingTxHash( const Hash256& eventHash ) const override
-    {
-        DBG_MAIN_THREAD
-        return m_closeDriveRequest && (m_closeDriveRequest->m_removeDriveTx == eventHash);
-    }
 
     void dbgPrintDriveStatus() override
     {

@@ -29,7 +29,7 @@ enum class DriveTaskType
     DRIVE_VERIFICATION
 };
 
-class BaseDriveTask
+class DriveTaskBase
 {
 
 private:
@@ -45,7 +45,7 @@ protected:
 
 public:
 
-    BaseDriveTask(
+    DriveTaskBase(
             const DriveTaskType& type,
             TaskContext& drive)
             : m_type( type ), m_drive( drive )
@@ -53,7 +53,7 @@ public:
             , m_dbgOurPeerName(  m_drive.m_dbgOurPeerName )
     {}
 
-    virtual ~BaseDriveTask() = default;
+    virtual ~DriveTaskBase() = default;
 
     virtual void run() = 0;
 
@@ -66,15 +66,15 @@ public:
         return m_type;
     }
 
-    virtual bool shouldCatchUp(
-            const PublishedModificationApprovalTransactionInfo& transaction )
+    // Returns 'true' if 'CatchingUp' should be started
+    virtual bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction )
     {
         DBG_MAIN_THREAD
 
         return false;
     }
 
-    virtual void approvalTransactionHasFailed( const Hash256 &transactionHash )
+    virtual void onAapprovalTxFailed( const Hash256 &transactionHash )
     {
         DBG_MAIN_THREAD
     }
@@ -86,13 +86,13 @@ public:
         return false;
     }
 
+    // (???+++) not used, except dbg
     virtual void closeDrive( const DriveClosureRequest& closureRequest )
     {
         DBG_MAIN_THREAD
     }
 
-    virtual bool processedModifyOpinion(
-            const ApprovalTransactionInfo& anOpinion )
+    virtual bool processedModifyOpinion( const ApprovalTransactionInfo& anOpinion )
     {
         DBG_MAIN_THREAD
 
@@ -197,27 +197,27 @@ protected:
     }
 };
 
-std::unique_ptr<BaseDriveTask> createDriveInitializationTask( TaskContext& drive,
+std::unique_ptr<DriveTaskBase> createDriveInitializationTask( TaskContext& drive,
                                                               ModifyOpinionController& opinionTaskController );
 
-std::unique_ptr<BaseDriveTask> createModificationTask(
+std::unique_ptr<DriveTaskBase> createModificationTask(
         mobj<ModificationRequest>&& request,
         std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>&& receivedOpinions,
         TaskContext& drive,
         ModifyOpinionController& opinionTaskController );
 
-std::unique_ptr<BaseDriveTask> createCatchingUpTask( mobj<CatchingUpRequest>&& request,
+std::unique_ptr<DriveTaskBase> createCatchingUpTask( mobj<CatchingUpRequest>&& request,
                                                      TaskContext& drive,
                                                      ModifyOpinionController& opinionTaskController );
 
-std::unique_ptr<BaseDriveTask> createModificationCancelTask( mobj<ModificationCancelRequest>&& request,
+std::unique_ptr<DriveTaskBase> createModificationCancelTask( mobj<ModificationCancelRequest>&& request,
                                                              TaskContext& drive,
                                                              ModifyOpinionController& opinionTaskController );
 
-std::unique_ptr<BaseDriveTask> createDriveClosureTask( mobj<DriveClosureRequest>&& request,
+std::unique_ptr<DriveTaskBase> createDriveClosureTask( mobj<DriveClosureRequest>&& request,
                                                        TaskContext& drive );
 
-std::shared_ptr<BaseDriveTask> createDriveVerificationTask( mobj<VerificationRequest>&& request,
+std::shared_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,
                                                             std::vector<VerifyApprovalTxInfo>&& receivedOpinions,
                                                             std::vector<VerificationCodeInfo>&& receivedCodes,
                                                             TaskContext& drive );

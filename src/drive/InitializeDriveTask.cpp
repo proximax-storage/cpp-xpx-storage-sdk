@@ -4,14 +4,14 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "DriveTask.h"
+#include "DriveTaskBase.h"
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/optional.hpp>
 
 namespace sirius::drive
 {
-class InitializeDriveTask : public BaseDriveTask
+class InitializeDriveTask : public DriveTaskBase
 {
 
     ModifyOpinionController& m_opinionController;
@@ -22,7 +22,7 @@ public:
 
     InitializeDriveTask( TaskContext& drive,
                          ModifyOpinionController& opinionTaskController)
-            : BaseDriveTask( DriveTaskType::DRIVE_INITIALIZATION, drive ),
+            : DriveTaskBase( DriveTaskType::DRIVE_INITIALIZATION, drive ),
               m_opinionController( opinionTaskController )
     {}
 
@@ -39,7 +39,8 @@ public:
 
     }
 
-    bool shouldCatchUp( const PublishedModificationApprovalTransactionInfo& transaction ) override
+    // Returns 'true' if 'CatchingUp' should be started
+    bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
     {
         // We will try to catch up, if we are already on the actual root hash, nothing will happen
         return true;
@@ -199,7 +200,7 @@ private:
     }
 };
 
-std::unique_ptr<BaseDriveTask> createDriveInitializationTask( TaskContext& drive,
+std::unique_ptr<DriveTaskBase> createDriveInitializationTask( TaskContext& drive,
                                                               ModifyOpinionController& opinionTaskController )
 {
     return std::make_unique<InitializeDriveTask>( drive, opinionTaskController );

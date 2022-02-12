@@ -606,11 +606,6 @@ class Replicator;
         // actualRootHash should not be empty if it is called from replicator::asyncAddDrive()
         //virtual void     startCatchingUp( std::optional<CatchingUpRequest>&& actualRootHash ) = 0;
 
-        virtual bool     isOutOfSync() const = 0;
-
-        // It will be called by replicator
-        virtual bool isItClosingTxHash( const Hash256& eventHash ) const = 0;
-
         // for testing and debugging
         virtual void dbgPrintDriveStatus() = 0;
 

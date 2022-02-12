@@ -6,7 +6,11 @@ Libtorrent:
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=17  -GXcode ..
 ----------------------------------------------------------------------------
 
+Overhead!
+
 Broadcasting of received download receipts into shard
+
+Modify: upload files simultaneously!!!
 
 Как ограничить данлоад/модифай-запрос, чтобы не запрашивал у не шардовых/чужых
 Или - как нам ограничить запросы на торренты только к тем репликаторам,
@@ -16,7 +20,6 @@ Broadcasting of received download receipts into shard
 Uncomment "else if ( isClient( *drive, peerPublicKey) )" Иначе клиент (который за натом) не сможет приконнектиться к репликаторам
 
 
-1) А если 2/3 не наберется
 2) Зомби-репликаторы
 4) iarchive(is) - try/catch
 

@@ -5,14 +5,14 @@
 */
 
 #include "DownloadLimiter.h"
-#include "DriveTask.h"
+#include "DriveTaskBase.h"
 #include "drive/FlatDrive.h"
 
 #include "drive/FsTree.h"
 
 namespace sirius::drive
 {
-class CloseDriveDriveTask : public BaseDriveTask
+class CloseDriveDriveTask : public DriveTaskBase
 {
 
 private:
@@ -23,7 +23,7 @@ public:
 
     CloseDriveDriveTask( mobj<DriveClosureRequest>&& request,
                          TaskContext& drive ) :
-            BaseDriveTask(DriveTaskType::DRIVE_CLOSURE, drive),
+            DriveTaskBase(DriveTaskType::DRIVE_CLOSURE, drive),
             m_request(request)
     {
         _ASSERT( m_request )
@@ -64,7 +64,7 @@ public:
         DBG_MAIN_THREAD
     }
 
-    bool shouldCatchUp( const PublishedModificationApprovalTransactionInfo& transaction ) override
+    bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
     {
         DBG_MAIN_THREAD
 
@@ -110,7 +110,7 @@ private:
     }
 };
 
-std::unique_ptr<BaseDriveTask> createDriveClosureTask( mobj<DriveClosureRequest>&& request,
+std::unique_ptr<DriveTaskBase> createDriveClosureTask( mobj<DriveClosureRequest>&& request,
                                                        TaskContext& drive )
 {
     return std::make_unique<CloseDriveDriveTask>( std::move(request), drive );

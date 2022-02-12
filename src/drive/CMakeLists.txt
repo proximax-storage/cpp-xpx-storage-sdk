@@ -4,7 +4,6 @@ set(CMAKE_CXX_STANDARD 20)
 
 storage_sdk_shared_library_target(drive)
 
-
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     add_definitions(-D_GNU_SOURCE)
     include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/libtorrent/include)

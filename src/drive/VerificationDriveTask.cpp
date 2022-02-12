@@ -5,7 +5,7 @@
 */
 
 #include "DownloadLimiter.h"
-#include "DriveTask.h"
+#include "DriveTaskBase.h"
 #include "drive/FlatDrive.h"
 #include "drive/FsTree.h"
 #include "drive/ActionList.h"
@@ -20,7 +20,7 @@ namespace sirius::drive
 {
 
 class VerificationDriveTask
-        : public sirius::drive::BaseDriveTask
+        : public DriveTaskBase
         , public std::enable_shared_from_this<VerificationDriveTask>
 {
 
@@ -52,7 +52,7 @@ public:
             std::vector<VerifyApprovalTxInfo>&& receivedOpinions,
             std::vector<VerificationCodeInfo>&& receivedCodes,
             TaskContext& drive)
-            : BaseDriveTask(DriveTaskType::DRIVE_VERIFICATION, drive)
+            : DriveTaskBase(DriveTaskType::DRIVE_VERIFICATION, drive)
             , m_request(request)
             , m_myVerifyCodesCalculated(false)
             , m_verifyApproveTxSent(false)
@@ -107,9 +107,11 @@ public:
         }
     }
 
-    bool shouldCatchUp( const PublishedModificationApprovalTransactionInfo& transaction ) override
+    bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
     {
         terminate();
+
+        // Return result will be ignored
         return false;
     }
 
@@ -121,11 +123,6 @@ public:
     void closeDrive( const DriveClosureRequest& closureRequest ) override
     {
 
-    }
-
-    bool processedModifyOpinion( const ApprovalTransactionInfo& anOpinion ) override
-    {
-        return false;
     }
 
     bool processedVerificationCode( const VerificationCodeInfo& info ) final
@@ -547,7 +544,7 @@ private:
 
 };
 
-std::shared_ptr<BaseDriveTask> createDriveVerificationTask( mobj<VerificationRequest>&& request,
+std::shared_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,
                                                             std::vector<VerifyApprovalTxInfo>&& receivedOpinions,
                                                             std::vector<VerificationCodeInfo>&& receivedCodes,
                                                             TaskContext& drive )

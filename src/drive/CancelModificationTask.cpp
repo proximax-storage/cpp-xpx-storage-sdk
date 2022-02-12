@@ -4,13 +4,13 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "DriveTask.h"
+#include "DriveTaskBase.h"
 #include "drive/FlatDrive.h"
 #include "drive/FsTree.h"
 
 namespace sirius::drive {
 
-class CancelModificationDriveTask: public sirius::drive::BaseDriveTask
+class CancelModificationDriveTask: public DriveTaskBase
 {
 
 private:
@@ -25,7 +25,7 @@ public:
             mobj<ModificationCancelRequest>&& request,
             TaskContext& drive,
             ModifyOpinionController& opinionTaskController)
-            : BaseDriveTask(DriveTaskType::MODIFICATION_CANCEL, drive )
+            : DriveTaskBase(DriveTaskType::MODIFICATION_CANCEL, drive )
             , m_request(request)
             , m_opinionTaskController(opinionTaskController)
     {
@@ -118,7 +118,7 @@ private:
     }
 };
 
-std::unique_ptr<BaseDriveTask> createModificationCancelTask( mobj<ModificationCancelRequest>&& request,
+std::unique_ptr<DriveTaskBase> createModificationCancelTask( mobj<ModificationCancelRequest>&& request,
                                                              TaskContext& drive,
                                                              ModifyOpinionController& opinionTaskController  )
 {
