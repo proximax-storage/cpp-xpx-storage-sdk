@@ -531,9 +531,6 @@ int main(int,char**)
 
         //actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
         actionList.push_back( Action::upload( clientFolder / "a.txt", "a2.txt" ) );
-#ifndef ONE_TORRENT_PER_ONE_FILE
-        actionList.push_back( Action::upload( clientFolder / "b.txt", "a2.txt" ) );
-#endif
         actionList.push_back( Action::upload( clientFolder / "b.bin", "f1/b1.bin" ) );
         actionList.push_back( Action::upload( clientFolder / "b.bin", "f2/b2.bin" ) );
         actionList.push_back( Action::upload( clientFolder / "a.txt", "f2/a.txt" ) );
@@ -568,9 +565,7 @@ int main(int,char**)
     gClientSession1->setDownloadChannel( replicatorList, downloadChannelHash2 );
     clientDownloadFsTree( gClientSession );
 
-#ifdef ONE_TORRENT_PER_ONE_FILE
     gClientSession->removeModifyTorrents();
-#endif
 
     /// Client: read files from drive
     clientDownloadFiles( gClientSession1, 5, gFsTree );
@@ -814,11 +809,7 @@ static void clientModifyDrive( const ActionList& actionList,
     EXLOG( "# Client tmpFolder: " << tmpFolder );
 
     // start file uploading
-#ifdef ONE_TORRENT_PER_ONE_FILE
     InfoHash hash = gClientSession->addActionListToSession(  actionList, DRIVE_PUB_KEY, replicatorList, tmpFolder );
-#else
-    InfoHash hash = gClientSession->addActionListToSession( actionList, DRIVE_PUB_KEY, replicatorList, tmpFolder );
-#endif
 
     // inform replicator
     clientModifyHash = hash;

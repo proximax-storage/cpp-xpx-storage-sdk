@@ -116,27 +116,6 @@ public:
             return {};
     }
 
-#ifndef ONE_TORRENT_PER_ONE_FILE
-    // prepare session to modify action
-    InfoHash addActionListToSession( const ActionList&  actionList,
-                                     const Key&         drivePublicKey,
-                                     const ReplicatorList& replicatorList,
-                                     const std::string& workFolder )
-    {
-        // create endpoint list for libtorrent
-        endpoint_list endpointList;
-        
-        // (???+++)
-//        for( const auto& it : replicatorList )
-//            endpointList.emplace_back( it );
-
-        auto modificationWorkFolder = workFolder + "/" + drive::toString(drive::randomByteArray<Hash256>());
-
-        auto hash = m_session->addActionListToSession( actionList, drivePublicKey, modificationWorkFolder, endpointList );
-        return hash;
-    }
-
-#else
     InfoHash addActionListToSession( const ActionList&    actionList,
                                      const Key&           drivePublicKey,
                                      const ReplicatorList& unused,
@@ -290,7 +269,6 @@ public:
         
         m_modifyTorrentMap.clear();
     }
-#endif // ONE_TORRENT_PER_ONE_FILE
     
     const std::optional<std::array<uint8_t,32>> downloadChannelId()
     {

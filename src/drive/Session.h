@@ -25,11 +25,6 @@
 #include <libtorrent/session.hpp>
 #endif
 
-//#ifdef __APPLE__
-#define ONE_TORRENT_PER_ONE_FILE
-//#endif
-
-
 using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
 
 namespace sirius::drive {
@@ -149,18 +144,10 @@ public:
     virtual void      removeTorrentsFromSession( const std::set<lt::torrent_handle>& torrents,
                                                  std::function<void()>               endNotification ) = 0;
 
-//#ifdef ONE_TORRENT_PER_ONE_FILE
-//    virtual InfoHash  addActionListToSession( const ActionList&,
-//                                              const Key&            clientPublicKey,
-//                                              const std::string&    workFolder,
-//                                              lt_handle&            outTorrentHandle,
-//                                              endpoint_list         list = {} ) = 0;
-//#else
     virtual InfoHash  addActionListToSession( const ActionList&,
                                               const Key& clientPublicKey,
                                               const std::string& workFolder,
                                               endpoint_list list = {} ) = 0;
-//#endif
 
     
     // It starts downloading of 'modify data' (identified by downloadParameters.m_infoHash)

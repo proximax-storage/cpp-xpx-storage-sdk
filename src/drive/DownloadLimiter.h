@@ -390,23 +390,9 @@ public:
             }
         }
 
+        return true;
+        //(???+++) in modifyDriveFlat3
         _LOG( "Unknown channel (or modify tx): " << Key(transactionHash) << " from_peer:" << Key(peerPublicKey) )
-        return false;
-
-//        //TODO!!!
-//        return true;
-        
-//        if ( auto drive = getDrive( transactionHash ); drive )
-//        {
-//            if ( isRecipient( *drive, peerPublicKey) )
-//            {
-//                *outIsDownloadUnlimited = true;
-//                return true;
-//            }
-//        }
-        
-        _LOG( "bad connection? to: " << dbgOurPeerName() << " from: " << int(peerPublicKey[0]) << " hash: " << (int)transactionHash[0] );
-//        assert(0);
         return false;
     }
 

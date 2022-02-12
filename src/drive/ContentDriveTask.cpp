@@ -330,11 +330,8 @@ private:
 
     const mobj<ModificationRequest> m_request;
 
-#ifdef ONE_TORRENT_PER_ONE_FILE
     std::set<InfoHash> m_missedFileSet;
     std::set<InfoHash>::iterator m_missedFileIt = m_missedFileSet.end();
-#endif
-
 
     std::map<std::array<uint8_t,32>,ApprovalTransactionInfo> m_receivedOpinions;
 
@@ -515,17 +512,12 @@ private:
             _LOG( "+++ ex prepareDownloadMissingFiles(): " << infoHash )
 
             m_drive.executeOnBackgroundThread( [this]
-                                               {
-#ifdef ONE_TORRENT_PER_ONE_FILE
-                prepareDownloadMissingFiles();
-#else
-                modifyDriveInSandbox();
-#endif
-                                               } );
+               {
+                    prepareDownloadMissingFiles();
+               } );
         }
     }
     
-#ifdef ONE_TORRENT_PER_ONE_FILE
     void prepareDownloadMissingFiles()
     {
         DBG_BG_THREAD
@@ -854,239 +846,7 @@ private:
                                             myRootHashIsCalculated();
                                         } );
     }
-#else
-    void modifyDriveInSandbox()
-    {
-        DBG_BG_THREAD
-
-        std::error_code err;
-
-        // Check that client data exist
-        if ( !fs::exists( m_drive.m_clientDataFolder, err ) ||
-             !fs::is_directory( m_drive.m_clientDataFolder, err ))
-        {
-            _LOG_ERR( "modifyDriveInSandbox: 'client-data' is absent; m_clientDataFolder="
-                              << m_drive.m_clientDataFolder );
-            if ( m_drive.m_dbgEventHandler )
-            {
-                m_drive.m_dbgEventHandler->modifyTransactionEndedWithError( m_drive.m_replicator, m_drive.m_driveKey,
-                                                                            *m_request,
-                                                                            "modify drive: 'client-data' is absent",
-                                                                            -1 );
-            }
-            m_drive.executeOnSessionThread( [=, this]
-                                            {
-                                                modifyIsCompleted();
-                                            } );
-            return;
-        }
-
-        // Check 'actionList.bin' is received
-        if ( !fs::exists( m_drive.m_clientActionListFile, err ))
-        {
-            _LOG_ERR( "modifyDriveInSandbox: 'ActionList.bin' is absent: "
-                              << m_drive.m_clientActionListFile );
-            if ( m_drive.m_dbgEventHandler )
-            {
-                m_drive.m_dbgEventHandler->modifyTransactionEndedWithError( m_drive.m_replicator, m_drive.m_driveKey,
-                                                                            *m_request,
-                                                                            "modify drive: 'ActionList.bin' is absent",
-                                                                            -1 );
-            }
-            m_drive.executeOnSessionThread( [=, this]()
-                                            {
-                                                modifyIsCompleted();
-                                            } );
-            return;
-        }
-
-        // Load 'actionList' into memory
-        ActionList actionList;
-        actionList.deserialize( m_drive.m_clientActionListFile );
-
-        // Make copy of current FsTree
-        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
-
-        auto& torrentHandleMap = m_drive.m_torrentHandleMap;
-
-        //
-        // Perform actions
-        //
-        for ( const Action& action : actionList )
-        {
-            if ( action.m_isInvalid )
-                continue;
-
-            switch (action.m_actionId)
-            {
-                //
-                // Upload
-                //
-                case action_list_id::upload:
-                {
-                    // Check that file exists in client folder
-                    fs::path clientFile = m_drive.m_clientDriveFolder / action.m_param2;
-                    if ( !fs::exists( clientFile, err ) || fs::is_directory( clientFile, err ))
-                    {
-                        _LOG( "! ActionList: invalid 'upload': file/folder not exists: " << clientFile )
-                        action.m_isInvalid = true;
-                        break;
-                    }
-
-                    try
-                    {
-                        // calculate torrent, file hash, and file size
-                        InfoHash fileHash = calculateInfoHashAndCreateTorrentFile( clientFile, m_drive.m_driveKey,
-                                                                                   m_drive.m_torrentFolder,
-                                                                                   "" );
-                        size_t fileSize = std::filesystem::file_size( clientFile );
-
-                        // add ref into 'torrentMap' (skip if identical file was already loaded)
-                        torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{} );
-
-                        // rename file and move it into drive folder
-                        std::string newFileName = m_drive.m_driveFolder / hashToFileName( fileHash );
-                        fs::rename( clientFile, newFileName );
-
-                        //
-                        // add file in resultFsTree
-                        //
-                        Folder::Child* destEntry = m_sandboxFsTree->getEntryPtr( action.m_param2 );
-                        fs::path destFolder;
-                        fs::path srcFile;
-                        if ( destEntry != nullptr && isFolder( *destEntry ))
-                        {
-                            srcFile = fs::path( action.m_param1 ).filename();
-                            destFolder = action.m_param2;
-                        } else
-                        {
-                            srcFile = fs::path( action.m_param2 ).filename();
-                            destFolder = fs::path( action.m_param2 ).parent_path();
-                        }
-                        m_sandboxFsTree->addFile( destFolder,
-                                                  srcFile,
-                                                  fileHash,
-                                                  fileSize );
-
-                        _LOG( "ActionList: successful 'upload': " << clientFile )
-                    }
-                    catch (const std::exception& error)
-                    {
-                        _LOG_ERR( "ActionList: exception during 'upload': " << clientFile << "; " << error.what())
-                    }
-                    catch (...)
-                    {
-                        _LOG_ERR( "ActionList: unknown exception during 'upload': " << clientFile )
-                    }
-                    break;
-                }
-                    //
-                    // New folder
-                    //
-                case action_list_id::new_folder:
-                {
-                    // Check that entry is free
-                    if ( m_sandboxFsTree->getEntryPtr( action.m_param1 ) != nullptr )
-                    {
-                        _LOG( "! ActionList: invalid 'new_folder': such entry already exists: " << action.m_param1 )
-                        action.m_isInvalid = true;
-                        break;
-                    }
-
-                    m_sandboxFsTree->addFolder( action.m_param1 );
-
-                    _LOG( "ActionList: successful 'new_folder': " << action.m_param1 )
-                    break;
-                }
-                    //
-                    // Move
-                    //
-                case action_list_id::move:
-                {
-                    auto* srcChild = m_sandboxFsTree->getEntryPtr( action.m_param1 );
-
-                    // Check that src child exists
-                    if ( srcChild == nullptr )
-                    {
-                        _LOG( "! ActionList: invalid 'move': 'srcPath' not exists (in FsTree): " << action.m_param1 )
-                        action.m_isInvalid = true;
-                        break;
-                    }
-
-                    // Check topology (nesting folders)
-                    if ( isFolder( *srcChild ))
-                    {
-                        fs::path srcPath = fs::path( "root" ) / action.m_param1;
-                        fs::path destPath = fs::path( "root" ) / action.m_param2;
-
-                        // srcPath should not be a parent folder of destPath
-                        if ( isPathInsideFolder( srcPath, destPath ))
-                        {
-                            _LOG( "! ActionList: invalid 'move': 'srcPath' is a directory which is an ancestor of 'destPath'" )
-                            _LOG( "  invalid 'move': 'srcPath' : " << action.m_param1 );
-                            _LOG( "  invalid 'move': 'destPath' : " << action.m_param2 );
-                            action.m_isInvalid = true;
-                            break;
-                        }
-                    }
-
-                    // modify FsTree
-                    m_sandboxFsTree->moveFlat( action.m_param1, action.m_param2,
-                                               [/*this*/]( const InfoHash& /*fileHash*/ )
-                                               {
-                                                   //m_torrentMap.try_emplace( fileHash, UseTorrentInfo{} );
-                                               } );
-
-                    _LOG( "ActionList: successful 'move': " << action.m_param1 << " -> " << action.m_param2 )
-                    break;
-                }
-                    //
-                    // Remove
-                    //
-                case action_list_id::remove:
-                {
-
-                    if ( m_sandboxFsTree->getEntryPtr( action.m_param1 ) == nullptr )
-                    {
-                        _LOG( "! ActionList: invalid 'remove': 'srcPath' not exists (in FsTree): "
-                                      << action.m_param1 );
-                        //m_sandboxFsTree.dbgPrint();
-                        action.m_isInvalid = true;
-                        break;
-                    }
-
-                    // remove entry from FsTree
-                    m_sandboxFsTree->removeFlat( action.m_param1, [&]( const InfoHash& fileHash )
-                    {
-                        // maybe it is file from client data, so we add it to map with empty torrent handle
-                        torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{} );
-                    } );
-
-                    _LOG( "! ActionList: successful 'remove': " << action.m_param1 );
-                    break;
-                }
-
-            } // end of switch()
-        } // end of for( const Action& action : actionList )
-
-        // create FsTree in sandbox
-        m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile );
-
-        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile,
-                                               m_drive.m_driveKey,
-                                               m_drive.m_sandboxRootPath,
-                                               m_drive.m_sandboxFsTreeTorrent );
-
-        getSandboxDriveSizes( m_metaFilesSize, m_sandboxDriveSize );
-        m_fsTreeSize = sandboxFsTreeSize();
-
-        m_drive.executeOnSessionThread( [=, this]() mutable
-                                        {
-                                            myRootHashIsCalculated();
-                                        } );
-    }
-#endif // #ifdef ONE_TORRENT_PER_ONE_FILE
-
+    
     bool isFinishCallable() override
     {
         return !m_sandboxCalculated;

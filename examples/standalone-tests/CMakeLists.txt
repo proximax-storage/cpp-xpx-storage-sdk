@@ -7,8 +7,13 @@ find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
 find_package(GTest REQUIRED) # Find the google testing framework on your system
 
-file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/test*.cpp")
-#file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/testApprovalReceivedRootNotCalculated.cpp")
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/testCloseDriveSingleModification.cpp")
+#    file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/test*.cpp")
+else()
+    file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/test*.cpp")
+endif()
+
 add_executable(standalone-tests utils.h utils.cpp TestEnvironment.h ${TEST_FILES})
 
 include_directories(${GTEST_INCLUDE_DIRS})
