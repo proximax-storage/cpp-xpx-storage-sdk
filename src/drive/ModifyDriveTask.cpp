@@ -35,7 +35,6 @@ private:
     const mobj<ModificationRequest> m_request;
 
     std::set<InfoHash> m_missedFileSet;
-    std::set<InfoHash>::iterator m_missedFileIt = m_missedFileSet.end();
 
     std::map<std::array<uint8_t,32>,ApprovalTransactionInfo> m_receivedOpinions;
 
@@ -195,9 +194,6 @@ public:
             } // end of switch()
         } // end of for( const Action& action : actionList )
 
-        m_missedFileIt = m_missedFileSet.begin();
-        _LOG( "+++ ex m_missedFileIt = m_missedFileSet.begin();: " << *m_missedFileIt );
-
         m_drive.executeOnSessionThread( [this]
         {
             downloadMissingFiles();
@@ -210,34 +206,35 @@ public:
 
         _ASSERT( !m_stopped );
 
-    downloadNextFile:
-        if ( m_missedFileIt == m_missedFileSet.end())
-        {
-            m_downloadingLtHandle.reset();
+        std::optional<Hash256> fileToDownload;
 
-            // it is the end of list
-            m_drive.executeOnBackgroundThread( [this]
-                                               {
-                                                   modifyFsTreeInSandbox();
-                                               } );
-        }
-        else
+        while ( !m_missedFileSet.empty() && !fileToDownload )
         {
-            auto missingFileHash = *m_missedFileIt;
-            m_missedFileIt++;
+            auto file = *m_missedFileSet.begin();
+            m_missedFileSet.erase( m_missedFileSet.begin());
 
-            if ( auto it = m_drive.m_torrentHandleMap.find( missingFileHash ); it != m_drive.m_torrentHandleMap.end() )
+            bool shouldDownloadFile = true;
+
+            if ( auto it = m_drive.m_torrentHandleMap.find( file ); it != m_drive.m_torrentHandleMap.end())
             {
-                if ( it->second.m_isUsed && it->second.m_ltHandle.is_valid() )
+                if ( it->second.m_ltHandle.is_valid() )
                 {
-                    goto downloadNextFile;
+                    shouldDownloadFile = false;
                 }
             }
 
+            if ( shouldDownloadFile )
+            {
+                fileToDownload = file;
+            }
+        }
+
+        if ( fileToDownload )
+        {
             if ( auto session = m_drive.m_session.lock(); session )
             {
                 _ASSERT( m_opinionController.opinionTrafficTx())
-                _LOG( "+++ ex downloading: START: " << toString( missingFileHash ));
+                _LOG( "+++ ex downloading: START: " << toString( *fileToDownload ));
                 m_downloadingLtHandle = session->download( DownloadContext(
 
                                                                    DownloadContext::missing_files,
@@ -253,14 +250,13 @@ public:
                                                                        {
                                                                            _LOG( "downloading: END: " << toString( infoHash ));
                                                                            downloadMissingFiles();
-                                                                       }
-                                                                       else if ( code == download_status::failed )
+                                                                       } else if ( code == download_status::failed )
                                                                        {
                                                                            _LOG_ERR( "? is it possible now?" );
                                                                        }
                                                                    },
 
-                                                                   missingFileHash,
+                                                                   *fileToDownload,
                                                                    m_request->m_transactionHash,
                                                                    0,
                                                                    true,
@@ -268,9 +264,19 @@ public:
                                                            m_drive.m_driveFolder,
                                                            getUploaders());
             }
-            
+
             // save reference into 'torrentHandleMap'
-            m_drive.m_torrentHandleMap.try_emplace( missingFileHash, UseTorrentInfo{*m_downloadingLtHandle, false } );
+            m_drive.m_torrentHandleMap.try_emplace( *fileToDownload, UseTorrentInfo{*m_downloadingLtHandle, false} );
+        }
+        else
+        {
+            m_downloadingLtHandle.reset();
+
+            // it is the end of list
+            m_drive.executeOnBackgroundThread( [this]
+                                               {
+                                                   modifyFsTreeInSandbox();
+                                               } );
         }
     }
     
