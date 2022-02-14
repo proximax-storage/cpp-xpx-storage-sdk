@@ -345,14 +345,11 @@ public:
     virtual void asyncRemoveDrive( Key driveKey ) = 0;
 
     // It notifies about changes in drive replicator list
-    virtual void asyncReplicatorAdded( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
-    virtual void asyncReplicatorRemoved( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
+	virtual void asyncSetReplicators( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) = 0;
 
     // It notifyes about changes in modification shards
-    virtual void asyncAddShardDonator( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
-    virtual void asyncRemoveShardDonator( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
-    virtual void asyncAddShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
-    virtual void asyncRemoveShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) = 0;
+    virtual void asyncSetShardDonator( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) = 0;
+    virtual void asyncSetShardRecipient( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) = 0;
 
     // It notifyes about changes in download channel shard
     virtual void asyncAddToChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) = 0;
@@ -398,7 +395,7 @@ public:
     virtual void        asyncApprovalTransactionHasBeenPublished( mobj<PublishedModificationApprovalTransactionInfo>&& transaction ) = 0;
 
     // It will be called if transaction sent by the Replicator has failed because of invalid Replicators list
-    virtual void        asyncApprovalTransactionHasFailedInvalidSignatures( Key driveKey, Hash256 transactionHash ) = 0;
+    virtual void        asyncApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 transactionHash ) = 0;
 
     // It will be called after 'single MODIFY approval transaction' has been published
     virtual void        asyncSingleApprovalTransactionHasBeenPublished( mobj<PublishedModificationSingleApprovalTransactionInfo>&& transaction ) = 0;

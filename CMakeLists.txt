@@ -10,7 +10,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Libtorrent
 option(XPX_STORAGE_SDK_BUILD_EMULATOR "Build XPX-STORAGE SDK emulator." ON)
-option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build XPX-STORAGE SDK examples." ON)
+option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build XPX-STORAGE SDK examples." OFF)
 
 ### setup boost
 find_package(Boost COMPONENTS atomic system date_time regex timer chrono log thread filesystem program_options random REQUIRED)
@@ -48,5 +48,5 @@ endif()
 add_subdirectory(src)
 
 #if (XPX_STORAGE_SDK_BUILD_EXAMPLES)
-    add_subdirectory(examples)
+#    add_subdirectory(examples)
 #endif()

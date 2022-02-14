@@ -280,7 +280,7 @@ public:
             _LOG( "adding drive " << driveKey );
 
             if (m_driveMap.find(driveKey) != m_driveMap.end()) {
-                _LOG( "drive already added" );
+                _LOG_ERR( "drive already added" );
                 return;
             }
 
@@ -348,127 +348,67 @@ public:
         });
     }
 
-    void asyncReplicatorAdded( Key driveKey, mobj<Key>&& replicatorKey ) override
+    void asyncSetReplicators( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
     {
-        _FUNC_ENTRY()
+    	_FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
+    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+    	{
+    		DBG_MAIN_THREAD
 
-            if ( auto drive = getDrive(driveKey); drive )
-            {
-                m_endpointsManager.addEndpointEntry( *replicatorKey );
-                drive->replicatorAdded( std::move(replicatorKey) );
-            }
-            else
-            {
-                _LOG_ERR( "drive not found: " << driveKey );
-                return;
-            }
-        });
-    }
+    		if ( auto drive = getDrive(driveKey); drive )
+    		{
+    			m_endpointsManager.addEndpointsEntries( *replicatorKeys );
+    			drive->setReplicators( std::move(replicatorKeys) );
+    		}
+    		else
+    		{
+    			_LOG_ERR( "drive not found: " << driveKey );
+    			return;
+    		}
+    	});
+	}
 
-    void asyncReplicatorRemoved( Key driveKey, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
+    // It notifies about changes in modification shards
+    void asyncSetShardDonator( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
+	{
+    	_FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
+    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+    	{
+    		DBG_MAIN_THREAD
 
-            if ( auto drive = getDrive(driveKey); drive )
-            {
-                drive->replicatorRemoved( std::move(replicatorKey) );
-            }
-            else
-            {
-                _LOG_ERR( "drive not found: " << driveKey );
-                return;
-            }
-        });
-    }
+    		if ( auto drive = getDrive(driveKey); drive )
+    		{
+    			drive->setShardDonator( std::move(replicatorKeys) );
+    		}
+    		else
+    		{
+    			_LOG_ERR( "drive not found: " << driveKey );
+    			return;
+    		}
+    	});
+	}
 
+	void asyncSetShardRecipient( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
+	{
+    	_FUNC_ENTRY()
 
-    void asyncAddShardDonator( Key driveKey, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
+    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+    	{
+    		DBG_MAIN_THREAD
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
-
-            if ( auto drive = getDrive(driveKey); drive )
-            {
-                drive->addShardDonator( std::move(replicatorKey) );
-            }
-            else
-            {
-                _LOG_ERR( "drive not found: " << driveKey );
-                return;
-            }
-        });
-    }
-
-    void asyncRemoveShardDonator( Key driveKey, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
-
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
-
-            if ( auto drive = getDrive(driveKey); drive )
-            {
-                drive->removeShardDonator( std::move(replicatorKey) );
-            }
-            else
-            {
-                _LOG_ERR( "drive not found: " << driveKey );
-                return;
-            }
-        });
-    }
-
-    void asyncAddShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
-
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
-
-            if ( auto drive = getDrive(driveKey); drive )
-            {
-                drive->addShardRecipient( std::move(replicatorKey) );
-            }
-            else
-            {
-                _LOG_ERR( "drive not found: " << driveKey );
-                return;
-            }
-        });
-    }
-
-    void asyncRemoveShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
-
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
-
-            if ( auto drive = getDrive(driveKey); drive )
-            {
-                drive->removeShardRecipient( std::move(replicatorKey) );
-            }
-            else
-            {
-                _LOG_ERR( "drive not found: " << driveKey );
-                return;
-            }
-        });
-    }
+    		if ( auto drive = getDrive(driveKey); drive )
+    		{
+    			drive->setShardRecipient( std::move(replicatorKeys) );
+    		}
+    		else
+    		{
+    			_LOG_ERR( "drive not found: " << driveKey );
+    			return;
+    		}
+    	});
+	}
     
     virtual void asyncAddToChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) override
     {
@@ -541,7 +481,7 @@ public:
             }
             else
             {
-                _LOG( "removeDrive: drive not found: " << driveKey );
+                _LOG_ERR( "removeDrive: drive not found: " << driveKey );
                 return;
             }
         });//post
@@ -1286,7 +1226,7 @@ public:
         });//post
     }
 
-    void asyncApprovalTransactionHasFailedInvalidSignatures(Key driveKey, Hash256 transactionHash) override
+    void asyncApprovalTransactionHasFailedInvalidOpinions(Key driveKey, Hash256 transactionHash) override
     {
         _FUNC_ENTRY()
         

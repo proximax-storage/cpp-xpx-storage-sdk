@@ -213,26 +213,6 @@ public:
         return m_driveOwner;
     }
 
-    void replicatorAdded( mobj<Key>&& replicatorKey ) override
-    {
-        if ( *replicatorKey != m_replicator.replicatorKey() )
-        {
-            if ( std::find( m_allReplicators.begin(), m_allReplicators.end(), *replicatorKey ) == m_allReplicators.end() )
-            {
-                m_allReplicators.push_back( *replicatorKey );
-            }
-        }
-    }
-
-    void replicatorRemoved( mobj<Key>&& replicatorKey ) override
-    {
-        std::remove_if( m_allReplicators.begin(), m_allReplicators.end(), [&] (const Key& it)
-        {
-            return it == *replicatorKey;
-        });
-    }
-
-
     void executeOnSessionThread( const std::function<void()>& task ) override
     {
         if ( auto session = m_session.lock(); session )
@@ -609,73 +589,40 @@ public:
         m_verificationTask.reset();
     }
 
-    void  addShardDonator( mobj<Key>&& replicatorKey ) override
+    void setReplicators( mobj<ReplicatorList>&& replicatorKeys ) override
     {
-        {
-            auto it = std::find( m_modifyDonatorShard.begin(), m_modifyDonatorShard.end(), *replicatorKey );
-            if ( it != m_modifyDonatorShard.end() )
-            {
-                _LOG_WARN( "duplicated key" << Key(*replicatorKey) )
-                return;
-            }
-        }
+		m_allReplicators = *replicatorKeys;
+	}
 
-        {
-            auto it = std::find( m_allReplicators.begin(), m_allReplicators.end(), *replicatorKey );
-            if ( it == m_allReplicators.end() )
-            {
-                _LOG_ERR( "Unknown Replicator Added to Shard Donator" )
-            }
-        }
-        
-        m_modifyDonatorShard.push_back( *replicatorKey );
-    }
-    
-    void  removeShardDonator( mobj<Key>&& replicatorKey ) override
+    void setShardDonator( mobj<ReplicatorList>&& replicatorKeys ) override
     {
-        auto it = std::find( m_modifyDonatorShard.begin(), m_modifyDonatorShard.end(), *replicatorKey );
-        if ( it == m_modifyDonatorShard.end() )
-        {
-            _LOG_WARN( "unknown key" << Key(*replicatorKey) )
-            return;
-        }
-        
-        m_modifyDonatorShard.erase( it );
-    }
-    
-    void  addShardRecipient( mobj<Key>&& replicatorKey ) override
-    {
-        {
-            auto it = std::find( m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), *replicatorKey );
-            if ( it != m_modifyRecipientShard.end() )
-            {
-                _LOG_WARN( "duplicated key" << Key(*replicatorKey) )
-                return;
-            }
-        }
+    	m_modifyDonatorShard = *replicatorKeys;
 
-        {
-            auto it = std::find( m_allReplicators.begin(), m_allReplicators.end(), *replicatorKey );
-            if ( it == m_allReplicators.end() )
-            {
-                _LOG_ERR( "Unknown Replicator Added to Shard Recipient" )
-            }
-        }
-        
-        m_modifyRecipientShard.push_back( *replicatorKey );
-    }
-    
-    void  removeShardRecipient( mobj<Key>&& replicatorKey ) override
-    {
-        auto it = std::find( m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), *replicatorKey );
-        if ( it == m_modifyRecipientShard.end() )
-        {
-            _LOG_WARN( "unknown key" << Key(*replicatorKey) )
-            return;
-        }
-        
-        m_modifyRecipientShard.erase( it );
-    }
+		std::set<Key> replicators = {m_allReplicators.begin(), m_allReplicators.end()};
+
+		for ( const auto& key: m_modifyDonatorShard )
+		{
+			if ( replicators.find(key) == replicators.end() )
+			{
+				_LOG_ERR( "Unknown Replicator Added to Shard Donator" )
+			}
+		}
+	}
+
+	void setShardRecipient( mobj<ReplicatorList>&& replicatorKeys ) override
+	{
+    	m_modifyRecipientShard = *replicatorKeys;
+
+    	std::set<Key> replicators = {m_allReplicators.begin(), m_allReplicators.end()};
+
+    	for ( const auto& key: m_modifyRecipientShard )
+    	{
+    		if ( replicators.find(key) == replicators.end() )
+    		{
+    			_LOG_ERR( "Unknown Replicator Added to Shard Recipient" )
+    		}
+    	}
+	}
 
     const ReplicatorList& donatorShard() const override { return m_modifyDonatorShard; }
     const ReplicatorList& recipientShard() const override { return m_modifyRecipientShard; }
