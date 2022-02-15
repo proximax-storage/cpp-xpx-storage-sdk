@@ -143,12 +143,6 @@ public:
     // And only after that the 'client' could move/remove files and torrnet file.
     virtual void      removeTorrentsFromSession( const std::set<lt::torrent_handle>& torrents,
                                                  std::function<void()>               endNotification ) = 0;
-
-    virtual InfoHash  addActionListToSession( const ActionList&,
-                                              const Key& clientPublicKey,
-                                              const std::string& workFolder,
-                                              endpoint_list list = {} ) = 0;
-
     
     // It starts downloading of 'modify data' (identified by downloadParameters.m_infoHash)
     // keysHints and endpointsHints are independent hits about peers to download the torrent from
