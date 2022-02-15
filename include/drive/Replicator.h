@@ -345,15 +345,16 @@ public:
     virtual void asyncRemoveDrive( Key driveKey ) = 0;
 
     // It notifies about changes in drive replicator list
-	virtual void asyncSetReplicators( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) = 0;
+    virtual void asyncSetDriveReplicators( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) = 0;
 
     // It notifyes about changes in modification shards
-    virtual void asyncSetShardDonator( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) = 0;
-    virtual void asyncSetShardRecipient( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) = 0;
+    virtual void asyncSetShardDonator( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) = 0;
+    virtual void asyncSetShardRecipient( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) = 0;
 
     // It notifyes about changes in download channel shard
-    virtual void asyncAddToChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) = 0;
-    virtual void asyncRemoveFromChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) = 0;
+    virtual void asyncSetDownloadChannelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys) = 0;
+//    virtual void asyncAddToChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) = 0;
+//    virtual void asyncRemoveFromChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) = 0;
 
     // it starts drive closing
     virtual void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) = 0;
@@ -374,14 +375,14 @@ public:
     virtual void        asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&&  downloadRequest, bool mustBeSyncronized = false ) = 0;
 
     // It is called when Replicator leaves the Download Channel Shard
-    virtual void        asyncRemoveDownloadChannelInfo( Key driveKey, Key channelId ) = 0;
+    virtual void        asyncRemoveDownloadChannelInfo( ChannelId channelId ) = 0;
 
     // it will be called when dht message is received
     virtual void        asyncOnDownloadOpinionReceived( mobj<DownloadApprovalTransactionInfo>&& anOpinion ) = 0;
     
     // Usually, DownloadApprovalTransactions are made once per 24 hours and paid by the Drive Owner
     // (It initiate opinion exchange, and then publishing of 'DownloadApprovalTransaction')
-    virtual void        asyncInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) = 0;
+    virtual void        asyncInitiateDownloadApprovalTransactionInfo( Hash256 eventHash, Hash256 channelId ) = 0;
 
     // It will
     virtual void        asyncDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed = false ) = 0;

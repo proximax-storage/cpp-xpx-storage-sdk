@@ -348,7 +348,7 @@ public:
         });
     }
 
-    void asyncSetReplicators( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
+    void asyncSetDriveReplicators( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
     {
     	_FUNC_ENTRY()
 
@@ -409,58 +409,26 @@ public:
     		}
     	});
 	}
-    
-    virtual void asyncAddToChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
+	virtual void asyncSetDownloadChannelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys)
+	{
+		_FUNC_ENTRY()
 
-            if ( auto channelInfoIt = m_dnChannelMap.find( channelId->array() ); channelInfoIt != m_dnChannelMap.end() )
-            {
-                auto& shard = channelInfoIt->second.m_dnReplicatorShard;
-                auto it = std::find( shard.begin(), shard.end(), *replicatorKey );
-                if ( it != shard.end() )
-                {
-                    _LOG_WARN( "replicator already exists: " << *replicatorKey )
-                }
-                shard.push_back( replicatorKey->array() );
-            }
-            else
-            {
-                _LOG_ERR( "Unknown channel hash: " << *channelId );
-                return;
-            }
-        });
-    }
+		boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+		{
+			DBG_MAIN_THREAD
 
-    virtual void asyncRemoveFromChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
-
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
-
-            if ( auto channelInfoIt = m_dnChannelMap.find( channelId->array() ); channelInfoIt != m_dnChannelMap.end() )
-            {
-                auto& shard = channelInfoIt->second.m_dnReplicatorShard;
-                auto it = std::find( shard.begin(), shard.end(), *replicatorKey );
-                if ( it == shard.end() )
-                {
-                    _LOG_WARN( "unknown replicatorKey: " << *replicatorKey )
-                }
-                shard.erase( it );
-            }
-            else
-            {
-                _LOG_ERR( "Unknown channel hash: " << *channelId );
-                return;
-            }
-        });
-    }
+			if ( auto channelInfoIt = m_dnChannelMap.find( channelId->array() ); channelInfoIt != m_dnChannelMap.end() )
+			{
+				channelInfoIt->second.m_dnReplicatorShard = *replicatorKeys;
+			}
+			else
+			{
+				_LOG_ERR( "Unknown channel hash: " << *channelId );
+				return;
+			}
+		});
+	}
 
     void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {
@@ -673,12 +641,12 @@ public:
     {
         _FUNC_ENTRY()
 
-//       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-//
-//            DBG_MAIN_THREAD
-//
-//            removeChannelInfo(channelKey);
-//        });
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+
+            DBG_MAIN_THREAD
+
+            removeChannelInfo(channelId);
+        });
     }
 
     // It sends received receipt from 'client' to other replicators

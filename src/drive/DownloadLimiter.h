@@ -490,7 +490,7 @@ public:
         return acceptReceiptImpl( std::move(message) );
     }
     
-    void removeChannelInfo( const std::array<uint8_t,32>& channelId )
+    void removeChannelInfo( const ChannelId& channelId )
     {
         DBG_MAIN_THREAD
 
