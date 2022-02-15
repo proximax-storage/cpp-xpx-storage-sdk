@@ -73,85 +73,78 @@ class Replicator;
         }
     };
 
-    // It is opinition of single replicator about how much data the other peers transferred.
-    // (when it downloads modifyData)
-    struct SingleOpinion
-    {
-        // Replicator public key
-        std::array<uint8_t,32>      m_replicatorKey;
+	// It is opinition of single replicator about how much data the other peers transferred.
+	// (when it downloads modifyData)
+	struct SingleOpinion {
+		// Replicator public key
+		std::array<uint8_t, 32> m_replicatorKey;
 
-        std::vector<KeyAndBytes>    m_uploadLayout;
-        uint64_t                    m_clientUploadBytes = 0;
-        
-        // Signature of { modifyTransactionHash, rootHash, replicatorsUploadBytes, clientUploadBytes }
-        Signature               m_signature;
-        
-        SingleOpinion() = default;
-        
-        SingleOpinion( const Key& replicatorKey ) : m_replicatorKey( replicatorKey.array() )
-        {
-        }
-        
-        void Sign( const crypto::KeyPair& keyPair,
-                   const Key& driveKey,
-                   const Hash256& modifyTransactionHash,
-                   const InfoHash& rootHash,
-                   const uint64_t& fsTreeFileSize,
-                   const uint64_t& metaFilesSize,
-                   const uint64_t& driveSize)
-        {
-//            std::cerr <<  "Sign:" << keyPair.publicKey()[0] << "," << modifyTransactionHash[0] << "," << rootHash[0] << "," << m_replicatorUploadBytes[0] <<
-//            "," << m_clientUploadBytes << "\n\n";
-            crypto::Sign( keyPair,
-                          {
-                            utils::RawBuffer{driveKey},
-                            utils::RawBuffer{modifyTransactionHash},
-                            utils::RawBuffer{rootHash},
-                            utils::RawBuffer{(const uint8_t*) &fsTreeFileSize, sizeof(fsTreeFileSize)},
-                            utils::RawBuffer{(const uint8_t*) &metaFilesSize, sizeof(metaFilesSize)},
-                            utils::RawBuffer{(const uint8_t*) &driveSize, sizeof(driveSize)},
-                            utils::RawBuffer{ (const uint8_t*) &m_uploadLayout[0],
-                                              m_uploadLayout.size() * sizeof (m_uploadLayout[0]) },
-                            utils::RawBuffer{(const uint8_t*)&m_clientUploadBytes,sizeof(m_clientUploadBytes)}
-                          },
-                          m_signature );
-        }
+		std::vector<KeyAndBytes> m_uploadLayout;
 
-        bool Verify( const crypto::KeyPair& keyPair,
-                     const Key& driveKey,
-                     const Hash256& modifyTransactionHash,
-                     const InfoHash& rootHash,
-                     const uint64_t& fsTreeFileSize,
-                     const uint64_t& metaFilesSize,
-                     const uint64_t& driveSize ) const
-        {
-//            std::cerr <<  "Verify:" << m_replicatorKey[0] << "," << modifyTransactionHash[0] << "," << rootHash[0] << "," << m_replicatorUploadBytes[0] <<
-//            "," << m_clientUploadBytes << "\n\n";
-            return crypto::Verify( m_replicatorKey,
-                                  {
-                                    utils::RawBuffer{driveKey},
-                                    utils::RawBuffer{modifyTransactionHash},
-                                    utils::RawBuffer{rootHash},
-                                    utils::RawBuffer{(const uint8_t*) &fsTreeFileSize, sizeof(fsTreeFileSize)},
-                                    utils::RawBuffer{(const uint8_t*) &metaFilesSize, sizeof(metaFilesSize)},
-                                    utils::RawBuffer{(const uint8_t*) &driveSize, sizeof(driveSize)},
-                                    utils::RawBuffer{ (const uint8_t*) &m_uploadLayout[0],
-                                                      m_uploadLayout.size() * sizeof (m_uploadLayout[0]) },
-                                    utils::RawBuffer{(const uint8_t*)&m_clientUploadBytes,sizeof(m_clientUploadBytes)}
-                                  },
-                                  m_signature );
-        }
+		// Signature of { modifyTransactionHash, rootHash, replicatorsUploadBytes, clientUploadBytes }
+		Signature m_signature;
 
-        template <class Archive> void serialize( Archive & arch ) {
-            arch( m_replicatorKey );
-            arch( m_uploadLayout );
-            arch( m_clientUploadBytes );
-            arch( cereal::binary_data( m_signature.data(), m_signature.size() ) );
-        }
+		SingleOpinion() = default;
 
-    };
+		SingleOpinion(const Key& replicatorKey) : m_replicatorKey(replicatorKey.array()) {}
 
-    struct PublishedModificationApprovalTransactionInfo
+		void
+				Sign(const crypto::KeyPair& keyPair,
+					 const Key& driveKey,
+					 const Hash256& modifyTransactionHash,
+					 const InfoHash& rootHash,
+					 const uint64_t& fsTreeFileSize,
+					 const uint64_t& metaFilesSize,
+					 const uint64_t& driveSize) {
+			//            std::cerr <<  "Sign:" << keyPair.publicKey()[0] << "," << modifyTransactionHash[0] << "," <<
+			//            rootHash[0] << "," << m_replicatorUploadBytes[0] <<
+			//            "," << m_clientUploadBytes << "\n\n";
+			crypto::Sign(
+					keyPair,
+					{ utils::RawBuffer { driveKey },
+					  utils::RawBuffer { modifyTransactionHash },
+					  utils::RawBuffer { rootHash },
+					  utils::RawBuffer { (const uint8_t*)&fsTreeFileSize, sizeof(fsTreeFileSize) },
+					  utils::RawBuffer { (const uint8_t*)&metaFilesSize, sizeof(metaFilesSize) },
+					  utils::RawBuffer { (const uint8_t*)&driveSize, sizeof(driveSize) },
+					  utils::RawBuffer { (const uint8_t*)&m_uploadLayout[0],
+										 m_uploadLayout.size() * sizeof(m_uploadLayout[0]) } },
+					m_signature);
+		}
+
+		bool
+				Verify(const crypto::KeyPair& keyPair,
+					   const Key& driveKey,
+					   const Hash256& modifyTransactionHash,
+					   const InfoHash& rootHash,
+					   const uint64_t& fsTreeFileSize,
+					   const uint64_t& metaFilesSize,
+					   const uint64_t& driveSize) const {
+			//            std::cerr <<  "Verify:" << m_replicatorKey[0] << "," << modifyTransactionHash[0] << "," <<
+			//            rootHash[0] << "," << m_replicatorUploadBytes[0] <<
+			//            "," << m_clientUploadBytes << "\n\n";
+			return crypto::Verify(
+					m_replicatorKey,
+					{ utils::RawBuffer { driveKey },
+					  utils::RawBuffer { modifyTransactionHash },
+					  utils::RawBuffer { rootHash },
+					  utils::RawBuffer { (const uint8_t*)&fsTreeFileSize, sizeof(fsTreeFileSize) },
+					  utils::RawBuffer { (const uint8_t*)&metaFilesSize, sizeof(metaFilesSize) },
+					  utils::RawBuffer { (const uint8_t*)&driveSize, sizeof(driveSize) },
+					  utils::RawBuffer { (const uint8_t*)&m_uploadLayout[0],
+										 m_uploadLayout.size() * sizeof(m_uploadLayout[0]) } },
+					m_signature);
+		}
+
+		template<class Archive>
+		void serialize(Archive& arch) {
+			arch(m_replicatorKey);
+			arch(m_uploadLayout);
+			arch(cereal::binary_data(m_signature.data(), m_signature.size()));
+		}
+	};
+
+	struct PublishedModificationApprovalTransactionInfo
     {
         // Drive public key
         std::array<uint8_t, 32> m_driveKey;

@@ -67,7 +67,6 @@ namespace sirius::emulator::types {
         for (const RpcSingleOpinion& rpcOpinion : m_opinions) {
             drive::SingleOpinion singleOpinion;
             singleOpinion.m_replicatorKey = rpcOpinion.m_replicatorKey;
-            singleOpinion.m_clientUploadBytes = rpcOpinion.m_clientUploadBytes;
             singleOpinion.m_uploadLayout = rpcOpinion.getUploadLayout();
             singleOpinion.m_signature = rpcOpinion.m_signature;
             approvalTransactionInfo.m_opinions.push_back(singleOpinion);
@@ -94,7 +93,6 @@ namespace sirius::emulator::types {
         for (const drive::SingleOpinion& opinion : opinions) {
             RpcSingleOpinion rpcSingleOpinion;
             rpcSingleOpinion.m_replicatorKey = opinion.m_replicatorKey;
-            rpcSingleOpinion.m_clientUploadBytes = opinion.m_clientUploadBytes;
             rpcSingleOpinion.setUploadLayout(opinion.m_uploadLayout);
             rpcSingleOpinion.m_signature = opinion.m_signature.array();
             m_opinions.push_back(rpcSingleOpinion);

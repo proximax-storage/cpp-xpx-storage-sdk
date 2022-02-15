@@ -1996,7 +1996,7 @@ public:
 
         {
             auto it = m_cumulativeUploads.find( getClient().array() );
-            opinion.m_clientUploadBytes = it->second;
+            opinion.m_uploadLayout.push_back( {getClient().array(), it->second} );
         }
 
         // Calculate size of torrent files and total drive size
