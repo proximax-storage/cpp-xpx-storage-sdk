@@ -150,6 +150,7 @@ public:
 
                     // calculate InfoHash
                     InfoHash infoHash = createTorrentFile( action.m_param1, drivePublicKey, fs::path(action.m_param1).parent_path(), {} );
+                    __LOG( "addActionListToSession: " << infoHash << " " << action.m_param1 )
                     if ( m_modifyTorrentMap.find(infoHash) == m_modifyTorrentMap.end() )
                     {
                         fs::path filenameInSandbox = workFolder/hashToFileName(infoHash);
@@ -165,6 +166,7 @@ public:
                             }
                         }
                     }
+                    action.m_filename = fs::path( action.m_param1 ).filename();
                     action.m_param1 = hashToFileName(infoHash);
                     break;
                 }

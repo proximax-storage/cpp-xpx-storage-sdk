@@ -38,12 +38,19 @@ private:
 
     std::map<std::array<uint8_t,32>,ApprovalTransactionInfo> m_receivedOpinions;
 
-    bool m_modifyUserDataReceived = false;
+    bool m_actionListIsReceived = false;
     bool m_modifyApproveTransactionSent = false;
     bool m_modifyApproveTxReceived = false;
+    
+    uint64_t m_uploadedDataSize;
 
     std::optional<boost::asio::high_resolution_timer> m_shareMyOpinionTimer;
+#ifndef __APPLE__
     const int m_shareMyOpinionTimerDelayMs = 1000 * 60;
+#else
+    //(???+++)
+    const int m_shareMyOpinionTimerDelayMs = 1000 * 1;
+#endif
 
     std::optional<boost::asio::high_resolution_timer> m_modifyOpinionTimer;
 
@@ -73,6 +80,8 @@ public:
     {
         DBG_MAIN_THREAD
         
+        m_uploadedDataSize = 0;
+        
         using namespace std::placeholders;  // for _1, _2, _3
 
         _ASSERT( !m_opinionController.opinionTrafficTx() );
@@ -81,60 +90,45 @@ public:
 
         if ( auto session = m_drive.m_session.lock(); session )
         {
-            m_downloadingLtHandle = session->download( DownloadContext(
-                                                               DownloadContext::client_data,
-                                                               std::bind( &ModifyDriveTask::downloadHandler, this, _1, _2, _3, _4, _5, _6 ),
-                                                               m_request->m_clientDataInfoHash,
-                                                               m_request->m_transactionHash,
-                                                               0, //todo
-                                                               true,
-                                                               "" ),
-                                                       m_drive.m_sandboxRootPath,
-                                                       getUploaders());
+            m_downloadingLtHandle = session->download(
+                                        DownloadContext(
+                                               DownloadContext::client_data,
+                                                       
+                                                   [this]( download_status::code code,
+                                                           const InfoHash& infoHash,
+                                                           const std::filesystem::path saveAs,
+                                                           size_t /*downloaded*/,
+                                                           size_t /*fileSize*/,
+                                                           const std::string& errorText )
+                                                   {
+                                                       DBG_MAIN_THREAD
+
+                                                       if ( code == download_status::failed )
+                                                       {
+                                                           modifyIsCompletedWithError( errorText, 0 );
+                                                       }
+                                                       else if ( code == download_status::download_complete )
+                                                       {
+                                                           _ASSERT( !m_stopped );
+                                                           m_downloadingLtHandle.reset();
+                                                           m_actionListIsReceived = true;
+
+                                                           m_drive.executeOnBackgroundThread( [this]
+                                                           {
+                                                                prepareDownloadMissingFiles();
+                                                           } );
+                                                       }
+                                                   },
+                                                   m_request->m_clientDataInfoHash,
+                                                   m_request->m_transactionHash,
+                                                   0, //todo
+                                                   true,
+                                                   "" ),
+                                               m_drive.m_sandboxRootPath,
+                                               getUploaders());
         }
     }
 
-    // will be called by Session
-    void downloadHandler( download_status::code code,
-                          const InfoHash& infoHash,
-                          const std::filesystem::path /*filePath*/,
-                          size_t /*downloaded*/,
-                          size_t /*fileSize*/,
-                          const std::string& errorText )
-    {
-        DBG_MAIN_THREAD
-
-        _ASSERT( m_request->m_clientDataInfoHash == infoHash )
-
-        if ( code == download_status::failed )
-        {
-            if ( m_drive.m_dbgEventHandler )
-            {
-                m_drive.m_dbgEventHandler->modifyTransactionEndedWithError( m_drive.m_replicator, m_drive.m_driveKey,
-                                                                            *m_request,
-                                                                            errorText, 0 );
-            }
-            modifyIsCompleted();
-            return;
-        }
-
-        if ( code == download_status::download_complete )
-        {
-            _ASSERT( !m_stopped );
-
-            m_downloadingLtHandle.reset();
-
-            m_modifyUserDataReceived = true;
-
-            _LOG( "+++ ex prepareDownloadMissingFiles(): " << infoHash )
-
-            m_drive.executeOnBackgroundThread( [this]
-               {
-                    prepareDownloadMissingFiles();
-               } );
-        }
-    }
-    
     void prepareDownloadMissingFiles()
     {
         DBG_BG_THREAD
@@ -148,14 +142,7 @@ public:
         {
             _LOG_WARN( "modifyDriveInSandbox: 'ActionList.bin' is absent: "
                               << m_drive.m_clientActionListFile );
-            if ( m_drive.m_dbgEventHandler )
-            {
-                m_drive.m_dbgEventHandler->modifyTransactionEndedWithError( m_drive.m_replicator, m_drive.m_driveKey,
-                                                                            *m_request,
-                                                                            "modify drive: 'ActionList' is absent",
-                                                                            -1 );
-            }
-            m_drive.executeOnSessionThread( [=,this] { modifyIsCompleted(); } );
+            m_drive.executeOnSessionThread( [=,this] { modifyIsCompletedWithError( "modify drive: 'ActionList' is absent", -1 ); } );
             return;
         }
 
@@ -166,14 +153,7 @@ public:
         } catch (...)
         {
             _LOG_WARN( "modifyDriveInSandbox: invalid 'ActionList'" << m_request->m_clientDataInfoHash );
-            if ( m_drive.m_dbgEventHandler )
-            {
-                m_drive.m_dbgEventHandler->modifyTransactionEndedWithError( m_drive.m_replicator, m_drive.m_driveKey,
-                                                                            *m_request,
-                                                                            "modify drive: invalid 'ActionList'",
-                                                                            -1 );
-            }
-            m_drive.executeOnSessionThread( [=,this] { modifyIsCompleted(); } );
+            m_drive.executeOnSessionThread( [=,this] { modifyIsCompletedWithError( "modify drive: invalid 'ActionList'", -1 ); } );
         }
         
         // prepare 'm_missedFileSet'
@@ -341,7 +321,8 @@ public:
                         fs::path srcFile;
                         if ( destEntry != nullptr && isFolder( *destEntry ))
                         {
-                            srcFile = fs::path( action.m_param1 ).filename();
+                            //srcFile = fs::path( action.m_param1 ).filename();
+                            srcFile = action.m_filename;
                             destFolder = action.m_param2;
                         } else
                         {
@@ -494,9 +475,8 @@ public:
 
         m_modifyApproveTxReceived = true;
 
-        // (???+++) check that ActionList is received
         if ( m_request->m_transactionHash == transaction.m_modifyTransactionHash
-             && m_modifyUserDataReceived )
+             && m_actionListIsReceived )
         {
             if ( m_sandboxCalculated )
             {
@@ -566,11 +546,27 @@ protected:
         _LOG( "modifyIsCompleted" );
 
         if ( m_drive.m_dbgEventHandler ) {
-			m_drive.m_dbgEventHandler->driveModificationIsCompleted(
-					m_drive.m_replicator, m_drive.m_driveKey, m_request->m_transactionHash, *m_sandboxRootHash);
-		}
+            m_drive.m_dbgEventHandler->driveModificationIsCompleted(
+                    m_drive.m_replicator, m_drive.m_driveKey, m_request->m_transactionHash, *m_sandboxRootHash);
+        }
 
-		UpdateDriveTaskBase::modifyIsCompleted();
+        UpdateDriveTaskBase::modifyIsCompleted();
+    }
+
+    void modifyIsCompletedWithError( std::string errorText, int errorCode )
+    {
+        _LOG( "modifyIsCompletedWithError" );
+
+        if ( m_drive.m_dbgEventHandler )
+        {
+            m_drive.m_dbgEventHandler->modifyTransactionEndedWithError(
+                                         m_drive.m_replicator,
+                                         m_drive.m_driveKey,
+                                         *m_request,
+                                         errorText, errorCode );
+        }
+
+        UpdateDriveTaskBase::modifyIsCompleted();
     }
 
     const Hash256& getModificationTransactionHash() override

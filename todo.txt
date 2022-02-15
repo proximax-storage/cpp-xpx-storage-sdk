@@ -6,7 +6,15 @@ Libtorrent:
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=17  -GXcode ..
 ----------------------------------------------------------------------------
 
+Error on acceptConnection
+
+m_shareMyOpinionTimerDelayMs
+
+metadata_received_alert: save torrent file
+
 Overhead!
+
+lt_params no_verify_files
 
 Broadcasting of received download receipts into shard
 

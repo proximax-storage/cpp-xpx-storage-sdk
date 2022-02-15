@@ -288,7 +288,11 @@ public:
         params.flags &= ~lt::torrent_flags::paused;
         params.flags &= ~lt::torrent_flags::auto_managed;
 
-        //todo?
+        //(???+++)
+        params.flags &= ~lt::torrent_flags::update_subscribe;
+        params.flags &= ~lt::torrent_flags::apply_ip_filter;
+        params.flags &= ~lt::torrent_flags::need_save_resume;
+
         params.flags |= lt::torrent_flags::seed_mode;
         params.flags |= lt::torrent_flags::upload_mode;
         params.flags |= lt::torrent_flags::no_verify_files;
@@ -996,20 +1000,54 @@ private:
 
                     break;
                 }
-
-                case lt::add_torrent_alert::        alert_type: {
+                    
+                case lt::add_torrent_alert::        alert_type:
+                {
                     auto* theAlert = dynamic_cast<lt::add_torrent_alert*>(alert);
                     _LOG( "*** add_torrent_alert: " << theAlert->handle.info_hashes().v2 );
-                    _LOG( "*** added get_torrents().size()=" << m_session.get_torrents().size() );
-
-                }
-//                case lt::dht_announce_alert::       alert_type:
-                //case lt::torrent_log_alert::        alert_type:
-                case lt::incoming_connection_alert::alert_type: {
-//                    LOG( m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
+                    //_LOG( "*** added get_torrents().size()=" << m_session.get_torrents().size() );
                     break;
                 }
 
+#ifdef __APPLE__
+#pragma mark --metadata_received_alert
+#endif
+                case lt::metadata_received_alert::        alert_type:
+                {
+                    auto* theAlert = dynamic_cast<lt::metadata_received_alert*>(alert);
+                    if ( theAlert->handle.is_valid() )
+                    {
+                        int64_t downloadLimit = theAlert->handle.native_handle()->m_downloadLimit;
+                        bool limitIsExceeded = downloadLimit != 0 && downloadLimit < theAlert->handle.torrent_file()->total_size();
+                        if ( limitIsExceeded )
+                        {
+                            _LOG( "+*** limitIsExceeded: " << theAlert->handle.torrent_file()->total_size() );
+                            m_session.remove_torrent( theAlert->handle, lt::session::delete_partfile );
+                        }
+                    }
+//                    lt::create_torrent ct(*ti);
+//                    lt::entry te = ct.generate();
+//                    std::vector<char> buffer;
+//                    bencode(std::back_inserter(buffer), te);
+//                    FILE* f = fopen((to_hex(ti->info_hashes().get_best().to_string()) + ".torrent").c_str(), "wb+");
+//                    if (f) {
+//                        fwrite(&buffer[0], 1, buffer.size(), f);
+//                        fclose(f);
+//                    }
+
+                    break;
+                }
+
+//                case lt::dht_announce_alert::       alert_type:
+//                case lt::torrent_log_alert::        alert_type:
+//                case lt::incoming_connection_alert::alert_type: {
+//                    LOG( m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
+//                    break;
+//                }
+
+#ifdef __APPLE__
+#pragma mark --dht_direct_response_alert
+#endif
                 case lt::dht_direct_response_alert::alert_type: {
                      auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
                     //_LOG( "*** dht_direct_response_alert: " );
@@ -1079,9 +1117,9 @@ private:
 //                        // TODO: better to use piece_granularity
 //                        std::vector<int64_t> fp = theAlert->handle.file_progress();// lt::torrent_handle::piece_granularity );
 //
-//#ifdef __APPLE__
-//#pragma mark --download-progress--
-//#endif
+#ifdef __APPLE__
+#pragma mark --download-progress--
+#endif
 //                        //todo++++
 //                        bool calculatePercents = true;//false;//true;
 //                        uint64_t dnBytes = 0;
@@ -1198,6 +1236,9 @@ private:
                     break;
                 }
 
+#ifdef __APPLE__
+#pragma mark --torrent_finished_alert
+#endif
                 case lt::torrent_finished_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_finished_alert*>(alert);
                     _LOG( "*** torrent_finished_alert:" << theAlert->handle.info_hashes().v2 << " (file: " <<theAlert->handle.torrent_file()->files().file_path(0) << ")" );
@@ -1249,20 +1290,29 @@ private:
                     break;
                 }
                     
+#ifdef __APPLE__
+#pragma mark --torrent_deleted_alert
+#endif
                 case lt::torrent_deleted_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_deleted_alert*>(alert);
                     _LOG( "*** torrent_deleted_alert:" << theAlert->handle.info_hashes().v2 << " " << theAlert->handle.torrent_file()->files().file_name(0) );
-                    _LOG( "*** deleted get_torrents().size()=" << m_session.get_torrents().size() );
+                    //_LOG( "*** deleted get_torrents().size()=" << m_session.get_torrents().size() );
                     //dbgPrintActiveTorrents();
 
+                    // Check 'downloadLimit'
+                    //int64_t downloadLimit = theAlert->handle.native_handle()->m_downloadLimit;
+                    bool limitIsExceeded = false; //downloadLimit != 0 && downloadLimit < theAlert->handle.torrent_file()->total_size();
+                    
                     // Notify about removed torrents
                     //
                     {
                         std::lock_guard<std::mutex> locker(m_removeMutex);
                         //_LOG( "*** torrent_deleted_alert: removeContext.Size: " << m_removeContexts.size() );
 
-                        // loop by set
+                        // loop by set (???+++)
                         for ( auto removeContextIt  = m_removeContexts.begin(); removeContextIt != m_removeContexts.end(); )
+
+//                        for ( auto removeContextIt  = m_removeContexts.begin(); removeContextIt != m_removeContexts.rend(); removeContextIt++ )
                         {
                             _LOG( "*** removeContextIt" );
 
@@ -1272,7 +1322,7 @@ private:
 
                             // skip not-ordered torrents
                             if ( auto torrentIt  = removeContext.m_torrentSet.find(theAlert->handle);
-                                      torrentIt != removeContext.m_torrentSet.end() )
+                                torrentIt != removeContext.m_torrentSet.end() )
                             {
                                 // remove torrent from 'context'
                                 removeContext.m_torrentSet.erase(torrentIt);
@@ -1288,6 +1338,7 @@ private:
                                 {
                                     auto endRemoveNotification = removeContext.m_endRemoveNotification;
                                     m_removeContexts.erase( removeContextIt );
+                                    //m_removeContexts.erase( (removeContextIt+1).base() );
                                     _LOG( m_addressAndPort << " endRemoveNotification() called");
                                     endRemoveNotification();
                                 }
@@ -1354,8 +1405,8 @@ private:
                                                                 context.m_infoHash,
                                                                 context.m_saveAs,
                                                                 0,
-                                                                0,
-                                                                "" );
+                                                                theAlert->handle.torrent_file()->total_size(),
+                                                                limitIsExceeded ? "limit is exceeded" : "" );
                             }
                         }
 

@@ -77,6 +77,7 @@ class DefaultFlatDrive: public FlatDrive, public TaskContext
     ReplicatorList m_modifyRecipientShard;
 
     const size_t   m_maxSize;
+    const size_t   m_currentDriveSize = 0;
 
     BackgroundExecutor  m_backgroundExecutor;
 

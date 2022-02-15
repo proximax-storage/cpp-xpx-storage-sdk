@@ -368,8 +368,10 @@ public:
                     }
                     else
                     {
-                        return true;
+                        //return true;
                         //(???++++)
+                        _LOG( "acceptConnection: " << Key(transactionHash) );
+                        _LOG( "acceptConnection: " << int(peerPublicKey[0]) );
                         _LOG_WARN( "acceptConnection: unknown peerPublicKey: " << sirius::Key(peerPublicKey) );
                         return false;
                     }
@@ -390,7 +392,7 @@ public:
             }
         }
 
-        return true;
+        //return true;
         //(???+++) in modifyDriveFlat3
         _LOG( "Unknown channel (or modify tx): " << Key(transactionHash) << " from_peer:" << Key(peerPublicKey) )
         return false;
@@ -477,7 +479,7 @@ public:
             _LOG_WARN( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
         }
 
-        _LOG( "unknown transactionHash: " << (int)transactionHash[0] );
+        _LOG( "unknown transactionHash: " << Key(transactionHash) );
         _LOG_WARN( "ERROR(3): unknown transactionHash: " << (int)transactionHash[0] );
     }
 
@@ -595,7 +597,7 @@ public:
         if ( channelInfoIt->second.m_isModifyTx )
         {
             //(???++++)
-            return true;
+            //return true;
             _LOG_WARN( dbgOurPeerName() << "receipt for modification should never be received" << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) )
             return false;
         }
