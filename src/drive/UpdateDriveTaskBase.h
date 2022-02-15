@@ -52,7 +52,7 @@ protected:
 
 public:
 
-    void closeDrive( const DriveClosureRequest& closureRequest ) override
+    void onDriveClose( const DriveClosureRequest& closureRequest ) override
     {
         if ( m_stopped )
         {

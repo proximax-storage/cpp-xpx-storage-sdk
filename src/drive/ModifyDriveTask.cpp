@@ -602,13 +602,9 @@ private:
             {
                 m_shareMyOpinionTimer = session->startTimer( m_shareMyOpinionTimerDelayMs, [this]
                 {
+                    _LOG( "shareMyOpinion" )
                     shareMyOpinion();
                 } );
-            }
-
-            if ( m_dbgOurPeerName == "replicator_04" )
-            {
-                _LOG( "calculated" )
             }
 
             // validate already received opinions
@@ -744,6 +740,7 @@ private:
             for ( auto& it : torrentHandleMap )
             {
                 // load torrent (if it is not loaded)
+                //(???+++) unused code
                 if ( ! it.second.m_ltHandle.is_valid())
                 {
                     if ( auto session = m_drive.m_session.lock(); session )

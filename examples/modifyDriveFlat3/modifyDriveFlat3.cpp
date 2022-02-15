@@ -660,6 +660,7 @@ int main(int,char**)
 
     /// Client: read new fsTree (3)
     EXLOG( "# Client started FsTree download !!!!! " );
+    sleep(1);
     gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
     clientDownloadFsTree( gClientSession );
 #endif

@@ -120,7 +120,7 @@ public:
         return false;
     }
 
-    void closeDrive( const DriveClosureRequest& closureRequest ) override
+    void onDriveClose( const DriveClosureRequest& closureRequest ) override
     {
 
     }

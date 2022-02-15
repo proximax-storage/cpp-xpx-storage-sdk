@@ -86,8 +86,7 @@ public:
         return false;
     }
 
-    // (???+++) not used, except dbg
-    virtual void closeDrive( const DriveClosureRequest& closureRequest )
+    virtual void onDriveClose( const DriveClosureRequest& closureRequest )
     {
         DBG_MAIN_THREAD
     }

@@ -594,6 +594,10 @@ public:
         {
             runNextTask();
         }
+        else
+        {
+            m_task->onDriveClose( *request );
+        }
     }
 
     void cancelVerification( mobj<Hash256>&& tx ) override
