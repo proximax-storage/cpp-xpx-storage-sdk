@@ -49,6 +49,19 @@ namespace sirius::drive {
 
 enum { PIECE_SIZE = 16*1024 };
 
+// Libtorrent "ClientData"
+//
+struct LtClientData
+{
+    struct RemoveNotifyer
+    {
+        RemoveNotifyer( const std::function<void()>& notifyer ) : m_notifyer(notifyer) {}
+        ~RemoveNotifyer() { m_notifyer(); }
+        std::function<void()> m_notifyer;
+    };
+    std::shared_ptr<RemoveNotifyer> m_removeNotifyer;
+};
+
 //
 // DefaultSession
 //
@@ -155,7 +168,6 @@ public:
     }
 
     virtual ~DefaultSession() {
-        LOG( "DefaultSession deleted" );
     }
 
     // for dbg
@@ -163,6 +175,18 @@ public:
     {
         return m_session;
     }
+    
+    virtual void onTorrentDeleted( lt::torrent_handle handle, lt::sha256_hash hash ) override
+    {
+        if ( auto userdata = handle.userdata().get<LtClientData>(); userdata )
+        {
+            //std::thread( [=] {
+                //__LOG( "????? use_count: " << userdata->m_removeNotifyer.use_count() << " " << hash )
+                delete userdata;
+            //}).detach();
+        }
+    }
+
 
     lt::settings_pack generateSessionSettings(bool useTcpSocket, const endpoint_list& bootstraps)
     {
@@ -224,11 +248,12 @@ public:
         std::lock_guard locker( m_removeMutex );
         auto toBeRemoved = std::set<lt::torrent_handle>();
 
-        _LOG( "+++ ex *** removeTorrentsFromSession: " << torrents.size() << " " << " get_torrents().size()=" << m_session.get_torrents().size() )
+        //_LOG( "+++ ex *** removeTorrentsFromSession: " << torrents.size() << " " << " get_torrents().size()=" << m_session.get_torrents().size() )
 
         for( const auto& torrentHandle : torrents )
         {
-            _LOG("remove_torrent(2): " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
+//            _LOG("remove_torrent(2): " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
+            _LOG("remove_torrent(2): " << torrentHandle.info_hashes().v2 )
             if ( !torrentHandle.is_valid() )
             {
                 //(???++++)
@@ -244,14 +269,21 @@ public:
             }
         }
         
+        _LOG("remove_torrent(2a): ")
+
         if ( !toBeRemoved.empty() )
         {
-            m_removeContexts.push_back( std::make_unique<RemoveTorrentContext>( toBeRemoved, endNotification ) );
+            //m_removeContexts.push_back( std::make_unique<RemoveTorrentContext>( toBeRemoved, endNotification ) );
+
+            auto removeNotifyer = std::make_shared<LtClientData::RemoveNotifyer>(endNotification);
 
             for( const auto& torrentHandle : torrents )
             {
                 if ( torrentHandle.is_valid() && torrentHandle.status().state > 2 )
                 {
+                    torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer = removeNotifyer;
+                    _LOG( "??? removeNotifyer.use_count: " << removeNotifyer.use_count() )
+                    
                     _LOG( "+++ ex :remove_torrent(3): " << torrentHandle.info_hashes().v2 );
                     m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
                 }
@@ -285,6 +317,7 @@ public:
 
         // create add_torrent_params
         lt::add_torrent_params params;
+        params.userdata = new LtClientData();
         params.flags &= ~lt::torrent_flags::paused;
         params.flags &= ~lt::torrent_flags::auto_managed;
 
@@ -340,9 +373,12 @@ public:
         // create add_torrent_params
         lt::error_code ec;
         lt::add_torrent_params params = lt::parse_magnet_uri( magnetLink(downloadContext.m_infoHash), ec );
+        
         if (ec) {
             throw std::runtime_error( std::string("downloadFile error: ") + ec.message() );
         }
+
+        params.userdata = new LtClientData();
 
         // where the file will be placed
         params.save_path = tmpFolder;

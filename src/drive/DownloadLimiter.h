@@ -60,6 +60,12 @@ public:
     {
     }
     
+    virtual void onTorrentDeleted( lt::torrent_handle handle, lt::sha256_hash hash ) override
+    {
+        m_session->onTorrentDeleted( handle, hash );
+    }
+
+    
     void printReport( const std::array<uint8_t,32>&  transactionHash )
     {
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {

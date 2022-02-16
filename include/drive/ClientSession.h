@@ -44,7 +44,16 @@ public:
         m_dbgOurPeerName(dbgOurPeerName)
     {}
 
+    ~ClientSession()
+    {
+        _LOG( "ClientSession deleted" );
+    }
 public:
+
+    virtual void onTorrentDeleted( lt::torrent_handle handle, lt::sha256_hash hash ) override
+    {
+        m_session->onTorrentDeleted( handle, hash );
+    }
 
     //
     void setDownloadChannel( const ReplicatorList& replicatorList, Hash256 downloadChannelId, std::vector<uint64_t> alreadyReceivedSize = {} )
@@ -263,7 +272,8 @@ public:
         
         std::promise<void> barrier;
 
-        m_session->removeTorrentsFromSession( torrents, [&] {
+        m_session->removeTorrentsFromSession( torrents, [&barrier] {
+            __LOG("???? barrier.set_value();")
             barrier.set_value();
         } );
         //m_session->dbgPrintActiveTorrents();
