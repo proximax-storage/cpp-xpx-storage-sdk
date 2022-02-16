@@ -67,10 +67,6 @@ struct LtClientData
 //
 class DefaultSession: public Session, std::enable_shared_from_this<DefaultSession> {
 
-    // Every drive have its own 'RemoveTorrentContext'
-    //
-    using RemoveContexts = std::vector<std::unique_ptr<RemoveTorrentContext>>;
-
     // This map is used to inform 'client' about downloading progress
     // Torrent id (uint32_t) is used instead of lt::torrent_handler
     //
@@ -93,11 +89,6 @@ private:
 
     // Truncated drive public keys
     std::set<lt::sha1_hash> m_truncatedDrivePublicKeys;
-
-    // see comments to 'RemoveSets'
-    //
-    RemoveContexts          m_removeContexts;
-    std::mutex              m_removeMutex;
 
     // see coments to 'DownloadMap'
     //
@@ -245,7 +236,6 @@ public:
     virtual void removeTorrentsFromSession( const std::set<lt::torrent_handle>&  torrents,
                                             std::function<void()>                endNotification ) override
     {
-        std::lock_guard locker( m_removeMutex );
         auto toBeRemoved = std::set<lt::torrent_handle>();
 
         //_LOG( "+++ ex *** removeTorrentsFromSession: " << torrents.size() << " " << " get_torrents().size()=" << m_session.get_torrents().size() )
@@ -1181,53 +1171,6 @@ private:
                     //int64_t downloadLimit = theAlert->handle.native_handle()->m_downloadLimit;
                     bool limitIsExceeded = false; //downloadLimit != 0 && downloadLimit < theAlert->handle.torrent_file()->total_size();
                     
-                    // Notify about removed torrents
-                    //
-                    {
-                        std::lock_guard<std::mutex> locker(m_removeMutex);
-                        //_LOG( "*** torrent_deleted_alert: removeContext.Size: " << m_removeContexts.size() );
-
-                        // loop by set (???+++)
-                        for ( auto removeContextIt  = m_removeContexts.begin(); removeContextIt != m_removeContexts.end(); )
-
-//                        for ( auto removeContextIt  = m_removeContexts.begin(); removeContextIt != m_removeContexts.rend(); removeContextIt++ )
-                        {
-                            _LOG( "*** removeContextIt" );
-
-                            auto& removeContext = *removeContextIt->get();
-
-                            _LOG( m_addressAndPort << "  removeContext.Size" << m_removeContexts.size() );
-
-                            // skip not-ordered torrents
-                            if ( auto torrentIt  = removeContext.m_torrentSet.find(theAlert->handle);
-                                torrentIt != removeContext.m_torrentSet.end() )
-                            {
-                                // remove torrent from 'context'
-                                removeContext.m_torrentSet.erase(torrentIt);
-
-                                //TODO?
-                                //std::erase_if( removeContext.m_torrentSet,
-                                //               [](auto const& torrent) { return !torrent.is_valid(); } );
-
-                                // try to remove 'context'
-                                // todo calculate valid torrents!
-                                _LOG( m_addressAndPort << " removeContext.m_torrentSet.size=" << removeContext.m_torrentSet.size() );
-                                if ( removeContext.m_torrentSet.empty() )
-                                {
-                                    auto endRemoveNotification = removeContext.m_endRemoveNotification;
-                                    m_removeContexts.erase( removeContextIt );
-                                    //m_removeContexts.erase( (removeContextIt+1).base() );
-                                    _LOG( m_addressAndPort << " endRemoveNotification() called");
-                                    endRemoveNotification();
-                                }
-                                else
-                                {
-                                    removeContextIt++;
-                                }
-                            }
-                        }
-                    }
-
                     // Notify about completed downloads
                     //
 

@@ -94,28 +94,6 @@ struct DownloadContext {
 };
 
 //
-// It will be used to inform 'client' that all required torrents
-// have been sucessfully removed from the session.
-// And only after that the 'client' could remove/move files and torrnet file.
-//
-struct RemoveTorrentContext
-{
-    RemoveTorrentContext(
-            std::set<lt::torrent_handle> torrentSet,
-            const std::function<void()>&   endRemoveNotification )
-        :
-            m_torrentSet(torrentSet),
-            m_endRemoveNotification(endRemoveNotification)
-        {}
-    // A set of torrents to be removed
-    // Torrent id (uint32_t) is used instead of lt::torrent_handler
-    //
-    std::set<lt::torrent_handle> m_torrentSet;
-
-    // This handler will be called after all torrents have been removed
-    std::function<void()>        m_endRemoveNotification;
-};
-
 //
 // It provides the ability to exchange files
 //
