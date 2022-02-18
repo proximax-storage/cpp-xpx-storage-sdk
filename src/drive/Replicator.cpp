@@ -637,7 +637,7 @@ public:
     }
 
 
-    void asyncRemoveDownloadChannelInfo( Key driveKey, Key channelId ) override
+    void asyncRemoveDownloadChannelInfo( ChannelId channelId ) override
     {
         _FUNC_ENTRY()
 
