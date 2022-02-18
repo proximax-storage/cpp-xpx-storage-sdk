@@ -46,6 +46,7 @@ public:
 
     ~ClientSession()
     {
+        m_session->endSession();
         _LOG( "ClientSession deleted" );
     }
 public:
