@@ -27,7 +27,7 @@ bool gBreak_On_Warning = true;//false;
 // This example shows interaction between 'client' and 'replicator'.
 //
 
-#define BIG_FILE_SIZE       1 * 1024*1024 //150//4
+#define BIG_FILE_SIZE       1 * 10//24*1024 //150//4
 #define MODIFY_DATA_SIZE    (BIG_FILE_SIZE)-32000
 
 #define TRANSPORT_PROTOCOL false // true - TCP, false - uTP
@@ -511,7 +511,6 @@ int main(int,char**)
 
     // set root drive hash
     driveRootHash = std::make_shared<InfoHash>( gReplicator->dbgGetRootHash( DRIVE_PUB_KEY ) );
-    _EXLOG( "driveRootHash:" << *driveRootHash );
 
     fs::path clientFolder = gClientFolder / "client_files";
 

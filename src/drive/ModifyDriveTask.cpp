@@ -101,7 +101,8 @@ public:
                                                            size_t /*fileSize*/,
                                                            const std::string& errorText )
                                                    {
-                                                       DBG_MAIN_THREAD
+                                                       //(???+)
+                                                       //DBG_MAIN_THREAD
 
                                                        if ( code == download_status::failed )
                                                        {
@@ -109,14 +110,18 @@ public:
                                                        }
                                                        else if ( code == download_status::download_complete )
                                                        {
-                                                           _ASSERT( !m_stopped );
-                                                           m_downloadingLtHandle.reset();
-                                                           m_actionListIsReceived = true;
-
-                                                           m_drive.executeOnBackgroundThread( [this]
+                                                           //(???+++)
+                                                           //_ASSERT( !m_stopped );
+                                                           if ( ! m_stopped )
                                                            {
-                                                                prepareDownloadMissingFiles();
-                                                           } );
+                                                               m_downloadingLtHandle.reset();
+                                                               m_actionListIsReceived = true;
+
+                                                               m_drive.executeOnBackgroundThread( [this]
+                                                               {
+                                                                    prepareDownloadMissingFiles();
+                                                               } );
+                                                           }
                                                        }
                                                    },
                                                    m_request->m_clientDataInfoHash,
@@ -226,6 +231,8 @@ public:
                                                                            size_t /*fileSize*/,
                                                                            const std::string& errorText )
                                                                    {
+                                                                       DBG_MAIN_THREAD
+
                                                                        if ( code == download_status::download_complete )
                                                                        {
                                                                            _LOG( "downloading: END: " << toString( infoHash ));

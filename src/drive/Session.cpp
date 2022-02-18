@@ -60,6 +60,12 @@ struct LtClientData
         std::function<void()> m_notifyer;
     };
     std::shared_ptr<RemoveNotifyer> m_removeNotifyer;
+    
+    fs::path                        m_saveFolder = "";
+    std::vector<DownloadContext>    m_dnContexts = {};
+    
+    uint64_t                        m_uploadedDataSize = 0;
+    bool                            m_limitIsExceeded = false;
 };
 
 //
@@ -104,8 +110,9 @@ private:
     
     std::promise<void>                  m_bootstrapBarrier;
     
-    std::string             m_dbgOurPeerName = "";
-    //int                     m_dbgPieceCounter = 0;
+    std::string                         m_dbgOurPeerName = "";
+    
+    bool                                m_stopping = false;
 
 public:
     
@@ -158,7 +165,9 @@ public:
         _LOG( "DefaultSession created: " << m_addressAndPort );
     }
 
-    virtual ~DefaultSession() {
+    virtual ~DefaultSession()
+    {
+        m_stopping = true;
     }
 
     // for dbg
@@ -167,8 +176,64 @@ public:
         return m_session;
     }
     
-    virtual void onTorrentDeleted( lt::torrent_handle handle, lt::sha256_hash hash ) override
+    virtual void onTorrentDeleted( lt::torrent_handle handle ) override
     {
+        auto userdata = handle.userdata().get<LtClientData>();
+        if ( userdata==0 )
+        {
+            _LOG_WARN( "userdata==0" )
+            return;
+        }
+        
+        auto& contextVector = userdata->m_dnContexts;
+
+        if ( ! contextVector.empty() )
+        {
+            fs::path srcFilePath = fs::path(userdata->m_saveFolder) / hashToFileName( contextVector[0].m_infoHash );
+
+            for( size_t i=0; i<contextVector.size(); i++ )
+            {
+                if ( contextVector[i].m_doNotDeleteTorrent )
+                {
+                    continue;
+                }
+                
+                auto& context = contextVector[i];
+
+                if ( !context.m_saveAs.empty() && context.m_downloadType == DownloadContext::file_from_drive )
+                {
+                    fs::path destFilePath = context.m_saveAs;
+
+                    std::error_code err;
+                    if ( !fs::exists( destFilePath.parent_path(), err ) ) {
+                        fs::create_directories( destFilePath.parent_path(), err );
+                    }
+
+                    //???+++
+                    if ( fs::exists( destFilePath, err ) ) {
+                        fs::remove( destFilePath );
+                    }
+
+                    if ( i == contextVector.size()-1 )
+                    {
+                        fs::rename( srcFilePath, destFilePath, err );
+                    }
+                    else
+                    {
+                        fs::copy( srcFilePath, destFilePath, err );
+                    }
+                }
+
+                context.m_downloadNotification( download_status::code::download_complete,
+                                                context.m_infoHash,
+                                                context.m_saveAs,
+                                                0,
+                                                userdata->m_uploadedDataSize,
+                                                userdata->m_limitIsExceeded ? "limit is exceeded" : "" );
+            }
+        }
+
+
         if ( auto userdata = handle.userdata().get<LtClientData>(); userdata )
         {
             //std::thread( [=] {
@@ -411,10 +476,26 @@ public:
             tHandle.connect_peer( endpoint );
         }
 
+        // set fs tree save path
+        if ( downloadContext.m_downloadType == DownloadContext::fs_tree ) {
+            downloadContext.m_saveAs = fs::path(tmpFolder) / FS_TREE_FILE_NAME;
+        }
+        else if ( downloadContext.m_downloadType == DownloadContext::file_from_drive ) {
+            if (downloadContext.m_saveAs.empty())
+                throw std::runtime_error("download(file_from_drive): DownloadContext::m_saveAs' is empty");
+        }
+
+        tHandle.userdata().get<LtClientData>()->m_dnContexts.push_back( downloadContext );
+
         // save download handler
         std::lock_guard locker(m_downloadMapMutex);
 
-        if ( auto it = m_downloadMap.find(tHandle.id()); it != m_downloadMap.end() )
+        if ( auto it = m_downloadMap.find(tHandle.id()); it == m_downloadMap.end() )
+        {
+            _LOG( "+++ ex m_downloadMap.insert: " << tHandle.id() << " " << downloadContext.m_infoHash )
+            m_downloadMap[ tHandle.id() ] = DownloadMapCell{ tmpFolder, {std::move(downloadContext)} };
+        }
+        else
         {
             if ( downloadContext.m_downloadType == DownloadContext::file_from_drive )
             {
@@ -441,19 +522,6 @@ public:
                     throw std::runtime_error("download(missing_files): already downloading" );
                 }
             }
-        }
-        else
-        {
-            if ( downloadContext.m_downloadType == DownloadContext::fs_tree ) {
-                downloadContext.m_saveAs = fs::path(tmpFolder) / FS_TREE_FILE_NAME;
-            }
-            else if ( downloadContext.m_downloadType == DownloadContext::file_from_drive ) {
-                if (downloadContext.m_saveAs.empty())
-                    throw std::runtime_error("download(file_from_drive): DownloadContext::m_saveAs' is empty");
-            }
-
-            _LOG( "+++ ex m_downloadMap.insert: " << tHandle.id() << " " << downloadContext.m_infoHash )
-            m_downloadMap[ tHandle.id() ] = DownloadMapCell{ tmpFolder, {std::move(downloadContext)} };
         }
         
         return tHandle;
@@ -795,6 +863,11 @@ private:
     }
 
     void alertHandler() {
+        
+        if ( m_stopping )
+        {
+            return;
+        }
 
         // extract alerts
         std::vector<lt::alert *> alerts;
@@ -1077,8 +1150,10 @@ private:
 
                 case lt::torrent_error_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_error_alert *>(alert);
+                    //(???+++) when client destructing?
+                    break;
 
-                    LOG(  m_addressAndPort << ": ERROR!!!: torrent error: " << theAlert->message())
+                    _LOG(  m_addressAndPort << ": ERROR!!!: torrent error: " << theAlert->message())
 
                     if ( auto downloadConextIt  = m_downloadMap.find(theAlert->handle.id());
                               downloadConextIt != m_downloadMap.end() )
@@ -1110,20 +1185,33 @@ private:
                 case lt::torrent_finished_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_finished_alert*>(alert);
                     _LOG( "*** torrent_finished_alert:" << theAlert->handle.info_hashes().v2 << " (file: " <<theAlert->handle.torrent_file()->files().file_path(0) << ")" );
-                    _LOG( "*** finished get_torrents().size()=" << m_session.get_torrents().size() );
+                    _LOG( "*** finished theAlert->handle.id()=" << theAlert->handle.id() );
                     //dbgPrintActiveTorrents();
 
+                    auto handle_id = theAlert->handle.id();
+                    
+                    auto userdata = theAlert->handle.userdata().get<LtClientData>();
+                    if ( userdata != nullptr && userdata->m_dnContexts.size()>0 && userdata->m_dnContexts.front().m_doNotDeleteTorrent )
+                    {
+                        auto dnContext = userdata->m_dnContexts.front();
+                        dnContext.m_downloadNotification( download_status::code::download_complete,
+                                                        dnContext.m_infoHash,
+                                                        dnContext.m_saveAs,
+                                                        userdata->m_uploadedDataSize,
+                                                        0,
+                                                        "" );
+                    }
 //                    _LOG( "*** lt::torrent_finished_alert:" << m_downloadLimiter->dbgOurPeerName() << " " << theAlert->handle.info_hashes().v2 );
                     //TODO save torrent file???
                     //lt::torrent_status st = theAlert->handle.status( lt::torrent_handle::query_torrent_file );
 
-                    if ( auto it = m_downloadMap.find(theAlert->handle.id()); it != m_downloadMap.end() )
+                    if ( auto it = m_downloadMap.find(handle_id); it != m_downloadMap.end() )
                     {
-                        _LOG( "*** torrent_finished: " << theAlert->handle.info_hashes().v2 )
+                        //_LOG( "*** torrent_finished: " << theAlert->handle.info_hashes().v2 )
 
                         // get peers info
-                        std::vector<lt::peer_info> peers;
-                        theAlert->handle.get_peer_info(peers);
+//                        std::vector<lt::peer_info> peers;
+//                        theAlert->handle.get_peer_info(peers);
 
 //                        for (const lt::peer_info &pi : peers)
 //                        {
@@ -1140,13 +1228,13 @@ private:
                         auto& contextVector = it->second.m_contexts;
                         if ( contextVector.size() > 0 && contextVector.back().m_doNotDeleteTorrent )
                         {
-                            auto& context = contextVector.back();
-                            context.m_downloadNotification( download_status::code::download_complete,
-                                                            context.m_infoHash,
-                                                            context.m_saveAs,
-                                                            0,
-                                                            0,
-                                                            "" );
+//                            auto& context = contextVector.back();
+//                            context.m_downloadNotification( download_status::code::download_complete,
+//                                                            context.m_infoHash,
+//                                                            context.m_saveAs,
+//                                                            0,
+//                                                            0,
+//                                                            "" );
                         }
                         else
                         {
@@ -1192,7 +1280,7 @@ private:
                             //_LOG( "contextVector.size(): " << contextVector.size() );
                             for( size_t i=0; i<contextVector.size(); i++ )
                             {
-                                if ( contextVector[i].m_doNotDeleteTorrent )
+                                //if ( contextVector[i].m_doNotDeleteTorrent )
                                 {
                                     continue;
                                 }

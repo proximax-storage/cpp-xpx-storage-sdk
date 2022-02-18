@@ -50,9 +50,9 @@ public:
     }
 public:
 
-    virtual void onTorrentDeleted( lt::torrent_handle handle, lt::sha256_hash hash ) override
+    virtual void onTorrentDeleted( lt::torrent_handle handle ) override
     {
-        m_session->onTorrentDeleted( handle, hash );
+        m_session->onTorrentDeleted( handle );
     }
 
     //
