@@ -398,9 +398,9 @@ public:
             }
         }
 
-        //return true;
+        return true;
         //(???+++) in modifyDriveFlat3
-        _LOG( "Unknown channel (or modify tx): " << Key(transactionHash) << " from_peer:" << Key(peerPublicKey) )
+        _LOG_WARN( "Unknown channel (or modify tx): " << Key(transactionHash) << " from_peer:" << Key(peerPublicKey) )
         return false;
     }
 

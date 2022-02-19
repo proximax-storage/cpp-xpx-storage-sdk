@@ -20,7 +20,7 @@ class InitializeDriveTask : public DriveTaskBase
 
 public:
 
-    InitializeDriveTask( TaskContext& drive,
+    InitializeDriveTask( DriveParams& drive,
                          ModifyOpinionController& opinionTaskController)
             : DriveTaskBase( DriveTaskType::DRIVE_INITIALIZATION, drive ),
               m_opinionController( opinionTaskController )
@@ -200,7 +200,7 @@ private:
     }
 };
 
-std::unique_ptr<DriveTaskBase> createDriveInitializationTask( TaskContext& drive,
+std::unique_ptr<DriveTaskBase> createDriveInitializationTask( DriveParams& drive,
                                                               ModifyOpinionController& opinionTaskController )
 {
     return std::make_unique<InitializeDriveTask>( drive, opinionTaskController );

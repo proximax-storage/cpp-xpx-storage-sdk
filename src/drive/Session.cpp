@@ -63,7 +63,8 @@ struct LtClientData
     
     fs::path                        m_saveFolder = "";
     std::vector<DownloadContext>    m_dnContexts = {};
-    
+
+    uint64_t                        m_downloadLimit = 0;
     uint64_t                        m_uploadedDataSize = 0;
     bool                            m_limitIsExceeded = false;
 };
@@ -161,7 +162,7 @@ public:
         
         auto& contextVector = userdata->m_dnContexts;
 
-        if ( ! contextVector.empty() )
+        if ( ! contextVector.empty() && ! userdata->m_limitIsExceeded )
         {
             fs::path srcFilePath = fs::path(userdata->m_saveFolder) / hashToFileName( contextVector[0].m_infoHash );
 
@@ -201,9 +202,9 @@ public:
                 context.m_downloadNotification( download_status::code::download_complete,
                                                 context.m_infoHash,
                                                 context.m_saveAs,
-                                                0,
                                                 userdata->m_uploadedDataSize,
-                                                userdata->m_limitIsExceeded ? "limit is exceeded" : "" );
+                                                0,
+                                                "" );
             }
         }
 
@@ -312,7 +313,7 @@ public:
                     _LOG( "??? removeNotifyer.use_count: " << removeNotifyer.use_count() )
                     
                     _LOG( "+++ ex :remove_torrent(3): " << torrentHandle.info_hashes().v2 );
-                    m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
+                    m_session.remove_torrent( torrentHandle, lt::session::delete_files );
                 }
             }
         }
@@ -411,8 +412,7 @@ public:
         params.save_path = tmpFolder;
 
         params.m_transactionHash = downloadContext.m_transactionHash.array();
-        params.m_downloadLimit   = downloadContext.m_downloadLimit;
-        
+
         if ( downloadContext.m_downloadType == DownloadContext::client_data || downloadContext.m_downloadType == DownloadContext::missing_files )
             params.m_siriusFlags     = lt::sf_is_replicator | lt::sf_is_receiver;
         else
@@ -872,14 +872,29 @@ private:
                 case lt::metadata_received_alert::        alert_type:
                 {
                     auto* theAlert = dynamic_cast<lt::metadata_received_alert*>(alert);
-                    if ( theAlert->handle.is_valid() )
+                    if ( theAlert->handle.is_valid() && theAlert->handle.userdata().get<LtClientData>() != nullptr )
                     {
-                        int64_t downloadLimit = theAlert->handle.native_handle()->m_downloadLimit;
+                        auto userdata = theAlert->handle.userdata().get<LtClientData>();
+
+                        int64_t downloadLimit = (userdata->m_dnContexts.size() == 0) ? 0 : userdata->m_dnContexts.front().m_downloadLimit;
+                        userdata->m_uploadedDataSize = theAlert->handle.torrent_file()->total_size();
+                        
                         bool limitIsExceeded = downloadLimit != 0 && downloadLimit < theAlert->handle.torrent_file()->total_size();
+                        _LOG( "+**** limitIsExceeded?: " << downloadLimit << " " << theAlert->handle.torrent_file()->total_size() );
                         if ( limitIsExceeded )
                         {
-                            _LOG( "+*** limitIsExceeded: " << theAlert->handle.torrent_file()->total_size() );
-                            m_session.remove_torrent( theAlert->handle, lt::session::delete_partfile );
+                            _LOG( "+**** limitIsExceeded: " << theAlert->handle.torrent_file()->total_size() );
+                            m_session.remove_torrent( theAlert->handle, lt::session::delete_files );
+                            
+                            userdata->m_limitIsExceeded = true;
+                            _ASSERT( userdata->m_dnContexts.size()==1 )
+                            userdata->m_dnContexts.front().m_downloadNotification(
+                                                                download_status::code::failed,
+                                                                userdata->m_dnContexts.front().m_infoHash,
+                                                                userdata->m_dnContexts.front().m_saveAs,
+                                                                userdata->m_uploadedDataSize,
+                                                                0,
+                                                                "Limit Is Exceeded" );
                         }
                     }
 //                    lt::create_torrent ct(*ti);
@@ -1048,11 +1063,18 @@ private:
 #endif
                 case lt::torrent_finished_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_finished_alert*>(alert);
-                    _LOG( "*** torrent_finished_alert:" << theAlert->handle.info_hashes().v2 << " (file: " <<theAlert->handle.torrent_file()->files().file_path(0) << ")" );
-                    _LOG( "*** finished theAlert->handle.id()=" << theAlert->handle.id() );
+                    _LOG( "*** torrent_finished_alert: " << theAlert->handle.info_hashes().v2 );
+                    _LOG( "***                   file: " << theAlert->handle.torrent_file()->files().file_path(0) );
+                    _LOG( "***              save_path: " << theAlert->handle.status(lt::torrent_handle::query_save_path).save_path );
+                    //_LOG( "*** finished theAlert->handle.id()=" << theAlert->handle.id() );
                     //dbgPrintActiveTorrents();
 
                     //auto handle_id = theAlert->handle.id();
+                    
+//                    if ( ltDataToHash(theAlert->handle.info_hashes().v2.data()) == stringToHash("e71463c9ad6ab4205523fc5fe71c82ff4b78088c97735418c3ba8caaaf900d59") )
+//                    {
+//                        dbgPrintActiveTorrents();
+//                    }
                     
                     auto userdata = theAlert->handle.userdata().get<LtClientData>();
                     _ASSERT( userdata != nullptr )
@@ -1072,6 +1094,7 @@ private:
                         }
                         else
                         {
+                            _LOG( "***                removed: " << theAlert->handle.info_hashes().v2 );
                             m_session.remove_torrent( theAlert->handle, lt::session::delete_partfile );
                         }
                     }

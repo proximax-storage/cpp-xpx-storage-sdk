@@ -162,6 +162,11 @@ std::string hexToString( const void* begin, const void* end )
     return str;
 }
 
-
+PLUGIN_API Hash256 ltDataToHash( const char* ptr )
+{
+    Hash256 hash;
+    memcpy( &hash[0], ptr, 32 );
+    return hash;
+}
 
 }}

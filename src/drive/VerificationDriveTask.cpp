@@ -51,7 +51,7 @@ public:
             mobj<VerificationRequest>&& request,
             std::vector<VerifyApprovalTxInfo>&& receivedOpinions,
             std::vector<VerificationCodeInfo>&& receivedCodes,
-            TaskContext& drive)
+            DriveParams& drive)
             : DriveTaskBase(DriveTaskType::DRIVE_VERIFICATION, drive)
             , m_request(request)
             , m_myVerifyCodesCalculated(false)
@@ -547,7 +547,7 @@ private:
 std::shared_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,
                                                             std::vector<VerifyApprovalTxInfo>&& receivedOpinions,
                                                             std::vector<VerificationCodeInfo>&& receivedCodes,
-                                                            TaskContext& drive )
+                                                            DriveParams& drive )
 {
     return std::make_shared<VerificationDriveTask>( std::move(request), std::move(receivedOpinions), std::move(receivedCodes), drive );
 }

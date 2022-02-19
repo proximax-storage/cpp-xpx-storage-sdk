@@ -6,6 +6,10 @@ Libtorrent:
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=17  -GXcode ..
 ----------------------------------------------------------------------------
 
+LONG_TODO: проверка downloadLimit при piece_finished_alert
+
+m_modifyDriveMap - накапливается мусор
+
 Error on acceptConnection
 
 m_shareMyOpinionTimerDelayMs

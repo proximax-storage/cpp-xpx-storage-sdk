@@ -9,7 +9,7 @@
 #include "drive/FsTree.h"
 #include "drive/ActionList.h"
 #include "drive/FlatDrive.h"
-#include "TaskContext.h"
+#include "DriveParams.h"
 #include "UpdateDriveTaskBase.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -40,7 +40,7 @@ private:
 public:
 
     CatchingUpTask( mobj<CatchingUpRequest>&& request,
-                    TaskContext& drive,
+                    DriveParams& drive,
                     ModifyOpinionController& opinionTaskController )
                     : UpdateDriveTaskBase(DriveTaskType::CATCHING_UP, drive, opinionTaskController)
                     , m_request( std::move(request) )
@@ -430,7 +430,7 @@ private:
 };
 
 std::unique_ptr<DriveTaskBase> createCatchingUpTask( mobj<CatchingUpRequest>&& request,
-                                                     TaskContext& drive,
+                                                     DriveParams& drive,
                                                      ModifyOpinionController& opinionTaskController )
 {
     return std::make_unique<CatchingUpTask>( std::move(request), drive, opinionTaskController);

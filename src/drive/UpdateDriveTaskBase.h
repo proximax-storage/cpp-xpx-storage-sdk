@@ -9,7 +9,7 @@
 //#include "drive/FsTree.h"
 //#include "drive/ActionList.h"
 //#include "drive/FlatDrive.h"
-#include "TaskContext.h"
+#include "DriveParams.h"
 
 //#include <boost/multiprecision/cpp_int.hpp>
 //
@@ -68,7 +68,7 @@ protected:
 
     UpdateDriveTaskBase(
             const DriveTaskType& type,
-            TaskContext& drive,
+            DriveParams& drive,
             ModifyOpinionController& opinionTaskController)
             : DriveTaskBase( type, drive )
             , m_opinionController( opinionTaskController )

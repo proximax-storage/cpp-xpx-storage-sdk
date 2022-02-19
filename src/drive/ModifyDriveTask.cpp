@@ -9,7 +9,7 @@
 #include "drive/FsTree.h"
 #include "drive/ActionList.h"
 #include "drive/FlatDrive.h"
-#include "TaskContext.h"
+#include "DriveParams.h"
 #include "UpdateDriveTaskBase.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -42,7 +42,7 @@ private:
     bool m_modifyApproveTransactionSent = false;
     bool m_modifyApproveTxReceived = false;
     
-    uint64_t m_uploadedDataSize;
+    uint64_t m_uploadedDataSize = 0;
 
     std::optional<boost::asio::high_resolution_timer> m_shareMyOpinionTimer;
 #ifndef __APPLE__
@@ -59,7 +59,7 @@ public:
     ModifyDriveTask(
             mobj<ModificationRequest>&& request,
             std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>&& receivedOpinions,
-            TaskContext& drive,
+            DriveParams& drive,
             ModifyOpinionController& opinionTaskController)
             : UpdateDriveTaskBase( DriveTaskType::MODIFICATION_REQUEST, drive, opinionTaskController )
             , m_request( std::move(request) )
@@ -88,33 +88,45 @@ public:
 
         m_opinionController.setOpinionTrafficTx( m_request->m_transactionHash.array() );
 
+        //_LOG( "?????????: " << m_request->m_clientDataInfoHash  << "   " << m_drive.m_torrentHandleMap.size() )
+        if ( auto it = m_drive.m_torrentHandleMap.find( m_request->m_clientDataInfoHash ); it != m_drive.m_torrentHandleMap.end() )
+        {
+            m_actionListIsReceived = true;
+
+            m_drive.executeOnBackgroundThread( [this]
+            {
+                 prepareDownloadMissingFiles();
+            } );
+        }
+        
         if ( auto session = m_drive.m_session.lock(); session )
         {
             m_downloadingLtHandle = session->download(
                                         DownloadContext(
                                                DownloadContext::client_data,
                                                        
-                                                   [this]( download_status::code code,
-                                                           const InfoHash& infoHash,
-                                                           const std::filesystem::path saveAs,
-                                                           size_t /*downloaded*/,
-                                                           size_t /*fileSize*/,
-                                                           const std::string& errorText )
+                                                   [this]( download_status::code        code,
+                                                           const InfoHash&              infoHash,
+                                                           const std::filesystem::path  saveAs,
+                                                           size_t                       downloadedSize,
+                                                           size_t                       /*fileSize*/,
+                                                           const std::string&           errorText )
                                                    {
                                                        //(???+)
                                                        //DBG_MAIN_THREAD
 
                                                        if ( code == download_status::failed )
                                                        {
+                                                           m_drive.m_torrentHandleMap.erase( infoHash );
                                                            modifyIsCompletedWithError( errorText, 0 );
                                                        }
                                                        else if ( code == download_status::download_complete )
                                                        {
                                                            //(???+++)
-                                                           //_ASSERT( !m_stopped );
+                                                           _ASSERT( !m_stopped );
                                                            if ( ! m_stopped )
                                                            {
-                                                               m_downloadingLtHandle.reset();
+                                                               m_uploadedDataSize += downloadedSize;
                                                                m_actionListIsReceived = true;
 
                                                                m_drive.executeOnBackgroundThread( [this]
@@ -126,7 +138,7 @@ public:
                                                    },
                                                    m_request->m_clientDataInfoHash,
                                                    m_request->m_transactionHash,
-                                                   0, //todo
+                                                   m_request->m_maxDataSize - m_uploadedDataSize,
                                                    true,
                                                    "" ),
                                                m_drive.m_sandboxRootPath,
@@ -195,22 +207,13 @@ public:
 
         while ( !m_missedFileSet.empty() && !fileToDownload )
         {
-            auto file = *m_missedFileSet.begin();
+            fileToDownload = *m_missedFileSet.begin();
             m_missedFileSet.erase( m_missedFileSet.begin());
 
-            bool shouldDownloadFile = true;
-
-            if ( auto it = m_drive.m_torrentHandleMap.find( file ); it != m_drive.m_torrentHandleMap.end())
+            if ( auto it = m_drive.m_torrentHandleMap.find( *fileToDownload ); it != m_drive.m_torrentHandleMap.end())
             {
-                if ( it->second.m_ltHandle.is_valid() )
-                {
-                    shouldDownloadFile = false;
-                }
-            }
-
-            if ( shouldDownloadFile )
-            {
-                fileToDownload = file;
+                _ASSERT( it->second.m_ltHandle.is_valid() )
+                fileToDownload.reset();
             }
         }
 
@@ -227,7 +230,7 @@ public:
                                                                    [this]( download_status::code code,
                                                                            const InfoHash& infoHash,
                                                                            const std::filesystem::path saveAs,
-                                                                           size_t /*downloaded*/,
+                                                                           size_t downloadedSize,
                                                                            size_t /*fileSize*/,
                                                                            const std::string& errorText )
                                                                    {
@@ -236,16 +239,18 @@ public:
                                                                        if ( code == download_status::download_complete )
                                                                        {
                                                                            _LOG( "downloading: END: " << toString( infoHash ));
+                                                                           m_uploadedDataSize += downloadedSize;
                                                                            downloadMissingFiles();
                                                                        } else if ( code == download_status::failed )
                                                                        {
-                                                                           _LOG_ERR( "? is it possible now?" );
+                                                                           m_drive.m_torrentHandleMap.erase( infoHash );
+                                                                           modifyIsCompletedWithError( errorText, 0 );
                                                                        }
                                                                    },
 
                                                                    *fileToDownload,
                                                                    m_request->m_transactionHash,
-                                                                   0,
+                                                                   m_request->m_maxDataSize - m_uploadedDataSize,
                                                                    true,
                                                                    "" ),
                                                            m_drive.m_driveFolder,
@@ -451,6 +456,14 @@ public:
 
         getSandboxDriveSizes( m_metaFilesSize, m_sandboxDriveSize );
         m_fsTreeSize = sandboxFsTreeSize();
+        
+        if ( m_metaFilesSize + m_sandboxDriveSize + m_fsTreeSize > m_drive.m_maxSize )
+        {
+            m_drive.executeOnSessionThread( [this] {
+                modifyIsCompletedWithError( "Drive is full", 0 );
+            });
+            return;
+        }
 
         m_drive.executeOnSessionThread( [=, this]() mutable
                                         {
@@ -475,6 +488,8 @@ public:
 
     bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
     {
+        DBG_MAIN_THREAD
+        
         if ( m_stopped )
         {
             return true;
@@ -490,7 +505,16 @@ public:
                 const auto& v = transaction.m_replicatorKeys;
                 auto it = std::find( v.begin(), v.end(), m_drive.m_replicator.replicatorKey().array());
 
-                // Is my opinion present
+                if ( m_drive.m_rootHash == transaction.m_rootHash && m_sandboxRootHash != m_drive.m_rootHash )
+                {
+                    // Modification may be failed
+                    m_sandboxRootHash = m_drive.m_rootHash;
+                    m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
+                    fs::copy( m_drive.m_fsTreeFile, m_drive.m_sandboxFsTreeFile );
+                    fs::copy( m_drive.m_fsTreeTorrent, m_drive.m_sandboxFsTreeTorrent );
+                }
+                
+                // Is my opinion present in the transaction
                 if ( it == v.end())
                 {
                     // Send Single Approval Transaction At First
@@ -562,6 +586,7 @@ protected:
 
     void modifyIsCompletedWithError( std::string errorText, int errorCode )
     {
+        DBG_MAIN_THREAD
         _LOG( "modifyIsCompletedWithError" );
 
         if ( m_drive.m_dbgEventHandler )
@@ -573,7 +598,15 @@ protected:
                                          errorText, errorCode );
         }
 
-        UpdateDriveTaskBase::modifyIsCompleted();
+        m_sandboxRootHash = m_drive.m_rootHash;
+        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
+        std::error_code ec;
+        fs::remove( m_drive.m_sandboxFsTreeFile, ec );
+        fs::copy( m_drive.m_fsTreeFile, m_drive.m_sandboxFsTreeFile );
+        fs::remove( m_drive.m_sandboxFsTreeTorrent, ec );
+        fs::copy( m_drive.m_fsTreeTorrent, m_drive.m_sandboxFsTreeTorrent );
+
+        myRootHashIsCalculated();
     }
 
     const Hash256& getModificationTransactionHash() override
@@ -778,7 +811,8 @@ private:
         }
         catch (const std::exception& ex)
         {
-            _LOG_ERR( "exception during updateDrive_2: " << ex.what());
+            _LOG( "exception during updateDrive_2: " << ex.what());
+            _LOG_WARN( "exception during updateDrive_2: " << ex.what());
             finishTask();
         }
     }
@@ -800,7 +834,7 @@ private:
 
 std::unique_ptr<DriveTaskBase> createModificationTask( mobj<ModificationRequest>&& request,
                                             std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>&& receivedOpinions,
-                                            TaskContext& drive,
+                                            DriveParams& drive,
                                             ModifyOpinionController& opinionTaskController)
 {
     return std::make_unique<ModifyDriveTask>( std::move(request), std::move(receivedOpinions), drive, opinionTaskController );

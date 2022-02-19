@@ -131,24 +131,25 @@ public:
         _LOG( "~DefaultReplicator() ")
 #endif
 
-       boost::asio::post(m_session->lt_session().get_context(), [this]() mutable {
-
-           DBG_MAIN_THREAD
-
+        boost::asio::post(m_session->lt_session().get_context(), [this]() mutable
+        {
+            DBG_MAIN_THREAD
             stop();
         });
 
-       m_session->endSession();
+        //(???+++)
+        sleep(1);
+        m_session->endSession();
 
-       auto blockedDestructor = m_session->lt_session().abort();
-       m_session.reset();
+        auto blockedDestructor = m_session->lt_session().abort();
+        m_session.reset();
 
-       if ( m_libtorrentThread.joinable() )
-       {
-           m_libtorrentThread.join();
-       }
+        if ( m_libtorrentThread.joinable() )
+        {
+            m_libtorrentThread.join();
+        }
 
-       saveDownloadChannelMap();
+        saveDownloadChannelMap();
     }
     
     void start() override

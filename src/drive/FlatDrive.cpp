@@ -9,7 +9,7 @@
 #include "Session.h"
 #include "BackgroundExecutor.h"
 #include "DriveTaskBase.h"
-#include "TaskContext.h"
+#include "DriveParams.h"
 #include "ModifyOpinionController.h"
 #include "drive/Utils.h"
 #include "drive/log.h"
@@ -67,7 +67,7 @@ struct UnknownVerifyCode
 //
 // DefaultDrive - it manages all user files at replicator side
 //
-class DefaultFlatDrive: public FlatDrive, public TaskContext
+class DefaultFlatDrive: public FlatDrive, public DriveParams
 {
     // List of all replicators that support this drive
     // (It does not contain our replicator key!)
@@ -75,9 +75,6 @@ class DefaultFlatDrive: public FlatDrive, public TaskContext
 
     ReplicatorList m_modifyDonatorShard;
     ReplicatorList m_modifyRecipientShard;
-
-    const size_t   m_maxSize;
-    const size_t   m_currentDriveSize = 0;
 
     BackgroundExecutor  m_backgroundExecutor;
 
@@ -124,9 +121,10 @@ public:
                 const ReplicatorList&       modifyRecipientShard,
                 DbgReplicatorEventHandler*  dbgEventHandler
             )
-            : TaskContext(
+            : DriveParams(
                     drivePubKey,
                     driveOwner,
+                    maxSize,
                     session,
                     eventHandler,
                     replicator,
@@ -138,7 +136,6 @@ public:
             , m_allReplicators(fullReplicatorList)
             , m_modifyDonatorShard(modifyDonatorShard)
             , m_modifyRecipientShard(modifyRecipientShard)
-            , m_maxSize(maxSize)
             //(???+)
             , m_opinionController(m_driveKey, m_driveOwner, m_replicator, m_serializer, *this, expectedCumulativeDownload, replicator.dbgReplicatorName() )
 

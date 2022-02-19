@@ -191,12 +191,15 @@ public:
     virtual void executeOnBackgroundThread( const std::function<void()>& task ) = 0;
 };
 
-class TaskContext: public FlatDrivePaths, public ThreadManager
+class DriveParams: public FlatDrivePaths, public ThreadManager
 {
 
 public:
 
     const Key m_driveOwner;
+    
+    const size_t   m_maxSize;
+    const size_t   m_currentDriveSize = 0;
 
     std::weak_ptr<Session> m_session;
 
@@ -232,9 +235,10 @@ public:
 
 protected:
 
-    TaskContext(
+    DriveParams(
             const Key&                  drivePubKey,
             const Key&                  driveOwner,
+            size_t                      maxSize,
             std::shared_ptr<Session>    session,
             ReplicatorEventHandler&     eventHandler,
             ReplicatorInt&              replicator,
@@ -245,6 +249,7 @@ protected:
         )
         : FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey )
         , m_driveOwner(driveOwner)
+        , m_maxSize(maxSize)
         , m_session( session )
         , m_replicator( replicator )
         , m_eventHandler( eventHandler )
@@ -255,7 +260,7 @@ protected:
         , m_dbgThreadId( std::this_thread::get_id())
     {}
 
-    virtual ~TaskContext() = default;
+    virtual ~DriveParams() = default;
 
 public:
 

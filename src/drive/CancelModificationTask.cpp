@@ -23,7 +23,7 @@ public:
 
     CancelModificationDriveTask(
             mobj<ModificationCancelRequest>&& request,
-            TaskContext& drive,
+            DriveParams& drive,
             ModifyOpinionController& opinionTaskController)
             : DriveTaskBase(DriveTaskType::MODIFICATION_CANCEL, drive )
             , m_request(request)
@@ -119,7 +119,7 @@ private:
 };
 
 std::unique_ptr<DriveTaskBase> createModificationCancelTask( mobj<ModificationCancelRequest>&& request,
-                                                             TaskContext& drive,
+                                                             DriveParams& drive,
                                                              ModifyOpinionController& opinionTaskController  )
 {
     return std::make_unique<CancelModificationDriveTask>( std::move(request), drive, opinionTaskController  );

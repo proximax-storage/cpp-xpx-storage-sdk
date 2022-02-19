@@ -8,7 +8,7 @@
 
 #include "drive/FlatDrive.h"
 #include "drive/FsTree.h"
-#include "TaskContext.h"
+#include "DriveParams.h"
 #include "ModifyOpinionController.h"
 
 #undef DBG_MAIN_THREAD
@@ -38,7 +38,7 @@ private:
 
 protected:
 
-    TaskContext&    m_drive;
+    DriveParams&    m_drive;
 
     std::thread::id m_dbgThreadId;
     std::string     m_dbgOurPeerName;
@@ -47,7 +47,7 @@ public:
 
     DriveTaskBase(
             const DriveTaskType& type,
-            TaskContext& drive)
+            DriveParams& drive)
             : m_type( type ), m_drive( drive )
             , m_dbgThreadId( std::this_thread::get_id())
             , m_dbgOurPeerName(  m_drive.m_dbgOurPeerName )
@@ -196,29 +196,29 @@ protected:
     }
 };
 
-std::unique_ptr<DriveTaskBase> createDriveInitializationTask( TaskContext& drive,
+std::unique_ptr<DriveTaskBase> createDriveInitializationTask( DriveParams& drive,
                                                               ModifyOpinionController& opinionTaskController );
 
 std::unique_ptr<DriveTaskBase> createModificationTask(
         mobj<ModificationRequest>&& request,
         std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>&& receivedOpinions,
-        TaskContext& drive,
+        DriveParams& drive,
         ModifyOpinionController& opinionTaskController );
 
 std::unique_ptr<DriveTaskBase> createCatchingUpTask( mobj<CatchingUpRequest>&& request,
-                                                     TaskContext& drive,
+                                                     DriveParams& drive,
                                                      ModifyOpinionController& opinionTaskController );
 
 std::unique_ptr<DriveTaskBase> createModificationCancelTask( mobj<ModificationCancelRequest>&& request,
-                                                             TaskContext& drive,
+                                                             DriveParams& drive,
                                                              ModifyOpinionController& opinionTaskController );
 
 std::unique_ptr<DriveTaskBase> createDriveClosureTask( mobj<DriveClosureRequest>&& request,
-                                                       TaskContext& drive );
+                                                       DriveParams& drive );
 
 std::shared_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,
                                                             std::vector<VerifyApprovalTxInfo>&& receivedOpinions,
                                                             std::vector<VerificationCodeInfo>&& receivedCodes,
-                                                            TaskContext& drive );
+                                                            DriveParams& drive );
 
 }
