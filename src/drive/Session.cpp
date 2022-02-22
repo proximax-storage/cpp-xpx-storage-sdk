@@ -270,6 +270,11 @@ public:
     virtual void endSession() override {
         m_stopping = true;
     }
+    
+    virtual bool isEnding() override {
+        return m_stopping;
+    }
+
 
     virtual void removeTorrentsFromSession( const std::set<lt::torrent_handle>&  torrents,
                                             std::function<void()>                endNotification ) override
@@ -333,10 +338,12 @@ public:
         }
     }
     
-    virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
-                                               const std::string& folderWhereFileIsLocated,
-                                               uint32_t           siriusFlags,
-                                               std::optional<std::array<uint8_t,32>> txHash = {},
+    virtual lt_handle addTorrentFileToSession( const std::string&               torrentFilename,
+                                               const std::string&               folderWhereFileIsLocated,
+                                               lt::SiriusFlags::type            siriusFlags,
+                                               const std::array<uint8_t,32>*    driveKey  = nullptr,
+                                               const std::array<uint8_t,32>*    channelId = nullptr,
+                                               const std::array<uint8_t,32>*    modifyTx  = nullptr,
                                                endpoint_list list = {} ) override {
 
         // read torrent file
@@ -368,7 +375,12 @@ public:
         params.save_path        = fs::path(folderWhereFileIsLocated);
         params.ti               = std::make_shared<lt::torrent_info>( buffer, lt::from_span );
         params.m_siriusFlags    = siriusFlags;
-        params.m_transactionHash = txHash;
+        if ( driveKey )
+            params.m_driveKey = *driveKey;
+        if ( channelId )
+            params.m_channelId = *channelId;
+        if ( modifyTx )
+            params.m_modifyTx = *modifyTx;
 
         //dbg///////////////////////////////////////////////////
 //        auto tInfo = lt::torrent_info(buffer, lt::from_span);
@@ -393,11 +405,14 @@ public:
     }
 
     // downloadFile
-    virtual lt_handle download( DownloadContext&&          downloadContext,
-                                const std::string&         tmpFolder,
-                                const ReplicatorList&      keysHints,
-                                const endpoint_list&       endpointsHints) override {
-
+    virtual lt_handle download( DownloadContext&&               downloadContext,
+                                const std::string&              tmpFolder,
+                                const ReplicatorList&           keysHints,
+                                const std::array<uint8_t,32>*   driveKey  = nullptr,
+                                const std::array<uint8_t,32>*   channelId = nullptr,
+                                const std::array<uint8_t,32>*   modifyTx  = nullptr,
+                                const endpoint_list&            endpointsHints = {} ) override
+    {
         // create add_torrent_params
         lt::error_code ec;
         lt::add_torrent_params params = lt::parse_magnet_uri( magnetLink(downloadContext.m_infoHash), ec );
@@ -411,12 +426,17 @@ public:
         // where the file will be placed
         params.save_path = tmpFolder;
 
-        params.m_transactionHash = downloadContext.m_transactionHash.array();
+        if ( driveKey )
+            params.m_driveKey = *driveKey;
+        if ( channelId )
+            params.m_channelId = *channelId;
+        if ( modifyTx )
+            params.m_modifyTx = *modifyTx;
 
         if ( downloadContext.m_downloadType == DownloadContext::client_data || downloadContext.m_downloadType == DownloadContext::missing_files )
-            params.m_siriusFlags     = lt::sf_is_replicator | lt::sf_is_receiver;
+            params.m_siriusFlags     = lt::SiriusFlags::peer_is_replicator | lt::SiriusFlags::replicator_is_receiver;
         else
-            params.m_siriusFlags     = lt::sf_is_receiver;
+            params.m_siriusFlags     = lt::SiriusFlags::client_is_receiver;
 
         // create torrent_handle
         lt::torrent_handle tHandle = m_session.add_torrent(params,ec);

@@ -108,12 +108,15 @@ public:
 
 
     virtual void      endSession() = 0;
+    virtual bool      isEnding() = 0;
 
     // It loads existing file from disk
-    virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
-                                               const std::string& folderWhereFileIsLocated,
-                                               uint32_t           siriusFlags,
-                                               std::optional<std::array<uint8_t,32>> txHash = {},
+    virtual lt_handle addTorrentFileToSession( const std::string&               torrentFilename,
+                                               const std::string&               folderWhereFileIsLocated,
+                                               lt::SiriusFlags::type            siriusFlags,
+                                               const std::array<uint8_t,32>*    driveKey,
+                                               const std::array<uint8_t,32>*    channelId,
+                                               const std::array<uint8_t,32>*    modifyTx,
                                                endpoint_list = {} ) = 0;
 
     // It removes torrents from session.
@@ -126,10 +129,13 @@ public:
     // keysHints and endpointsHints are independent hits about peers to download the torrent from
     // It is not necessary to mention the hints: libtorrent will try to find the peers itself
     // But it can speed up downloading
-    virtual lt_handle download( DownloadContext&&          downloadParameters,
-                                const std::string&         tmpFolder,
-                                const ReplicatorList&      keysHints = {},
-                                const endpoint_list&       endpointsHints = {}) = 0;
+    virtual lt_handle download( DownloadContext&&               downloadParameters,
+                                const std::string&              tmpFolder,
+                                const ReplicatorList&           keysHints,
+                                const std::array<uint8_t,32>*   driveKey,
+                                const std::array<uint8_t,32>*   channelId,
+                                const std::array<uint8_t,32>*   modifyTx,
+                                const endpoint_list&            endpointsHints = {}) = 0;
 
     // Remove download context
     // (It prevents call of downloadHandler)

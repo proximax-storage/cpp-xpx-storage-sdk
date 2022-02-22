@@ -142,7 +142,11 @@ public:
                                                    true,
                                                    "" ),
                                                m_drive.m_sandboxRootPath,
-                                               getUploaders());
+                                               getUploaders(),
+                                               &m_drive.m_driveKey.array(),
+                                               nullptr,
+                                               &m_request->m_transactionHash.array()
+                                                );
         }
     }
 
@@ -254,7 +258,11 @@ public:
                                                                    true,
                                                                    "" ),
                                                            m_drive.m_driveFolder,
-                                                           getUploaders());
+                                                           getUploaders(),
+                                                           &m_drive.m_driveKey.array(),
+                                                           nullptr,
+                                                           &m_request->m_transactionHash.array()
+                                                          );
             }
 
             // save reference into 'torrentHandleMap'
@@ -789,7 +797,10 @@ private:
                         it.second.m_ltHandle = session->addTorrentFileToSession(
                                 m_drive.m_torrentFolder / fileName,
                                 m_drive.m_driveFolder,
-                                lt::sf_is_replicator );
+                                lt::SiriusFlags::peer_is_replicator,
+                                &m_drive.m_driveKey.array(),
+                                nullptr,
+                                nullptr );
                         _ASSERT( it.second.m_ltHandle.is_valid() )
                         _LOG( "downloading: ADDED_TO_SESSION : " << m_drive.m_torrentFolder / fileName )
                     }
@@ -801,7 +812,10 @@ private:
             {
                 m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
                                                                             m_drive.m_fsTreeTorrent.parent_path(),
-                                                                            lt::sf_is_replicator );
+                                                                            lt::SiriusFlags::peer_is_replicator,
+                                                                            &m_drive.m_driveKey.array(),
+                                                                            nullptr,
+                                                                            nullptr );
             }
 
             m_drive.executeOnSessionThread( [this]() mutable

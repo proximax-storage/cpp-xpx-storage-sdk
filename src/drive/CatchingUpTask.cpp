@@ -85,10 +85,11 @@ public:
                                                                0,
                                                                false,
                                                                "" ),
-                    //toString( *m_catchingUpRootHash ) ),
                                                        m_drive.m_sandboxRootPath,
-                    //{} );
-                                                       getUploaders());
+                                                       getUploaders(),
+                                                       &m_drive.m_driveKey.array(),
+                                                       nullptr,
+                                                       &m_opinionController.opinionTrafficTx().value().array() );
         }
     }
 
@@ -181,7 +182,10 @@ private:
                 {
                     auto tHandle = session->addTorrentFileToSession( m_drive.m_torrentFolder / fileName,
                                                                      m_drive.m_driveFolder,
-                                                                     lt::sf_is_replicator );
+                                                                     lt::SiriusFlags::peer_is_replicator,
+                                                                     &m_drive.m_driveKey.array(),
+                                                                     nullptr,
+                                                                     nullptr );
                     _ASSERT( tHandle.is_valid());
                     torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{tHandle, true} );
                 }
@@ -192,7 +196,10 @@ private:
             {
                 m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
                                                                             m_drive.m_fsTreeTorrent.parent_path(),
-                                                                            lt::sf_is_replicator );
+                                                                            lt::SiriusFlags::peer_is_replicator,
+                                                                            &m_drive.m_driveKey.array(),
+                                                                            nullptr,
+                                                                            nullptr );
             }
 
             // remove unused data from 'torrentMap'
@@ -367,7 +374,11 @@ private:
                                                                    false,
                                                                    "" ),
                                                            m_drive.m_sandboxRootPath,
-                                                           getUploaders());
+                                                           getUploaders(),
+                                                           &m_drive.m_driveKey.array(),
+                                                           nullptr,
+                                                           &m_opinionController.opinionTrafficTx().value().array()
+                                                          );
             }
         }
     }

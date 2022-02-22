@@ -66,12 +66,12 @@ public:
     }
 
     
-    void printReport( const std::array<uint8_t,32>&  transactionHash )
+    void printReport( const std::array<uint8_t,32>&  txHash )
     {
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             
             _LOG( "printReport:" );
-            if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
+            if ( auto it = m_dnChannelMap.find( txHash ); it != m_dnChannelMap.end() )
             {
                 for( auto& [key,value] : it->second.m_dnClientMap )
                 {
@@ -80,13 +80,13 @@ public:
                 return;
             }
 
-            _LOG( dbgOurPeerName() << "ERROR: printReport hash: " << (int)transactionHash[0] );
+            _LOG( dbgOurPeerName() << "ERROR: printReport hash: " << (int)txHash[0] );
             assert(0);
         });
     }
 
-    void onDisconnected( const std::array<uint8_t,32>&  transactionHash,
-                         const std::array<uint8_t,32>&  peerPublicKey,
+    void onDisconnected( const std::array<uint8_t,32>&  txHash,
+                         const std::array<uint8_t,32>&  peerKey,
                          int                            siriusFlags ) override
     {
         DBG_MAIN_THREAD
@@ -94,35 +94,34 @@ public:
         //TODO++
         return;
         
-        if ( !(siriusFlags & lt::sf_is_receiver) )
+        if ( ! (siriusFlags & lt::SiriusFlags::replicator_is_receiver) )
         {
-            _LOG( "onDisconnected: " << dbgOurPeerName() << " from client: " << (int)peerPublicKey[0] );
+            _LOG( "onDisconnected: " << dbgOurPeerName() << " from client: " << (int)peerKey[0] );
         }
         else
         {
-            _LOG( "onDisconnected: " << dbgOurPeerName() << " from peer: " << (int)peerPublicKey[0] );
+            _LOG( "onDisconnected: " << dbgOurPeerName() << " from peer: " << (int)peerKey[0] );
             for( const auto& i : m_modifyDriveMap ) {
-                _LOG( "m_modifyDriveMap: " << (int)i.first[0] << " " << (int)transactionHash[0]);
+                _LOG( "m_modifyDriveMap: " << (int)i.first[0] << " " << (int)txHash[0]);
             }
 
-            if ( const auto& it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
+            if ( const auto& it = m_modifyDriveMap.find( txHash ); it != m_modifyDriveMap.end() )
             {
                 for( const auto& replicatorIt : it->second.m_modifyTrafficMap )
                 {
                     _LOG( " m_receivedSize: " <<  replicatorIt.second.m_receivedSize << " from " << (int)replicatorIt.first[0] );
-                    _LOG( " m_sentSize: "     <<  replicatorIt.second.m_sentSize << " to " << (int)replicatorIt.first[0] );
                 }
                 _LOG( " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ " );
             }
         }
     }
 
-    void dbgPrintTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) override
+    void dbgPrintTrafficDistribution( const std::array<uint8_t,32>&  txHash ) override
     {
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             DBG_MAIN_THREAD
               
-            if ( const auto& it = m_modifyDriveMap.find( transactionHash ); it == m_modifyDriveMap.end() )
+            if ( const auto& it = m_modifyDriveMap.find( txHash ); it == m_modifyDriveMap.end() )
             {
                 _LOG( "\nTrafficDistribution NOT FOUND: " << dbgOurPeerName() << " (" << (int)publicKey()[0] << ")" );
             }
@@ -139,20 +138,16 @@ public:
                     {
                         _LOG( " requestedSize: "     <<  replicatorIt.second.m_requestedSize << " by " << (int)replicatorIt.first[0] );
                     }
-                    if ( replicatorIt.second.m_sentSize )
-                    {
-                        _LOG( " sentSize: "     <<  replicatorIt.second.m_sentSize << " to " << (int)replicatorIt.first[0] );
-                    }
                 }
             }
       });
     }
     
-    virtual ModifyTrafficInfo getMyDownloadOpinion( const Hash256& transactionHash ) const override
+    virtual ModifyTrafficInfo getMyDownloadOpinion( const Hash256& txHash ) const override
     {
         DBG_MAIN_THREAD
 
-        if ( const auto it = m_modifyDriveMap.find( transactionHash.array() ); it != m_modifyDriveMap.end() )
+        if ( const auto it = m_modifyDriveMap.find( txHash.array() ); it != m_modifyDriveMap.end() )
         {
             return it->second;
         }
@@ -167,6 +162,11 @@ public:
                              uint64_t /*downloadedSize*/) override
     {
         DBG_MAIN_THREAD
+        
+        if ( m_session->isEnding() )
+        {
+            return false;
+        }
 
         auto it = m_dnChannelMap.find( downloadChannelId );
 
@@ -243,7 +243,7 @@ public:
             return;
         }
 
-        DownloadChannelInfo dnChannelInfo { false,
+        DownloadChannelInfo dnChannelInfo {
             willBeSyncronized, prepaidDownloadSize, 0, {}, driveKey.array(), replicatorsList, {}, {} };
         
         // Every client has its own cell
@@ -321,14 +321,6 @@ public:
         
         m_modifyDriveMap.insert(driveMapIt, {modifyTransactionHash.array(), ModifyTrafficInfo{ driveKey.array(), dataSize, trafficMap, 0 }});
 
-        // we need to add modifyTransactionHash into 'm_dnChannelMap'
-        // because replicators could download pieces from their neighbors
-        //
-        {
-            //_LOG( "driveKey: " << driveKey )
-            m_dnChannelMap[modifyTransactionHash.array()] = DownloadChannelInfo{ true, false, dataSize, 0, {}, driveKey.array(), replicatorsList, {}, {}};
-        }
-
         return true;
     }
     
@@ -341,90 +333,98 @@ public:
         m_modifyDriveMap.erase(modifyTransactionHash);
     }
 
-    bool isRecipient( const FlatDrive& drive, const std::array<uint8_t,32>&  peerPublicKey )
+    bool isRecipient( const FlatDrive& drive, const std::array<uint8_t,32>&  peerKey )
     {
         DBG_MAIN_THREAD
         
         auto& list = drive.recipientShard();
-        auto replicatorIt = std::find( list.begin(), list.end(), peerPublicKey );
+        auto replicatorIt = std::find( list.begin(), list.end(), peerKey );
 
         return replicatorIt != list.end();
     }
 
-    bool acceptConnection( const std::array<uint8_t,32>&  transactionHash,
-                           const std::array<uint8_t,32>&  peerPublicKey,
-                           bool*                          outIsDownloadUnlimited ) override
+    bool acceptClientConnection( const std::array<uint8_t,32>&  channelId,
+                                 const std::array<uint8_t,32>&  peerKey ) override
     {
         DBG_MAIN_THREAD
         
-        if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
+        if ( m_session->isEnding() )
         {
-            if ( it->second.m_isModifyTx )
-            {
-                if ( auto drive = getDrive( it->second.m_driveKey ); drive )
-                {
-                    if ( isRecipient( *drive, peerPublicKey) )
-                    {
-                        *outIsDownloadUnlimited = true;
-                        return true;
-                    }
-                    else if ( drive->driveOwner() == peerPublicKey )
-                    {
-                        return true;
-                    }
-                    else
-                    {
-                        //return true;
-                        //(???++++)
-                        _LOG( "acceptConnection: " << Key(transactionHash) );
-                        _LOG( "acceptConnection: " << int(peerPublicKey[0]) );
-                        _LOG_WARN( "acceptConnection: unknown peerPublicKey: " << sirius::Key(peerPublicKey) );
-                        return false;
-                    }
-                }
-                else
-                {
-                    _LOG_WARN( "acceptConnection: unknown drive: " << sirius::Key(it->second.m_driveKey) );
-                    return false;
-                }
+            return false;
+        }
+        
+        if ( auto it = m_dnChannelMap.find( channelId ); it != m_dnChannelMap.end() )
+        {
+            const auto& clientMap = it->second.m_dnClientMap;
+            if ( clientMap.find(peerKey) == clientMap.end() ) {
+                return false;
             }
-            else // it is connection for download channel
+            if ( it->second.m_totalReceiptsSize < it->second.m_prepaidDownloadSize )
             {
-                const auto& clientMap = it->second.m_dnClientMap;
-                if ( clientMap.find(peerPublicKey) == clientMap.end() ) {
-                    return false;
-                }
-                return it->second.m_totalReceiptsSize < it->second.m_prepaidDownloadSize;
+                return true;
+            }
+            else
+            {
+                _LOG_WARN( "Failed: it->second.m_totalReceiptsSize < it->second.m_prepaidDownloadSize: "
+                          << it->second.m_totalReceiptsSize << "  " << it->second.m_prepaidDownloadSize )
+                return false;
             }
         }
-
-        return true;
-        //(???+++) in modifyDriveFlat3
-        _LOG_WARN( "Unknown channel (or modify tx): " << Key(transactionHash) << " from_peer:" << Key(peerPublicKey) )
+        
+        _LOG_WARN( "Unknown channelId: " << Key(channelId) << " from_peer:" << Key(peerKey) )
         return false;
     }
 
-    void onPieceRequest( const std::array<uint8_t,32>&  transactionHash,
+    bool acceptReplicatorConnection( const std::array<uint8_t,32>&  driveKey,
+                                     const std::array<uint8_t,32>&  peerKey ) override
+    {
+        DBG_MAIN_THREAD
+        
+        if ( m_session->isEnding() )
+        {
+            return false;
+        }
+        
+        // Replicator downloads from another replicator
+        if ( auto driveIt = m_driveMap.find( Key(driveKey) ); driveIt != m_driveMap.end() )
+        {
+            if ( isRecipient( *driveIt->second, peerKey ) )
+            {
+                return true;
+            }
+        }
+
+        _LOG_WARN( "Unknown driveKey: " << Key(driveKey) << " from_peer:" << Key(peerKey) )
+        return false;
+    }
+
+    void onPieceRequest( const std::array<uint8_t,32>&  txHash,
                          const std::array<uint8_t,32>&  receiverPublicKey,
                          uint64_t                       pieceSize ) override
     {
 // Replicator nothing does
 //        DBG_MAIN_THREAD
 //
-//        if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
+//        if ( auto it = m_dnChannelMap.find( txHash ); it != m_dnChannelMap.end() )
 //        {
 //            it->second.m_requestedSize += pieceSize;
 //            return;
 //        }
     }
     
-    void onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
-                                 const std::array<uint8_t,32>&  receiverPublicKey,
-                                 uint64_t                       pieceSize ) override
+    void onPieceRequestReceivedFromReplicator( const std::array<uint8_t,32>&  modifyTx,
+                                               const std::array<uint8_t,32>&  receiverPublicKey,
+                                               uint64_t                       pieceSize ) override
     {
         DBG_MAIN_THREAD
+        
+        if ( m_session->isEnding() )
+        {
+            return;
+        }
 
-        if ( auto it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
+
+        if ( auto it = m_modifyDriveMap.find( modifyTx ); it != m_modifyDriveMap.end() )
         {
             if ( auto peerIt = it->second.m_modifyTrafficMap.find(receiverPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
             {
@@ -432,15 +432,29 @@ public:
             }
         }
     }
+    
+    void onPieceRequestReceivedFromClient( const std::array<uint8_t,32>&      transactionHash,
+                                           const std::array<uint8_t,32>&      receiverPublicKey,
+                                           uint64_t                           pieceSize ) override
+    {
+        //(???+++)
+        //TODO
+    }
 
-    void onPieceSent( const std::array<uint8_t,32>&  transactionHash,
+    void onPieceSent( const std::array<uint8_t,32>&  txHash,
                       const std::array<uint8_t,32>&  receiverPublicKey,
                       uint64_t                       pieceSize ) override
     {
         DBG_MAIN_THREAD
+        
+        if ( m_session->isEnding() )
+        {
+            return;
+        }
+
 
         // Maybe this piece was sent to client (during data download)
-        if ( auto it = m_dnChannelMap.find( transactionHash ); it != m_dnChannelMap.end() )
+        if ( auto it = m_dnChannelMap.find( txHash ); it != m_dnChannelMap.end() )
         {
             if ( auto it2 = it->second.m_dnClientMap.find( receiverPublicKey ); it2 != it->second.m_dnClientMap.end() )
             {
@@ -453,27 +467,21 @@ public:
             return;
         }
 
-        // May be this piece was sent to another replicator (during drive modification)
-        if ( auto it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
-        {
-            if ( auto peerIt = it->second.m_modifyTrafficMap.find(receiverPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
-            {
-                peerIt->second.m_sentSize += pieceSize;
-                return;
-            }
-            _LOG_WARN( "unknown peer: " << (int)receiverPublicKey[0] );
-        }
-
-        _LOG_WARN( "unknown transactionHash: " << (int)transactionHash[0] );
+        _LOG_WARN( "unknown txHash: " << (int)txHash[0] );
     }
     
-    void onPieceReceived( const std::array<uint8_t,32>&  transactionHash,
+    void onPieceReceived( const std::array<uint8_t,32>&  modifyTx,
                           const std::array<uint8_t,32>&  senderPublicKey,
                           uint64_t                       pieceSize ) override
     {
         DBG_MAIN_THREAD
+        
+        if ( m_session->isEnding() )
+        {
+            return;
+        }
 
-        if ( auto it = m_modifyDriveMap.find( transactionHash ); it != m_modifyDriveMap.end() )
+        if ( auto it = m_modifyDriveMap.find( modifyTx ); it != m_modifyDriveMap.end() )
         {
             if ( auto peerIt = it->second.m_modifyTrafficMap.find(senderPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
             {
@@ -485,8 +493,8 @@ public:
             _LOG_WARN( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
         }
 
-        _LOG( "unknown transactionHash: " << Key(transactionHash) );
-        _LOG_WARN( "ERROR(3): unknown transactionHash: " << (int)transactionHash[0] );
+        _LOG( "unknown txHash: " << Key(modifyTx) );
+        _LOG_WARN( "ERROR(3): unknown txHash: " << Key(modifyTx) );
     }
 
 
@@ -494,6 +502,11 @@ public:
     virtual bool acceptReceiptFromAnotherReplicator( RcptMessage&& message ) override
     {
         DBG_MAIN_THREAD
+        
+        if ( m_session->isEnding() )
+        {
+            return false;
+        }
         
         return acceptReceiptImpl( std::move(message) );
     }
@@ -582,6 +595,11 @@ public:
                         uint64_t                       downloadedSize,
                         const std::array<uint8_t, 64>& signature) override
     {
+        if ( m_session->isEnding() )
+        {
+            return false;
+        }
+
         return acceptReceiptImpl(
                     RcptMessage( ChannelId(downloadChannelId),
                                  ClientKey(clientPublicKey),
@@ -600,14 +618,6 @@ public:
             return false;
         }
 
-        if ( channelInfoIt->second.m_isModifyTx )
-        {
-            //(???++++)
-            //return true;
-            _LOG_WARN( dbgOurPeerName() << "receipt for modification should never be received" << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) )
-            return false;
-        }
-        
         // Check client key
         //
         const auto& clientMap = channelInfoIt->second.m_dnClientMap;
@@ -620,7 +630,7 @@ public:
         //
         // Check sign
         //
-        if ( !crypto::Verify( msg.clientKey(),
+        if ( ! crypto::Verify( msg.clientKey(),
                                {
                                     utils::RawBuffer{msg.channelId()},
                                     utils::RawBuffer{msg.clientKey()},
@@ -629,6 +639,12 @@ public:
                                },
                                reinterpret_cast<const Signature&>(msg.signature()) ))
         {
+            _LOG( "msg.channelId() " << msg.channelId() )
+            _LOG( "msg.clientKey() " << msg.clientKey() )
+            _LOG( "msg.replicatorKey() " << msg.replicatorKey() )
+            _LOG( "downloadedSize: " << *msg.downloadedSizePtr() )
+            _LOG( "msg.signature() " << int(msg.signature()[0]) )
+
             _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature: " << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) )
             return false;
         }
@@ -745,13 +761,13 @@ public:
 //    {
 //    }
 
-    uint64_t receivedSize( const std::array<uint8_t,32>&  peerPublicKey ) override
+    uint64_t receivedSize( const std::array<uint8_t,32>&  peerKey ) override
     {
         DBG_MAIN_THREAD
         return 0;
     }
 
-    uint64_t requestedSize( const std::array<uint8_t,32>&  peerPublicKey ) override
+    uint64_t requestedSize( const std::array<uint8_t,32>&  peerKey ) override
     {
         DBG_MAIN_THREAD
         return 0;

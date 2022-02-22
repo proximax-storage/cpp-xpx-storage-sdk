@@ -131,24 +131,28 @@ public:
         _LOG( "~DefaultReplicator() ")
 #endif
 
-        boost::asio::post(m_session->lt_session().get_context(), [this]() mutable
+        m_session->endSession();
+        
+        std::promise<void> barrier;
+        boost::asio::post(m_session->lt_session().get_context(), [&barrier,this]() mutable
         {
             DBG_MAIN_THREAD
             stop();
+            barrier.set_value();
         });
+        barrier.get_future().wait();
 
-        //(???+++)
-        sleep(1);
-        m_session->endSession();
-
-        auto blockedDestructor = m_session->lt_session().abort();
-        m_session.reset();
-
+        {
+            auto blockedDestructor = m_session->lt_session().abort();
+            m_session.reset();
+        }
+        
         if ( m_libtorrentThread.joinable() )
         {
             m_libtorrentThread.join();
         }
 
+        //(???+++)
         saveDownloadChannelMap();
     }
     
@@ -752,12 +756,12 @@ public:
         
         auto replicatorPublicKey = publicKey();
 
-        std::vector<uint8_t> message;
-        message.insert( message.end(), downloadChannelId.begin(),   downloadChannelId.end() );
-        message.insert( message.end(), clientPublicKey.begin(),     clientPublicKey.end() );
-        message.insert( message.end(), replicatorPublicKey.begin(), replicatorPublicKey.end() );
-        message.insert( message.end(), (uint8_t*)&downloadedSize,   ((uint8_t*)&downloadedSize)+8 );
-        message.insert( message.end(), signature.begin(),           signature.end() );
+//        std::vector<uint8_t> message;
+//        message.insert( message.end(), downloadChannelId.begin(),   downloadChannelId.end() );
+//        message.insert( message.end(), clientPublicKey.begin(),     clientPublicKey.end() );
+//        message.insert( message.end(), replicatorPublicKey.begin(), replicatorPublicKey.end() );
+//        message.insert( message.end(), (uint8_t*)&downloadedSize,   ((uint8_t*)&downloadedSize)+8 );
+//        message.insert( message.end(), signature.begin(),           signature.end() );
         
         RcptMessage msg( downloadChannelId, clientPublicKey, replicatorPublicKey, downloadedSize, signature );
         
@@ -1092,15 +1096,9 @@ public:
     {
         DBG_MAIN_THREAD
 
-        std::erase_if( m_dnChannelMap, [](const auto& channelInfo )
-        {
-            return channelInfo.second.m_isModifyTx;
-        });
-
         _ASSERT( blockHash )
         for( auto& [channelId,channelInfo] : m_dnChannelMap )
         {
-            _ASSERT( !channelInfo.m_isModifyTx )
             if ( channelInfo.m_driveKey == driveKey.array() )
             {
                 doInitiateDownloadApprovalTransactionInfo( *blockHash, channelId );

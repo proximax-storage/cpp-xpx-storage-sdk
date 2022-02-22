@@ -1,5 +1,4 @@
 #include "types.h"
-#include "../../src/drive/Session.h"
 #include "drive/ClientSession.h"
 #include "drive/Replicator.h"
 #include "drive/FlatDrive.h"
@@ -730,7 +729,8 @@ int main(int,char**)
     gReplicator2.reset();
     gReplicator3.reset();
 
-    _EXLOG( "\ntotal time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
+    _EXLOG( "" );
+    _EXLOG( "total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
 
     return 0;
 }
