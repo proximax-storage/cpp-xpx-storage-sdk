@@ -46,7 +46,6 @@ public:
 
     ~ClientSession()
     {
-        m_session->endSession();
         _LOG( "ClientSession deleted" );
     }
 public:
@@ -319,6 +318,7 @@ public:
 
     void stop()
     {
+        m_session->endSession();
         auto blockedDestructor = m_session->lt_session().abort();
         m_session.reset();
     }

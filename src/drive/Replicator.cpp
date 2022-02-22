@@ -142,10 +142,8 @@ public:
         });
         barrier.get_future().wait();
 
-        {
-            auto blockedDestructor = m_session->lt_session().abort();
-            m_session.reset();
-        }
+        auto blockedDestructor = m_session->lt_session().abort();
+        m_session.reset();
         
         if ( m_libtorrentThread.joinable() )
         {
