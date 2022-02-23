@@ -270,6 +270,7 @@ public:
         }
         else
         {
+            _LOG( "Download Handle Reset" )
             m_downloadingLtHandle.reset();
 
             // it is the end of list
@@ -614,6 +615,7 @@ protected:
         fs::remove( m_drive.m_sandboxFsTreeTorrent, ec );
         fs::copy( m_drive.m_fsTreeTorrent, m_drive.m_sandboxFsTreeTorrent );
 
+        m_downloadingLtHandle.reset();
         myRootHashIsCalculated();
     }
 
