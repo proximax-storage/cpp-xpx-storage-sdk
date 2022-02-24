@@ -135,12 +135,15 @@ public:
                                      const Key&             drivePublicKey,
                                      const ReplicatorList&  unused,
                                      const std::string&     sandboxFolder, // it is the folder where all ActionLists and file-links will be placed
+                                     uint64_t&              outTotalModifySize,
                                      const endpoint_list&   endpointList = {}
                                    )
     {
         fs::path workFolder = sandboxFolder;
         std::error_code ec;
         fs::create_directories( workFolder, ec );
+
+        outTotalModifySize = 0;
 
         // Create new action list
         //
@@ -220,13 +223,16 @@ public:
             }
 
             InfoHash infoHash2 = createTorrentFile( filenameInSandbox, drivePublicKey, workFolder, torrentFilenameInSandbox );
+            uint64_t totalSize = 0;
             lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox,
                                                                           workFolder,
                                                                           lt::SiriusFlags::client_has_modify_data,
                                                                           &infoHash0.array(),
                                                                           nullptr,
                                                                           &drivePublicKey.array(),
-                                                                          endpointList );
+                                                                          endpointList,
+                                                                          &totalSize );
+            outTotalModifySize += totalSize;
             m_modifyTorrentMap[infoHash2] = {torrentHandle,false};
         }
         
@@ -246,13 +252,16 @@ public:
                         InfoHash infoHash2 = createTorrentFile( filenameInSandbox, drivePublicKey, workFolder, torrentFilenameInSandbox );
                         __ASSERT( infoHash == infoHash2 );
                         
+                        uint64_t totalSize = 0;
                         lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox,
                                                                                       workFolder,
                                                                                       lt::SiriusFlags::client_has_modify_data,
                                                                                       &infoHash0.array(),
                                                                                       nullptr,
                                                                                       &drivePublicKey.array(),
-                                                                                      endpointList );
+                                                                                      endpointList,
+                                                                                      &totalSize );
+                        outTotalModifySize += totalSize;
                         m_modifyTorrentMap[infoHash2] = {torrentHandle,false};
                     }
                     break;

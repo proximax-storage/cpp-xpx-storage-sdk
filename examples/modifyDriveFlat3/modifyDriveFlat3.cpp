@@ -872,7 +872,8 @@ static void clientModifyDrive( const ActionList& actionList,
     EXLOG( "# Client tmpFolder: " << tmpFolder );
 
     // start file uploading
-    InfoHash hash = gClientSession->addActionListToSession(  actionList, DRIVE_PUB_KEY, replicatorList, tmpFolder );
+    uint64_t totalModifySize;
+    InfoHash hash = gClientSession->addActionListToSession(  actionList, DRIVE_PUB_KEY, replicatorList, tmpFolder, totalModifySize );
 
     // inform replicator
     clientModifyHash = hash;

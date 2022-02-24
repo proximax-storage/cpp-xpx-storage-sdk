@@ -117,7 +117,8 @@ public:
                                                const std::array<uint8_t,32>*    driveKey,
                                                const std::array<uint8_t,32>*    channelId,
                                                const std::array<uint8_t,32>*    modifyTx,
-                                               endpoint_list = {} ) = 0;
+                                               endpoint_list = {},
+                                               uint64_t* outTotalSize = nullptr ) = 0;
 
     // It removes torrents from session.
     // After removing 'endNotification' will be called.

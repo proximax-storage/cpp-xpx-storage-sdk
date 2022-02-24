@@ -341,11 +341,12 @@ public:
     virtual lt_handle addTorrentFileToSession( const std::string&               torrentFilename,
                                                const std::string&               folderWhereFileIsLocated,
                                                lt::SiriusFlags::type            siriusFlags,
-                                               const std::array<uint8_t,32>*    driveKey  = nullptr,
-                                               const std::array<uint8_t,32>*    channelId = nullptr,
-                                               const std::array<uint8_t,32>*    modifyTx  = nullptr,
-                                               endpoint_list list = {} ) override {
-
+                                               const std::array<uint8_t,32>*    driveKey,
+                                               const std::array<uint8_t,32>*    channelId,
+                                               const std::array<uint8_t,32>*    modifyTx,
+                                               endpoint_list list,
+                                               uint64_t* outTotalSize ) override
+    {
         // read torrent file
         std::ifstream torrentFile( torrentFilename );
         std::vector<char> buffer( (std::istreambuf_iterator<char>(torrentFile)), std::istreambuf_iterator<char>() );
@@ -400,6 +401,11 @@ public:
         }
 
         connectPeers( tHandle, list );
+        
+        if ( outTotalSize != nullptr )
+        {
+            *outTotalSize = tHandle.torrent_file()->total_size();
+        }
 
         return tHandle;
     }
