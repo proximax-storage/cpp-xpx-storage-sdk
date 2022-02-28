@@ -6,6 +6,8 @@ Libtorrent:
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=17  -GXcode ..
 ----------------------------------------------------------------------------
 
+Missed test: for asyncApprovalTransactionHasBeenPublished failed modify 
+
 LONG_TODO: проверка downloadLimit при piece_finished_alert
 
 m_modifyDriveMap - накапливается мусор

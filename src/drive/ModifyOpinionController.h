@@ -254,6 +254,10 @@ private:
             }
             modificationUploads[m_clientKey.array()] = targetSum - sumAfter;
         }
+        else
+        {
+            modificationUploads[m_clientKey.array()] = targetSum;
+        }
     }
 };
 

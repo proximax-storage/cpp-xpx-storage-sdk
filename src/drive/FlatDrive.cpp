@@ -486,6 +486,7 @@ public:
 
         if ( m_verificationTask )
         {
+            //(???+++) replace by? m_verificationTask->terminate();
             m_verificationTask->onApprovalTxPublished(transaction);
             m_verificationTask.reset();
         }

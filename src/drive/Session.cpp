@@ -43,6 +43,9 @@
 
 #include <sirius_drive/session_delegate.h>
 
+#undef DBG_MAIN_THREAD
+#define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
+
 namespace fs = std::filesystem;
 
 namespace sirius::drive {
@@ -88,6 +91,9 @@ class DefaultSession: public Session, std::enable_shared_from_this<DefaultSessio
     std::string                         m_dbgOurPeerName = "";
     
     bool                                m_stopping = false;
+    
+    std::thread::id                     m_dbgThreadId;
+
 
 public:
     
@@ -261,6 +267,11 @@ public:
         return settingsPack;
     }
 
+    void setDbgThreadId()
+    {
+        m_dbgThreadId = std::this_thread::get_id();
+    }
+    
     // createSession
     void continueSessionCreation() {
         m_session.set_alert_notify( [this] { alertHandler(); } );
@@ -804,7 +815,9 @@ private:
         limiter->onEndpointDiscovered(publicKey, endpoint);
     }
 
-    void alertHandler() {
+    void alertHandler()
+    {
+        //DBG_MAIN_THREAD
         
         if ( m_stopping )
         {

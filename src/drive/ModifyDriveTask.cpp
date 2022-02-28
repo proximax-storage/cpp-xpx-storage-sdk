@@ -113,7 +113,7 @@ public:
                                                            const std::string&           errorText )
                                                    {
                                                        //(???+)
-                                                       //DBG_MAIN_THREAD
+                                                       DBG_MAIN_THREAD
 
                                                        if ( code == download_status::failed )
                                                        {
@@ -509,31 +509,27 @@ public:
         if ( m_request->m_transactionHash == transaction.m_modifyTransactionHash
              && m_actionListIsReceived )
         {
-            if ( m_sandboxCalculated )
+            if ( !m_sandboxCalculated )
             {
-                const auto& v = transaction.m_replicatorKeys;
-                auto it = std::find( v.begin(), v.end(), m_drive.m_replicator.replicatorKey().array());
-
-                if ( m_drive.m_rootHash == transaction.m_rootHash && m_sandboxRootHash != m_drive.m_rootHash )
-                {
-                    // Modification may be failed
-                    m_sandboxRootHash = m_drive.m_rootHash;
-                    m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
-                    fs::copy( m_drive.m_fsTreeFile, m_drive.m_sandboxFsTreeFile );
-                    fs::copy( m_drive.m_fsTreeTorrent, m_drive.m_sandboxFsTreeTorrent );
-                }
-                
-                // Is my opinion present in the transaction
-                if ( it == v.end())
-                {
-                    // Send Single Approval Transaction At First
-                    sendSingleApprovalTransaction( *m_myOpinion );
-                }
-
-                startSynchronizingDriveWithSandbox();
+                return false;
             }
+            
+            _ASSERT( m_sandboxRootHash == transaction.m_rootHash )
+            
+            const auto& v = transaction.m_replicatorKeys;
+            auto it = std::find( v.begin(), v.end(), m_drive.m_replicator.replicatorKey().array());
+
+            // Is my opinion present in the transaction
+            if ( it == v.end())
+            {
+                // Send Single Approval Transaction At First
+                sendSingleApprovalTransaction( *m_myOpinion );
+            }
+
+            startSynchronizingDriveWithSandbox();
             return false;
-        } else
+        }
+        else
         {
             m_opinionController.increaseApprovedExpectedCumulativeDownload(m_request->m_maxDataSize);
             breakTorrentDownloadAndRunNextTask();
@@ -583,6 +579,8 @@ protected:
 
     void modifyIsCompleted() override
     {
+        DBG_MAIN_THREAD
+        
         _LOG( "modifyIsCompleted" );
 
         if ( m_drive.m_dbgEventHandler ) {

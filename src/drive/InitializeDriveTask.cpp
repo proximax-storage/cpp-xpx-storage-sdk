@@ -147,6 +147,7 @@ private:
 
         if ( m_singleTx )
         {
+            // send single tx info that was be saved
             sendSingleApprovalTransaction( *m_singleTx );
         }
 

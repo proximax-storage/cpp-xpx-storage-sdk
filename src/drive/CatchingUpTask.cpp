@@ -32,9 +32,9 @@ class CatchingUpTask : public UpdateDriveTaskBase
 
 private:
 
-    const mobj<CatchingUpRequest> m_request;
+    mobj<CatchingUpRequest>      m_request;
 
-    std::set<InfoHash> m_catchingUpFileSet;
+    std::set<InfoHash>           m_catchingUpFileSet;
     std::set<InfoHash>::iterator m_catchingUpFileIt = m_catchingUpFileSet.end();
 
 public:
@@ -108,18 +108,8 @@ public:
             return true;
         }
 
-        if ( m_request->m_rootHash == transaction.m_rootHash )
-        {
-            // TODO We should update knowledge about the catching modification id
-            // This situation could be valid if some next modification has not changed Drive Root Hash
-            // For example, because of next modification was invalid
-            // So, we continue previous catching-up
-            return false;
-        } else
-        {
-            breakTorrentDownloadAndRunNextTask();
-            return true;
-        }
+        breakTorrentDownloadAndRunNextTask();
+        return true;
     }
 
 protected:

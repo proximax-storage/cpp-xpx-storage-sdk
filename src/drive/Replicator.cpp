@@ -182,6 +182,7 @@ public:
         m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName.c_str();
         
         m_libtorrentThread = std::thread( [this] {
+            //m_sesion->setDbgThreadId();
             m_replicatorContext.run();
 #ifdef DEBUG_OFF_CATAPULT
             _LOG( "libtorrentThread ended" );
