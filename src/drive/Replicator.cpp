@@ -97,6 +97,7 @@ public:
     {
         DBG_MAIN_THREAD
 
+
         return m_replicatorIsDestructing;
     }
 
@@ -105,6 +106,8 @@ public:
         DBG_MAIN_THREAD
 
         m_replicatorIsDestructing = true;
+
+        m_session->endSession();
 
         m_dnOpinionSyncronizer.stop();
 
@@ -130,8 +133,6 @@ public:
 #ifdef DEBUG_OFF_CATAPULT
         _LOG( "~DefaultReplicator() ")
 #endif
-
-        m_session->endSession();
         
         std::promise<void> barrier;
         boost::asio::post(m_session->lt_session().get_context(), [&barrier,this]() mutable

@@ -159,6 +159,11 @@ public:
     
     virtual void onTorrentDeleted( lt::torrent_handle handle ) override
     {
+        if (m_stopping)
+        {
+            return;
+        }
+
         auto userdata = handle.userdata().get<LtClientData>();
         if ( userdata==0 )
         {
@@ -280,6 +285,7 @@ public:
 
     virtual void endSession() override {
         m_stopping = true;
+        _LOG( "stop session" )
     }
     
     virtual bool isEnding() override {
