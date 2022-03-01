@@ -95,7 +95,9 @@ public:
 
     void terminate() override
     {
+        DBG_MAIN_THREAD
 
+        breakTorrentDownloadAndRunNextTask();
     }
 
     // Returns 'true' if 'CatchingUp' should be started

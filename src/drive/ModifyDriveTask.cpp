@@ -46,7 +46,7 @@ private:
 
     std::optional<boost::asio::high_resolution_timer> m_shareMyOpinionTimer;
 #ifndef __APPLE__
-    const int m_shareMyOpinionTimerDelayMs = 1000 * 60;
+    const int m_shareMyOpinionTimerDelayMs = 1000 * 1;
 #else
     //(???+++)
     const int m_shareMyOpinionTimerDelayMs = 1000 * 60;
@@ -74,6 +74,8 @@ public:
 
         m_modifyOpinionTimer.reset();
         m_shareMyOpinionTimer.reset();
+
+        breakTorrentDownloadAndRunNextTask();
     }
 
     void run() override

@@ -250,7 +250,12 @@ public:
     void runNextTask() override
     {
         DBG_MAIN_THREAD
-        
+
+        if (m_replicator.isStopped())
+        {
+            return;
+        }
+
         m_task.reset();
 
         if ( m_closeDriveRequest )

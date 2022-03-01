@@ -725,9 +725,13 @@ int main(int,char**)
     
     /// Delete client session and replicators
     gClientSession.reset();
+    sleep(1);
     gReplicator.reset();
+    sleep(1);
     gReplicator2.reset();
+    sleep(1);
     gReplicator3.reset();
+    sleep(1);
 
     _EXLOG( "" );
     _EXLOG( "total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
