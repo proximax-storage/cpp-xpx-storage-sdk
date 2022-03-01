@@ -1,17 +1,17 @@
 ------------- Download ActionList as separate torrent and then download all files in it
 ------------- Verifications
-Modification overhead: modification size > prepaid, sandboxDriveSize > prepaid
+------------- Modification overhead: modification size > prepaid, sandboxDriveSize > prepaid
 ************* many clients on Download Channel
 ------------- Use LibTorrent DHT for IP
-Correctly Work with modifications that end with the same Root Hash
-modification ended with error should post an ordinary transaction (actually, such an error is a normal result of actionlist execution that does not change drive state)
-** download limitations
+------------- Correctly Work with modifications that end with the same Root Hash
+------------- modification ended with error should post an ordinary transaction (actually, such an error is a normal result of actionlist execution that does not change drive state)
+
 send receipts from another replicator to replicators
 Ограничить запросы с клиента к фолтному/нераздающему репликатору
 Сделать загрузку для репликатора не всегда unlimited
 Unexpected connections of Replicators
-+++++++++ Remove Download Channel when DownloadApproval with flag "channel is closed" is published
-Add To Handshake Drive and Channel
+------------- Remove Download Channel when DownloadApproval with flag "channel is closed" is published
+------------- Add To Handshake Drive and Channel
 ------------- Shards
 ------------- Drive Tasks as Classes
 Possible attack: a malicious client M asks modification of its Drive with the same hash as an honest client (so the malicious client breaks the rule that hash MUST depend on the DriveKey). Solution: the client should mention hash BEFORE concatenating with DrivePubKey, concatenation must take place at the Replicator's side.
