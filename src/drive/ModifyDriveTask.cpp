@@ -46,10 +46,10 @@ private:
 
     std::optional<boost::asio::high_resolution_timer> m_shareMyOpinionTimer;
 #ifndef __APPLE__
-    const int m_shareMyOpinionTimerDelayMs = 1000 * 1;
+    const int m_shareMyOpinionTimerDelayMs = 1000 * 60;
 #else
     //(???+++)
-    const int m_shareMyOpinionTimerDelayMs = 1000 * 60;
+    const int m_shareMyOpinionTimerDelayMs = 1000 * 1;
 #endif
 
     std::optional<boost::asio::high_resolution_timer> m_modifyOpinionTimer;

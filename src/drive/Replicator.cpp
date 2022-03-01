@@ -130,6 +130,9 @@ public:
 
     virtual ~DefaultReplicator()
     {
+        m_replicatorIsDestructing = true;
+        sleep(1);
+        
 #ifdef DEBUG_OFF_CATAPULT
         _LOG( "~DefaultReplicator() ")
 #endif
