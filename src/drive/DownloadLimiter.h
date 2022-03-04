@@ -499,7 +499,7 @@ public:
 
 
     // will be called when one replicator informs another about downloaded size by client
-    virtual bool acceptReceiptFromAnotherReplicator( RcptMessage&& message ) override
+    virtual bool acceptReceiptFromAnotherReplicator( const RcptMessage& message ) override
     {
         DBG_MAIN_THREAD
         
@@ -508,7 +508,7 @@ public:
             return false;
         }
         
-        return acceptReceiptImpl( std::move(message) );
+        return acceptReceiptImpl( message, true );
     }
     
     void removeChannelInfo( const std::array<uint8_t,32>& channelId )
@@ -586,9 +586,6 @@ public:
                 reinterpret_cast<Signature &>(sig) );
     }
 
-    // 1) It is called when peer receives a peice-request (from either client or replicator)
-    // 2) It is also called when replicator receives receipt from another replicator
-    //
     bool acceptReceipt( const std::array<uint8_t, 32>& downloadChannelId,
                         const std::array<uint8_t, 32>& clientPublicKey,
                         const std::array<uint8_t, 32>& replicatorKey,
@@ -605,10 +602,10 @@ public:
                                  ClientKey(clientPublicKey),
                                  ReplicatorKey(replicatorKey),
                                  downloadedSize,
-                                 signature ) );
+                                 signature ), false );
     }
     
-    bool acceptReceiptImpl( RcptMessage&& msg )
+    bool acceptReceiptImpl( const RcptMessage& msg, bool fromAnotherReplicator )
     {
         // Get channel info
         auto channelInfoIt = m_dnChannelMap.find( msg.channelId() );
@@ -651,15 +648,52 @@ public:
 
         auto& channelInfo = channelInfoIt->second;
 
-        if ( ! acceptUploadSize( std::move(msg), channelInfo ) )
+        bool isAccepted = acceptUploadSize( msg, channelInfo );
+        
+        if ( isAccepted && fromAnotherReplicator )
         {
-            return false;
+            if ( fromAnotherReplicator )
+            {
+                //
+                // Select 4 replicators and forward them the receipt
+                //
+                auto keyPointersSize = channelInfoIt->second.m_dnReplicatorShard.size() - 1;
+                Key* keyPointers[keyPointersSize];
+                auto keyIt = keyPointers;
+                for( auto replicatorIt = channelInfoIt->second.m_dnReplicatorShard.begin(); replicatorIt != channelInfoIt->second.m_dnReplicatorShard.end(); replicatorIt++ )
+                {
+                    if ( *replicatorIt != m_keyPair.publicKey().array() )
+                    {
+                        *keyIt = &(*replicatorIt);
+                        keyIt++;
+                    }
+                }
+                
+                auto forwardSize = keyPointersSize;
+                while( forwardSize > 4 )
+                {
+                    int randIndex = random() % forwardSize;
+                    if ( keyPointers[randIndex] != nullptr )
+                    {
+                        keyPointers[randIndex] = nullptr;
+                        forwardSize--;
+                    }
+                }
+                
+                for( size_t i=0; i<keyPointersSize; i++ )
+                {
+                    if ( keyPointers[i] != nullptr )
+                    {
+                        sendMessage( "rcpt", keyPointers[i]->array(), msg );
+                    }
+                }
+            }
         }
-
-        return true;
+        
+        return isAccepted;
     }
     
-    bool acceptUploadSize( RcptMessage&& msg, DownloadChannelInfo& channelInfo )
+    bool acceptUploadSize( const RcptMessage& msg, DownloadChannelInfo& channelInfo )
     {
         DBG_MAIN_THREAD
 
@@ -696,7 +730,7 @@ public:
             return false;
         }
 
-        if ( msg.replicatorKey() == dbgReplicatorKey().array() )
+        if ( msg.replicatorKey() == m_keyPair.publicKey().array() )
         {
             if ( auto clientSizesIt = channelInfo.m_dnClientMap.find( msg.clientKey() ); clientSizesIt != channelInfo.m_dnClientMap.end() )
             {
@@ -733,7 +767,7 @@ public:
                 replicatorIt->second = std::move(msg);
             }
         }
-
+        
         return true;
     }
 

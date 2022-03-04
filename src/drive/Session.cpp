@@ -650,7 +650,7 @@ public:
                 
                 if ( auto replicator = m_replicator.lock(); replicator )
                 {
-                    replicator->acceptReceiptFromAnotherReplicator( std::move(msg) );
+                    replicator->acceptReceiptFromAnotherReplicator( msg );
                 }
 
                 response["r"]["q"] = std::string(query);

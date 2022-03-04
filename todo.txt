@@ -6,25 +6,25 @@ Libtorrent:
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=17  -GXcode ..
 ----------------------------------------------------------------------------
 
+Catching up: download сразу на диск?
+
+metadata_received_alert: save torrent file
+
+Broadcasting of received download receipts into shard: 4 random nodes
+
+
+
 Missed test: for asyncApprovalTransactionHasBeenPublished failed modify 
 
 LONG_TODO: проверка downloadLimit при piece_finished_alert
 
 m_modifyDriveMap - накапливается мусор
 
-Error on acceptConnection
-
 m_shareMyOpinionTimerDelayMs
-
-metadata_received_alert: save torrent file
 
 Overhead!
 
 lt_params no_verify_files
-
-Broadcasting of received download receipts into shard
-
-Modify: upload files simultaneously!!!
 
 Как ограничить данлоад/модифай-запрос, чтобы не запрашивал у не шардовых/чужых
 Или - как нам ограничить запросы на торренты только к тем репликаторам,

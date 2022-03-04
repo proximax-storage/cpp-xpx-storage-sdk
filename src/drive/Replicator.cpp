@@ -131,7 +131,6 @@ public:
     virtual ~DefaultReplicator()
     {
         m_replicatorIsDestructing = true;
-        sleep(1);
         
 #ifdef DEBUG_OFF_CATAPULT
         _LOG( "~DefaultReplicator() ")
@@ -937,7 +936,7 @@ public:
 
         for (auto &[downloadChannelId, downloadChannel]: m_dnChannelMap)
         {
-            // TODO Potential performance bottleneck
+            //TODO Potential performance bottleneck
             std::erase_if(downloadChannel.m_downloadOpinionMap, [&now](const auto &item)
             {
                 const auto&[key, value] = item;
@@ -1568,7 +1567,7 @@ public:
                     return;
                 }
                 
-                acceptReceiptFromAnotherReplicator( std::move(msg) );
+                acceptReceiptFromAnotherReplicator( msg );
             }
         }
         catch(...)
