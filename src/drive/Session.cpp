@@ -36,6 +36,7 @@
 #include <libtorrent/create_torrent.hpp>
 #include <libtorrent/torrent_flags.hpp>
 #include <libtorrent/torrent.hpp>
+#include <libtorrent/torrent_handle.hpp>
 #include <libtorrent/extensions/ut_metadata.hpp>
 #include <libtorrent/aux_/generate_peer_id.hpp>
 #include "libtorrent/aux_/session_impl.hpp"
@@ -56,15 +57,20 @@ enum { PIECE_SIZE = 16*1024 };
 //
 struct LtClientData
 {
+    //(???+++)
+    const uint32_t m_prop = 0xcdcdcdcd;
+    ~LtClientData() { assert( m_prop == 0xcdcdcdcd ); }
+    
     struct RemoveNotifyer
     {
         RemoveNotifyer( const std::function<void()>& notifyer ) : m_notifyer(notifyer) {}
         ~RemoveNotifyer() { m_notifyer(); }
-        std::function<void()> m_notifyer;
+        std::function<void()> m_notifyer = {};
     };
     std::shared_ptr<RemoveNotifyer> m_removeNotifyer;
     
     fs::path                        m_saveFolder = "";
+    fs::path                        m_saveTorrentFilename = {};
     std::vector<DownloadContext>    m_dnContexts = {};
 
     uint64_t                        m_downloadLimit = 0;
@@ -77,6 +83,8 @@ struct LtClientData
 //
 class DefaultSession: public Session, std::enable_shared_from_this<DefaultSession>
 {
+    bool                    m_ownerIsReplicator = true;
+    
     std::string             m_addressAndPort;
     lt::session             m_session;
 
@@ -107,7 +115,8 @@ public:
                     const endpoint_list&                 bootstraps,
                     std::promise<void>&&                 bootstrapBarrier
                     )
-        : m_addressAndPort(address)
+        : m_ownerIsReplicator(true)
+        , m_addressAndPort(address)
         , m_session( lt::session_params{ generateSessionSettings( false, bootstraps) }, context, {})
         , m_alertHandler(alertHandler)
         , m_replicator(replicator)
@@ -132,7 +141,8 @@ public:
                     bool                                    useTcpSocket,
                     const endpoint_list&                    bootstraps
                     )
-        : m_addressAndPort(address)
+        : m_ownerIsReplicator(false)
+        , m_addressAndPort(address)
         , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
         , m_alertHandler(alertHandler)
         , m_downloadLimiter(downloadLimiter)
@@ -186,8 +196,10 @@ public:
                 
                 auto& context = contextVector[i];
 
-                if ( !context.m_saveAs.empty() && context.m_downloadType == DownloadContext::file_from_drive )
+                if ( ! context.m_saveAs.empty() && context.m_downloadType == DownloadContext::file_from_drive )
                 {
+                    _ASSERT( ! m_ownerIsReplicator )
+                    
                     fs::path destFilePath = context.m_saveAs;
 
                     std::error_code err;
@@ -331,6 +343,7 @@ public:
             {
                 if ( torrentHandle.is_valid() && torrentHandle.status().state > 2 )
                 {
+                    __ASSERT( torrentHandle.userdata().get<LtClientData>() != nullptr )
                     torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer = removeNotifyer;
                     _LOG( "??? removeNotifyer.use_count: " << removeNotifyer.use_count() )
                     
@@ -429,7 +442,8 @@ public:
 
     // downloadFile
     virtual lt_handle download( DownloadContext&&               downloadContext,
-                                const std::string&              tmpFolder,
+                                const std::string&              saveFolder,
+                                const std::string&              saveTorrentFolder,
                                 const ReplicatorList&           keysHints,
                                 const std::array<uint8_t,32>*   driveKey  = nullptr,
                                 const std::array<uint8_t,32>*   channelId = nullptr,
@@ -444,10 +458,12 @@ public:
             throw std::runtime_error( std::string("downloadFile error: ") + ec.message() );
         }
 
-        params.userdata = new LtClientData();
+        auto userdata = new LtClientData();
+        userdata->m_saveTorrentFilename = saveTorrentFolder;
+        params.userdata = userdata;
 
         // where the file will be placed
-        params.save_path = tmpFolder;
+        params.save_path = saveFolder;
 
         if ( driveKey )
             params.m_driveKey = *driveKey;
@@ -493,13 +509,14 @@ public:
 
         // set fs tree save path
         if ( downloadContext.m_downloadType == DownloadContext::fs_tree ) {
-            downloadContext.m_saveAs = fs::path(tmpFolder) / FS_TREE_FILE_NAME;
+            downloadContext.m_saveAs = fs::path(saveFolder) / FS_TREE_FILE_NAME;
         }
         else if ( downloadContext.m_downloadType == DownloadContext::file_from_drive ) {
             if (downloadContext.m_saveAs.empty())
                 throw std::runtime_error("download(file_from_drive): DownloadContext::m_saveAs' is empty");
         }
 
+        __ASSERT( tHandle.userdata().get<LtClientData>() != nullptr )
         tHandle.userdata().get<LtClientData>()->m_dnContexts.push_back( downloadContext );
 
         return tHandle;
@@ -920,38 +937,32 @@ private:
                     if ( theAlert->handle.is_valid() && theAlert->handle.userdata().get<LtClientData>() != nullptr )
                     {
                         auto userdata = theAlert->handle.userdata().get<LtClientData>();
-
-                        int64_t downloadLimit = (userdata->m_dnContexts.size() == 0) ? 0 : userdata->m_dnContexts.front().m_downloadLimit;
-                        userdata->m_uploadedDataSize = theAlert->handle.torrent_file()->total_size();
                         
-                        bool limitIsExceeded = downloadLimit != 0 && downloadLimit < theAlert->handle.torrent_file()->total_size();
-                        _LOG( "+**** limitIsExceeded?: " << downloadLimit << " " << theAlert->handle.torrent_file()->total_size() );
-                        if ( limitIsExceeded )
+                        if ( userdata != nullptr )
                         {
-                            _LOG( "+**** limitIsExceeded: " << theAlert->handle.torrent_file()->total_size() );
-                            m_session.remove_torrent( theAlert->handle, lt::session::delete_files );
-                            
-                            userdata->m_limitIsExceeded = true;
-                            _ASSERT( userdata->m_dnContexts.size()==1 )
-                            userdata->m_dnContexts.front().m_downloadNotification(
-                                                                download_status::code::failed,
-                                                                userdata->m_dnContexts.front().m_infoHash,
-                                                                userdata->m_dnContexts.front().m_saveAs,
-                                                                userdata->m_uploadedDataSize,
-                                                                0,
-                                                                "Limit Is Exceeded" );
+                            int64_t downloadLimit = (userdata->m_dnContexts.size() == 0) ? 0 : userdata->m_dnContexts.front().m_downloadLimit;
+                            userdata->m_uploadedDataSize = theAlert->handle.torrent_file()->total_size();
+
+                            bool limitIsExceeded = downloadLimit != 0 && downloadLimit < theAlert->handle.torrent_file()->total_size();
+                            _LOG( "+**** limitIsExceeded?: " << downloadLimit << " " << theAlert->handle.torrent_file()->total_size() );
+                            if ( limitIsExceeded )
+                            {
+                                _LOG( "+**** limitIsExceeded: " << theAlert->handle.torrent_file()->total_size() );
+                                m_session.remove_torrent( theAlert->handle, lt::session::delete_files );
+
+                                userdata->m_limitIsExceeded = true;
+                                _ASSERT( userdata->m_dnContexts.size()==1 )
+                                userdata->m_dnContexts.front().m_downloadNotification(
+                                                                    download_status::code::failed,
+                                                                    userdata->m_dnContexts.front().m_infoHash,
+                                                                    userdata->m_dnContexts.front().m_saveAs,
+                                                                    userdata->m_uploadedDataSize,
+                                                                    0,
+                                                                    "Limit Is Exceeded" );
+                            }
                         }
                     }
-//                    lt::create_torrent ct(*ti);
-//                    lt::entry te = ct.generate();
-//                    std::vector<char> buffer;
-//                    bencode(std::back_inserter(buffer), te);
-//                    FILE* f = fopen((to_hex(ti->info_hashes().get_best().to_string()) + ".torrent").c_str(), "wb+");
-//                    if (f) {
-//                        fwrite(&buffer[0], 1, buffer.size(), f);
-//                        fclose(f);
-//                    }
-
+                    
                     break;
                 }
 
@@ -1123,6 +1134,27 @@ private:
                     
                     auto userdata = theAlert->handle.userdata().get<LtClientData>();
                     _ASSERT( userdata != nullptr )
+
+                    if ( userdata != nullptr && ! userdata->m_saveTorrentFilename.empty() )
+                    {
+                        auto ti = theAlert->handle.torrent_file_with_hashes();
+
+                        // Save torrent file
+                        std::thread( [ti,userdata]
+                        {
+                            lt::create_torrent ct(*ti);
+                            lt::entry te = ct.generate();
+                            std::vector<char> buffer;
+                            bencode(std::back_inserter(buffer), te);
+
+                            if ( FILE* f = fopen( userdata->m_saveTorrentFilename.c_str(), "wb+" ); f )
+                            {
+                                fwrite( &buffer[0], 1, buffer.size(), f );
+                                fclose(f);
+                            }
+                        }).detach();
+                    }
+
                     if ( userdata != nullptr && userdata->m_dnContexts.size()>0 )
                     {
                         auto dnContext = userdata->m_dnContexts.front();

@@ -724,7 +724,7 @@ int main(int,char**)
 #endif
     
     /// Delete client session and replicators
-    sleep(3);//(???++++!!!)
+    sleep(5);//(???++++!!!)
     gClientSession.reset();
     gReplicator.reset();
     gReplicator2.reset();
@@ -844,6 +844,7 @@ static void clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession )
                                     rootHash,
                                     *gClientSession->downloadChannelId(), 0 ),
                                     gClientFolder / "fsTree-folder",
+                                    "",
                                     endpointList);
 
     /// wait the end of file downloading
@@ -944,9 +945,9 @@ static void clientDownloadFilesR( std::shared_ptr<ClientSession> clientSession, 
                     clientDownloadFilesHandler,
                     file.hash(),
                     {}, 0, false,
-                    gClientFolder / "downloaded_files" / folderName / file.name() ),
-                                      //gClientFolder / "downloaded_files" / folderName / toString(file.hash()) ),
-                                      gClientFolder / "downloaded_files", endpointList );
+                    gClientFolder / "downloaded_files" / folderName / file.name()
+                ),
+                gClientFolder / "downloaded_files", "", endpointList );
         }
     }
 }

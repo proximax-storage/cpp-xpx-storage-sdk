@@ -78,7 +78,8 @@ public:
 
     // Initiate file downloading (identified by downloadParameters.m_infoHash)
     void download( DownloadContext&&    downloadParameters,
-                   const std::string&   tmpFolder,
+                   const std::string&   saveFolder,
+                   const std::string&   saveTorrentFolder,
                    const endpoint_list& endpointsHints = {})
     {
         // check that download channel was set
@@ -118,7 +119,8 @@ public:
 
         // start downloading
         m_session->download( std::move(downloadParameters),
-                             tmpFolder,
+                             saveFolder,
+                             saveTorrentFolder,
                              m_downloadReplicatorList,
                              nullptr,
                              &(*m_downloadChannelId),
