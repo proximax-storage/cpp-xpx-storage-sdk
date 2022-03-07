@@ -331,8 +331,8 @@ public:
     {
         std::thread( [=,&replicator] {
             //EXLOG( "driveModificationIsCompleted: " << replicator.dbgReplicatorName() );
-            __LOG( "" );
-            __LOG( "@ update_completed:" << replicator.dbgReplicatorName() );
+            EXLOG( "" );
+            EXLOG( "@ update_completed:" << replicator.dbgReplicatorName() );
 
             std::lock_guard<std::mutex> autolock( gExLogMutex );
             replicator.dbgPrintDriveStatus( driveKey );
@@ -340,7 +340,7 @@ public:
             modifyCompleteCounter++;
 
             driveRootHash = std::make_shared<InfoHash>( replicator.dbgGetRootHash( driveKey.array() ) );
-            __LOG( "@ Drive modified: counter=" << modifyCompleteCounter << ": " << replicator.dbgReplicatorName() << "      rootHash:" << rootHash );
+            EXLOG( "@ Drive modified: counter=" << modifyCompleteCounter << ": " << replicator.dbgReplicatorName() << "      rootHash:" << rootHash );
 
             modifyCompleteCondVar.notify_all();
 
@@ -724,7 +724,7 @@ int main(int,char**)
 #endif
     
     /// Delete client session and replicators
-    sleep(5);//(???++++!!!)
+    //sleep(5);//(???++++!!!)
     gClientSession.reset();
     gReplicator.reset();
     gReplicator2.reset();

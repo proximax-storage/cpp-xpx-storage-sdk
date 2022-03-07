@@ -59,7 +59,9 @@ struct LtClientData
 {
     //(???+++)
     const uint32_t m_prop = 0xcdcdcdcd;
-    ~LtClientData() { assert( m_prop == 0xcdcdcdcd ); }
+    ~LtClientData() {
+        assert( m_prop == 0xcdcdcdcd );
+    }
     
     struct RemoveNotifyer
     {
@@ -158,6 +160,12 @@ public:
 
     virtual ~DefaultSession()
     {
+        //m_session.stop_dht();
+        // lt::settings_pack p;
+        // p.set_bool(lt::settings_pack::enable_dht, false);
+        // m_session.apply_settings(p);
+        //m_session.pause();
+
         m_stopping = true;
     }
 
@@ -344,9 +352,18 @@ public:
                 if ( torrentHandle.is_valid() && torrentHandle.status().state > 2 )
                 {
                     __ASSERT( torrentHandle.userdata().get<LtClientData>() != nullptr )
+                    __ASSERT( ! torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer )
                     torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer = removeNotifyer;
-                    _LOG( "??? removeNotifyer.use_count: " << removeNotifyer.use_count() )
-                    
+                }
+            }
+
+            // races!
+            removeNotifyer.reset();
+            
+            for( const auto& torrentHandle : torrents )
+            {
+                if ( torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer )
+                {
                     _LOG( "+++ ex :remove_torrent(3): " << torrentHandle.info_hashes().v2 );
                     m_session.remove_torrent( torrentHandle, lt::session::delete_files );
                 }
@@ -1138,9 +1155,10 @@ private:
                     if ( userdata != nullptr && ! userdata->m_saveTorrentFilename.empty() )
                     {
                         auto ti = theAlert->handle.torrent_file_with_hashes();
+                        //_LOG("ti:" << ti)
 
                         // Save torrent file
-                        std::thread( [ti,userdata]
+                        std::thread( [ti=std::move(ti),userdata]
                         {
                             lt::create_torrent ct(*ti);
                             lt::entry te = ct.generate();
