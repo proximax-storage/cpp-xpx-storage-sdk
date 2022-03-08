@@ -7,7 +7,6 @@
 #include "drive/FlatDrive.h"
 #include "drive/Replicator.h"
 #include "Session.h"
-#include "BackgroundExecutor.h"
 #include "DriveTaskBase.h"
 #include "DriveParams.h"
 #include "ModifyOpinionController.h"
@@ -75,8 +74,6 @@ class DefaultFlatDrive: public FlatDrive, public DriveParams
 
     ReplicatorList m_modifyDonatorShard;
     ReplicatorList m_modifyRecipientShard;
-
-    BackgroundExecutor  m_backgroundExecutor;
 
     // Opinion Controller
     ModifyOpinionController  m_opinionController;
@@ -163,8 +160,6 @@ public:
             m_verificationTask.reset();
         }
 
-        m_backgroundExecutor.stop();
-
 #if 0
         std::set<lt::torrent_handle> toBeRemovedTorrents;
         toBeRemovedTorrents.insert( m_fsTreeLtHandle );
@@ -241,7 +236,7 @@ public:
 
     void executeOnBackgroundThread( const std::function<void()>& task ) override
     {
-        m_backgroundExecutor.execute( [=] { task(); } );
+        m_replicator.executeOnBackgroundThread( task );
     }
     
     void runNextTask() override

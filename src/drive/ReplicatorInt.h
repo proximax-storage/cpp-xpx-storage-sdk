@@ -32,7 +32,9 @@ public:
     //virtual std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key& driveKey ) = 0;
 #endif
 
-    virtual bool isStopped() = 0;
+    virtual bool        isStopped() = 0;
+
+    virtual void        executeOnBackgroundThread( const std::function<void()>& task ) = 0;
 
     // It will be called when a new opinion should be verified
     virtual void        processDownloadOpinion( const DownloadApprovalTransactionInfo& anOpinion ) = 0;

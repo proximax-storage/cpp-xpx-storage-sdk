@@ -69,7 +69,7 @@ private:
     
     std::future<void>       m_bootstrapFuture;
     
-    //BackgroundExecutor      m_backgroundExecutor;
+    BackgroundExecutor      m_backgroundExecutor;
 
 public:
     DefaultReplicator (
@@ -103,6 +103,13 @@ public:
 
         return m_replicatorIsDestructing;
     }
+    
+    void executeOnBackgroundThread( const std::function<void()>& task ) override
+    {
+        DBG_MAIN_THREAD
+
+        m_backgroundExecutor.execute( [=] { task(); } );
+    }
 
     void stop()
     {
@@ -114,12 +121,12 @@ public:
 
         m_dnOpinionSyncronizer.stop();
         
-        //m_backgroundExecutor.stop();
-
         for( auto& [key,drive]: m_driveMap )
         {
             drive->terminate();
         }
+
+        m_backgroundExecutor.stop();
 
         for ( auto& [channelId, value]: m_dnChannelMap )
         {
