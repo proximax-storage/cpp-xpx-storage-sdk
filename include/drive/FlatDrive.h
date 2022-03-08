@@ -62,7 +62,7 @@ class Replicator;
 
     struct DriveClosureRequest
     {
-        Hash256 m_removeDriveTx;
+        std::optional<Hash256> m_removeDriveTx;
     };
 
     struct DownloadRequest {

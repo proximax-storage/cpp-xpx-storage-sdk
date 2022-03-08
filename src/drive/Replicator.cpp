@@ -477,7 +477,7 @@ public:
 
             if ( auto drive = getDrive(driveKey); drive )
             {
-                drive->startDriveClosing( transactionHash );
+                drive->startDriveClosing( { transactionHash } );
             }
             else
             {
@@ -1027,7 +1027,7 @@ public:
     };
 
     // It is called when drive is closing
-    virtual void closeDriveChannels( const mobj<Hash256>& blockHash, const Key& driveKey ) override
+    void closeDriveChannels( const mobj<Hash256>& blockHash, const Key& driveKey ) override
     {
         DBG_MAIN_THREAD
 

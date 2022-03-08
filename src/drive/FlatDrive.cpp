@@ -569,11 +569,18 @@ public:
 
         m_closeDriveRequest = request;
 
-        if ( !m_task )
-        {
-            runNextTask();
-        }
-    }
+		if (m_verificationTask) {
+			m_verificationTask->terminate();
+		}
+		m_verificationTask.reset();
+
+		if (!m_task) {
+			runNextTask();
+		}
+		else {
+			m_task->terminate();
+		}
+	}
 
     void cancelVerification( mobj<Hash256>&& tx ) override
     {
