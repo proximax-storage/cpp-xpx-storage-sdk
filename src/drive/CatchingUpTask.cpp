@@ -201,7 +201,7 @@ private:
 
             LOG( "drive is synchronized" );
 
-            m_drive.executeOnSessionThread( [=, this]
+            m_drive.executeOnSessionThread( [this]
                                             {
                                                 synchronizationIsCompleted();
                                             } );
@@ -417,7 +417,7 @@ private:
         getSandboxDriveSizes( m_metaFilesSize, m_sandboxDriveSize );
         m_fsTreeSize = sandboxFsTreeSize();
 
-        m_drive.executeOnSessionThread( [=, this]() mutable
+        m_drive.executeOnSessionThread( [this]() mutable
                                         {
                                             myRootHashIsCalculated();
                                         } );

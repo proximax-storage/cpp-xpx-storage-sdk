@@ -12,6 +12,7 @@
 #include "DownloadLimiter.h"
 #include "EndpointsManager.h"
 #include "RcptSyncronizer.h"
+#include "BackgroundExecutor.h"
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/array.hpp>
@@ -67,6 +68,8 @@ private:
     std::map<std::array<uint8_t,32>, VerifyOpinion> m_verifyApprovalMap;
     
     std::future<void>       m_bootstrapFuture;
+    
+    //BackgroundExecutor      m_backgroundExecutor;
 
 public:
     DefaultReplicator (
@@ -110,6 +113,8 @@ public:
         m_session->endSession();
 
         m_dnOpinionSyncronizer.stop();
+        
+        //m_backgroundExecutor.stop();
 
         for( auto& [key,drive]: m_driveMap )
         {

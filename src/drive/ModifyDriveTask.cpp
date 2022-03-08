@@ -166,7 +166,7 @@ public:
         {
             _LOG_WARN( "modifyDriveInSandbox: 'ActionList.bin' is absent: "
                               << m_drive.m_clientActionListFile );
-            m_drive.executeOnSessionThread( [=,this] { modifyIsCompletedWithError( "modify drive: 'ActionList' is absent", -1 ); } );
+            m_drive.executeOnSessionThread( [this] { modifyIsCompletedWithError( "modify drive: 'ActionList' is absent", -1 ); } );
             return;
         }
 
@@ -177,7 +177,7 @@ public:
         } catch (...)
         {
             _LOG_WARN( "modifyDriveInSandbox: invalid 'ActionList'" << m_request->m_clientDataInfoHash );
-            m_drive.executeOnSessionThread( [=,this] { modifyIsCompletedWithError( "modify drive: invalid 'ActionList'", -1 ); } );
+            m_drive.executeOnSessionThread( [this] { modifyIsCompletedWithError( "modify drive: invalid 'ActionList'", -1 ); } );
         }
         
         // prepare 'm_missedFileSet'
@@ -478,7 +478,7 @@ public:
             return;
         }
 
-        m_drive.executeOnSessionThread( [=, this]() mutable
+        m_drive.executeOnSessionThread( [this]() mutable
                                         {
                                             myRootHashIsCalculated();
                                         } );

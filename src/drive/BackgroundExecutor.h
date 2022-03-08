@@ -40,7 +40,7 @@ public:
         }
     }
 
-    void run( const std::function<void()>& task )
+    void execute( const std::function<void()>& task )
     {
         boost::asio::post(m_context, [=] {
             task();

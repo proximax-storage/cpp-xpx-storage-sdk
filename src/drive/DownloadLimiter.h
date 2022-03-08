@@ -66,7 +66,7 @@ public:
     }
 
     
-    void printReport( const std::array<uint8_t,32>&  txHash )
+    void printReport( std::array<uint8_t,32> txHash )
     {
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             
@@ -116,7 +116,7 @@ public:
         }
     }
 
-    void dbgPrintTrafficDistribution( const std::array<uint8_t,32>&  txHash ) override
+    void dbgPrintTrafficDistribution( std::array<uint8_t,32> txHash ) override
     {
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             DBG_MAIN_THREAD

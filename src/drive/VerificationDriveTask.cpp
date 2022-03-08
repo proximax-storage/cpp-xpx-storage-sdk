@@ -544,12 +544,12 @@ private:
 
 };
 
-std::shared_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,
+std::unique_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,
                                                             std::vector<VerifyApprovalTxInfo>&& receivedOpinions,
                                                             std::vector<VerificationCodeInfo>&& receivedCodes,
                                                             DriveParams& drive )
 {
-    return std::make_shared<VerificationDriveTask>( std::move(request), std::move(receivedOpinions), std::move(receivedCodes), drive );
+    return std::make_unique<VerificationDriveTask>( std::move(request), std::move(receivedOpinions), std::move(receivedCodes), drive );
 }
 
 }

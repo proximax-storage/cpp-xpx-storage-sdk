@@ -146,7 +146,7 @@ protected:
                 lt_handle torrentHandle = *m_downloadingLtHandle;
                 m_downloadingLtHandle.reset();
 
-                session->removeTorrentsFromSession( {torrentHandle}, [=, this]
+                session->removeTorrentsFromSession( {torrentHandle}, [this]
                 {
                     DBG_MAIN_THREAD
                     _LOG( "breakTorrentDownloadAndm_drive.runNextTask: torrent is removed" );

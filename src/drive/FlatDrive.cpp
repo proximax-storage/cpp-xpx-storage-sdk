@@ -102,7 +102,7 @@ class DefaultFlatDrive: public FlatDrive, public DriveParams
 
     // Executing Drive Tasks
     std::unique_ptr<DriveTaskBase> m_task;
-    std::shared_ptr<DriveTaskBase> m_verificationTask;
+    std::unique_ptr<DriveTaskBase> m_verificationTask;
 
 public:
 
@@ -241,10 +241,7 @@ public:
 
     void executeOnBackgroundThread( const std::function<void()>& task ) override
     {
-        m_backgroundExecutor.run( [=]
-                                  {
-                                      task();
-                                  } );
+        m_backgroundExecutor.execute( [=] { task(); } );
     }
     
     void runNextTask() override

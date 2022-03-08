@@ -76,7 +76,7 @@ private:
             }
         }
 
-        m_drive.executeOnBackgroundThread( [=, this]
+        m_drive.executeOnBackgroundThread( [ filesToRemove=std::move(filesToRemove), this ]
                                            {
                                                clearDrive( filesToRemove );
                                            } );
