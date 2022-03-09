@@ -950,6 +950,7 @@ private:
 #endif
                 case lt::metadata_received_alert::        alert_type:
                 {
+                    //sleep(1);
                     auto* theAlert = dynamic_cast<lt::metadata_received_alert*>(alert);
                     if ( theAlert->handle.is_valid() && theAlert->handle.userdata().get<LtClientData>() != nullptr )
                     {
@@ -1135,6 +1136,7 @@ private:
 #pragma mark --torrent_finished_alert
 #endif
                 case lt::torrent_finished_alert::alert_type: {
+                    //sleep(1);
                     auto *theAlert = dynamic_cast<lt::torrent_finished_alert*>(alert);
                     _LOG( "*** torrent_finished_alert: " << theAlert->handle.info_hashes().v2 );
                     _LOG( "***                   file: " << theAlert->handle.torrent_file()->files().file_path(0) );

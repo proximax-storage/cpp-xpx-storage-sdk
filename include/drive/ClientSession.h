@@ -301,10 +301,13 @@ public:
         
         std::promise<void> barrier;
 
-        m_session->removeTorrentsFromSession( torrents, [&barrier] {
-            __LOG("???? barrier.set_value();")
-            barrier.set_value();
-        } );
+        boost::asio::post(m_session->lt_session().get_context(), [&torrents,&barrier,this]() //mutable
+        {
+            m_session->removeTorrentsFromSession( torrents, [&barrier] {
+                __LOG("???? barrier.set_value();")
+                barrier.set_value();
+            });
+        });
         //m_session->dbgPrintActiveTorrents();
         barrier.get_future().wait();
         
