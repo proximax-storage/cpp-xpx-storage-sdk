@@ -409,58 +409,23 @@ public:
     		}
     	});
 	}
-    
-    virtual void asyncAddToChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
+	virtual void asyncSetChanelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys ) {
+    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+    	{
+    		DBG_MAIN_THREAD
 
-            if ( auto channelInfoIt = m_dnChannelMap.find( channelId->array() ); channelInfoIt != m_dnChannelMap.end() )
-            {
-                auto& shard = channelInfoIt->second.m_dnReplicatorShard;
-                auto it = std::find( shard.begin(), shard.end(), *replicatorKey );
-                if ( it != shard.end() )
-                {
-                    _LOG_WARN( "replicator already exists: " << *replicatorKey )
-                }
-                shard.push_back( replicatorKey->array() );
-            }
-            else
-            {
-                _LOG_ERR( "Unknown channel hash: " << *channelId );
-                return;
-            }
-        });
-    }
-
-    virtual void asyncRemoveFromChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
-
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
-
-            if ( auto channelInfoIt = m_dnChannelMap.find( channelId->array() ); channelInfoIt != m_dnChannelMap.end() )
-            {
-                auto& shard = channelInfoIt->second.m_dnReplicatorShard;
-                auto it = std::find( shard.begin(), shard.end(), *replicatorKey );
-                if ( it == shard.end() )
-                {
-                    _LOG_WARN( "unknown replicatorKey: " << *replicatorKey )
-                }
-                shard.erase( it );
-            }
-            else
-            {
-                _LOG_ERR( "Unknown channel hash: " << *channelId );
-                return;
-            }
-        });
-    }
+    		if ( auto channelInfoIt = m_dnChannelMap.find( channelId->array() ); channelInfoIt != m_dnChannelMap.end() )
+    		{
+    			channelInfoIt->second.m_dnReplicatorShard = *replicatorKeys;
+    		}
+    		else
+    		{
+    			_LOG_ERR( "Unknown channel hash: " << *channelId );
+    			return;
+    		}
+    	});
+	}
 
     void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {
@@ -651,6 +616,14 @@ public:
         });//post
     }
 
+    virtual void asyncIncreaseDownloadChannelSize( ChannelId channelId, uint64_t size ) override {
+    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+			DBG_MAIN_THREAD
+
+			increaseChannelSize(channelId.array(), size);
+    	});//post
+	}
+
     virtual DownloadChannelInfo* getDownloadChannelInfo( const std::array<uint8_t,32>& driveKey, const std::array<uint8_t,32>& downloadChannelHash ) override
     {
         DBG_MAIN_THREAD
@@ -669,16 +642,16 @@ public:
     }
 
 
-    void asyncRemoveDownloadChannelInfo( Key driveKey, Key channelId ) override
+    void asyncRemoveDownloadChannelInfo( ChannelId channelId ) override
     {
         _FUNC_ENTRY()
 
-//       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-//
-//            DBG_MAIN_THREAD
-//
-//            removeChannelInfo(channelKey);
-//        });
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+
+            DBG_MAIN_THREAD
+
+            removeChannelInfo(channelId);
+        });
     }
 
     // It sends received receipt from 'client' to other replicators

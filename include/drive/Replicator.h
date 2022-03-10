@@ -347,13 +347,12 @@ public:
     // It notifies about changes in drive replicator list
 	virtual void asyncSetReplicators( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) = 0;
 
-    // It notifyes about changes in modification shards
+    // It notifies about changes in modification shards
     virtual void asyncSetShardDonator( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) = 0;
     virtual void asyncSetShardRecipient( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) = 0;
 
-    // It notifyes about changes in download channel shard
-    virtual void asyncAddToChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) = 0;
-    virtual void asyncRemoveFromChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) = 0;
+    // It notifies about changes in download channel shard
+    virtual void asyncSetChanelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys ) = 0;
 
     // it starts drive closing
     virtual void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) = 0;
@@ -371,10 +370,13 @@ public:
     virtual void        asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) = 0;
 
     // It is called when Replicator is added to the Download Channel Shard
-    virtual void        asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&&  downloadRequest, bool mustBeSyncronized = false ) = 0;
+    virtual void        asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&&  downloadRequest, bool mustBeSynchronized = false ) = 0;
+
+	// It is called when the prepaid size of the download channel is increased
+	virtual void		asyncIncreaseDownloadChannelSize( ChannelId channelId, uint64_t size ) = 0;
 
     // It is called when Replicator leaves the Download Channel Shard
-    virtual void        asyncRemoveDownloadChannelInfo( Key driveKey, Key channelId ) = 0;
+    virtual void        asyncRemoveDownloadChannelInfo( ChannelId channelId ) = 0;
 
     // it will be called when dht message is received
     virtual void        asyncOnDownloadOpinionReceived( mobj<DownloadApprovalTransactionInfo>&& anOpinion ) = 0;

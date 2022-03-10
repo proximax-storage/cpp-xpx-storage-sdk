@@ -217,16 +217,10 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( auto it = m_dnChannelMap.find(channelId); it != m_dnChannelMap.end() )
-        {
-            // It is 'upgrade' of existing 'downloadChannel'
-
-            if ( it->second.m_prepaidDownloadSize > prepaidDownloadSize )
-            {
-                _LOG_ERR( "addChannelInfo: invalid prepaidDownloadSize: " << it->second.m_prepaidDownloadSize << " <= " << prepaidDownloadSize );
-            }
-            it->second.m_isSyncronizing      = willBeSyncronized;
-            it->second.m_prepaidDownloadSize = prepaidDownloadSize;
+        if ( auto it = m_dnChannelMap.find(channelId); it != m_dnChannelMap.end() ) {
+			_LOG_ERR( "Attempt To Add Already Existing Drive " << int(channelId[0]) );
+			return;
+		}
 
 //            Possible problem with receipts
 //            /// Change client list of existing clients
@@ -234,8 +228,6 @@ public:
 //            {
 //                it->second.m_clients = clients;
 //            }
-            return;
-        }
 
         DownloadChannelInfo dnChannelInfo { false,
             willBeSyncronized, prepaidDownloadSize, 0, {}, driveKey.array(), replicatorsList, {}, {} };
@@ -282,6 +274,23 @@ public:
             m_dnChannelMapBackup.erase(backupIt);
         }
     }
+
+    void increaseChannelSize( const std::array<uint8_t,32>&  channelId,
+							  uint64_t                       prepaidDownloadSize)
+	{
+    	auto it = m_dnChannelMap.find(channelId);
+
+		if (it == m_dnChannelMap.end()) {
+			_LOG_ERR( "Attemp To Increase Size Of Not Existing Download Channel " << int(channelId[0]) );
+			return;
+		}
+
+		if ( it->second.m_prepaidDownloadSize > prepaidDownloadSize )
+		{
+			_LOG_ERR( "addChannelInfo: invalid prepaidDownloadSize: " << it->second.m_prepaidDownloadSize << " <= " << prepaidDownloadSize );
+		}
+		it->second.m_prepaidDownloadSize = prepaidDownloadSize;
+	}
 
     bool addModifyTrafficInfo( const Key&                 modifyTransactionHash,
                                const Key&                 driveKey,
@@ -490,7 +499,7 @@ public:
         return acceptReceiptImpl( std::move(message) );
     }
     
-    void removeChannelInfo( const std::array<uint8_t,32>& channelId )
+    void removeChannelInfo( const ChannelId& channelId )
     {
         DBG_MAIN_THREAD
 
