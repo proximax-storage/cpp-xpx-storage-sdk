@@ -44,7 +44,16 @@ public:
         m_dbgOurPeerName(dbgOurPeerName)
     {}
 
+    ~ClientSession()
+    {
+        _LOG( "ClientSession deleted" );
+    }
 public:
+
+    virtual void onTorrentDeleted( lt::torrent_handle handle ) override
+    {
+        m_session->onTorrentDeleted( handle );
+    }
 
     //
     void setDownloadChannel( const ReplicatorList& replicatorList, Hash256 downloadChannelId, std::vector<uint64_t> alreadyReceivedSize = {} )
@@ -69,7 +78,8 @@ public:
 
     // Initiate file downloading (identified by downloadParameters.m_infoHash)
     void download( DownloadContext&&    downloadParameters,
-                   const std::string&   tmpFolder,
+                   const std::string&   saveFolder,
+                   const std::string&   saveTorrentFolder,
                    const endpoint_list& endpointsHints = {})
     {
         // check that download channel was set
@@ -108,7 +118,14 @@ public:
         }
 
         // start downloading
-        m_session->download( std::move(downloadParameters), tmpFolder, m_downloadReplicatorList, endpointsHints);
+        m_session->download( std::move(downloadParameters),
+                             saveFolder,
+                             saveTorrentFolder,
+                             m_downloadReplicatorList,
+                             nullptr,
+                             &(*m_downloadChannelId),
+                             nullptr,
+                             endpointsHints );
     }
 
     std::optional<boost::asio::ip::tcp::endpoint> getEndpoint(const std::array<uint8_t, 32> &key) override
@@ -116,16 +133,19 @@ public:
             return {};
     }
 
-    InfoHash addActionListToSession( const ActionList&    actionList,
-                                     const Key&           drivePublicKey,
-                                     const ReplicatorList& unused,
-                                     const std::string&   sandboxFolder, // it is the folder where all ActionLists and file-links will be placed
-                                     const endpoint_list& endpointList = {}
+    InfoHash addActionListToSession( const ActionList&      actionList,
+                                     const Key&             drivePublicKey,
+                                     const ReplicatorList&  unused,
+                                     const std::string&     sandboxFolder, // it is the folder where all ActionLists and file-links will be placed
+                                     uint64_t&              outTotalModifySize,
+                                     const endpoint_list&   endpointList = {}
                                    )
     {
         fs::path workFolder = sandboxFolder;
         std::error_code ec;
         fs::create_directories( workFolder, ec );
+
+        outTotalModifySize = 0;
 
         // Create new action list
         //
@@ -150,6 +170,7 @@ public:
 
                     // calculate InfoHash
                     InfoHash infoHash = createTorrentFile( action.m_param1, drivePublicKey, fs::path(action.m_param1).parent_path(), {} );
+                    __LOG( "addActionListToSession: " << infoHash << " " << action.m_param1 )
                     if ( m_modifyTorrentMap.find(infoHash) == m_modifyTorrentMap.end() )
                     {
                         fs::path filenameInSandbox = workFolder/hashToFileName(infoHash);
@@ -165,6 +186,7 @@ public:
                             }
                         }
                     }
+                    action.m_filename = fs::path( action.m_param1 ).filename();
                     action.m_param1 = hashToFileName(infoHash);
                     break;
                 }
@@ -203,7 +225,16 @@ public:
             }
 
             InfoHash infoHash2 = createTorrentFile( filenameInSandbox, drivePublicKey, workFolder, torrentFilenameInSandbox );
-            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox, workFolder, lt::sf_has_modify_data, infoHash0.array(), endpointList );
+            uint64_t totalSize = 0;
+            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox,
+                                                                          workFolder,
+                                                                          lt::SiriusFlags::client_has_modify_data,
+                                                                          &infoHash0.array(),
+                                                                          nullptr,
+                                                                          &drivePublicKey.array(),
+                                                                          endpointList,
+                                                                          &totalSize );
+            outTotalModifySize += totalSize;
             m_modifyTorrentMap[infoHash2] = {torrentHandle,false};
         }
         
@@ -223,7 +254,16 @@ public:
                         InfoHash infoHash2 = createTorrentFile( filenameInSandbox, drivePublicKey, workFolder, torrentFilenameInSandbox );
                         __ASSERT( infoHash == infoHash2 );
                         
-                        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox, workFolder, lt::sf_has_modify_data, infoHash.array() );
+                        uint64_t totalSize = 0;
+                        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox,
+                                                                                      workFolder,
+                                                                                      lt::SiriusFlags::client_has_modify_data,
+                                                                                      &infoHash0.array(),
+                                                                                      nullptr,
+                                                                                      &drivePublicKey.array(),
+                                                                                      endpointList,
+                                                                                      &totalSize );
+                        outTotalModifySize += totalSize;
                         m_modifyTorrentMap[infoHash2] = {torrentHandle,false};
                     }
                     break;
@@ -261,9 +301,13 @@ public:
         
         std::promise<void> barrier;
 
-        m_session->removeTorrentsFromSession( torrents, [&] {
-            barrier.set_value();
-        } );
+        boost::asio::post(m_session->lt_session().get_context(), [&torrents,&barrier,this]() //mutable
+        {
+            m_session->removeTorrentsFromSession( torrents, [&barrier] {
+                __LOG("???? barrier.set_value();")
+                barrier.set_value();
+            });
+        });
         //m_session->dbgPrintActiveTorrents();
         barrier.get_future().wait();
         
@@ -288,6 +332,7 @@ public:
 
     void stop()
     {
+        m_session->endSession();
         auto blockedDestructor = m_session->lt_session().abort();
         m_session.reset();
     }
@@ -297,9 +342,14 @@ protected:
 
     bool isClient() const override { return true; }
     
-    bool acceptConnection( const std::array<uint8_t,32>&  /*transactionHash*/,
-                           const std::array<uint8_t,32>&  /*peerPublicKey*/,
-                           bool*                          /*outIsDownloadUnlimited*/ ) override
+    bool acceptClientConnection( const std::array<uint8_t,32>&  /*transactionHash*/,
+                                 const std::array<uint8_t,32>&  /*peerPublicKey*/ ) override
+    {
+        return true;
+    }
+
+    bool acceptReplicatorConnection( const std::array<uint8_t,32>&  /*transactionHash*/,
+                                     const std::array<uint8_t,32>&  /*peerPublicKey*/ ) override
     {
         return true;
     }
@@ -329,7 +379,8 @@ protected:
         assert( m_downloadChannelId );
         {
 //todo++
-            LOG( "SSS " << dbgOurPeerName() << " " << int(downloadChannelId[0]) << " " << (int)publicKey()[0] << " " << (int) replicatorPublicKey[0] << " " << downloadedSize );
+//            _LOG( "SSS downloadChannelId: " << Key(downloadChannelId) );
+//            _LOG( "SSS " << dbgOurPeerName() << " " << int(downloadChannelId[0]) << " " << (int)publicKey()[0] << " " << (int) replicatorPublicKey[0] << " " << downloadedSize );
             crypto::Sign( m_keyPair,
                           {
                             utils::RawBuffer{downloadChannelId},
@@ -340,7 +391,7 @@ protected:
                           reinterpret_cast<Signature&>(outSignature) );
 
 //todo++
-            LOG( "SSS: " << int(outSignature[0]) );
+//            _LOG( "SSS: " << int(outSignature[0]) );
         }
 
         //todo++
@@ -420,13 +471,18 @@ protected:
         //__LOG( "#*** onPieceRequest: " << int(senderPublicKey[0])<< ": " << m_requestedSize[senderPublicKey] )
     }
     
-    void onPieceRequestReceived( const std::array<uint8_t,32>&  transactionHash,
-                                 const std::array<uint8_t,32>&  receiverPublicKey,
-                                 uint64_t                       pieceSize ) override
+    void onPieceRequestReceivedFromReplicator( const std::array<uint8_t,32>&  transactionHash,
+                                               const std::array<uint8_t,32>&  receiverPublicKey,
+                                               uint64_t                       pieceSize ) override
     {
     }
 
-    
+    void onPieceRequestReceivedFromClient( const std::array<uint8_t,32>&  transactionHash,
+                                           const std::array<uint8_t,32>&  receiverPublicKey,
+                                           uint64_t                       pieceSize ) override
+    {
+    }
+
     void onPieceSent( const std::array<uint8_t,32>&  transactionHash,
                       const std::array<uint8_t,32>&  receiverPublicKey,
                       uint64_t                       pieceSize ) override

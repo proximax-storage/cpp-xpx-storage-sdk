@@ -158,7 +158,6 @@ struct DownloadChannelInfo
         }
     };
 
-    bool     m_isModifyTx;
     bool     m_isSyncronizing;
 
     uint64_t m_prepaidDownloadSize;
@@ -180,7 +179,6 @@ struct DownloadChannelInfo
     // for saving/loading channel map before/after shutdown
     template <class Archive> void serialize( Archive & arch )
     {
-        arch( m_isModifyTx );
         arch( m_prepaidDownloadSize );
         arch( m_driveKey );
         arch(m_totalReceiptsSize );
@@ -203,7 +201,6 @@ struct ModifyTraffic
     
     // It is the size sent to another replicator
     uint64_t m_requestedSize = 0;
-    uint64_t m_sentSize = 0;
 };
 
 // The key is a transaction hash
@@ -428,7 +425,7 @@ public:
     //
     virtual Hash256     dbgGetRootHash( const DriveKey& driveKey ) = 0;
     virtual void        dbgPrintDriveStatus( const Key& driveKey ) = 0;
-    virtual void        dbgPrintTrafficDistribution( const std::array<uint8_t,32>&  transactionHash ) = 0;
+    virtual void        dbgPrintTrafficDistribution( std::array<uint8_t,32>  transactionHash ) = 0;
     virtual const char* dbgReplicatorName() const = 0;
     virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) = 0;
     virtual const Key&  dbgReplicatorKey() const = 0;

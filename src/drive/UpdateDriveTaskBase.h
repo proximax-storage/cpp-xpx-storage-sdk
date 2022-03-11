@@ -9,7 +9,7 @@
 //#include "drive/FsTree.h"
 //#include "drive/ActionList.h"
 //#include "drive/FlatDrive.h"
-#include "TaskContext.h"
+#include "DriveParams.h"
 
 //#include <boost/multiprecision/cpp_int.hpp>
 //
@@ -52,7 +52,7 @@ protected:
 
 public:
 
-    void closeDrive( const DriveClosureRequest& closureRequest ) override
+    void onDriveClose( const DriveClosureRequest& closureRequest ) override
     {
         if ( m_stopped )
         {
@@ -68,7 +68,7 @@ protected:
 
     UpdateDriveTaskBase(
             const DriveTaskType& type,
-            TaskContext& drive,
+            DriveParams& drive,
             ModifyOpinionController& opinionTaskController)
             : DriveTaskBase( type, drive )
             , m_opinionController( opinionTaskController )
@@ -146,7 +146,7 @@ protected:
                 lt_handle torrentHandle = *m_downloadingLtHandle;
                 m_downloadingLtHandle.reset();
 
-                session->removeTorrentsFromSession( {torrentHandle}, [=, this]
+                session->removeTorrentsFromSession( {torrentHandle}, [this]
                 {
                     DBG_MAIN_THREAD
                     _LOG( "breakTorrentDownloadAndm_drive.runNextTask: torrent is removed" );

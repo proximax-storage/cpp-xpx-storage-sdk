@@ -9,7 +9,7 @@
 #include "drive/FsTree.h"
 #include "drive/ActionList.h"
 #include "drive/FlatDrive.h"
-#include "TaskContext.h"
+#include "DriveParams.h"
 #include "UpdateDriveTaskBase.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -32,15 +32,15 @@ class CatchingUpTask : public UpdateDriveTaskBase
 
 private:
 
-    const mobj<CatchingUpRequest> m_request;
+    mobj<CatchingUpRequest>      m_request;
 
-    std::set<InfoHash> m_catchingUpFileSet;
+    std::set<InfoHash>           m_catchingUpFileSet;
     std::set<InfoHash>::iterator m_catchingUpFileIt = m_catchingUpFileSet.end();
 
 public:
 
     CatchingUpTask( mobj<CatchingUpRequest>&& request,
-                    TaskContext& drive,
+                    DriveParams& drive,
                     ModifyOpinionController& opinionTaskController )
                     : UpdateDriveTaskBase(DriveTaskType::CATCHING_UP, drive, opinionTaskController)
                     , m_request( std::move(request) )
@@ -85,16 +85,20 @@ public:
                                                                0,
                                                                false,
                                                                "" ),
-                    //toString( *m_catchingUpRootHash ) ),
                                                        m_drive.m_sandboxRootPath,
-                    //{} );
-                                                       getUploaders());
+                                                       "",
+                                                       getUploaders(),
+                                                       &m_drive.m_driveKey.array(),
+                                                       nullptr,
+                                                       &m_opinionController.opinionTrafficTx().value().array() );
         }
     }
 
     void terminate() override
     {
+        DBG_MAIN_THREAD
 
+        breakTorrentDownloadAndRunNextTask();
     }
 
     // Returns 'true' if 'CatchingUp' should be started
@@ -107,18 +111,8 @@ public:
             return true;
         }
 
-        if ( m_request->m_rootHash == transaction.m_rootHash )
-        {
-            // TODO We should update knowledge about the catching modification id
-            // This situation could be valid if some next modification has not changed Drive Root Hash
-            // For example, because of next modification was invalid
-            // So, we continue previous catching-up
-            return false;
-        } else
-        {
-            breakTorrentDownloadAndRunNextTask();
-            return true;
-        }
+        breakTorrentDownloadAndRunNextTask();
+        return true;
     }
 
 protected:
@@ -181,7 +175,10 @@ private:
                 {
                     auto tHandle = session->addTorrentFileToSession( m_drive.m_torrentFolder / fileName,
                                                                      m_drive.m_driveFolder,
-                                                                     lt::sf_is_replicator );
+                                                                     lt::SiriusFlags::peer_is_replicator,
+                                                                     &m_drive.m_driveKey.array(),
+                                                                     nullptr,
+                                                                     nullptr );
                     _ASSERT( tHandle.is_valid());
                     torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{tHandle, true} );
                 }
@@ -192,7 +189,10 @@ private:
             {
                 m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
                                                                             m_drive.m_fsTreeTorrent.parent_path(),
-                                                                            lt::sf_is_replicator );
+                                                                            lt::SiriusFlags::peer_is_replicator,
+                                                                            &m_drive.m_driveKey.array(),
+                                                                            nullptr,
+                                                                            nullptr );
             }
 
             // remove unused data from 'torrentMap'
@@ -201,7 +201,7 @@ private:
 
             LOG( "drive is synchronized" );
 
-            m_drive.executeOnSessionThread( [=, this]
+            m_drive.executeOnSessionThread( [this]
                                             {
                                                 synchronizationIsCompleted();
                                             } );
@@ -367,7 +367,12 @@ private:
                                                                    false,
                                                                    "" ),
                                                            m_drive.m_sandboxRootPath,
-                                                           getUploaders());
+                                                           m_drive.m_sandboxRootPath / (toString(missingFileHash)+".torrent2"),
+                                                           getUploaders(),
+                                                           &m_drive.m_driveKey.array(),
+                                                           nullptr,
+                                                           &m_opinionController.opinionTrafficTx().value().array()
+                                                          );
             }
         }
     }
@@ -412,7 +417,7 @@ private:
         getSandboxDriveSizes( m_metaFilesSize, m_sandboxDriveSize );
         m_fsTreeSize = sandboxFsTreeSize();
 
-        m_drive.executeOnSessionThread( [=, this]() mutable
+        m_drive.executeOnSessionThread( [this]() mutable
                                         {
                                             myRootHashIsCalculated();
                                         } );
@@ -430,7 +435,7 @@ private:
 };
 
 std::unique_ptr<DriveTaskBase> createCatchingUpTask( mobj<CatchingUpRequest>&& request,
-                                                     TaskContext& drive,
+                                                     DriveParams& drive,
                                                      ModifyOpinionController& opinionTaskController )
 {
     return std::make_unique<CatchingUpTask>( std::move(request), drive, opinionTaskController);

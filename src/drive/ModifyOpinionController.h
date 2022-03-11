@@ -10,7 +10,7 @@
 #include "drive/Replicator.h"
 #include "Session.h"
 #include "BackgroundExecutor.h"
-#include "TaskContext.h"
+#include "DriveParams.h"
 #include "drive/Utils.h"
 #include "drive/log.h"
 
@@ -253,6 +253,10 @@ private:
                 }
             }
             modificationUploads[m_clientKey.array()] = targetSum - sumAfter;
+        }
+        else
+        {
+            modificationUploads[m_clientKey.array()] = targetSum;
         }
     }
 };

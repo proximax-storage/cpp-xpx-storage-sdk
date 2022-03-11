@@ -7,9 +7,8 @@
 #include "drive/FlatDrive.h"
 #include "drive/Replicator.h"
 #include "Session.h"
-#include "BackgroundExecutor.h"
 #include "DriveTaskBase.h"
-#include "TaskContext.h"
+#include "DriveParams.h"
 #include "ModifyOpinionController.h"
 #include "drive/Utils.h"
 #include "drive/log.h"
@@ -67,7 +66,7 @@ struct UnknownVerifyCode
 //
 // DefaultDrive - it manages all user files at replicator side
 //
-class DefaultFlatDrive: public FlatDrive, public TaskContext
+class DefaultFlatDrive: public FlatDrive, public DriveParams
 {
     // List of all replicators that support this drive
     // (It does not contain our replicator key!)
@@ -75,10 +74,6 @@ class DefaultFlatDrive: public FlatDrive, public TaskContext
 
     ReplicatorList m_modifyDonatorShard;
     ReplicatorList m_modifyRecipientShard;
-
-    const size_t   m_maxSize;
-
-    BackgroundExecutor  m_backgroundExecutor;
 
     // Opinion Controller
     ModifyOpinionController  m_opinionController;
@@ -104,7 +99,7 @@ class DefaultFlatDrive: public FlatDrive, public TaskContext
 
     // Executing Drive Tasks
     std::unique_ptr<DriveTaskBase> m_task;
-    std::shared_ptr<DriveTaskBase> m_verificationTask;
+    std::unique_ptr<DriveTaskBase> m_verificationTask;
 
 public:
 
@@ -123,9 +118,10 @@ public:
                 const ReplicatorList&       modifyRecipientShard,
                 DbgReplicatorEventHandler*  dbgEventHandler
             )
-            : TaskContext(
+            : DriveParams(
                     drivePubKey,
                     driveOwner,
+                    maxSize,
                     session,
                     eventHandler,
                     replicator,
@@ -137,7 +133,6 @@ public:
             , m_allReplicators(fullReplicatorList)
             , m_modifyDonatorShard(modifyDonatorShard)
             , m_modifyRecipientShard(modifyRecipientShard)
-            , m_maxSize(maxSize)
             //(???+)
             , m_opinionController(m_driveKey, m_driveOwner, m_replicator, m_serializer, *this, expectedCumulativeDownload, replicator.dbgReplicatorName() )
 
@@ -164,8 +159,6 @@ public:
             m_verificationTask->terminate();
             m_verificationTask.reset();
         }
-
-        m_backgroundExecutor.stop();
 
 #if 0
         std::set<lt::torrent_handle> toBeRemovedTorrents;
@@ -223,16 +216,18 @@ public:
 
     void executeOnBackgroundThread( const std::function<void()>& task ) override
     {
-        m_backgroundExecutor.run( [=]
-                                  {
-                                      task();
-                                  } );
+        m_replicator.executeOnBackgroundThread( task );
     }
     
     void runNextTask() override
     {
         DBG_MAIN_THREAD
-        
+
+        if (m_replicator.isStopped())
+        {
+            return;
+        }
+
         m_task.reset();
 
         if ( m_closeDriveRequest )
@@ -468,6 +463,7 @@ public:
 
         if ( m_verificationTask )
         {
+            //(???+++) replace by? m_verificationTask->terminate();
             m_verificationTask->onApprovalTxPublished(transaction);
             m_verificationTask.reset();
         }
@@ -569,18 +565,15 @@ public:
 
         m_closeDriveRequest = request;
 
-		if (m_verificationTask) {
-			m_verificationTask->terminate();
-		}
-		m_verificationTask.reset();
-
-		if (!m_task) {
-			runNextTask();
-		}
-		else {
-			m_task->terminate();
-		}
-	}
+        if ( !m_task )
+        {
+            runNextTask();
+        }
+        else
+        {
+            m_task->onDriveClose( *request );
+        }
+    }
 
     void cancelVerification( mobj<Hash256>&& tx ) override
     {

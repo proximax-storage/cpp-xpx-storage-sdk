@@ -12,6 +12,7 @@
 #include "DownloadLimiter.h"
 #include "EndpointsManager.h"
 #include "RcptSyncronizer.h"
+#include "BackgroundExecutor.h"
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/array.hpp>
@@ -67,6 +68,8 @@ private:
     std::map<std::array<uint8_t,32>, VerifyOpinion> m_verifyApprovalMap;
     
     std::future<void>       m_bootstrapFuture;
+    
+    BackgroundExecutor      m_backgroundExecutor;
 
 public:
     DefaultReplicator (
@@ -97,7 +100,15 @@ public:
     {
         DBG_MAIN_THREAD
 
+
         return m_replicatorIsDestructing;
+    }
+    
+    void executeOnBackgroundThread( const std::function<void()>& task ) override
+    {
+        DBG_MAIN_THREAD
+
+        m_backgroundExecutor.execute( [=] { task(); } );
     }
 
     void stop()
@@ -106,12 +117,16 @@ public:
 
         m_replicatorIsDestructing = true;
 
-        m_dnOpinionSyncronizer.stop();
+        m_session->endSession();
 
+        m_dnOpinionSyncronizer.stop();
+        
         for( auto& [key,drive]: m_driveMap )
         {
             drive->terminate();
         }
+
+        m_backgroundExecutor.stop();
 
         for ( auto& [channelId, value]: m_dnChannelMap )
         {
@@ -127,28 +142,31 @@ public:
 
     virtual ~DefaultReplicator()
     {
+        m_replicatorIsDestructing = true;
+        
 #ifdef DEBUG_OFF_CATAPULT
         _LOG( "~DefaultReplicator() ")
 #endif
-
-       boost::asio::post(m_session->lt_session().get_context(), [this]() mutable {
-
-           DBG_MAIN_THREAD
-
+        
+        std::promise<void> barrier;
+        boost::asio::post(m_session->lt_session().get_context(), [&barrier,this]() mutable
+        {
+            DBG_MAIN_THREAD
             stop();
+            barrier.set_value();
         });
+        barrier.get_future().wait();
 
-       m_session->endSession();
+        auto blockedDestructor = m_session->lt_session().abort();
+        m_session.reset();
+        
+        if ( m_libtorrentThread.joinable() )
+        {
+            m_libtorrentThread.join();
+        }
 
-       auto blockedDestructor = m_session->lt_session().abort();
-       m_session.reset();
-
-       if ( m_libtorrentThread.joinable() )
-       {
-           m_libtorrentThread.join();
-       }
-
-       saveDownloadChannelMap();
+        //(???+++)
+        saveDownloadChannelMap();
     }
     
     void start() override
@@ -179,6 +197,7 @@ public:
         m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName.c_str();
         
         m_libtorrentThread = std::thread( [this] {
+            //m_sesion->setDbgThreadId();
             m_replicatorContext.run();
 #ifdef DEBUG_OFF_CATAPULT
             _LOG( "libtorrentThread ended" );
@@ -664,12 +683,12 @@ public:
         
         auto replicatorPublicKey = publicKey();
 
-        std::vector<uint8_t> message;
-        message.insert( message.end(), downloadChannelId.begin(),   downloadChannelId.end() );
-        message.insert( message.end(), clientPublicKey.begin(),     clientPublicKey.end() );
-        message.insert( message.end(), replicatorPublicKey.begin(), replicatorPublicKey.end() );
-        message.insert( message.end(), (uint8_t*)&downloadedSize,   ((uint8_t*)&downloadedSize)+8 );
-        message.insert( message.end(), signature.begin(),           signature.end() );
+//        std::vector<uint8_t> message;
+//        message.insert( message.end(), downloadChannelId.begin(),   downloadChannelId.end() );
+//        message.insert( message.end(), clientPublicKey.begin(),     clientPublicKey.end() );
+//        message.insert( message.end(), replicatorPublicKey.begin(), replicatorPublicKey.end() );
+//        message.insert( message.end(), (uint8_t*)&downloadedSize,   ((uint8_t*)&downloadedSize)+8 );
+//        message.insert( message.end(), signature.begin(),           signature.end() );
         
         RcptMessage msg( downloadChannelId, clientPublicKey, replicatorPublicKey, downloadedSize, signature );
         
@@ -842,7 +861,7 @@ public:
 
         for (auto &[downloadChannelId, downloadChannel]: m_dnChannelMap)
         {
-            // TODO Potential performance bottleneck
+            //TODO Potential performance bottleneck
             std::erase_if(downloadChannel.m_downloadOpinionMap, [&now](const auto &item)
             {
                 const auto&[key, value] = item;
@@ -1004,15 +1023,9 @@ public:
     {
         DBG_MAIN_THREAD
 
-        std::erase_if( m_dnChannelMap, [](const auto& channelInfo )
-        {
-            return channelInfo.second.m_isModifyTx;
-        });
-
         _ASSERT( blockHash )
         for( auto& [channelId,channelInfo] : m_dnChannelMap )
         {
-            _ASSERT( !channelInfo.m_isModifyTx )
             if ( channelInfo.m_driveKey == driveKey.array() )
             {
                 doInitiateDownloadApprovalTransactionInfo( *blockHash, channelId );
@@ -1479,7 +1492,7 @@ public:
                     return;
                 }
                 
-                acceptReceiptFromAnotherReplicator( std::move(msg) );
+                acceptReceiptFromAnotherReplicator( msg );
             }
         }
         catch(...)

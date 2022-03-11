@@ -22,7 +22,7 @@ private:
 public:
 
     CloseDriveDriveTask( mobj<DriveClosureRequest>&& request,
-                         TaskContext& drive ) :
+                         DriveParams& drive ) :
             DriveTaskBase(DriveTaskType::DRIVE_CLOSURE, drive),
             m_request(request)
     {
@@ -114,7 +114,7 @@ private:
 };
 
 std::unique_ptr<DriveTaskBase> createDriveClosureTask( mobj<DriveClosureRequest>&& request,
-                                                       TaskContext& drive )
+                                                       DriveParams& drive )
 {
     return std::make_unique<CloseDriveDriveTask>( std::move(request), drive );
 }

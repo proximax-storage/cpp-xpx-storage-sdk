@@ -36,6 +36,7 @@
 #include <libtorrent/create_torrent.hpp>
 #include <libtorrent/torrent_flags.hpp>
 #include <libtorrent/torrent.hpp>
+#include <libtorrent/torrent_handle.hpp>
 #include <libtorrent/extensions/ut_metadata.hpp>
 #include <libtorrent/aux_/generate_peer_id.hpp>
 #include "libtorrent/aux_/session_impl.hpp"
@@ -43,56 +44,53 @@
 
 #include <sirius_drive/session_delegate.h>
 
+#undef DBG_MAIN_THREAD
+#define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
+
 namespace fs = std::filesystem;
 
 namespace sirius::drive {
 
 enum { PIECE_SIZE = 16*1024 };
 
+// Libtorrent "ClientData"
+//
+struct LtClientData
+{
+    //(???+++)
+    const uint32_t m_prop = 0xcdcdcdcd;
+    ~LtClientData() {
+        assert( m_prop == 0xcdcdcdcd );
+    }
+    
+    struct RemoveNotifyer
+    {
+        RemoveNotifyer( const std::function<void()>& notifyer ) : m_notifyer(notifyer) {}
+        ~RemoveNotifyer() { m_notifyer(); }
+        std::function<void()> m_notifyer = {};
+    };
+    std::shared_ptr<RemoveNotifyer> m_removeNotifyer;
+    
+    fs::path                        m_saveFolder = "";
+    fs::path                        m_saveTorrentFilename = {};
+    std::vector<DownloadContext>    m_dnContexts = {};
+
+    uint64_t                        m_downloadLimit = 0;
+    uint64_t                        m_uploadedDataSize = 0;
+    bool                            m_limitIsExceeded = false;
+};
+
 //
 // DefaultSession
 //
-class DefaultSession: public Session, std::enable_shared_from_this<DefaultSession> {
-
-    // Every drive have its own 'RemoveTorrentContext'
-    //
-    using RemoveContexts = std::vector<std::unique_ptr<RemoveTorrentContext>>;
-
-    // This map is used to inform 'client' about downloading progress
-    // Torrent id (uint32_t) is used instead of lt::torrent_handler
-    //
-    struct DownloadMapCell {
-        fs::path                        m_saveFolder;
-        std::vector<DownloadContext>    m_contexts;
-    };
-
-    using DownloadMap      = std::map<std::uint32_t,DownloadMapCell>;
-
-private:
-
-    // Endpoint of libtorrent node
-    //
+class DefaultSession: public Session, std::enable_shared_from_this<DefaultSession>
+{
+    bool                    m_ownerIsReplicator = true;
+    
     std::string             m_addressAndPort;
-
-    // Libtorrent session
-    //
     lt::session             m_session;
 
-    // Truncated drive public keys
-    std::set<lt::sha1_hash> m_truncatedDrivePublicKeys;
-
-    // see comments to 'RemoveSets'
-    //
-    RemoveContexts          m_removeContexts;
-    std::mutex              m_removeMutex;
-
-    // see coments to 'DownloadMap'
-    //
-    DownloadMap             m_downloadMap;
-    std::mutex              m_downloadMapMutex;
-
     // It will be called on socket listening error
-    //
     LibTorrentErrorHandler  m_alertHandler;
 
     std::weak_ptr<ReplicatorInt>        m_replicator;
@@ -100,8 +98,12 @@ private:
     
     std::promise<void>                  m_bootstrapBarrier;
     
-    std::string             m_dbgOurPeerName = "";
-    //int                     m_dbgPieceCounter = 0;
+    std::string                         m_dbgOurPeerName = "";
+    
+    bool                                m_stopping = false;
+    
+    std::thread::id                     m_dbgThreadId;
+
 
 public:
     
@@ -115,7 +117,8 @@ public:
                     const endpoint_list&                 bootstraps,
                     std::promise<void>&&                 bootstrapBarrier
                     )
-        : m_addressAndPort(address)
+        : m_ownerIsReplicator(true)
+        , m_addressAndPort(address)
         , m_session( lt::session_params{ generateSessionSettings( false, bootstraps) }, context, {})
         , m_alertHandler(alertHandler)
         , m_replicator(replicator)
@@ -140,7 +143,8 @@ public:
                     bool                                    useTcpSocket,
                     const endpoint_list&                    bootstraps
                     )
-        : m_addressAndPort(address)
+        : m_ownerIsReplicator(false)
+        , m_addressAndPort(address)
         , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
         , m_alertHandler(alertHandler)
         , m_downloadLimiter(downloadLimiter)
@@ -154,8 +158,15 @@ public:
         _LOG( "DefaultSession created: " << m_addressAndPort );
     }
 
-    virtual ~DefaultSession() {
-        LOG( "DefaultSession deleted" );
+    virtual ~DefaultSession()
+    {
+        //m_session.stop_dht();
+        // lt::settings_pack p;
+        // p.set_bool(lt::settings_pack::enable_dht, false);
+        // m_session.apply_settings(p);
+        //m_session.pause();
+
+        m_stopping = true;
     }
 
     // for dbg
@@ -163,6 +174,81 @@ public:
     {
         return m_session;
     }
+    
+    virtual void onTorrentDeleted( lt::torrent_handle handle ) override
+    {
+        if (m_stopping)
+        {
+            return;
+        }
+
+        auto userdata = handle.userdata().get<LtClientData>();
+        if ( userdata==0 )
+        {
+            _LOG_WARN( "userdata==0" )
+            return;
+        }
+        
+        auto& contextVector = userdata->m_dnContexts;
+
+        if ( ! contextVector.empty() && ! userdata->m_limitIsExceeded )
+        {
+            fs::path srcFilePath = fs::path(userdata->m_saveFolder) / hashToFileName( contextVector[0].m_infoHash );
+
+            for( size_t i=0; i<contextVector.size(); i++ )
+            {
+                if ( contextVector[i].m_doNotDeleteTorrent )
+                {
+                    continue;
+                }
+                
+                auto& context = contextVector[i];
+
+                if ( ! context.m_saveAs.empty() && context.m_downloadType == DownloadContext::file_from_drive )
+                {
+                    _ASSERT( ! m_ownerIsReplicator )
+                    
+                    fs::path destFilePath = context.m_saveAs;
+
+                    std::error_code err;
+                    if ( !fs::exists( destFilePath.parent_path(), err ) ) {
+                        fs::create_directories( destFilePath.parent_path(), err );
+                    }
+
+                    //???+++
+                    if ( fs::exists( destFilePath, err ) ) {
+                        fs::remove( destFilePath );
+                    }
+
+                    if ( i == contextVector.size()-1 )
+                    {
+                        fs::rename( srcFilePath, destFilePath, err );
+                    }
+                    else
+                    {
+                        fs::copy( srcFilePath, destFilePath, err );
+                    }
+                }
+
+                context.m_downloadNotification( download_status::code::download_complete,
+                                                context.m_infoHash,
+                                                context.m_saveAs,
+                                                userdata->m_uploadedDataSize,
+                                                0,
+                                                "" );
+            }
+        }
+
+
+        if ( auto userdata = handle.userdata().get<LtClientData>(); userdata )
+        {
+            //std::thread( [=] {
+                //__LOG( "????? use_count: " << userdata->m_removeNotifyer.use_count() << " " << hash )
+                delete userdata;
+            //}).detach();
+        }
+    }
+
 
     lt::settings_pack generateSessionSettings(bool useTcpSocket, const endpoint_list& bootstraps)
     {
@@ -206,6 +292,11 @@ public:
         return settingsPack;
     }
 
+    void setDbgThreadId()
+    {
+        m_dbgThreadId = std::this_thread::get_id();
+    }
+    
     // createSession
     void continueSessionCreation() {
         m_session.set_alert_notify( [this] { alertHandler(); } );
@@ -213,22 +304,26 @@ public:
     }
 
     virtual void endSession() override {
-        //m_downloadMap.clear();
-        //TODO?
-        //m_session.abort();
+        m_stopping = true;
+        _LOG( "stop session" )
     }
+    
+    virtual bool isEnding() override {
+        return m_stopping;
+    }
+
 
     virtual void removeTorrentsFromSession( const std::set<lt::torrent_handle>&  torrents,
                                             std::function<void()>                endNotification ) override
     {
-        std::lock_guard locker( m_removeMutex );
         auto toBeRemoved = std::set<lt::torrent_handle>();
 
-        _LOG( "+++ ex *** removeTorrentsFromSession: " << torrents.size() << " " << " get_torrents().size()=" << m_session.get_torrents().size() )
+        //_LOG( "+++ ex *** removeTorrentsFromSession: " << torrents.size() << " " << " get_torrents().size()=" << m_session.get_torrents().size() )
 
         for( const auto& torrentHandle : torrents )
         {
-            _LOG("remove_torrent(2): " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
+//            _LOG("remove_torrent(2): " << torrentHandle.info_hashes().v2 << " " << torrentHandle.status().state )
+            _LOG("remove_torrent(2): " << torrentHandle.info_hashes().v2 )
             if ( !torrentHandle.is_valid() )
             {
                 //(???++++)
@@ -244,16 +339,33 @@ public:
             }
         }
         
+        _LOG("remove_torrent(2a): ")
+
         if ( !toBeRemoved.empty() )
         {
-            m_removeContexts.push_back( std::make_unique<RemoveTorrentContext>( toBeRemoved, endNotification ) );
+            //m_removeContexts.push_back( std::make_unique<RemoveTorrentContext>( toBeRemoved, endNotification ) );
+
+            auto removeNotifyer = std::make_shared<LtClientData::RemoveNotifyer>(endNotification);
 
             for( const auto& torrentHandle : torrents )
             {
                 if ( torrentHandle.is_valid() && torrentHandle.status().state > 2 )
                 {
+                    __ASSERT( torrentHandle.userdata().get<LtClientData>() != nullptr )
+                    __ASSERT( ! torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer )
+                    torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer = removeNotifyer;
+                }
+            }
+
+            // races!
+            removeNotifyer.reset();
+            
+            for( const auto& torrentHandle : torrents )
+            {
+                if ( torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer )
+                {
                     _LOG( "+++ ex :remove_torrent(3): " << torrentHandle.info_hashes().v2 );
-                    m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
+                    m_session.remove_torrent( torrentHandle, lt::session::delete_files );
                 }
             }
         }
@@ -273,22 +385,30 @@ public:
         }
     }
     
-    virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
-                                               const std::string& folderWhereFileIsLocated,
-                                               uint32_t           siriusFlags,
-                                               std::optional<std::array<uint8_t,32>> txHash = {},
-                                               endpoint_list list = {} ) override {
-
+    virtual lt_handle addTorrentFileToSession( const std::string&               torrentFilename,
+                                               const std::string&               folderWhereFileIsLocated,
+                                               lt::SiriusFlags::type            siriusFlags,
+                                               const std::array<uint8_t,32>*    driveKey,
+                                               const std::array<uint8_t,32>*    channelId,
+                                               const std::array<uint8_t,32>*    modifyTx,
+                                               endpoint_list list,
+                                               uint64_t* outTotalSize ) override
+    {
         // read torrent file
         std::ifstream torrentFile( torrentFilename );
         std::vector<char> buffer( (std::istreambuf_iterator<char>(torrentFile)), std::istreambuf_iterator<char>() );
 
         // create add_torrent_params
         lt::add_torrent_params params;
+        params.userdata = new LtClientData();
         params.flags &= ~lt::torrent_flags::paused;
         params.flags &= ~lt::torrent_flags::auto_managed;
 
-        //todo?
+        //(???+++)
+        params.flags &= ~lt::torrent_flags::update_subscribe;
+        params.flags &= ~lt::torrent_flags::apply_ip_filter;
+        params.flags &= ~lt::torrent_flags::need_save_resume;
+
         params.flags |= lt::torrent_flags::seed_mode;
         params.flags |= lt::torrent_flags::upload_mode;
         params.flags |= lt::torrent_flags::no_verify_files;
@@ -303,7 +423,12 @@ public:
         params.save_path        = fs::path(folderWhereFileIsLocated);
         params.ti               = std::make_shared<lt::torrent_info>( buffer, lt::from_span );
         params.m_siriusFlags    = siriusFlags;
-        params.m_transactionHash = txHash;
+        if ( driveKey )
+            params.m_driveKey = *driveKey;
+        if ( channelId )
+            params.m_channelId = *channelId;
+        if ( modifyTx )
+            params.m_modifyTx = *modifyTx;
 
         //dbg///////////////////////////////////////////////////
 //        auto tInfo = lt::torrent_info(buffer, lt::from_span);
@@ -323,191 +448,51 @@ public:
         }
 
         connectPeers( tHandle, list );
+        
+        if ( outTotalSize != nullptr )
+        {
+            *outTotalSize = tHandle.torrent_file()->total_size();
+        }
 
         return tHandle;
     }
 
-//    InfoHash addActionListToSession( const ActionList& actionList,
-//                                     const Key& clientPublicKey,
-//                                     const std::string& workFolder,
-//                                     endpoint_list list ) override {
-//
-//        // path to the data to be loaded into the replicator
-//        fs::path sandboxFolder = fs::path(workFolder) / "client-data";
-//
-//        // clear tmpFolder
-//        std::error_code ec;
-//        fs::remove_all( sandboxFolder, ec );
-//        fs::create_directories( sandboxFolder );
-//
-//        // path to root folder
-//        fs::path addFilesFolder = fs::path(sandboxFolder).append( "drive" );
-//        //fs::create_directory( addFilesFolder );
-//
-//        // parse action list
-//        for( auto& action : actionList )
-//        {
-//            switch ( action.m_actionId )
-//            {
-//                case action_list_id::upload:
-//                {
-//                    fs::path sandboxFilePath = addFilesFolder/action.m_param2;
-//                    fs::create_directories( sandboxFilePath.parent_path() );
-//                    try
-//                    {
-//                        fs::create_symlink( action.m_param1, sandboxFilePath);
-//                    }
-//                    catch(...)
-//                    {
-//                        // ignore duplicate destination links
-//                    }
-//                    //fs::copy( action.m_param1, addFilesFolder/action.m_param2 );
-//                    break;
-//                }
-//                case action_list_id::move:
-//                {
-//                    if ( isPathInsideFolder( action.m_param1, action.m_param2 ) )
-//                    {
-//                        LOG( action.m_param1 );
-//                        LOG( action.m_param2 );
-//                        throw std::runtime_error( "invalid 'move/rename' action (destination is a child folder): " + action.m_param1
-//                        + " -> " + action.m_param2 );
-//                    }
-//                    break;
-//                }
-//                default:
-//                    break;
-//            }
-//        }
-//
-//        //if ( !fs::exists( addFilesFolder ) )
-//        {
-//            // it seems that it is a bug of libtorrent
-//            // when actionList.bin is a single file
-//            fs::path ballast = fs::path(sandboxFolder) / "ballast";
-//            std::ofstream file( ballast );
-//            std::string fileText = "ballast";
-//            file.write( fileText.c_str(), fileText.size() );
-//        }
-//
-//        // save ActionList
-//        actionList.serialize( fs::path(sandboxFolder)/"actionList.bin" );
-//
-//        // create torrent file
-//        InfoHash infoHash = createTorrentFile( fs::path(sandboxFolder), clientPublicKey, workFolder, fs::path(sandboxFolder)/"root.torrent" );
-//
-//        // add torrent file
-//        addTorrentFileToSession( fs::path(sandboxFolder)/"root.torrent",
-//                                 workFolder,
-//                                 lt::sf_has_modify_data,
-//                                 list );
-//
-//        return infoHash;
-//    }
-
-    InfoHash addActionListToSession( const ActionList& actionList,
-                                     const Key& clientPublicKey,
-                                     const std::string& workFolder,
-                                     endpoint_list list ) override {
-
-        // path to the data to be loaded into the replicator
-        fs::path sandboxFolder = fs::path(workFolder) / "client-data";
-
-        // clear tmpFolder
-        std::error_code ec;
-        fs::remove_all( sandboxFolder, ec );
-        fs::create_directories( sandboxFolder );
-
-        // path to root folder
-        fs::path addFilesFolder = fs::path(sandboxFolder).append( "drive" );
-        //fs::create_directory( addFilesFolder );
-
-        // parse action list
-        for( auto& action : actionList )
-        {
-            switch ( action.m_actionId )
-            {
-                case action_list_id::upload:
-                {
-                    fs::path sandboxFilePath = addFilesFolder/action.m_param2;
-                    fs::create_directories( sandboxFilePath.parent_path() );
-                    try
-                    {
-                        fs::create_symlink( action.m_param1, sandboxFilePath);
-                    }
-                    catch(...)
-                    {
-                        // ignore duplicate destination links
-                    }
-                    //fs::copy( action.m_param1, addFilesFolder/action.m_param2 );
-                    break;
-                }
-                case action_list_id::move:
-                {
-                    if ( isPathInsideFolder( action.m_param1, action.m_param2 ) )
-                    {
-                        LOG( action.m_param1 );
-                        LOG( action.m_param2 );
-                        throw std::runtime_error( "invalid 'move/rename' action (destination is a child folder): " + action.m_param1
-                        + " -> " + action.m_param2 );
-                    }
-                    break;
-                }
-                default:
-                    break;
-            }
-        }
-
-        //if ( !fs::exists( addFilesFolder ) )
-        {
-            // it seems that it is a bug of libtorrent
-            // when actionList.bin is a single file
-            fs::path ballast = fs::path(sandboxFolder) / "ballast";
-            std::ofstream file( ballast );
-            std::string fileText = "ballast";
-            file.write( fileText.c_str(), fileText.size() );
-        }
-
-        // save ActionList
-        actionList.serialize( fs::path(sandboxFolder)/"actionList.bin" );
-
-        // create torrent file
-        InfoHash infoHash = createTorrentFile( fs::path(sandboxFolder), clientPublicKey, workFolder, fs::path(sandboxFolder)/"root.torrent" );
-
-        // add torrent file
-        addTorrentFileToSession( fs::path(sandboxFolder)/"root.torrent",
-                                 workFolder,
-                                 lt::sf_has_modify_data,
-                                 {},
-                                 list );
-
-        return infoHash;
-    }
-
-
     // downloadFile
-    virtual lt_handle download( DownloadContext&&          downloadContext,
-                                const std::string&         tmpFolder,
-                                const ReplicatorList&      keysHints,
-                                const endpoint_list&       endpointsHints) override {
-
+    virtual lt_handle download( DownloadContext&&               downloadContext,
+                                const std::string&              saveFolder,
+                                const std::string&              saveTorrentFolder,
+                                const ReplicatorList&           keysHints,
+                                const std::array<uint8_t,32>*   driveKey  = nullptr,
+                                const std::array<uint8_t,32>*   channelId = nullptr,
+                                const std::array<uint8_t,32>*   modifyTx  = nullptr,
+                                const endpoint_list&            endpointsHints = {} ) override
+    {
         // create add_torrent_params
         lt::error_code ec;
         lt::add_torrent_params params = lt::parse_magnet_uri( magnetLink(downloadContext.m_infoHash), ec );
+        
         if (ec) {
             throw std::runtime_error( std::string("downloadFile error: ") + ec.message() );
         }
 
-        // where the file will be placed
-        params.save_path = tmpFolder;
+        auto userdata = new LtClientData();
+        userdata->m_saveTorrentFilename = saveTorrentFolder;
+        params.userdata = userdata;
 
-        params.m_transactionHash = downloadContext.m_transactionHash.array();
-        params.m_downloadLimit   = downloadContext.m_downloadLimit;
-        
+        // where the file will be placed
+        params.save_path = saveFolder;
+
+        if ( driveKey )
+            params.m_driveKey = *driveKey;
+        if ( channelId )
+            params.m_channelId = *channelId;
+        if ( modifyTx )
+            params.m_modifyTx = *modifyTx;
+
         if ( downloadContext.m_downloadType == DownloadContext::client_data || downloadContext.m_downloadType == DownloadContext::missing_files )
-            params.m_siriusFlags     = lt::sf_is_replicator | lt::sf_is_receiver;
+            params.m_siriusFlags     = lt::SiriusFlags::peer_is_replicator | lt::SiriusFlags::replicator_is_receiver;
         else
-            params.m_siriusFlags     = lt::sf_is_receiver;
+            params.m_siriusFlags     = lt::SiriusFlags::client_is_receiver;
 
         // create torrent_handle
         lt::torrent_handle tHandle = m_session.add_torrent(params,ec);
@@ -539,77 +524,25 @@ public:
             tHandle.connect_peer( endpoint );
         }
 
-        // save download handler
-        std::lock_guard locker(m_downloadMapMutex);
-
-        if ( auto it = m_downloadMap.find(tHandle.id()); it != m_downloadMap.end() )
-        {
-            if ( downloadContext.m_downloadType == DownloadContext::file_from_drive )
-            {
-                if ( downloadContext.m_saveAs.empty() )
-                    throw std::runtime_error("download(file_from_drive): DownloadContext::m_saveAs' is empty" );
-
-                _LOG( "+++ it->second.m_contexts.emplace_back???: " << tHandle.id() )
-                it->second.m_contexts.emplace_back( downloadContext );
-            }
-            else
-            {
-                LOG("download: already downloading type=" << downloadContext.m_downloadType
-                    << " infoHash=" << toString(downloadContext.m_infoHash) );
-
-                if (  downloadContext.m_downloadType == DownloadContext::fs_tree )
-                    throw std::runtime_error("download(fs_tree): already downloading" );
-
-//                if ( downloadContext.m_downloadType == DownloadContext::client_data )
-//                    throw std::runtime_error("download(client_data): already downloading" );
-
-                if ( downloadContext.m_downloadType == DownloadContext::missing_files )
-                {
-                    _LOG( "+++ ex already inserted: " << tHandle.id() << " " << downloadContext.m_infoHash )
-                    throw std::runtime_error("download(missing_files): already downloading" );
-                }
-            }
+        // set fs tree save path
+        if ( downloadContext.m_downloadType == DownloadContext::fs_tree ) {
+            downloadContext.m_saveAs = fs::path(saveFolder) / FS_TREE_FILE_NAME;
         }
-        else
-        {
-            if ( downloadContext.m_downloadType == DownloadContext::fs_tree ) {
-                downloadContext.m_saveAs = fs::path(tmpFolder) / FS_TREE_FILE_NAME;
-            }
-            else if ( downloadContext.m_downloadType == DownloadContext::file_from_drive ) {
-                if (downloadContext.m_saveAs.empty())
-                    throw std::runtime_error("download(file_from_drive): DownloadContext::m_saveAs' is empty");
-            }
-
-            _LOG( "+++ ex m_downloadMap.insert: " << tHandle.id() << " " << downloadContext.m_infoHash )
-            m_downloadMap[ tHandle.id() ] = DownloadMapCell{ tmpFolder, {std::move(downloadContext)} };
+        else if ( downloadContext.m_downloadType == DownloadContext::file_from_drive ) {
+            if (downloadContext.m_saveAs.empty())
+                throw std::runtime_error("download(file_from_drive): DownloadContext::m_saveAs' is empty");
         }
-        
+
+        __ASSERT( tHandle.userdata().get<LtClientData>() != nullptr )
+        tHandle.userdata().get<LtClientData>()->m_dnContexts.push_back( downloadContext );
+
         return tHandle;
     }
 
 
     void removeDownloadContext( lt::torrent_handle tHandle ) override
     {
-        m_downloadMap.erase( tHandle.id() );
     }
-
-
-//    void loadTorrent( const InfoHash& infoHash,
-//                           std::function<void(bool)> addTorrentNotifier,
-//                           const std::string& torrentFilename,
-//                           const std::string& savePath,
-//                           endpoint_list endpointList ) override
-//    {
-//        if ( auto it = m_loadTorrentMap.find(infoHash); it != m_loadTorrentMap.end() )
-//        {
-//            //shift timer
-//            return;
-//        }
-//        m_loadTorrentMap[infoHash] = addTorrentNotifier;
-//        //start timer
-//        addTorrentFileToSession( torrentFilename, savePath, endpointList );
-//    };
-
 
     void connectPeers( lt::torrent_handle tHandle, endpoint_list list ) {
 
@@ -751,7 +684,7 @@ public:
                 
                 if ( auto replicator = m_replicator.lock(); replicator )
                 {
-                    replicator->acceptReceiptFromAnotherReplicator( std::move(msg) );
+                    replicator->acceptReceiptFromAnotherReplicator( msg );
                 }
 
                 response["r"]["q"] = std::string(query);
@@ -922,7 +855,14 @@ private:
         limiter->onEndpointDiscovered(publicKey, endpoint);
     }
 
-    void alertHandler() {
+    void alertHandler()
+    {
+        //DBG_MAIN_THREAD
+        
+        if ( m_stopping )
+        {
+            return;
+        }
 
         // extract alerts
         std::vector<lt::alert *> alerts;
@@ -996,20 +936,64 @@ private:
 
                     break;
                 }
-
-                case lt::add_torrent_alert::        alert_type: {
+                    
+                case lt::add_torrent_alert::        alert_type:
+                {
                     auto* theAlert = dynamic_cast<lt::add_torrent_alert*>(alert);
                     _LOG( "*** add_torrent_alert: " << theAlert->handle.info_hashes().v2 );
-                    _LOG( "*** added get_torrents().size()=" << m_session.get_torrents().size() );
-
-                }
-//                case lt::dht_announce_alert::       alert_type:
-                //case lt::torrent_log_alert::        alert_type:
-                case lt::incoming_connection_alert::alert_type: {
-//                    LOG( m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
+                    //_LOG( "*** added get_torrents().size()=" << m_session.get_torrents().size() );
                     break;
                 }
 
+#ifdef __APPLE__
+#pragma mark --metadata_received_alert
+#endif
+                case lt::metadata_received_alert::        alert_type:
+                {
+                    //sleep(1);
+                    auto* theAlert = dynamic_cast<lt::metadata_received_alert*>(alert);
+                    if ( theAlert->handle.is_valid() && theAlert->handle.userdata().get<LtClientData>() != nullptr )
+                    {
+                        auto userdata = theAlert->handle.userdata().get<LtClientData>();
+                        
+                        if ( userdata != nullptr )
+                        {
+                            int64_t downloadLimit = (userdata->m_dnContexts.size() == 0) ? 0 : userdata->m_dnContexts.front().m_downloadLimit;
+                            userdata->m_uploadedDataSize = theAlert->handle.torrent_file()->total_size();
+
+                            bool limitIsExceeded = downloadLimit != 0 && downloadLimit < theAlert->handle.torrent_file()->total_size();
+                            _LOG( "+**** limitIsExceeded?: " << downloadLimit << " " << theAlert->handle.torrent_file()->total_size() );
+                            if ( limitIsExceeded )
+                            {
+                                _LOG( "+**** limitIsExceeded: " << theAlert->handle.torrent_file()->total_size() );
+                                m_session.remove_torrent( theAlert->handle, lt::session::delete_files );
+
+                                userdata->m_limitIsExceeded = true;
+                                _ASSERT( userdata->m_dnContexts.size()==1 )
+                                userdata->m_dnContexts.front().m_downloadNotification(
+                                                                    download_status::code::failed,
+                                                                    userdata->m_dnContexts.front().m_infoHash,
+                                                                    userdata->m_dnContexts.front().m_saveAs,
+                                                                    userdata->m_uploadedDataSize,
+                                                                    0,
+                                                                    "Limit Is Exceeded" );
+                            }
+                        }
+                    }
+                    
+                    break;
+                }
+
+//                case lt::dht_announce_alert::       alert_type:
+//                case lt::torrent_log_alert::        alert_type:
+//                case lt::incoming_connection_alert::alert_type: {
+//                    LOG( m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
+//                    break;
+//                }
+
+#ifdef __APPLE__
+#pragma mark --dht_direct_response_alert
+#endif
                 case lt::dht_direct_response_alert::alert_type: {
                      auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
                     //_LOG( "*** dht_direct_response_alert: " );
@@ -1079,9 +1063,9 @@ private:
 //                        // TODO: better to use piece_granularity
 //                        std::vector<int64_t> fp = theAlert->handle.file_progress();// lt::torrent_handle::piece_granularity );
 //
-//#ifdef __APPLE__
-//#pragma mark --download-progress--
-//#endif
+#ifdef __APPLE__
+#pragma mark --download-progress--
+#endif
 //                        //todo++++
 //                        bool calculatePercents = true;//false;//true;
 //                        uint64_t dnBytes = 0;
@@ -1106,21 +1090,6 @@ private:
 ////                            const std::string filePath = theAlert->handle.torrent_file()->files().file_path(i);
 ////                            _LOG( m_addressAndPort << ": " << filePath << ": alert: progress: " << fp[i] << " of " << fsize );
 //                            //dbg/////////////////////////
-//
-////todo++++                            if ( auto it =  m_downloadMap.find(theAlert->handle.id());
-////                                      it != m_downloadMap.end() )
-////                            {
-////                                for( auto& context : it->second.m_contexts )
-////                                {
-////                                    context.m_downloadNotification( download_status::code::downloading,
-////                                                                    context.m_infoHash,
-////                                                                    context.m_saveAs,
-////                                                                    fp[i],
-////                                                                    fsize,
-////                                                                    "" );
-////                                }
-////                            }
-//
 //                        }
 //
 //                        if ( calculatePercents )
@@ -1132,31 +1101,6 @@ private:
 //                        if ( isAllComplete )
 //                        {
 //                            _LOG( m_addressAndPort << ": all complete" )
-////
-////                            auto it = m_downloadMap.find(theAlert->handle.id());
-////
-////                            if ( it != m_downloadMap.end() )
-////                            {
-////                                // get peers info
-////                                std::vector<lt::peer_info> peers;
-////                                theAlert->handle.get_peer_info(peers);
-////
-////                                for (const lt::peer_info &pi : peers)
-////                                {
-////                                    //_LOG("Peer ip: " << pi.ip.address().to_string())
-////                                    //_LOG("Peer id: " << pi.pid.to_string())
-////
-////                                    // the total number of bytes downloaded from and uploaded to this peer.
-////                                    // These numbers do not include the protocol chatter, but only the
-////                                    // payload data.
-////                                    _LOG( m_addressAndPort << ": " << m_downloadLimiter->dbgOurPeerName() << " Total downloaded: " << pi.total_download << " from: " << pi.ip.address().to_string() )
-////                                    _LOG( m_addressAndPort << ": " << "Total uploaded: " << pi.total_upload)
-////                                }
-////
-////                                // remove torrent
-////                                //todo++++
-////                                m_session.remove_torrent( theAlert->handle, lt::session::delete_partfile );
-////                            }
 //                        }
 //                    }
                     break;
@@ -1171,214 +1115,97 @@ private:
 
                 case lt::torrent_error_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_error_alert *>(alert);
-
-                    LOG(  m_addressAndPort << ": ERROR!!!: torrent error: " << theAlert->message())
-
-                    if ( auto downloadConextIt  = m_downloadMap.find(theAlert->handle.id());
-                              downloadConextIt != m_downloadMap.end() )
+                    //(???+++) when client destructing?
+                    _LOG(  m_addressAndPort << ": ERROR!!!: torrent error: " << theAlert->message())
+                    break;
+                    auto userdata = theAlert->handle.userdata().get<LtClientData>();
+                    _ASSERT( userdata != nullptr )
+                    if ( userdata != nullptr && userdata->m_dnContexts.size()>0 )
                     {
-                        const auto contexts = downloadConextIt->second.m_contexts;
-
-                        // remove entry from downloadHandlerMap
-                        std::lock_guard<std::mutex> locker(m_downloadMapMutex);
-                        m_downloadMap.erase( downloadConextIt->first );
-
-                        for( const auto& context : contexts )
-                        {
-                            context.m_downloadNotification( download_status::code::failed,
-                                                            context.m_infoHash,
-                                                            context.m_saveAs,
-                                                            0,
-                                                            0,
-                                                            "" );
-
-                        }
+                        userdata->m_dnContexts.front().m_downloadNotification(   download_status::code::failed,
+                                                                                 userdata->m_dnContexts.front().m_infoHash,
+                                                                                 userdata->m_dnContexts.front().m_saveAs,
+                                                                                 userdata->m_uploadedDataSize,
+                                                                                 0,
+                                                                                 theAlert->message() );
                     }
-
                     break;
                 }
 
+#ifdef __APPLE__
+#pragma mark --torrent_finished_alert
+#endif
                 case lt::torrent_finished_alert::alert_type: {
+                    //sleep(1);
                     auto *theAlert = dynamic_cast<lt::torrent_finished_alert*>(alert);
-                    _LOG( "*** torrent_finished_alert:" << theAlert->handle.info_hashes().v2 << " (file: " <<theAlert->handle.torrent_file()->files().file_path(0) << ")" );
-                    _LOG( "*** finished get_torrents().size()=" << m_session.get_torrents().size() );
+                    _LOG( "*** torrent_finished_alert: " << theAlert->handle.info_hashes().v2 );
+                    _LOG( "***                   file: " << theAlert->handle.torrent_file()->files().file_path(0) );
+                    _LOG( "***              save_path: " << theAlert->handle.status(lt::torrent_handle::query_save_path).save_path );
+                    //_LOG( "*** finished theAlert->handle.id()=" << theAlert->handle.id() );
                     //dbgPrintActiveTorrents();
 
-//                    _LOG( "*** lt::torrent_finished_alert:" << m_downloadLimiter->dbgOurPeerName() << " " << theAlert->handle.info_hashes().v2 );
-                    //TODO save torrent file???
-                    //lt::torrent_status st = theAlert->handle.status( lt::torrent_handle::query_torrent_file );
+                    //auto handle_id = theAlert->handle.id();
+                    
+//                    if ( ltDataToHash(theAlert->handle.info_hashes().v2.data()) == stringToHash("e71463c9ad6ab4205523fc5fe71c82ff4b78088c97735418c3ba8caaaf900d59") )
+//                    {
+//                        dbgPrintActiveTorrents();
+//                    }
+                    
+                    auto userdata = theAlert->handle.userdata().get<LtClientData>();
+                    _ASSERT( userdata != nullptr )
 
-                    if ( auto it = m_downloadMap.find(theAlert->handle.id()); it != m_downloadMap.end() )
+                    if ( userdata != nullptr && ! userdata->m_saveTorrentFilename.empty() )
                     {
-                        _LOG( "*** torrent_finished: " << theAlert->handle.info_hashes().v2 )
+                        auto ti = theAlert->handle.torrent_file_with_hashes();
+                        //_LOG("ti:" << ti)
 
-                        // get peers info
-                        std::vector<lt::peer_info> peers;
-                        theAlert->handle.get_peer_info(peers);
-
-//                        for (const lt::peer_info &pi : peers)
-//                        {
-//                            //_LOG("Peer ip: " << pi.ip.address().to_string())
-//                            //_LOG("Peer id: " << pi.pid.to_string())
-//
-//                            // the total number of bytes downloaded from and uploaded to this peer.
-//                            // These numbers do not include the protocol chatter, but only the
-//                            // payload data.
-////                            _LOG( m_addressAndPort << ": " << m_downloadLimiter->dbgOurPeerName() << " Total downloaded: " << pi.total_download << " from: " << pi.ip.address().to_string() )
-////                            _LOG( m_addressAndPort << ": " << "Total uploaded: " << pi.total_upload)
-//                        }
-
-                        auto& contextVector = it->second.m_contexts;
-                        if ( contextVector.size() > 0 && contextVector.back().m_doNotDeleteTorrent )
+                        // Save torrent file
+                        std::thread( [ti=std::move(ti),userdata]
                         {
-                            auto& context = contextVector.back();
-                            context.m_downloadNotification( download_status::code::download_complete,
-                                                            context.m_infoHash,
-                                                            context.m_saveAs,
-                                                            0,
+                            lt::create_torrent ct(*ti);
+                            lt::entry te = ct.generate();
+                            std::vector<char> buffer;
+                            bencode(std::back_inserter(buffer), te);
+
+                            if ( FILE* f = fopen( userdata->m_saveTorrentFilename.c_str(), "wb+" ); f )
+                            {
+                                fwrite( &buffer[0], 1, buffer.size(), f );
+                                fclose(f);
+                            }
+                        }).detach();
+                    }
+
+                    if ( userdata != nullptr && userdata->m_dnContexts.size()>0 )
+                    {
+                        auto dnContext = userdata->m_dnContexts.front();
+                        if ( dnContext.m_doNotDeleteTorrent )
+                        {
+                            dnContext.m_downloadNotification( download_status::code::download_complete,
+                                                            dnContext.m_infoHash,
+                                                            dnContext.m_saveAs,
+                                                            userdata->m_uploadedDataSize,
                                                             0,
                                                             "" );
+                            //(???+++)
+                            //_LOG( "*** finished theAlert->handle.id()=" << theAlert->handle.id() );
                         }
                         else
                         {
-                            _LOG( "*** torrent_finished_alert: will be removed:" << theAlert->handle.info_hashes().v2 );
-                            // remove torrent
+                            _LOG( "***                removed: " << theAlert->handle.info_hashes().v2 );
                             m_session.remove_torrent( theAlert->handle, lt::session::delete_partfile );
                         }
                     }
                     break;
                 }
                     
+#ifdef __APPLE__
+#pragma mark --torrent_deleted_alert
+#endif
                 case lt::torrent_deleted_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::torrent_deleted_alert*>(alert);
                     _LOG( "*** torrent_deleted_alert:" << theAlert->handle.info_hashes().v2 << " " << theAlert->handle.torrent_file()->files().file_name(0) );
-                    _LOG( "*** deleted get_torrents().size()=" << m_session.get_torrents().size() );
+                    //_LOG( "*** deleted get_torrents().size()=" << m_session.get_torrents().size() );
                     //dbgPrintActiveTorrents();
-
-                    // Notify about removed torrents
-                    //
-                    {
-                        std::lock_guard<std::mutex> locker(m_removeMutex);
-                        //_LOG( "*** torrent_deleted_alert: removeContext.Size: " << m_removeContexts.size() );
-
-                        // loop by set
-                        for ( auto removeContextIt  = m_removeContexts.begin(); removeContextIt != m_removeContexts.end(); )
-                        {
-                            _LOG( "*** removeContextIt" );
-
-                            auto& removeContext = *removeContextIt->get();
-
-                            _LOG( m_addressAndPort << "  removeContext.Size" << m_removeContexts.size() );
-
-                            // skip not-ordered torrents
-                            if ( auto torrentIt  = removeContext.m_torrentSet.find(theAlert->handle);
-                                      torrentIt != removeContext.m_torrentSet.end() )
-                            {
-                                // remove torrent from 'context'
-                                removeContext.m_torrentSet.erase(torrentIt);
-
-                                //TODO?
-                                //std::erase_if( removeContext.m_torrentSet,
-                                //               [](auto const& torrent) { return !torrent.is_valid(); } );
-
-                                // try to remove 'context'
-                                // todo calculate valid torrents!
-                                _LOG( m_addressAndPort << " removeContext.m_torrentSet.size=" << removeContext.m_torrentSet.size() );
-                                if ( removeContext.m_torrentSet.empty() )
-                                {
-                                    auto endRemoveNotification = removeContext.m_endRemoveNotification;
-                                    m_removeContexts.erase( removeContextIt );
-                                    _LOG( m_addressAndPort << " endRemoveNotification() called");
-                                    endRemoveNotification();
-                                }
-                                else
-                                {
-                                    removeContextIt++;
-                                }
-                            }
-                        }
-                    }
-
-                    // Notify about completed downloads
-                    //
-
-                    _LOG( "*** torrent_deleted_alert: " << theAlert->handle.info_hashes().v2 << " m_downloadMap.Size: " << m_downloadMap.size() << " : " << theAlert->handle.id() );
-                    if ( auto it =  m_downloadMap.find(theAlert->handle.id());
-                              it != m_downloadMap.end() )
-                    {
-                        auto& contextVector = it->second.m_contexts;
-
-                        if ( contextVector.empty() )
-                        {
-                            _LOG( "Internal error: " << contextVector.empty() );
-                        }
-                        else
-                        {
-                            fs::path srcFilePath = fs::path(it->second.m_saveFolder) /
-                                                        hashToFileName(contextVector[0].m_infoHash);
-
-                            //_LOG( "contextVector.size(): " << contextVector.size() );
-                            for( size_t i=0; i<contextVector.size(); i++ )
-                            {
-                                if ( contextVector[i].m_doNotDeleteTorrent )
-                                {
-                                    continue;
-                                }
-                                auto& context = contextVector[i];
-
-                                if ( !context.m_saveAs.empty() && context.m_downloadType == DownloadContext::file_from_drive )
-                                {
-                                    fs::path destFilePath = context.m_saveAs;
-
-                                    std::error_code err;
-                                    if ( !fs::exists( destFilePath.parent_path(), err ) ) {
-                                        fs::create_directories( destFilePath.parent_path(), err );
-                                    }
-
-                                    //???+++
-                                    if ( fs::exists( destFilePath, err ) ) {
-                                        fs::remove( destFilePath );
-                                    }
-
-                                    if ( i == contextVector.size()-1 )
-                                    {
-                                        fs::rename( srcFilePath, destFilePath, err );
-                                    }
-                                    else
-                                    {
-                                        fs::copy( srcFilePath, destFilePath, err );
-                                    }
-                                }
-
-                                context.m_downloadNotification( download_status::code::download_complete,
-                                                                context.m_infoHash,
-                                                                context.m_saveAs,
-                                                                0,
-                                                                0,
-                                                                "" );
-                            }
-                        }
-
-                        // remove entry from downloadHandlerMap
-                        std::lock_guard<std::mutex> locker(m_downloadMapMutex);
-                        m_downloadMap.erase( it->first );
-                    }
-
-//                    if ( auto downloadConextIt  = m_downloadMap.find(theAlert->handle.id());
-//                              downloadConextIt != m_downloadMap.end() )
-//                    {
-//                        auto contexts = downloadConextIt->second;
-
-//                        // remove entry from downloadHandlerMap
-//                        std::lock_guard<std::mutex> locker(m_downloadMapMutex);
-//                        m_downloadMap.erase( downloadConextIt->first );
-
-//                        for( auto& context : contexts )
-//                        {
-//                            context.m_downloadNotification( context, download_status::complete, 100.0, "" );
-//                        }
-//                    }
-
                     break;
                 }
 

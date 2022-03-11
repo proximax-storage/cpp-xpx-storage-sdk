@@ -94,28 +94,6 @@ struct DownloadContext {
 };
 
 //
-// It will be used to inform 'client' that all required torrents
-// have been sucessfully removed from the session.
-// And only after that the 'client' could remove/move files and torrnet file.
-//
-struct RemoveTorrentContext
-{
-    RemoveTorrentContext(
-            std::set<lt::torrent_handle> torrentSet,
-            const std::function<void()>&   endRemoveNotification )
-        :
-            m_torrentSet(torrentSet),
-            m_endRemoveNotification(endRemoveNotification)
-        {}
-    // A set of torrents to be removed
-    // Torrent id (uint32_t) is used instead of lt::torrent_handler
-    //
-    std::set<lt::torrent_handle> m_torrentSet;
-
-    // This handler will be called after all torrents have been removed
-    std::function<void()>        m_endRemoveNotification;
-};
-
 //
 // It provides the ability to exchange files
 //
@@ -130,34 +108,36 @@ public:
 
 
     virtual void      endSession() = 0;
+    virtual bool      isEnding() = 0;
 
     // It loads existing file from disk
-    virtual lt_handle addTorrentFileToSession( const std::string& torrentFilename,
-                                               const std::string& folderWhereFileIsLocated,
-                                               uint32_t           siriusFlags,
-                                               std::optional<std::array<uint8_t,32>> txHash = {},
-                                               endpoint_list = {} ) = 0;
+    virtual lt_handle addTorrentFileToSession( const std::string&               torrentFilename,
+                                               const std::string&               folderWhereFileIsLocated,
+                                               lt::SiriusFlags::type            siriusFlags,
+                                               const std::array<uint8_t,32>*    driveKey,
+                                               const std::array<uint8_t,32>*    channelId,
+                                               const std::array<uint8_t,32>*    modifyTx,
+                                               endpoint_list = {},
+                                               uint64_t* outTotalSize = nullptr ) = 0;
 
     // It removes torrents from session.
     // After removing 'endNotification' will be called.
     // And only after that the 'client' could move/remove files and torrnet file.
     virtual void      removeTorrentsFromSession( const std::set<lt::torrent_handle>& torrents,
                                                  std::function<void()>               endNotification ) = 0;
-
-    virtual InfoHash  addActionListToSession( const ActionList&,
-                                              const Key& clientPublicKey,
-                                              const std::string& workFolder,
-                                              endpoint_list list = {} ) = 0;
-
     
     // It starts downloading of 'modify data' (identified by downloadParameters.m_infoHash)
     // keysHints and endpointsHints are independent hits about peers to download the torrent from
     // It is not necessary to mention the hints: libtorrent will try to find the peers itself
     // But it can speed up downloading
-    virtual lt_handle download( DownloadContext&&          downloadParameters,
-                                const std::string&         tmpFolder,
-                                const ReplicatorList&      keysHints = {},
-                                const endpoint_list&       endpointsHints = {}) = 0;
+    virtual lt_handle download( DownloadContext&&               downloadParameters,
+                                const std::string&              saveFolder,
+                                const std::string&              saveTorrentFolder,
+                                const ReplicatorList&           keysHints,
+                                const std::array<uint8_t,32>*   driveKey,
+                                const std::array<uint8_t,32>*   channelId,
+                                const std::array<uint8_t,32>*   modifyTx,
+                                const endpoint_list&            endpointsHints = {}) = 0;
 
     // Remove download context
     // (It prevents call of downloadHandler)
@@ -169,6 +149,9 @@ public:
     
     virtual void      findAddress( const Key& key ) = 0;
     virtual void      announceExternalAddress( const boost::asio::ip::tcp::endpoint& endpoint ) = 0;
+    
+    virtual void      onTorrentDeleted( lt::torrent_handle handle ) = 0;
+
 
     virtual std::optional<boost::asio::high_resolution_timer> startTimer( int miliseconds, const std::function<void()>& func ) = 0;
 

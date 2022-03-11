@@ -35,7 +35,7 @@ private:
     const int m_noResponseExternalEndpointDelayMs = 1000 * 5;
 
     std::thread::id m_dbgThreadId;
-    std::string m_dbgOurPeerName;
+    std::string m_dbgOurPeerName = "noname";
 
 public:
 

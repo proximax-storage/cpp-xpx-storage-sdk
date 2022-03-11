@@ -1,17 +1,43 @@
-Download ActionList as separate torrent and then download all files in it
+------------- Download ActionList as separate torrent and then download all files in it
 ------------- Verifications
-Modification overhead
+------------- Modification overhead: modification size > prepaid, sandboxDriveSize > prepaid
 ************* many clients on Download Channel
 ------------- Use LibTorrent DHT for IP
-Correctly Work with modifications that end with the same Root Hash
-modification ended with error should post an ordinary transaction (actually, such an error is a normal result of actionlist execution that does not change drive state)
-** download limitations
+------------- Correctly Work with modifications that end with the same Root Hash
+------------- modification ended with error should post an ordinary transaction (actually, such an error is a normal result of actionlist execution that does not change drive state)
+
 send receipts from another replicator to replicators
 Ограничить запросы с клиента к фолтному/нераздающему репликатору
 Сделать загрузку для репликатора не всегда unlimited
 Unexpected connections of Replicators
-+++++++++ Remove Download Channel when DownloadApproval with flag "channel is closed" is published
-Add To Handshake Drive and Channel
+------------- Remove Download Channel when DownloadApproval with flag "channel is closed" is published
+------------- Add To Handshake Drive and Channel
 ------------- Shards
 ------------- Drive Tasks as Classes
 Possible attack: a malicious client M asks modification of its Drive with the same hash as an honest client (so the malicious client breaks the rule that hash MUST depend on the DriveKey). Solution: the client should mention hash BEFORE concatenating with DrivePubKey, concatenation must take place at the Replicator's side.
+
+
+Streaming
+https://nemspfs.atlassian.net/wiki/spaces/CD/pages/2309587075/2021.+Sender-Distributor+Communication+Protocol+Full+Replication
+3 типа информации, которую репликатор получает от Клиента:
+1. Описание плейлиста. Отправляем сообщением. Это сообщение клиентом, представляет собой кортеж из 3: streamId, playlist hash, номер плейлиста
+2. Плейлист, который содержит HLS+ описание K=10 последних чанков. Загружаем через либторрент
+    #EXT-X-MEDIA-SEQUENCE:1250
+    #EXT-X-STREAMID: 96811fb49631ac3ba94ae5f9df9c62909f855cbb52a1e932b1f86895ea0a1e78
+
+    #EXTINF:3.975,
+    #EXT-FILESIZE:3403740
+    f394a7175113f92abdbb9dfd086e8537d4d7202a0fc25f19484591e8fe295a27
+3. Чанки (медиафайлы). Загружаем через либторрент
+
+Схема Streamer - Replicator:
+1. Клиент создал очередной чанк
+2. Клиент генерирует новый плейлист, который включает последний чанк
+3. Клиент генерирует описание плейлиста
+4. Клиент отправляет описание плейлиста репликаторам
+5. Репликатор, получая описание плейлиста, скачивает плейлист по хешу, указанному в описании
+6. Загрузив плейлист, репликатор загружает чанки (которые до этого не скачаны), используя хеши чанков, указанные в плейлисте
+
+Схема Replicator-Viewer
+1. Viewer периодически делает запросы к репликатору следующего формата "дай мне описание ПОСЛЕДНЕГО плейлиста"
+...

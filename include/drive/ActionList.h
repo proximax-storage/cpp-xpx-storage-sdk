@@ -84,6 +84,7 @@ namespace sirius { namespace drive {
 
             if ( m_actionId == action_list_id::upload || m_actionId == action_list_id::move ) {
                 arch( m_param2 );
+                arch( m_filename );
             }
         }
 
@@ -92,6 +93,7 @@ namespace sirius { namespace drive {
         action_list_id::code m_actionId;
         std::string          m_param1;
         std::string          m_param2;
+        std::string          m_filename;
 
     private:
         Action( action_list_id::code code, const std::string& p1, const std::string& p2 = "" )

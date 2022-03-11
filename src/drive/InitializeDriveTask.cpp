@@ -20,7 +20,7 @@ class InitializeDriveTask : public DriveTaskBase
 
 public:
 
-    InitializeDriveTask( TaskContext& drive,
+    InitializeDriveTask( DriveParams& drive,
                          ModifyOpinionController& opinionTaskController)
             : DriveTaskBase( DriveTaskType::DRIVE_INITIALIZATION, drive ),
               m_opinionController( opinionTaskController )
@@ -125,7 +125,10 @@ private:
             }
             m_drive.m_fsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
                                                                          m_drive.m_fsTreeTorrent.parent_path(),
-                                                                         lt::sf_is_replicator );
+                                                                         lt::SiriusFlags::peer_is_replicator,
+                                                                         &m_drive.m_driveKey.array(),
+                                                                         nullptr,
+                                                                         nullptr );
         }
 
         m_singleTx = loadSingleApprovalTransaction();
@@ -144,6 +147,7 @@ private:
 
         if ( m_singleTx )
         {
+            // send single tx info that was be saved
             sendSingleApprovalTransaction( *m_singleTx );
         }
 
@@ -192,7 +196,10 @@ private:
                 {
                     auto ltHandle = session->addTorrentFileToSession( m_drive.m_torrentFolder / fileName,
                                                                       m_drive.m_driveFolder,
-                                                                      lt::sf_is_replicator );
+                                                                      lt::SiriusFlags::peer_is_replicator,
+                                                                      &m_drive.m_driveKey.array(),
+                                                                      nullptr,
+                                                                      nullptr );
                     m_drive.m_torrentHandleMap.try_emplace( hash, UseTorrentInfo{ltHandle, true} );
                 }
             }
@@ -200,7 +207,7 @@ private:
     }
 };
 
-std::unique_ptr<DriveTaskBase> createDriveInitializationTask( TaskContext& drive,
+std::unique_ptr<DriveTaskBase> createDriveInitializationTask( DriveParams& drive,
                                                               ModifyOpinionController& opinionTaskController )
 {
     return std::make_unique<InitializeDriveTask>( drive, opinionTaskController );
