@@ -19,7 +19,7 @@
 #include <sirius_drive/session_delegate.h>
 
 //(???+) !!!
-const bool testLateReplicator = false; //true;
+const bool testLateReplicator = true;
 const bool gRestartReplicators = true;
 const bool testSmallModifyDataSize = true;
 bool gBreak_On_Warning = true;
@@ -550,12 +550,12 @@ int main(int,char**)
         modifyCompleteCounter = 0;
         MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
 
-        gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE );
-        gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE );
+        gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
+        gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
 
         if ( !testLateReplicator )
         {
-            gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE );
+            gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
         }
         
         {
@@ -707,10 +707,13 @@ int main(int,char**)
     if ( gRestartReplicators )
     {
         gReplicatorMap.erase( gReplicator->dbgReplicatorKey() );
-        gReplicator.reset();
         gReplicatorMap.erase( gReplicator2->dbgReplicatorKey() );
-        gReplicator2.reset();
         gReplicatorMap.erase( gReplicator3->dbgReplicatorKey() );
+
+        gReplicator.reset();
+        usleep(10000);
+        gReplicator2.reset();
+        usleep(10000);
         gReplicator3.reset();
 
         createReplicators(bootstraps);
@@ -724,7 +727,7 @@ int main(int,char**)
 #endif
     
     /// Delete client session and replicators
-    //sleep(5);//(???++++!!!)
+    sleep(5);//(???++++!!!)
     gClientSession.reset();
     gReplicator.reset();
     gReplicator2.reset();

@@ -57,27 +57,24 @@ enum { PIECE_SIZE = 16*1024 };
 //
 struct LtClientData
 {
-    //(???+++)
-    const uint32_t m_prop = 0xcdcdcdcd;
-    ~LtClientData() {
-        assert( m_prop == 0xcdcdcdcd );
-    }
-    
     struct RemoveNotifyer
     {
         RemoveNotifyer( const std::function<void()>& notifyer ) : m_notifyer(notifyer) {}
         ~RemoveNotifyer() { m_notifyer(); }
         std::function<void()> m_notifyer = {};
     };
-    std::shared_ptr<RemoveNotifyer> m_removeNotifyer;
     
-    fs::path                        m_saveFolder = "";
-    fs::path                        m_saveTorrentFilename = {};
-    std::vector<DownloadContext>    m_dnContexts = {};
+    std::shared_ptr<RemoveNotifyer> m_removeNotifyer;
 
-    uint64_t                        m_downloadLimit = 0;
-    uint64_t                        m_uploadedDataSize = 0;
-    bool                            m_limitIsExceeded = false;
+    fs::path                        m_saveFolder          = {};
+    fs::path                        m_saveTorrentFilename = {};
+    std::vector<DownloadContext>    m_dnContexts          = {};
+
+    uint64_t                        m_downloadLimit       = 0;
+    uint64_t                        m_uploadedDataSize    = 0;
+    bool                            m_limitIsExceeded     = false;
+    
+    bool                            m_isRemoved           = false;
 };
 
 //
@@ -289,6 +286,10 @@ public:
 
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
         settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, false );
+        
+        //(???++++)!!!
+        settingsPack.set_bool( lt::settings_pack::enable_ip_notifier, false );
+        
         return settingsPack;
     }
 
@@ -335,7 +336,7 @@ public:
                 {
                     toBeRemoved.insert(torrentHandle);
                 }
-                //m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
+                torrentHandle.userdata().get<LtClientData>()->m_isRemoved = true;
             }
         }
         
@@ -362,21 +363,21 @@ public:
             
             for( const auto& torrentHandle : torrents )
             {
-                if ( torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer )
-                {
+//                if ( torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer )
+//                {
                     _LOG( "+++ ex :remove_torrent(3): " << torrentHandle.info_hashes().v2 );
                     m_session.remove_torrent( torrentHandle, lt::session::delete_files );
-                }
+//                }
             }
         }
         else
         {
             for( const auto& torrentHandle : torrents )
             {
-                if ( torrentHandle.status().state > 2 )
-                {
+//                if ( torrentHandle.status().state > 2 )
+//                {
                     m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
-                }
+//                }
             }
 
             boost::asio::post(lt_session().get_context(), [=] {
@@ -1153,26 +1154,10 @@ private:
                     
                     auto userdata = theAlert->handle.userdata().get<LtClientData>();
                     _ASSERT( userdata != nullptr )
-
-                    if ( userdata != nullptr && ! userdata->m_saveTorrentFilename.empty() )
+                    
+                    if ( userdata->m_isRemoved )
                     {
-                        auto ti = theAlert->handle.torrent_file_with_hashes();
-                        //_LOG("ti:" << ti)
-
-                        // Save torrent file
-                        std::thread( [ti=std::move(ti),userdata]
-                        {
-                            lt::create_torrent ct(*ti);
-                            lt::entry te = ct.generate();
-                            std::vector<char> buffer;
-                            bencode(std::back_inserter(buffer), te);
-
-                            if ( FILE* f = fopen( userdata->m_saveTorrentFilename.c_str(), "wb+" ); f )
-                            {
-                                fwrite( &buffer[0], 1, buffer.size(), f );
-                                fclose(f);
-                            }
-                        }).detach();
+                        break;
                     }
 
                     if ( userdata != nullptr && userdata->m_dnContexts.size()>0 )
@@ -1180,14 +1165,54 @@ private:
                         auto dnContext = userdata->m_dnContexts.front();
                         if ( dnContext.m_doNotDeleteTorrent )
                         {
-                            dnContext.m_downloadNotification( download_status::code::download_complete,
-                                                            dnContext.m_infoHash,
-                                                            dnContext.m_saveAs,
-                                                            userdata->m_uploadedDataSize,
-                                                            0,
-                                                            "" );
-                            //(???+++)
-                            //_LOG( "*** finished theAlert->handle.id()=" << theAlert->handle.id() );
+                            if ( userdata->m_saveTorrentFilename.empty() )
+                            {
+//                                boost::asio::post( lt_session().get_context(), [=]
+//                                {
+                                    dnContext.m_downloadNotification( download_status::code::download_complete,
+                                                                    dnContext.m_infoHash,
+                                                                    dnContext.m_saveAs,
+                                                                    userdata->m_uploadedDataSize,
+                                                                    0,
+                                                                    "" );
+//                                });
+                            }
+                            else
+                            {
+                                auto ti = theAlert->handle.torrent_file_with_hashes();
+
+                                // Save torrent file
+                                m_replicator.lock()->executeOnBackgroundThread( [ti=std::move(ti),userdata,this]
+                                {
+                                    lt::create_torrent ct(*ti);
+                                    lt::entry te = ct.generate();
+                                    std::vector<char> buffer;
+                                    bencode(std::back_inserter(buffer), te);
+
+                                    if ( FILE* f = fopen( userdata->m_saveTorrentFilename.c_str(), "wb+" ); f )
+                                    {
+                                        fwrite( &buffer[0], 1, buffer.size(), f );
+                                        fclose(f);
+                                    }
+
+//                                    userdata->m_saveTorrentFilename = {};
+
+                                    auto dnContext = userdata->m_dnContexts.front();
+                                    if ( dnContext.m_doNotDeleteTorrent )
+                                    {
+                                        // Notify about finishing
+                                        boost::asio::post( lt_session().get_context(), [=]
+                                        {
+                                            dnContext.m_downloadNotification( download_status::code::download_complete,
+                                                                            dnContext.m_infoHash,
+                                                                            dnContext.m_saveAs,
+                                                                            userdata->m_uploadedDataSize,
+                                                                            0,
+                                                                            "" );
+                                        });
+                                    }
+                                });
+                            }
                         }
                         else
                         {

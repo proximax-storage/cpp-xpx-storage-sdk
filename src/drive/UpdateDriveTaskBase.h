@@ -121,6 +121,8 @@ protected:
 
         m_drive.m_fsTree = std::move(m_sandboxFsTree);
         m_drive.m_rootHash = *m_sandboxRootHash;
+        
+        //(???+++++)
         m_drive.m_fsTreeLtHandle = std::move( *m_sandboxFsTreeLtHandle );
 
 //        m_isSynchronizing = false;

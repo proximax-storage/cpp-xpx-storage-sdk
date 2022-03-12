@@ -54,6 +54,7 @@ private:
 
         // Clear m_rootDriveHash
         m_drive.m_rootHash = Hash256();
+        _LOG( "m_rootHash=" << m_drive.m_rootHash )
 
         std::error_code err;
 
@@ -111,6 +112,8 @@ private:
                                                 m_drive.m_driveKey,
                                                 m_drive.m_fsTreeFile.parent_path(),
                                                 m_drive.m_fsTreeTorrent );
+        
+        _LOG( "m_rootHash=" << m_drive.m_rootHash )
 
         // Add files to session
         addFilesToSession( *m_drive.m_fsTree );

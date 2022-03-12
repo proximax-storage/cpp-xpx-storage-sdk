@@ -54,7 +54,15 @@ public:
 
         if ( m_request->m_rootHash == m_drive.m_rootHash )
         {
-            finishTask();
+            _LOG( "m_sandboxRootHash: " << *m_sandboxRootHash )
+            //finishTask();
+            
+            m_drive.executeOnBackgroundThread( [this]
+            {
+                m_sandboxRootHash = m_request->m_rootHash;
+                m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
+                modifyDriveInSandbox();
+            });
             return;
         }
 
@@ -367,7 +375,7 @@ private:
                                                                    false,
                                                                    "" ),
                                                            m_drive.m_sandboxRootPath,
-                                                           m_drive.m_sandboxRootPath / (toString(missingFileHash)+".torrent2"),
+                                                           m_drive.m_sandboxRootPath / (toString(missingFileHash)/*+".torrent2"*/),
                                                            getUploaders(),
                                                            &m_drive.m_driveKey.array(),
                                                            nullptr,
