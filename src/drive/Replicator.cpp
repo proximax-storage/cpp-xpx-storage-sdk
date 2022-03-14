@@ -198,11 +198,15 @@ public:
         
         m_libtorrentThread = std::thread( [this] {
             //m_sesion->setDbgThreadId();
+            m_dbgThreadId = std::this_thread::get_id();
+
             m_replicatorContext.run();
 #ifdef DEBUG_OFF_CATAPULT
             _LOG( "libtorrentThread ended" );
 #endif
         });
+        m_dbgThreadId = m_libtorrentThread.get_id();
+        _LOG( "m_dbgThreadId = " << m_dbgThreadId )
 
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 
@@ -210,8 +214,6 @@ public:
 
             m_endpointsManager.start(m_session);
         });
-
-        m_dbgThreadId = m_libtorrentThread.get_id();
 
         removeDriveDataOfBrokenClose();
         loadDownloadChannelMap();
@@ -1184,6 +1186,8 @@ public:
     virtual void asyncApprovalTransactionHasBeenPublished( mobj<PublishedModificationApprovalTransactionInfo>&& transaction ) override
     {
         _FUNC_ENTRY()
+        
+        _LOG( "asyncApprovalTransactionHasBeenPublished, m_rootHash:" << Key(transaction->m_rootHash) )
         
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
 

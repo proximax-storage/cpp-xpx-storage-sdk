@@ -51,7 +51,9 @@ public:
             : m_type( type ), m_drive( drive )
             , m_dbgThreadId( std::this_thread::get_id())
             , m_dbgOurPeerName(  m_drive.m_dbgOurPeerName )
-    {}
+    {
+        _LOG( "DriveTaskBase: " << int(type) )
+    }
 
     virtual ~DriveTaskBase() = default;
 

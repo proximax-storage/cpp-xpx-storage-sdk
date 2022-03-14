@@ -459,8 +459,6 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _LOG ( "approval has been published" << Hash256{transaction.m_modifyTransactionHash} )
-
         if ( m_verificationTask )
         {
             //(???+++) replace by? m_verificationTask->terminate();
@@ -474,6 +472,7 @@ public:
         if ( !m_task || m_task->onApprovalTxPublished( transaction ) )
         {
             // 'CatchingUp' should be started
+            _LOG( "transaction.m_rootHash: " << Key(transaction.m_rootHash) )
             m_catchingUpRequest = mobj<CatchingUpRequest>{transaction.m_rootHash, transaction.m_modifyTransactionHash };
 
             if ( !m_task )
