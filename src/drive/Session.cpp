@@ -286,8 +286,6 @@ public:
 
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
         settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, false );
-        
-        //(???++++)!!!
         settingsPack.set_bool( lt::settings_pack::enable_ip_notifier, false );
         
         return settingsPack;
@@ -594,6 +592,11 @@ public:
             lt::entry&                              response ) override
         {
             //__LOG( "on_dht_request: query: " << query );
+            
+            if ( auto replicator = m_replicator.lock(); ! replicator || replicator->isStopped() )
+            {
+                return false;
+            }
 
             if ( query == "get_peers" || query == "announce_peer" )
             {
@@ -996,6 +999,11 @@ private:
 #pragma mark --dht_direct_response_alert
 #endif
                 case lt::dht_direct_response_alert::alert_type: {
+                    if ( m_stopping )
+                    {
+                        break;
+                    }
+                    
                      auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
                     //_LOG( "*** dht_direct_response_alert: " );
                      auto response = theAlert->response();

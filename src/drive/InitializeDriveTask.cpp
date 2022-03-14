@@ -36,7 +36,7 @@ public:
 
     void terminate() override
     {
-
+        DBG_MAIN_THREAD
     }
 
     // Returns 'true' if 'CatchingUp' should be started
