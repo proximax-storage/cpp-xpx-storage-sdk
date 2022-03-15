@@ -93,16 +93,16 @@ class Replicator;
         std::array<uint8_t,32>      m_replicatorKey;
 
         std::vector<KeyAndBytes>    m_uploadLayout;
-        
+
         // Signature of { modifyTransactionHash, rootHash, replicatorsUploadBytes, clientUploadBytes }
         Signature               m_signature;
-        
+
         SingleOpinion() = default;
-        
+
         SingleOpinion( const Key& replicatorKey ) : m_replicatorKey( replicatorKey.array() )
         {
         }
-        
+
         void Sign( const crypto::KeyPair& keyPair,
                    const Key& driveKey,
                    const Hash256& modifyTransactionHash,
@@ -127,6 +127,29 @@ class Replicator;
                           m_signature );
         }
 
+		bool
+				Verify(const crypto::KeyPair& keyPair,
+					   const Key& driveKey,
+					   const Hash256& modifyTransactionHash,
+					   const InfoHash& rootHash,
+					   const uint64_t& fsTreeFileSize,
+					   const uint64_t& metaFilesSize,
+					   const uint64_t& driveSize) const {
+			//            std::cerr <<  "Verify:" << m_replicatorKey[0] << "," << modifyTransactionHash[0] << "," <<
+			//            rootHash[0] << "," << m_replicatorUploadBytes[0] <<
+			//            "," << m_clientUploadBytes << "\n\n";
+			return crypto::Verify(
+					m_replicatorKey,
+					{ utils::RawBuffer { driveKey },
+					  utils::RawBuffer { modifyTransactionHash },
+					  utils::RawBuffer { rootHash },
+					  utils::RawBuffer { (const uint8_t*)&fsTreeFileSize, sizeof(fsTreeFileSize) },
+					  utils::RawBuffer { (const uint8_t*)&metaFilesSize, sizeof(metaFilesSize) },
+					  utils::RawBuffer { (const uint8_t*)&driveSize, sizeof(driveSize) },
+					  utils::RawBuffer { (const uint8_t*)&m_uploadLayout[0],
+										 m_uploadLayout.size() * sizeof(m_uploadLayout[0]) } },
+					m_signature);
+		}
         bool Verify( const crypto::KeyPair& keyPair,
                      const Key& driveKey,
                      const Hash256& modifyTransactionHash,
@@ -576,7 +599,7 @@ class Replicator;
         virtual void     startVerification( mobj<VerificationRequest>&& request ) = 0;
 
         virtual void     cancelVerification( mobj<Hash256>&& tx ) = 0;
-        
+
         // modification shards
         virtual void     setShardDonator( mobj<ReplicatorList>&& replicatorKeys ) = 0;
         virtual void     setShardRecipient( mobj<ReplicatorList>&& replicatorKeys ) = 0;

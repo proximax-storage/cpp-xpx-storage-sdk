@@ -218,7 +218,7 @@ public:
     {
         m_replicator.executeOnBackgroundThread( task );
     }
-    
+
     void runNextTask() override
     {
         DBG_MAIN_THREAD
@@ -374,7 +374,7 @@ public:
     void runVerificationTask()
     {
         DBG_MAIN_THREAD
-        
+
         auto receivedOpinions = std::move(m_unknownVerificationOpinions[m_deferredVerificationRequest->m_tx]);
         m_unknownVerificationOpinions.erase(m_deferredVerificationRequest->m_tx);
 
