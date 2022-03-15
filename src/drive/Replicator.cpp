@@ -379,6 +379,14 @@ public:
 
     		if ( auto drive = getDrive(driveKey); drive )
     		{
+    			for( auto it = replicatorKeys->begin();  it != replicatorKeys->end(); it++ )
+    			{
+    				if ( *it == publicKey() )
+    				{
+    					replicatorKeys->erase( it );
+    					break;
+    				}
+    			}
     			m_endpointsManager.addEndpointsEntries( *replicatorKeys );
     			drive->setReplicators( std::move(replicatorKeys) );
     		}

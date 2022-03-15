@@ -682,7 +682,9 @@ private:
 
         for ( const auto& replicatorIt : m_drive.getAllReplicators())
         {
-            m_drive.m_replicator.sendMessage( "opinion", replicatorIt.array(), os.str());
+			if ( replicatorIt != m_drive.m_replicator.replicatorKey() ) {
+				m_drive.m_replicator.sendMessage( "opinion", replicatorIt.array(), os.str());
+			}
         }
     }
 
@@ -698,6 +700,9 @@ private:
 #endif
 
 // check opinion number
+
+		_LOG( "opinions " << m_receivedOpinions.size() );
+
         if ( m_myOpinion &&
                 m_receivedOpinions.size() >=
              ((replicatorNumber) * 2) / 3 &&
