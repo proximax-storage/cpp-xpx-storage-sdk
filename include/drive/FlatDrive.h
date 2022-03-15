@@ -150,29 +150,6 @@ class Replicator;
 										 m_uploadLayout.size() * sizeof(m_uploadLayout[0]) } },
 					m_signature);
 		}
-        bool Verify( const crypto::KeyPair& keyPair,
-                     const Key& driveKey,
-                     const Hash256& modifyTransactionHash,
-                     const InfoHash& rootHash,
-                     const uint64_t& fsTreeFileSize,
-                     const uint64_t& metaFilesSize,
-                     const uint64_t& driveSize ) const
-        {
-//            std::cerr <<  "Verify:" << m_replicatorKey[0] << "," << modifyTransactionHash[0] << "," << rootHash[0] << "," << m_replicatorUploadBytes[0] <<
-//            "," << m_clientUploadBytes << "\n\n";
-            return crypto::Verify( m_replicatorKey,
-                                  {
-                                    utils::RawBuffer{driveKey},
-                                    utils::RawBuffer{modifyTransactionHash},
-                                    utils::RawBuffer{rootHash},
-                                    utils::RawBuffer{(const uint8_t*) &fsTreeFileSize, sizeof(fsTreeFileSize)},
-                                    utils::RawBuffer{(const uint8_t*) &metaFilesSize, sizeof(metaFilesSize)},
-                                    utils::RawBuffer{(const uint8_t*) &driveSize, sizeof(driveSize)},
-                                    utils::RawBuffer{ (const uint8_t*) &m_uploadLayout[0],
-                                                      m_uploadLayout.size() * sizeof (m_uploadLayout[0]) }
-                                  },
-                                  m_signature );
-        }
 
         template <class Archive> void serialize( Archive & arch ) {
             arch( m_replicatorKey );
