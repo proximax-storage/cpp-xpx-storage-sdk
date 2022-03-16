@@ -146,6 +146,7 @@ class Replicator;
 					  utils::RawBuffer { (const uint8_t*)&fsTreeFileSize, sizeof(fsTreeFileSize) },
 					  utils::RawBuffer { (const uint8_t*)&metaFilesSize, sizeof(metaFilesSize) },
 					  utils::RawBuffer { (const uint8_t*)&driveSize, sizeof(driveSize) },
+
 					  utils::RawBuffer { (const uint8_t*)&m_uploadLayout[0],
 										 m_uploadLayout.size() * sizeof(m_uploadLayout[0]) } },
 					m_signature);
