@@ -261,7 +261,7 @@ public:
                                                                    true,
                                                                    "" ),
                                                            m_drive.m_driveFolder,
-                                                           m_drive.m_torrentFolder / (toString(*fileToDownload)/*+".torrent2"*/),
+                                                           m_drive.m_torrentFolder / (toString(*fileToDownload)),
                                                            getUploaders(),
                                                            &m_drive.m_driveKey.array(),
                                                            nullptr,
