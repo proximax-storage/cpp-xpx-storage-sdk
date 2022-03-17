@@ -81,11 +81,10 @@ namespace sirius::emulator::types {
         // Opinions about how much the Replicators and the Drive Owner have uploaded to this Replicator.
         //TODO
         std::vector<RpcKeyAndBytes>     m_uploadLayout;
-        uint64_t                        m_clientUploadBytes = 0;
 
         // Signature of { modifyTransactionHash, rootHash, replicatorsUploadBytes, clientUploadBytes }
         std::array<uint8_t,64>  m_signature;
-        MSGPACK_DEFINE_ARRAY(m_replicatorKey, m_uploadLayout, m_clientUploadBytes, m_signature);
+        MSGPACK_DEFINE_ARRAY(m_replicatorKey, m_uploadLayout, m_signature);
     };
 
     struct PLUGIN_API RpcModifyApprovalTransactionInfo {
