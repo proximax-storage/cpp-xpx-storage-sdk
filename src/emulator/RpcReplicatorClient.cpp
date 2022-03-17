@@ -175,7 +175,8 @@ namespace sirius::emulator {
         std::filesystem::create_directories( tmpFolder );
 
         // start file uploading
-        const drive::InfoHash infoHash = m_clientSession->addActionListToSession( actionList, m_keyPair.publicKey(), rpcDriveInfo.getReplicators(), tmpFolder);
+        uint64_t outTotalModifySize;
+        const drive::InfoHash infoHash = m_clientSession->addActionListToSession( actionList, m_keyPair.publicKey(), rpcDriveInfo.getReplicators(), tmpFolder, outTotalModifySize);
 
         std::cout << "Client. modifyDrive. New InfoHash: " << infoHash << std::endl;
 
@@ -256,7 +257,7 @@ namespace sirius::emulator {
         };
 
         drive::DownloadContext downloadContext( drive::DownloadContext::fs_tree, handler, rpcDriveInfo.m_rootHash, channelKey, 0 );
-        m_clientSession->download( std::move(downloadContext), pathToFsTree);
+        m_clientSession->download( std::move(downloadContext), pathToFsTree, pathToFsTree);
     }
 
     void RpcReplicatorClient::downloadData(const drive::Folder& folder, const std::string& destinationFolder, DownloadDataCallabck callback) {
@@ -292,10 +293,11 @@ namespace sirius::emulator {
                                                 file.hash(),
                                                 {},
                                                 0,
+                                                false,
                                                 destinationFolder + "/" + folderName + "/" + file.name() );
                                                 //destinationFolder + "/" + folderName + "/" + file.name() );
 
-                m_clientSession->download( std::move(downloadContext), destinationFolder );
+                m_clientSession->download( std::move(downloadContext), destinationFolder, destinationFolder );
             }
         }
     }
@@ -317,9 +319,10 @@ namespace sirius::emulator {
                                                hash,
                                                {},
                                                0,
+                                               false,
                                                destinationFolder);
 
-        m_clientSession->download( std::move(downloadContext), tempFolder );
+        m_clientSession->download( std::move(downloadContext), tempFolder, tempFolder);
     }
 
     std::filesystem::path RpcReplicatorClient::createClientFiles( size_t bigFileSize ) {
