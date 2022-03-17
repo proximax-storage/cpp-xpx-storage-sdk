@@ -372,10 +372,12 @@ private:
                                                                    missingFileHash,
                                                                    *m_opinionController.opinionTrafficTx(),
                                                                    0,
-                                                                   false,
+                                                                   true,
                                                                    "" ),
-                                                           m_drive.m_sandboxRootPath,
-                                                           m_drive.m_sandboxRootPath / (toString(missingFileHash)/*+".torrent2"*/),
+                                                           m_drive.m_driveFolder,
+                                                           m_drive.m_torrentFolder / (toString(missingFileHash)),
+//                                                           m_drive.m_sandboxRootPath,
+//                                                           m_drive.m_sandboxRootPath / (toString(missingFileHash)),
                                                            getUploaders(),
                                                            &m_drive.m_driveKey.array(),
                                                            nullptr,
@@ -389,30 +391,30 @@ private:
     {
         DBG_BG_THREAD
 
-        for ( const auto& fileHash : m_catchingUpFileSet )
-        {
-            auto fileName = toString( fileHash );
-
-            // move file to drive folder
-            try
-            {
-                _LOG( "rename what:" << m_drive.m_sandboxRootPath / fileName )
-                _LOG( "rename to:"   << m_drive.m_driveFolder / fileName )
-                fs::rename( m_drive.m_sandboxRootPath / fileName, m_drive.m_driveFolder / fileName );
-            }
-            catch (const std::exception& ex)
-            {
-                _LOG( "exception during rename:" << ex.what());
-                _LOG_ERR( "exception during rename '" << m_drive.m_sandboxRootPath / fileName <<
-                                                      "' to '" << m_drive.m_driveFolder / fileName << "'; "
-                                                      << ex.what());
-            }
-
-            // create torrent
-            calculateInfoHashAndCreateTorrentFile( m_drive.m_driveFolder / fileName,
-                                                   m_drive.m_driveKey,
-                                                   m_drive.m_torrentFolder, "" );
-        }
+//        for ( const auto& fileHash : m_catchingUpFileSet )
+//        {
+//            auto fileName = toString( fileHash );
+//
+//            // move file to drive folder
+//            try
+//            {
+//                _LOG( "rename what:" << m_drive.m_sandboxRootPath / fileName )
+//                _LOG( "rename to:"   << m_drive.m_driveFolder / fileName )
+//                fs::rename( m_drive.m_sandboxRootPath / fileName, m_drive.m_driveFolder / fileName );
+//            }
+//            catch (const std::exception& ex)
+//            {
+//                _LOG( "exception during rename:" << ex.what());
+//                _LOG_ERR( "exception during rename '" << m_drive.m_sandboxRootPath / fileName <<
+//                                                      "' to '" << m_drive.m_driveFolder / fileName << "'; "
+//                                                      << ex.what());
+//            }
+//
+//            // create torrent
+//            calculateInfoHashAndCreateTorrentFile( m_drive.m_driveFolder / fileName,
+//                                                   m_drive.m_driveKey,
+//                                                   m_drive.m_torrentFolder, "" );
+//        }
 
         // create FsTree in sandbox
         m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile );

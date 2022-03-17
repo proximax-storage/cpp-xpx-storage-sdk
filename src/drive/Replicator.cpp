@@ -140,6 +140,20 @@ public:
         m_endpointsManager.stop();
     }
 
+    void stopReplicator() override
+    {
+        std::promise<void> barrier;
+        boost::asio::post(m_session->lt_session().get_context(), [&barrier,this]() mutable
+        {
+            DBG_MAIN_THREAD
+            m_replicatorIsDestructing = true;
+            stop();
+            barrier.set_value();
+        });
+        barrier.get_future().wait();
+    }
+
+    
     virtual ~DefaultReplicator()
     {
         m_replicatorIsDestructing = true;
