@@ -48,13 +48,13 @@ protected:
 
     bool m_sandboxCalculated = false;
 
-    bool m_stopped = false;
+    bool m_taskIsStopped     = false;
 
 public:
 
     void onDriveClose( const DriveClosureRequest& closureRequest ) override
     {
-        if ( m_stopped )
+        if ( m_taskIsStopped )
         {
             return;
         }
@@ -82,7 +82,7 @@ protected:
         _ASSERT( m_sandboxFsTree )
         _ASSERT( m_sandboxRootHash )
 
-        if ( m_stopped )
+        if ( m_taskIsStopped )
         {
             finishTask();
             return;
@@ -133,8 +133,17 @@ protected:
     {
         DBG_MAIN_THREAD
 
-        m_stopped = true;
+        m_drive.m_isWaitingNextTask = false;
 
+        if ( m_drive.m_isRemovingUnusedTorrents )
+        {
+            // wait the end of the removing
+            m_drive.m_isWaitingNextTask = true;
+            return;
+        }
+
+        m_taskIsStopped = true;
+        
         if ( m_downloadingLtHandle )
         {
             if ( auto session = m_drive.m_session.lock(); session )
@@ -178,7 +187,7 @@ protected:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_stopped )
+        _ASSERT( !m_taskIsStopped )
 
         auto& torrentHandleMap = m_drive.m_torrentHandleMap;
 
@@ -268,7 +277,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        if ( m_stopped )
+        if ( m_taskIsStopped )
         {
             finishTask();
             return;

@@ -289,7 +289,7 @@ public:
             if ( testLateReplicator )
             {
 
-                EXLOG( "--- testLateReplicator ---" );
+                //EXLOG( "--- testLateReplicator ---" );
                 modifyDrive( gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash,
                                 transactionInfo.m_modifyTransactionHash,
                                 replicatorList,

@@ -125,8 +125,8 @@ public:
                                                        else if ( code == download_status::download_complete )
                                                        {
                                                            //(???+++)
-                                                           _ASSERT( !m_stopped );
-                                                           if ( ! m_stopped )
+                                                           _ASSERT( !m_taskIsStopped );
+                                                           if ( ! m_taskIsStopped )
                                                            {
                                                                m_uploadedDataSize += downloadedSize;
                                                                m_actionListIsReceived = true;
@@ -208,7 +208,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_stopped );
+        _ASSERT( !m_taskIsStopped );
 
         std::optional<Hash256> fileToDownload;
 
@@ -496,7 +496,7 @@ public:
     {
         DBG_MAIN_THREAD
         
-        if ( m_stopped )
+        if ( m_taskIsStopped )
         {
             return true;
         }
@@ -536,7 +536,7 @@ public:
 
     bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
     {
-        if ( m_stopped )
+        if ( m_taskIsStopped )
         {
             return false;
         }
@@ -555,7 +555,7 @@ public:
         DBG_MAIN_THREAD
 
         if ( m_request->m_transactionHash == transactionHash &&
-             !m_stopped &&
+             !m_taskIsStopped &&
              !m_modifyApproveTxReceived )
         {
             m_modifyApproveTransactionSent = false;
@@ -627,7 +627,7 @@ private:
 
         _ASSERT( m_myOpinion )
 
-        if ( m_stopped )
+        if ( m_taskIsStopped )
         {
             finishTask();
             return;

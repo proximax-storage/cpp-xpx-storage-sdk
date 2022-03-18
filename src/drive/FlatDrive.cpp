@@ -159,34 +159,6 @@ public:
             m_verificationTask->terminate();
             m_verificationTask.reset();
         }
-
-#if 0
-        std::set<lt::torrent_handle> toBeRemovedTorrents;
-        toBeRemovedTorrents.insert( m_fsTreeLtHandle );
-
-        // Add unused files into set<>
-        for( const auto& [key,info] : m_torrentHandleMap )
-        {
-            if ( info.m_ltHandle.is_valid() )
-                toBeRemovedTorrents.insert( info.m_ltHandle );
-        }
-
-        if ( !toBeRemovedTorrents.empty() )
-        {
-            std::promise<void> complitionPromise;
-            std::future<void> complitionFuture = complitionPromise.get_future();
-
-            // Remove unused torrents
-            if ( auto session = m_session.lock(); session )
-            {
-                session->removeTorrentsFromSession( toBeRemovedTorrents, [&complitionPromise]
-                {
-                    complitionPromise.set_value();
-                });
-            }
-            complitionFuture.wait();
-        }
-#endif
     }
 
     uint64_t maxSize() const override {

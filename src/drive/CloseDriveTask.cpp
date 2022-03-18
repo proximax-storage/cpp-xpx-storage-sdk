@@ -52,9 +52,9 @@ public:
             {
                 m_drive.m_replicator.closeDriveChannels( m_request->m_removeDriveTx, m_drive.m_driveKey );
                 m_drive.executeOnBackgroundThread( [this]
-                                                   {
-                                                       removeAllDriveData();
-                                                   } );
+                {
+                    removeAllDriveData();
+                } );
             } );
         }
     }
