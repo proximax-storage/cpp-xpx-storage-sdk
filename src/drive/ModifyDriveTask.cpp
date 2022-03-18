@@ -270,7 +270,7 @@ public:
             }
 
             // save reference into 'torrentHandleMap'
-            m_drive.m_torrentHandleMap.try_emplace( *fileToDownload, UseTorrentInfo{*m_downloadingLtHandle, false} );
+            m_drive.m_torrentHandleMap[*fileToDownload] = UseTorrentInfo{ *m_downloadingLtHandle, false };
         }
         else
         {
@@ -328,15 +328,6 @@ public:
 
                     try
                     {
-//                        // calculate torrent, file hash, and file size
-//                        InfoHash fileHash = calculateInfoHashAndCreateTorrentFile( clientFile, m_drive.m_driveKey,
-//                                                                                   m_drive.m_torrentFolder, "" );
-//                        _ASSERT( fileHash == stringToHash(action.m_param1) )
-//                        size_t fileSize = std::filesystem::file_size( clientFile );
-//
-//                        // add ref into 'torrentMap' (skip if identical file was already loaded)
-//                        torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{} );
-
                         size_t fileSize = std::filesystem::file_size( clientFile );
                         auto fileHash = stringToHash(action.m_param1);
                         

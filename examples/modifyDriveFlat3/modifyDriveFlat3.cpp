@@ -288,14 +288,14 @@ public:
 
             if ( testLateReplicator )
             {
-//                gReplicatorThread3 = std::thread( []
-//                {
-                    modifyDrive( gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash,
+
+                EXLOG( "--- testLateReplicator ---" );
+                modifyDrive( gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash,
                                 transactionInfo.m_modifyTransactionHash,
                                 replicatorList,
                                 MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
-                    gReplicator3->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) );
-//                } );
+                gReplicator3->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) );
+                usleep(100000);
             }
             else
             {
@@ -533,6 +533,7 @@ int main(int,char**)
         actionList.push_back( Action::newFolder( "fff0/" ) );
         actionList.push_back( Action::newFolder( "fff1/" ) );
         actionList.push_back( Action::newFolder( "fff1/ffff1" ) );
+        actionList.push_back( Action::upload( clientFolder / "c.txt", "c.txt" ) );
         actionList.push_back( Action::upload( clientFolder / "a.txt", "fff2/a.txt" ) );
 
         //actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
@@ -544,79 +545,47 @@ int main(int,char**)
         clientModifyDrive( actionList, replicatorList, modifyTransactionHash1 );
     }
     
-    if ( testSmallModifyDataSize )
-    {
-
-        modifyCompleteCounter = 0;
-        MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
-
-        gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
-        gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
-
-        if ( !testLateReplicator )
-        {
-            gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
-        }
-        
-        {
-            std::unique_lock<std::mutex> lock(modifyCompleteMutex);
-            modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 3; } );
-        }
-
-        gReplicatorThread.join();
-        gReplicatorThread2.join();
-        if ( !testLateReplicator )
-            gReplicatorThread3.join();
-    }
-
-//    {
-//        gReplicatorMap.erase( gReplicator->dbgReplicatorKey() );
-//        gReplicator.reset();
-//        gReplicatorMap.erase( gReplicator2->dbgReplicatorKey() );
-//        gReplicator2.reset();
-//        gReplicatorMap.erase( gReplicator3->dbgReplicatorKey() );
-//        gReplicator3.reset();
-//
-//        createReplicators(bootstraps);
-//    }
-
-//    gClientSession.reset();
-//    gClientSession = createClientSession( clientKeyPair,
-//                                          CLIENT_IP_ADDR CLIENT_PORT,
-//                                          clientSessionErrorHandler,
-//                                          bootstrapEndpoints,
-//                                          TRANSPORT_PROTOCOL,
-//                                          "client0" );
-
-    gClientSession->removeModifyTorrents();
-    actionList.push_back( Action::newFolder( "fff000/" ) );
-    clientModifyDrive( actionList, replicatorList, modifyTransactionHash1b );
-
-
-    /// Try again modify with extended data size
+    /// 1-st modify
     ///
     modifyCompleteCounter = 0;
     MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
 
-    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1b, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
-    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1b, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
+    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
 
-    if ( !testLateReplicator )
-    {
-        gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1b, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
-    }
-    
     {
         std::unique_lock<std::mutex> lock(modifyCompleteMutex);
-        modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 3; } );
+        modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 2; } );
     }
     
     gReplicatorThread.join();
     gReplicatorThread2.join();
-    if ( !testLateReplicator )
-        gReplicatorThread3.join();
 
     gClientSession->removeModifyTorrents();
+    
+    {
+        ActionList actionList;
+        actionList.push_back( Action::remove( "c.txt" ) );
+        clientModifyDrive( actionList, replicatorList, modifyTransactionHash1b );
+        usleep(3000000);
+
+        /// 1b-st modify
+        ///
+        modifyCompleteCounter = 0;
+        MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
+
+        gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1b, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
+        gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1b, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
+        {
+            std::unique_lock<std::mutex> lock(modifyCompleteMutex);
+            modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 3; } );
+        }
+        
+        gReplicatorThread.join();
+        gReplicatorThread2.join();
+
+        gClientSession->removeModifyTorrents();
+    }
 
     /// Client: read changed fsTree (2)
     ///
@@ -625,8 +594,7 @@ int main(int,char**)
     clientDownloadFsTree( gClientSession );
 
     /// Client: read files from drive
-    clientDownloadFiles( gClientSession1, 5, gFsTree );
-    //clientDownloadFiles( gClientSession, 5, gFsTree );
+    clientDownloadFiles( gClientSession1, 6, gFsTree );
 
     //todo++
     gReplicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024+1, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }}, true );
@@ -642,26 +610,6 @@ int main(int,char**)
     std::thread( [&]() { gReplicator3->asyncInitiateDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
     EXLOG( "" );
     //sleep(1000);
-
-    //
-    // Start verification
-    //
-    
-//    auto actualRootHash = gReplicator->dbgGetRootHash( DRIVE_PUB_KEY );
-
-    std::vector<sirius::Key> replicatorKeys;
-    replicatorKeys.push_back( gReplicator->dbgReplicatorKey() );
-    replicatorKeys.push_back( gReplicator2->dbgReplicatorKey() );
-    replicatorKeys.push_back( gReplicator3->dbgReplicatorKey() );
-
-//    gReplicator->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
-//    gReplicator2->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
-//    gReplicator3->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
-//
-//    {
-//        std::unique_lock<std::mutex> lock(verifyCompleteMutex);
-//        verifyCompleteCondVar.wait( lock, [] { return verifyCompleteCounter == 3; } );
-//    }
 
     /// Client: modify drive (2)
 #if 1

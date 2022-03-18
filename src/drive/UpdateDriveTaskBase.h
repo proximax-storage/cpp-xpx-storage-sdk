@@ -217,10 +217,10 @@ protected:
             session->removeTorrentsFromSession( toBeRemovedTorrents, [this]
             {
                 m_drive.executeOnBackgroundThread( [this]
-                                                   {
-                                                       continueSynchronizingDriveWithSandbox();
-                                                   } );
-            } );
+                {
+                    continueSynchronizingDriveWithSandbox();
+                });
+            });
         }
     }
 

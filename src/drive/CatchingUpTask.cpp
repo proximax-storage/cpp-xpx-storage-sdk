@@ -47,6 +47,13 @@ public:
     {
         _ASSERT( m_request )
     }
+    
+    void terminate() override
+    {
+        DBG_MAIN_THREAD
+
+        breakTorrentDownloadAndRunNextTask();
+    }
 
     void run() override
     {
@@ -87,161 +94,22 @@ public:
             _ASSERT( m_opinionController.opinionTrafficTx())
             m_downloadingLtHandle = session->download( DownloadContext(
                                                                DownloadContext::missing_files,
-                                                               std::bind( &CatchingUpTask::catchingUpFsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
+                                                               std::bind( &CatchingUpTask::fsTreeDownloadHandler, this, _1, _2, _3, _4, _5, _6 ),
                                                                m_request->m_rootHash,
                                                                *m_opinionController.opinionTrafficTx(),
                                                                0,
-                                                               false,
+                                                               true,
                                                                "" ),
                                                        m_drive.m_sandboxRootPath,
-                                                       "",
+                                                       m_drive.m_sandboxFsTreeTorrent,
                                                        getUploaders(),
                                                        &m_drive.m_driveKey.array(),
                                                        nullptr,
                                                        &m_opinionController.opinionTrafficTx().value().array() );
         }
     }
-
-    void terminate() override
-    {
-        DBG_MAIN_THREAD
-
-        breakTorrentDownloadAndRunNextTask();
-    }
-
-    // Returns 'true' if 'CatchingUp' should be started
-    bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
-    {
-        DBG_MAIN_THREAD
-
-        if ( m_stopped )
-        {
-            return true;
-        }
-
-        breakTorrentDownloadAndRunNextTask();
-        return true;
-    }
-
-protected:
-
-    const Hash256& getModificationTransactionHash() override
-    {
-        return m_request->m_modifyTransactionHash;
-    }
-
-    void modifyIsCompleted() override
-    {
-        _LOG( "catchingIsCompleted" );
-        m_drive.m_dbgEventHandler->driveModificationIsCompleted( m_drive.m_replicator, m_drive.m_driveKey,
-                                                                 m_request->m_modifyTransactionHash,
-                                                                 *m_sandboxRootHash );
-        UpdateDriveTaskBase::modifyIsCompleted();
-    }
-
-private:
-
-    void continueSynchronizingDriveWithSandbox() override
-    {
-        DBG_BG_THREAD
-
-        try
-        {
-            //
-            // Check RootHash Before All
-            //
-            _LOG( "m_sandboxRootHash: " << *m_sandboxRootHash );
-            _LOG( "m_catchingUpRootHash: " << m_request->m_rootHash );
-            _ASSERT( m_sandboxRootHash == m_request->m_rootHash );
-
-            fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
-            fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
-
-            auto& torrentHandleMap = m_drive.m_torrentHandleMap;
-            // remove unused files and torrent files from the drive
-            for ( const auto& it : torrentHandleMap )
-            {
-                const UseTorrentInfo& info = it.second;
-                if ( !info.m_isUsed )
-                {
-                    const auto& hash = it.first;
-                    std::string filename = hashToFileName( hash );
-                    fs::remove( fs::path( m_drive.m_driveFolder ) / filename );
-                    fs::remove( fs::path( m_drive.m_torrentFolder ) / filename );
-                }
-            }
-
-            //
-            // Add missing files
-            //
-            for ( const auto& fileHash : m_catchingUpFileSet )
-            {
-                auto fileName = toString( fileHash );
-
-                // Add torrent into session
-                if ( auto session = m_drive.m_session.lock(); session )
-                {
-                    auto tHandle = session->addTorrentFileToSession( m_drive.m_torrentFolder / fileName,
-                                                                     m_drive.m_driveFolder,
-                                                                     lt::SiriusFlags::peer_is_replicator,
-                                                                     &m_drive.m_driveKey.array(),
-                                                                     nullptr,
-                                                                     nullptr );
-                    _ASSERT( tHandle.is_valid());
-                    torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{tHandle, true} );
-                }
-            }
-
-            // Add FsTree torrent to session
-            if ( auto session = m_drive.m_session.lock(); session )
-            {
-                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
-                                                                            m_drive.m_fsTreeTorrent.parent_path(),
-                                                                            lt::SiriusFlags::peer_is_replicator,
-                                                                            &m_drive.m_driveKey.array(),
-                                                                            nullptr,
-                                                                            nullptr );
-            }
-
-            // remove unused data from 'torrentMap'
-            std::erase_if( torrentHandleMap, []( const auto& it )
-            { return !it.second.m_isUsed; } );
-
-            LOG( "drive is synchronized" );
-
-            m_drive.executeOnSessionThread( [this]
-                                            {
-                                                synchronizationIsCompleted();
-                                            } );
-        }
-        catch (const std::exception& ex)
-        {
-            _LOG_ERR( "exception during completeCatchingUp: " << ex.what());
-            finishTask();
-        }
-    }
-
-    void myOpinionIsCreated() override
-    {
-        DBG_MAIN_THREAD
-
-        _ASSERT( m_myOpinion )
-
-        if ( m_stopped )
-        {
-            finishTask();
-            return;
-        }
-
-        m_sandboxCalculated = true;
-
-        sendSingleApprovalTransaction( *m_myOpinion );
-
-        startSynchronizingDriveWithSandbox();
-    }
-
     // it will be called from Session
-    void catchingUpFsTreeDownloadHandler( download_status::code code,
+    void fsTreeDownloadHandler( download_status::code code,
                                           const InfoHash& infoHash,
                                           const std::filesystem::path /*filePath*/,
                                           size_t /*downloaded*/,
@@ -261,11 +129,78 @@ private:
 
         if ( code == download_status::download_complete )
         {
+            m_sandboxRootHash = infoHash;
             m_downloadingLtHandle.reset();
-            startDownloadMissingFiles();
+            createUnusedFileList();
         }
     }
+    
+    void createUnusedFileList()
+    {
+        DBG_MAIN_THREAD
+        
+        try
+        {
+            m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile );
+            _LOG( "--- m_sandboxFsTree->dbgPrint()" );
+            m_sandboxFsTree->dbgPrint();
+        }
+        catch (...)
+        {
+            _LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
+            return;
+        }
 
+        auto& torrentHandleMap = m_drive.m_torrentHandleMap;
+
+        for( auto& it : torrentHandleMap )
+        {
+            it.second.m_isUsed = false;
+        }
+
+        markUsedFiles( *m_sandboxFsTree );
+
+        std::set<InfoHash> filesToRemove;
+
+        for ( auto it = torrentHandleMap.begin(); it != torrentHandleMap.end(); )
+        {
+            if ( ! it->second.m_isUsed )
+            {
+                filesToRemove.insert( it->first );
+                it = torrentHandleMap.erase( it );
+            }
+            else
+            {
+                it++;
+            }
+        }
+
+        m_drive.executeOnBackgroundThread( [ filesToRemove=std::move(filesToRemove), this ]
+        {
+            removeUnusedFiles( filesToRemove );
+        });
+    }
+
+    void removeUnusedFiles( const std::set<InfoHash>& filesToRemove )
+    {
+        DBG_BG_THREAD
+
+        // remove unused files and torrent files from the drive
+        for( const auto& hash : filesToRemove )
+        {
+            _LOG( "--- remove: " << hash )
+            std::string filename = hashToFileName( hash );
+            std::error_code ec;
+            fs::remove( fs::path( m_drive.m_driveFolder ) / filename, ec );
+            fs::remove( fs::path( m_drive.m_torrentFolder ) / filename, ec );
+        }
+
+        m_drive.executeOnSessionThread( [this]
+        {
+            startDownloadMissingFiles();
+        });
+    }
+    
     void startDownloadMissingFiles()
     {
         DBG_MAIN_THREAD
@@ -330,59 +265,57 @@ private:
 
             // it is the end of list
             m_drive.executeOnBackgroundThread( [this]
-                                               {
-                                                   modifyDriveInSandbox();
-                                               } );
-        } else
+            {
+                modifyDriveInSandbox();
+            });
+        }
+        else
         {
-//            if ( m_newCatchingUpRequest && m_newCatchingUpRequest->m_rootHash == m_catchingUpRequest->m_rootHash )
-//            {
-//                // TODO Check this situation
-//                _LOG_ERR( "Not Implemented" );
-//                return;
-//            }
-
             auto missingFileHash = *m_catchingUpFileIt;
             m_catchingUpFileIt++;
 
             if ( auto session = m_drive.m_session.lock(); session )
             {
                 _ASSERT( m_opinionController.opinionTrafficTx())
-                m_downloadingLtHandle = session->download( DownloadContext(
+                m_downloadingLtHandle = session->download(
+                                                           DownloadContext(
+                                                               DownloadContext::missing_files,
 
-                                                                   DownloadContext::missing_files,
-
-                                                                   [this]( download_status::code code,
-                                                                           const InfoHash& infoHash,
-                                                                           const std::filesystem::path saveAs,
-                                                                           size_t /*downloaded*/,
-                                                                           size_t /*fileSize*/,
-                                                                           const std::string& errorText )
+                                                               [this]( download_status::code code,
+                                                                       const InfoHash& infoHash,
+                                                                       const std::filesystem::path saveAs,
+                                                                       size_t /*downloaded*/,
+                                                                       size_t /*fileSize*/,
+                                                                       const std::string& errorText )
+                                                               {
+                                                                   if ( code == download_status::download_complete )
                                                                    {
-                                                                       if ( code == download_status::download_complete )
-                                                                       {
-                                                                           _LOG( "catchedUp: " << toString( infoHash ));
-                                                                           downloadMissingFiles();
-                                                                       } else if ( code == download_status::failed )
-                                                                       {
-                                                                           _LOG_ERR( "? is it possible now?" );
-                                                                       }
-                                                                   },
+                                                                       _LOG( "--- catchedUp: " << toString( infoHash ));
+                                                                       _ASSERT( fs::exists( m_drive.m_driveFolder / toString( infoHash )))
 
-                                                                   missingFileHash,
-                                                                   *m_opinionController.opinionTrafficTx(),
-                                                                   0,
-                                                                   true,
-                                                                   "" ),
+                                                                       downloadMissingFiles();
+                                                                   } else if ( code == download_status::failed )
+                                                                   {
+                                                                       _LOG_ERR( "? is it possible now?" );
+                                                                   }
+                                                               },
+
+                                                               missingFileHash,
+                                                               *m_opinionController.opinionTrafficTx(),
+                                                               0, true, ""
+                                                           ),
                                                            m_drive.m_driveFolder,
                                                            m_drive.m_torrentFolder / (toString(missingFileHash)),
-//                                                           m_drive.m_sandboxRootPath,
-//                                                           m_drive.m_sandboxRootPath / (toString(missingFileHash)),
                                                            getUploaders(),
                                                            &m_drive.m_driveKey.array(),
                                                            nullptr,
                                                            &m_opinionController.opinionTrafficTx().value().array()
                                                           );
+                // save reference into 'torrentHandleMap'
+                _LOG( "--- try_emplace fileHash:" << missingFileHash )
+
+                m_drive.m_torrentHandleMap[missingFileHash] = UseTorrentInfo{*m_downloadingLtHandle, false};
+
             }
         }
     }
@@ -391,38 +324,14 @@ private:
     {
         DBG_BG_THREAD
 
-//        for ( const auto& fileHash : m_catchingUpFileSet )
-//        {
-//            auto fileName = toString( fileHash );
+//        // create FsTree in sandbox
+//        m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile );
 //
-//            // move file to drive folder
-//            try
-//            {
-//                _LOG( "rename what:" << m_drive.m_sandboxRootPath / fileName )
-//                _LOG( "rename to:"   << m_drive.m_driveFolder / fileName )
-//                fs::rename( m_drive.m_sandboxRootPath / fileName, m_drive.m_driveFolder / fileName );
-//            }
-//            catch (const std::exception& ex)
-//            {
-//                _LOG( "exception during rename:" << ex.what());
-//                _LOG_ERR( "exception during rename '" << m_drive.m_sandboxRootPath / fileName <<
-//                                                      "' to '" << m_drive.m_driveFolder / fileName << "'; "
-//                                                      << ex.what());
-//            }
-//
-//            // create torrent
-//            calculateInfoHashAndCreateTorrentFile( m_drive.m_driveFolder / fileName,
-//                                                   m_drive.m_driveKey,
-//                                                   m_drive.m_torrentFolder, "" );
-//        }
-
-        // create FsTree in sandbox
-        m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile );
-
-        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile,
-                                               m_drive.m_driveKey,
-                                               m_drive.m_sandboxRootPath,
-                                               m_drive.m_sandboxFsTreeTorrent );
+//        //(???+++++)
+//        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile,
+//                                               m_drive.m_driveKey,
+//                                               m_drive.m_sandboxRootPath,
+//                                               m_drive.m_sandboxFsTreeTorrent );
 
         getSandboxDriveSizes( m_metaFilesSize, m_sandboxDriveSize );
         m_fsTreeSize = sandboxFsTreeSize();
@@ -431,6 +340,131 @@ private:
                                         {
                                             myRootHashIsCalculated();
                                         } );
+    }
+
+    // Returns 'true' if 'CatchingUp' should be started
+    bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( m_stopped )
+        {
+            return true;
+        }
+
+        breakTorrentDownloadAndRunNextTask();
+        return true;
+    }
+
+    const Hash256& getModificationTransactionHash() override
+    {
+        return m_request->m_modifyTransactionHash;
+    }
+
+    void modifyIsCompleted() override
+    {
+        _LOG( "catchingIsCompleted" );
+        m_drive.m_dbgEventHandler->driveModificationIsCompleted( m_drive.m_replicator, m_drive.m_driveKey,
+                                                                 m_request->m_modifyTransactionHash,
+                                                                 *m_sandboxRootHash );
+        UpdateDriveTaskBase::modifyIsCompleted();
+    }
+
+    void continueSynchronizingDriveWithSandbox() override
+    {
+        DBG_BG_THREAD
+
+        try
+        {
+            _ASSERT( m_sandboxRootHash == m_request->m_rootHash );
+
+            fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
+            fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
+
+            auto& torrentHandleMap = m_drive.m_torrentHandleMap;
+
+            // remove unused files and torrent files from the drive
+            for ( const auto& it : torrentHandleMap )
+            {
+                const UseTorrentInfo& info = it.second;
+                if ( ! info.m_isUsed )
+                {
+                    const auto& hash = it.first;
+                    std::string filename = hashToFileName( hash );
+                    fs::remove( fs::path( m_drive.m_driveFolder ) / filename );
+                    fs::remove( fs::path( m_drive.m_torrentFolder ) / filename );
+                }
+            }
+
+            //
+            // Add missing files (it was added during downloading of client files)
+            //
+//            for ( const auto& fileHash : m_catchingUpFileSet )
+//            {
+//                auto fileName = toString( fileHash );
+//
+//                // Add torrent into session
+//                if ( auto session = m_drive.m_session.lock(); session )
+//                {
+//                    auto tHandle = session->addTorrentFileToSession( m_drive.m_torrentFolder / fileName,
+//                                                                     m_drive.m_driveFolder,
+//                                                                     lt::SiriusFlags::peer_is_replicator,
+//                                                                     &m_drive.m_driveKey.array(),
+//                                                                     nullptr,
+//                                                                     nullptr );
+//                    _ASSERT( tHandle.is_valid() );
+//                    _LOG( "--- fileHash:" << fileHash )
+//                    _ASSERT( torrentHandleMap.find(fileHash)->second.m_ltHandle == tHandle );
+//                    torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{tHandle, true} );
+//                }
+//            }
+
+            // Add FsTree torrent to session
+            if ( auto session = m_drive.m_session.lock(); session )
+            {
+                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
+                                                                            m_drive.m_fsTreeTorrent.parent_path(),
+                                                                            lt::SiriusFlags::peer_is_replicator,
+                                                                            &m_drive.m_driveKey.array(),
+                                                                            nullptr,
+                                                                            nullptr );
+            }
+
+            // remove unused data from 'torrentMap'
+            std::erase_if( torrentHandleMap, []( const auto& it )
+            { return !it.second.m_isUsed; } );
+
+            LOG( "drive is synchronized" );
+
+            m_drive.executeOnSessionThread( [this]
+                                            {
+                                                synchronizationIsCompleted();
+                                            } );
+        }
+        catch (const std::exception& ex)
+        {
+            _LOG_ERR( "exception during completeCatchingUp: " << ex.what());
+            finishTask();
+        }
+    }
+
+    void myOpinionIsCreated() override
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_myOpinion )
+
+        if ( m_stopped )
+        {
+            finishTask();
+            return;
+        }
+
+        m_sandboxCalculated = true;
+
+        sendSingleApprovalTransaction( *m_myOpinion );
+
+        startSynchronizingDriveWithSandbox();
     }
 
     uint64_t getToBeApprovedDownloadSize() override

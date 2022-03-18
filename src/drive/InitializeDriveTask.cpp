@@ -164,8 +164,6 @@ private:
         finishTask();
     }
 
-    // Recursively marks 'm_toBeRemoved' as false
-    //
     void addFilesToSession( const Folder& folder )
     {
         DBG_BG_THREAD
