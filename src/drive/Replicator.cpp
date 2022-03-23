@@ -580,7 +580,7 @@ public:
 //#endif
     }
 
-    void asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) override
+    void asyncCancelDriveVerification( Key driveKey ) override
     {
         _FUNC_ENTRY()
 
@@ -596,7 +596,7 @@ public:
 
              if ( const auto drive = getDrive(driveKey); drive )
              {
-                 drive->cancelVerification( std::move(tx) );
+                 drive->cancelVerification();
                  return;
              }
 

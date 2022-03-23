@@ -234,14 +234,8 @@ public:
         return true;
     }
 
-    void cancelVerification( const Hash256& canceledVerification ) override
+    void cancelVerification() override
     {
-        if ( m_request->m_tx != canceledVerification )
-        {
-            _LOG_ERR( "verifyApprovalPublished: internal error: invalid tx" )
-            return;
-        }
-
         terminate();
     }
 
