@@ -100,6 +100,8 @@ class DefaultFlatDrive: public FlatDrive, public DriveParams
     // Executing Drive Tasks
     std::unique_ptr<DriveTaskBase> m_task;
     std::unique_ptr<DriveTaskBase> m_verificationTask;
+    
+    std::set<Key>                  m_blockedReplicators; // blocked until verification will be approved
 
 public:
 
@@ -373,6 +375,7 @@ public:
         auto receivedCodes = std::move(m_unknownVerificationCodeQueue[m_deferredVerificationRequest->m_tx]);
         m_unknownVerificationOpinions.erase(m_deferredVerificationRequest->m_tx);
 
+        m_blockedReplicators = std::move(m_deferredVerificationRequest->m_blockedReplicators);
         m_verificationTask = createDriveVerificationTask( std::move(m_deferredVerificationRequest), std::move(receivedOpinions), std::move(receivedCodes), *this);
         m_verificationTask->run();
     }
@@ -450,6 +453,8 @@ public:
     void onApprovalTransactionHasBeenPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
     {
         DBG_MAIN_THREAD
+        
+        m_blockedReplicators.clear();
 
         if ( m_verificationTask )
         {
@@ -493,6 +498,8 @@ public:
     void onVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) override
     {
         DBG_MAIN_THREAD
+        
+        m_blockedReplicators.clear();
 
         if ( !m_verificationTask )
         {
@@ -569,6 +576,8 @@ public:
     void cancelVerification( mobj<Hash256>&& tx ) override
     {
         DBG_MAIN_THREAD
+        
+        m_blockedReplicators.clear();
 
         if ( !m_verificationTask )
         {
@@ -649,7 +658,29 @@ public:
     }
 
     const ReplicatorList& donatorShard() const override { return m_modifyDonatorShard; }
-    const ReplicatorList& recipientShard() const override { return m_modifyRecipientShard; }
+    
+    bool acceptConnectionFromReplicator( const Key& replicatorKey ) const override
+    {
+        if ( m_blockedReplicators.size() > 0 )
+        {
+            if ( (m_task && m_task->getTaskType() == DriveTaskType::MODIFICATION_REQUEST) ||
+                m_deferredModificationRequests.size() > 0 )
+            {
+                // skip 'm_blockedReplicators' check
+            }
+            else
+            {
+                if ( std::find( m_blockedReplicators.begin(), m_blockedReplicators.end(), replicatorKey )
+                        != m_blockedReplicators.end() )
+                {
+                    return false;
+                }
+            }
+        }
+        
+        return std::find( m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), replicatorKey )
+                    != m_modifyRecipientShard.end();
+    }
 
     ////////////
 

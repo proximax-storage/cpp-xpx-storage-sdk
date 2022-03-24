@@ -6,14 +6,6 @@ Libtorrent:
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=17  -GXcode ..
 ----------------------------------------------------------------------------
 
-Catching up: download сразу на диск?
-
-metadata_received_alert: save torrent file
-
-Broadcasting of received download receipts into shard: 4 random nodes
-
-
-
 Missed test: for asyncApprovalTransactionHasBeenPublished failed modify 
 
 LONG_TODO: проверка downloadLimit при piece_finished_alert
@@ -38,23 +30,11 @@ Uncomment "else if ( isClient( *drive, peerPublicKey) )" Иначе клиент
 4) iarchive(is) - try/catch
 
 
-- закончить свой io_context in ~Replicator() - remove mutex
-
-
 +? late channel-tx that replicator received (client could not download data)
 
 
 --------------------------
-Our 'libtorrent' implementation:
-
 Buffer-pool (16KB,32KB ?)
-
-
-//////
-Replicator exchange & checkDownloadLimit()
-//////
-
-
 
 - почистить мусор перед driveModificationIsCanceled() modifyTransactionEndedWithError()
 
@@ -74,5 +54,3 @@ asyncInitializationFinished()
 
 
 
-2) drive publicKey будет нужен чтобы убедиться, что это репликатор из драйв-списка
-   Прийдется курочить libtorent-овскую часть
