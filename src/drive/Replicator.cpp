@@ -564,6 +564,8 @@ public:
         
             DBG_MAIN_THREAD
 
+			_LOG( "started verification" );
+
             if ( m_replicatorIsDestructing )
             {
                 return;
