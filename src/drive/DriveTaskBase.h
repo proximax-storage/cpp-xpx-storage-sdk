@@ -26,6 +26,7 @@ enum class DriveTaskType
     MODIFICATION_CANCEL,
     CATCHING_UP,
     MODIFICATION_REQUEST,
+    STREAMING_REQUEST,
     DRIVE_VERIFICATION
 };
 
@@ -76,7 +77,7 @@ public:
         return false;
     }
 
-    virtual void onAapprovalTxFailed( const Hash256 &transactionHash )
+    virtual void onApprovalTxFailed( const Hash256 &transactionHash )
     {
         DBG_MAIN_THREAD
     }
@@ -132,23 +133,23 @@ protected:
 
            std::error_code err;
 
-           if ( !fs::exists( m_drive.m_sandboxRootPath, err ))
+           if ( ! fs::exists( m_drive.m_sandboxRootPath, err ))
            {
                fs::create_directories( m_drive.m_sandboxRootPath );
-           } else
+           }
+           else
            {
-               for ( const auto& entry : std::filesystem::directory_iterator(
-                       m_drive.m_sandboxRootPath ))
+               for( const auto& entry: std::filesystem::directory_iterator(m_drive.m_sandboxRootPath) )
                {
                    fs::remove_all( entry.path(), err );
                }
            }
 
            m_drive.executeOnSessionThread( [this]
-                                           {
-                                               m_drive.runNextTask();
-                                           } );
-        } );
+           {
+               m_drive.runNextTask();
+           });
+        });
     }
 
     void markUsedFiles( const Folder& folder )

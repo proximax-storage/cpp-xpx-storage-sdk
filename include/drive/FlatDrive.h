@@ -9,6 +9,7 @@
 #include "log.h"
 #include "plugins.h"
 #include "crypto/Signer.h"
+#include "drive/Streaming.h"
 #include "../../src/drive/Session.h"
 #include <boost/asio/ip/tcp.hpp>
 #include <cereal/archives/binary.hpp>
@@ -570,14 +571,16 @@ class Replicator;
         virtual void     replicatorRemoved( mobj<Key>&& replicatorKey ) = 0;
 
         virtual void     startModifyDrive( mobj<ModificationRequest>&& modifyRequest ) = 0;
-
         virtual void     cancelModifyDrive( mobj<ModificationCancelRequest>&& request ) = 0;
 
         virtual void     startDriveClosing( mobj<DriveClosureRequest>&& request ) = 0;
 
         virtual void     startVerification( mobj<VerificationRequest>&& request ) = 0;
-
         virtual void     cancelVerification( mobj<Hash256>&& tx ) = 0;
+        
+        virtual void     startStreaming( mobj<StreamRequest>&& ) = 0;
+        virtual void     increaseStreaming( mobj<StreamIncreaseRequest>&& ) = 0;
+        virtual void     finishStreaming( mobj<StreamFinishRequest>&& ) = 0;
         
         // modification shards
         virtual void     addShardDonator( mobj<Key>&& replicatorKey ) = 0;

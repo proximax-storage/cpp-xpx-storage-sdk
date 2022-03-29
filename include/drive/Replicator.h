@@ -9,6 +9,7 @@
 #include "types.h"
 #include "plugins.h"
 #include "drive/FlatDrive.h"
+#include "drive/Streaming.h"
 #include "crypto/Signer.h"
 
 namespace sirius::drive {
@@ -369,6 +370,10 @@ public:
     
     virtual void        asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& ) = 0;
     virtual void        asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) = 0;
+
+    virtual void        asyncStartStreaming( Key driveKey, mobj<StreamRequest>&& ) = 0;
+    virtual void        asyncIncreaseStreaming( Key driveKey, mobj<StreamIncreaseRequest>&& ) = 0;
+    virtual void        asyncFinishStreaming( Key driveKey, mobj<StreamFinishRequest>&& ) = 0;
 
     // It is called when Replicator is added to the Download Channel Shard
     virtual void        asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&&  downloadRequest, bool mustBeSyncronized = false ) = 0;

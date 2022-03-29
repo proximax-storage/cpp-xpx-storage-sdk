@@ -5,7 +5,7 @@
 */
 
 //#include "DownloadLimiter.h"
-//#include "DriveTaskBase.h"
+#include "DriveTaskBase.h"
 //#include "drive/FsTree.h"
 //#include "drive/ActionList.h"
 //#include "drive/FlatDrive.h"
@@ -75,7 +75,7 @@ protected:
             , m_sandboxFsTree( FsTree{} )
     {}
 
-    virtual void myRootHashIsCalculated()
+    void myRootHashIsCalculated()
     {
         DBG_MAIN_THREAD
 
@@ -167,17 +167,16 @@ protected:
                 } );
                 _LOG( "breakTorrentDownloadAndRunNextTask: remove torrents " )
             }
-        } else if ( ! isFinishCallable() )
-        {
-            // We have already executed all actions for modification
-            _LOG( "breakTorrentDownloadAndRunNextTask: m_sandboxCalculated " )
-            finishTask();
-        } else
-        {
-            _LOG( "breakTorrentDownloadAndRunNextTask: nothing " )
-            // We cannot break torrent download.
-            // Therefore, we will wait the end of current task, that will call m_drive.runNextTask()
         }
+        else
+        {
+            tryBreakTask();
+        }
+//        {
+//            _LOG( "breakTorrentDownloadAndRunNextTask: nothing " )
+//            // We cannot break torrent download.
+//            // Therefore, we will wait the end of current task, that will call m_drive.runNextTask()
+//        }
     }
 
     // updates drive (1st step after approve)
@@ -328,7 +327,7 @@ private:
     virtual void myOpinionIsCreated() = 0;
 
     // Whether the finishTask can be called by the task itself
-    virtual bool isFinishCallable() = 0;
+    virtual void tryBreakTask() = 0;
 };
 
 } // namespace sirius::drive

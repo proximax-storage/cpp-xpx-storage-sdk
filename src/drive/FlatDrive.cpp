@@ -485,7 +485,7 @@ public:
 
         if ( m_task )
         {
-            m_task->onAapprovalTxFailed( transactionHash );
+            m_task->onApprovalTxFailed( transactionHash );
         }
     }
 
@@ -587,6 +587,31 @@ public:
 
         m_verificationTask->cancelVerification( *tx );
         m_verificationTask.reset();
+    }
+    
+    void  startStreaming( mobj<StreamRequest>&& streamRequest ) override
+    {
+        DBG_MAIN_THREAD
+
+        _LOG ( "start streaming: " << Hash256{streamRequest->m_streamId} )
+
+        // ModificationIsCanceling check is redundant now
+        //m_deferredModificationRequests.push_back(std::move(modifyRequest) );
+
+        if ( !m_task )
+        {
+            runNextTask();
+        }
+    }
+    
+    void  increaseStreaming( mobj<StreamIncreaseRequest>&& ) override
+    {
+        
+    }
+    
+    void  finishStreaming( mobj<StreamFinishRequest>&& ) override
+    {
+        
     }
 
     void  addShardDonator( mobj<Key>&& replicatorKey ) override

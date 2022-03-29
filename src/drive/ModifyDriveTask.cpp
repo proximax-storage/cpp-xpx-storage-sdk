@@ -550,7 +550,7 @@ public:
         return false;
     }
 
-    void onAapprovalTxFailed( const Hash256& transactionHash ) override
+    void onApprovalTxFailed( const Hash256& transactionHash ) override
     {
         DBG_MAIN_THREAD
 
@@ -567,9 +567,12 @@ public:
         }
     }
     
-    bool isFinishCallable() override
+    void tryBreakTask() override
     {
-        return !m_sandboxCalculated;
+        if ( ! m_sandboxCalculated )
+        {
+            finishTask();
+        }
     }
 
 protected:

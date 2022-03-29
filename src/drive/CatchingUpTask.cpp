@@ -476,9 +476,9 @@ public:
         return 0;
     }
 
-    bool isFinishCallable() override
+    void tryBreakTask() override
     {
-        return true;
+        finishTask();
     }
 };
 

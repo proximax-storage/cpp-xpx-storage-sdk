@@ -229,7 +229,7 @@ public:
     InfoHash m_rootHash;
 
     // FsTree
-    std::unique_ptr <FsTree> m_fsTree;
+    std::unique_ptr<FsTree> m_fsTree;
     lt_handle m_fsTreeLtHandle; // used for removing FsTree torrent from session
 
     // For debugging:

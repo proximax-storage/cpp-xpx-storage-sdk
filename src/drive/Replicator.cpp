@@ -664,7 +664,6 @@ public:
 
             _LOG( "asyncStartDriveVerification: unknown drive: " << driveKey );
         });//post
-//#endif
     }
 
     void asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) override
@@ -689,6 +688,75 @@ public:
 
              _LOG( "asyncCancelDriveVerification: unknown drive: " << driveKey );
          });//post
+    }
+
+    void asyncStartStreaming( Key driveKey, mobj<StreamRequest>&& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        
+            DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
+            if ( const auto drive = getDrive(driveKey); drive )
+            {
+                //drive->startStreaming( std::move(request) );
+                return;
+            }
+
+            _LOG( "unknown drive: " << driveKey );
+        });//post
+    }
+    
+    void asyncIncreaseStreaming( Key driveKey, mobj<StreamIncreaseRequest>&& ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        
+            DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
+            if ( const auto drive = getDrive(driveKey); drive )
+            {
+                //drive->increaseStreaming( std::move(request) );
+                return;
+            }
+
+            _LOG( "unknown drive: " << driveKey );
+        });//post
+    }
+    
+    void asyncFinishStreaming( Key driveKey, mobj<StreamFinishRequest>&& ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        
+            DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
+            if ( const auto drive = getDrive(driveKey); drive )
+            {
+                //drive->finishStreaming( std::move(request) );
+                return;
+            }
+
+            _LOG( "unknown drive: " << driveKey );
+        });//post
     }
 
     void asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&& request, bool mustBeSyncronized ) override
