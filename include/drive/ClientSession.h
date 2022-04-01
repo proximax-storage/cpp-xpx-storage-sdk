@@ -5,7 +5,7 @@
 */
 #pragma once
 
-#include "../../src/drive/Session.h"
+#include "drive/Session.h"
 #include "drive/log.h"
 #include "drive/Utils.h"
 #include "crypto/Signer.h"
@@ -13,8 +13,12 @@
 
 namespace sirius::drive {
 
-class ClientSession : public lt::session_delegate, std::enable_shared_from_this<ClientSession>
+class StreamerSession;
+
+class ClientSession : public lt::session_delegate, public std::enable_shared_from_this<ClientSession>
 {
+protected:
+    
     using DownloadChannelId     = std::optional<std::array<uint8_t,32>>;
     using ModifyTransactionHash = std::optional<std::array<uint8_t,32>>;
     using ReplicatorTraficMap   = std::map<std::array<uint8_t,32>,uint64_t>;
@@ -518,12 +522,19 @@ protected:
     }
 
 private:
-    friend std::shared_ptr<ClientSession> createClientSession( const crypto::KeyPair&,
-                                                               const std::string&,
-                                                               const LibTorrentErrorHandler&,
-                                                               const endpoint_list&,
-                                                               bool,
-                                                               const char* );
+    friend std::shared_ptr<ClientSession>     createClientSession( const crypto::KeyPair&,
+                                                                   const std::string&,
+                                                                   const LibTorrentErrorHandler&,
+                                                                   const endpoint_list&,
+                                                                   bool,
+                                                                   const char* );
+
+    friend std::shared_ptr<StreamerSession> createStreamerSession( const crypto::KeyPair&,
+                                                                   const std::string&,
+                                                                   const LibTorrentErrorHandler&,
+                                                                   const endpoint_list&,
+                                                                   bool,
+                                                                   const char* );
 
     auto session() { return m_session; }
 };

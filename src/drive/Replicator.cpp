@@ -8,7 +8,7 @@
 #include "drive/log.h"
 #include "drive/FlatDrive.h"
 #include "drive/Utils.h"
-#include "Session.h"
+#include "drive/Session.h"
 #include "DownloadLimiter.h"
 #include "EndpointsManager.h"
 #include "RcptSyncronizer.h"
@@ -1528,71 +1528,105 @@ public:
         //todo
         if ( query == "opinion" )
         {
-            std::istringstream is( message, std::ios::binary );
-            cereal::PortableBinaryInputArchive iarchive(is);
-            ApprovalTransactionInfo info;
-            iarchive( info );
+            try
+            {
+                std::istringstream is( message, std::ios::binary );
+                cereal::PortableBinaryInputArchive iarchive(is);
+                ApprovalTransactionInfo info;
+                iarchive( info );
 
-            processOpinion(info);
+                processOpinion(info);
+            }
+            catch(...) {}
+
             return;
         }
         else if ( query == "dn_opinion" )
         {
-            std::istringstream is( message, std::ios::binary );
-            cereal::PortableBinaryInputArchive iarchive(is);
-            DownloadApprovalTransactionInfo info;
-            iarchive( info );
+            try
+            {
+                std::istringstream is( message, std::ios::binary );
+                cereal::PortableBinaryInputArchive iarchive(is);
+                DownloadApprovalTransactionInfo info;
+                iarchive( info );
+                processDownloadOpinion(info);
+            }
+            catch(...){}
 
-            processDownloadOpinion(info);
             return;
         }
         else if ( query == "code_verify" )
         {
-            std::istringstream is( message, std::ios::binary );
-            cereal::PortableBinaryInputArchive iarchive(is);
+            try
+            {
+                std::istringstream is( message, std::ios::binary );
+                cereal::PortableBinaryInputArchive iarchive(is);
 
-            mobj<VerificationCodeInfo> info{VerificationCodeInfo{}};
-            iarchive( *info );
-            processVerificationCode( std::move(info) );
+                mobj<VerificationCodeInfo> info{VerificationCodeInfo{}};
+                iarchive( *info );
+                processVerificationCode( std::move(info) );
+            }
+            catch(...){}
+
             return;
         }
 
         else if ( query == "verify_opinion" )
         {
-            std::istringstream is( message, std::ios::binary );
-            cereal::PortableBinaryInputArchive iarchive(is);
-            
-            mobj<VerifyApprovalTxInfo> info{VerifyApprovalTxInfo{}};
-            iarchive( *info );
-            processVerificationOpinion( std::move(info) );
+            try
+            {
+                std::istringstream is( message, std::ios::binary );
+                cereal::PortableBinaryInputArchive iarchive(is);
+                
+                mobj<VerifyApprovalTxInfo> info{VerifyApprovalTxInfo{}};
+                iarchive( *info );
+                processVerificationOpinion( std::move(info) );
+            }
+            catch(...){}
+
             return;
         }
         else if ( query == "handshake" )
         {
-            std::istringstream is( message, std::ios::binary );
-            cereal::PortableBinaryInputArchive iarchive(is);
-            DhtHandshake handshake;
-            iarchive( handshake );
+            try
+            {
+                std::istringstream is( message, std::ios::binary );
+                cereal::PortableBinaryInputArchive iarchive(is);
+                DhtHandshake handshake;
+                iarchive( handshake );
 
-            processHandshake( handshake, {source.address(), source.port()} );
+                processHandshake( handshake, {source.address(), source.port()} );
+            }
+            catch(...){}
+
             return;
         }
         else if ( query == "endpoint_request" ) {
-            std::istringstream is( message, std::ios::binary );
-            cereal::PortableBinaryInputArchive iarchive(is);
-            ExternalEndpointRequest request;
-            iarchive( request );
+            try
+            {
+                std::istringstream is( message, std::ios::binary );
+                cereal::PortableBinaryInputArchive iarchive(is);
+                ExternalEndpointRequest request;
+                iarchive( request );
 
-            processEndpointRequest(request, {source.address(), source.port()});
+                processEndpointRequest(request, {source.address(), source.port()});
+            }
+            catch(...){}
+
             return;
         }
         else if ( query == "endpoint_response" ) {
-            std::istringstream is( message, std::ios::binary );
-            cereal::PortableBinaryInputArchive iarchive(is);
-            ExternalEndpointResponse response;
-            iarchive( response );
+            try
+            {
+                std::istringstream is( message, std::ios::binary );
+                cereal::PortableBinaryInputArchive iarchive(is);
+                ExternalEndpointResponse response;
+                iarchive( response );
 
-            m_endpointsManager.updateExternalEndpoint(response);
+                m_endpointsManager.updateExternalEndpoint(response);
+            }
+            catch(...){}
+
             return;
         }
 
@@ -1740,7 +1774,7 @@ public:
         return m_verifyApprovalTransactionTimerDelayMs;
     }
 
-    void        setSessionSettings(const lt::settings_pack& settings, bool localNodes) override
+    void        setSessionSettings(const lt::settings_pack& settings, bool localNodes) //override
     {
         m_session->lt_session().apply_settings(settings);
         if (localNodes) {
@@ -1780,12 +1814,44 @@ public:
             return false;
         }
         
-        std::istringstream is( data, std::ios::binary );
-        cereal::PortableBinaryInputArchive iarchive(is);
-        iarchive( m_dnChannelMapBackup );
+        try
+        {
+            std::istringstream is( data, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            iarchive( m_dnChannelMapBackup );
+        }
+        catch(...)
+        {
+            return false;
+        }
+        
         return true;
     }
     
+    void acceptChunkInfoMessage( const lt::string_view& str ) override
+    {
+        try
+        {
+            std::istringstream is( std::string(str), std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+
+            std::array<uint8_t,32> driveKey;
+            iarchive( driveKey );
+
+            mobj<ChunkInfo> chunkInfo( ChunkInfo{} );
+            iarchive( *chunkInfo );
+            
+            if ( auto drive = getDrive( Key(driveKey) ); drive )
+            {
+                drive->acceptChunkInfoMessage( std::move( chunkInfo ) );
+            }
+            else
+            {
+                _LOG_WARN( "drive not found" );
+            }
+        }
+        catch(...){}
+    }
 
 
 private:

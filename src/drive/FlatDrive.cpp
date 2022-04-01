@@ -6,7 +6,7 @@
 
 #include "drive/FlatDrive.h"
 #include "drive/Replicator.h"
-#include "Session.h"
+#include "drive/Session.h"
 #include "DriveTaskBase.h"
 #include "DriveParams.h"
 #include "ModifyOpinionController.h"
@@ -705,6 +705,16 @@ public:
         
         return std::find( m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), replicatorKey )
                     != m_modifyRecipientShard.end();
+    }
+
+    void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo ) override
+    {
+        DBG_MAIN_THREAD
+        
+        if ( m_task )
+        {
+            m_task->acceptChunkInfoMessage( std::move(chunkInfo) );
+        }
     }
 
     ////////////

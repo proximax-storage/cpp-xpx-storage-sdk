@@ -12,6 +12,11 @@
 #include "drive/Streaming.h"
 #include "crypto/Signer.h"
 
+#include <boost/asio/high_resolution_timer.hpp>
+//#include <libtorrent/torrent_handle.hpp>
+//#include <boost/asio/ip/tcp.hpp>
+
+
 namespace sirius::drive {
 
 // It is used for calculation of total data size, downloaded by 'client'
@@ -425,7 +430,7 @@ public:
     virtual int         getVerifyCodeTimerDelay() = 0;
     virtual void        setVerifyApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual int         getVerifyApprovalTransactionTimerDelay() = 0;
-    virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
+    //virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
 
     // Functions for debugging
     //

@@ -18,15 +18,18 @@ namespace fs = std::filesystem;
 
 class StreamingTask : public UpdateDriveTaskBase
 {
-    std::unique_ptr<StreamRequest> m_request;
+    std::unique_ptr<StreamRequest>  m_request;
+    
+    using PlaylistInfoArray = std::deque< std::unique_ptr<StreamPlayListInfo>>;
+    PlaylistInfoArray               m_playlistInfoArray;
 
 public:
     
     StreamingTask(  mobj<StreamRequest>&& request,
                     DriveParams& drive,
-                    ModifyOpinionController& opinionTaskController
-                  )
-            : UpdateDriveTaskBase( DriveTaskType::STREAMING_REQUEST, drive, opinionTaskController )
+                    ModifyOpinionController& opinionTaskController )
+            :
+              UpdateDriveTaskBase( DriveTaskType::STREAMING_REQUEST, drive, opinionTaskController )
             , m_request( std::move(request) )
     {
         _ASSERT( m_request )
@@ -38,6 +41,19 @@ public:
     {
         //(???)
         return m_request->m_streamId;
+    }
+    
+    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo ) override
+    {
+        if ( chunkInfo->m_streamId != m_request->m_streamId )
+        {
+            _LOG( "ignore playlist" )
+            return;
+        }
+        
+        // save playlist
+        
+        // start download StreamPlayList        
     }
 
     void continueSynchronizingDriveWithSandbox() override

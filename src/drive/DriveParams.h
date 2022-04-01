@@ -7,7 +7,7 @@
 
 #include "drive/Replicator.h"
 #include "ReplicatorInt.h"
-#include "Session.h"
+#include "drive/Session.h"
 #include "drive/FlatDrive.h"
 #include "drive/Utils.h"
 //#include "ModifyOpinionController.h"
@@ -28,6 +28,13 @@
 namespace sirius::drive {
 
 namespace fs = std::filesystem;
+
+// UseTorrentInfo is used to avoid adding torrents into session with the same hash
+// and for deleting unused files and torrents from session
+struct UseTorrentInfo {
+    lt::torrent_handle  m_ltHandle = {};
+    bool                m_isUsed = true;
+};
 
 class RestartValueSerializer
 {
@@ -72,9 +79,14 @@ public:
             return false;
         }
 
-        std::istringstream is( data, std::ios::binary );
-        cereal::PortableBinaryInputArchive iarchive( is );
-        iarchive( value );
+        try {
+            std::istringstream is( data, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive( is );
+            iarchive( value );
+        } catch(...)
+        {
+            return false;
+        }
         return true;
     }
 

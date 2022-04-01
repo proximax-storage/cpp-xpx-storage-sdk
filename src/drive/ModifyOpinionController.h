@@ -8,7 +8,7 @@
 
 #include "drive/FlatDrive.h"
 #include "drive/Replicator.h"
-#include "Session.h"
+#include "drive/Session.h"
 #include "BackgroundExecutor.h"
 #include "DriveParams.h"
 #include "drive/Utils.h"

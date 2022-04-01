@@ -4,7 +4,7 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "Session.h"
+#include "drive/Session.h"
 #include "ReplicatorInt.h"
 #include "drive/Utils.h"
 #include "drive/log.h"
@@ -695,7 +695,21 @@ public:
                 response["r"]["ret"] = "ok";
                 return true;
             }
+            
+            else if ( query == "chunk_info" )
+            {
+                auto str = message.dict_find_string_value("x");
 
+                if ( auto replicator = m_replicator.lock(); replicator )
+                {
+                    replicator->acceptChunkInfoMessage( str );
+                }
+
+                response["r"]["q"] = std::string(query);
+                response["r"]["ret"] = "ok";
+                return true;
+            }
+                
             return false;
         }
     };

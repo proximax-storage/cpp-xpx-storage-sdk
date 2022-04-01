@@ -10,7 +10,6 @@
 #include "plugins.h"
 #include "crypto/Signer.h"
 #include "drive/Streaming.h"
-#include "../../src/drive/Session.h"
 #include <boost/asio/ip/tcp.hpp>
 #include <cereal/archives/binary.hpp>
 #include <memory>
@@ -431,13 +430,6 @@ class Replicator;
         }
     };
 
-    // UseTorrentInfo is used to avoid adding torrents into session with the same hash
-    // and for deleting unused files and torrents from session
-    struct UseTorrentInfo {
-        Session::lt_handle  m_ltHandle = {};
-        bool                m_isUsed = true;
-    };
-
     // Interface for storage extension
     class ReplicatorEventHandler
     {
@@ -614,6 +606,8 @@ class Replicator;
         virtual void dbgPrintDriveStatus() = 0;
 
         static std::string driveIsClosingPath( const std::string& driveRootPath );
+        
+        virtual void     acceptChunkInfoMessage( mobj<ChunkInfo>&& ) = 0;
     };
 
     class Session;

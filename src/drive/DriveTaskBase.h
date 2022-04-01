@@ -120,6 +120,11 @@ public:
         DBG_MAIN_THREAD
     }
 
+    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&& )
+    {
+        // it must be overriden by StreamingTask
+    }
+
 protected:
 
 
