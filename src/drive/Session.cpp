@@ -93,8 +93,6 @@ class DefaultSession: public Session, std::enable_shared_from_this<DefaultSessio
     std::weak_ptr<ReplicatorInt>        m_replicator;
     std::weak_ptr<lt::session_delegate> m_downloadLimiter;
     
-    std::promise<void>                  m_bootstrapBarrier;
-    
     std::string                         m_dbgOurPeerName = "";
     
     bool                                m_stopping = false;
@@ -912,7 +910,6 @@ private:
 
                 case lt::dht_bootstrap_alert::alert_type: {
                     _LOG( "dht_bootstrap_alert: " << alert->message() )
-                    m_bootstrapBarrier.set_value();
                     break;
                 }
 
