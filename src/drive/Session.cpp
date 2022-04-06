@@ -118,7 +118,6 @@ public:
         , m_alertHandler(alertHandler)
         , m_replicator(replicator)
         , m_downloadLimiter(downloadLimiter)
-        , m_bootstrapBarrier( std::move(bootstrapBarrier) )
     {
         m_dbgOurPeerName = m_downloadLimiter.lock()->dbgOurPeerName();
         
@@ -143,7 +142,6 @@ public:
         , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
         , m_alertHandler(alertHandler)
         , m_downloadLimiter(downloadLimiter)
-        , m_bootstrapBarrier()
     {
         if ( downloadLimiter.lock() )
             m_dbgOurPeerName = downloadLimiter.lock()->dbgOurPeerName();
