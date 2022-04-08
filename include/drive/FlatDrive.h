@@ -576,7 +576,7 @@ class Replicator;
 
         virtual void     startVerification( mobj<VerificationRequest>&& request ) = 0;
 
-        virtual void     cancelVerification( mobj<Hash256>&& tx ) = 0;
+        virtual void     cancelVerification() = 0;
 
         // modification shards
         virtual void     setShardDonator( mobj<ReplicatorList>&& replicatorKeys ) = 0;

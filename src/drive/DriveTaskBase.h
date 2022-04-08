@@ -114,7 +114,7 @@ public:
         return false;
     }
 
-    virtual void cancelVerification( const Hash256& canceledVerification )
+    virtual void cancelVerification()
     {
         DBG_MAIN_THREAD
     }

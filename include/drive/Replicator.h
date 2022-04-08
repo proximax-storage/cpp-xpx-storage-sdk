@@ -364,7 +364,7 @@ public:
     virtual void        asyncCancelModify( Key driveKey, Hash256  transactionHash ) = 0;
     
     virtual void        asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& ) = 0;
-    virtual void        asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) = 0;
+    virtual void        asyncCancelDriveVerification( Key driveKey ) = 0;
 
     // It is called when Replicator is added to the Download Channel Shard
     virtual void        asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&&  downloadRequest, bool mustBeSynchronized = false ) = 0;

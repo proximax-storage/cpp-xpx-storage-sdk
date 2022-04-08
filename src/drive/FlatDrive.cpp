@@ -508,7 +508,7 @@ public:
             return;
         }
 
-        m_verificationTask->cancelVerification( info.m_tx );
+        m_verificationTask->cancelVerification();
         m_verificationTask.reset();
     }
 
@@ -574,17 +574,16 @@ public:
         }
     }
 
-    void cancelVerification( mobj<Hash256>&& tx ) override
+    void cancelVerification() override
     {
         DBG_MAIN_THREAD
 
         if ( !m_verificationTask )
         {
-            _LOG_ERR( "cancelVerification: internal error: m_verificationRequest == null" )
             return;
         }
 
-        m_verificationTask->cancelVerification( *tx );
+        m_verificationTask->cancelVerification();
         m_verificationTask.reset();
     }
 
