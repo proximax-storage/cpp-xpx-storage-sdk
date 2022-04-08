@@ -600,7 +600,7 @@ protected:
     void modifyIsCompletedWithError( std::string errorText, int errorCode )
     {
         DBG_MAIN_THREAD
-        _LOG( "modifyIsCompletedWithError" );
+        _LOG( "modifyIsCompletedWithError " << errorText << " " << errorCode );
 
         if ( m_drive.m_dbgEventHandler )
         {
