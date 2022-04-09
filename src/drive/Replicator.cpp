@@ -1629,6 +1629,31 @@ public:
 
             return;
         }
+        else if ( query == "chunk-info" )
+        {
+            try
+            {
+                std::istringstream is( message, std::ios::binary );
+                cereal::PortableBinaryInputArchive iarchive(is);
+                std::array<uint8_t,32> driveKey;
+                iarchive( driveKey );
+                
+                if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+                {
+                    mobj<ChunkInfo> chunkInfo{ChunkInfo{}};
+                    iarchive( *chunkInfo );
+                    
+                    driveIt->second->acceptChunkInfoMessage( std::move(chunkInfo), source );
+                }
+                else
+                {
+                    _LOG_WARN( "Unknown drive: " << Key(driveKey) )
+                }
+            }
+            catch(...){}
+
+            return;
+        }
 
         _ASSERT(0);
 
@@ -1828,32 +1853,6 @@ public:
         return true;
     }
     
-    void acceptChunkInfoMessage( const lt::string_view& str ) override
-    {
-        try
-        {
-            std::istringstream is( std::string(str), std::ios::binary );
-            cereal::PortableBinaryInputArchive iarchive(is);
-
-            std::array<uint8_t,32> driveKey;
-            iarchive( driveKey );
-
-            mobj<ChunkInfo> chunkInfo( ChunkInfo{} );
-            iarchive( *chunkInfo );
-            
-            if ( auto drive = getDrive( Key(driveKey) ); drive )
-            {
-                drive->acceptChunkInfoMessage( std::move( chunkInfo ) );
-            }
-            else
-            {
-                _LOG_WARN( "drive not found" );
-            }
-        }
-        catch(...){}
-    }
-
-
 private:
     std::shared_ptr<sirius::drive::Session> session() {
         return m_session;

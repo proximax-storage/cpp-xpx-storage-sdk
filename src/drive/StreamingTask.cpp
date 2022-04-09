@@ -20,8 +20,11 @@ class StreamingTask : public UpdateDriveTaskBase
 {
     std::unique_ptr<StreamRequest>  m_request;
     
-    using PlaylistInfoArray = std::deque< std::unique_ptr<StreamPlayListInfo>>;
-    PlaylistInfoArray               m_playlistInfoArray;
+    using ChunkInfoList = std::list< std::unique_ptr<ChunkInfo> >;
+    ChunkInfoList                   m_chunkInfoList;
+    ChunkInfoList::iterator         m_downloadingChunkInfo = m_chunkInfoList.end();
+    //                             m_downloadingLtHandle;
+    
 
 public:
     
@@ -43,7 +46,7 @@ public:
         return m_request->m_streamId;
     }
     
-    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo ) override
+    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& sender ) override
     {
         if ( chunkInfo->m_streamId != m_request->m_streamId )
         {
@@ -51,9 +54,167 @@ public:
             return;
         }
         
-        // save playlist
+        if ( ! chunkInfo->Verify( m_request->m_streamerKey ) )
+        {
+            _LOG_WARN( "Bad sign" )
+            return;
+        }
+
+        //
+        // Save playlist and try to download chunk
+        //
+        if ( m_chunkInfoList.empty() )
+        {
+            m_chunkInfoList.emplace_back( std::move(chunkInfo) );
+            tryRequestNextChunk();
+        }
+        else
+        {
+            auto newChunkIndex = chunkInfo->m_chunkIndex;
+            auto backChunkIndex = m_chunkInfoList.back()->m_chunkIndex;
+            
+            if ( backChunkIndex < newChunkIndex )
+            {
+                // append chunkInfo
+                //
+                m_chunkInfoList.emplace_back( std::move(chunkInfo) );
+                if ( backChunkIndex+1 == newChunkIndex )
+                {
+                    tryRequestNextChunk();
+                }
+                else
+                {
+                    for( auto i = backChunkIndex+1; i<newChunkIndex; i++ )
+                    {
+                        // request missing chunkInfo
+                        requestMissingChunkInfo( i, sender );
+                    }
+                }
+            }
+            else
+            {
+                // insert chunkInfo in the middle of the list
+                //
+                auto newChunkIndex = chunkInfo->m_chunkIndex;
+
+                for( auto it = m_chunkInfoList.rbegin(); it != m_chunkInfoList.rend(); it++ )
+                {
+                    if ( it->get()->m_chunkIndex >= newChunkIndex )
+                    {
+                        if ( it->get()->m_chunkIndex > newChunkIndex )
+                        {
+                            // do insert
+                            m_chunkInfoList.insert( it.base(), std::move(chunkInfo) );
+                            tryRequestNextChunk();
+                        }
+                        else
+                        {
+                            // ignore already existing chunkInfo
+                        }
+                    }
+                }
+            }
+        }
         
         // start download StreamPlayList        
+    }
+    
+    void requestMissingChunkInfo( uint32_t chunkIndex, const boost::asio::ip::udp::endpoint& sender )
+    {
+        if ( auto session = m_drive.m_session.lock(); session )
+        {
+            std::ostringstream os( std::ios::binary );
+            cereal::PortableBinaryOutputArchive archive( os );
+            archive( chunkIndex );
+
+            session->sendMessage( "get-chunk-info", sender, os.str() );
+
+            //TODO ? timer?
+        }
+    }
+    
+    void tryRequestNextChunk()
+    {
+        if ( m_downloadingLtHandle )
+        {
+            // wait the end of downloading
+            return;
+        }
+        
+        // set proper m_downloadingChunkInfo
+        //
+        if ( m_downloadingChunkInfo == m_chunkInfoList.end() )
+        {
+            _ASSERT( ! m_chunkInfoList.empty() )
+            m_downloadingChunkInfo = m_chunkInfoList.begin();
+        }
+        else
+        {
+            auto next = std::next( m_downloadingChunkInfo, 1 );
+            if ( next == m_chunkInfoList.end() ||
+                 m_downloadingChunkInfo->get()->m_chunkIndex+1 != next->get()->m_chunkIndex )
+            {
+                //TODO ? requestMissingChunkInfo( m_downloadingChunkInfo->get()->m_chunkIndex+1 );
+                return;
+            }
+            m_downloadingChunkInfo = next;
+        }
+
+        // start downloading
+        //
+        if ( auto session = m_drive.m_session.lock(); session )
+        {
+            const auto& chunkInfoHash = m_downloadingChunkInfo->get()->m_chunkInfoHash;
+            
+            if ( auto it = m_drive.m_torrentHandleMap.find( chunkInfoHash ); it != m_drive.m_torrentHandleMap.end())
+            {
+                _ASSERT( it->second.m_ltHandle.is_valid() )
+                tryRequestNextChunk();
+            }
+            
+            m_downloadingLtHandle = session->download(
+                   DownloadContext(
+                           DownloadContext::missing_files,
+                           [this]( download_status::code code,
+                                   const InfoHash& infoHash,
+                                   const std::filesystem::path saveAs,
+                                   size_t /*downloaded*/,
+                                   size_t /*fileSize*/,
+                                   const std::string& errorText )
+                           {
+                               DBG_MAIN_THREAD
+
+                               _ASSERT( !m_taskIsStopped );
+
+                               if ( code == download_status::failed )
+                               {
+                                   //todo is it possible?
+                                   _ASSERT( 0 );
+                                   m_drive.m_torrentHandleMap.erase( infoHash );
+                                   tryRequestNextChunk();
+                                   return;
+                               }
+
+                               if ( code == download_status::download_complete )
+                               {
+                                   m_downloadingLtHandle.reset();
+                                   tryRequestNextChunk();
+                               }
+                           },
+                           chunkInfoHash,
+                           *m_opinionController.opinionTrafficTx(),
+                           0, true, ""
+                   ),
+                   m_drive.m_sandboxRootPath,
+                   m_drive.m_sandboxRootPath / toString(chunkInfoHash),
+                   getUploaders(),
+                   &m_drive.m_driveKey.array(),
+                   nullptr,
+                   &m_opinionController.opinionTrafficTx().value().array() );
+
+            // save reference into 'torrentHandleMap'
+            m_drive.m_torrentHandleMap[chunkInfoHash] = UseTorrentInfo{ *m_downloadingLtHandle, false };
+        }
     }
 
     void continueSynchronizingDriveWithSandbox() override

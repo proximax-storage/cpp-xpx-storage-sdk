@@ -608,7 +608,9 @@ public:
 //            _LOG( "response: " << response );
 
             const std::set<lt::string_view> supportedQueries =
-                    { "opinion", "dn_opinion", "code_verify", "verify_opinion", "handshake", "endpoint_request", "endpoint_response" };
+                    { "opinion", "dn_opinion", "code_verify", "verify_opinion", "handshake", "endpoint_request", "endpoint_response",
+                       "chunk-info"
+                    };
             if ( supportedQueries.contains(query) )
             {
                 auto str = message.dict_find_string_value("x");
@@ -696,20 +698,6 @@ public:
                 return true;
             }
             
-            else if ( query == "chunk_info" )
-            {
-                auto str = message.dict_find_string_value("x");
-
-                if ( auto replicator = m_replicator.lock(); replicator )
-                {
-                    replicator->acceptChunkInfoMessage( str );
-                }
-
-                response["r"]["q"] = std::string(query);
-                response["r"]["ret"] = "ok";
-                return true;
-            }
-                
             return false;
         }
     };
@@ -926,7 +914,7 @@ private:
 
                 case lt::dht_bootstrap_alert::alert_type: {
                     _LOG( "dht_bootstrap_alert: " << alert->message() )
-                    m_bootstrapBarrier.set_value();
+                    //m_bootstrapBarrier.set_value();
                     break;
                 }
 
@@ -1397,7 +1385,7 @@ InfoHash createTorrentFile( const std::string& fileOrFolder,
     lt::error_code ec;
     lt::set_piece_hashes( createInfo, rootFolder, ec );
     if ( ec ) {
-        LOG( "createTorrentFile error: " << ec );
+        __LOG( "createTorrentFile error: " << ec );
         throw std::runtime_error( std::string("createTorrentFile error: ") + ec.message() );
     }
 //    std::cout << ec.category().name() << ':' << ec.value();

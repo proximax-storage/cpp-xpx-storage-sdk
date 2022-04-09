@@ -11,6 +11,7 @@
 #include "crypto/Signer.h"
 #include "drive/Streaming.h"
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ip/udp.hpp>
 #include <cereal/archives/binary.hpp>
 #include <memory>
 
@@ -607,7 +608,7 @@ class Replicator;
 
         static std::string driveIsClosingPath( const std::string& driveRootPath );
         
-        virtual void     acceptChunkInfoMessage( mobj<ChunkInfo>&& ) = 0;
+        virtual void     acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
     };
 
     class Session;

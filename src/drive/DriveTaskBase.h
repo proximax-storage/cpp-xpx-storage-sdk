@@ -120,7 +120,7 @@ public:
         DBG_MAIN_THREAD
     }
 
-    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&& )
+    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& sender )
     {
         // it must be overriden by StreamingTask
     }

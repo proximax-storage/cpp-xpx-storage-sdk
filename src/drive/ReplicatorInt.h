@@ -83,8 +83,6 @@ public:
 
     virtual DownloadChannelInfo* getDownloadChannelInfo( const std::array<uint8_t,32>& driveKey, const std::array<uint8_t,32>& downloadChannelHash ) = 0;
 
-    virtual void acceptChunkInfoMessage( const lt::string_view& ) = 0;
-    
     //virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;
 };
 

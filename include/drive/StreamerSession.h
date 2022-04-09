@@ -69,7 +69,7 @@ public:
         fs::create_directories( m_torrentFolder );
     }
     
-    void addChunk( const std::vector<uint8_t>& chunk, uint32_t durationMs )
+    void addChunkToStream( const std::vector<uint8_t>& chunk, uint32_t durationMs )
     {
         if ( ! m_streamId )
         {
@@ -83,8 +83,10 @@ public:
         
         fs::path tmp = m_chunkFolder / "newChunk";
         
-        std::ofstream fileStream( tmp, std::ios::binary );
-        fileStream.write( (char*) chunk.data(), chunk.size() );
+        {
+            std::ofstream fileStream( tmp, std::ios::binary );
+            fileStream.write( (char*) chunk.data(), chunk.size() );
+        }
 
         //InfoHash chunkHash = calculateInfoHashAndCreateTorrentFile( tmp, m_keyPair.publicKey(), m_torrentFolder, "" );
         InfoHash chunkHash = createTorrentFile( tmp, m_keyPair.publicKey(), m_chunkFolder, {} );

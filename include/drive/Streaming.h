@@ -22,8 +22,9 @@ namespace sirius::drive {
     //
     struct StreamRequest
     {
-        Hash256                     m_streamId; // transaction hash
-        std::string                 m_folder; // where it will be saved
+        Hash256                     m_streamId;     // transaction hash
+        Key                         m_streamerKey;  // streamer public key
+        std::string                 m_folder;       // where it will be saved
         uint64_t                    m_maxSizeBytes; // could be increased
     };
 

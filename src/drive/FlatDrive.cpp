@@ -707,13 +707,13 @@ public:
                     != m_modifyRecipientShard.end();
     }
 
-    void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo ) override
+    void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& sender ) override
     {
         DBG_MAIN_THREAD
         
         if ( m_task )
         {
-            m_task->acceptChunkInfoMessage( std::move(chunkInfo) );
+            m_task->acceptChunkInfoMessage( std::move(chunkInfo), sender );
         }
     }
 
