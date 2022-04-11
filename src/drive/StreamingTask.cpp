@@ -20,17 +20,25 @@ class StreamingTask : public UpdateDriveTaskBase
 {
     std::unique_ptr<StreamRequest>  m_request;
     
+    // 'ChunkInfo' are sent by 'StreamerClient' via DHT message
+    // They are saved in 'm_chunkInfoList' (ordered by m_chunkIndex)
+    //
+    // Chunks are downloaded one by one
+    // 'm_downloadingChunkInfo' is a refference to current downloading (or last downloaded) 'ChunkInfo'
+    //
+    // If some 'ChunkInfo' message is lost, it will be requested after the lost is detected
+    //
     using ChunkInfoList = std::list< std::unique_ptr<ChunkInfo> >;
     ChunkInfoList                   m_chunkInfoList;
     ChunkInfoList::iterator         m_downloadingChunkInfo = m_chunkInfoList.end();
-    //                             m_downloadingLtHandle;
     
+    boost::asio::ip::udp::endpoint  m_streamerEndpoint;
 
 public:
     
-    StreamingTask(  mobj<StreamRequest>&& request,
-                    DriveParams& drive,
-                    ModifyOpinionController& opinionTaskController )
+    StreamingTask(  mobj<StreamRequest>&&       request,
+                    DriveParams&                drive,
+                    ModifyOpinionController&    opinionTaskController )
             :
               UpdateDriveTaskBase( DriveTaskType::STREAMING_REQUEST, drive, opinionTaskController )
             , m_request( std::move(request) )
@@ -42,7 +50,6 @@ public:
     
     const Hash256& getModificationTransactionHash() override
     {
-        //(???)
         return m_request->m_streamId;
     }
     
@@ -50,7 +57,7 @@ public:
     {
         if ( chunkInfo->m_streamId != m_request->m_streamId )
         {
-            _LOG( "ignore playlist" )
+            _LOG_WARN( "ignore unkown stream" )
             return;
         }
         
@@ -59,6 +66,8 @@ public:
             _LOG_WARN( "Bad sign" )
             return;
         }
+        
+        m_streamerEndpoint = sender;
 
         //
         // Save playlist and try to download chunk
@@ -84,9 +93,9 @@ public:
                 }
                 else
                 {
+                    // request lost chunkInfo
                     for( auto i = backChunkIndex+1; i<newChunkIndex; i++ )
                     {
-                        // request missing chunkInfo
                         requestMissingChunkInfo( i, sender );
                     }
                 }
@@ -99,24 +108,22 @@ public:
 
                 for( auto it = m_chunkInfoList.rbegin(); it != m_chunkInfoList.rend(); it++ )
                 {
-                    if ( it->get()->m_chunkIndex >= newChunkIndex )
+                    if ( newChunkIndex <= it->get()->m_chunkIndex  )
                     {
-                        if ( it->get()->m_chunkIndex > newChunkIndex )
+                        if ( it->get()->m_chunkIndex == newChunkIndex )
+                        {
+                            // ignore already existing chunkInfo
+                        }
+                        else
                         {
                             // do insert
                             m_chunkInfoList.insert( it.base(), std::move(chunkInfo) );
                             tryRequestNextChunk();
                         }
-                        else
-                        {
-                            // ignore already existing chunkInfo
-                        }
                     }
                 }
             }
         }
-        
-        // start download StreamPlayList        
     }
     
     void requestMissingChunkInfo( uint32_t chunkIndex, const boost::asio::ip::udp::endpoint& sender )
@@ -128,8 +135,6 @@ public:
             archive( chunkIndex );
 
             session->sendMessage( "get-chunk-info", sender, os.str() );
-
-            //TODO ? timer?
         }
     }
     
@@ -141,10 +146,11 @@ public:
             return;
         }
         
-        // set proper m_downloadingChunkInfo
+        // assign 'm_downloadingChunkInfo'
         //
         if ( m_downloadingChunkInfo == m_chunkInfoList.end() )
         {
+            // set 1-st m_downloadingChunkInfo
             _ASSERT( ! m_chunkInfoList.empty() )
             m_downloadingChunkInfo = m_chunkInfoList.begin();
         }
@@ -154,13 +160,14 @@ public:
             if ( next == m_chunkInfoList.end() ||
                  m_downloadingChunkInfo->get()->m_chunkIndex+1 != next->get()->m_chunkIndex )
             {
-                //TODO ? requestMissingChunkInfo( m_downloadingChunkInfo->get()->m_chunkIndex+1 );
+                // we have lost ChunkInfo
+                requestMissingChunkInfo( m_downloadingChunkInfo->get()->m_chunkIndex+1, m_streamerEndpoint );
                 return;
             }
             m_downloadingChunkInfo = next;
         }
 
-        // start downloading
+        // start downloading chunk
         //
         if ( auto session = m_drive.m_session.lock(); session )
         {
