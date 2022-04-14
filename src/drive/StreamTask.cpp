@@ -16,7 +16,7 @@ namespace sirius::drive
 
 namespace fs = std::filesystem;
 
-class StreamingTask : public UpdateDriveTaskBase
+class StreamTask : public UpdateDriveTaskBase
 {
     std::unique_ptr<StreamRequest>  m_request;
     
@@ -36,17 +36,20 @@ class StreamingTask : public UpdateDriveTaskBase
 
 public:
     
-    StreamingTask(  mobj<StreamRequest>&&       request,
+    StreamTask(  mobj<StreamRequest>&&       request,
                     DriveParams&                drive,
                     ModifyOpinionController&    opinionTaskController )
             :
-              UpdateDriveTaskBase( DriveTaskType::STREAMING_REQUEST, drive, opinionTaskController )
+              UpdateDriveTaskBase( DriveTaskType::STREAM_REQUEST, drive, opinionTaskController )
             , m_request( std::move(request) )
     {
         _ASSERT( m_request )
     }
     
-    ~StreamingTask() = default;
+    ~StreamTask()
+    {
+        _LOG( "m_chunkInfoList.size: " << m_chunkInfoList.size() )
+    }
     
     const Hash256& getModificationTransactionHash() override
     {
@@ -65,6 +68,11 @@ public:
         {
             _LOG_WARN( "Bad sign" )
             return;
+        }
+        
+        if ( chunkInfo->m_chunkIndex == 2 )
+        {
+            _LOG( "chunkInfo->m_chunkIndex == 2" )
         }
         
         m_streamerEndpoint = sender;
@@ -108,7 +116,7 @@ public:
 
                 for( auto it = m_chunkInfoList.rbegin(); it != m_chunkInfoList.rend(); it++ )
                 {
-                    if ( newChunkIndex <= it->get()->m_chunkIndex  )
+                    if ( it->get()->m_chunkIndex <= newChunkIndex )
                     {
                         if ( it->get()->m_chunkIndex == newChunkIndex )
                         {
@@ -128,6 +136,7 @@ public:
     
     void requestMissingChunkInfo( uint32_t chunkIndex, const boost::asio::ip::udp::endpoint& sender )
     {
+        _LOG( "get-chunk-info: " << chunkIndex )
         if ( auto session = m_drive.m_session.lock(); session )
         {
             std::ostringstream os( std::ios::binary );
@@ -158,7 +167,7 @@ public:
         {
             auto next = std::next( m_downloadingChunkInfo, 1 );
             if ( next == m_chunkInfoList.end() ||
-                 m_downloadingChunkInfo->get()->m_chunkIndex+1 != next->get()->m_chunkIndex )
+                 (m_downloadingChunkInfo->get()->m_chunkIndex+1 != next->get()->m_chunkIndex) )
             {
                 // we have lost ChunkInfo
                 requestMissingChunkInfo( m_downloadingChunkInfo->get()->m_chunkIndex+1, m_streamerEndpoint );
@@ -240,7 +249,6 @@ public:
         //TODO
     }
 
-
     // Whether the finishTask can be called by the task itself
     void tryBreakTask() override
     {
@@ -260,11 +268,11 @@ public:
 };
 
 
-std::unique_ptr<StreamingTask> createStreamingTask( mobj<StreamRequest>&&       request,
-                                                    DriveParams&                drive,
-                                                    ModifyOpinionController&    opinionTaskController )
+std::unique_ptr<DriveTaskBase> createStreamTask( mobj<StreamRequest>&&       request,
+                                                 DriveParams&                drive,
+                                                 ModifyOpinionController&    opinionTaskController )
 {
-    return std::make_unique<StreamingTask>( std::move(request), drive, opinionTaskController );
+    return std::make_unique<StreamTask>( std::move(request), drive, opinionTaskController );
 }
 
 } // namespace sirius::drive

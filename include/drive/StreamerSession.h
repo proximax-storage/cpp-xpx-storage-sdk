@@ -19,17 +19,21 @@
 
 namespace sirius::drive {
 
-class StreamerSession : public ClientSession
+class StreamerSession : public ClientSession, public DhtMessageHandler
 {
     std::optional<Hash256>  m_streamId;
     Key                     m_driveKey;
     
-    endpoint_list           m_endPointList;
+    using udp_endpoint_list = std::set<boost::asio::ip::udp::endpoint>;
+    udp_endpoint_list       m_endPointList;
     
     fs::path                m_chunkFolder;
     fs::path                m_torrentFolder;
     
-    std::deque<Hash256>     m_chunkHashes;
+    using ChunkInfoMap = std::map<uint32_t,ChunkInfo>;
+    ChunkInfoMap            m_chunkInfoMap;
+    uint32_t                m_firstChunkIndex = 0;
+    uint32_t                m_lastChunkIndex  = 0;
     uint64_t                m_totalChunkBytes;
 
     const std::string       m_dbgOurPeerName;
@@ -47,7 +51,7 @@ public:
     {
     }
     
-    void initStreaming( const Hash256& streamId,
+    void initStream( const Hash256& streamId,
                         const Key& driveKey,
                         const fs::path& workFolder,
                         const endpoint_list& endPointList )
@@ -57,7 +61,11 @@ public:
 
         m_streamId = streamId;
         m_driveKey = driveKey;
-        m_endPointList = endPointList;
+
+        for( const auto& endpoint : endPointList )
+        {
+            m_endPointList.emplace( endpoint.address(), endpoint.port() );
+        }
         
         m_totalChunkBytes = 0;
 
@@ -69,7 +77,7 @@ public:
         fs::create_directories( m_torrentFolder );
     }
     
-    void addChunkToStream( const std::vector<uint8_t>& chunk, uint32_t durationMs )
+    void addChunkToStream( const std::vector<uint8_t>& chunk, uint32_t durationMs, bool dbgEmulateLostDhtMessage = false )
     {
         if ( ! m_streamId )
         {
@@ -78,8 +86,6 @@ public:
         }
         
         std::lock_guard<std::mutex> lock( m_chunkMutex );
-        
-        //??? BG_THREAD?
         
         fs::path tmp = m_chunkFolder / "newChunk";
         
@@ -92,10 +98,12 @@ public:
         InfoHash chunkHash = createTorrentFile( tmp, m_keyPair.publicKey(), m_chunkFolder, {} );
         fs::path chunkFilename = m_chunkFolder / toString( chunkHash );
 
+        _LOG( "*** chunkFilename: " << chunkFilename );
+
         // add chunk to libtorrent session
         if ( fs::exists( chunkFilename ) )
         {
-            _LOG( "Chunk already exists" );
+            _LOG( "*** Chunk already exists: " << chunkFilename );
             fs::remove( tmp );
         }
         else
@@ -105,20 +113,24 @@ public:
             fs::path torrentFilename = m_torrentFolder / toString( chunkHash );
             InfoHash chunkHash2 = createTorrentFile( chunkFilename, m_keyPair.publicKey(), m_chunkFolder, torrentFilename );
             _ASSERT( chunkHash2 == chunkHash )
+
             lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename,
                                                                           m_chunkFolder,
                                                                           lt::SiriusFlags::client_has_modify_data,
-                                                                          &chunkHash.array(),
-                                                                          nullptr,
                                                                           &m_keyPair.publicKey().array(),
+                                                                          nullptr,
+                                                                          nullptr, //&m_streamId->array(),
                                                                           {},
-                                                                          &m_totalChunkBytes );
+                                                                          nullptr );
+            m_totalChunkBytes += chunk.size();
         }
-        
-        m_chunkHashes.push_back( chunkHash );
-        uint32_t chunkIndex = (uint32_t) m_chunkHashes.size()-1;
-        
-        ChunkInfo chunkInfo { m_streamId->array(), chunkIndex, chunkHash.array(), durationMs, chunk.size(), {} };
+
+        auto [it,ok] = m_chunkInfoMap.emplace( m_lastChunkIndex,
+                               ChunkInfo{ m_streamId->array(), m_lastChunkIndex, chunkHash.array(), durationMs, chunk.size(), {} } );
+        m_lastChunkIndex++;
+        _ASSERT( ok )
+
+        auto& chunkInfo = it->second;
         chunkInfo.Sign( m_keyPair );
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
@@ -126,12 +138,63 @@ public:
         archive( driveKey );
         archive( chunkInfo );
 
-        for( auto& endpoint : m_endPointList )
+        if ( ! dbgEmulateLostDhtMessage )
         {
-            boost::asio::ip::udp::endpoint udp( endpoint.address(), endpoint.port() );
-            m_session->sendMessage( "chunk-info", udp, os.str() );
+            for( auto& endpoint : m_endPointList )
+            {
+                m_session->sendMessage( "chunk-info", endpoint, os.str() );
+            }
         }
     }
+    
+    void sendSingleChunkInfo( uint32_t index, const boost::asio::ip::udp::endpoint& endpoint )
+    {
+        std::lock_guard<std::mutex> lock( m_chunkMutex );
+
+        if ( auto it = m_chunkInfoMap.find( index ); it != m_chunkInfoMap.end() )
+        {
+            const ChunkInfo& chunkInfo = it->second;
+            std::ostringstream os( std::ios::binary );
+            cereal::PortableBinaryOutputArchive archive( os );
+            auto driveKey = m_driveKey.array();
+            archive( driveKey );
+            archive( chunkInfo );
+
+            m_session->sendMessage( "chunk-info", endpoint, os.str() );
+        }
+    }
+    
+    virtual bool on_dht_request( lt::string_view                         query,
+                                 boost::asio::ip::udp::endpoint const&   source,
+                                 lt::bdecode_node const&                 message,
+                                 lt::entry&                              response ) override
+    {
+        if ( query == "get-chunk-info" )
+        {
+            if ( m_endPointList.find( source) != m_endPointList.end() )
+            {
+                try
+                {
+                    auto str = message.dict_find_string_value("x");
+                    std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
+
+                    std::istringstream is( packet, std::ios::binary );
+                    cereal::PortableBinaryInputArchive iarchive(is);
+                    uint32_t chunkIndex;
+                    iarchive( chunkIndex );
+
+                    sendSingleChunkInfo( chunkIndex, source );
+                }
+                catch(...)
+                {
+                    _LOG_ERR( "invalid message 'get-chunk-info'" );
+                }
+            }
+        }
+        
+        return false;
+    }
+
 };
 
 inline std::shared_ptr<StreamerSession> createStreamerSession( const crypto::KeyPair&        keyPair,
@@ -142,7 +205,7 @@ inline std::shared_ptr<StreamerSession> createStreamerSession( const crypto::Key
                                                                const char*                   dbgClientName = "" )
 {
     std::shared_ptr<StreamerSession> session = std::make_shared<StreamerSession>( keyPair, dbgClientName );
-    session->m_session = createDefaultSession( address, errorHandler, session, bootstraps, useTcpSocket );
+    session->m_session = createDefaultSession( address, errorHandler, session, bootstraps, session );
     session->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     return session;
 }

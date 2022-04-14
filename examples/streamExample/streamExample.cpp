@@ -647,14 +647,14 @@ int main(int,char**)
     //
     // Prepare Client for streaming
     //
-    gStreamerSession->initStreaming( streamTx, DRIVE_PUB_KEY, gClientFolder / "streamFolder", endpointList );
+    gStreamerSession->initStream( streamTx, DRIVE_PUB_KEY, gClientFolder / "streamFolder", endpointList );
 
     const uint64_t maxStreamSize = 1024*1024*1024;
     StreamRequest streamRequest{ streamTx, streamerKeyPair.publicKey(), "streamFiles", maxStreamSize };
     
     for( auto replicator : gReplicatorArray )
     {
-        replicator->asyncStartStreaming( DRIVE_PUB_KEY, streamRequest );
+        replicator->asyncStartStream( DRIVE_PUB_KEY, streamRequest );
     }
 
     //
@@ -666,7 +666,8 @@ int main(int,char**)
         std::generate( chunk.begin(), chunk.end(), std::rand );
 //        uint8_t counter=0;
 //        std::generate( data.begin(), data.end(), [&] { return counter++;} );
-        gStreamerSession->addChunkToStream( chunk, 100 );
+        gStreamerSession->addChunkToStream( chunk, 100, i%3==2 );
+        __LOG( "*** c i=" << i )
         usleep(100000);
     }
     

@@ -18,7 +18,7 @@ namespace sirius::drive {
 //
 // Replicator
 //
-class ReplicatorInt: public Replicator
+class ReplicatorInt: public Replicator, public DhtMessageHandler
 {
 public:
 

@@ -571,9 +571,9 @@ class Replicator;
         virtual void     startVerification( mobj<VerificationRequest>&& request ) = 0;
         virtual void     cancelVerification( mobj<Hash256>&& tx ) = 0;
         
-        virtual void     startStreaming( mobj<StreamRequest>&& ) = 0;
-        virtual void     increaseStreaming( mobj<StreamIncreaseRequest>&& ) = 0;
-        virtual void     finishStreaming( mobj<StreamFinishRequest>&& ) = 0;
+        virtual void     startStream( mobj<StreamRequest>&& ) = 0;
+        virtual void     increaseStream( mobj<StreamIncreaseRequest>&& ) = 0;
+        virtual void     finishStream( mobj<StreamFinishRequest>&& ) = 0;
         
         // modification shards
         virtual void     addShardDonator( mobj<Key>&& replicatorKey ) = 0;

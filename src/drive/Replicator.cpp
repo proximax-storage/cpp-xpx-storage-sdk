@@ -690,7 +690,7 @@ public:
          });//post
     }
 
-    void asyncStartStreaming( Key driveKey, mobj<StreamRequest>&& request ) override
+    void asyncStartStream( Key driveKey, mobj<StreamRequest>&& request ) override
     {
         _FUNC_ENTRY()
 
@@ -705,7 +705,7 @@ public:
 
             if ( const auto drive = getDrive(driveKey); drive )
             {
-                //drive->startStreaming( std::move(request) );
+                drive->startStream( std::move(request) );
                 return;
             }
 
@@ -713,7 +713,7 @@ public:
         });//post
     }
     
-    void asyncIncreaseStreaming( Key driveKey, mobj<StreamIncreaseRequest>&& ) override
+    void asyncIncreaseStream( Key driveKey, mobj<StreamIncreaseRequest>&& ) override
     {
         _FUNC_ENTRY()
 
@@ -728,7 +728,7 @@ public:
 
             if ( const auto drive = getDrive(driveKey); drive )
             {
-                //drive->increaseStreaming( std::move(request) );
+                //drive->increaseStream( std::move(request) );
                 return;
             }
 
@@ -736,7 +736,7 @@ public:
         });//post
     }
     
-    void asyncFinishStreaming( Key driveKey, mobj<StreamFinishRequest>&& ) override
+    void asyncFinishStream( Key driveKey, mobj<StreamFinishRequest>&& ) override
     {
         _FUNC_ENTRY()
 
@@ -751,7 +751,7 @@ public:
 
             if ( const auto drive = getDrive(driveKey); drive )
             {
-                //drive->finishStreaming( std::move(request) );
+                //drive->finishStream( std::move(request) );
                 return;
             }
 
@@ -1851,6 +1851,104 @@ public:
         }
         
         return true;
+    }
+    
+    virtual bool on_dht_request( lt::string_view                         query,
+                                 boost::asio::ip::udp::endpoint const&   source,
+                                 lt::bdecode_node const&                 message,
+                                 lt::entry&                              response ) override
+    {
+        if ( isStopped() )
+        {
+            return false;
+        }
+
+//            _LOG( "message: " << message );
+//            _LOG( "response: " << response );
+
+        const std::set<lt::string_view> supportedQueries =
+                { "opinion", "dn_opinion", "code_verify", "verify_opinion", "handshake", "endpoint_request", "endpoint_response",
+                   "chunk-info"
+                };
+        if ( supportedQueries.contains(query) )
+        {
+            auto str = message.dict_find_string_value("x");
+            std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
+
+            onMessageReceived( std::string(query.begin(),query.end()), packet, source );
+
+            response["r"]["q"] = std::string(query);
+            response["r"]["ret"] = "ok";
+            return true;
+        }
+        
+        else if ( query == "get_dn_rcpts" )
+        {
+            // extract signature
+            auto sign = message.dict_find_string_value("sign");
+            Signature signature;
+            if ( sign.size() != signature.size() )
+            {
+                __LOG_WARN( "invalid query 'get_dn_rcpts'" )
+                return true;
+            }
+            memcpy( signature.data(), sign.data(), signature.size() );
+
+            // extract message
+            auto str = message.dict_find_string_value("x");
+
+            // extract request fields
+            //
+            ReplicatorKey senderKey;
+            DriveKey      driveKey;
+            ChannelId     channelId;
+
+            uint8_t* ptr = (uint8_t*)str.data();
+            memcpy( senderKey.data(), ptr, senderKey.size() );
+            ptr += senderKey.size();
+            memcpy( driveKey.data(), ptr, driveKey.size() );
+            ptr += driveKey.size();
+            memcpy( channelId.data(), ptr, channelId.size() );
+
+            if ( ! crypto::Verify( senderKey, { utils::RawBuffer{(const uint8_t*) str.data(), str.size()} }, signature ) )
+            {
+                __LOG_WARN( "invalid signature of 'get_dn_rcpts'" )
+                return true;
+            }
+
+
+            std::ostringstream os( std::ios::binary );
+            Signature responseSignature;
+            if ( createSyncRcpts( driveKey, channelId, os, responseSignature ) )
+            {
+                __LOG( "response[r][q]: " << query );
+                response["r"]["q"] = std::string(query);
+                response["r"]["ret"] = os.str();
+                response["r"]["sign"] = std::string( responseSignature.begin(), responseSignature.end() );
+            }
+            return true;
+        }
+            
+        else if ( query == "rcpt" )
+        {
+            auto str = message.dict_find_string_value("x");
+
+            RcptMessage msg( str.data(), str.size() );
+            
+            if ( ! msg.isValidSize() )
+            {
+                __LOG( "WARNING!!!: invalid rcpt size" )
+                return false;
+            }
+            
+            acceptReceiptFromAnotherReplicator( msg );
+
+            response["r"]["q"] = std::string(query);
+            response["r"]["ret"] = "ok";
+            return true;
+        }
+        
+        return false;
     }
     
 private:

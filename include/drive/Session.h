@@ -93,6 +93,18 @@ struct DownloadContext {
     
 };
 
+class DhtMessageHandler
+{
+public:
+    virtual ~DhtMessageHandler() = default;
+    
+    virtual bool on_dht_request( lt::string_view                         query,
+                                 boost::asio::ip::udp::endpoint const&   source,
+                                 lt::bdecode_node const&                 message,
+                                 lt::entry&                              response ) = 0;
+
+};
+
 //
 //
 // It provides the ability to exchange files
@@ -204,6 +216,6 @@ PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address,
                                                           const LibTorrentErrorHandler&,
                                                           std::weak_ptr<lt::session_delegate>,
                                                           const endpoint_list& bootstraps,
-                                                          bool useTcpSocket = true );
+                                                          std::weak_ptr<DhtMessageHandler> dhtMessageHandler );
 
 }

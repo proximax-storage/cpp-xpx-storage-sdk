@@ -93,9 +93,35 @@ class DefaultFlatDrive: public FlatDrive, public DriveParams
     mobj<DriveClosureRequest>               m_closeDriveRequest = {};
     mobj<ModificationCancelRequest>         m_modificationCancelRequest;
     mobj<CatchingUpRequest>                 m_catchingUpRequest;
-    std::deque<mobj<ModificationRequest>>   m_deferredModificationRequests;
-    mobj<VerificationRequest>               m_deferredVerificationRequest;
+    
+    struct DeferredRequest
+    {
+        mobj<ModificationRequest> m_modificationRequest;
+        mobj<StreamRequest>       m_streamRequest;
 
+        const Hash256& transactionHash() const
+        {
+            if ( m_modificationRequest )
+            {
+                return m_modificationRequest->m_transactionHash;
+            }
+            __ASSERT( m_streamRequest )
+            return m_streamRequest->m_streamId;
+        }
+        
+        uint64_t maxDataSize()
+        {
+            if ( m_modificationRequest )
+            {
+                return m_modificationRequest->m_maxDataSize;
+            }
+            __ASSERT( m_streamRequest )
+            return m_streamRequest->m_maxSizeBytes;
+        }
+    };
+    std::deque<DeferredRequest>             m_deferredModificationRequests;
+    
+    mobj<VerificationRequest>               m_deferredVerificationRequest;
 
     // Executing Drive Tasks
     std::unique_ptr<DriveTaskBase> m_task;
@@ -256,7 +282,7 @@ public:
         
         if ( !m_deferredModificationRequests.empty() )
         {
-            runModificationTask();
+            runDeferredModificationTask();
             return;
         }
     }
@@ -274,14 +300,32 @@ public:
         m_task->run();
     }
 
-    void runModificationTask()
+    void runDeferredModificationTask()
     {
         DBG_MAIN_THREAD
 
         _ASSERT( !m_task )
 
-        auto request = m_deferredModificationRequests.front();
+        DeferredRequest request{ std::move( m_deferredModificationRequests.front().m_modificationRequest ),
+                                 std::move( m_deferredModificationRequests.front().m_streamRequest ) };
         m_deferredModificationRequests.pop_front();
+        
+        if ( request.m_modificationRequest )
+        {
+            runModificationTask( std::move( request.m_modificationRequest ) );
+        }
+        else
+        {
+            __ASSERT( request.m_streamRequest )
+            runStreamTask( std::move( request.m_streamRequest ) );
+        }
+    }
+
+    void runModificationTask( mobj<ModificationRequest>&& request )
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( !m_task )
 
         auto opinions = std::move(m_unknownModificationOpinions[request->m_transactionHash]);
         m_unknownModificationOpinions.erase(request->m_transactionHash);
@@ -289,6 +333,22 @@ public:
         m_task = createModificationTask( std::move(request), std::move(opinions), *this, m_opinionController );
 
         _ASSERT( m_task->getTaskType() == DriveTaskType::MODIFICATION_REQUEST )
+
+        m_task->run();
+    }
+
+    void runStreamTask( mobj<StreamRequest>&& request )
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( !m_task )
+
+//        auto opinions = std::move(m_unknownModificationOpinions[request->m_transactionHash]);
+//        m_unknownModificationOpinions.erase(request->m_transactionHash);
+
+        m_task = createStreamTask( std::move(request), *this, m_opinionController );
+
+        _ASSERT( m_task->getTaskType() == DriveTaskType::STREAM_REQUEST )
 
         m_task->run();
     }
@@ -302,31 +362,31 @@ public:
         // clear modification queue - we will not execute these modifications
         auto it = std::find_if( m_deferredModificationRequests.begin(), m_deferredModificationRequests.end(), [&]( const auto& item )
             {
-                return item->m_transactionHash ==
-                       m_catchingUpRequest->m_modifyTransactionHash;
+                return item.transactionHash() == m_catchingUpRequest->m_modifyTransactionHash;
             } );
+        
         if (it != m_deferredModificationRequests.end() )
         {
             const auto& opinionTrafficIdentifier = m_opinionController.opinionTrafficTx();
             while (!m_deferredModificationRequests.empty() and it != m_deferredModificationRequests.begin() )
             {
                 if ( !opinionTrafficIdentifier
-                || *opinionTrafficIdentifier != m_deferredModificationRequests.front()->m_transactionHash.array() )
+                || *opinionTrafficIdentifier != m_deferredModificationRequests.front().transactionHash().array() )
                 {
-                    m_replicator.removeModifyDriveInfo(m_deferredModificationRequests.front()->m_transactionHash.array());
+                    m_replicator.removeModifyDriveInfo( m_deferredModificationRequests.front().transactionHash().array() );
                 }
-                m_opinionController.increaseApprovedExpectedCumulativeDownload(m_deferredModificationRequests.front()->m_maxDataSize);
+                m_opinionController.increaseApprovedExpectedCumulativeDownload( m_deferredModificationRequests.front().maxDataSize() );
                 m_deferredModificationRequests.pop_front();
             }
 
             _ASSERT( !m_deferredModificationRequests.empty() )
 
             if ( opinionTrafficIdentifier &&
-            *opinionTrafficIdentifier != m_deferredModificationRequests.front()->m_transactionHash.array() )
+            *opinionTrafficIdentifier != m_deferredModificationRequests.front().transactionHash().array() )
             {
-                m_replicator.removeModifyDriveInfo(m_deferredModificationRequests.front()->m_transactionHash.array());
+                m_replicator.removeModifyDriveInfo(m_deferredModificationRequests.front().transactionHash().array());
             }
-            m_opinionController.increaseApprovedExpectedCumulativeDownload(m_deferredModificationRequests.front()->m_maxDataSize);
+            m_opinionController.increaseApprovedExpectedCumulativeDownload( m_deferredModificationRequests.front().maxDataSize() );
             m_deferredModificationRequests.pop_front();
         }
 
@@ -525,7 +585,7 @@ public:
         _LOG ( "started modification " << Hash256{modifyRequest->m_transactionHash} )
 
         // ModificationIsCanceling check is redundant now
-        m_deferredModificationRequests.push_back(std::move(modifyRequest) );
+        m_deferredModificationRequests.push_back( DeferredRequest{ std::move(modifyRequest), {} } );
 
         if ( !m_task )
         {
@@ -545,7 +605,7 @@ public:
         else
         {
             auto it = std::find_if(m_deferredModificationRequests.begin(), m_deferredModificationRequests.end(), [&request](const auto& item)
-            { return item->m_transactionHash == request->m_modifyTransactionHash; });
+            { return item.transactionHash() == request->m_modifyTransactionHash; });
 
             if (it == m_deferredModificationRequests.end() )
             {
@@ -589,27 +649,26 @@ public:
         m_verificationTask.reset();
     }
     
-    void  startStreaming( mobj<StreamRequest>&& streamRequest ) override
+    void  startStream( mobj<StreamRequest>&& streamRequest ) override
     {
         DBG_MAIN_THREAD
 
         _LOG ( "start streaming: " << Hash256{streamRequest->m_streamId} )
 
-        // ModificationIsCanceling check is redundant now
-        //m_deferredModificationRequests.push_back(std::move(modifyRequest) );
+        m_deferredModificationRequests.push_back( DeferredRequest{ {}, std::move(streamRequest) } );
 
-        if ( !m_task )
+        if ( ! m_task )
         {
             runNextTask();
         }
     }
     
-    void  increaseStreaming( mobj<StreamIncreaseRequest>&& ) override
+    void  increaseStream( mobj<StreamIncreaseRequest>&& ) override
     {
         
     }
     
-    void  finishStreaming( mobj<StreamFinishRequest>&& ) override
+    void  finishStream( mobj<StreamFinishRequest>&& ) override
     {
         
     }

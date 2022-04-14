@@ -26,7 +26,7 @@ enum class DriveTaskType
     MODIFICATION_CANCEL,
     CATCHING_UP,
     MODIFICATION_REQUEST,
-    STREAMING_REQUEST,
+    STREAM_REQUEST,
     DRIVE_VERIFICATION
 };
 
@@ -122,7 +122,7 @@ public:
 
     virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& sender )
     {
-        // it must be overriden by StreamingTask
+        // it must be overriden by StreamTask
     }
 
 protected:
@@ -202,29 +202,33 @@ protected:
     }
 };
 
-std::unique_ptr<DriveTaskBase> createDriveInitializationTask( DriveParams& drive,
-                                                              ModifyOpinionController& opinionTaskController );
+std::unique_ptr<DriveTaskBase> createDriveInitializationTask( DriveParams&              drive,
+                                                              ModifyOpinionController&  opinionTaskController );
 
 std::unique_ptr<DriveTaskBase> createModificationTask(
-        mobj<ModificationRequest>&& request,
-        std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>&& receivedOpinions,
-        DriveParams& drive,
-        ModifyOpinionController& opinionTaskController );
+        mobj<ModificationRequest>&&                                 request,
+        std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>&&  receivedOpinions,
+        DriveParams&                                                drive,
+        ModifyOpinionController&                                    opinionTaskController );
 
-std::unique_ptr<DriveTaskBase> createCatchingUpTask( mobj<CatchingUpRequest>&& request,
-                                                     DriveParams& drive,
-                                                     ModifyOpinionController& opinionTaskController );
+std::unique_ptr<DriveTaskBase> createStreamTask( mobj<StreamRequest>&&       request,
+                                                 DriveParams&                drive,
+                                                 ModifyOpinionController&    opinionTaskController );
 
-std::unique_ptr<DriveTaskBase> createModificationCancelTask( mobj<ModificationCancelRequest>&& request,
-                                                             DriveParams& drive,
-                                                             ModifyOpinionController& opinionTaskController );
+std::unique_ptr<DriveTaskBase> createCatchingUpTask( mobj<CatchingUpRequest>&&  request,
+                                                     DriveParams&               drive,
+                                                     ModifyOpinionController&   opinionTaskController );
 
-std::unique_ptr<DriveTaskBase> createDriveClosureTask( mobj<DriveClosureRequest>&& request,
-                                                       DriveParams& drive );
+std::unique_ptr<DriveTaskBase> createModificationCancelTask( mobj<ModificationCancelRequest>&&  request,
+                                                             DriveParams&                       drive,
+                                                             ModifyOpinionController&           opinionTaskController );
 
-std::unique_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,
+std::unique_ptr<DriveTaskBase> createDriveClosureTask( mobj<DriveClosureRequest>&&  request,
+                                                       DriveParams&                 drive );
+
+std::unique_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&&         request,
                                                             std::vector<VerifyApprovalTxInfo>&& receivedOpinions,
                                                             std::vector<VerificationCodeInfo>&& receivedCodes,
-                                                            DriveParams& drive );
+                                                            DriveParams&                        drive );
 
 }

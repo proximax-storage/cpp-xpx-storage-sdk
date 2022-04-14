@@ -48,7 +48,7 @@ namespace sirius::drive {
         std::array<uint8_t,32>      m_chunkInfoHash;
         uint32_t                    m_durationMs;
         uint64_t                    m_sizeBytes;
-        Signature                   m_sign;
+        std::array<uint8_t, 64>     m_sign;
 
         template <class Archive> void serialize( Archive & arch )
         {
@@ -57,6 +57,7 @@ namespace sirius::drive {
             arch( m_chunkInfoHash );
             arch( m_durationMs );
             arch( m_sizeBytes );
+            arch( m_sign );
         }
 
         void Sign( const crypto::KeyPair& keyPair )
@@ -69,7 +70,7 @@ namespace sirius::drive {
                                 utils::RawBuffer{ (const uint8_t*) &m_durationMs, sizeof(m_durationMs) },
                                 utils::RawBuffer{ (const uint8_t*) &m_sizeBytes,  sizeof(m_sizeBytes)  },
                           },
-                          m_sign );
+                         reinterpret_cast<Signature &>(m_sign) );
         }
 
         bool Verify( const Key& streamerKey ) const
@@ -82,7 +83,7 @@ namespace sirius::drive {
                                         utils::RawBuffer{ (const uint8_t*) &m_durationMs, sizeof(m_durationMs) },
                                         utils::RawBuffer{ (const uint8_t*) &m_sizeBytes,  sizeof(m_sizeBytes)  },
                                    },
-                                   m_sign );
+                                  reinterpret_cast<const Signature &>(m_sign) );
         }
     };
 

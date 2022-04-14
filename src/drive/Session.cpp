@@ -124,8 +124,10 @@ public:
     {
         m_dbgOurPeerName = m_downloadLimiter.lock()->dbgOurPeerName();
         
-        continueSessionCreation();
+        m_session.set_alert_notify( [this] { this->alertHandler(); } );
+        m_session.add_extension(std::make_shared<DhtRequestPlugin>(  m_replicator ));
         m_session.setDelegate( m_downloadLimiter );
+        
         _LOG( "DefaultSession created: " );
         _LOG( "DefaultSession created: " << m_addressAndPort );
         _LOG( "DefaultSession created: " << m_addressAndPort << " " << m_replicator.lock() );
@@ -138,7 +140,8 @@ public:
                     LibTorrentErrorHandler                  alertHandler,
                     std::weak_ptr<lt::session_delegate>     downloadLimiter,
                     bool                                    useTcpSocket,
-                    const endpoint_list&                    bootstraps
+                    const endpoint_list&                    bootstraps,
+                    std::weak_ptr<DhtMessageHandler>        dhtMessageHandler
                     )
         : m_ownerIsReplicator(false)
         , m_addressAndPort(address)
@@ -150,8 +153,10 @@ public:
         if ( downloadLimiter.lock() )
             m_dbgOurPeerName = downloadLimiter.lock()->dbgOurPeerName();
         
-        continueSessionCreation();
+        m_session.set_alert_notify( [this] { this->alertHandler(); } );
+        m_session.add_extension(std::make_shared<DhtRequestPlugin>(  dhtMessageHandler ));
         m_session.setDelegate( m_downloadLimiter );
+
         _LOG( "DefaultSession created: " << m_addressAndPort );
     }
 
@@ -296,12 +301,6 @@ public:
         m_dbgThreadId = std::this_thread::get_id();
     }
     
-    // createSession
-    void continueSessionCreation() {
-        m_session.set_alert_notify( [this] { alertHandler(); } );
-        addDhtRequestPlugin();
-    }
-
     virtual void endSession() override {
         m_stopping = true;
         _LOG( "stop session" )
@@ -578,7 +577,9 @@ public:
 //        std::weak_ptr<lt::session_delegate> m_replicator;
 //        DhtRequestPlugin( std::weak_ptr<lt::session_delegate> replicator ) : m_replicator(replicator) {}
         std::weak_ptr<ReplicatorInt> m_replicator;
-        DhtRequestPlugin( std::weak_ptr<ReplicatorInt> replicator ) : m_replicator(replicator) {}
+        std::weak_ptr<DhtMessageHandler> m_handler;
+        //DhtRequestPlugin( std::weak_ptr<ReplicatorInt> replicator ) : m_replicator(replicator) {}
+        DhtRequestPlugin( std::weak_ptr<DhtMessageHandler> replicator ) : m_handler(replicator) {}
 
         feature_flags_t implemented_features() override
         {
@@ -591,121 +592,22 @@ public:
             lt::bdecode_node const&                 message,
             lt::entry&                              response ) override
         {
-            //__LOG( "on_dht_request: query: " << query );
-            
-            if ( auto replicator = m_replicator.lock(); ! replicator || replicator->isStopped() )
-            {
-                return false;
-            }
-
             if ( query == "get_peers" || query == "announce_peer" )
             {
-                //(???) NULL dht_direct_response_alert?
                 return false;
             }
 
-//            _LOG( "message: " << message );
-//            _LOG( "response: " << response );
-
-            const std::set<lt::string_view> supportedQueries =
-                    { "opinion", "dn_opinion", "code_verify", "verify_opinion", "handshake", "endpoint_request", "endpoint_response",
-                       "chunk-info"
-                    };
-            if ( supportedQueries.contains(query) )
+            if ( auto handler = m_handler.lock(); handler )
             {
-                auto str = message.dict_find_string_value("x");
-                std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
-
-                if ( auto replicator = m_replicator.lock(); replicator )
-                {
-                    replicator->onMessageReceived( std::string(query.begin(),query.end()), packet, source );
-                }
-
-                response["r"]["q"] = std::string(query);
-                response["r"]["ret"] = "ok";
-                return true;
+                return handler->on_dht_request( query,
+                                                source,
+                                                message,
+                                                response );
             }
-            
-            else if ( query == "get_dn_rcpts" )
-            {
-                // extract signature
-                auto sign = message.dict_find_string_value("sign");
-                Signature signature;
-                if ( sign.size() != signature.size() )
-                {
-                    __LOG_WARN( "invalid query 'get_dn_rcpts'" )
-                    return true;
-                }
-                memcpy( signature.data(), sign.data(), signature.size() );
 
-                // extract message
-                auto str = message.dict_find_string_value("x");
-
-                // extract request fields
-                //
-                ReplicatorKey senderKey;
-                DriveKey      driveKey;
-                ChannelId     channelId;
-
-                uint8_t* ptr = (uint8_t*)str.data();
-                memcpy( senderKey.data(), ptr, senderKey.size() );
-                ptr += senderKey.size();
-                memcpy( driveKey.data(), ptr, driveKey.size() );
-                ptr += driveKey.size();
-                memcpy( channelId.data(), ptr, channelId.size() );
-
-                if ( ! crypto::Verify( senderKey, { utils::RawBuffer{(const uint8_t*) str.data(), str.size()} }, signature ) )
-                {
-                    __LOG_WARN( "invalid signature of 'get_dn_rcpts'" )
-                    return true;
-                }
-
-
-                if ( auto replicator = m_replicator.lock(); replicator )
-                {
-                    std::ostringstream os( std::ios::binary );
-                    Signature responseSignature;
-                    if ( replicator->createSyncRcpts( driveKey, channelId, os, responseSignature ) )
-                    {
-                        __LOG( "response[r][q]: " << query );
-                        response["r"]["q"] = std::string(query);
-                        response["r"]["ret"] = os.str();
-                        response["r"]["sign"] = std::string( responseSignature.begin(), responseSignature.end() );
-                    }
-                    return true;
-                }
-            }
-                
-            else if ( query == "rcpt" )
-            {
-                auto str = message.dict_find_string_value("x");
-
-                RcptMessage msg( str.data(), str.size() );
-                
-                if ( ! msg.isValidSize() )
-                {
-                    __LOG( "WARNING!!!: invalid rcpt size" )
-                    return false;
-                }
-                
-                if ( auto replicator = m_replicator.lock(); replicator )
-                {
-                    replicator->acceptReceiptFromAnotherReplicator( msg );
-                }
-
-                response["r"]["q"] = std::string(query);
-                response["r"]["ret"] = "ok";
-                return true;
-            }
-            
             return false;
         }
     };
-
-    void addDhtRequestPlugin()
-    {
-        m_session.add_extension(std::make_shared<DhtRequestPlugin>(  m_replicator ));
-    }
 
 //    void  sendMessage( boost::asio::ip::udp::endpoint udp, const std::vector<uint8_t>& ) override
 //    {
@@ -1599,9 +1501,9 @@ std::shared_ptr<Session> createDefaultSession( std::string                      
                                                const LibTorrentErrorHandler&        alertHandler,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
                                                const endpoint_list&                 bootstraps,
-                                               bool                                 useTcpSocket)
+                                               std::weak_ptr<DhtMessageHandler>     dhtMessageHandler )
 {
-    return std::make_shared<DefaultSession>( address, alertHandler, downloadLimiter, useTcpSocket, bootstraps );
+    return std::make_shared<DefaultSession>( address, alertHandler, downloadLimiter, false, bootstraps, dhtMessageHandler );
 }
 
 }
