@@ -403,9 +403,9 @@ public:
         params.flags &= ~lt::torrent_flags::update_subscribe;
         params.flags &= ~lt::torrent_flags::apply_ip_filter;
         params.flags &= ~lt::torrent_flags::need_save_resume;
-        params.flags &= ~lt::torrent_flags::upload_mode;
 
         params.flags |= lt::torrent_flags::seed_mode;
+        params.flags |= lt::torrent_flags::upload_mode;
         params.flags |= lt::torrent_flags::no_verify_files;
         
         // set super seeding mode for clients
@@ -473,9 +473,6 @@ public:
         auto userdata = new LtClientData();
         userdata->m_saveTorrentFilename = saveTorrentFolder;
         params.userdata = userdata;
-
-        params.flags &= ~lt::torrent_flags::paused;
-        params.flags &= ~lt::torrent_flags::auto_managed;
 
         // where the file will be placed
         params.save_path = saveFolder;
