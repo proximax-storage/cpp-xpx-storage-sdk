@@ -213,7 +213,7 @@ public:
         // At any case opinions with the same replicator key must be removed
         //
         auto& opinions = m_myVerificationApprovalTxInfo->m_opinions;
-        std::remove_if( opinions.begin(), opinions.end(), [&info] (const auto& it) {
+        std::erase_if( opinions, [&info] (const auto& it) {
             return it.m_publicKey == info.m_opinions[0].m_publicKey;
         });
 
@@ -261,10 +261,6 @@ private:
         }
 
         calculateVerifyCodes( *m_drive.m_fsTree );
-
-        _LOG ( "calculated" )
-
-        auto h = shared_from_this();
 
         m_drive.executeOnSessionThread( [t = weak_from_this()]
                                         {
@@ -538,12 +534,12 @@ private:
 
 };
 
-std::unique_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,
+std::shared_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,
                                                             std::vector<VerifyApprovalTxInfo>&& receivedOpinions,
                                                             std::vector<VerificationCodeInfo>&& receivedCodes,
                                                             DriveParams& drive )
 {
-    return std::make_unique<VerificationDriveTask>( std::move(request), std::move(receivedOpinions), std::move(receivedCodes), drive );
+    return std::make_shared<VerificationDriveTask>( std::move(request), std::move(receivedOpinions), std::move(receivedCodes), drive );
 }
 
 }

@@ -99,7 +99,7 @@ class DefaultFlatDrive: public FlatDrive, public DriveParams
 
     // Executing Drive Tasks
     std::unique_ptr<DriveTaskBase> m_task;
-    std::unique_ptr<DriveTaskBase> m_verificationTask;
+    std::shared_ptr<DriveTaskBase> m_verificationTask;
 
 public:
 
@@ -405,7 +405,9 @@ public:
         {
             _LOG_ERR("startVerification: internal error: m_verificationRequest != null")
         }
-        
+
+        _LOG ( "Received Verification Request " << m_deferredVerificationRequest->m_actualRootHash << " " << m_rootHash );
+
         if (m_deferredVerificationRequest->m_actualRootHash == m_rootHash )
         {
             runVerificationTask();
