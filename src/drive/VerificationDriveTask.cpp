@@ -31,6 +31,7 @@ private:
     std::thread                                                 m_verifyThread;
 
     bool                                                        m_myVerifyCodesCalculated;
+	bool														m_codeTimerRun;
     bool                                                        m_verifyApproveTxSent;
     std::optional<boost::posix_time::ptime>                     m_verificationStartedAt;
 
@@ -55,6 +56,7 @@ public:
             : DriveTaskBase(DriveTaskType::DRIVE_VERIFICATION, drive)
             , m_request(request)
             , m_myVerifyCodesCalculated(false)
+			, m_codeTimerRun(false)
             , m_verifyApproveTxSent(false)
             , m_verificationMustBeInterrupted(false)
     {
@@ -424,31 +426,29 @@ private:
             m_verifyCodeTimer.reset();
             verifyCodeTimerExpired();
         }
-        else if ( !m_verifyApproveTxSent )
-        {
-            // start timer if it is not started
-            if ( !m_verifyCodeTimer )
-            {
-                _ASSERT( m_verificationStartedAt )
+        else if ( !m_codeTimerRun )
+		{
+			m_codeTimerRun = true;
 
-                auto secondsSinceVerificationStart =
-                        (boost::posix_time::microsec_clock::universal_time() - *m_verificationStartedAt).total_seconds();
-                int codesDelay;
-                if ( m_request->m_durationMs > secondsSinceVerificationStart + m_drive.m_replicator.getVerifyCodeTimerDelay() )
-                {
-                    codesDelay = int(m_request->m_durationMs - secondsSinceVerificationStart + m_drive.m_replicator.getVerifyCodeTimerDelay());
-                }
-                else
-                {
-                    codesDelay = 0;
-                }
+			_ASSERT( m_verificationStartedAt )
 
-                if ( auto session = m_drive.m_session.lock(); session )
-                {
-                    m_verifyCodeTimer = session->startTimer( codesDelay,
-                                                             [this]() { verifyCodeTimerExpired(); } );
-                }
-            }
+			auto secondsSinceVerificationStart =
+					(boost::posix_time::microsec_clock::universal_time() - *m_verificationStartedAt).total_seconds();
+			int codesDelay;
+			if ( m_request->m_durationMs > secondsSinceVerificationStart + m_drive.m_replicator.getVerifyCodeTimerDelay() )
+			{
+				codesDelay = int(m_request->m_durationMs - secondsSinceVerificationStart + m_drive.m_replicator.getVerifyCodeTimerDelay());
+			}
+			else
+			{
+				codesDelay = 0;
+			}
+
+			if ( auto session = m_drive.m_session.lock(); session )
+			{
+				m_verifyCodeTimer = session->startTimer( codesDelay,
+														 [this]() { verifyCodeTimerExpired(); } );
+			}
         }
     }
 
