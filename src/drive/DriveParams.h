@@ -218,6 +218,9 @@ public:
     // and for deleting unused files and torrents from session
     //
     std::map<InfoHash, UseTorrentInfo> m_torrentHandleMap;
+    
+    bool                               m_isRemovingUnusedTorrents = false;
+    bool                               m_isWaitingNextTask        = false;
 
     //
     // Drive state

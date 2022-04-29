@@ -64,7 +64,6 @@ public:
 
     void modifyDrive( const Key& driveKey,
                       const drive::ActionList& actionList,
-                      const uint64_t maxDataSize,
                       std::function<void()> endDriveModificationCallback);
 
     void downloadFsTree(const Key& drivePubKey,

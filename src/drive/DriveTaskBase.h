@@ -151,8 +151,6 @@ protected:
         } );
     }
 
-    // Recursively marks 'm_toBeRemoved' as false
-    //
     void markUsedFiles( const Folder& folder )
     {
         DBG_MAIN_THREAD

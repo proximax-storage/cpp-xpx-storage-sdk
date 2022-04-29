@@ -65,7 +65,7 @@ private:
         std::set<InfoHash> filesToRemove;
 
         for ( auto it = torrentHandleMap.begin(); it != torrentHandleMap.end(); ) {
-            if ( !it->second.m_isUsed )
+            if ( ! it->second.m_isUsed )
             {
                 filesToRemove.insert( it->first );
                 it = torrentHandleMap.erase( it );

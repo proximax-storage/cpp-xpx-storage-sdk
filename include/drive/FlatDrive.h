@@ -321,6 +321,7 @@ class Replicator;
         InfoHash                    m_actualRootHash;
         std::vector<Key>            m_replicators;
         std::uint32_t               m_durationMs;
+        std::set<Key>               m_blockedReplicators; // blocked until verification will be approved
     };
 
     struct VerificationCodeInfo
@@ -583,7 +584,7 @@ class Replicator;
         virtual void     setShardRecipient( mobj<ReplicatorList>&& replicatorKeys ) = 0;
 
         virtual const ReplicatorList& donatorShard()   const = 0;
-        virtual const ReplicatorList& recipientShard() const = 0;
+        virtual bool     acceptConnectionFromReplicator( const Key& ) const = 0;
 
         virtual void     onVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
 
