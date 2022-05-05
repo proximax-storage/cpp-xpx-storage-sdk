@@ -766,16 +766,27 @@ public:
                     != m_modifyRecipientShard.end();
     }
 
-    void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& sender ) override
+    void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& streamer ) override
     {
         DBG_MAIN_THREAD
         
         if ( m_task )
         {
-            m_task->acceptChunkInfoMessage( std::move(chunkInfo), sender );
+            m_task->acceptChunkInfoMessage( std::move(chunkInfo), streamer );
         }
     }
 
+    void acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
+                                     const boost::asio::ip::udp::endpoint&  viewer,
+                                     lt::entry&                             response ) override
+    {
+        DBG_MAIN_THREAD
+        
+        if ( m_task )
+        {
+            m_task->acceptGetChunksInfoMessage( chunkIndex, viewer, response );
+        }
+    }
     ////////////
 
     void dbgPrintDriveStatus() override
@@ -785,6 +796,49 @@ public:
         if ( auto session = m_session.lock(); session )
         {
             session->dbgPrintActiveTorrents();
+        }
+    }
+    
+    virtual void dbgAsyncDownloadToSandbox( InfoHash infoHash, std::function<void()> endNotifyer ) override
+    {
+        if ( auto session = m_session.lock(); session )
+        {
+            static std::array<uint8_t,32> streamTx  = std::array<uint8_t,32>{0xee,0xee,0xee,0xee};
+
+            session->download(
+                   DownloadContext(
+                           DownloadContext::missing_files,
+                           [=,this]( download_status::code code,
+                                   const InfoHash& infoHash,
+                                   const std::filesystem::path saveAs,
+                                   size_t /*downloaded*/,
+                                   size_t /*fileSize*/,
+                                   const std::string& errorText )
+                           {
+                               DBG_MAIN_THREAD
+
+                               if ( code == download_status::failed )
+                               {
+                                   //todo is it possible?
+                                   _ASSERT( 0 );
+                                   return;
+                               }
+
+                               if ( code == download_status::download_complete )
+                               {
+                                   endNotifyer();
+                               }
+                           },
+                           infoHash,
+                           *m_opinionController.opinionTrafficTx(),
+                           0, true, ""
+                   ),
+                   m_sandboxRootPath,
+                   m_sandboxRootPath / toString(infoHash),
+                   {},
+                   &m_driveKey.array(),
+                   nullptr,
+                   &streamTx );
         }
     }
     

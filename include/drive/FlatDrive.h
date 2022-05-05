@@ -10,6 +10,7 @@
 #include "plugins.h"
 #include "crypto/Signer.h"
 #include "drive/Streaming.h"
+#include <libtorrent/alert_types.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ip/udp.hpp>
 #include <cereal/archives/binary.hpp>
@@ -605,10 +606,16 @@ class Replicator;
 
         // for testing and debugging
         virtual void dbgPrintDriveStatus() = 0;
+        virtual void dbgAsyncDownloadToSandbox( InfoHash infoHash, std::function<void()> endNotifyer ) = 0;
+
 
         static std::string driveIsClosingPath( const std::string& driveRootPath );
         
         virtual void     acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
+
+        virtual void     acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
+                                                     const boost::asio::ip::udp::endpoint&  viewer,
+                                                     lt::entry&                             response ) = 0;
     };
 
     class Session;

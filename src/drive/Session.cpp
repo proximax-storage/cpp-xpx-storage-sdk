@@ -476,6 +476,9 @@ public:
         auto userdata = new LtClientData();
         userdata->m_saveTorrentFilename = saveTorrentFolder;
         params.userdata = userdata;
+//        params.flags &= ~lt::torrent_flags::paused;
+//        //params.flags &= ~lt::torrent_flags::auto_managed;
+//        params.flags |= lt::torrent_flags::auto_managed;
 
         // where the file will be placed
         params.save_path = saveFolder;
@@ -495,6 +498,7 @@ public:
         // create torrent_handle
         lt::torrent_handle tHandle = m_session.add_torrent(params,ec);
         if (ec) {
+            _LOG( "downloadFile error: " << ec.message() << " " << magnetLink(downloadContext.m_infoHash) );
             throw std::runtime_error( std::string("downloadFile error: ") + ec.message() );
         }
 
@@ -697,20 +701,32 @@ public:
 
     void handleDhtResponse( lt::bdecode_node response )
     {
-        try
+        if ( auto delegate = m_downloadLimiter.lock(); delegate )
         {
-            auto rDict = response.dict_find_dict("r");
-            auto query = rDict.dict_find_string_value("q");
-            if ( query == "get_dn_rcpts" )
-            {
-                lt::string_view response = rDict.dict_find_string_value("ret");
-                lt::string_view sign = rDict.dict_find_string_value("sign");
-                m_replicator.lock()->onSyncRcptReceived( response, sign );
-            }
+            delegate->handleDhtResponse( response );
         }
-        catch(...)
-        {
-        }
+//        try
+//        {
+//            auto rDict = response.dict_find_dict("r");
+//            auto query = rDict.dict_find_string_value("q");
+//            _LOG( "handleDhtResponse: " << query )
+//            if ( query == "get_dn_rcpts" )
+//            {
+//                lt::string_view response = rDict.dict_find_string_value("ret");
+//                lt::string_view sign = rDict.dict_find_string_value("sign");
+//                m_replicator.lock()->onSyncRcptReceived( response, sign );
+//            }
+//
+////            else if ( query == "get-chunks-info" )
+////            {
+////                lt::string_view response = rDict.dict_find_string_value("ret");
+////                lt::string_view sign = rDict.dict_find_string_value("sign");
+////                m_replicator.lock()->onSyncRcptReceived( response, sign );
+////            }
+//        }
+//        catch(...)
+//        {
+//        }
     }
     
     virtual std::optional<boost::asio::high_resolution_timer> startTimer( int miliseconds, const std::function<void()>& func ) override
@@ -779,6 +795,8 @@ private:
         // loop by alerts
         for (auto &alert : alerts) {
 
+            //_LOG( ">>>" << alert->what() << " (type="<< alert->type() <<"):  " << alert->message() );
+            
 ////            if ( alert->type() == lt::dht_log_alert::alert_type || alert->type() == lt::dht_direct_response_alert::alert_type )
 //            {
 //                    _LOG( ">" << m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
@@ -870,7 +888,7 @@ private:
                             userdata->m_uploadedDataSize = theAlert->handle.torrent_file()->total_size();
 
                             bool limitIsExceeded = downloadLimit != 0 && downloadLimit < theAlert->handle.torrent_file()->total_size();
-                            _LOG( "+**** limitIsExceeded?: " << downloadLimit << " " << theAlert->handle.torrent_file()->total_size() );
+                            //_LOG( "+**** limitIsExceeded?: " << downloadLimit << " " << theAlert->handle.torrent_file()->total_size() );
                             if ( limitIsExceeded )
                             {
                                 _LOG( "+**** limitIsExceeded: " << theAlert->handle.torrent_file()->total_size() );
@@ -918,7 +936,7 @@ private:
                          {
                              auto query = rDict.dict_find_string_value("q");
                              //_LOG( "dht_query: " << query )
-                             if ( query == "get_dn_rcpts" )
+                             if ( query == "get_dn_rcpts" || query == "get-chunks-info" )
                              {
                                  handleDhtResponse( response);
                              }
@@ -968,6 +986,8 @@ private:
                 // piece_finished_alert
                 case lt::piece_finished_alert::alert_type:
                 {
+                    //_LOG( "*** piece_finished_alert:" );
+
 //                    auto *theAlert = dynamic_cast<lt::piece_finished_alert *>(alert);
 //                    if ( theAlert ) _LOG( "piece_finished_alert: " << theAlert->handle.torrent_file()->files().file_path(0) );
 //
@@ -1072,7 +1092,7 @@ private:
                         break;
                     }
 
-                    if ( userdata != nullptr && userdata->m_dnContexts.size()>0 )
+                    if ( userdata->m_dnContexts.size()>0 )
                     {
                         auto dnContext = userdata->m_dnContexts.front();
                         if ( dnContext.m_doNotDeleteTorrent )

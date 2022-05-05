@@ -14,6 +14,7 @@
 namespace sirius::drive {
 
 class StreamerSession;
+class ViewerSession;
 
 class ClientSession : public lt::session_delegate, public std::enable_shared_from_this<ClientSession>
 {
@@ -27,7 +28,7 @@ protected:
         Session::lt_handle  m_ltHandle = {};
         bool                m_isUsed = true;
     };
-    using ModifyTorrentMap = std::map<InfoHash,ModifyTorrentInfo>;
+    using TorrentMap = std::map<InfoHash,ModifyTorrentInfo>;
 
     std::shared_ptr<Session>    m_session;
     const crypto::KeyPair&      m_keyPair;
@@ -37,7 +38,7 @@ protected:
     ReplicatorTraficMap         m_requestedSize;
     ReplicatorTraficMap         m_receivedSize;
     
-    ModifyTorrentMap            m_modifyTorrentMap;
+    TorrentMap                  m_modifyTorrentMap;
 
     const char*                 m_dbgOurPeerName;
 
@@ -53,6 +54,11 @@ public:
         _LOG( "ClientSession deleted" );
     }
 public:
+
+    const std::array<uint8_t,32>& publicKey() override
+    {
+        return m_keyPair.publicKey().array();
+    }
 
     virtual void onTorrentDeleted( lt::torrent_handle handle ) override
     {
@@ -411,7 +417,7 @@ protected:
     void signHandshake( const uint8_t* bytes, size_t size, std::array<uint8_t,64>& signature ) override
     {
         crypto::Sign( m_keyPair, utils::RawBuffer{bytes,size}, reinterpret_cast<Signature&>(signature) );
-        _LOG( "SIGN HANDSHAKE: " << int(signature[0]) )
+        //_LOG( "SIGN HANDSHAKE: " << int(signature[0]) )
     }
 
     virtual bool verifyHandshake( const uint8_t* bytes, size_t size,
@@ -454,11 +460,6 @@ protected:
                              utils::RawBuffer{reinterpret_cast<const uint8_t *>(salt.data()), salt.size()}
                      },
                      reinterpret_cast<Signature &>(sig));
-    }
-
-    const std::array<uint8_t,32>& publicKey() override
-    {
-        return m_keyPair.publicKey().array();
     }
 
 //    void setStartReceivedSize( uint64_t downloadedSize ) override
@@ -515,6 +516,10 @@ protected:
 //    virtual void onMessageReceived( const std::string& query, const std::string& message, const boost::asio::ip::udp::endpoint& source ) override
 //    {
 //    }
+    
+    void handleDhtResponse( lt::bdecode_node response ) override
+    {
+    }
 
     const char* dbgOurPeerName() override
     {
@@ -535,6 +540,13 @@ private:
                                                                    const endpoint_list&,
                                                                    bool,
                                                                    const char* );
+
+    friend std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&,
+                                                               const std::string&,
+                                                               const LibTorrentErrorHandler&,
+                                                               const endpoint_list&,
+                                                               bool,
+                                                               const char* );
 
     auto session() { return m_session; }
 };

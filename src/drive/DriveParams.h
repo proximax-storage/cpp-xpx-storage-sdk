@@ -180,6 +180,8 @@ public:
     const fs::path  m_sandboxRootPath       = m_replicatorSandboxRoot / arrayToString(m_driveKey.array());
     const fs::path  m_sandboxFsTreeFile     = m_sandboxRootPath / FS_TREE_FILE_NAME;
     const fs::path  m_sandboxFsTreeTorrent  = m_sandboxRootPath / FS_TREE_FILE_NAME ".torrent";
+    const fs::path  m_sandboxStreamFolder   = m_sandboxRootPath / "drive";
+    const fs::path  m_sandboxStreamTFolder  = m_sandboxRootPath / "torrent";
 
     // Client data paths (received action list and files)
     const fs::path  m_clientDataFolder      = m_sandboxRootPath / "client-data";

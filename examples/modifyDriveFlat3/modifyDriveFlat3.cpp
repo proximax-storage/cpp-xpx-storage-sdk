@@ -521,9 +521,14 @@ int main(int,char**)
 
     /// Client: read fsTree (1)
     ///
+#ifdef __APPLE__
+#pragma mark --FsTree-download--
+#endif
+
 //    TODO++
-//    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
-//    clientDownloadFsTree();
+    //sleep(1);
+    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
+    clientDownloadFsTree( gClientSession );
 
     /// Client: request to modify drive (1)
     ///
@@ -848,7 +853,7 @@ static void clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession )
                                     *gClientSession->downloadChannelId(), 0 ),
                                     gClientFolder / "fsTree-folder",
                                     "",
-                                    endpointList);
+                            {});//endpointList);
 
     /// wait the end of file downloading
     {

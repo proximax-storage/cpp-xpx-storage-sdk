@@ -3,6 +3,7 @@ cmake -DCMAKE_BUILD_TYPE=Debug -GXcode ..
 ----------------------------------------------------------------------------
 
 Libtorrent:
+cmake -DCMAKE_CONFIGURATION_TYPES=Debug -DCMAKE_CXX_STANDARD=17  -GXcode ..
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=17  -GXcode ..
 ----------------------------------------------------------------------------
 

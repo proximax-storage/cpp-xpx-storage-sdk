@@ -481,6 +481,7 @@ public:
             }
             
             _LOG_WARN( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
+            return;
         }
 
         _LOG( "unknown txHash: " << Key(modifyTx) );

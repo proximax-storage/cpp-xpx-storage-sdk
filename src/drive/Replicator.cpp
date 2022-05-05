@@ -703,6 +703,39 @@ public:
                 return;
             }
 
+            std::shared_ptr<sirius::drive::FlatDrive> pDrive;
+            {
+                if ( auto drive = getDrive(driveKey); drive )
+                {
+                    pDrive = drive;
+                }
+                else {
+                    _LOG( "asyncModify(): drive not found: " << driveKey );
+                    return;
+                }
+            }
+
+            // Add ModifyTrafficInfo to DownloadLimiter
+            bool added = addModifyTrafficInfo( request->m_streamId.array(),
+                                               driveKey,
+                                               request->m_maxSizeBytes,
+                                               pDrive->driveOwner(),
+                                              {} ); //??? modifyRequest->m_unusedReplicatorList);
+
+            if ( ! added )
+            {
+                _LOG_ERR( "Internal Error: added twice?" )
+            }
+           
+//            for( auto it = modifyRequest->m_unusedReplicatorList.begin();  it != modifyRequest->m_unusedReplicatorList.end(); it++ )
+//            {
+//                if ( *it == publicKey() )
+//                {
+//                    modifyRequest->m_unusedReplicatorList.erase( it );
+//                    break;
+//                }
+//            }
+            
             if ( const auto drive = getDrive(driveKey); drive )
             {
                 drive->startStream( std::move(request) );
@@ -1642,6 +1675,7 @@ public:
                 {
                     mobj<ChunkInfo> chunkInfo{ChunkInfo{}};
                     iarchive( *chunkInfo );
+                    _ASSERT( chunkInfo )
                     
                     driveIt->second->acceptChunkInfoMessage( std::move(chunkInfo), source );
                 }
@@ -1655,7 +1689,7 @@ public:
             return;
         }
 
-        _ASSERT(0);
+        _LOG_WARN( "Unknown query: " << query );
 
         } catch(...)
         {
@@ -1868,7 +1902,7 @@ public:
 
         const std::set<lt::string_view> supportedQueries =
                 { "opinion", "dn_opinion", "code_verify", "verify_opinion", "handshake", "endpoint_request", "endpoint_response",
-                   "chunk-info"
+                    "chunk-info"
                 };
         if ( supportedQueries.contains(query) )
         {
@@ -1921,7 +1955,7 @@ public:
             Signature responseSignature;
             if ( createSyncRcpts( driveKey, channelId, os, responseSignature ) )
             {
-                __LOG( "response[r][q]: " << query );
+                //_LOG( "response[r][q]: " << query );
                 response["r"]["q"] = std::string(query);
                 response["r"]["ret"] = os.str();
                 response["r"]["sign"] = std::string( responseSignature.begin(), responseSignature.end() );
@@ -1948,8 +1982,78 @@ public:
             return true;
         }
         
+        else if ( query == "get-chunks-info" )
+        {
+            try
+            {
+                //std::string message( query.begin(), query.end() );
+                auto str = message.dict_find_string_value("x");
+                std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
+
+                _LOG( "message.size(): " << str.size() )
+
+                std::istringstream is( packet, std::ios::binary );
+                cereal::PortableBinaryInputArchive iarchive(is);
+                std::array<uint8_t,32> driveKey;
+                iarchive( driveKey );
+
+                if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+                {
+                    uint32_t chunkIndex;
+                    iarchive( chunkIndex );
+
+                    driveIt->second->acceptGetChunksInfoMessage( chunkIndex, source, response );
+                }
+                else
+                {
+                    _LOG_WARN( "Unknown drive: " << Key(driveKey) )
+                }
+            }
+            catch(...){}
+
+            return true;
+        }
         return false;
     }
+    
+    virtual void  dbgAsyncDownloadToSandbox( Key driveKey, InfoHash infoHash, std::function<void()> endNotifyer ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( auto drive = getDrive(driveKey); drive )
+            {
+                drive->dbgAsyncDownloadToSandbox( infoHash, endNotifyer );
+            }
+            else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        });
+    }
+
+    void handleDhtResponse( lt::bdecode_node response ) override
+    {
+        try
+        {
+            auto rDict = response.dict_find_dict("r");
+            auto query = rDict.dict_find_string_value("q");
+            if ( query == "get_dn_rcpts" )
+            {
+                lt::string_view response = rDict.dict_find_string_value("ret");
+                lt::string_view sign = rDict.dict_find_string_value("sign");
+                onSyncRcptReceived( response, sign );
+            }
+        }
+        catch(...)
+        {
+        }
+    }
+
     
 private:
     std::shared_ptr<sirius::drive::Session> session() {

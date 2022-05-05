@@ -12,6 +12,8 @@
 #include "drive/Utils.h"
 #include "crypto/Signer.h"
 
+#include "libtorrent/aux_/session_impl.hpp"
+#include "libtorrent/extensions.hpp"
 #include <sirius_drive/session_delegate.h>
 
 #include <iostream>
@@ -19,7 +21,7 @@
 
 namespace sirius::drive {
 
-class StreamerSession : public ClientSession, public DhtMessageHandler
+class StreamerSession : public ClientSession, public DhtMessageHandler, public lt::plugin
 {
     std::optional<Hash256>  m_streamId;
     Key                     m_driveKey;
@@ -27,6 +29,8 @@ class StreamerSession : public ClientSession, public DhtMessageHandler
     using udp_endpoint_list = std::set<boost::asio::ip::udp::endpoint>;
     udp_endpoint_list       m_endPointList;
     
+    fs::path                m_m3u8Playlist;
+    fs::path                m_mediaFolder;
     fs::path                m_chunkFolder;
     fs::path                m_torrentFolder;
     
@@ -40,21 +44,56 @@ class StreamerSession : public ClientSession, public DhtMessageHandler
     
     std::mutex              m_chunkMutex;
     
+    boost::asio::io_context                                                     m_bgContext;
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type>    m_bgWork;
+    std::thread                                                                 m_bgThread;
+    boost::asio::high_resolution_timer                                          m_tickTimer;
+    
+    int m_startSequenceNumber = -1;
+    int m_lastSequenceNumber = -1;
+
+
 public:
     StreamerSession( const crypto::KeyPair& keyPair, const char* dbgOurPeerName )
         :
             ClientSession( keyPair, dbgOurPeerName ),
-            m_dbgOurPeerName(dbgOurPeerName)
-    {}
+            m_dbgOurPeerName(dbgOurPeerName),
+            m_bgContext(),
+            m_bgWork(boost::asio::make_work_guard(m_bgContext)),
+            m_bgThread( std::thread( [this] { m_bgContext.run(); } )),
+            m_tickTimer( m_bgContext )
+    {
+        //planNextTick();
+    }
+    
+    void planNextTick()
+    {
+        m_tickTimer.expires_after( std::chrono::milliseconds( 1000 ) );
+        m_tickTimer.async_wait( [this] ( boost::system::error_code const& e )
+        {
+            if ( ! e )
+            {
+                onTick();
+                planNextTick();
+            }
+        });
+    }
 
     ~StreamerSession()
     {
+        m_tickTimer.cancel();
+        m_bgContext.stop();
+        if ( m_bgThread.joinable() )
+        {
+            m_bgThread.join();
+        }
     }
     
-    void initStream( const Hash256& streamId,
-                        const Key& driveKey,
-                        const fs::path& workFolder,
-                        const endpoint_list& endPointList )
+    void initStream( const Hash256&             streamId,
+                        const Key&              driveKey,
+                        const fs::path&         m3u8Playlist,
+                        const fs::path&         workFolder,
+                        const endpoint_list&    endPointList )
     {
         _ASSERT( ! m_streamId )
         _ASSERT( endPointList.size() > 0 )
@@ -70,14 +109,16 @@ public:
         m_totalChunkBytes = 0;
 
         fs::remove_all( workFolder );
-        m_chunkFolder = workFolder / "chunks";
+        m_m3u8Playlist  = m3u8Playlist;
+        m_mediaFolder   = fs::path(m3u8Playlist).parent_path();
+        m_chunkFolder   = workFolder / "chunks";
         m_torrentFolder = workFolder / "torrents";
 
         fs::create_directories( m_chunkFolder );
         fs::create_directories( m_torrentFolder );
     }
     
-    void addChunkToStream( const std::vector<uint8_t>& chunk, uint32_t durationMs, bool dbgEmulateLostDhtMessage = false )
+    void addChunkToStream( const std::vector<uint8_t>& chunk, uint32_t durationMs, InfoHash* dbgInfoHash = nullptr )
     {
         if ( ! m_streamId )
         {
@@ -97,6 +138,11 @@ public:
         //InfoHash chunkHash = calculateInfoHashAndCreateTorrentFile( tmp, m_keyPair.publicKey(), m_torrentFolder, "" );
         InfoHash chunkHash = createTorrentFile( tmp, m_keyPair.publicKey(), m_chunkFolder, {} );
         fs::path chunkFilename = m_chunkFolder / toString( chunkHash );
+        
+        if ( dbgInfoHash != nullptr )
+        {
+            *dbgInfoHash = chunkHash;
+        }
 
         _LOG( "*** chunkFilename: " << chunkFilename );
 
@@ -119,7 +165,7 @@ public:
                                                                           lt::SiriusFlags::client_has_modify_data,
                                                                           &m_keyPair.publicKey().array(),
                                                                           nullptr,
-                                                                          nullptr, //&m_streamId->array(),
+                                                                          &m_streamId->array(),
                                                                           {},
                                                                           nullptr );
             m_totalChunkBytes += chunk.size();
@@ -138,7 +184,7 @@ public:
         archive( driveKey );
         archive( chunkInfo );
 
-        if ( ! dbgEmulateLostDhtMessage )
+        if ( dbgInfoHash == nullptr )
         {
             for( auto& endpoint : m_endPointList )
             {
@@ -195,6 +241,117 @@ public:
         return false;
     }
 
+    void onTick()
+    {
+        if ( ! m_streamId )
+        {
+            return;
+        }
+        
+        // Read & Parse playlist/manifest
+        parseM3u8Playlist();
+    }
+    
+    std::string parseM3u8Playlist()
+    {
+        struct M3u8Item { float m_duration; std::string m_mediaFilename; };
+        std::list<M3u8Item> mediaList;
+        
+        int sequenceNumber = -1;
+
+        _LOG( "m_m3u8Playlist: " << m_m3u8Playlist )
+        
+        std::ifstream fPlaylist( m_m3u8Playlist );
+        std::string line;
+        
+        if ( ! std::getline( fPlaylist, line ) || memcmp( line.c_str(), "#EXTM3U", 7 ) != 0 )
+        {
+            return std::string("1-st line of playlist must be '#EXTM3U'");
+        }
+        
+        for(;;)
+        {
+            if ( ! std::getline( fPlaylist, line ) )
+            {
+                break;
+            }
+
+            if ( memcmp( line.c_str(), "#EXT-X-VERSION:", 15 ) == 0 )
+            {
+                int version;
+                try
+                {
+                    version = std::stoi( line.substr(15) );
+                    _LOG( "version: " << version )
+                }
+                catch(...)
+                {
+                    return std::string("invalid playlist format: ") + line;
+                }
+                
+                if ( version != 3 && version != 4 )
+                {
+                    return std::string("invalid version number: ") + line.substr(15);
+                }
+                continue;
+            }
+
+            if ( memcmp( line.c_str(), "#EXT-X-TARGETDURATION:", 16+6 ) == 0 )
+            {
+                continue;
+            }
+
+            if ( memcmp( line.c_str(), "#EXT-X-MEDIA-SEQUENCE:", 16+6 ) == 0 )
+            {
+                try
+                {
+                    sequenceNumber = std::stoi( line.substr(16+6) );
+                    _LOG( "sequenceNumber: " << sequenceNumber )
+                }
+                catch(...)
+                {
+                    return std::string("cannot read sequence number: ") + line;
+                }
+                
+                if ( m_startSequenceNumber == -1 )
+                {
+                    m_startSequenceNumber = sequenceNumber;
+                }
+                
+                if ( sequenceNumber == m_lastSequenceNumber )
+                {
+                    continue;
+                }
+                
+                
+            }
+
+            if ( memcmp( line.c_str(), "#EXTINF:", 8 ) == 0 )
+            {
+                float duration;
+                try
+                {
+                    duration = std::stof( line.substr(8) );
+                    _LOG( "duration: " << duration )
+                }
+                catch(...)
+                {
+                    return std::string("cannot read duration attribute: ") + line;
+                }
+                
+                if ( ! std::getline( fPlaylist, line ) )
+                {
+                    break;
+                }
+
+                mediaList.push_back( M3u8Item{ duration, line } );
+                continue;
+            }
+        }
+
+        return "";
+    }
+
 };
 
 inline std::shared_ptr<StreamerSession> createStreamerSession( const crypto::KeyPair&        keyPair,
@@ -206,6 +363,7 @@ inline std::shared_ptr<StreamerSession> createStreamerSession( const crypto::Key
 {
     std::shared_ptr<StreamerSession> session = std::make_shared<StreamerSession>( keyPair, dbgClientName );
     session->m_session = createDefaultSession( address, errorHandler, session, bootstraps, session );
+    session->m_session->lt_session().add_extension( std::dynamic_pointer_cast<lt::plugin>( session ) );
     session->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     return session;
 }

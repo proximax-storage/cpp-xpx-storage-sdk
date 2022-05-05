@@ -1,6 +1,7 @@
 #include "types.h"
 #include "drive/ClientSession.h"
 #include "drive/StreamerSession.h"
+#include "drive/ViewerSession.h"
 #include "drive/Replicator.h"
 #include "drive/FlatDrive.h"
 #include "drive/FsTree.h"
@@ -41,8 +42,8 @@ bool gBreak_On_Warning = true;
 #define CLIENT_PORT             ":2000"
 #define CLIENT_IP_ADDR1         "192.168.2.201"
 #define CLIENT_PORT1            ":2001"
-#define STREAMER_IP_ADDR        "192.168.2.202"
-#define STREAMER_PORT           ":2002"
+#define CLIENT_IP_ADDR2         "192.168.2.202"
+#define CLIENT_PORT2            ":2002"
 
 #define REPLICATOR_IP_ADDR      "192.168.2.101"
 #define REPLICATOR_PORT         5001
@@ -50,6 +51,11 @@ bool gBreak_On_Warning = true;
 #define REPLICATOR_PORT_2       5002
 #define REPLICATOR_IP_ADDR_3    "192.168.2.103"
 #define REPLICATOR_PORT_3       5003
+#define REPLICATOR_IP_ADDR_4    "192.168.2.104"
+#define REPLICATOR_PORT_4       5004
+
+//#define OSB_OUTPUT_PLAYLIST             fs::path(getenv("HOME")) / "111" / "stream" / "stream.m3u8"
+#define OSB_OUTPUT_PLAYLIST             fs::path(getenv("HOME")) / "0001" / "stream" / "stream.m3u8"
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111"
 #define REPLICATOR_ROOT_FOLDER          fs::path(getenv("HOME")) / "111" / "replicator_root"
@@ -61,13 +67,17 @@ bool gBreak_On_Warning = true;
 #define REPLICATOR_ROOT_FOLDER_3          fs::path(getenv("HOME")) / "111" / "replicator_root_3"
 #define REPLICATOR_SANDBOX_ROOT_FOLDER_3  fs::path(getenv("HOME")) / "111" / "sandbox_root_3"
 
-#define CLIENT_WORK_FOLDER              fs::path(getenv("HOME")) / "111" / "client_work_folder"
+#define REPLICATOR_ROOT_FOLDER_4          fs::path(getenv("HOME")) / "111" / "replicator_root_4"
+#define REPLICATOR_SANDBOX_ROOT_FOLDER_4  fs::path(getenv("HOME")) / "111" / "sandbox_root_4"
+
+#define CLIENT_WORK_FOLDER                fs::path(getenv("HOME")) / "111" / "client_work_folder"
+#define STREAMER_WORK_FOLDER              fs::path(getenv("HOME")) / "111" / "streamer_folder"
 
 auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
         sirius::crypto::PrivateKey::FromString( "0000000000010203040501020304050102030405010203040501020304050102" ));
 auto clientKeyPair1 = sirius::crypto::KeyPair::FromPrivate(
         sirius::crypto::PrivateKey::FromString( "0000000001110203040501020304050102030405010203040501020304050102" ));
-auto streamerKeyPair = sirius::crypto::KeyPair::FromPrivate(
+auto viewerKeyPair = sirius::crypto::KeyPair::FromPrivate(
         sirius::crypto::PrivateKey::FromString( "0000000002210203040501020304050102030405010203040501020304050102" ));
 
 
@@ -153,9 +163,10 @@ FsTree gFsTree;
 fs::path gClientFolder;
 
 // Libtorrent sessions
-std::shared_ptr<ClientSession>      gClientSession;
-std::shared_ptr<ClientSession>      gClientSession1;
+//std::shared_ptr<ClientSession>      gClientSession;
+//std::shared_ptr<ClientSession>      gClientSession1;
 std::shared_ptr<StreamerSession>    gStreamerSession;
+std::shared_ptr<ViewerSession>      gViewerSession;
 
 
 //
@@ -366,6 +377,8 @@ auto replicatorKeyPair_2 = sirius::crypto::KeyPair::FromPrivate(
         sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_2 ));
 auto replicatorKeyPair_3 = sirius::crypto::KeyPair::FromPrivate(
         sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3 ));
+auto replicatorKeyPair_4 = sirius::crypto::KeyPair::FromPrivate(
+        sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_4 ));
 
 ///
 /// Create replicators
@@ -409,13 +422,27 @@ void createReplicators(const std::vector<ReplicatorInfo>&  bootstraps)
                                         "replicator3" );
     });
     
+    std::thread t4( [=] {
+        gReplicator4 = createReplicator( replicatorKeyPair_4,
+                                        REPLICATOR_IP_ADDR_4,
+                                        REPLICATOR_PORT_4,
+                                        std::string( REPLICATOR_ROOT_FOLDER_4 ),
+                                        std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_4 ),
+                                        TRANSPORT_PROTOCOL,
+                                        bootstraps,
+                                        gMyReplicatorEventHandler4,
+                                        "replicator4" );
+    });
+    
     t1.join();
     t2.join();
     t3.join();
+    t4.join();
 
     gReplicatorMap[gReplicator->dbgReplicatorKey()] = gReplicator;
     gReplicatorMap[gReplicator2->dbgReplicatorKey()] = gReplicator2;
     gReplicatorMap[gReplicator3->dbgReplicatorKey()] = gReplicator3;
+    gReplicatorMap[gReplicator4->dbgReplicatorKey()] = gReplicator4;
 
 }
 
@@ -461,9 +488,9 @@ static std::shared_ptr<Replicator> createReplicator(
 //    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100,         0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
     replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100*1024*1024, 0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
 
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash1.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash3.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash1.array(), 1024*1024, replicatorList, { viewerKeyPair.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024, replicatorList, { viewerKeyPair.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash3.array(), 1024*1024, replicatorList, { viewerKeyPair.publicKey() }} );
 
     return replicator;
 }
@@ -554,7 +581,7 @@ static std::string now_str()
 
 
 
-std::shared_ptr<Replicator> gReplicatorArray[3];
+std::vector<std::shared_ptr<Replicator>> gReplicatorArray;
 
 #ifdef __APPLE__
 #pragma mark --main()--
@@ -577,19 +604,23 @@ int main(int,char**)
     replicatorList.emplace_back( sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY)).publicKey() );
     replicatorList.emplace_back( sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_2)).publicKey() );
     replicatorList.emplace_back( sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3)).publicKey() );
+    replicatorList.emplace_back( sirius::crypto::KeyPair::FromPrivate( sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_4)).publicKey() );
 
     boost::asio::ip::address e1 = boost::asio::ip::make_address(REPLICATOR_IP_ADDR);
     boost::asio::ip::address e2 = boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2);
     boost::asio::ip::address e3 = boost::asio::ip::make_address(REPLICATOR_IP_ADDR_3);
+    boost::asio::ip::address e4 = boost::asio::ip::make_address(REPLICATOR_IP_ADDR_4);
     endpointList.push_back( {e1, REPLICATOR_PORT} );
     endpointList.push_back( {e2, REPLICATOR_PORT_2} );
     endpointList.push_back( {e3, REPLICATOR_PORT_3} );
+    endpointList.push_back( {e4, REPLICATOR_PORT_4} );
 
-    printf( "client0 key[0] :      0x%x %i\n", clientKeyPair.publicKey().array()[0], clientKeyPair.publicKey().array()[0] );
-    printf( "client1 key[0] :      0x%x %i\n", clientKeyPair1.publicKey().array()[0], clientKeyPair1.publicKey().array()[0] );
+//    printf( "client0 key[0] :     0x%x %i\n", clientKeyPair.publicKey().array()[0], clientKeyPair.publicKey().array()[0] );
+//    printf( "client1 key[0] :     0x%x %i\n", clientKeyPair1.publicKey().array()[0], clientKeyPair1.publicKey().array()[0] );
     printf( "replicator1 key[0] : 0x%x %i\n", replicatorList[0][0], replicatorList[0][0] );
     printf( "replicator2 key[0] : 0x%x %i\n", replicatorList[1][0], replicatorList[1][0] );
     printf( "replicator3 key[0] : 0x%x %i\n", replicatorList[2][0], replicatorList[2][0] );
+    printf( "streamer    key[0] : 0x%x %i\n", clientKeyPair.publicKey()[0], clientKeyPair.publicKey()[0] );
 
 
     ///
@@ -607,50 +638,43 @@ int main(int,char**)
     /// Create replicators
     ///
     createReplicators( bootstraps );
-    gReplicatorArray[0] = gReplicator;
-    gReplicatorArray[1] = gReplicator;
-    gReplicatorArray[2] = gReplicator;
+    gReplicatorArray.push_back( gReplicator );
+    gReplicatorArray.push_back( gReplicator2 );
+//    gReplicatorArray.push_back( gReplicator3 );
+//    gReplicatorArray.push_back( gReplicator4 );
 
     ///
     /// Create client sessions
     ///
     gClientFolder  = createClientFiles(BIG_FILE_SIZE);
-    gClientSession = createClientSession( clientKeyPair,
-                                          CLIENT_IP_ADDR CLIENT_PORT,
-                                          clientSessionErrorHandler,
-                                          bootstrapEndpoints,
-                                          TRANSPORT_PROTOCOL,
-                                          "client0" );
 
-    gClientSession1 = createClientSession( clientKeyPair1,
+    gStreamerSession = createStreamerSession( clientKeyPair,
+                                              CLIENT_IP_ADDR CLIENT_PORT,
+                                              clientSessionErrorHandler,
+                                              bootstrapEndpoints,
+                                              TRANSPORT_PROTOCOL,
+                                              "streamer" );
+
+    gViewerSession = createViewerSession( viewerKeyPair,
                                           CLIENT_IP_ADDR1 CLIENT_PORT1,
                                           clientSessionErrorHandler,
                                           bootstrapEndpoints,
                                           TRANSPORT_PROTOCOL,
-                                          "client1" );
+                                          "viewer" );
 
-    gStreamerSession = createStreamerSession( streamerKeyPair,
-                                          STREAMER_IP_ADDR STREAMER_PORT,
-                                          clientSessionErrorHandler,
-                                          bootstrapEndpoints,
-                                          TRANSPORT_PROTOCOL,
-                                          "streamer" );
+    gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
+
 
     _EXLOG("");
 
-    // set root drive hash
-    //driveRootHash = std::make_shared<InfoHash>( gReplicator->dbgGetRootHash( DRIVE_PUB_KEY ) );
-
-    //???
-    //fs::path clientFolder = gClientFolder / "client_files";
-
     //
-    // Prepare Client for streaming
+    // Prepare Clients
     //
-    gStreamerSession->initStream( streamTx, DRIVE_PUB_KEY, gClientFolder / "streamFolder", endpointList );
+    gStreamerSession->initStream( streamTx, DRIVE_PUB_KEY, OSB_OUTPUT_PLAYLIST, STREAMER_WORK_FOLDER / "streamFolder", endpointList );
+    gViewerSession->startWatching( streamTx, gStreamerSession->publicKey(), DRIVE_PUB_KEY, CLIENT_WORK_FOLDER / "streamFolder", endpointList );
 
     const uint64_t maxStreamSize = 1024*1024*1024;
-    StreamRequest streamRequest{ streamTx, streamerKeyPair.publicKey(), "streamFiles", maxStreamSize };
+    StreamRequest streamRequest{ streamTx, clientKeyPair.publicKey(), "streamFiles", maxStreamSize };
     
     for( auto replicator : gReplicatorArray )
     {
@@ -660,24 +684,34 @@ int main(int,char**)
     //
     // Streaming
     //
-    for( int i=0; i<10; i++ )
+    for( int i=0; i<9; i++ )
     {
-        std::vector<uint8_t> chunk(1024+500);
-        std::generate( chunk.begin(), chunk.end(), std::rand );
-//        uint8_t counter=0;
-//        std::generate( data.begin(), data.end(), [&] { return counter++;} );
-        gStreamerSession->addChunkToStream( chunk, 100, i%3==2 );
+        std::vector<uint8_t> chunk(1024+150);
+        //std::generate( chunk.begin(), chunk.end(), std::rand );
+        uint8_t counter=i;
+        std::generate( chunk.begin(), chunk.end(), [&] { return counter++;} );
+
+        //InfoHash infoHash;
+        gStreamerSession->addChunkToStream( chunk, 100 );//, &infoHash );
+
         __LOG( "*** c i=" << i )
-        usleep(100000);
+//        usleep(1000000);
+//
+//        for( auto& replicator : gReplicatorArray )
+//        {
+//            replicator->dbgAsyncDownloadToSandbox( DRIVE_PUB_KEY, infoHash, []{} );
+//        }
     }
-    
-    
+
+    sleep(10);
+
     /// Delete client session and replicators
-    //sleep(5);//(???++++!!!)
-    gClientSession.reset();
+    gStreamerSession.reset();
+    gViewerSession.reset();
     gReplicator.reset();
     gReplicator2.reset();
     gReplicator3.reset();
+    gReplicator4.reset();
 
     _EXLOG( "" );
     _EXLOG( "total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );

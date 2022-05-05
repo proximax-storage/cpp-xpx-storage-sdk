@@ -120,7 +120,14 @@ public:
         DBG_MAIN_THREAD
     }
 
-    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& sender )
+    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& streamer )
+    {
+        // it must be overriden by StreamTask
+    }
+
+    virtual void acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
+                                             const boost::asio::ip::udp::endpoint&  viewer,
+                                             lt::entry&                             response )
     {
         // it must be overriden by StreamTask
     }
@@ -141,6 +148,7 @@ protected:
            if ( ! fs::exists( m_drive.m_sandboxRootPath, err ))
            {
                fs::create_directories( m_drive.m_sandboxRootPath );
+               fs::create_directories( m_drive.m_sandboxStreamTFolder );
            }
            else
            {
