@@ -26,6 +26,7 @@ namespace sirius::drive {
         Key                         m_streamerKey;  // streamer public key
         std::string                 m_folder;       // where it will be saved
         uint64_t                    m_maxSizeBytes; // could be increased
+        ReplicatorList              m_replicatorList;
     };
 
     struct StreamIncreaseRequest

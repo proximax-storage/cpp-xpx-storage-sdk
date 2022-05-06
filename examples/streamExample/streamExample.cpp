@@ -55,7 +55,7 @@ bool gBreak_On_Warning = true;
 #define REPLICATOR_PORT_4       5004
 
 //#define OSB_OUTPUT_PLAYLIST             fs::path(getenv("HOME")) / "111" / "stream" / "stream.m3u8"
-#define OSB_OUTPUT_PLAYLIST             fs::path(getenv("HOME")) / "0001" / "stream" / "stream.m3u8"
+#define OSB_OUTPUT_PLAYLIST             fs::path(getenv("HOME")) / "111-stream" / "stream.m3u8"
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111"
 #define REPLICATOR_ROOT_FOLDER          fs::path(getenv("HOME")) / "111" / "replicator_root"
@@ -670,11 +670,15 @@ int main(int,char**)
     //
     // Prepare Clients
     //
+    if ( ! fs::exists( fs::path(OSB_OUTPUT_PLAYLIST).parent_path() ) )
+    {
+        fs::create_directories( fs::path(OSB_OUTPUT_PLAYLIST).parent_path() );
+    }
     gStreamerSession->initStream( streamTx, DRIVE_PUB_KEY, OSB_OUTPUT_PLAYLIST, STREAMER_WORK_FOLDER / "streamFolder", endpointList );
     gViewerSession->startWatching( streamTx, gStreamerSession->publicKey(), DRIVE_PUB_KEY, CLIENT_WORK_FOLDER / "streamFolder", endpointList );
 
     const uint64_t maxStreamSize = 1024*1024*1024;
-    StreamRequest streamRequest{ streamTx, clientKeyPair.publicKey(), "streamFiles", maxStreamSize };
+    StreamRequest streamRequest{ streamTx, clientKeyPair.publicKey(), "streamFiles", maxStreamSize, replicatorList };
     
     for( auto replicator : gReplicatorArray )
     {

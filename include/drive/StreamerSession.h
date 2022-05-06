@@ -126,19 +126,25 @@ public:
             return;
         }
         
-        std::lock_guard<std::mutex> lock( m_chunkMutex );
-        
-        fs::path tmp = m_chunkFolder / "newChunk";
+        fs::path tmp = m_mediaFolder / ("newChunk" + std::to_string(m_lastChunkIndex));
         
         {
             std::ofstream fileStream( tmp, std::ios::binary );
             fileStream.write( (char*) chunk.data(), chunk.size() );
         }
 
-        //InfoHash chunkHash = calculateInfoHashAndCreateTorrentFile( tmp, m_keyPair.publicKey(), m_torrentFolder, "" );
-        InfoHash chunkHash = createTorrentFile( tmp, m_keyPair.publicKey(), m_chunkFolder, {} );
-        fs::path chunkFilename = m_chunkFolder / toString( chunkHash );
+        addMediaToStream( tmp, durationMs, dbgInfoHash );
+    }
+
+    void addMediaToStream( const fs::path& tmp, uint32_t durationMs, InfoHash* dbgInfoHash = nullptr )
+    {
+        std::lock_guard<std::mutex> lock( m_chunkMutex );
         
+        uint64_t chunkSize = fs::file_size( tmp );
+        
+        InfoHash chunkHash = createTorrentFile( tmp, m_keyPair.publicKey(), m_mediaFolder, {} );
+        fs::path chunkFilename = m_chunkFolder / toString( chunkHash );
+
         if ( dbgInfoHash != nullptr )
         {
             *dbgInfoHash = chunkHash;
@@ -149,12 +155,11 @@ public:
         // add chunk to libtorrent session
         if ( fs::exists( chunkFilename ) )
         {
-            _LOG( "*** Chunk already exists: " << chunkFilename );
-            fs::remove( tmp );
+            _LOG_WARN( "*** Chunk already exists: " << chunkFilename );
         }
         else
         {
-            fs::rename( tmp, chunkFilename );
+            fs::create_symlink( tmp, chunkFilename );
 
             fs::path torrentFilename = m_torrentFolder / toString( chunkHash );
             InfoHash chunkHash2 = createTorrentFile( chunkFilename, m_keyPair.publicKey(), m_chunkFolder, torrentFilename );
@@ -168,11 +173,11 @@ public:
                                                                           &m_streamId->array(),
                                                                           {},
                                                                           nullptr );
-            m_totalChunkBytes += chunk.size();
+            m_totalChunkBytes += chunkSize;
         }
 
         auto [it,ok] = m_chunkInfoMap.emplace( m_lastChunkIndex,
-                               ChunkInfo{ m_streamId->array(), m_lastChunkIndex, chunkHash.array(), durationMs, chunk.size(), {} } );
+                               ChunkInfo{ m_streamId->array(), m_lastChunkIndex, chunkHash.array(), durationMs, chunkSize, {} } );
         m_lastChunkIndex++;
         _ASSERT( ok )
 

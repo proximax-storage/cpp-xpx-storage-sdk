@@ -600,18 +600,18 @@ public:
                                 driveKey,
                                 modifyRequest->m_maxDataSize,
                                 pDrive->driveOwner(),
-                                modifyRequest->m_unusedReplicatorList);
+                                modifyRequest->m_replicatorList);
 
             if ( ! added )
             {
                _LOG_ERR( "Internal Error: Modification Received after Approval or twice" )
             }
            
-            for( auto it = modifyRequest->m_unusedReplicatorList.begin();  it != modifyRequest->m_unusedReplicatorList.end(); it++ )
+            for( auto it = modifyRequest->m_replicatorList.begin();  it != modifyRequest->m_replicatorList.end(); it++ )
             {
                 if ( *it == publicKey() )
                 {
-                    modifyRequest->m_unusedReplicatorList.erase( it );
+                    modifyRequest->m_replicatorList.erase( it );
                     break;
                 }
             }
@@ -719,19 +719,19 @@ public:
             bool added = addModifyTrafficInfo( request->m_streamId.array(),
                                                driveKey,
                                                request->m_maxSizeBytes,
-                                               pDrive->driveOwner(),
-                                              {} ); //??? modifyRequest->m_unusedReplicatorList);
+                                               request->m_streamerKey,
+                                               request->m_replicatorList );
 
             if ( ! added )
             {
                 _LOG_ERR( "Internal Error: added twice?" )
             }
            
-//            for( auto it = modifyRequest->m_unusedReplicatorList.begin();  it != modifyRequest->m_unusedReplicatorList.end(); it++ )
+//            for( auto it = modifyRequest->m_replicatorList.begin();  it != modifyRequest->m_replicatorList.end(); it++ )
 //            {
 //                if ( *it == publicKey() )
 //                {
-//                    modifyRequest->m_unusedReplicatorList.erase( it );
+//                    modifyRequest->m_replicatorList.erase( it );
 //                    break;
 //                }
 //            }

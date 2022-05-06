@@ -46,7 +46,7 @@ class Replicator;
         InfoHash        m_clientDataInfoHash;
         Hash256         m_transactionHash;
         uint64_t        m_maxDataSize;
-        ReplicatorList  m_unusedReplicatorList;
+        ReplicatorList  m_replicatorList;
 
         bool m_isCanceled = false;
     };
