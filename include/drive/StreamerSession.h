@@ -50,7 +50,6 @@ class StreamerSession : public ClientSession, public DhtMessageHandler, public l
     boost::asio::high_resolution_timer                                          m_tickTimer;
     
     int m_startSequenceNumber = -1;
-    int m_lastSequenceNumber = -1;
 
 
 public:
@@ -63,7 +62,7 @@ public:
             m_bgThread( std::thread( [this] { m_bgContext.run(); } )),
             m_tickTimer( m_bgContext )
     {
-        //planNextTick();
+        planNextTick();
     }
     
     void planNextTick()
@@ -133,12 +132,14 @@ public:
             fileStream.write( (char*) chunk.data(), chunk.size() );
         }
 
-        addMediaToStream( tmp, durationMs, dbgInfoHash );
+        addMediaToStream( tmp, durationMs, m_lastChunkIndex, dbgInfoHash );
     }
 
-    void addMediaToStream( const fs::path& tmp, uint32_t durationMs, InfoHash* dbgInfoHash = nullptr )
+    void addMediaToStream( const fs::path& tmp, uint32_t durationMs, uint32_t chunkIndex, InfoHash* dbgInfoHash = nullptr )
     {
         std::lock_guard<std::mutex> lock( m_chunkMutex );
+        
+        _ASSERT( chunkIndex == m_lastChunkIndex )
         
         uint64_t chunkSize = fs::file_size( tmp );
         
@@ -259,20 +260,22 @@ public:
     
     std::string parseM3u8Playlist()
     {
-        struct M3u8Item { float m_duration; std::string m_mediaFilename; };
-        std::list<M3u8Item> mediaList;
-        
-        int sequenceNumber = -1;
-
         _LOG( "m_m3u8Playlist: " << m_m3u8Playlist )
         
-        std::ifstream fPlaylist( m_m3u8Playlist );
+        // copy file (it could be chaged)
+        std::ifstream fin( m_m3u8Playlist );
+        std::stringstream fPlaylist;
+        fPlaylist << fin.rdbuf();
+        
         std::string line;
         
         if ( ! std::getline( fPlaylist, line ) || memcmp( line.c_str(), "#EXTM3U", 7 ) != 0 )
         {
             return std::string("1-st line of playlist must be '#EXTM3U'");
         }
+        
+        int sequenceNumber = -1;
+        int mediaIndex = 0;
         
         for(;;)
         {
@@ -322,13 +325,6 @@ public:
                 {
                     m_startSequenceNumber = sequenceNumber;
                 }
-                
-                if ( sequenceNumber == m_lastSequenceNumber )
-                {
-                    continue;
-                }
-                
-                
             }
 
             if ( memcmp( line.c_str(), "#EXTINF:", 8 ) == 0 )
@@ -349,7 +345,18 @@ public:
                     break;
                 }
 
-                mediaList.push_back( M3u8Item{ duration, line } );
+                if ( m_startSequenceNumber < 0 )
+                {
+                    m_startSequenceNumber = sequenceNumber;
+                }
+                
+                int chunkIndex = sequenceNumber - m_startSequenceNumber + mediaIndex;
+                
+                if ( m_chunkInfoMap.find( chunkIndex ) == m_chunkInfoMap.end() )
+                {
+                    addMediaToStream( m_mediaFolder / line, duration, chunkIndex );
+                    mediaIndex++;
+                }
                 continue;
             }
         }

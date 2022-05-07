@@ -688,26 +688,26 @@ int main(int,char**)
     //
     // Streaming
     //
-    for( int i=0; i<9; i++ )
-    {
-        std::vector<uint8_t> chunk(1024+150);
-        //std::generate( chunk.begin(), chunk.end(), std::rand );
-        uint8_t counter=i;
-        std::generate( chunk.begin(), chunk.end(), [&] { return counter++;} );
-
-        //InfoHash infoHash;
-        gStreamerSession->addChunkToStream( chunk, 100 );//, &infoHash );
-
-        __LOG( "*** c i=" << i )
-//        usleep(1000000);
+//    for( int i=0; i<9; i++ )
+//    {
+//        std::vector<uint8_t> chunk(1024+150);
+//        //std::generate( chunk.begin(), chunk.end(), std::rand );
+//        uint8_t counter=i;
+//        std::generate( chunk.begin(), chunk.end(), [&] { return counter++;} );
 //
-//        for( auto& replicator : gReplicatorArray )
-//        {
-//            replicator->dbgAsyncDownloadToSandbox( DRIVE_PUB_KEY, infoHash, []{} );
-//        }
-    }
+//        //InfoHash infoHash;
+//        gStreamerSession->addChunkToStream( chunk, 100 );//, &infoHash );
+//
+//        __LOG( "*** c i=" << i )
+////        usleep(1000000);
+////
+////        for( auto& replicator : gReplicatorArray )
+////        {
+////            replicator->dbgAsyncDownloadToSandbox( DRIVE_PUB_KEY, infoHash, []{} );
+////        }
+//    }
 
-    sleep(10);
+    sleep(120);
 
     /// Delete client session and replicators
     gStreamerSession.reset();
