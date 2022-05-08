@@ -158,7 +158,6 @@ namespace sirius::emulator {
 
     void RpcReplicatorClient::modifyDrive( const Key& driveKey,
                                            const drive::ActionList& actionList,
-                                           const uint64_t maxDataSize,
                                            std::function<void()> endDriveModificationCallback) {
         std::cout << "Client. modifyDrive: " << driveKey << std::endl;
 
@@ -175,7 +174,8 @@ namespace sirius::emulator {
         std::filesystem::create_directories( tmpFolder );
 
         // start file uploading
-        const drive::InfoHash infoHash = m_clientSession->addActionListToSession( actionList, m_keyPair.publicKey(), rpcDriveInfo.getReplicators(), tmpFolder);
+        uint64_t totalModifyDataSize;
+        const drive::InfoHash infoHash = m_clientSession->addActionListToSession( actionList, m_keyPair.publicKey(), rpcDriveInfo.getReplicators(), tmpFolder, totalModifyDataSize);
 
         std::cout << "Client. modifyDrive. New InfoHash: " << infoHash << std::endl;
 
@@ -183,7 +183,7 @@ namespace sirius::emulator {
         rpcDataModification.m_drivePubKey = driveKey.array();
         rpcDataModification.m_clientPubKey = getPubKey();
         rpcDataModification.m_infoHash = infoHash.array();
-        rpcDataModification.m_maxDataSize = maxDataSize;
+        rpcDataModification.m_maxDataSize = totalModifyDataSize;
         rpcDataModification.m_rpcReplicators = rpcDriveInfo.m_rpcReplicators;
 
         // Generate randomly (for callbacks)
@@ -256,7 +256,7 @@ namespace sirius::emulator {
         };
 
         drive::DownloadContext downloadContext( drive::DownloadContext::fs_tree, handler, rpcDriveInfo.m_rootHash, channelKey, 0 );
-        m_clientSession->download( std::move(downloadContext), pathToFsTree);
+        m_clientSession->download( std::move(downloadContext), pathToFsTree, "");
     }
 
     void RpcReplicatorClient::downloadData(const drive::Folder& folder, const std::string& destinationFolder, DownloadDataCallabck callback) {
@@ -292,10 +292,11 @@ namespace sirius::emulator {
                                                 file.hash(),
                                                 {},
                                                 0,
+                                                0,
                                                 destinationFolder + "/" + folderName + "/" + file.name() );
                                                 //destinationFolder + "/" + folderName + "/" + file.name() );
 
-                m_clientSession->download( std::move(downloadContext), destinationFolder );
+                m_clientSession->download( std::move(downloadContext), destinationFolder, "");
             }
         }
     }
@@ -317,9 +318,10 @@ namespace sirius::emulator {
                                                hash,
                                                {},
                                                0,
+                                               0,
                                                destinationFolder);
 
-        m_clientSession->download( std::move(downloadContext), tempFolder );
+        m_clientSession->download( std::move(downloadContext), tempFolder, "" );
     }
 
     std::filesystem::path RpcReplicatorClient::createClientFiles( size_t bigFileSize ) {

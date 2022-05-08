@@ -125,8 +125,8 @@ public:
                                                        else if ( code == download_status::download_complete )
                                                        {
                                                            //(???+++)
-                                                           _ASSERT( !m_stopped );
-                                                           if ( ! m_stopped )
+                                                           _ASSERT( !m_taskIsStopped );
+                                                           if ( ! m_taskIsStopped )
                                                            {
                                                                m_uploadedDataSize += downloadedSize;
                                                                m_actionListIsReceived = true;
@@ -208,7 +208,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_stopped );
+        _ASSERT( !m_taskIsStopped );
 
         std::optional<Hash256> fileToDownload;
 
@@ -261,7 +261,7 @@ public:
                                                                    true,
                                                                    "" ),
                                                            m_drive.m_driveFolder,
-                                                           m_drive.m_torrentFolder / (toString(*fileToDownload)/*+".torrent2"*/),
+                                                           m_drive.m_torrentFolder / (toString(*fileToDownload)),
                                                            getUploaders(),
                                                            &m_drive.m_driveKey.array(),
                                                            nullptr,
@@ -270,7 +270,7 @@ public:
             }
 
             // save reference into 'torrentHandleMap'
-            m_drive.m_torrentHandleMap.try_emplace( *fileToDownload, UseTorrentInfo{*m_downloadingLtHandle, false} );
+            m_drive.m_torrentHandleMap[*fileToDownload] = UseTorrentInfo{ *m_downloadingLtHandle, false };
         }
         else
         {
@@ -328,15 +328,6 @@ public:
 
                     try
                     {
-//                        // calculate torrent, file hash, and file size
-//                        InfoHash fileHash = calculateInfoHashAndCreateTorrentFile( clientFile, m_drive.m_driveKey,
-//                                                                                   m_drive.m_torrentFolder, "" );
-//                        _ASSERT( fileHash == stringToHash(action.m_param1) )
-//                        size_t fileSize = std::filesystem::file_size( clientFile );
-//
-//                        // add ref into 'torrentMap' (skip if identical file was already loaded)
-//                        torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{} );
-
                         size_t fileSize = std::filesystem::file_size( clientFile );
                         auto fileHash = stringToHash(action.m_param1);
                         
@@ -505,7 +496,7 @@ public:
     {
         DBG_MAIN_THREAD
         
-        if ( m_stopped )
+        if ( m_taskIsStopped )
         {
             return true;
         }
@@ -545,7 +536,7 @@ public:
 
     bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
     {
-        if ( m_stopped )
+        if ( m_taskIsStopped )
         {
             return false;
         }
@@ -564,7 +555,7 @@ public:
         DBG_MAIN_THREAD
 
         if ( m_request->m_transactionHash == transactionHash &&
-             !m_stopped &&
+             !m_taskIsStopped &&
              !m_modifyApproveTxReceived )
         {
             m_modifyApproveTransactionSent = false;
@@ -636,7 +627,7 @@ private:
 
         _ASSERT( m_myOpinion )
 
-        if ( m_stopped )
+        if ( m_taskIsStopped )
         {
             finishTask();
             return;

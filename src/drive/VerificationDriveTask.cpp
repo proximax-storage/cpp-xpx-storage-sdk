@@ -31,6 +31,7 @@ private:
     std::thread                                                 m_verifyThread;
 
     bool                                                        m_myVerifyCodesCalculated;
+	bool														m_codeTimerRun;
     bool                                                        m_verifyApproveTxSent;
     std::optional<boost::posix_time::ptime>                     m_verificationStartedAt;
 
@@ -55,6 +56,7 @@ public:
             : DriveTaskBase(DriveTaskType::DRIVE_VERIFICATION, drive)
             , m_request(request)
             , m_myVerifyCodesCalculated(false)
+			, m_codeTimerRun(false)
             , m_verifyApproveTxSent(false)
             , m_verificationMustBeInterrupted(false)
     {
@@ -213,7 +215,7 @@ public:
         // At any case opinions with the same replicator key must be removed
         //
         auto& opinions = m_myVerificationApprovalTxInfo->m_opinions;
-        std::remove_if( opinions.begin(), opinions.end(), [&info] (const auto& it) {
+        std::erase_if( opinions, [&info] (const auto& it) {
             return it.m_publicKey == info.m_opinions[0].m_publicKey;
         });
 
@@ -234,14 +236,8 @@ public:
         return true;
     }
 
-    void cancelVerification( const Hash256& canceledVerification ) override
+    void cancelVerification() override
     {
-        if ( m_request->m_tx != canceledVerification )
-        {
-            _LOG_ERR( "verifyApprovalPublished: internal error: invalid tx" )
-            return;
-        }
-
         terminate();
     }
 
@@ -267,10 +263,6 @@ private:
         }
 
         calculateVerifyCodes( *m_drive.m_fsTree );
-
-        _LOG ( "calculated" )
-
-        auto h = shared_from_this();
 
         m_drive.executeOnSessionThread( [t = weak_from_this()]
                                         {
@@ -434,31 +426,29 @@ private:
             m_verifyCodeTimer.reset();
             verifyCodeTimerExpired();
         }
-        else if ( !m_verifyApproveTxSent )
-        {
-            // start timer if it is not started
-            if ( !m_verifyCodeTimer )
-            {
-                _ASSERT( m_verificationStartedAt )
+        else if ( !m_codeTimerRun )
+		{
+			m_codeTimerRun = true;
 
-                auto secondsSinceVerificationStart =
-                        (boost::posix_time::microsec_clock::universal_time() - *m_verificationStartedAt).total_seconds();
-                int codesDelay;
-                if ( m_request->m_durationMs > secondsSinceVerificationStart + m_drive.m_replicator.getVerifyCodeTimerDelay() )
-                {
-                    codesDelay = int(m_request->m_durationMs - secondsSinceVerificationStart + m_drive.m_replicator.getVerifyCodeTimerDelay());
-                }
-                else
-                {
-                    codesDelay = 0;
-                }
+			_ASSERT( m_verificationStartedAt )
 
-                if ( auto session = m_drive.m_session.lock(); session )
-                {
-                    m_verifyCodeTimer = session->startTimer( codesDelay,
-                                                             [this]() { verifyCodeTimerExpired(); } );
-                }
-            }
+			auto secondsSinceVerificationStart =
+					(boost::posix_time::microsec_clock::universal_time() - *m_verificationStartedAt).total_seconds();
+			int codesDelay;
+			if ( m_request->m_durationMs > secondsSinceVerificationStart + m_drive.m_replicator.getVerifyCodeTimerDelay() )
+			{
+				codesDelay = int(m_request->m_durationMs - secondsSinceVerificationStart + m_drive.m_replicator.getVerifyCodeTimerDelay());
+			}
+			else
+			{
+				codesDelay = 0;
+			}
+
+			if ( auto session = m_drive.m_session.lock(); session )
+			{
+				m_verifyCodeTimer = session->startTimer( codesDelay,
+														 [this]() { verifyCodeTimerExpired(); } );
+			}
         }
     }
 
@@ -544,12 +534,12 @@ private:
 
 };
 
-std::unique_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,
+std::shared_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,
                                                             std::vector<VerifyApprovalTxInfo>&& receivedOpinions,
                                                             std::vector<VerificationCodeInfo>&& receivedCodes,
                                                             DriveParams& drive )
 {
-    return std::make_unique<VerificationDriveTask>( std::move(request), std::move(receivedOpinions), std::move(receivedCodes), drive );
+    return std::make_shared<VerificationDriveTask>( std::move(request), std::move(receivedOpinions), std::move(receivedCodes), drive );
 }
 
 }

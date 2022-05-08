@@ -114,7 +114,7 @@ public:
         return false;
     }
 
-    virtual void cancelVerification( const Hash256& canceledVerification )
+    virtual void cancelVerification()
     {
         DBG_MAIN_THREAD
     }
@@ -151,8 +151,6 @@ protected:
         } );
     }
 
-    // Recursively marks 'm_toBeRemoved' as false
-    //
     void markUsedFiles( const Folder& folder )
     {
         DBG_MAIN_THREAD
@@ -218,7 +216,7 @@ std::unique_ptr<DriveTaskBase> createModificationCancelTask( mobj<ModificationCa
 std::unique_ptr<DriveTaskBase> createDriveClosureTask( mobj<DriveClosureRequest>&& request,
                                                        DriveParams& drive );
 
-std::unique_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,
+std::shared_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,
                                                             std::vector<VerifyApprovalTxInfo>&& receivedOpinions,
                                                             std::vector<VerificationCodeInfo>&& receivedCodes,
                                                             DriveParams& drive );
