@@ -99,7 +99,9 @@ class DefaultFlatDrive: public FlatDrive, public DriveParams
 
     // Executing Drive Tasks
     std::unique_ptr<DriveTaskBase> m_task;
-    std::unique_ptr<DriveTaskBase> m_verificationTask;
+    std::shared_ptr<DriveTaskBase> m_verificationTask;
+
+    std::set<Key>                  m_blockedReplicators; // blocked until verification will be approved
 
 public:
 
@@ -159,34 +161,6 @@ public:
             m_verificationTask->terminate();
             m_verificationTask.reset();
         }
-
-#if 0
-        std::set<lt::torrent_handle> toBeRemovedTorrents;
-        toBeRemovedTorrents.insert( m_fsTreeLtHandle );
-
-        // Add unused files into set<>
-        for( const auto& [key,info] : m_torrentHandleMap )
-        {
-            if ( info.m_ltHandle.is_valid() )
-                toBeRemovedTorrents.insert( info.m_ltHandle );
-        }
-
-        if ( !toBeRemovedTorrents.empty() )
-        {
-            std::promise<void> complitionPromise;
-            std::future<void> complitionFuture = complitionPromise.get_future();
-
-            // Remove unused torrents
-            if ( auto session = m_session.lock(); session )
-            {
-                session->removeTorrentsFromSession( toBeRemovedTorrents, [&complitionPromise]
-                {
-                    complitionPromise.set_value();
-                });
-            }
-            complitionFuture.wait();
-        }
-#endif
     }
 
     uint64_t maxSize() const override {
@@ -381,6 +355,7 @@ public:
         auto receivedCodes = std::move(m_unknownVerificationCodeQueue[m_deferredVerificationRequest->m_tx]);
         m_unknownVerificationOpinions.erase(m_deferredVerificationRequest->m_tx);
 
+        m_blockedReplicators = std::move(m_deferredVerificationRequest->m_blockedReplicators);
         m_verificationTask = createDriveVerificationTask( std::move(m_deferredVerificationRequest), std::move(receivedOpinions), std::move(receivedCodes), *this);
         m_verificationTask->run();
     }
@@ -405,7 +380,9 @@ public:
         {
             _LOG_ERR("startVerification: internal error: m_verificationRequest != null")
         }
-        
+
+        _LOG ( "Received Verification Request " << m_deferredVerificationRequest->m_actualRootHash << " " << m_rootHash );
+
         if (m_deferredVerificationRequest->m_actualRootHash == m_rootHash )
         {
             runVerificationTask();
@@ -459,6 +436,8 @@ public:
     {
         DBG_MAIN_THREAD
 
+        m_blockedReplicators.clear();
+
         if ( m_verificationTask )
         {
             //(???+++) replace by? m_verificationTask->terminate();
@@ -502,13 +481,15 @@ public:
     {
         DBG_MAIN_THREAD
 
+        m_blockedReplicators.clear();
+
         if ( !m_verificationTask )
         {
             _LOG_ERR( "verifyApprovalPublished: internal error: m_verificationRequest == null" )
             return;
         }
 
-        m_verificationTask->cancelVerification( info.m_tx );
+        m_verificationTask->cancelVerification();
         m_verificationTask.reset();
     }
 
@@ -574,17 +555,18 @@ public:
         }
     }
 
-    void cancelVerification( mobj<Hash256>&& tx ) override
+    void cancelVerification() override
     {
         DBG_MAIN_THREAD
 
+        m_blockedReplicators.clear();
+
         if ( !m_verificationTask )
         {
-            _LOG_ERR( "cancelVerification: internal error: m_verificationRequest == null" )
             return;
         }
 
-        m_verificationTask->cancelVerification( *tx );
+        m_verificationTask->cancelVerification();
         m_verificationTask.reset();
     }
 
@@ -624,7 +606,29 @@ public:
 	}
 
     const ReplicatorList& donatorShard() const override { return m_modifyDonatorShard; }
-    const ReplicatorList& recipientShard() const override { return m_modifyRecipientShard; }
+
+    bool acceptConnectionFromReplicator( const Key& replicatorKey ) const override
+    {
+        if ( m_blockedReplicators.size() > 0 )
+        {
+            if ( (m_task && m_task->getTaskType() == DriveTaskType::MODIFICATION_REQUEST) ||
+                m_deferredModificationRequests.size() > 0 )
+            {
+                // skip 'm_blockedReplicators' check
+            }
+            else
+            {
+                if ( std::find( m_blockedReplicators.begin(), m_blockedReplicators.end(), replicatorKey )
+                        != m_blockedReplicators.end() )
+                {
+                    return false;
+                }
+            }
+        }
+
+        return std::find( m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), replicatorKey )
+                    != m_modifyRecipientShard.end();
+    }
 
     ////////////
 

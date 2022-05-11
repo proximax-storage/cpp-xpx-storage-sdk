@@ -317,10 +317,11 @@ class Replicator;
     struct VerificationRequest
     {
         Hash256                     m_tx;
-        uint32_t                    m_shardId = 0;
+        uint16_t                    m_shardId = 0;
         InfoHash                    m_actualRootHash;
         std::vector<Key>            m_replicators;
         std::uint32_t               m_durationMs;
+        std::set<Key>               m_blockedReplicators; // blocked until verification will be approved
     };
 
     struct VerificationCodeInfo
@@ -382,12 +383,12 @@ class Replicator;
         void Sign( const crypto::KeyPair&           keyPair,
                    const std::array<uint8_t,32>&    tx,
                    const std::array<uint8_t,32>&    driveKey,
-                   uint32_t                         shardId )
+                   uint16_t                         shardId )
        {
             crypto::Sign( keyPair,
                           {
+							utils::RawBuffer{driveKey},
                             utils::RawBuffer{tx},
-                            utils::RawBuffer{driveKey},
                             utils::RawBuffer{(const uint8_t*) &shardId, sizeof(shardId)},
                             utils::RawBuffer{m_opinions},
                           },
@@ -396,12 +397,12 @@ class Replicator;
 
         bool Verify( const std::array<uint8_t,32>&    tx,
                      const std::array<uint8_t,32>&    driveKey,
-                     uint32_t                         shardId ) const
+                     uint16_t                         shardId ) const
         {
             return crypto::Verify( m_publicKey,
                                   {
+            						utils::RawBuffer{driveKey},
                                     utils::RawBuffer{tx},
-                                    utils::RawBuffer{driveKey},
                                     utils::RawBuffer{(const uint8_t*) &shardId, sizeof(shardId)},
                                     utils::RawBuffer{m_opinions},
                                   },
@@ -413,7 +414,7 @@ class Replicator;
     {
         std::array<uint8_t,32>          m_tx;
         std::array<uint8_t,32>          m_driveKey;
-        uint32_t                        m_shardId = 0;
+        uint16_t                        m_shardId = 0;
         std::vector<VerifyOpinion>      m_opinions;
 
         template <class Archive> void serialize( Archive & arch )
@@ -576,14 +577,14 @@ class Replicator;
 
         virtual void     startVerification( mobj<VerificationRequest>&& request ) = 0;
 
-        virtual void     cancelVerification( mobj<Hash256>&& tx ) = 0;
+        virtual void     cancelVerification() = 0;
 
         // modification shards
         virtual void     setShardDonator( mobj<ReplicatorList>&& replicatorKeys ) = 0;
         virtual void     setShardRecipient( mobj<ReplicatorList>&& replicatorKeys ) = 0;
 
         virtual const ReplicatorList& donatorShard()   const = 0;
-        virtual const ReplicatorList& recipientShard() const = 0;
+        virtual bool     acceptConnectionFromReplicator( const Key& ) const = 0;
 
         virtual void     onVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
 

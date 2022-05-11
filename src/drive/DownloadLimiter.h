@@ -338,16 +338,6 @@ public:
         m_modifyDriveMap.erase(modifyTransactionHash);
     }
 
-    bool isRecipient( const FlatDrive& drive, const std::array<uint8_t,32>&  peerKey )
-    {
-        DBG_MAIN_THREAD
-        
-        auto& list = drive.recipientShard();
-        auto replicatorIt = std::find( list.begin(), list.end(), peerKey );
-
-        return replicatorIt != list.end();
-    }
-
     bool acceptClientConnection( const std::array<uint8_t,32>&  channelId,
                                  const std::array<uint8_t,32>&  peerKey ) override
     {
@@ -393,7 +383,7 @@ public:
         // Replicator downloads from another replicator
         if ( auto driveIt = m_driveMap.find( Key(driveKey) ); driveIt != m_driveMap.end() )
         {
-            if ( isRecipient( *driveIt->second, peerKey ) )
+            if ( driveIt->second->acceptConnectionFromReplicator( peerKey ) )
             {
                 return true;
             }
