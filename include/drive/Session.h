@@ -37,7 +37,7 @@ namespace download_status {
     enum code {
         download_complete = 0,
         downloading = 1,
-        failed = 2
+        dn_failed = 2
     };
 };
 
@@ -50,6 +50,7 @@ struct DownloadContext {
         file_from_drive = 1,
         client_data = 3,
         missing_files = 4,
+        chunk_from_drive = 5,
     };
 
     using Notification = std::function<void( download_status::code,
@@ -76,10 +77,14 @@ struct DownloadContext {
           m_doNotDeleteTorrent(doNotDeleteTorrent)
         {
             if ( m_downloadType == file_from_drive && m_saveAs.empty() )
-                throw std::runtime_error("m_downloadType == file_from_drive && m_saveAs.empty()");
+            {
+                _LOG_ERR("m_downloadType == file_from_drive && m_saveAs.empty()")
+            }
 
             if ( (m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty() )
-                throw std::runtime_error("(m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty()");
+            {
+                _LOG_ERR("(m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty()")
+            }
         }
 
     download_type         m_downloadType;

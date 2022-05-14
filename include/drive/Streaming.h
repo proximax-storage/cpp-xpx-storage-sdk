@@ -47,7 +47,7 @@ namespace sirius::drive {
         std::array<uint8_t,32>      m_streamId;
         uint32_t                    m_chunkIndex;
         std::array<uint8_t,32>      m_chunkInfoHash;
-        uint32_t                    m_durationMs;
+        uint32_t                    m_durationMks; // microseconds
         uint64_t                    m_sizeBytes;
         std::array<uint8_t, 64>     m_sign;
 
@@ -56,7 +56,7 @@ namespace sirius::drive {
             arch( m_streamId );
             arch( m_chunkIndex );
             arch( m_chunkInfoHash );
-            arch( m_durationMs );
+            arch( m_durationMks );
             arch( m_sizeBytes );
             arch( m_sign );
         }
@@ -68,7 +68,7 @@ namespace sirius::drive {
                                 utils::RawBuffer{m_streamId},
                                 utils::RawBuffer{ (const uint8_t*) &m_chunkIndex, sizeof(m_chunkIndex) },
                                 utils::RawBuffer{m_chunkInfoHash},
-                                utils::RawBuffer{ (const uint8_t*) &m_durationMs, sizeof(m_durationMs) },
+                                utils::RawBuffer{ (const uint8_t*) &m_durationMks, sizeof(m_durationMks) },
                                 utils::RawBuffer{ (const uint8_t*) &m_sizeBytes,  sizeof(m_sizeBytes)  },
                           },
                          reinterpret_cast<Signature &>(m_sign) );
@@ -81,7 +81,7 @@ namespace sirius::drive {
                                         utils::RawBuffer{m_streamId},
                                         utils::RawBuffer{ (const uint8_t*) &m_chunkIndex, sizeof(m_chunkIndex) },
                                         utils::RawBuffer{m_chunkInfoHash},
-                                        utils::RawBuffer{ (const uint8_t*) &m_durationMs, sizeof(m_durationMs) },
+                                        utils::RawBuffer{ (const uint8_t*) &m_durationMks, sizeof(m_durationMks) },
                                         utils::RawBuffer{ (const uint8_t*) &m_sizeBytes,  sizeof(m_sizeBytes)  },
                                    },
                                   reinterpret_cast<const Signature &>(m_sign) );

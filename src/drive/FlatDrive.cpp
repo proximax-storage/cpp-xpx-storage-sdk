@@ -776,16 +776,17 @@ public:
         }
     }
 
-    void acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
-                                     const boost::asio::ip::udp::endpoint&  viewer,
-                                     lt::entry&                             response ) override
+    std::string acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
+                                            const boost::asio::ip::udp::endpoint&  viewer ) override
     {
         DBG_MAIN_THREAD
         
         if ( m_task )
         {
-            m_task->acceptGetChunksInfoMessage( chunkIndex, viewer, response );
+            return m_task->acceptGetChunksInfoMessage( chunkIndex, viewer );
         }
+        
+        return {};
     }
     ////////////
 
@@ -817,7 +818,7 @@ public:
                            {
                                DBG_MAIN_THREAD
 
-                               if ( code == download_status::failed )
+                               if ( code == download_status::dn_failed )
                                {
                                    //todo is it possible?
                                    _ASSERT( 0 );

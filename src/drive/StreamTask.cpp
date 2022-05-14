@@ -57,34 +57,40 @@ public:
         return m_request->m_streamId;
     }
     
-    virtual void acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
-                                             const boost::asio::ip::udp::endpoint&  viewer,
-                                             lt::entry&                             response ) override
+    virtual std::string acceptGetChunksInfoMessage( uint32_t                               requestedIndex,
+                                                    const boost::asio::ip::udp::endpoint&  viewer ) override
     {
+        // Find requested chunkInfo or previous (if requested is absent)
+        //
         for( auto rit = m_chunkInfoList.rbegin(); rit != m_chunkInfoList.rend(); rit++ )
         {
-            if ( rit->get()->m_chunkIndex <= chunkIndex )
+            if ( rit->get()->m_chunkIndex <= requestedIndex )
             {
-                if ( rit->get()->m_chunkIndex < chunkIndex )
+                if ( rit->get()->m_chunkIndex < requestedIndex )
                 {
-                    // lost chunkInfo
+                    // so far we have not received requested chunkInfo
+                    return "";
                 }
                 else
                 {
-                    // Find the end of chunk sequence
+                    // Find the end of the continuous/unbroken sequence
                     //
-                    uint32_t lastChunkIndex = chunkIndex-1;
-                    uint32_t durationMs = 0;
+                    uint32_t endIndex = requestedIndex+1;
+                    uint32_t durationMks = 0;
+                    // !!! The 'base' iterator refers to the element that is next
+                    // (from the std::reverse_iterator::iterator_type perspective)
+                    // to the element the reverse_iterator is currently pointing to. That is &*(rit.base() - 1) == &*rit
                     for( auto it = rit.base(); it != m_chunkInfoList.end(); it++ )
                     {
-                        if ( lastChunkIndex+1 != it->get()->m_chunkIndex )
+                        if ( endIndex != it->get()->m_chunkIndex )
                         {
+                            // we have lost 'index'
                             break;
                         }
-                        lastChunkIndex++;
+                        endIndex++;
                         
-                        durationMs += it->get()->m_durationMs;
-                        if ( durationMs > MAX_CHUNKS_DURATION_MS )
+                        durationMks += it->get()->m_durationMks;
+                        if ( durationMks > MAX_CHUNKS_DURATION_MS )
                         {
                             break;
                         }
@@ -94,22 +100,31 @@ public:
                     //
                     std::ostringstream os( std::ios::binary );
                     cereal::PortableBinaryOutputArchive archive( os );
-                    archive( chunkIndex );
-                    uint32_t chunkNumber = lastChunkIndex - chunkIndex + 1;
+                    archive( requestedIndex );
+                    int32_t chunkNumber = endIndex - requestedIndex;
+                    if ( chunkNumber > 5 )
+                    {
+                        chunkNumber = 5;
+                    }
                     archive( chunkNumber );
 
-                    for( auto it = rit.base(); it != m_chunkInfoList.end(); it++ )
+                    const ChunkInfo& info = * rit->get();
+                    archive( info );
+                    // !!! The 'base' iterator refers to the element that is next
+                    // (from the std::reverse_iterator::iterator_type perspective)
+                    // to the element the reverse_iterator is currently pointing to. That is &*(rit.base() - 1) == &*rit
+                    for( auto it = rit.base(); it != m_chunkInfoList.end() && 0<chunkNumber--; it++ )
                     {
                         const ChunkInfo& info = * it->get();
                         archive( info );
                     }
 
-                    __LOG( "response[r][q]: " << "get-chunks-info" );
-                    response["r"]["q"] = "get-chunks-info";
-                    response["r"]["ret"] = os.str();
+                    return os.str();
                 }
             }
         }
+        
+        return {};
     }
 
     virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& streamer ) override
@@ -267,7 +282,7 @@ public:
 
                                    _ASSERT( !m_taskIsStopped );
 
-                                   if ( code == download_status::failed )
+                                   if ( code == download_status::dn_failed )
                                    {
                                        //todo is it possible?
                                        _ASSERT( 0 );

@@ -125,11 +125,11 @@ public:
         // it must be overriden by StreamTask
     }
 
-    virtual void acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
-                                             const boost::asio::ip::udp::endpoint&  viewer,
-                                             lt::entry&                             response )
+    virtual std::string acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
+                                             const boost::asio::ip::udp::endpoint&  viewer )
     {
         // it must be overriden by StreamTask
+        return "";
     }
 
 protected:

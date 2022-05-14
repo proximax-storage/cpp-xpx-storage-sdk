@@ -613,9 +613,8 @@ class Replicator;
         
         virtual void     acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
 
-        virtual void     acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
-                                                     const boost::asio::ip::udp::endpoint&  viewer,
-                                                     lt::entry&                             response ) = 0;
+        virtual std::string acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
+                                                        const boost::asio::ip::udp::endpoint&  viewer ) = 0;
     };
 
     class Session;

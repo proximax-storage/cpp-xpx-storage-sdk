@@ -177,6 +177,7 @@ public:
         return m_session;
     }
     
+    //
     virtual void onTorrentDeleted( lt::torrent_handle handle ) override
     {
         if (m_stopping)
@@ -465,6 +466,7 @@ public:
                                 const std::array<uint8_t,32>*   modifyTx  = nullptr,
                                 const endpoint_list&            endpointsHints = {} ) override
     {
+        _LOG( "download started " )
         // create add_torrent_params
         lt::error_code ec;
         lt::add_torrent_params params = lt::parse_magnet_uri( magnetLink(downloadContext.m_infoHash), ec );
@@ -532,7 +534,9 @@ public:
         }
         else if ( downloadContext.m_downloadType == DownloadContext::file_from_drive ) {
             if (downloadContext.m_saveAs.empty())
-                throw std::runtime_error("download(file_from_drive): DownloadContext::m_saveAs' is empty");
+            {
+                _LOG_ERR( "download(file_from_drive): DownloadContext::m_saveAs' is empty" )
+            }
         }
 
         __ASSERT( tHandle.userdata().get<LtClientData>() != nullptr )
@@ -779,6 +783,37 @@ private:
         limiter->onEndpointDiscovered(publicKey, endpoint);
     }
 
+    void saveTorrentFile( const std::shared_ptr<lt::torrent_info>&& ti, LtClientData* userdata )
+    {
+        lt::create_torrent ct(*ti);
+        lt::entry te = ct.generate();
+        std::vector<char> buffer;
+        bencode(std::back_inserter(buffer), te);
+
+        if ( FILE* f = fopen( userdata->m_saveTorrentFilename.c_str(), "wb+" ); f )
+        {
+            fwrite( &buffer[0], 1, buffer.size(), f );
+            fclose(f);
+        }
+
+//                                    userdata->m_saveTorrentFilename = {};
+
+        auto dnContext = userdata->m_dnContexts.front();
+        if ( dnContext.m_doNotDeleteTorrent )
+        {
+            // Notify about finishing
+            boost::asio::post( lt_session().get_context(), [=]
+            {
+                dnContext.m_downloadNotification( download_status::code::download_complete,
+                                                dnContext.m_infoHash,
+                                                dnContext.m_saveAs,
+                                                userdata->m_uploadedDataSize,
+                                                0,
+                                                "" );
+            });
+        }
+    }
+    
     void alertHandler()
     {
         //DBG_MAIN_THREAD
@@ -897,7 +932,7 @@ private:
                                 userdata->m_limitIsExceeded = true;
                                 _ASSERT( userdata->m_dnContexts.size()==1 )
                                 userdata->m_dnContexts.front().m_downloadNotification(
-                                                                    download_status::code::failed,
+                                                                    download_status::code::dn_failed,
                                                                     userdata->m_dnContexts.front().m_infoHash,
                                                                     userdata->m_dnContexts.front().m_saveAs,
                                                                     userdata->m_uploadedDataSize,
@@ -935,6 +970,12 @@ private:
                          if ( rDict.type() == lt::bdecode_node::dict_t )
                          {
                              auto query = rDict.dict_find_string_value("q");
+                             if ( query.size() > 0 && query != "chunk-info" && query != "endpoint_request"
+                                    && query != "handshake" && query != "endpoint_response" )
+                             {
+                                 _LOG( "dht_query: " << query );
+                                 _LOG( "" );
+                             }
                              //_LOG( "dht_query: " << query )
                              if ( query == "get_dn_rcpts" || query == "get-chunks-info" )
                              {
@@ -1055,7 +1096,7 @@ private:
                     _ASSERT( userdata != nullptr )
                     if ( userdata != nullptr && userdata->m_dnContexts.size()>0 )
                     {
-                        userdata->m_dnContexts.front().m_downloadNotification(   download_status::code::failed,
+                        userdata->m_dnContexts.front().m_downloadNotification(   download_status::code::dn_failed,
                                                                                  userdata->m_dnContexts.front().m_infoHash,
                                                                                  userdata->m_dnContexts.front().m_saveAs,
                                                                                  userdata->m_uploadedDataSize,
@@ -1114,36 +1155,18 @@ private:
                                 auto ti = theAlert->handle.torrent_file_with_hashes();
 
                                 // Save torrent file
-                                m_replicator.lock()->executeOnBackgroundThread( [ti=std::move(ti),userdata,this]
+                                if ( auto replicator = m_replicator.lock(); replicator )
                                 {
-                                    lt::create_torrent ct(*ti);
-                                    lt::entry te = ct.generate();
-                                    std::vector<char> buffer;
-                                    bencode(std::back_inserter(buffer), te);
-
-                                    if ( FILE* f = fopen( userdata->m_saveTorrentFilename.c_str(), "wb+" ); f )
+                                    replicator->executeOnBackgroundThread( [ti=std::move(ti),userdata,this]
                                     {
-                                        fwrite( &buffer[0], 1, buffer.size(), f );
-                                        fclose(f);
-                                    }
-
-//                                    userdata->m_saveTorrentFilename = {};
-
-                                    auto dnContext = userdata->m_dnContexts.front();
-                                    if ( dnContext.m_doNotDeleteTorrent )
-                                    {
-                                        // Notify about finishing
-                                        boost::asio::post( lt_session().get_context(), [=]
-                                        {
-                                            dnContext.m_downloadNotification( download_status::code::download_complete,
-                                                                            dnContext.m_infoHash,
-                                                                            dnContext.m_saveAs,
-                                                                            userdata->m_uploadedDataSize,
-                                                                            0,
-                                                                            "" );
-                                        });
-                                    }
-                                });
+                                        saveTorrentFile( std::move(ti), userdata );
+                                    });
+                                }
+                                else
+                                {
+                                    // Client could save torrent-file on main thread
+                                    saveTorrentFile( std::move(ti), userdata );
+                                }
                             }
                         }
                         else

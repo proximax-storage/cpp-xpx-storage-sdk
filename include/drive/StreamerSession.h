@@ -62,7 +62,7 @@ public:
             m_bgThread( std::thread( [this] { m_bgContext.run(); } )),
             m_tickTimer( m_bgContext )
     {
-        planNextTick();
+//        planNextTick();
     }
     
     void planNextTick()
@@ -260,7 +260,7 @@ public:
     
     std::string parseM3u8Playlist()
     {
-        _LOG( "m_m3u8Playlist: " << m_m3u8Playlist )
+        //_LOG( "m_m3u8Playlist: " << m_m3u8Playlist )
         
         // copy file (it could be chaged)
         std::ifstream fin( m_m3u8Playlist );
@@ -290,7 +290,7 @@ public:
                 try
                 {
                     version = std::stoi( line.substr(15) );
-                    _LOG( "version: " << version )
+                    //_LOG( "version: " << version )
                 }
                 catch(...)
                 {
@@ -314,7 +314,7 @@ public:
                 try
                 {
                     sequenceNumber = std::stoi( line.substr(16+6) );
-                    _LOG( "sequenceNumber: " << sequenceNumber )
+                    //_LOG( "sequenceNumber: " << sequenceNumber )
                 }
                 catch(...)
                 {
@@ -333,7 +333,7 @@ public:
                 try
                 {
                     duration = std::stof( line.substr(8) );
-                    _LOG( "duration: " << duration )
+                    //_LOG( "duration: " << duration )
                 }
                 catch(...)
                 {
@@ -354,7 +354,7 @@ public:
                 
                 if ( m_chunkInfoMap.find( chunkIndex ) == m_chunkInfoMap.end() )
                 {
-                    addMediaToStream( m_mediaFolder / line, duration, chunkIndex );
+                    addMediaToStream( m_mediaFolder / line, duration*1000000, chunkIndex );
                     mediaIndex++;
                 }
                 continue;

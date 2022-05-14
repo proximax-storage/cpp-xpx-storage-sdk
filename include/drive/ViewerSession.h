@@ -86,6 +86,8 @@ public:
             requestChunkInfo(0);
             return;
         }
+
+        requestChunkInfo( m_chunkInfoList.size() );
     }
 
     void endWatching()
@@ -121,6 +123,7 @@ public:
         _ASSERT( replicatorEndpointList.size() > 0 )
 
         m_streamId = streamId;
+        m_streamerKey = streamerKey;
         m_driveKey = driveKey;
         m_watchOptions = watchOptions;
 
@@ -135,6 +138,44 @@ public:
 
         fs::create_directories( m_chunkFolder );
         fs::create_directories( m_torrentFolder );
+        
+        updatePlaylist( 0 );
+    }
+    
+    void updatePlaylist( uint32_t lastChunkIndex )
+    {
+        const uint32_t maxChunkNumber = 5;
+        uint32_t chunkNumber;
+        uint32_t sequenceNumber;
+
+        if ( m_chunkInfoList.size() > maxChunkNumber )
+        {
+            chunkNumber = maxChunkNumber;
+            sequenceNumber = uint32_t(m_chunkInfoList.size()) - maxChunkNumber;
+        }
+        else
+        {
+            chunkNumber = uint32_t(m_chunkInfoList.size());
+            sequenceNumber = 0;
+        }
+        
+        
+        std::stringstream playlist;
+        playlist << "#EXTM3U" << std::endl;
+        playlist << "#EXT-X-VERSION:3" << std::endl;
+        playlist << "#EXT-X-MEDIA-SEQUENCE:" << sequenceNumber << std::endl;
+        
+        for( uint32_t i = chunkNumber; i < uint32_t(m_chunkInfoList.size()); i++ )
+        {
+            playlist << "#EXTINF:" << m_chunkInfoList[i].m_durationMks/1000000 << "." << m_chunkInfoList[i].m_durationMks%1000000 << std::endl;
+            playlist << Key(m_chunkInfoList[i].m_chunkInfoHash) << std::endl;
+        }
+        
+        //_LOG( ">>>>>>>>123123123\n" << playlist.str() )
+        
+        auto playlistTxt = playlist.str();
+        std::ofstream fileStream( fs::path(m_chunkFolder) / "stream.m3u8", std::ios::binary );
+        fileStream.write( playlistTxt.c_str(), playlistTxt.size() );
     }
     
     void handleDhtResponse( lt::bdecode_node response ) override
@@ -146,42 +187,48 @@ public:
         {
             if ( query == "get-chunks-info" )
             {
-                lt::string_view response = rDict.dict_find_string_value("ret");
-                
-                std::istringstream is( std::string( response.begin(), response.end() ), std::ios::binary );
+                lt::string_view ret = rDict.dict_find_string_value("ret");
+                std::string result( ret.begin(), ret.end() );
+
+                std::istringstream is( result, std::ios::binary );
                 cereal::PortableBinaryInputArchive iarchive(is);
 
                 uint32_t  chunkIndex;
                 iarchive( chunkIndex );
                 uint32_t  chunkNumber;
                 iarchive( chunkNumber );
+                _LOG( "chunkIndex:" << chunkIndex << " chunkNumber:" << chunkNumber )
                 
                 for( uint32_t i=0; i<chunkNumber; i++ )
                 {
                     ChunkInfo info;
                     iarchive( info );
-                    
+                 
                     if ( ! addChunkInfo( info ) )
                     {
                         return;
                     }
                 }
                 
-                //tryLoadNextChunk();
+                tryLoadNextChunk();
             }
+        }
+        catch( std::exception& ex )
+        {
+            _LOG_WARN( "exception: " << ex.what() )
         }
         catch(...)
         {
+            _LOG_WARN("exception!")
         }
     }
     
     bool addChunkInfo( const ChunkInfo& info )
     {
-        uint32_t lastInfoIndex = m_chunkInfoList.empty() ? 0 : m_chunkInfoList.size();
-        uint32_t lastOffsetMs = m_chunkInfoList.empty() ? 0 : m_chunkInfoList.back().m_offsetMs + m_chunkInfoList.back().m_durationMs;
-        if ( lastInfoIndex != info.m_chunkIndex )
+        uint32_t newIndex = m_chunkInfoList.size();
+        if ( newIndex != info.m_chunkIndex )
         {
-            return (lastInfoIndex > info.m_chunkIndex);
+            return (newIndex > info.m_chunkIndex);
         }
         
         if ( ! info.Verify(m_streamerKey) )
@@ -190,25 +237,31 @@ public:
             return false;
         }
         
-        m_chunkInfoList.emplace_back( info, lastOffsetMs );
+        uint32_t offsetMs = m_chunkInfoList.empty() ? 0 : m_chunkInfoList.back().m_offsetMs + m_chunkInfoList.back().m_durationMks;
+        m_chunkInfoList.emplace_back( info, offsetMs );
         
         return true;
     }
 
     void tryLoadNextChunk()
     {
+        if ( ! m_downloadChannelId )
+        {
+            _LOG_ERR( "m_downloadChannelId was not set");
+        }
         if ( m_downloadingLtHandle || m_chunkInfoList.size() <= m_tobeDownloadedChunkIndex )
         {
             return;
         }
         
+        _LOG( "m_tobeDownloadedChunkIndex: " << m_tobeDownloadedChunkIndex )
         const auto& chunkInfo = m_chunkInfoList[m_tobeDownloadedChunkIndex];
         _ASSERT( m_tobeDownloadedChunkIndex == chunkInfo.m_chunkIndex )
         m_tobeDownloadedChunkIndex++;
 
         m_downloadingLtHandle = m_session->download(
                            DownloadContext(
-                                   DownloadContext::missing_files,
+                                   DownloadContext::chunk_from_drive,
 
                                    [this]( download_status::code code,
                                            const InfoHash& infoHash,
@@ -219,10 +272,11 @@ public:
                                    {
                                        if ( code == download_status::download_complete )
                                        {
-                                           createNewMediaPlaylist();
+                                           updatePlaylist( m_tobeDownloadedChunkIndex-1 );
+                                           m_downloadingLtHandle.reset();
                                            tryLoadNextChunk();
                                        }
-                                       else if ( code == download_status::failed )
+                                       else if ( code == download_status::dn_failed )
                                        {
                                        }
                                    },
@@ -237,14 +291,9 @@ public:
                            m_torrentFolder / (toString(InfoHash(chunkInfo.m_chunkInfoHash))),
                            {}, //getUploaders(),
                            &m_driveKey.array(),
-                           nullptr,
+                           &(*m_downloadChannelId),
                            &m_streamId->array()
                         );
-    }
-    
-    void createNewMediaPlaylist()
-    {
-        
     }
     
     virtual bool on_dht_request( lt::string_view                         query,

@@ -276,7 +276,7 @@ public:
                 return drive->dbgPrintDriveStatus();
             }
 
-            _LOG_ERR( "unknown dive: " << driveKey );
+            _LOG_ERR( "unknown drive: " << driveKey );
             throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
         });
 
@@ -2002,7 +2002,13 @@ public:
                     uint32_t chunkIndex;
                     iarchive( chunkIndex );
 
-                    driveIt->second->acceptGetChunksInfoMessage( chunkIndex, source, response );
+                    std::string result = driveIt->second->acceptGetChunksInfoMessage( chunkIndex, source );
+                    if ( ! result.empty() )
+                    {
+                        response["r"]["q"] = std::string(query);
+                        response["r"]["ret"] = result;
+                    }
+                    return true;
                 }
                 else
                 {

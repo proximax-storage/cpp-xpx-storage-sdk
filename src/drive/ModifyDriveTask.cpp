@@ -117,7 +117,7 @@ public:
                                                        //(???+)
                                                        DBG_MAIN_THREAD
 
-                                                       if ( code == download_status::failed )
+                                                       if ( code == download_status::dn_failed )
                                                        {
                                                            m_drive.m_torrentHandleMap.erase( infoHash );
                                                            modifyIsCompletedWithError( errorText, 0 );
@@ -248,7 +248,7 @@ public:
                                                                            _LOG( "downloading: END: " << toString( infoHash ));
                                                                            m_uploadedDataSize += downloadedSize;
                                                                            downloadMissingFiles();
-                                                                       } else if ( code == download_status::failed )
+                                                                       } else if ( code == download_status::dn_failed )
                                                                        {
                                                                            m_drive.m_torrentHandleMap.erase( infoHash );
                                                                            modifyIsCompletedWithError( errorText, 0 );
