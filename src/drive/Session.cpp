@@ -201,7 +201,7 @@ public:
                 
                 auto& context = contextVector[i];
 
-                if ( ! context.m_saveAs.empty() && context.m_downloadType == DownloadContext::file_from_drive )
+                if ( ! context.m_saveAs.empty() )
                 {
                     _ASSERT( ! m_ownerIsReplicator )
                     

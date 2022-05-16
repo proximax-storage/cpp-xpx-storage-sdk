@@ -116,7 +116,7 @@ public:
                            },
                            m_request->m_rootHash,
                            *m_opinionController.opinionTrafficTx(),
-                           0, true, ""
+                           0, true, m_drive.m_sandboxFsTreeFile
                    ),
                    m_drive.m_sandboxRootPath,
                    m_drive.m_sandboxFsTreeTorrent,

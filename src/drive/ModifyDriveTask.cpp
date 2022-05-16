@@ -510,8 +510,10 @@ public:
             {
                 return false;
             }
-            
-            _ASSERT( m_sandboxRootHash == transaction.m_rootHash )
+
+			if ( *m_sandboxRootHash != transaction.m_rootHash ) {
+				_LOG_ERR( "Invalid Sandbox Root Hash: " << *m_sandboxRootHash << " " << Hash256(transaction.m_rootHash) )
+			}
             
             const auto& v = transaction.m_replicatorKeys;
             auto it = std::find( v.begin(), v.end(), m_drive.m_replicator.replicatorKey().array());
