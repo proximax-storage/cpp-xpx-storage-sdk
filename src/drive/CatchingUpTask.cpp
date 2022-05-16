@@ -133,7 +133,9 @@ public:
         
         try
         {
-            m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile );
+			// TODO do not read file on main thread
+
+			m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile );
             m_sandboxFsTree->dbgPrint();
         }
         catch (...)
@@ -391,10 +393,12 @@ public:
     void modifyIsCompleted() override
     {
         _LOG( "catchingIsCompleted" );
-        m_drive.m_dbgEventHandler->driveModificationIsCompleted( m_drive.m_replicator, m_drive.m_driveKey,
-                                                                 m_request->m_modifyTransactionHash,
-                                                                 *m_sandboxRootHash );
-        UpdateDriveTaskBase::modifyIsCompleted();
+		if ( m_drive.m_dbgEventHandler )
+		{
+			m_drive.m_dbgEventHandler->driveModificationIsCompleted(
+					m_drive.m_replicator, m_drive.m_driveKey, m_request->m_modifyTransactionHash, *m_sandboxRootHash);
+		}
+		UpdateDriveTaskBase::modifyIsCompleted();
     }
 
     void continueSynchronizingDriveWithSandbox() override

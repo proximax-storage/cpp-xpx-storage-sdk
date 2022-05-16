@@ -359,7 +359,7 @@ public:
 
             if ( auto drive = getDrive(driveKey); drive )
             {
-                drive->startDriveClosing( {} );
+                drive->startDriveClosing(  DriveClosureRequest() );
             }
             else
             {
@@ -1158,7 +1158,11 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_driveMap.erase( driveKey );
+		auto it = m_driveMap.find( driveKey );
+
+        _ASSERT( it != m_driveMap.end() )
+
+        m_driveMap.erase( it );
     }
     
     virtual void asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) override
