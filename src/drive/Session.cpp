@@ -201,7 +201,7 @@ public:
                 
                 auto& context = contextVector[i];
 
-                if ( ! context.m_saveAs.empty() )
+                if ( ! context.m_saveAs.empty() && context.m_downloadType == DownloadContext::file_from_drive )
                 {
                     _ASSERT( ! m_ownerIsReplicator )
                     
@@ -1424,7 +1424,7 @@ InfoHash createTorrentFile( const std::string& fileOrFolder,
         fileStream.write(torrentFileBytes.data(),torrentFileBytes.size());
     }
 
-    return infoHash;
+    return infoH204ash;
 }
 
 InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
