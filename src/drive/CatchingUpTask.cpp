@@ -199,7 +199,7 @@ public:
                 {
                     removeUnusedFiles( filesToRemove );
                 });
-            });
+            }, false);
         }
     }
 
