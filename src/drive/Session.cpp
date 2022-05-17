@@ -364,7 +364,7 @@ public:
 //                if ( torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer )
 //                {
                     _LOG( "+++ ex :remove_torrent(3): " << torrentHandle.info_hashes().v2 );
-                    m_session.remove_torrent( torrentHandle, lt::session::delete_files );
+                    m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
 //                }
             }
         }
@@ -1424,7 +1424,7 @@ InfoHash createTorrentFile( const std::string& fileOrFolder,
         fileStream.write(torrentFileBytes.data(),torrentFileBytes.size());
     }
 
-    return infoH204ash;
+    return infoHash;
 }
 
 InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,

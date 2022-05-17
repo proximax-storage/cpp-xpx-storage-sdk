@@ -110,6 +110,7 @@ public:
                                if ( code == download_status::download_complete )
                                {
                                    m_sandboxRootHash = infoHash;
+                                   m_drive.m_torrentHandleMap[infoHash] = UseTorrentInfo{ *m_downloadingLtHandle, false };
                                    m_downloadingLtHandle.reset();
                                    createUnusedFileList();
                                }
