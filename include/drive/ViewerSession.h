@@ -146,34 +146,36 @@ public:
     
     void updatePlaylist( uint32_t lastChunkIndex )
     {
-        const uint32_t maxChunkNumber = 5;
-        uint32_t chunkNumber;
-        uint32_t sequenceNumber;
+        _LOG("updatePlaylist: " << lastChunkIndex )
+        
+        const uint32_t maxChunkNumber = 4;
+        uint32_t firstChunkNumber;
+        uint32_t totalChunkNumber;
 
         if ( m_chunkInfoList.size() > maxChunkNumber )
         {
-            chunkNumber = maxChunkNumber;
-            sequenceNumber = uint32_t(m_chunkInfoList.size()) - maxChunkNumber;
+            firstChunkNumber = uint32_t(m_chunkInfoList.size()) - maxChunkNumber;
+            totalChunkNumber = maxChunkNumber;
         }
         else
         {
-            chunkNumber = uint32_t(m_chunkInfoList.size());
-            sequenceNumber = 0;
+            firstChunkNumber = 0;
+            totalChunkNumber = uint32_t(m_chunkInfoList.size());
         }
-        
         
         std::stringstream playlist;
         playlist << "#EXTM3U" << std::endl;
         playlist << "#EXT-X-VERSION:3" << std::endl;
-        playlist << "#EXT-X-MEDIA-SEQUENCE:" << sequenceNumber << std::endl;
+        playlist << "#EXT-X-TARGETDURATION:3" << std::endl;
+        playlist << "#EXT-X-MEDIA-SEQUENCE:" << firstChunkNumber << std::endl;
         
-        for( uint32_t i = chunkNumber; i < uint32_t(m_chunkInfoList.size()); i++ )
+        for( uint32_t i=0; i<totalChunkNumber; i++ )
         {
-            playlist << "#EXTINF:" << m_chunkInfoList[i].m_durationMks/1000000 << "." << m_chunkInfoList[i].m_durationMks%1000000 << std::endl;
-            playlist << Key(m_chunkInfoList[i].m_chunkInfoHash) << std::endl;
+            playlist << "#EXTINF:" << m_chunkInfoList[firstChunkNumber+i].m_durationMks/1000000 << "." << m_chunkInfoList[i].m_durationMks%1000000 << std::endl;
+            playlist << Key(m_chunkInfoList[firstChunkNumber+i].m_chunkInfoHash) << std::endl;
         }
         
-        //_LOG( ">>>>>>>>123123123\n" << playlist.str() )
+        _LOG( "updatePlaylist: " << firstChunkNumber << " " <<  totalChunkNumber )
         
         auto playlistTxt = playlist.str();
         std::ofstream fileStream( fs::path(m_chunkFolder) / "stream.m3u8", std::ios::binary );

@@ -55,7 +55,7 @@ bool gBreak_On_Warning = true;
 #define REPLICATOR_PORT_4       5004
 
 //#define OSB_OUTPUT_PLAYLIST             fs::path(getenv("HOME")) / "111" / "stream" / "stream.m3u8"
-#define OSB_OUTPUT_PLAYLIST             fs::path(getenv("HOME")) / "111-stream" / "stream.m3u8"
+#define OSB_OUTPUT_PLAYLIST             fs::path(getenv("HOME")) / "111-stream" / "obs-stream.m3u8"
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111"
 #define REPLICATOR_ROOT_FOLDER          fs::path(getenv("HOME")) / "111" / "replicator_root"
