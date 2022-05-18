@@ -313,7 +313,8 @@ public:
 
 
     virtual void removeTorrentsFromSession( const std::set<lt::torrent_handle>&  torrents,
-                                            std::function<void()>                endNotification ) override
+                                            std::function<void()>                endNotification,
+                                            bool removeFiles ) override
     {
         auto toBeRemoved = std::set<lt::torrent_handle>();
 
@@ -364,7 +365,8 @@ public:
 //                if ( torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer )
 //                {
                     _LOG( "+++ ex :remove_torrent(3): " << torrentHandle.info_hashes().v2 );
-                    m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
+                    lt::remove_flags_t removeFlag = removeFiles ? lt::session::delete_files : lt::session::delete_partfile;
+                    m_session.remove_torrent( torrentHandle, removeFlag );
 //                }
             }
         }

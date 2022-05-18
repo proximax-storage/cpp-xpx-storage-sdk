@@ -124,7 +124,8 @@ public:
     // After removing 'endNotification' will be called.
     // And only after that the 'client' could move/remove files and torrnet file.
     virtual void      removeTorrentsFromSession( const std::set<lt::torrent_handle>& torrents,
-                                                 std::function<void()>               endNotification ) = 0;
+                                                 std::function<void()>               endNotification,
+										   		 bool removeFiles ) = 0;
     
     // It starts downloading of 'modify data' (identified by downloadParameters.m_infoHash)
     // keysHints and endpointsHints are independent hits about peers to download the torrent from
