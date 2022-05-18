@@ -246,9 +246,9 @@ public:
             auto replicator = getReplicator( r );
             if ( replicator )
             {
-                replicator->asyncReplicatorAdded( driveKey, replicatorKey );
-                replicator->asyncAddShardDonator( driveKey,  replicatorKey );
-                replicator->asyncAddShardRecipient( driveKey, replicatorKey );
+                replicator->asyncSetReplicators( driveKey, drive.m_driveRequest.m_fullReplicatorList );
+                replicator->asyncSetShardDonator( driveKey,  drive.m_driveRequest.m_modifyDonatorShard );
+                replicator->asyncSetShardRecipient( driveKey, drive.m_driveRequest.m_modifyRecipientShard );
             }
         }
 
@@ -287,9 +287,9 @@ public:
             auto replicator = getReplicator( r );
             if ( replicator )
             {
-                replicator->asyncReplicatorRemoved( driveKey, replicatorKey );
-                replicator->asyncRemoveShardDonator( driveKey, replicatorKey );
-                replicator->asyncRemoveShardRecipient( driveKey, replicatorKey );
+                replicator->asyncSetReplicators( driveKey, drive.m_driveRequest.m_fullReplicatorList );
+                replicator->asyncSetShardDonator( driveKey,  drive.m_driveRequest.m_modifyDonatorShard );
+                replicator->asyncSetShardRecipient( driveKey, drive.m_driveRequest.m_modifyRecipientShard );
             }
         }
 
@@ -386,7 +386,7 @@ public:
         {
             auto replicator = getReplicator( key );
             {
-                replicator->asyncCancelDriveVerification( driveKey, request );
+                replicator->asyncCancelDriveVerification( driveKey );
             }
         }
     }
@@ -475,7 +475,7 @@ public:
                 if ( std::find( replicators.begin(), replicators.end(), opinion.m_replicatorKey ) == replicators.end() )
                 {
                     EXLOG( "Fault Replicator Opinion" )
-                    replicator.asyncApprovalTransactionHasFailedInvalidSignatures(
+                    replicator.asyncApprovalTransactionHasFailedInvalidOpinions(
                             transactionInfo.m_driveKey, transactionInfo.m_modifyTransactionHash );
                     return;
                 }
@@ -484,7 +484,7 @@ public:
             if ( transactionInfo.m_opinions.size() <= (2 * replicators.size()) / 3 )
             {
                 EXLOG( "Fault Opinions Number" )
-                replicator.asyncApprovalTransactionHasFailedInvalidSignatures(
+                replicator.asyncApprovalTransactionHasFailedInvalidOpinions(
                         transactionInfo.m_driveKey, transactionInfo.m_modifyTransactionHash );
                 return;
             }
@@ -508,7 +508,7 @@ public:
             m_rootHashes[m_drives[transactionInfo.m_driveKey].m_lastApprovedModification->m_modifyTransactionHash] = transactionInfo.m_rootHash;
             for ( auto& key: m_drives[transactionInfo.m_driveKey].m_driveRequest.m_fullReplicatorList )
             {
-                auto r = getReplicator( key );
+                if ( auto r = getReplicator( key ); r )
                 {
                     r->asyncApprovalTransactionHasBeenPublished(
                         PublishedModificationApprovalTransactionInfo( transactionInfo ));
@@ -674,16 +674,16 @@ public:
 
 public:
 
-    std::shared_ptr<Replicator>&  getReplicator(const Key& replicator)
+    std::shared_ptr<Replicator> getReplicator(const Key& replicator)
     {
         auto it = std::find_if(m_replicators.begin(), m_replicators.end(), [&] (const auto& item)
         {
-            return item->dbgReplicatorKey() == replicator;
+            return item && item->dbgReplicatorKey() == replicator;
         });
 
         if ( it == m_replicators.end() )
         {
-            throw std::runtime_error( "No Such a Replicator" );
+            return {};
         }
         return *it;
     }

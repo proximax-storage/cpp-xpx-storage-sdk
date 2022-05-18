@@ -56,7 +56,9 @@ namespace sirius::drive::test
                     m_ignoredReplicator = transactionInfo.m_opinions.back().m_replicatorKey;
                 }
             }
-            transaction.m_opinions.pop_back();
+            if (transaction.m_opinions.size() == m_replicators.size()) {
+                transaction.m_opinions.pop_back();
+            }
             ASSERT_EQ(transaction.m_opinions.size(), m_replicators.size() - 1);
             TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transaction));
         }
@@ -98,7 +100,7 @@ namespace sirius::drive::test
         env.addDrive(DRIVE_PUB_KEY, client.m_clientKeyPair.publicKey(), 100 * 1024 * 1024);
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes.back(),
                                         client.m_modificationTransactionHashes.back(),
-                                        BIG_FILE_SIZE + 1024,
+                                        BIG_FILE_SIZE + 1024 * 1024,
                                         env.m_addrList });
 
         EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);

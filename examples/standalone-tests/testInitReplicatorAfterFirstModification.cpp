@@ -107,7 +107,7 @@ namespace sirius::drive::test
         env.addDrive(DRIVE_PUB_KEY, client.m_clientKeyPair.publicKey(), 100 * 1024 * 1024);
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[0],
                                         client.m_modificationTransactionHashes[0],
-                                        BIG_FILE_SIZE + 1024,
+                                        BIG_FILE_SIZE + 1024 * 1024,
                                         env.m_addrList });
 
         env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS - 1);

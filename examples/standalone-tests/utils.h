@@ -120,7 +120,7 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
                                               },
                                               rootHash,
                                               downloadChannelId, 0),
-                                      m_clientFolder / "fsTree-folder");
+                                      m_clientFolder / "fsTree-folder", "");
             m_downloadChannels.push_back(downloadChannelId);
         }
 

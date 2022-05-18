@@ -77,20 +77,19 @@ namespace sirius::drive::test
         env.addDrive(DRIVE_PUB_KEY, client.m_clientKeyPair.publicKey(), 100 * 1024 * 1024);
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[0],
                                         client.m_modificationTransactionHashes[0],
-                                        BIG_FILE_SIZE + 1024,
+                                        BIG_FILE_SIZE + 1024 * 1024,
                                         env.m_addrList });
 
         env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS - 1);
 
         auto verification = randomByteArray<Hash256>();
-        env.startVerification(DRIVE_PUB_KEY,
-                              {
-            verification,
-            0,
-            env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash,
-            env.m_addrList,
-            10 * 1000
-                              });
+        env.startVerification( DRIVE_PUB_KEY,
+                               {
+                                       verification,
+                                       0,
+                                       env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash,
+                                       env.m_addrList,
+                                       10 * 1000, {}} );
         env.waitVerificationApproval(verification);
 
         const auto& verify_tx = env.m_verifyApprovalTransactionInfo[verification];
