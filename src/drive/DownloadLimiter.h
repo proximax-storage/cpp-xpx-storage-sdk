@@ -388,9 +388,9 @@ public:
         return false;
     }
 
-    void onPieceRequest( const std::array<uint8_t,32>&  txHash,
-                         const std::array<uint8_t,32>&  receiverPublicKey,
-                         uint64_t                       pieceSize ) override
+    void onPieceRequestWrite( const std::array<uint8_t,32>&  txHash,
+                              const std::array<uint8_t,32>&  receiverPublicKey,
+                              uint64_t                       pieceSize ) override
     {
 // Replicator nothing does
 //        DBG_MAIN_THREAD
@@ -402,7 +402,7 @@ public:
 //        }
     }
     
-    void onPieceRequestReceivedFromReplicator( const std::array<uint8_t,32>&  modifyTx,
+    bool onPieceRequestReceivedFromReplicator( const std::array<uint8_t,32>&  modifyTx,
                                                const std::array<uint8_t,32>&  receiverPublicKey,
                                                uint64_t                       pieceSize ) override
     {
@@ -410,7 +410,7 @@ public:
         
         if ( m_session->isEnding() )
         {
-            return;
+            return false;
         }
 
 
@@ -421,14 +421,16 @@ public:
                 peerIt->second.m_requestedSize += pieceSize;
             }
         }
+        return true;
     }
     
-    void onPieceRequestReceivedFromClient( const std::array<uint8_t,32>&      transactionHash,
+    bool onPieceRequestReceivedFromClient( const std::array<uint8_t,32>&      transactionHash,
                                            const std::array<uint8_t,32>&      receiverPublicKey,
                                            uint64_t                           pieceSize ) override
     {
         //(???+++)
         //TODO
+        return true;
     }
 
     void onPieceSent( const std::array<uint8_t,32>&  txHash,
@@ -480,7 +482,15 @@ public:
                 return;
             }
             
-            _LOG_WARN( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
+            if ( m_dnChannelMap.find( modifyTx ) != m_dnChannelMap.end() )
+            {
+                _LOG( "received piece from viewer/client: " << Key(modifyTx) );
+            }
+            else
+            {
+                _LOG( "received piece from viewer/client: " << Key(modifyTx) );
+                _LOG_WARN( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
+            }
             return;
         }
 

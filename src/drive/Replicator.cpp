@@ -1982,15 +1982,13 @@ public:
             return true;
         }
         
-        else if ( query == "get-chunks-info" )
+        else if ( query == "get-chunks-info" ) // message from 'viewer'
         {
             try
             {
                 //std::string message( query.begin(), query.end() );
                 auto str = message.dict_find_string_value("x");
                 std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
-
-                _LOG( "message.size(): " << str.size() )
 
                 std::istringstream is( packet, std::ios::binary );
                 cereal::PortableBinaryInputArchive iarchive(is);

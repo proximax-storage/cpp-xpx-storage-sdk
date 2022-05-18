@@ -155,6 +155,11 @@ protected:
                for( const auto& entry: std::filesystem::directory_iterator(m_drive.m_sandboxRootPath) )
                {
                    fs::remove_all( entry.path(), err );
+                   _LOG( "fs::remove_all" );
+                   if ( err )
+                   {
+                       _LOG_WARN( "remove sandbox error: " << err )
+                   }
                }
            }
 

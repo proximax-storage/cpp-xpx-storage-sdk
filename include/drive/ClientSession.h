@@ -468,24 +468,26 @@ protected:
 //        m_receivedSize = downloadedSize;
 //    }
 
-    void onPieceRequest( const std::array<uint8_t,32>&  transactionHash,
-                         const std::array<uint8_t,32>&  senderPublicKey,
-                         uint64_t                       pieceSize ) override
+    void onPieceRequestWrite( const std::array<uint8_t,32>&  transactionHash,
+                              const std::array<uint8_t,32>&  senderPublicKey,
+                              uint64_t                       pieceSize ) override
     {
         m_requestedSize[senderPublicKey] += pieceSize;
         //__LOG( "#*** onPieceRequest: " << int(senderPublicKey[0])<< ": " << m_requestedSize[senderPublicKey] )
     }
     
-    void onPieceRequestReceivedFromReplicator( const std::array<uint8_t,32>&  transactionHash,
+    bool onPieceRequestReceivedFromReplicator( const std::array<uint8_t,32>&  transactionHash,
                                                const std::array<uint8_t,32>&  receiverPublicKey,
                                                uint64_t                       pieceSize ) override
     {
+        return true;
     }
 
-    void onPieceRequestReceivedFromClient( const std::array<uint8_t,32>&  transactionHash,
+    bool onPieceRequestReceivedFromClient( const std::array<uint8_t,32>&  transactionHash,
                                            const std::array<uint8_t,32>&  receiverPublicKey,
                                            uint64_t                       pieceSize ) override
     {
+        return true;
     }
 
     void onPieceSent( const std::array<uint8_t,32>&  transactionHash,

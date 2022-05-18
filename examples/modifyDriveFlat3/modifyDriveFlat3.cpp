@@ -22,7 +22,7 @@
 const bool testLateReplicator = false;
 const bool gRestartReplicators = true;
 const bool testSmallModifyDataSize = true;
-bool gBreak_On_Warning = true;
+bool gBreak_On_Warning = false;//true;
 
 //
 // This example shows interaction between 'client' and 'replicator'.
@@ -827,7 +827,7 @@ static void clientDownloadHandler( download_status::code code,
         isDownloadCompleted = true;
         clientCondVar.notify_all();
     }
-    else if ( code == download_status::failed )
+    else if ( code == download_status::dn_failed )
     {
         exit(-1);
     }
@@ -919,7 +919,7 @@ static void clientDownloadFilesHandler( download_status::code code,
     {
         //LOG( "downloading: " << downloaded << " of " << fileSize );
     }
-    else if ( code == download_status::failed )
+    else if ( code == download_status::dn_failed )
     {
         EXLOG( "# Error in clientDownloadFilesHandler: " << errorText );
         exit(-1);

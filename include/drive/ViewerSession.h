@@ -43,6 +43,8 @@ class ViewerSession : public ClientSession, public DhtMessageHandler, public lt:
     using udp_endpoint_list = std::set<boost::asio::ip::udp::endpoint>;
     udp_endpoint_list       m_replicatorEndpointList;
     
+    std::set<std::array<uint8_t,32>> m_replicatorSet;
+    
     fs::path                m_chunkFolder;
     fs::path                m_torrentFolder;
     
@@ -303,6 +305,36 @@ public:
     {
         // unused
         return false;
+    }
+    
+    void setDownloadChannel( const ReplicatorList& replicatorList, Hash256 downloadChannelId, std::vector<uint64_t> alreadyReceivedSize = {} )
+    {
+        for( const auto& replicatorKey : replicatorList )
+        {
+            m_replicatorSet.insert( replicatorKey.array() );
+        }
+        
+        ClientSession::setDownloadChannel( replicatorList, downloadChannelId, alreadyReceivedSize );
+    }
+
+    bool onPieceRequestReceivedFromReplicator( const std::array<uint8_t,32>&  transactionHash,
+                                               const std::array<uint8_t,32>&  receiverPublicKey,
+                                               uint64_t                       pieceSize ) override
+    {
+        if ( m_replicatorSet.find( receiverPublicKey ) != m_replicatorSet.end() )
+        {
+            //_LOG( "receiverPublicKey: " << Key(receiverPublicKey) )
+            // do not resend chunks to replicators
+            return false;
+        }
+        return true;
+    }
+
+    bool onPieceRequestReceivedFromClient( const std::array<uint8_t,32>&  transactionHash,
+                                           const std::array<uint8_t,32>&  receiverPublicKey,
+                                           uint64_t                       pieceSize ) override
+    {
+        return true;
     }
 
 };

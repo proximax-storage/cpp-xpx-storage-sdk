@@ -488,7 +488,7 @@ static std::shared_ptr<Replicator> createReplicator(
 //    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100,         0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
     replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100*1024*1024, 0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
 
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash1.array(), 1024*1024, replicatorList, { viewerKeyPair.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash1.array(), 1024*1024*1024, replicatorList, { viewerKeyPair.publicKey() }} );
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024, replicatorList, { viewerKeyPair.publicKey() }} );
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash3.array(), 1024*1024, replicatorList, { viewerKeyPair.publicKey() }} );
 
@@ -621,6 +621,7 @@ int main(int,char**)
     printf( "replicator2 key[0] : 0x%x %i\n", replicatorList[1][0], replicatorList[1][0] );
     printf( "replicator3 key[0] : 0x%x %i\n", replicatorList[2][0], replicatorList[2][0] );
     printf( "streamer    key[0] : 0x%x %i\n", clientKeyPair.publicKey()[0], clientKeyPair.publicKey()[0] );
+    printf( "viewer      key[0] : 0x%x %i\n", viewerKeyPair.publicKey()[0], viewerKeyPair.publicKey()[0] );
 
 
     ///
@@ -662,9 +663,6 @@ int main(int,char**)
                                           TRANSPORT_PROTOCOL,
                                           "viewer" );
 
-    gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
-
-
     _EXLOG("");
 
     //
@@ -675,6 +673,8 @@ int main(int,char**)
         fs::create_directories( fs::path(OSB_OUTPUT_PLAYLIST).parent_path() );
     }
     gStreamerSession->initStream( streamTx, DRIVE_PUB_KEY, OSB_OUTPUT_PLAYLIST, STREAMER_WORK_FOLDER / "streamFolder", endpointList );
+
+    gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
     gViewerSession->startWatching( streamTx, gStreamerSession->publicKey(), DRIVE_PUB_KEY, CLIENT_WORK_FOLDER / "streamFolder", endpointList );
 
     const uint64_t maxStreamSize = 1024*1024*1024;
@@ -685,7 +685,7 @@ int main(int,char**)
         replicator->asyncStartStream( DRIVE_PUB_KEY, streamRequest );
     }
 
-#if 1
+#if 0
     // Emulate Streaming
     for( int i=0; i<300; i++ )
     {
@@ -706,11 +706,8 @@ int main(int,char**)
 //        }
     }
 #endif
-    sleep(2);
 
-    //gViewerSession->startWatching( streamTx, gStreamerSession->publicKey(), DRIVE_PUB_KEY, CLIENT_WORK_FOLDER / "streamFolder", endpointList );
-
-    sleep(120);
+    sleep(120000);
 
     /// Delete client session and replicators
     gStreamerSession.reset();

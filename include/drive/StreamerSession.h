@@ -62,7 +62,7 @@ public:
             m_bgThread( std::thread( [this] { m_bgContext.run(); } )),
             m_tickTimer( m_bgContext )
     {
-//        planNextTick();
+        planNextTick();
     }
     
     void planNextTick()
