@@ -221,7 +221,7 @@ public:
             replicators = m_addrList;
         }
         m_drives[driveKey] = { {driveSize, 0, replicators, client, replicators, replicators}, {}, {}};
-        for ( auto& key: m_addrList )
+        for ( auto& key: replicators )
         {
             auto replicator = getReplicator( key );
             if ( replicator )
@@ -244,22 +244,31 @@ public:
         for ( const auto& r: drive.m_driveRequest.m_fullReplicatorList )
         {
             auto replicator = getReplicator( r );
-            if ( replicator )
+            if ( replicator && replicator->replicatorKey() != replicatorKey )
             {
                 replicator->asyncSetReplicators( driveKey, drive.m_driveRequest.m_fullReplicatorList );
-                replicator->asyncSetShardDonator( driveKey,  drive.m_driveRequest.m_modifyDonatorShard );
-                replicator->asyncSetShardRecipient( driveKey, drive.m_driveRequest.m_modifyRecipientShard );
+
+                auto donatorShard = drive.m_driveRequest.m_modifyDonatorShard;
+                std::erase(donatorShard, replicator->replicatorKey());
+                replicator->asyncSetShardDonator( driveKey,  donatorShard );
+
+                auto recipientShard = drive.m_driveRequest.m_modifyRecipientShard;
+                std::erase(recipientShard, replicator->replicatorKey());
+                replicator->asyncSetShardRecipient( driveKey, recipientShard );
             }
         }
 
         auto replicator = getReplicator(replicatorKey);
         if ( replicator )
         {
-            replicator->asyncAddDrive( driveKey, m_drives[driveKey].m_driveRequest );
             const auto& driveReplicators = drive.m_driveRequest.m_fullReplicatorList;
             if ( std::find( driveReplicators.begin(), driveReplicators.end(), replicator->dbgReplicatorKey() ) != driveReplicators.end()  )
             {
-                replicator->asyncAddDrive( driveKey, drive.m_driveRequest );
+                auto driveRequest = drive.m_driveRequest;
+                std::erase( driveRequest.m_modifyDonatorShard, replicatorKey );
+                std::erase( driveRequest.m_modifyRecipientShard, replicatorKey );
+
+                replicator->asyncAddDrive( driveKey, driveRequest );
                 if ( drive.m_lastApprovedModification )
                 {
                     replicator->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*drive.m_lastApprovedModification) );

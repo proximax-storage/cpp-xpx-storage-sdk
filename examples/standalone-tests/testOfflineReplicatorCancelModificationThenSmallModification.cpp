@@ -15,7 +15,7 @@ namespace sirius::drive::test
 {
 
     /// change this macro for your test
-#define TEST_NAME OfflineReplicatorCancelModification
+#define TEST_NAME OfflineReplicatorCancelModificationThenSmallModification
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -147,6 +147,7 @@ namespace sirius::drive::test
                 }
                 boost::asio::post(m_offlineContext, [=, this]
                                       {
+                                          EXLOG( "For future " << Hash256(transactionInfo.m_modifyTransactionHash) )
                                           m_replicators.back()->asyncApprovalTransactionHasBeenPublished(
                                               PublishedModificationApprovalTransactionInfo(transactionInfo));
 
@@ -215,7 +216,7 @@ namespace sirius::drive::test
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
-                SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000, 1024 * 1024 );
+                SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000, 1024 );
 
         lt::settings_pack pack;
         endpoint_list bootstraps;
@@ -234,7 +235,7 @@ namespace sirius::drive::test
         env.addDrive(DRIVE_PUB_KEY, client.m_clientKeyPair.publicKey(), 100 * 1024 * 1024);
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[0],
                                         client.m_modificationTransactionHashes[0],
-                                        BIG_FILE_SIZE + 5 * 1024 * 1024,
+                                        BIG_FILE_SIZE + 1024 * 1024,
                                         env.m_addrList });
 
         EXLOG("Required modification " << toString(client.m_modificationTransactionHashes[0]));
@@ -243,7 +244,7 @@ namespace sirius::drive::test
 
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[1],
                                         client.m_modificationTransactionHashes[1],
-                                        BIG_FILE_SIZE + 5 * 1024 * 1024,
+                                        BIG_FILE_SIZE + 1024,
                                         env.m_addrList });
 
         EXLOG("Required modification " << toString(client.m_modificationTransactionHashes[1]));

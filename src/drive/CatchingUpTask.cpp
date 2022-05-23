@@ -58,27 +58,33 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_request->m_rootHash == m_drive.m_rootHash )
-        {
-            _LOG( "m_sandboxRootHash: " << *m_sandboxRootHash )
-            
-            m_drive.executeOnBackgroundThread( [this]
-            {
-                m_sandboxRootHash = m_request->m_rootHash;
-                m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
-                modifyDriveInSandbox();
-            });
-            return;
-        }
-
-        _LOG( "started catching up" )
-
         if ( ! m_opinionController.opinionTrafficTx() )
         {
             m_opinionController.setOpinionTrafficTx( m_request->m_modifyTransactionHash.array() );
 
             _LOG ("catching up opinion identifier: " << m_request->m_modifyTransactionHash );
         }
+
+        if ( m_request->m_rootHash == m_drive.m_rootHash )
+        {
+            _LOG( "No need to catch up to " << m_request->m_rootHash )
+
+            m_drive.executeOnBackgroundThread( [this]
+            {
+                m_sandboxRootHash = m_request->m_rootHash;
+                m_sandboxRootHash = m_drive.m_rootHash;
+                m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
+                std::error_code ec;
+                fs::remove( m_drive.m_sandboxFsTreeFile, ec );
+                fs::copy( m_drive.m_fsTreeFile, m_drive.m_sandboxFsTreeFile );
+                fs::remove( m_drive.m_sandboxFsTreeTorrent, ec );
+                fs::copy( m_drive.m_fsTreeTorrent, m_drive.m_sandboxFsTreeTorrent );
+                modifyDriveInSandbox();
+            });
+            return;
+        }
+
+        _LOG( "started catching up" )
 
         //
         // Start download fsTree
@@ -110,14 +116,13 @@ public:
                                if ( code == download_status::download_complete )
                                {
                                    m_sandboxRootHash = infoHash;
-                                   m_drive.m_torrentHandleMap[infoHash] = UseTorrentInfo{ *m_downloadingLtHandle, false };
                                    m_downloadingLtHandle.reset();
                                    createUnusedFileList();
                                }
                            },
                            m_request->m_rootHash,
                            *m_opinionController.opinionTrafficTx(),
-                           0, true, m_drive.m_sandboxFsTreeFile
+                           0, false, m_drive.m_sandboxFsTreeFile
                    ),
                    m_drive.m_sandboxRootPath,
                    m_drive.m_sandboxFsTreeTorrent,

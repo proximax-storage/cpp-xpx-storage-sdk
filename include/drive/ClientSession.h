@@ -306,7 +306,7 @@ public:
             m_session->removeTorrentsFromSession( torrents, [&barrier] {
                 __LOG("???? barrier.set_value();")
                 barrier.set_value();
-            });
+            }, true);
         });
         //m_session->dbgPrintActiveTorrents();
         barrier.get_future().wait();

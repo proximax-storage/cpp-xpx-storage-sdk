@@ -34,64 +34,25 @@ namespace sirius::drive::test
                 int downloadApprovalDelay,
                 int startReplicator = -1)
                 : TestEnvironment(
-                numberOfReplicators,
-                ipAddr0,
-                port0,
-                rootFolder0,
-                sandboxRootFolder0,
-                useTcpSocket,
-                modifyApprovalDelay,
-                downloadApprovalDelay,
-                startReplicator)
-        {}
-
-        void
-        modifyApprovalTransactionIsReady(Replicator &replicator, const ApprovalTransactionInfo &transactionInfo) override
-        {
-            auto transaction = transactionInfo;
-            m_ignoredReplicator = transaction.m_opinions.back().m_replicatorKey;
-            transaction.m_opinions.pop_back();
-
-            TestEnvironment::modifyApprovalTransactionIsReady(replicator, ApprovalTransactionInfo(transaction));
-            ASSERT_EQ(transactionInfo.m_opinions.size(), m_replicators.size() - 1);
-            for (const auto &opinion: transaction.m_opinions)
-            {
-                auto size =
-                        std::accumulate(opinion.m_uploadLayout.begin(),
-                                        opinion.m_uploadLayout.end(),
-                                        0,
-                                        [](const auto &sum, const auto &item)
-                                        {
-                                            return sum + item.m_uploadedBytes;
-                                        });
-                m_modificationSizes.insert(size);
-            }
-
-            ASSERT_EQ(m_modificationSizes.size(), 1);
-        }
-
-        void singleModifyApprovalTransactionIsReady(Replicator &replicator,
-                                                    const ApprovalTransactionInfo& transactionInfo) override
-        {
-            TestEnvironment::singleModifyApprovalTransactionIsReady(replicator, transactionInfo);
-            ASSERT_EQ(replicator.dbgReplicatorKey(), m_ignoredReplicator);
-
-            const auto &opinion = transactionInfo.m_opinions.front();
-            auto size =
-                    std::accumulate(opinion.m_uploadLayout.begin(),
-                                    opinion.m_uploadLayout.end(),
-                                    0,
-                                    [](const auto &sum, const auto &item)
-                                    {
-                                        return sum + item.m_uploadedBytes;
-                                    });
-            m_modificationSizes.insert(size);
-
-            ASSERT_EQ(m_modificationSizes.size(), 1);
-        };
-
-        std::array<uint8_t, 32> m_ignoredReplicator;
-        std::set<uint64_t> m_modificationSizes;
+                        numberOfReplicators,
+                        ipAddr0,
+                        port0,
+                        rootFolder0,
+                        sandboxRootFolder0,
+                        useTcpSocket,
+                        modifyApprovalDelay,
+                        downloadApprovalDelay,
+                        startReplicator)
+                        {
+                            lt::settings_pack pack;
+                            //            pack.set_int(lt::settings_pack::download_rate_limit, 1024 * 1024);
+                            //            pack.set_int(lt::settings_pack::upload_rate_limit, 1024 * 1024);
+                            for ( auto replicator: m_replicators ) {
+                                if ( replicator ) {
+                                    replicator->setSessionSettings( pack, true );
+                                }
+                            }
+                        }
     };
 
     TEST(ModificationTest, TEST_NAME)

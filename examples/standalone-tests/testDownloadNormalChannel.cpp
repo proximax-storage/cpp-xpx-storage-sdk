@@ -93,6 +93,8 @@ namespace sirius::drive::test
         EXLOG("\ntotal time: " << float(std::clock() - startTime) / CLOCKS_PER_SEC);
         env.waitModificationEnd(client.m_modificationTransactionHashes.back(), NUMBER_OF_REPLICATORS);
 
+        client.removeModifyTorrents();
+
         auto downloadChannel = randomByteArray<Key>();
 
         env.downloadFromDrive(DRIVE_PUB_KEY, DownloadRequest{
