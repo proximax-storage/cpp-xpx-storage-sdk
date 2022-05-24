@@ -54,7 +54,6 @@ private:
 
         // Clear m_rootDriveHash
         m_drive.m_rootHash = Hash256();
-        _LOG( "m_rootHash=" << m_drive.m_rootHash )
 
         std::error_code err;
 

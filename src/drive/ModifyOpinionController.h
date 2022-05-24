@@ -33,7 +33,7 @@ private:
 
     Key                                         m_clientKey;
 
-    ReplicatorInt&                                 m_replicator;
+    ReplicatorInt&                              m_replicator;
     const RestartValueSerializer&               m_serializer;
     ThreadManager&                              m_threadManager;
 
@@ -104,6 +104,8 @@ public:
                                   const std::function<void()>&  callback )
     {
         DBG_MAIN_THREAD
+
+        _ASSERT( m_opinionTrafficTx )
 
         const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(*m_opinionTrafficTx)
                 .m_modifyTrafficMap;

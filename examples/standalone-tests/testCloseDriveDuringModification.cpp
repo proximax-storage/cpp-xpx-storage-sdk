@@ -83,7 +83,7 @@ namespace sirius::drive::test
         env.addDrive(DRIVE_PUB_KEY, client.m_clientKeyPair.publicKey(), 100 * 1024 * 1024);
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes.back(),
                                         client.m_modificationTransactionHashes.back(),
-                                        BIG_FILE_SIZE + 1024,
+                                        BIG_FILE_SIZE + 1024 * 1024,
                                         env.m_addrList });
 
         EXLOG("\n# Client asked to close drive");

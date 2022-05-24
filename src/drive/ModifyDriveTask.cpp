@@ -93,6 +93,7 @@ public:
         //_LOG( "?????????: " << m_request->m_clientDataInfoHash  << "   " << m_drive.m_torrentHandleMap.size() )
         if ( auto it = m_drive.m_torrentHandleMap.find( m_request->m_clientDataInfoHash ); it != m_drive.m_torrentHandleMap.end() )
         {
+            _ASSERT( 0 )
             m_actionListIsReceived = true;
 
             m_drive.executeOnBackgroundThread( [this]
@@ -141,7 +142,7 @@ public:
                                                    m_request->m_clientDataInfoHash,
                                                    m_request->m_transactionHash,
                                                    m_request->m_maxDataSize - m_uploadedDataSize,
-                                                   true,
+                                                   false,
                                                    "" ),
                                                m_drive.m_sandboxRootPath,
                                                "",
@@ -164,8 +165,7 @@ public:
         // Check 'ActionList' is received
         if ( !fs::exists( actionListFilename, err ))
         {
-            _LOG_WARN( "modifyDriveInSandbox: 'ActionList.bin' is absent: "
-                              << m_drive.m_clientActionListFile );
+            _LOG_WARN( "modifyDriveInSandbox: 'ActionList.bin' is absent: " << actionListFilename);
             m_drive.executeOnSessionThread( [this] { modifyIsCompletedWithError( "modify drive: 'ActionList' is absent", -1 ); } );
             return;
         }
@@ -510,8 +510,10 @@ public:
             {
                 return false;
             }
-            
-            _ASSERT( m_sandboxRootHash == transaction.m_rootHash )
+
+			if ( *m_sandboxRootHash != transaction.m_rootHash ) {
+				_LOG_ERR( "Invalid Sandbox Root Hash: " << *m_sandboxRootHash << " " << Hash256(transaction.m_rootHash) )
+			}
             
             const auto& v = transaction.m_replicatorKeys;
             auto it = std::find( v.begin(), v.end(), m_drive.m_replicator.replicatorKey().array());
@@ -569,7 +571,7 @@ public:
     
     bool isFinishCallable() override
     {
-        return !m_sandboxCalculated;
+        return !m_sandboxCalculated || m_modifyApproveTxReceived;
     }
 
 protected:

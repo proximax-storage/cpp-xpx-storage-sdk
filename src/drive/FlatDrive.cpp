@@ -545,6 +545,8 @@ public:
 
         m_closeDriveRequest = request;
 
+        cancelVerification();
+
         if ( !m_task )
         {
             runNextTask();
