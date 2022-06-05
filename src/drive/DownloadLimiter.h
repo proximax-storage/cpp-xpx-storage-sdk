@@ -287,15 +287,11 @@ public:
     	auto it = m_dnChannelMap.find(channelId);
 
 		if (it == m_dnChannelMap.end()) {
-			_LOG_ERR( "Attemp To Increase Size Of Not Existing Download Channel " << int(channelId[0]) );
+			_LOG_ERR( "Attempt To Increase Size Of Not Existing Download Channel " << int(channelId[0]) );
 			return;
 		}
 
-		if ( it->second.m_prepaidDownloadSize > prepaidDownloadSize )
-		{
-			_LOG_ERR( "addChannelInfo: invalid prepaidDownloadSize: " << it->second.m_prepaidDownloadSize << " <= " << prepaidDownloadSize );
-		}
-		it->second.m_prepaidDownloadSize = prepaidDownloadSize;
+		it->second.m_prepaidDownloadSize += prepaidDownloadSize;
 	}
 
     bool addModifyTrafficInfo( const Key&                 modifyTransactionHash,

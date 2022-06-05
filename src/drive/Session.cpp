@@ -93,8 +93,6 @@ class DefaultSession: public Session, std::enable_shared_from_this<DefaultSessio
     std::weak_ptr<ReplicatorInt>        m_replicator;
     std::weak_ptr<lt::session_delegate> m_downloadLimiter;
     
-    std::promise<void>                  m_bootstrapBarrier;
-    
     std::string                         m_dbgOurPeerName = "";
     
     bool                                m_stopping = false;
@@ -120,7 +118,6 @@ public:
         , m_alertHandler(alertHandler)
         , m_replicator(replicator)
         , m_downloadLimiter(downloadLimiter)
-        , m_bootstrapBarrier( std::move(bootstrapBarrier) )
     {
         m_dbgOurPeerName = m_downloadLimiter.lock()->dbgOurPeerName();
         
@@ -145,7 +142,6 @@ public:
         , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
         , m_alertHandler(alertHandler)
         , m_downloadLimiter(downloadLimiter)
-        , m_bootstrapBarrier()
     {
         if ( downloadLimiter.lock() )
             m_dbgOurPeerName = downloadLimiter.lock()->dbgOurPeerName();
@@ -902,19 +898,18 @@ private:
 //                    break;
 //                }
 
-//                case lt::peer_log_alert::alert_type: {
-//                    _LOG(  ": peer_log_alert: " << alert->message())
-//                    break;
-//                }
+                case lt::peer_log_alert::alert_type: {
+                    _LOG(  ": peer_log_alert: " << alert->message())
+                    break;
+                }
 
-//                case lt::log_alert::alert_type: {
-//                    _LOG(  ": session_log_alert: " << alert->message())
-//                    break;
-//                }
+                case lt::log_alert::alert_type: {
+                    _LOG(  ": session_log_alert: " << alert->message())
+                    break;
+                }
 
                 case lt::dht_bootstrap_alert::alert_type: {
                     _LOG( "dht_bootstrap_alert: " << alert->message() )
-                    m_bootstrapBarrier.set_value();
                     break;
                 }
 
