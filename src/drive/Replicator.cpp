@@ -1558,7 +1558,8 @@ public:
 
         DBG_MAIN_THREAD
 
-        //todo
+        //_LOG( "query: " << query )
+            
         if ( query == "opinion" )
         {
             try
@@ -1685,6 +1686,34 @@ public:
                 }
             }
             catch(...){}
+
+            return;
+        }
+        else if ( query == "finish-stream" )
+        {
+            try
+            {
+                std::istringstream is( message, std::ios::binary );
+                cereal::PortableBinaryInputArchive iarchive(is);
+                std::array<uint8_t,32> driveKey;
+                iarchive( driveKey );
+                
+                if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+                {
+                    mobj<FinishStream> finishStream{FinishStream{}};
+                    iarchive( *finishStream );
+                    _ASSERT( finishStream )
+                    
+                    driveIt->second->acceptFinishStreamMessage( std::move(finishStream), source );
+                }
+                else
+                {
+                    _LOG_WARN( "Unknown drive: " << Key(driveKey) )
+                }
+            }
+            catch(...){
+                _LOG_WARN( "bad 'finish-stream' message" )
+            }
 
             return;
         }
@@ -1902,7 +1931,7 @@ public:
 
         const std::set<lt::string_view> supportedQueries =
                 { "opinion", "dn_opinion", "code_verify", "verify_opinion", "handshake", "endpoint_request", "endpoint_response",
-                    "chunk-info"
+                    "chunk-info", "finish-stream"
                 };
         if ( supportedQueries.contains(query) )
         {

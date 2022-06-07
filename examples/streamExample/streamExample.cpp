@@ -678,34 +678,39 @@ int main(int,char**)
     gViewerSession->startWatching( streamTx, gStreamerSession->publicKey(), DRIVE_PUB_KEY, CLIENT_WORK_FOLDER / "streamFolder", endpointList );
 
     const uint64_t maxStreamSize = 1024*1024*1024;
-    StreamRequest streamRequest{ streamTx, clientKeyPair.publicKey(), "streamFiles", maxStreamSize, replicatorList };
+    StreamRequest streamRequest{ streamTx, clientKeyPair.publicKey(), "streamN1", maxStreamSize, replicatorList };
     
     for( auto replicator : gReplicatorArray )
     {
         replicator->asyncStartStream( DRIVE_PUB_KEY, streamRequest );
     }
 
-#if 0
+#if 1
     // Emulate Streaming
-    for( int i=0; i<300; i++ )
+    for( int i=0; i<10; i++ )
     {
         std::vector<uint8_t> chunk(1024+150);
         //std::generate( chunk.begin(), chunk.end(), std::rand );
         uint8_t counter=i;
         std::generate( chunk.begin(), chunk.end(), [&] { return counter++;} );
 
-        //InfoHash infoHash;
-        gStreamerSession->addChunkToStream( chunk, 100 );//, &infoHash );
+        if ( 0 ) //i%2 == 1 )
+        {
+            InfoHash infoHash;
+            gStreamerSession->addChunkToStream( chunk, 1000000, &infoHash );
+        }
+        else
+        {
+            gStreamerSession->addChunkToStream( chunk, 1000000 );//, &infoHash );
+        }
 
         //__LOG( "*** c i=" << i )
-        usleep(5000000);
-//
-//        for( auto& replicator : gReplicatorArray )
-//        {
-//            replicator->dbgAsyncDownloadToSandbox( DRIVE_PUB_KEY, infoHash, []{} );
-//        }
+        usleep(100000);
+        //usleep(5000000);
     }
 #endif
+
+    gStreamerSession->sendFinishStreamMessage( 3, 7 );
 
     sleep(120000);
 

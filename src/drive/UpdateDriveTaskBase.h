@@ -238,7 +238,8 @@ protected:
 
         std::error_code err;
 
-        if ( fs::exists( m_drive.m_sandboxRootPath, err ))
+        // Now, all drive files and torrents are placed directly on drive (not really in sandbox)
+        if ( fs::exists( m_drive.m_driveRootPath, err ))
         {
             metaFilesSize = fs::file_size( m_drive.m_sandboxFsTreeTorrent );
             driveSize = 0;

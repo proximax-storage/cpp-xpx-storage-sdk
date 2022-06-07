@@ -29,7 +29,8 @@ using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
 
 namespace sirius::drive {
 
-#define FS_TREE_FILE_NAME "FsTree.bin"
+#define FS_TREE_FILE_NAME  "FsTree.bin"
+#define PLAYLIST_FILE_NAME "playlist.m3u8"
 
 // It will be used to inform 'client' about download status
 //

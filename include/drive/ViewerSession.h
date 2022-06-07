@@ -166,7 +166,18 @@ public:
         std::stringstream playlist;
         playlist << "#EXTM3U" << std::endl;
         playlist << "#EXT-X-VERSION:3" << std::endl;
-        playlist << "#EXT-X-TARGETDURATION:3" << std::endl;
+
+        uint32_t maxDuration = 1;
+        for( uint32_t i=0; i<totalChunkNumber; i++ )
+        {
+            uint32_t seconds = (m_chunkInfoList[firstChunkNumber+i].m_durationMks+100000-1)/1000000;
+            if ( maxDuration < seconds )
+            {
+                maxDuration = seconds;
+            }
+        }
+
+        playlist << "#EXT-X-TARGETDURATION:" << maxDuration << std::endl;
         playlist << "#EXT-X-MEDIA-SEQUENCE:" << firstChunkNumber << std::endl;
         
         for( uint32_t i=0; i<totalChunkNumber; i++ )
@@ -253,6 +264,7 @@ public:
         {
             _LOG_ERR( "m_downloadChannelId was not set");
         }
+        
         if ( m_downloadingLtHandle || m_chunkInfoList.size() <= m_tobeDownloadedChunkIndex )
         {
             return;

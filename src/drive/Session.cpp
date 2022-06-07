@@ -1367,6 +1367,7 @@ InfoHash createTorrentFile( const std::string& fileOrFolder,
     // write to file
     if ( !outputTorrentFilename.empty() )
     {
+        __LOG( "outputTorrentFilename: " << outputTorrentFilename )
         std::ofstream fileStream( outputTorrentFilename, std::ios::binary );
         fileStream.write(torrentFileBytes.data(),torrentFileBytes.size());
     }

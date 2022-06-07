@@ -94,34 +94,88 @@ namespace sirius::drive {
         uint32_t                    m_chunkIndex;
     };
     
-    struct StreamPlayListInfo
+//    struct StreamPlayListInfo
+//    {
+//        Hash256                     m_streamId;
+//        Key                         m_driveKey;
+//        InfoHash                    m_playlistInfoHash;
+//        uint32_t                    m_chunkIndex; // number of 1-st chunk
+//        Signature                   m_sign;
+//    };
+//
+//    struct StreamChunk
+//    {
+//        int                         m_durationMs;
+//        uint64_t                    m_size;
+//        InfoHash                    m_hash;
+//    };
+//
+//    struct StreamPlayList
+//    {
+//        Hash256                     m_streamId;
+//        int                         m_version;
+//        int                         m_chunkIndex; // number of 1-st chunk
+//        std::vector<StreamChunk>    m_chunks;
+//    };
+//
+//    struct ClientRequest
+//    {
+//        Hash256                     m_streamId;
+//        Key                         m_driveKey;
+//        //int   m_timeOffsetMs;
+//    };
+
+    struct FinishStreamChunkInfo
     {
-        Hash256                     m_streamId;
-        Key                         m_driveKey;
-        InfoHash                    m_playlistInfoHash;
-        uint32_t                    m_chunkIndex; // number of 1-st chunk
-        Signature                   m_sign;
+        uint32_t                    m_chunkIndex;
+        std::array<uint8_t,32>      m_chunkInfoHash;
+        uint32_t                    m_durationMks;   // microseconds
+        uint64_t                    m_sizeBytes;
+        bool                        m_saveOnDrive;
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_chunkIndex );
+            arch( m_chunkInfoHash );
+            arch( m_durationMks );
+            arch( m_sizeBytes );
+            arch( m_saveOnDrive );
+        }
     };
 
-    struct StreamChunk
+    struct FinishStream
     {
-        int                         m_durationMs;
-        uint64_t                    m_size;
-        InfoHash                    m_hash;
+        std::array<uint8_t,32>      m_streamId;
+        std::array<uint8_t,32>      m_finishDataInfoHash;
+        std::array<uint8_t, 64>     m_sign;
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_streamId );
+            arch( m_finishDataInfoHash );
+            arch( m_sign );
+        }
+
+        void Sign( const crypto::KeyPair& keyPair )
+        {
+            crypto::Sign( keyPair,
+                          {
+                                utils::RawBuffer{m_streamId},
+                                utils::RawBuffer{m_finishDataInfoHash},
+                          },
+                         reinterpret_cast<Signature &>(m_sign) );
+        }
+
+        bool Verify( const Key& streamerKey ) const
+        {
+            return crypto::Verify( streamerKey,
+                                   {
+                                        utils::RawBuffer{m_streamId},
+                                        utils::RawBuffer{m_finishDataInfoHash},
+                                   },
+                                  reinterpret_cast<const Signature &>(m_sign) );
+        }
     };
 
-    struct StreamPlayList
-    {
-        Hash256                     m_streamId;
-        int                         m_version;
-        int                         m_chunkIndex; // number of 1-st chunk
-        std::vector<StreamChunk>    m_chunks;
-    };
 
-    struct ClientRequest
-    {
-        Hash256                     m_streamId;
-        Key                         m_driveKey;
-        //int   m_timeOffsetMs;
-    };
 }

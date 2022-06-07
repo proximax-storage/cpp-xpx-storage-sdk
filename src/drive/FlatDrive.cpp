@@ -776,6 +776,16 @@ public:
         }
     }
 
+    void acceptFinishStreamMessage( mobj<FinishStream>&& finishStream, const boost::asio::ip::udp::endpoint& streamer ) override
+    {
+        DBG_MAIN_THREAD
+        
+        if ( m_task )
+        {
+            m_task->acceptFinishStreamMessage( std::move(finishStream), streamer );
+        }
+    }
+
     std::string acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
                                             const boost::asio::ip::udp::endpoint&  viewer ) override
     {

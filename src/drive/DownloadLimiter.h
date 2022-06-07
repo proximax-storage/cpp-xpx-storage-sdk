@@ -151,7 +151,7 @@ public:
         {
             return it->second;
         }
-        _LOG_ERR( "getMyDownloadOpinion: unknown modify transaction hash" );
+        _LOG_ERR( "getMyDownloadOpinion: unknown modify transaction hash: " << txHash );
         
         return {};
     }

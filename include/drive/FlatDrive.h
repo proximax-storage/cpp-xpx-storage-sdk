@@ -609,9 +609,10 @@ class Replicator;
         virtual void dbgAsyncDownloadToSandbox( InfoHash infoHash, std::function<void()> endNotifyer ) = 0;
 
 
-        static std::string driveIsClosingPath( const std::string& driveRootPath );
+        static std::string  driveIsClosingPath( const std::string& driveRootPath );
         
-        virtual void     acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
+        virtual void        acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
+        virtual void        acceptFinishStreamMessage( mobj<FinishStream>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
 
         virtual std::string acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
                                                         const boost::asio::ip::udp::endpoint&  viewer ) = 0;

@@ -125,8 +125,13 @@ public:
         // it must be overriden by StreamTask
     }
 
-    virtual std::string acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
-                                             const boost::asio::ip::udp::endpoint&  viewer )
+    virtual void acceptFinishStreamMessage( mobj<FinishStream>&&, const boost::asio::ip::udp::endpoint& streamer )
+    {
+        // it must be overriden by StreamTask
+    }
+
+    virtual std::string acceptGetChunksInfoMessage( uint32_t                              chunkIndex,
+                                                    const boost::asio::ip::udp::endpoint& viewer )
     {
         // it must be overriden by StreamTask
         return "";
