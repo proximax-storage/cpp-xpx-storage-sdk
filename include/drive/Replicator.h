@@ -429,7 +429,7 @@ public:
     virtual int         getVerifyCodeTimerDelay() = 0;
     virtual void        setVerifyApprovalTransactionTimerDelay( int milliseconds ) = 0;
     virtual int         getVerifyApprovalTransactionTimerDelay() = 0;
-    //virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
+    virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
 
     // Functions for debugging
     //

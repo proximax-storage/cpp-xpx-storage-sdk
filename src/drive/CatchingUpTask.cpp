@@ -122,7 +122,7 @@ public:
                            },
                            m_request->m_rootHash,
                            *m_opinionController.opinionTrafficTx(),
-                           0, false, m_drive.m_sandboxFsTreeFile
+                           0, true, m_drive.m_sandboxFsTreeFile
                    ),
                    m_drive.m_sandboxRootPath,
                    m_drive.m_sandboxFsTreeTorrent,
@@ -130,6 +130,7 @@ public:
                    &m_drive.m_driveKey.array(),
                    nullptr,
                    &m_opinionController.opinionTrafficTx().value().array() );
+            m_drive.m_torrentHandleMap[m_request->m_rootHash] = { *m_downloadingLtHandle, false };
         }
     }
     
@@ -488,7 +489,7 @@ public:
 
     void tryBreakTask() override
     {
-        finishTask();
+
     }
 };
 

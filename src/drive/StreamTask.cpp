@@ -100,13 +100,13 @@ public:
     
     void tryBreakTask() override
     {
-        if ( m_sandboxCalculated )
+        if ( m_sandboxCalculated & !m_modifyApproveTxReceived )
         {
-            // we will wait the end of current task, that will call m_drive.runNextTask()
+            finishTask();
         }
         else
         {
-            finishTask();
+            // We will wait the end of current task, that will call m_drive.runNextTask()
         }
     }
 
@@ -195,7 +195,7 @@ public:
         
         std::lock_guard<std::mutex> lock(m_mutex);
 
-        if ( chunkInfo->m_streamId != m_request->m_streamId )
+        if ( chunkInfo->m_streamId != m_request->m_streamId.array() )
         {
             _LOG_WARN( "ignore unkown stream" )
             return;
@@ -534,7 +534,7 @@ public:
             return;
         }
             
-        if ( finishStream->m_streamId != m_request->m_streamId )
+        if ( finishStream->m_streamId != m_request->m_streamId.array() )
         {
             _LOG_WARN( "ignore unkown stream" )
             return;

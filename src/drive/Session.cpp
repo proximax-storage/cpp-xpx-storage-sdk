@@ -457,7 +457,7 @@ public:
     // downloadFile
     virtual lt_handle download( DownloadContext&&               downloadContext,
                                 const std::string&              saveFolder,
-                                const std::string&              saveTorrentFolder,
+                                const std::string&              saveTorrentFilePath,
                                 const ReplicatorList&           keysHints,
                                 const std::array<uint8_t,32>*   driveKey  = nullptr,
                                 const std::array<uint8_t,32>*   channelId = nullptr,
@@ -474,7 +474,7 @@ public:
         }
 
         auto userdata = new LtClientData();
-        userdata->m_saveTorrentFilename = saveTorrentFolder;
+        userdata->m_saveTorrentFilename = saveTorrentFilePath;
         params.userdata = userdata;
 //        params.flags &= ~lt::torrent_flags::paused;
 //        //params.flags &= ~lt::torrent_flags::auto_managed;
@@ -855,15 +855,15 @@ private:
 //                    break;
 //                }
 
-                case lt::peer_log_alert::alert_type: {
-                    _LOG(  ": peer_log_alert: " << alert->message())
-                    break;
-                }
-
-                case lt::log_alert::alert_type: {
-                    _LOG(  ": session_log_alert: " << alert->message())
-                    break;
-                }
+//                case lt::peer_log_alert::alert_type: {
+//                    _LOG(  ": peer_log_alert: " << alert->message())
+//                    break;
+//                }
+//
+//                case lt::log_alert::alert_type: {
+//                    _LOG(  ": session_log_alert: " << alert->message())
+//                    break;
+//                }
 
                 case lt::dht_bootstrap_alert::alert_type: {
                     _LOG( "dht_bootstrap_alert: " << alert->message() )

@@ -1221,22 +1221,17 @@ public:
             if ( auto channelIt = m_dnChannelMap.find( channelId.array() ); channelIt != m_dnChannelMap.end())
             {
                 auto& opinions = channelIt->second.m_downloadOpinionMap;
-                if ( auto it = opinions.find( eventHash.array() ); it != opinions.end() )
+                if ( channelMustBeClosed )
                 {
-                    if ( channelMustBeClosed )
-                    {
-                        m_dnChannelMap.erase( channelIt );
-                    }
-                    else
-                    {
-                        it->second.m_timer.reset();
-                        it->second.m_opinionShareTimer.reset();
-                        it->second.m_approveTransactionReceived = true;
-                    }
+                    m_dnChannelMap.erase( channelIt );
+                    return;
                 }
-                else
+                else if ( auto it = opinions.find( eventHash.array() ); it != opinions.end() )
                 {
-                    _LOG_ERR( "eventHash not found" );
+                    // TODO maybe remove the entry?
+                    it->second.m_timer.reset();
+                    it->second.m_opinionShareTimer.reset();
+                    it->second.m_approveTransactionReceived = true;
                 }
             }
             else
@@ -1789,7 +1784,7 @@ public:
         return m_verifyApprovalTransactionTimerDelayMs;
     }
 
-    void        setSessionSettings(const lt::settings_pack& settings, bool localNodes) //override
+    void        setSessionSettings(const lt::settings_pack& settings, bool localNodes) override
     {
         m_session->lt_session().apply_settings(settings);
         if (localNodes) {

@@ -569,13 +569,13 @@ public:
     
     void tryBreakTask() override
     {
-        if ( m_sandboxCalculated )
+        if ( m_sandboxCalculated && ! m_modifyApproveTxReceived )
         {
-            // we will wait the end of current task, that will call m_drive.runNextTask()
+            finishTask();
         }
         else
         {
-            finishTask();
+            // we will wait the end of current task, that will call m_drive.runNextTask()
         }
     }
 

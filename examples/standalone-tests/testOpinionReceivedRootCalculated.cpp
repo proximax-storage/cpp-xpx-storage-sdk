@@ -5,7 +5,7 @@
 #include "gtest/gtest.h"
 
 #include "types.h"
-#include "../../src/drive/Session.h"
+
 #include "drive/Replicator.h"
 #include "drive/FlatDrive.h"
 #include "drive/Utils.h"

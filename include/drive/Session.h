@@ -151,7 +151,7 @@ public:
     // But it can speed up downloading
     virtual lt_handle download( DownloadContext&&               downloadParameters,
                                 const std::string&              saveFolder,
-                                const std::string&              saveTorrentFolder,
+                                const std::string&              saveTorrentFilePath,
                                 const ReplicatorList&           keysHints,
                                 const std::array<uint8_t,32>*   driveKey,
                                 const std::array<uint8_t,32>*   channelId,
