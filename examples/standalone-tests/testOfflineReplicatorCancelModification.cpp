@@ -68,10 +68,7 @@ namespace sirius::drive::test
             for (uint i = 0; i < m_replicators.size() - 1; i++)
             {
                 auto &replicator = m_replicators[i];
-                std::thread([replicator, driveKey, request]
-                            {
-                                replicator->asyncModify(driveKey, ModificationRequest(request));
-                            }).detach();
+                replicator->asyncModify(driveKey, ModificationRequest(request));
             }
             boost::asio::post(m_offlineContext, [=, this]
                                   {
@@ -89,10 +86,7 @@ namespace sirius::drive::test
             for (uint i = 0; i < m_replicators.size() - 1; i++)
             {
                 auto &replicator = m_replicators[i];
-                std::thread([replicator, driveKey, transactionHash]
-                            {
-                                replicator->asyncCancelModify(driveKey, transactionHash);
-                            }).detach();
+                replicator->asyncCancelModify(driveKey, transactionHash);
             }
             boost::asio::post(m_offlineContext, [=, this]
                                   {
@@ -106,6 +100,11 @@ namespace sirius::drive::test
         {
             EXLOG("modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
             const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+
+            if ( Hash256(transactionInfo.m_modifyTransactionHash) == m_cancelledModification )
+            {
+                return;
+            }
 
             if (m_drives[transactionInfo.m_driveKey].m_pendingModifications.front().m_transactionHash == transactionInfo.m_modifyTransactionHash)
             {
@@ -202,7 +201,7 @@ namespace sirius::drive::test
             m_offlineThread.join();
         }
 
-
+        Hash256 m_cancelledModification;
         boost::asio::io_context m_offlineContext;
         boost::asio::executor_work_guard<boost::asio::io_context::executor_type> m_offlineWork;
         std::thread m_offlineThread;
@@ -216,7 +215,7 @@ namespace sirius::drive::test
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
-                SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000, 1024 * 1024);
+                SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000, 1024 * 1024 );
 
         lt::settings_pack pack;
         endpoint_list bootstraps;
@@ -231,10 +230,11 @@ namespace sirius::drive::test
         client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList, DRIVE_PUB_KEY);
         client.modifyDrive(createActionList_2(CLIENT_WORK_FOLDER), env.m_addrList, DRIVE_PUB_KEY);
 
+        env.m_cancelledModification = client.m_modificationTransactionHashes[0];
         env.addDrive(DRIVE_PUB_KEY, client.m_clientKeyPair.publicKey(), 100 * 1024 * 1024);
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[0],
                                         client.m_modificationTransactionHashes[0],
-                                        BIG_FILE_SIZE + 1024,
+                                        BIG_FILE_SIZE + 5 * 1024 * 1024,
                                         env.m_addrList });
 
         EXLOG("Required modification " << toString(client.m_modificationTransactionHashes[0]));
@@ -243,7 +243,7 @@ namespace sirius::drive::test
 
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[1],
                                         client.m_modificationTransactionHashes[1],
-                                        BIG_FILE_SIZE + 1024,
+                                        BIG_FILE_SIZE + 5 * 1024 * 1024,
                                         env.m_addrList });
 
         EXLOG("Required modification " << toString(client.m_modificationTransactionHashes[1]));

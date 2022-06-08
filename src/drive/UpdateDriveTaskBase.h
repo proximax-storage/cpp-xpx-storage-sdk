@@ -164,7 +164,7 @@ protected:
                     //TODO: move downloaded files from sandbox to drive (for catching-up only)
 
                     finishTask();
-                } );
+                }, true );
                 _LOG( "breakTorrentDownloadAndRunNextTask: remove torrents " )
             }
         }
@@ -228,7 +228,7 @@ protected:
                 {
                     continueSynchronizingDriveWithSandbox();
                 });
-            });
+            }, false);
         }
     }
 

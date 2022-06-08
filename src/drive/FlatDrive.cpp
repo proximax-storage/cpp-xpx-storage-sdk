@@ -125,8 +125,8 @@ class DefaultFlatDrive: public FlatDrive, public DriveParams
 
     // Executing Drive Tasks
     std::unique_ptr<DriveTaskBase> m_task;
-    std::unique_ptr<DriveTaskBase> m_verificationTask;
-    
+    std::shared_ptr<DriveTaskBase> m_verificationTask;
+
     std::set<Key>                  m_blockedReplicators; // blocked until verification will be approved
 
 public:
@@ -206,26 +206,6 @@ public:
         return m_driveOwner;
     }
 
-    void replicatorAdded( mobj<Key>&& replicatorKey ) override
-    {
-        if ( *replicatorKey != m_replicator.replicatorKey() )
-        {
-            if ( std::find( m_allReplicators.begin(), m_allReplicators.end(), *replicatorKey ) == m_allReplicators.end() )
-            {
-                m_allReplicators.push_back( *replicatorKey );
-            }
-        }
-    }
-
-    void replicatorRemoved( mobj<Key>&& replicatorKey ) override
-    {
-        std::remove_if( m_allReplicators.begin(), m_allReplicators.end(), [&] (const Key& it)
-        {
-            return it == *replicatorKey;
-        });
-    }
-
-
     void executeOnSessionThread( const std::function<void()>& task ) override
     {
         if ( auto session = m_session.lock(); session )
@@ -238,7 +218,7 @@ public:
     {
         m_replicator.executeOnBackgroundThread( task );
     }
-    
+
     void runNextTask() override
     {
         DBG_MAIN_THREAD
@@ -428,7 +408,7 @@ public:
     void runVerificationTask()
     {
         DBG_MAIN_THREAD
-        
+
         auto receivedOpinions = std::move(m_unknownVerificationOpinions[m_deferredVerificationRequest->m_tx]);
         m_unknownVerificationOpinions.erase(m_deferredVerificationRequest->m_tx);
 
@@ -460,7 +440,9 @@ public:
         {
             _LOG_ERR("startVerification: internal error: m_verificationRequest != null")
         }
-        
+
+        _LOG ( "Received Verification Request " << m_deferredVerificationRequest->m_actualRootHash << " " << m_rootHash );
+
         if (m_deferredVerificationRequest->m_actualRootHash == m_rootHash )
         {
             runVerificationTask();
@@ -513,7 +495,7 @@ public:
     void onApprovalTransactionHasBeenPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
     {
         DBG_MAIN_THREAD
-        
+
         m_blockedReplicators.clear();
 
         if ( m_verificationTask )
@@ -558,7 +540,7 @@ public:
     void onVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) override
     {
         DBG_MAIN_THREAD
-        
+
         m_blockedReplicators.clear();
 
         if ( !m_verificationTask )
@@ -567,7 +549,7 @@ public:
             return;
         }
 
-        m_verificationTask->cancelVerification( info.m_tx );
+        m_verificationTask->cancelVerification();
         m_verificationTask.reset();
     }
 
@@ -623,6 +605,8 @@ public:
 
         m_closeDriveRequest = request;
 
+        cancelVerification();
+
         if ( !m_task )
         {
             runNextTask();
@@ -633,19 +617,18 @@ public:
         }
     }
 
-    void cancelVerification( mobj<Hash256>&& tx ) override
+    void cancelVerification() override
     {
         DBG_MAIN_THREAD
-        
+
         m_blockedReplicators.clear();
 
         if ( !m_verificationTask )
         {
-            _LOG_ERR( "cancelVerification: internal error: m_verificationRequest == null" )
             return;
         }
 
-        m_verificationTask->cancelVerification( *tx );
+        m_verificationTask->cancelVerification();
         m_verificationTask.reset();
     }
     
@@ -673,76 +656,43 @@ public:
         
     }
 
-    void  addShardDonator( mobj<Key>&& replicatorKey ) override
+    void setReplicators( mobj<ReplicatorList>&& replicatorKeys ) override
     {
-        {
-            auto it = std::find( m_modifyDonatorShard.begin(), m_modifyDonatorShard.end(), *replicatorKey );
-            if ( it != m_modifyDonatorShard.end() )
-            {
-                _LOG_WARN( "duplicated key" << Key(*replicatorKey) )
-                return;
-            }
-        }
+		m_allReplicators = *replicatorKeys;
+	}
 
-        {
-            auto it = std::find( m_allReplicators.begin(), m_allReplicators.end(), *replicatorKey );
-            if ( it == m_allReplicators.end() )
-            {
-                _LOG_ERR( "Unknown Replicator Added to Shard Donator" )
-            }
-        }
-        
-        m_modifyDonatorShard.push_back( *replicatorKey );
-    }
-    
-    void  removeShardDonator( mobj<Key>&& replicatorKey ) override
+    void setShardDonator( mobj<ReplicatorList>&& replicatorKeys ) override
     {
-        auto it = std::find( m_modifyDonatorShard.begin(), m_modifyDonatorShard.end(), *replicatorKey );
-        if ( it == m_modifyDonatorShard.end() )
-        {
-            _LOG_WARN( "unknown key" << Key(*replicatorKey) )
-            return;
-        }
-        
-        m_modifyDonatorShard.erase( it );
-    }
-    
-    void  addShardRecipient( mobj<Key>&& replicatorKey ) override
-    {
-        {
-            auto it = std::find( m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), *replicatorKey );
-            if ( it != m_modifyRecipientShard.end() )
-            {
-                _LOG_WARN( "duplicated key" << Key(*replicatorKey) )
-                return;
-            }
-        }
+    	m_modifyDonatorShard = *replicatorKeys;
 
-        {
-            auto it = std::find( m_allReplicators.begin(), m_allReplicators.end(), *replicatorKey );
-            if ( it == m_allReplicators.end() )
-            {
-                _LOG_ERR( "Unknown Replicator Added to Shard Recipient" )
-            }
-        }
-        
-        m_modifyRecipientShard.push_back( *replicatorKey );
-    }
-    
-    void  removeShardRecipient( mobj<Key>&& replicatorKey ) override
-    {
-        auto it = std::find( m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), *replicatorKey );
-        if ( it == m_modifyRecipientShard.end() )
-        {
-            _LOG_WARN( "unknown key" << Key(*replicatorKey) )
-            return;
-        }
-        
-        m_modifyRecipientShard.erase( it );
-    }
+		std::set<Key> replicators = {m_allReplicators.begin(), m_allReplicators.end()};
+
+		for ( const auto& key: m_modifyDonatorShard )
+		{
+			if ( replicators.find(key) == replicators.end() )
+			{
+				_LOG_ERR( "Unknown Replicator Added to Shard Donator" )
+			}
+		}
+	}
+
+	void setShardRecipient( mobj<ReplicatorList>&& replicatorKeys ) override
+	{
+    	m_modifyRecipientShard = *replicatorKeys;
+
+    	std::set<Key> replicators = {m_allReplicators.begin(), m_allReplicators.end()};
+
+    	for ( const auto& key: m_modifyRecipientShard )
+    	{
+    		if ( replicators.find(key) == replicators.end() )
+    		{
+    			_LOG_ERR( "Unknown Replicator Added to Shard Recipient" )
+    		}
+    	}
+	}
 
     const ReplicatorList& donatorShard() const override { return m_modifyDonatorShard; }
-    
+
     bool acceptConnectionFromReplicator( const Key& replicatorKey ) const override
     {
         if ( m_blockedReplicators.size() > 0 )
@@ -761,7 +711,7 @@ public:
                 }
             }
         }
-        
+
         return std::find( m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), replicatorKey )
                     != m_modifyRecipientShard.end();
     }

@@ -58,27 +58,33 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_request->m_rootHash == m_drive.m_rootHash )
-        {
-            _LOG( "m_sandboxRootHash: " << *m_sandboxRootHash )
-            
-            m_drive.executeOnBackgroundThread( [this]
-            {
-                m_sandboxRootHash = m_request->m_rootHash;
-                m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
-                modifyDriveInSandbox();
-            });
-            return;
-        }
-
-        _LOG( "started catching up" )
-
         if ( ! m_opinionController.opinionTrafficTx() )
         {
             m_opinionController.setOpinionTrafficTx( m_request->m_modifyTransactionHash.array() );
 
             _LOG ("catching up opinion identifier: " << m_request->m_modifyTransactionHash );
         }
+
+        if ( m_request->m_rootHash == m_drive.m_rootHash )
+        {
+            _LOG( "No need to catch up to " << m_request->m_rootHash )
+
+            m_drive.executeOnBackgroundThread( [this]
+            {
+                m_sandboxRootHash = m_request->m_rootHash;
+                m_sandboxRootHash = m_drive.m_rootHash;
+                m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
+                std::error_code ec;
+                fs::remove( m_drive.m_sandboxFsTreeFile, ec );
+                fs::copy( m_drive.m_fsTreeFile, m_drive.m_sandboxFsTreeFile );
+                fs::remove( m_drive.m_sandboxFsTreeTorrent, ec );
+                fs::copy( m_drive.m_fsTreeTorrent, m_drive.m_sandboxFsTreeTorrent );
+                modifyDriveInSandbox();
+            });
+            return;
+        }
+
+        _LOG( "started catching up" )
 
         //
         // Start download fsTree
@@ -116,7 +122,7 @@ public:
                            },
                            m_request->m_rootHash,
                            *m_opinionController.opinionTrafficTx(),
-                           0, true, ""
+                           0, false, m_drive.m_sandboxFsTreeFile
                    ),
                    m_drive.m_sandboxRootPath,
                    m_drive.m_sandboxFsTreeTorrent,
@@ -133,7 +139,9 @@ public:
         
         try
         {
-            m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile );
+			// TODO do not read file on main thread
+
+			m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile );
             m_sandboxFsTree->dbgPrint();
         }
         catch (...)
@@ -196,7 +204,7 @@ public:
                 {
                     removeUnusedFiles( filesToRemove );
                 });
-            });
+            }, false);
         }
     }
 
@@ -391,10 +399,12 @@ public:
     void modifyIsCompleted() override
     {
         _LOG( "catchingIsCompleted" );
-        m_drive.m_dbgEventHandler->driveModificationIsCompleted( m_drive.m_replicator, m_drive.m_driveKey,
-                                                                 m_request->m_modifyTransactionHash,
-                                                                 *m_sandboxRootHash );
-        UpdateDriveTaskBase::modifyIsCompleted();
+		if ( m_drive.m_dbgEventHandler )
+		{
+			m_drive.m_dbgEventHandler->driveModificationIsCompleted(
+					m_drive.m_replicator, m_drive.m_driveKey, m_request->m_modifyTransactionHash, *m_sandboxRootHash);
+		}
+		UpdateDriveTaskBase::modifyIsCompleted();
     }
 
     void continueSynchronizingDriveWithSandbox() override

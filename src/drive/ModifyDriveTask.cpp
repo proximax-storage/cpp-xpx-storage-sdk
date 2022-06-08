@@ -83,7 +83,7 @@ public:
         DBG_MAIN_THREAD
         
         m_uploadedDataSize = 0;
-        
+
         _ASSERT( !m_opinionController.opinionTrafficTx() );
 
         m_opinionController.setOpinionTrafficTx( m_request->m_transactionHash.array() );
@@ -91,6 +91,7 @@ public:
         //_LOG( "?????????: " << m_request->m_clientDataInfoHash  << "   " << m_drive.m_torrentHandleMap.size() )
         if ( auto it = m_drive.m_torrentHandleMap.find( m_request->m_clientDataInfoHash ); it != m_drive.m_torrentHandleMap.end() )
         {
+            _ASSERT( 0 )
             m_actionListIsReceived = true;
 
             m_drive.executeOnBackgroundThread( [this]
@@ -139,7 +140,7 @@ public:
                                                    m_request->m_clientDataInfoHash,
                                                    m_request->m_transactionHash,
                                                    m_request->m_maxDataSize - m_uploadedDataSize,
-                                                   true,
+                                                   false,
                                                    "" ),
                                                m_drive.m_sandboxRootPath,
                                                "",
@@ -162,8 +163,7 @@ public:
         // Check 'ActionList' is received
         if ( !fs::exists( actionListFilename, err ))
         {
-            _LOG_WARN( "modifyDriveInSandbox: 'ActionList.bin' is absent: "
-                              << m_drive.m_clientActionListFile );
+            _LOG_WARN( "modifyDriveInSandbox: 'ActionList.bin' is absent: " << actionListFilename);
             m_drive.executeOnSessionThread( [this] { modifyIsCompletedWithError( "modify drive: 'ActionList' is absent", -1 ); } );
             return;
         }
@@ -508,8 +508,10 @@ public:
             {
                 return false;
             }
-            
-            _ASSERT( m_sandboxRootHash == transaction.m_rootHash )
+
+			if ( *m_sandboxRootHash != transaction.m_rootHash ) {
+				_LOG_ERR( "Invalid Sandbox Root Hash: " << *m_sandboxRootHash << " " << Hash256(transaction.m_rootHash) )
+			}
             
             const auto& v = transaction.m_replicatorKeys;
             auto it = std::find( v.begin(), v.end(), m_drive.m_replicator.replicatorKey().array());
@@ -596,7 +598,7 @@ protected:
     void modifyIsCompletedWithError( std::string errorText, int errorCode )
     {
         DBG_MAIN_THREAD
-        _LOG( "modifyIsCompletedWithError" );
+        _LOG( "modifyIsCompletedWithError " << errorText << " " << errorCode );
 
         if ( m_drive.m_dbgEventHandler )
         {
@@ -678,7 +680,9 @@ private:
 
         for ( const auto& replicatorIt : m_drive.getAllReplicators())
         {
-            m_drive.m_replicator.sendMessage( "opinion", replicatorIt.array(), os.str());
+			if ( replicatorIt != m_drive.m_replicator.replicatorKey() ) {
+				m_drive.m_replicator.sendMessage( "opinion", replicatorIt.array(), os.str());
+			}
         }
     }
 
@@ -694,6 +698,9 @@ private:
 #endif
 
 // check opinion number
+
+		_LOG( "opinions " << m_receivedOpinions.size() );
+
         if ( m_myOpinion &&
                 m_receivedOpinions.size() >=
              ((replicatorNumber) * 2) / 3 &&

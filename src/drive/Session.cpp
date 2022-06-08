@@ -92,9 +92,7 @@ class DefaultSession: public Session, std::enable_shared_from_this<DefaultSessio
 
     std::weak_ptr<ReplicatorInt>        m_replicator;
     std::weak_ptr<lt::session_delegate> m_downloadLimiter;
-    
-    std::promise<void>                  m_bootstrapBarrier;
-    
+
     std::string                         m_dbgOurPeerName = "";
     
     bool                                m_stopping = false;
@@ -120,14 +118,13 @@ public:
         , m_alertHandler(alertHandler)
         , m_replicator(replicator)
         , m_downloadLimiter(downloadLimiter)
-        , m_bootstrapBarrier( std::move(bootstrapBarrier) )
     {
         m_dbgOurPeerName = m_downloadLimiter.lock()->dbgOurPeerName();
         
         m_session.set_alert_notify( [this] { this->alertHandler(); } );
         m_session.add_extension(std::make_shared<DhtRequestPlugin>(  m_replicator ));
         m_session.setDelegate( m_downloadLimiter );
-        
+
         _LOG( "DefaultSession created: " );
         _LOG( "DefaultSession created: " << m_addressAndPort );
         _LOG( "DefaultSession created: " << m_addressAndPort << " " << m_replicator.lock() );
@@ -148,7 +145,6 @@ public:
         , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
         , m_alertHandler(alertHandler)
         , m_downloadLimiter(downloadLimiter)
-        , m_bootstrapBarrier()
     {
         if ( downloadLimiter.lock() )
             m_dbgOurPeerName = downloadLimiter.lock()->dbgOurPeerName();
@@ -301,7 +297,7 @@ public:
     {
         m_dbgThreadId = std::this_thread::get_id();
     }
-    
+
     virtual void endSession() override {
         m_stopping = true;
         _LOG( "stop session" )
@@ -313,7 +309,8 @@ public:
 
 
     virtual void removeTorrentsFromSession( const std::set<lt::torrent_handle>&  torrents,
-                                            std::function<void()>                endNotification ) override
+                                            std::function<void()>                endNotification,
+                                            bool removeFiles ) override
     {
         auto toBeRemoved = std::set<lt::torrent_handle>();
 
@@ -364,7 +361,8 @@ public:
 //                if ( torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer )
 //                {
                     _LOG( "+++ ex :remove_torrent(3): " << torrentHandle.info_hashes().v2 );
-                    m_session.remove_torrent( torrentHandle, lt::session::delete_files );
+                    lt::remove_flags_t removeFlag = removeFiles ? lt::session::delete_files : lt::session::delete_partfile;
+                    m_session.remove_torrent( torrentHandle, removeFlag );
 //                }
             }
         }
@@ -813,7 +811,7 @@ private:
             });
         }
     }
-    
+
     void alertHandler()
     {
         //DBG_MAIN_THREAD
@@ -831,7 +829,7 @@ private:
         for (auto &alert : alerts) {
 
             //_LOG( ">>>" << alert->what() << " (type="<< alert->type() <<"):  " << alert->message() );
-            
+
 ////            if ( alert->type() == lt::dht_log_alert::alert_type || alert->type() == lt::dht_direct_response_alert::alert_type )
 //            {
 //                    _LOG( ">" << m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
@@ -857,15 +855,15 @@ private:
 //                    break;
 //                }
 
-//                case lt::peer_log_alert::alert_type: {
-//                    _LOG(  ": peer_log_alert: " << alert->message())
-//                    break;
-//                }
+                case lt::peer_log_alert::alert_type: {
+                    _LOG(  ": peer_log_alert: " << alert->message())
+                    break;
+                }
 
-//                case lt::log_alert::alert_type: {
-//                    _LOG(  ": session_log_alert: " << alert->message())
-//                    break;
-//                }
+                case lt::log_alert::alert_type: {
+                    _LOG(  ": session_log_alert: " << alert->message())
+                    break;
+                }
 
                 case lt::dht_bootstrap_alert::alert_type: {
                     _LOG( "dht_bootstrap_alert: " << alert->message() )

@@ -99,6 +99,10 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
             EXLOG("# Client is waiting the end of replicator update");
         }
 
+        void removeModifyTorrents() {
+            m_clientSession->removeModifyTorrents();
+        }
+
         void downloadFromDrive(const InfoHash& rootHash,
                                const Key& downloadChannelKey,
                                const ReplicatorList &replicatorList)
@@ -120,7 +124,7 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
                                               },
                                               rootHash,
                                               downloadChannelId, 0),
-                                      m_clientFolder / "fsTree-folder");
+                                      m_clientFolder / "fsTree-folder", "");
             m_downloadChannels.push_back(downloadChannelId);
         }
 

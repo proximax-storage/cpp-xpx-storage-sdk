@@ -50,12 +50,14 @@ public:
         {
             session->removeTorrentsFromSession( tobeRemovedTorrents, [this]()
             {
-                m_drive.m_replicator.closeDriveChannels( m_request->m_removeDriveTx, m_drive.m_driveKey );
-                m_drive.executeOnBackgroundThread( [this]
-                {
-                    removeAllDriveData();
-                } );
-            } );
+			   if (m_request->m_removeDriveTx) {
+					m_drive.m_replicator.closeDriveChannels(*m_request->m_removeDriveTx, m_drive.m_driveKey);
+				}
+				m_drive.executeOnBackgroundThread( [this]
+                                                   {
+                                                       removeAllDriveData();
+                                                   } );
+            }, false);
         }
     }
 
@@ -99,9 +101,10 @@ private:
         if ( auto session = m_drive.m_session.lock(); session )
         {
             boost::asio::post(session->lt_session().get_context(), [this] {
-                if ( auto * dbgEventHandler = m_drive.m_dbgEventHandler; dbgEventHandler )
+                if ( auto * dbgEventHandler = m_drive.m_dbgEventHandler; dbgEventHandler)
                 {
-                    dbgEventHandler->driveIsClosed( m_drive.m_replicator, m_drive.m_driveKey, m_request->m_removeDriveTx );
+                	Hash256 closeId = m_request->m_removeDriveTx ? *m_request->m_removeDriveTx : Hash256();
+                    dbgEventHandler->driveIsClosed( m_drive.m_replicator, m_drive.m_driveKey, closeId );
                 }
 
                 m_drive.m_replicator.finishDriveClosure( m_drive.m_driveKey );

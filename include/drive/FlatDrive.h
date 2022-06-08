@@ -64,7 +64,7 @@ class Replicator;
 
     struct DriveClosureRequest
     {
-        Hash256 m_removeDriveTx;
+        std::optional<Hash256> m_removeDriveTx;
     };
 
     struct DownloadRequest {
@@ -95,16 +95,16 @@ class Replicator;
         std::array<uint8_t,32>      m_replicatorKey;
 
         std::vector<KeyAndBytes>    m_uploadLayout;
-        
+
         // Signature of { modifyTransactionHash, rootHash, replicatorsUploadBytes, clientUploadBytes }
         Signature               m_signature;
-        
+
         SingleOpinion() = default;
-        
+
         SingleOpinion( const Key& replicatorKey ) : m_replicatorKey( replicatorKey.array() )
         {
         }
-        
+
         void Sign( const crypto::KeyPair& keyPair,
                    const Key& driveKey,
                    const Hash256& modifyTransactionHash,
@@ -129,29 +129,30 @@ class Replicator;
                           m_signature );
         }
 
-        bool Verify( const crypto::KeyPair& keyPair,
-                     const Key& driveKey,
-                     const Hash256& modifyTransactionHash,
-                     const InfoHash& rootHash,
-                     const uint64_t& fsTreeFileSize,
-                     const uint64_t& metaFilesSize,
-                     const uint64_t& driveSize ) const
-        {
-//            std::cerr <<  "Verify:" << m_replicatorKey[0] << "," << modifyTransactionHash[0] << "," << rootHash[0] << "," << m_replicatorUploadBytes[0] <<
-//            "," << m_clientUploadBytes << "\n\n";
-            return crypto::Verify( m_replicatorKey,
-                                  {
-                                    utils::RawBuffer{driveKey},
-                                    utils::RawBuffer{modifyTransactionHash},
-                                    utils::RawBuffer{rootHash},
-                                    utils::RawBuffer{(const uint8_t*) &fsTreeFileSize, sizeof(fsTreeFileSize)},
-                                    utils::RawBuffer{(const uint8_t*) &metaFilesSize, sizeof(metaFilesSize)},
-                                    utils::RawBuffer{(const uint8_t*) &driveSize, sizeof(driveSize)},
-                                    utils::RawBuffer{ (const uint8_t*) &m_uploadLayout[0],
-                                                      m_uploadLayout.size() * sizeof (m_uploadLayout[0]) }
-                                  },
-                                  m_signature );
-        }
+		bool
+				Verify(const crypto::KeyPair& keyPair,
+					   const Key& driveKey,
+					   const Hash256& modifyTransactionHash,
+					   const InfoHash& rootHash,
+					   const uint64_t& fsTreeFileSize,
+					   const uint64_t& metaFilesSize,
+					   const uint64_t& driveSize) const {
+			//            std::cerr <<  "Verify:" << m_replicatorKey[0] << "," << modifyTransactionHash[0] << "," <<
+			//            rootHash[0] << "," << m_replicatorUploadBytes[0] <<
+			//            "," << m_clientUploadBytes << "\n\n";
+			return crypto::Verify(
+					m_replicatorKey,
+					{ utils::RawBuffer { driveKey },
+					  utils::RawBuffer { modifyTransactionHash },
+					  utils::RawBuffer { rootHash },
+					  utils::RawBuffer { (const uint8_t*)&fsTreeFileSize, sizeof(fsTreeFileSize) },
+					  utils::RawBuffer { (const uint8_t*)&metaFilesSize, sizeof(metaFilesSize) },
+					  utils::RawBuffer { (const uint8_t*)&driveSize, sizeof(driveSize) },
+
+					  utils::RawBuffer { (const uint8_t*)&m_uploadLayout[0],
+										 m_uploadLayout.size() * sizeof(m_uploadLayout[0]) } },
+					m_signature);
+		}
 
         template <class Archive> void serialize( Archive & arch ) {
             arch( m_replicatorKey );
@@ -318,7 +319,7 @@ class Replicator;
     struct VerificationRequest
     {
         Hash256                     m_tx;
-        uint32_t                    m_shardId = 0;
+        uint16_t                    m_shardId = 0;
         InfoHash                    m_actualRootHash;
         std::vector<Key>            m_replicators;
         std::uint32_t               m_durationMs;
@@ -384,12 +385,12 @@ class Replicator;
         void Sign( const crypto::KeyPair&           keyPair,
                    const std::array<uint8_t,32>&    tx,
                    const std::array<uint8_t,32>&    driveKey,
-                   uint32_t                         shardId )
+                   uint16_t                         shardId )
        {
             crypto::Sign( keyPair,
                           {
+							utils::RawBuffer{driveKey},
                             utils::RawBuffer{tx},
-                            utils::RawBuffer{driveKey},
                             utils::RawBuffer{(const uint8_t*) &shardId, sizeof(shardId)},
                             utils::RawBuffer{m_opinions},
                           },
@@ -398,12 +399,12 @@ class Replicator;
 
         bool Verify( const std::array<uint8_t,32>&    tx,
                      const std::array<uint8_t,32>&    driveKey,
-                     uint32_t                         shardId ) const
+                     uint16_t                         shardId ) const
         {
             return crypto::Verify( m_publicKey,
                                   {
+            						utils::RawBuffer{driveKey},
                                     utils::RawBuffer{tx},
-                                    utils::RawBuffer{driveKey},
                                     utils::RawBuffer{(const uint8_t*) &shardId, sizeof(shardId)},
                                     utils::RawBuffer{m_opinions},
                                   },
@@ -415,7 +416,7 @@ class Replicator;
     {
         std::array<uint8_t,32>          m_tx;
         std::array<uint8_t,32>          m_driveKey;
-        uint32_t                        m_shardId = 0;
+        uint16_t                        m_shardId = 0;
         std::vector<VerifyOpinion>      m_opinions;
 
         template <class Archive> void serialize( Archive & arch )
@@ -561,8 +562,7 @@ class Replicator;
 
         virtual const Key& driveOwner() const = 0;
 
-        virtual void     replicatorAdded( mobj<Key>&& replicatorKey ) = 0;
-        virtual void     replicatorRemoved( mobj<Key>&& replicatorKey ) = 0;
+        virtual void     setReplicators( mobj<ReplicatorList>&& replicatorKeys ) = 0;
 
         virtual void     startModifyDrive( mobj<ModificationRequest>&& modifyRequest ) = 0;
         virtual void     cancelModifyDrive( mobj<ModificationCancelRequest>&& request ) = 0;
@@ -570,17 +570,15 @@ class Replicator;
         virtual void     startDriveClosing( mobj<DriveClosureRequest>&& request ) = 0;
 
         virtual void     startVerification( mobj<VerificationRequest>&& request ) = 0;
-        virtual void     cancelVerification( mobj<Hash256>&& tx ) = 0;
-        
+        virtual void     cancelVerification() = 0;
+
         virtual void     startStream( mobj<StreamRequest>&& ) = 0;
         virtual void     increaseStream( mobj<StreamIncreaseRequest>&& ) = 0;
         virtual void     finishStream( mobj<StreamFinishRequest>&& ) = 0;
         
         // modification shards
-        virtual void     addShardDonator( mobj<Key>&& replicatorKey ) = 0;
-        virtual void     removeShardDonator( mobj<Key>&& replicatorKey ) = 0;
-        virtual void     addShardRecipient( mobj<Key>&& replicatorKey ) = 0;
-        virtual void     removeShardRecipient( mobj<Key>&& replicatorKey ) = 0;
+        virtual void     setShardDonator( mobj<ReplicatorList>&& replicatorKeys ) = 0;
+        virtual void     setShardRecipient( mobj<ReplicatorList>&& replicatorKeys ) = 0;
 
         virtual const ReplicatorList& donatorShard()   const = 0;
         virtual bool     acceptConnectionFromReplicator( const Key& ) const = 0;
@@ -610,7 +608,7 @@ class Replicator;
 
 
         static std::string  driveIsClosingPath( const std::string& driveRootPath );
-        
+
         virtual void        acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
         virtual void        acceptFinishStreamMessage( mobj<FinishStream>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
 

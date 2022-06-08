@@ -301,7 +301,7 @@ public:
             _LOG( "adding drive " << driveKey );
 
             if (m_driveMap.find(driveKey) != m_driveMap.end()) {
-                _LOG( "drive already added" );
+                _LOG_ERR( "drive already added" );
                 return;
             }
 
@@ -359,7 +359,7 @@ public:
 
             if ( auto drive = getDrive(driveKey); drive )
             {
-                drive->startDriveClosing( {} );
+                drive->startDriveClosing(  DriveClosureRequest() );
             }
             else
             {
@@ -369,179 +369,92 @@ public:
         });
     }
 
-    void asyncReplicatorAdded( Key driveKey, mobj<Key>&& replicatorKey ) override
+    void asyncSetReplicators( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
     {
-        _FUNC_ENTRY()
+    	_FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
+    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+    	{
+    		DBG_MAIN_THREAD
 
-            if ( auto drive = getDrive(driveKey); drive )
-            {
-                m_endpointsManager.addEndpointEntry( *replicatorKey );
-                drive->replicatorAdded( std::move(replicatorKey) );
-            }
-            else
-            {
-                _LOG_ERR( "drive not found: " << driveKey );
-                return;
-            }
-        });
-    }
+    		if ( auto drive = getDrive(driveKey); drive )
+    		{
+    			for( auto it = replicatorKeys->begin();  it != replicatorKeys->end(); it++ )
+    			{
+    				if ( *it == publicKey() )
+    				{
+    					replicatorKeys->erase( it );
+    					break;
+    				}
+    			}
+    			m_endpointsManager.addEndpointsEntries( *replicatorKeys );
+    			drive->setReplicators( std::move(replicatorKeys) );
+    		}
+    		else
+    		{
+    			_LOG_ERR( "drive not found: " << driveKey );
+    			return;
+    		}
+    	});
+	}
 
-    void asyncReplicatorRemoved( Key driveKey, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
+    // It notifies about changes in modification shards
+    void asyncSetShardDonator( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
+	{
+    	_FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
+    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+    	{
+    		DBG_MAIN_THREAD
 
-            if ( auto drive = getDrive(driveKey); drive )
-            {
-                drive->replicatorRemoved( std::move(replicatorKey) );
-            }
-            else
-            {
-                _LOG_ERR( "drive not found: " << driveKey );
-                return;
-            }
-        });
-    }
+    		if ( auto drive = getDrive(driveKey); drive )
+    		{
+    			drive->setShardDonator( std::move(replicatorKeys) );
+    		}
+    		else
+    		{
+    			_LOG_ERR( "drive not found: " << driveKey );
+    			return;
+    		}
+    	});
+	}
 
+	void asyncSetShardRecipient( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
+	{
+    	_FUNC_ENTRY()
 
-    void asyncAddShardDonator( Key driveKey, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
+    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+    	{
+    		DBG_MAIN_THREAD
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
+    		if ( auto drive = getDrive(driveKey); drive )
+    		{
+    			drive->setShardRecipient( std::move(replicatorKeys) );
+    		}
+    		else
+    		{
+    			_LOG_ERR( "drive not found: " << driveKey );
+    			return;
+    		}
+    	});
+	}
 
-            if ( auto drive = getDrive(driveKey); drive )
-            {
-                drive->addShardDonator( std::move(replicatorKey) );
-            }
-            else
-            {
-                _LOG_ERR( "drive not found: " << driveKey );
-                return;
-            }
-        });
-    }
+	virtual void asyncSetChanelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys ) {
+    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+    	{
+    		DBG_MAIN_THREAD
 
-    void asyncRemoveShardDonator( Key driveKey, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
-
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
-
-            if ( auto drive = getDrive(driveKey); drive )
-            {
-                drive->removeShardDonator( std::move(replicatorKey) );
-            }
-            else
-            {
-                _LOG_ERR( "drive not found: " << driveKey );
-                return;
-            }
-        });
-    }
-
-    void asyncAddShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
-
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
-
-            if ( auto drive = getDrive(driveKey); drive )
-            {
-                drive->addShardRecipient( std::move(replicatorKey) );
-            }
-            else
-            {
-                _LOG_ERR( "drive not found: " << driveKey );
-                return;
-            }
-        });
-    }
-
-    void asyncRemoveShardRecipient( Key driveKey, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
-
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
-
-            if ( auto drive = getDrive(driveKey); drive )
-            {
-                drive->removeShardRecipient( std::move(replicatorKey) );
-            }
-            else
-            {
-                _LOG_ERR( "drive not found: " << driveKey );
-                return;
-            }
-        });
-    }
-    
-    virtual void asyncAddToChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
-
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
-
-            if ( auto channelInfoIt = m_dnChannelMap.find( channelId->array() ); channelInfoIt != m_dnChannelMap.end() )
-            {
-                auto& shard = channelInfoIt->second.m_dnReplicatorShard;
-                auto it = std::find( shard.begin(), shard.end(), *replicatorKey );
-                if ( it != shard.end() )
-                {
-                    _LOG_WARN( "replicator already exists: " << *replicatorKey )
-                }
-                shard.push_back( replicatorKey->array() );
-            }
-            else
-            {
-                _LOG_ERR( "Unknown channel hash: " << *channelId );
-                return;
-            }
-        });
-    }
-
-    virtual void asyncRemoveFromChanelShard( mobj<Hash256>&& channelId, mobj<Key>&& replicatorKey ) override
-    {
-        _FUNC_ENTRY()
-
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
-
-            if ( auto channelInfoIt = m_dnChannelMap.find( channelId->array() ); channelInfoIt != m_dnChannelMap.end() )
-            {
-                auto& shard = channelInfoIt->second.m_dnReplicatorShard;
-                auto it = std::find( shard.begin(), shard.end(), *replicatorKey );
-                if ( it == shard.end() )
-                {
-                    _LOG_WARN( "unknown replicatorKey: " << *replicatorKey )
-                }
-                shard.erase( it );
-            }
-            else
-            {
-                _LOG_ERR( "Unknown channel hash: " << *channelId );
-                return;
-            }
-        });
-    }
+    		if ( auto channelInfoIt = m_dnChannelMap.find( channelId->array() ); channelInfoIt != m_dnChannelMap.end() )
+    		{
+    			channelInfoIt->second.m_dnReplicatorShard = *replicatorKeys;
+    		}
+    		else
+    		{
+    			_LOG_ERR( "Unknown channel hash: " << *channelId );
+    			return;
+    		}
+    	});
+	}
 
     void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {
@@ -558,11 +471,11 @@ public:
 
             if ( auto drive = getDrive(driveKey); drive )
             {
-                drive->startDriveClosing( transactionHash );
+                drive->startDriveClosing( { transactionHash } );
             }
             else
             {
-                _LOG( "removeDrive: drive not found: " << driveKey );
+                _LOG_ERR( "removeDrive: drive not found: " << driveKey );
                 return;
             }
         });//post
@@ -651,6 +564,8 @@ public:
         
             DBG_MAIN_THREAD
 
+			_LOG( "started verification" );
+
             if ( m_replicatorIsDestructing )
             {
                 return;
@@ -666,7 +581,7 @@ public:
         });//post
     }
 
-    void asyncCancelDriveVerification( Key driveKey, mobj<Hash256>&& tx ) override
+    void asyncCancelDriveVerification( Key driveKey ) override
     {
         _FUNC_ENTRY()
 
@@ -682,7 +597,7 @@ public:
 
              if ( const auto drive = getDrive(driveKey); drive )
              {
-                 drive->cancelVerification( std::move(tx) );
+                 drive->cancelVerification();
                  return;
              }
 
@@ -833,6 +748,14 @@ public:
         });//post
     }
 
+    virtual void asyncIncreaseDownloadChannelSize( ChannelId channelId, uint64_t size ) override {
+    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+			DBG_MAIN_THREAD
+
+			increaseChannelSize(channelId.array(), size);
+    	});//post
+	}
+
     virtual DownloadChannelInfo* getDownloadChannelInfo( const std::array<uint8_t,32>& driveKey, const std::array<uint8_t,32>& downloadChannelHash ) override
     {
         DBG_MAIN_THREAD
@@ -851,16 +774,16 @@ public:
     }
 
 
-    void asyncRemoveDownloadChannelInfo( Key driveKey, Key channelId ) override
+    void asyncRemoveDownloadChannelInfo( ChannelId channelId ) override
     {
         _FUNC_ENTRY()
 
-//       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-//
-//            DBG_MAIN_THREAD
-//
-//            removeChannelInfo(channelKey);
-//        });
+       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+
+            DBG_MAIN_THREAD
+
+            removeChannelInfo(channelId);
+        });
     }
 
     // It sends received receipt from 'client' to other replicators
@@ -1209,7 +1132,7 @@ public:
     };
 
     // It is called when drive is closing
-    virtual void closeDriveChannels( const mobj<Hash256>& blockHash, const Key& driveKey ) override
+    void closeDriveChannels( const mobj<Hash256>& blockHash, const Key& driveKey ) override
     {
         DBG_MAIN_THREAD
 
@@ -1336,7 +1259,11 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_driveMap.erase( driveKey );
+		auto it = m_driveMap.find( driveKey );
+
+        _ASSERT( it != m_driveMap.end() )
+
+        m_driveMap.erase( it );
     }
     
     virtual void asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) override
@@ -1404,7 +1331,7 @@ public:
         });//post
     }
 
-    void asyncApprovalTransactionHasFailedInvalidSignatures(Key driveKey, Hash256 transactionHash) override
+    void asyncApprovalTransactionHasFailedInvalidOpinions(Key driveKey, Hash256 transactionHash) override
     {
         _FUNC_ENTRY()
         
