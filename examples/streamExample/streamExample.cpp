@@ -641,8 +641,8 @@ int main(int,char**)
     createReplicators( bootstraps );
     gReplicatorArray.push_back( gReplicator );
     gReplicatorArray.push_back( gReplicator2 );
-//    gReplicatorArray.push_back( gReplicator3 );
-//    gReplicatorArray.push_back( gReplicator4 );
+    gReplicatorArray.push_back( gReplicator3 );
+    gReplicatorArray.push_back( gReplicator4 );
 
     ///
     /// Create client sessions

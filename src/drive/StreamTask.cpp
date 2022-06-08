@@ -40,6 +40,7 @@ class StreamTask : public UpdateDriveTaskBase
     boost::asio::ip::udp::endpoint  m_streamerEndpoint;
 
     ///---
+
     std::optional<InfoHash>         m_finishInfoHash;
     std::optional<lt_handle>        m_finishLtHandle = {};
     
@@ -48,6 +49,26 @@ class StreamTask : public UpdateDriveTaskBase
     
     using FinishStreamIt = std::vector<FinishStreamChunkInfo>::iterator;
     FinishStreamIt                  m_finishStreamIt;
+    
+    ///---
+
+    std::map<std::array<uint8_t,32>,ApprovalTransactionInfo> m_receivedOpinions;
+
+    bool m_modifyApproveTransactionSent = false;
+    bool m_modifyApproveTxReceived = false;
+    
+    uint64_t m_uploadedDataSize = 0;
+
+    std::optional<boost::asio::high_resolution_timer> m_shareMyOpinionTimer;
+#ifndef __APPLE__
+    const int m_shareMyOpinionTimerDelayMs = 1000 * 60;
+#else
+    //(???+++)
+    const int m_shareMyOpinionTimerDelayMs = 1000 * 1;
+#endif
+
+    std::optional<boost::asio::high_resolution_timer> m_modifyOpinionTimer;
+
     
 public:
     
@@ -66,6 +87,36 @@ public:
         _LOG( "m_chunkInfoList.size: " << m_chunkInfoList.size() )
     }
     
+    void terminate() override
+    {
+        DBG_MAIN_THREAD
+
+        //TODO
+//        m_modifyOpinionTimer.reset();
+//        m_shareMyOpinionTimer.reset();
+
+        breakTorrentDownloadAndRunNextTask();
+    }
+    
+    void tryBreakTask() override
+    {
+        if ( m_sandboxCalculated )
+        {
+            // we will wait the end of current task, that will call m_drive.runNextTask()
+        }
+        else
+        {
+            finishTask();
+        }
+    }
+
+    void run() override
+    {
+        _ASSERT( ! m_opinionController.opinionTrafficTx() );
+
+        m_opinionController.setOpinionTrafficTx( m_request->m_streamId.array() );
+    }
+
     const Hash256& getModificationTransactionHash() override
     {
         return m_request->m_streamId;
@@ -356,57 +407,122 @@ public:
 
         m_sandboxCalculated = true;
 
-//        if ( m_modifyApproveTxReceived )
-//        {
-//            sendSingleApprovalTransaction( *m_myOpinion );
-//            startSynchronizingDriveWithSandbox();
-//        }
-//        else
-//        {
-//            // Send my opinion to other replicators
-//            shareMyOpinion();
-//            if ( auto session = m_drive.m_session.lock(); session )
-//            {
-//                m_shareMyOpinionTimer = session->startTimer( m_shareMyOpinionTimerDelayMs, [this]
-//                {
-//                    _LOG( "shareMyOpinion" )
-//                    shareMyOpinion();
-//                } );
-//            }
-//
-//            // validate already received opinions
-//            std::erase_if( m_receivedOpinions, [this]( const auto& item )
-//            {
-//                return !validateOpinion( item.second );
-//            } );
-//
-//            // Maybe send approval transaction
-//            checkOpinionNumberAndStartTimer();
-//        }
-    }
+        if ( m_modifyApproveTxReceived )
+        {
+            sendSingleApprovalTransaction( *m_myOpinion );
+            startSynchronizingDriveWithSandbox();
+        }
+        else
+        {
+            // Send my opinion to other replicators
+            shareMyOpinion();
+            if ( auto session = m_drive.m_session.lock(); session )
+            {
+                m_shareMyOpinionTimer = session->startTimer( m_shareMyOpinionTimerDelayMs, [this]
+                {
+                    _LOG( "shareMyOpinion" )
+                    shareMyOpinion();
+                } );
+            }
 
-    // Whether the finishTask can be called by the task itself
-    void tryBreakTask() override
-    {
-        //TODO
-    }
+            // validate already received opinions
+            std::erase_if( m_receivedOpinions, [this]( const auto& item )
+            {
+                return !validateOpinion( item.second );
+            } );
 
-    void run() override
-    {
-        _ASSERT( ! m_opinionController.opinionTrafficTx() );
-
-        m_opinionController.setOpinionTrafficTx( m_request->m_streamId.array() );
-    }
-
-    void terminate() override
-    {
-        //TODO
+            // Maybe send approval transaction
+            checkOpinionNumberAndStartTimer();
+        }
     }
     
+    bool validateOpinion( const ApprovalTransactionInfo& anOpinion )
+    {
+        bool equal = m_myOpinion->m_rootHash == anOpinion.m_rootHash &&
+                     m_myOpinion->m_fsTreeFileSize == anOpinion.m_fsTreeFileSize &&
+                     m_myOpinion->m_metaFilesSize == anOpinion.m_metaFilesSize &&
+                     m_myOpinion->m_driveSize == anOpinion.m_driveSize;
+        return equal;
+    }
+
+    void checkOpinionNumberAndStartTimer()
+    {
+        DBG_MAIN_THREAD
+
+        // m_drive.getReplicator()List is the list of other replicators (it does not contain our replicator)
+#ifndef MINI_SIGNATURE
+        auto replicatorNumber = m_drive.getAllReplicators().size() + 1;
+#else
+        auto replicatorNumber = m_drive.getAllReplicators().size();//todo++++ +1;
+#endif
+
+// check opinion number
+        if ( m_myOpinion &&
+                m_receivedOpinions.size() >=
+             ((replicatorNumber) * 2) / 3 &&
+             !m_modifyApproveTransactionSent &&
+             !m_modifyApproveTxReceived )
+        {
+            // start timer if it is not started
+            if ( !m_modifyOpinionTimer )
+            {
+                if ( auto session = m_drive.m_session.lock(); session )
+                {
+                    m_modifyOpinionTimer = session->startTimer(
+                            m_drive.m_replicator.getModifyApprovalTransactionTimerDelay(),
+                            [this]()
+                            { opinionTimerExpired(); } );
+                }
+            }
+        }
+    }
+
+    void opinionTimerExpired()
+    {
+        DBG_MAIN_THREAD
+
+        if ( m_modifyApproveTransactionSent || m_modifyApproveTxReceived )
+            return;
+
+        ApprovalTransactionInfo info = {m_drive.m_driveKey.array(),
+                                        m_myOpinion->m_modifyTransactionHash,
+                                        m_myOpinion->m_rootHash,
+                                        m_myOpinion->m_fsTreeFileSize,
+                                        m_myOpinion->m_metaFilesSize,
+                                        m_myOpinion->m_driveSize,
+                                        {}};
+
+        info.m_opinions.reserve( m_receivedOpinions.size() + 1 );
+        info.m_opinions.emplace_back( m_myOpinion->m_opinions[0] );
+        for ( const auto& otherOpinion : m_receivedOpinions )
+        {
+            info.m_opinions.emplace_back( otherOpinion.second.m_opinions[0] );
+        }
+
+        // notify event handler
+        m_drive.m_eventHandler.modifyApprovalTransactionIsReady( m_drive.m_replicator, info );
+
+        m_modifyApproveTransactionSent = true;
+    }
+    
+    bool processedModifyOpinion( const ApprovalTransactionInfo& anOpinion ) override
+    {
+        _LOG( "processedModifyOpinion" )
+        
+        // In this case Replicator is able to verify all data in the opinion
+        if ( m_myOpinion &&
+             m_request->m_streamId.array() == anOpinion.m_modifyTransactionHash &&
+             validateOpinion( anOpinion ) )
+        {
+            m_receivedOpinions[anOpinion.m_opinions[0].m_replicatorKey] = anOpinion;
+            checkOpinionNumberAndStartTimer();
+        }
+        return true;
+    }
+
 #ifdef __APPLE__
 #pragma mark --FinishStream--
 #endif
-
     
     void acceptFinishStreamMessage( mobj<FinishStream>&& finishStream, const boost::asio::ip::udp::endpoint& streamer ) override
     {
@@ -725,6 +841,7 @@ public:
                                         } );
 
     }
+    
 };
 
 std::unique_ptr<DriveTaskBase> createStreamTask( mobj<StreamRequest>&&       request,

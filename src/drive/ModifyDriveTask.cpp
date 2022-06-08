@@ -84,8 +84,6 @@ public:
         
         m_uploadedDataSize = 0;
         
-        using namespace std::placeholders;  // for _1, _2, _3
-
         _ASSERT( !m_opinionController.opinionTrafficTx() );
 
         m_opinionController.setOpinionTrafficTx( m_request->m_transactionHash.array() );
