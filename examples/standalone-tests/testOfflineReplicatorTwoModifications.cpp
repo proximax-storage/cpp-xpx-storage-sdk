@@ -65,10 +65,7 @@ namespace sirius::drive::test
             for (uint i = 0; i < m_replicators.size() - 1; i++)
             {
                 auto &replicator = m_replicators[i];
-                std::thread([replicator, driveKey, request]
-                            {
-                                replicator->asyncModify(driveKey, ModificationRequest(request));
-                            }).detach();
+                replicator->asyncModify(driveKey, ModificationRequest(request));
             }
             boost::asio::post(m_offlineContext, [=, this]
                                   {
@@ -86,10 +83,7 @@ namespace sirius::drive::test
             for (uint i = 0; i < m_replicators.size() - 1; i++)
             {
                 auto &replicator = m_replicators[i];
-                std::thread([replicator, driveKey, transactionHash]
-                            {
-                                replicator->asyncCancelModify(driveKey, transactionHash);
-                            }).detach();
+                replicator->asyncCancelModify(driveKey, transactionHash);
             }
             boost::asio::post(m_offlineContext, [=, this]
                                   {

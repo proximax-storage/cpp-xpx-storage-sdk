@@ -81,7 +81,7 @@ public:
     void run() override
     {
         DBG_MAIN_THREAD
-        
+
         m_uploadedDataSize = 0;
 
         _ASSERT( !m_opinionController.opinionTrafficTx() );
@@ -478,12 +478,20 @@ public:
     bool processedModifyOpinion( const ApprovalTransactionInfo& anOpinion ) override
     {
         // In this case Replicator is able to verify all data in the opinion
-        if ( m_myOpinion &&
-             m_request->m_transactionHash.array() == anOpinion.m_modifyTransactionHash &&
-             validateOpinion( anOpinion ) )
+        if ( m_request->m_transactionHash.array() != anOpinion.m_modifyTransactionHash )
         {
+            return false;
+        }
+        if ( m_myOpinion )
+        {
+            if ( validateOpinion( anOpinion ) )
+            {
+                m_receivedOpinions[anOpinion.m_opinions[0].m_replicatorKey] = anOpinion;
+                checkOpinionNumberAndStartTimer();
+            }
+         }
+        else {
             m_receivedOpinions[anOpinion.m_opinions[0].m_replicatorKey] = anOpinion;
-            checkOpinionNumberAndStartTimer();
         }
         return true;
     }
@@ -698,8 +706,6 @@ private:
 #endif
 
 // check opinion number
-
-		_LOG( "opinions " << m_receivedOpinions.size() );
 
         if ( m_myOpinion &&
                 m_receivedOpinions.size() >=
