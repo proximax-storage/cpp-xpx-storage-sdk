@@ -26,6 +26,7 @@ enum class DriveTaskType
     MODIFICATION_CANCEL,
     CATCHING_UP,
     MODIFICATION_REQUEST,
+    STREAM_REQUEST,
     DRIVE_VERIFICATION
 };
 
@@ -76,7 +77,7 @@ public:
         return false;
     }
 
-    virtual void onAapprovalTxFailed( const Hash256 &transactionHash )
+    virtual void onApprovalTxFailed( const Hash256 &transactionHash )
     {
         DBG_MAIN_THREAD
     }
@@ -119,6 +120,23 @@ public:
         DBG_MAIN_THREAD
     }
 
+    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& streamer )
+    {
+        // it must be overriden by StreamTask
+    }
+
+    virtual void acceptFinishStreamMessage( mobj<FinishStream>&&, const boost::asio::ip::udp::endpoint& streamer )
+    {
+        // it must be overriden by StreamTask
+    }
+
+    virtual std::string acceptGetChunksInfoMessage( uint32_t                              chunkIndex,
+                                                    const boost::asio::ip::udp::endpoint& viewer )
+    {
+        // it must be overriden by StreamTask
+        return "";
+    }
+
 protected:
 
 
@@ -132,23 +150,29 @@ protected:
 
            std::error_code err;
 
-           if ( !fs::exists( m_drive.m_sandboxRootPath, err ))
+           if ( ! fs::exists( m_drive.m_sandboxRootPath, err ))
            {
                fs::create_directories( m_drive.m_sandboxRootPath );
-           } else
+               fs::create_directories( m_drive.m_sandboxStreamTFolder );
+           }
+           else
            {
-               for ( const auto& entry : std::filesystem::directory_iterator(
-                       m_drive.m_sandboxRootPath ))
+               for( const auto& entry: std::filesystem::directory_iterator(m_drive.m_sandboxRootPath) )
                {
                    fs::remove_all( entry.path(), err );
+                   _LOG( "fs::remove_all" );
+                   if ( err )
+                   {
+                       _LOG_WARN( "remove sandbox error: " << err )
+                   }
                }
            }
 
            m_drive.executeOnSessionThread( [this]
-                                           {
-                                               m_drive.runNextTask();
-                                           } );
-        } );
+           {
+               m_drive.runNextTask();
+           });
+        });
     }
 
     void markUsedFiles( const Folder& folder )
@@ -196,29 +220,33 @@ protected:
     }
 };
 
-std::unique_ptr<DriveTaskBase> createDriveInitializationTask( DriveParams& drive,
-                                                              ModifyOpinionController& opinionTaskController );
+std::unique_ptr<DriveTaskBase> createDriveInitializationTask( DriveParams&              drive,
+                                                              ModifyOpinionController&  opinionTaskController );
 
 std::unique_ptr<DriveTaskBase> createModificationTask(
-        mobj<ModificationRequest>&& request,
-        std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>&& receivedOpinions,
-        DriveParams& drive,
-        ModifyOpinionController& opinionTaskController );
+        mobj<ModificationRequest>&&                                 request,
+        std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>&&  receivedOpinions,
+        DriveParams&                                                drive,
+        ModifyOpinionController&                                    opinionTaskController );
 
-std::unique_ptr<DriveTaskBase> createCatchingUpTask( mobj<CatchingUpRequest>&& request,
-                                                     DriveParams& drive,
-                                                     ModifyOpinionController& opinionTaskController );
+std::unique_ptr<DriveTaskBase> createStreamTask( mobj<StreamRequest>&&       request,
+                                                 DriveParams&                drive,
+                                                 ModifyOpinionController&    opinionTaskController );
 
-std::unique_ptr<DriveTaskBase> createModificationCancelTask( mobj<ModificationCancelRequest>&& request,
-                                                             DriveParams& drive,
-                                                             ModifyOpinionController& opinionTaskController );
+std::unique_ptr<DriveTaskBase> createCatchingUpTask( mobj<CatchingUpRequest>&&  request,
+                                                     DriveParams&               drive,
+                                                     ModifyOpinionController&   opinionTaskController );
 
-std::unique_ptr<DriveTaskBase> createDriveClosureTask( mobj<DriveClosureRequest>&& request,
-                                                       DriveParams& drive );
+std::unique_ptr<DriveTaskBase> createModificationCancelTask( mobj<ModificationCancelRequest>&&  request,
+                                                             DriveParams&                       drive,
+                                                             ModifyOpinionController&           opinionTaskController );
+
+std::unique_ptr<DriveTaskBase> createDriveClosureTask( mobj<DriveClosureRequest>&&  request,
+                                                       DriveParams&                 drive );
 
 std::shared_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,
                                                             std::vector<VerifyApprovalTxInfo>&& receivedOpinions,
                                                             std::vector<VerificationCodeInfo>&& receivedCodes,
-                                                            DriveParams& drive );
+                                                            DriveParams&                        drive );
 
 }

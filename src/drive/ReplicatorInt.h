@@ -11,14 +11,14 @@
 #include "drive/FlatDrive.h"
 #include "drive/Replicator.h"
 #include "crypto/Signer.h"
-#include "Session.h"
+#include "drive/Session.h"
 
 namespace sirius::drive {
 
 //
 // Replicator
 //
-class ReplicatorInt: public Replicator
+class ReplicatorInt: public Replicator, public DhtMessageHandler
 {
 public:
 

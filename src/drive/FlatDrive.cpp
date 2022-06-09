@@ -6,7 +6,7 @@
 
 #include "drive/FlatDrive.h"
 #include "drive/Replicator.h"
-#include "Session.h"
+#include "drive/Session.h"
 #include "DriveTaskBase.h"
 #include "DriveParams.h"
 #include "ModifyOpinionController.h"
@@ -93,9 +93,35 @@ class DefaultFlatDrive: public FlatDrive, public DriveParams
     mobj<DriveClosureRequest>               m_closeDriveRequest = {};
     mobj<ModificationCancelRequest>         m_modificationCancelRequest;
     mobj<CatchingUpRequest>                 m_catchingUpRequest;
-    std::deque<mobj<ModificationRequest>>   m_deferredModificationRequests;
-    mobj<VerificationRequest>               m_deferredVerificationRequest;
+    
+    struct DeferredRequest
+    {
+        mobj<ModificationRequest> m_modificationRequest;
+        mobj<StreamRequest>       m_streamRequest;
 
+        const Hash256& transactionHash() const
+        {
+            if ( m_modificationRequest )
+            {
+                return m_modificationRequest->m_transactionHash;
+            }
+            __ASSERT( m_streamRequest )
+            return m_streamRequest->m_streamId;
+        }
+        
+        uint64_t maxDataSize()
+        {
+            if ( m_modificationRequest )
+            {
+                return m_modificationRequest->m_maxDataSize;
+            }
+            __ASSERT( m_streamRequest )
+            return m_streamRequest->m_maxSizeBytes;
+        }
+    };
+    std::deque<DeferredRequest>             m_deferredModificationRequests;
+    
+    mobj<VerificationRequest>               m_deferredVerificationRequest;
 
     // Executing Drive Tasks
     std::unique_ptr<DriveTaskBase> m_task;
@@ -236,7 +262,7 @@ public:
         
         if ( !m_deferredModificationRequests.empty() )
         {
-            runModificationTask();
+            runDeferredModificationTask();
             return;
         }
     }
@@ -254,14 +280,32 @@ public:
         m_task->run();
     }
 
-    void runModificationTask()
+    void runDeferredModificationTask()
     {
         DBG_MAIN_THREAD
 
         _ASSERT( !m_task )
 
-        auto request = m_deferredModificationRequests.front();
+        DeferredRequest request{ std::move( m_deferredModificationRequests.front().m_modificationRequest ),
+                                 std::move( m_deferredModificationRequests.front().m_streamRequest ) };
         m_deferredModificationRequests.pop_front();
+        
+        if ( request.m_modificationRequest )
+        {
+            runModificationTask( std::move( request.m_modificationRequest ) );
+        }
+        else
+        {
+            __ASSERT( request.m_streamRequest )
+            runStreamTask( std::move( request.m_streamRequest ) );
+        }
+    }
+
+    void runModificationTask( mobj<ModificationRequest>&& request )
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( !m_task )
 
         auto opinions = std::move(m_unknownModificationOpinions[request->m_transactionHash]);
         m_unknownModificationOpinions.erase(request->m_transactionHash);
@@ -269,6 +313,22 @@ public:
         m_task = createModificationTask( std::move(request), std::move(opinions), *this, m_opinionController );
 
         _ASSERT( m_task->getTaskType() == DriveTaskType::MODIFICATION_REQUEST )
+
+        m_task->run();
+    }
+
+    void runStreamTask( mobj<StreamRequest>&& request )
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( !m_task )
+
+//        auto opinions = std::move(m_unknownModificationOpinions[request->m_transactionHash]);
+//        m_unknownModificationOpinions.erase(request->m_transactionHash);
+
+        m_task = createStreamTask( std::move(request), *this, m_opinionController );
+
+        _ASSERT( m_task->getTaskType() == DriveTaskType::STREAM_REQUEST )
 
         m_task->run();
     }
@@ -282,31 +342,31 @@ public:
         // clear modification queue - we will not execute these modifications
         auto it = std::find_if( m_deferredModificationRequests.begin(), m_deferredModificationRequests.end(), [&]( const auto& item )
             {
-                return item->m_transactionHash ==
-                       m_catchingUpRequest->m_modifyTransactionHash;
+                return item.transactionHash() == m_catchingUpRequest->m_modifyTransactionHash;
             } );
+        
         if (it != m_deferredModificationRequests.end() )
         {
             const auto& opinionTrafficIdentifier = m_opinionController.opinionTrafficTx();
             while (!m_deferredModificationRequests.empty() and it != m_deferredModificationRequests.begin() )
             {
                 if ( !opinionTrafficIdentifier
-                || *opinionTrafficIdentifier != m_deferredModificationRequests.front()->m_transactionHash.array() )
+                || *opinionTrafficIdentifier != m_deferredModificationRequests.front().transactionHash().array() )
                 {
-                    m_replicator.removeModifyDriveInfo(m_deferredModificationRequests.front()->m_transactionHash.array());
+                    m_replicator.removeModifyDriveInfo( m_deferredModificationRequests.front().transactionHash().array() );
                 }
-                m_opinionController.increaseApprovedExpectedCumulativeDownload(m_deferredModificationRequests.front()->m_maxDataSize);
+                m_opinionController.increaseApprovedExpectedCumulativeDownload( m_deferredModificationRequests.front().maxDataSize() );
                 m_deferredModificationRequests.pop_front();
             }
 
             _ASSERT( !m_deferredModificationRequests.empty() )
 
             if ( opinionTrafficIdentifier &&
-            *opinionTrafficIdentifier != m_deferredModificationRequests.front()->m_transactionHash.array() )
+            *opinionTrafficIdentifier != m_deferredModificationRequests.front().transactionHash().array() )
             {
-                m_replicator.removeModifyDriveInfo(m_deferredModificationRequests.front()->m_transactionHash.array());
+                m_replicator.removeModifyDriveInfo(m_deferredModificationRequests.front().transactionHash().array());
             }
-            m_opinionController.increaseApprovedExpectedCumulativeDownload(m_deferredModificationRequests.front()->m_maxDataSize);
+            m_opinionController.increaseApprovedExpectedCumulativeDownload( m_deferredModificationRequests.front().maxDataSize() );
             m_deferredModificationRequests.pop_front();
         }
 
@@ -467,7 +527,7 @@ public:
 
         if ( m_task )
         {
-            m_task->onAapprovalTxFailed( transactionHash );
+            m_task->onApprovalTxFailed( transactionHash );
         }
     }
 
@@ -507,7 +567,7 @@ public:
         _LOG ( "started modification " << Hash256{modifyRequest->m_transactionHash} )
 
         // ModificationIsCanceling check is redundant now
-        m_deferredModificationRequests.push_back(std::move(modifyRequest) );
+        m_deferredModificationRequests.push_back( DeferredRequest{ std::move(modifyRequest), {} } );
 
         if ( !m_task )
         {
@@ -527,7 +587,7 @@ public:
         else
         {
             auto it = std::find_if(m_deferredModificationRequests.begin(), m_deferredModificationRequests.end(), [&request](const auto& item)
-            { return item->m_transactionHash == request->m_modifyTransactionHash; });
+            { return item.transactionHash() == request->m_modifyTransactionHash; });
 
             if (it == m_deferredModificationRequests.end() )
             {
@@ -570,6 +630,30 @@ public:
 
         m_verificationTask->cancelVerification();
         m_verificationTask.reset();
+    }
+    
+    void  startStream( mobj<StreamRequest>&& streamRequest ) override
+    {
+        DBG_MAIN_THREAD
+
+        _LOG ( "start streaming: " << Hash256{streamRequest->m_streamId} )
+
+        m_deferredModificationRequests.push_back( DeferredRequest{ {}, std::move(streamRequest) } );
+
+        if ( ! m_task )
+        {
+            runNextTask();
+        }
+    }
+    
+    void  increaseStream( mobj<StreamIncreaseRequest>&& ) override
+    {
+        
+    }
+    
+    void  finishStream( mobj<StreamFinishRequest>&& ) override
+    {
+        
     }
 
     void setReplicators( mobj<ReplicatorList>&& replicatorKeys ) override
@@ -632,6 +716,38 @@ public:
                     != m_modifyRecipientShard.end();
     }
 
+    void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& streamer ) override
+    {
+        DBG_MAIN_THREAD
+        
+        if ( m_task )
+        {
+            m_task->acceptChunkInfoMessage( std::move(chunkInfo), streamer );
+        }
+    }
+
+    void acceptFinishStreamMessage( mobj<FinishStream>&& finishStream, const boost::asio::ip::udp::endpoint& streamer ) override
+    {
+        DBG_MAIN_THREAD
+        
+        if ( m_task )
+        {
+            m_task->acceptFinishStreamMessage( std::move(finishStream), streamer );
+        }
+    }
+
+    std::string acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
+                                            const boost::asio::ip::udp::endpoint&  viewer ) override
+    {
+        DBG_MAIN_THREAD
+        
+        if ( m_task )
+        {
+            return m_task->acceptGetChunksInfoMessage( chunkIndex, viewer );
+        }
+        
+        return {};
+    }
     ////////////
 
     void dbgPrintDriveStatus() override
@@ -641,6 +757,49 @@ public:
         if ( auto session = m_session.lock(); session )
         {
             session->dbgPrintActiveTorrents();
+        }
+    }
+    
+    virtual void dbgAsyncDownloadToSandbox( InfoHash infoHash, std::function<void()> endNotifyer ) override
+    {
+        if ( auto session = m_session.lock(); session )
+        {
+            static std::array<uint8_t,32> streamTx  = std::array<uint8_t,32>{0xee,0xee,0xee,0xee};
+
+            session->download(
+                   DownloadContext(
+                           DownloadContext::missing_files,
+                           [=,this]( download_status::code code,
+                                   const InfoHash& infoHash,
+                                   const std::filesystem::path saveAs,
+                                   size_t /*downloaded*/,
+                                   size_t /*fileSize*/,
+                                   const std::string& errorText )
+                           {
+                               DBG_MAIN_THREAD
+
+                               if ( code == download_status::dn_failed )
+                               {
+                                   //todo is it possible?
+                                   _ASSERT( 0 );
+                                   return;
+                               }
+
+                               if ( code == download_status::download_complete )
+                               {
+                                   endNotifyer();
+                               }
+                           },
+                           infoHash,
+                           *m_opinionController.opinionTrafficTx(),
+                           0, true, ""
+                   ),
+                   m_sandboxRootPath,
+                   m_sandboxRootPath / toString(infoHash),
+                   {},
+                   &m_driveKey.array(),
+                   nullptr,
+                   &streamTx );
         }
     }
     

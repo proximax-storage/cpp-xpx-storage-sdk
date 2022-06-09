@@ -3,7 +3,7 @@
 #include "gtest/gtest.h"
 
 #include "types.h"
-#include "../../src/drive/Session.h"
+
 #include "drive/Utils.h"
 
 using namespace sirius::drive::test;
@@ -89,6 +89,8 @@ namespace sirius::drive::test
 
         env.cancelModification(DRIVE_PUB_KEY, client.m_modificationTransactionHashes[0]);
         std::this_thread::sleep_for(std::chrono::seconds(30));
+
+        EXLOG( "THIS THREAD" )
 
         for ( uint i = 0; i < env.m_replicators.size(); i++ )
         {

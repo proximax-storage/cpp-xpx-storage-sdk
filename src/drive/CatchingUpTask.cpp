@@ -106,7 +106,7 @@ public:
 
                                _ASSERT( !m_taskIsStopped );
 
-                               if ( code == download_status::failed )
+                               if ( code == download_status::dn_failed )
                                {
                                    //todo is it possible?
                                    _ASSERT( 0 );
@@ -122,7 +122,7 @@ public:
                            },
                            m_request->m_rootHash,
                            *m_opinionController.opinionTrafficTx(),
-                           0, false, m_drive.m_sandboxFsTreeFile
+                           0, true, m_drive.m_sandboxFsTreeFile
                    ),
                    m_drive.m_sandboxRootPath,
                    m_drive.m_sandboxFsTreeTorrent,
@@ -130,6 +130,7 @@ public:
                    &m_drive.m_driveKey.array(),
                    nullptr,
                    &m_opinionController.opinionTrafficTx().value().array() );
+            m_drive.m_torrentHandleMap[m_request->m_rootHash] = { *m_downloadingLtHandle, false };
         }
     }
     
@@ -331,7 +332,7 @@ public:
                                                                        //_ASSERT( fs::exists( m_drive.m_driveFolder / toString( infoHash )))
 
                                                                        downloadMissingFiles();
-                                                                   } else if ( code == download_status::failed )
+                                                                   } else if ( code == download_status::dn_failed )
                                                                    {
                                                                        _LOG_ERR( "? is it possible now?" );
                                                                    }
@@ -486,9 +487,9 @@ public:
         return 0;
     }
 
-    bool isFinishCallable() override
+    void tryBreakTask() override
     {
-        return true;
+
     }
 };
 

@@ -170,6 +170,8 @@ void Folder::getSizes( const fs::path& driveFolder, const fs::path& torrentFolde
         }
         else {
             const auto& fileHash = getFile(*it).hash();
+            std::cout << "name:  " << getFile(*it).name() << "\n" << std::flush;
+            std::cout << "tname: " << torrentFolder / toString(fileHash) << "\n" << std::flush;
             metaFilesSize += fs::file_size( torrentFolder / toString(fileHash) );
             filesSize += fs::file_size( driveFolder / toString(fileHash) );
         }

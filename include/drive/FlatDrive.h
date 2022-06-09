@@ -9,8 +9,10 @@
 #include "log.h"
 #include "plugins.h"
 #include "crypto/Signer.h"
-#include "../../src/drive/Session.h"
+#include "drive/Streaming.h"
+#include <libtorrent/alert_types.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ip/udp.hpp>
 #include <cereal/archives/binary.hpp>
 #include <memory>
 
@@ -44,7 +46,7 @@ class Replicator;
         InfoHash        m_clientDataInfoHash;
         Hash256         m_transactionHash;
         uint64_t        m_maxDataSize;
-        ReplicatorList  m_unusedReplicatorList;
+        ReplicatorList  m_replicatorList;
 
         bool m_isCanceled = false;
     };
@@ -431,13 +433,6 @@ class Replicator;
         }
     };
 
-    // UseTorrentInfo is used to avoid adding torrents into session with the same hash
-    // and for deleting unused files and torrents from session
-    struct UseTorrentInfo {
-        Session::lt_handle  m_ltHandle = {};
-        bool                m_isUsed = true;
-    };
-
     // Interface for storage extension
     class ReplicatorEventHandler
     {
@@ -570,15 +565,17 @@ class Replicator;
         virtual void     setReplicators( mobj<ReplicatorList>&& replicatorKeys ) = 0;
 
         virtual void     startModifyDrive( mobj<ModificationRequest>&& modifyRequest ) = 0;
-
         virtual void     cancelModifyDrive( mobj<ModificationCancelRequest>&& request ) = 0;
 
         virtual void     startDriveClosing( mobj<DriveClosureRequest>&& request ) = 0;
 
         virtual void     startVerification( mobj<VerificationRequest>&& request ) = 0;
-
         virtual void     cancelVerification() = 0;
 
+        virtual void     startStream( mobj<StreamRequest>&& ) = 0;
+        virtual void     increaseStream( mobj<StreamIncreaseRequest>&& ) = 0;
+        virtual void     finishStream( mobj<StreamFinishRequest>&& ) = 0;
+        
         // modification shards
         virtual void     setShardDonator( mobj<ReplicatorList>&& replicatorKeys ) = 0;
         virtual void     setShardRecipient( mobj<ReplicatorList>&& replicatorKeys ) = 0;
@@ -607,8 +604,16 @@ class Replicator;
 
         // for testing and debugging
         virtual void dbgPrintDriveStatus() = 0;
+        virtual void dbgAsyncDownloadToSandbox( InfoHash infoHash, std::function<void()> endNotifyer ) = 0;
 
-        static std::string driveIsClosingPath( const std::string& driveRootPath );
+
+        static std::string  driveIsClosingPath( const std::string& driveRootPath );
+
+        virtual void        acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
+        virtual void        acceptFinishStreamMessage( mobj<FinishStream>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
+
+        virtual std::string acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
+                                                        const boost::asio::ip::udp::endpoint&  viewer ) = 0;
     };
 
     class Session;

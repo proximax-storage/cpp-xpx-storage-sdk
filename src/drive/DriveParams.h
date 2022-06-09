@@ -7,7 +7,7 @@
 
 #include "drive/Replicator.h"
 #include "ReplicatorInt.h"
-#include "Session.h"
+#include "drive/Session.h"
 #include "drive/FlatDrive.h"
 #include "drive/Utils.h"
 //#include "ModifyOpinionController.h"
@@ -28,6 +28,13 @@
 namespace sirius::drive {
 
 namespace fs = std::filesystem;
+
+// UseTorrentInfo is used to avoid adding torrents into session with the same hash
+// and for deleting unused files and torrents from session
+struct UseTorrentInfo {
+    lt::torrent_handle  m_ltHandle = {};
+    bool                m_isUsed = true;
+};
 
 class RestartValueSerializer
 {
@@ -72,9 +79,14 @@ public:
             return false;
         }
 
-        std::istringstream is( data, std::ios::binary );
-        cereal::PortableBinaryInputArchive iarchive( is );
-        iarchive( value );
+        try {
+            std::istringstream is( data, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive( is );
+            iarchive( value );
+        } catch(...)
+        {
+            return false;
+        }
         return true;
     }
 
@@ -168,6 +180,8 @@ public:
     const fs::path  m_sandboxRootPath       = m_replicatorSandboxRoot / arrayToString(m_driveKey.array());
     const fs::path  m_sandboxFsTreeFile     = m_sandboxRootPath / FS_TREE_FILE_NAME;
     const fs::path  m_sandboxFsTreeTorrent  = m_sandboxRootPath / FS_TREE_FILE_NAME ".torrent";
+    const fs::path  m_sandboxStreamFolder   = m_sandboxRootPath / "drive";
+    const fs::path  m_sandboxStreamTFolder  = m_sandboxRootPath / "torrent";
 
     // Client data paths (received action list and files)
     const fs::path  m_clientDataFolder      = m_sandboxRootPath / "client-data";
@@ -229,7 +243,7 @@ public:
     InfoHash m_rootHash;
 
     // FsTree
-    std::unique_ptr <FsTree> m_fsTree;
+    std::unique_ptr<FsTree> m_fsTree;
     lt_handle m_fsTreeLtHandle; // used for removing FsTree torrent from session
 
     // For debugging:

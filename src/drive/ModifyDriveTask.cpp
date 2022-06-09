@@ -81,10 +81,8 @@ public:
     void run() override
     {
         DBG_MAIN_THREAD
-        
+
         m_uploadedDataSize = 0;
-        
-        using namespace std::placeholders;  // for _1, _2, _3
 
         _ASSERT( !m_opinionController.opinionTrafficTx() );
 
@@ -118,7 +116,7 @@ public:
                                                        //(???+)
                                                        DBG_MAIN_THREAD
 
-                                                       if ( code == download_status::failed )
+                                                       if ( code == download_status::dn_failed )
                                                        {
                                                            m_drive.m_torrentHandleMap.erase( infoHash );
                                                            modifyIsCompletedWithError( errorText, 0 );
@@ -248,7 +246,7 @@ public:
                                                                            _LOG( "downloading: END: " << toString( infoHash ));
                                                                            m_uploadedDataSize += downloadedSize;
                                                                            downloadMissingFiles();
-                                                                       } else if ( code == download_status::failed )
+                                                                       } else if ( code == download_status::dn_failed )
                                                                        {
                                                                            m_drive.m_torrentHandleMap.erase( infoHash );
                                                                            modifyIsCompletedWithError( errorText, 0 );
@@ -480,12 +478,20 @@ public:
     bool processedModifyOpinion( const ApprovalTransactionInfo& anOpinion ) override
     {
         // In this case Replicator is able to verify all data in the opinion
-        if ( m_myOpinion &&
-             m_request->m_transactionHash.array() == anOpinion.m_modifyTransactionHash &&
-             validateOpinion( anOpinion ) )
+        if ( m_request->m_transactionHash.array() != anOpinion.m_modifyTransactionHash )
         {
+            return false;
+        }
+        if ( m_myOpinion )
+        {
+            if ( validateOpinion( anOpinion ) )
+            {
+                m_receivedOpinions[anOpinion.m_opinions[0].m_replicatorKey] = anOpinion;
+                checkOpinionNumberAndStartTimer();
+            }
+         }
+        else {
             m_receivedOpinions[anOpinion.m_opinions[0].m_replicatorKey] = anOpinion;
-            checkOpinionNumberAndStartTimer();
         }
         return true;
     }
@@ -552,7 +558,7 @@ public:
         return false;
     }
 
-    void onAapprovalTxFailed( const Hash256& transactionHash ) override
+    void onApprovalTxFailed( const Hash256& transactionHash ) override
     {
         DBG_MAIN_THREAD
 
@@ -569,9 +575,16 @@ public:
         }
     }
     
-    bool isFinishCallable() override
+    void tryBreakTask() override
     {
-        return !m_sandboxCalculated || m_modifyApproveTxReceived;
+        if ( m_sandboxCalculated && ! m_modifyApproveTxReceived )
+        {
+            finishTask();
+        }
+        else
+        {
+            // we will wait the end of current task, that will call m_drive.runNextTask()
+        }
     }
 
 protected:
@@ -693,8 +706,6 @@ private:
 #endif
 
 // check opinion number
-
-		_LOG( "opinions " << m_receivedOpinions.size() );
 
         if ( m_myOpinion &&
                 m_receivedOpinions.size() >=

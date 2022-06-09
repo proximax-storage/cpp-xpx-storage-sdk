@@ -29,7 +29,8 @@ using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
 
 namespace sirius::drive {
 
-#define FS_TREE_FILE_NAME "FsTree.bin"
+#define FS_TREE_FILE_NAME  "FsTree.bin"
+#define PLAYLIST_FILE_NAME "playlist.m3u8"
 
 // It will be used to inform 'client' about download status
 //
@@ -37,7 +38,7 @@ namespace download_status {
     enum code {
         download_complete = 0,
         downloading = 1,
-        failed = 2
+        dn_failed = 2
     };
 };
 
@@ -50,6 +51,7 @@ struct DownloadContext {
         file_from_drive = 1,
         client_data = 3,
         missing_files = 4,
+        chunk_from_drive = 5,
     };
 
     using Notification = std::function<void( download_status::code,
@@ -76,10 +78,14 @@ struct DownloadContext {
           m_doNotDeleteTorrent(doNotDeleteTorrent)
         {
             if ( m_downloadType == file_from_drive && m_saveAs.empty() )
-                throw std::runtime_error("m_downloadType == file_from_drive && m_saveAs.empty()");
+            {
+                _LOG_ERR("m_downloadType == file_from_drive && m_saveAs.empty()")
+            }
 
             if ( (m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty() )
-                throw std::runtime_error("(m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty()");
+            {
+                _LOG_ERR("(m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty()")
+            }
         }
 
     download_type         m_downloadType;
@@ -91,6 +97,18 @@ struct DownloadContext {
     std::filesystem::path m_saveAs;
     bool                  m_doNotDeleteTorrent = false;
     
+};
+
+class DhtMessageHandler
+{
+public:
+    virtual ~DhtMessageHandler() = default;
+    
+    virtual bool on_dht_request( lt::string_view                         query,
+                                 boost::asio::ip::udp::endpoint const&   source,
+                                 lt::bdecode_node const&                 message,
+                                 lt::entry&                              response ) = 0;
+
 };
 
 //
@@ -133,7 +151,7 @@ public:
     // But it can speed up downloading
     virtual lt_handle download( DownloadContext&&               downloadParameters,
                                 const std::string&              saveFolder,
-                                const std::string&              saveTorrentFolder,
+                                const std::string&              saveTorrentFilePath,
                                 const ReplicatorList&           keysHints,
                                 const std::array<uint8_t,32>*   driveKey,
                                 const std::array<uint8_t,32>*   channelId,
@@ -205,6 +223,6 @@ PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address,
                                                           const LibTorrentErrorHandler&,
                                                           std::weak_ptr<lt::session_delegate>,
                                                           const endpoint_list& bootstraps,
-                                                          bool useTcpSocket = true );
+                                                          std::weak_ptr<DhtMessageHandler> dhtMessageHandler );
 
 }

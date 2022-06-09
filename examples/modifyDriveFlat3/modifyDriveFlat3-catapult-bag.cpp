@@ -22,7 +22,7 @@
 const bool testLateReplicator = true;
 const bool gRestartReplicators = true;
 const bool testSmallModifyDataSize = true;
-bool gBreak_On_Warning = true;
+bool gBreak_On_Warning = false;//true;
 
 //
 // This example shows interaction between 'client' and 'replicator'.
@@ -290,11 +290,11 @@ public:
             {
 //                gReplicatorThread3 = std::thread( []
 //                {
-                    modifyDrive( gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash,
-                                transactionInfo.m_modifyTransactionHash,
-                                replicatorList,
-                                MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
-                    gReplicator3->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) );
+//                    modifyDrive( gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash,
+//                                transactionInfo.m_modifyTransactionHash,
+//                                replicatorList,
+//                                MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
+//                    gReplicator3->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) );
 //                } );
             }
             else
@@ -521,9 +521,14 @@ int main(int,char**)
 
     /// Client: read fsTree (1)
     ///
+#ifdef __APPLE__
+#pragma mark --FsTree-download--
+#endif
+
 //    TODO++
-//    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
-//    clientDownloadFsTree();
+    //sleep(1);
+    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
+    clientDownloadFsTree( gClientSession );
 
     /// Client: request to modify drive (1)
     ///
@@ -560,7 +565,7 @@ int main(int,char**)
         
         {
             std::unique_lock<std::mutex> lock(modifyCompleteMutex);
-            modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 3; } );
+            modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 2; } );
         }
 
         gReplicatorThread.join();
@@ -601,8 +606,9 @@ int main(int,char**)
     gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1b, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
     gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1b, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
 
-    if ( !testLateReplicator )
+    //if ( !testLateReplicator )
     {
+        gReplicator3->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) );
         gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1b, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
     }
     
@@ -822,7 +828,7 @@ static void clientDownloadHandler( download_status::code code,
         isDownloadCompleted = true;
         clientCondVar.notify_all();
     }
-    else if ( code == download_status::failed )
+    else if ( code == download_status::dn_failed )
     {
         exit(-1);
     }
@@ -848,7 +854,7 @@ static void clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession )
                                     *gClientSession->downloadChannelId(), 0 ),
                                     gClientFolder / "fsTree-folder",
                                     "",
-                                    endpointList);
+                            {});//endpointList);
 
     /// wait the end of file downloading
     {
@@ -914,7 +920,7 @@ static void clientDownloadFilesHandler( download_status::code code,
     {
         //LOG( "downloading: " << downloaded << " of " << fileSize );
     }
-    else if ( code == download_status::failed )
+    else if ( code == download_status::dn_failed )
     {
         EXLOG( "# Error in clientDownloadFilesHandler: " << errorText );
         exit(-1);
