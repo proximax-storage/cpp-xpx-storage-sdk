@@ -439,7 +439,7 @@ public:
     	});
 	}
 
-	virtual void asyncSetChanelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys ) {
+	virtual void asyncSetChanelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys ) override {
     	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
     	{
     		DBG_MAIN_THREAD

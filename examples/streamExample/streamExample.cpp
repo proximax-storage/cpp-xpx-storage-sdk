@@ -271,7 +271,7 @@ public:
     // It will initiate the approving of modify transaction
     virtual void modifyApprovalTransactionIsReady( Replicator& replicator, const ApprovalTransactionInfo& transactionInfo )  override
     {
-        EXLOG( "modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName() );
+        EXLOG( "@ modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName() );
         const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
 
         for( const auto& opinion: transactionInfo.m_opinions )
@@ -294,13 +294,14 @@ public:
             std::thread( [] { gReplicator->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
             std::thread( [] { gReplicator2->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
             std::thread( [] { gReplicator3->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
+            std::thread( [] { gReplicator4->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
         }
     }
 
     // It will initiate the approving of single modify transaction
     virtual void singleModifyApprovalTransactionIsReady( Replicator& replicator, const ApprovalTransactionInfo& transactionInfo )  override
     {
-        EXLOG( "singleModifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName() );
+        EXLOG( "@ singleModifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName() );
     }
 
     void verificationTransactionIsReady( Replicator&                    replicator,
@@ -333,7 +334,7 @@ public:
             modifyCompleteCounter++;
 
             driveRootHash = std::make_shared<InfoHash>( replicator.dbgGetRootHash( driveKey.array() ) );
-            EXLOG( "@ Drive modified: counter=" << modifyCompleteCounter << ": " << replicator.dbgReplicatorName() << "      rootHash:" << rootHash );
+            EXLOG( "@ Drive modified: modifyCompleteCounter=" << modifyCompleteCounter << ": " << replicator.dbgReplicatorName() << "      rootHash:" << rootHash );
 
             modifyCompleteCondVar.notify_all();
 
@@ -536,6 +537,66 @@ static fs::path createClientFiles( size_t bigFileSize )
 }
 
 
+//
+// clientDownloadHandler
+//
+static void clientDownloadHandler( download_status::code code,
+                                   const InfoHash& infoHash,
+                                   const std::filesystem::path /*filePath*/,
+                                   size_t /*downloaded*/,
+                                   size_t /*fileSize*/,
+                                   const std::string& /*errorText*/ )
+{
+    if ( code == download_status::download_complete )
+    {
+        EXLOG( "# Client received FsTree: " << toString(infoHash) );
+        EXLOG( "# FsTree file path: " << gClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
+        gFsTree.deserialize( gClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
+
+        // print FsTree
+        {
+            std::lock_guard<std::mutex> autolock( gExLogMutex );
+            gFsTree.dbgPrint();
+        }
+
+        isDownloadCompleted = true;
+        clientCondVar.notify_all();
+    }
+    else if ( code == download_status::dn_failed )
+    {
+        exit(-1);
+    }
+}
+
+//
+// clientDownloadFsTree
+//
+static void clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession )
+{
+    InfoHash rootHash = *driveRootHash;
+    driveRootHash.reset();
+
+    isDownloadCompleted = false;
+
+    LOG("");
+    EXLOG( "# Client started FsTree download: " << toString(rootHash) );
+
+    clientSession->download( DownloadContext(
+                                    DownloadContext::fs_tree,
+                                    clientDownloadHandler,
+                                    rootHash,
+                                    *clientSession->downloadChannelId(), 0 ),
+                                    gClientFolder / "fsTree-folder",
+                                    "",
+                            {});//endpointList);
+
+    /// wait the end of file downloading
+    {
+        std::unique_lock<std::mutex> lock(clientMutex);
+        clientCondVar.wait( lock, [] { return isDownloadCompleted; } );
+    }
+}
+
 static std::string now_str()
 {
     // Get current time from the clock, using microseconds resolution
@@ -711,8 +772,20 @@ int main(int,char**)
 #endif
 
     gStreamerSession->sendFinishStreamMessage( 3, 7 );
+    
+    {
+        std::unique_lock<std::mutex> lock(modifyCompleteMutex);
+        modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 4; } );
+    }
 
-    sleep(120000);
+    EXLOG( "@ Client started FsTree download !!!!! " );
+    sleep(1);
+    gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
+    clientDownloadFsTree( gViewerSession );
+    
+    /// Delete client session and replicators
+    sleep(5);//(???++++!!!)
+
 
     /// Delete client session and replicators
     gStreamerSession.reset();
