@@ -18,7 +18,7 @@
 *** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#include "PacketHeader.h"
+#include "ionet/PacketHeader.h"
 #include <ostream>
 
 namespace sirius { namespace ionet {

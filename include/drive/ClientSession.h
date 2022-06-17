@@ -5,7 +5,7 @@
 */
 #pragma once
 
-#include "../../src/drive/Session.h"
+#include "drive/Session.h"
 #include "drive/log.h"
 #include "drive/Utils.h"
 #include "crypto/Signer.h"
@@ -13,8 +13,13 @@
 
 namespace sirius::drive {
 
-class ClientSession : public lt::session_delegate, std::enable_shared_from_this<ClientSession>
+class StreamerSession;
+class ViewerSession;
+
+class ClientSession : public lt::session_delegate, public std::enable_shared_from_this<ClientSession>
 {
+protected:
+    
     using DownloadChannelId     = std::optional<std::array<uint8_t,32>>;
     using ModifyTransactionHash = std::optional<std::array<uint8_t,32>>;
     using ReplicatorTraficMap   = std::map<std::array<uint8_t,32>,uint64_t>;
@@ -23,7 +28,7 @@ class ClientSession : public lt::session_delegate, std::enable_shared_from_this<
         Session::lt_handle  m_ltHandle = {};
         bool                m_isUsed = true;
     };
-    using ModifyTorrentMap = std::map<InfoHash,ModifyTorrentInfo>;
+    using TorrentMap = std::map<InfoHash,ModifyTorrentInfo>;
 
     std::shared_ptr<Session>    m_session;
     const crypto::KeyPair&      m_keyPair;
@@ -33,7 +38,7 @@ class ClientSession : public lt::session_delegate, std::enable_shared_from_this<
     ReplicatorTraficMap         m_requestedSize;
     ReplicatorTraficMap         m_receivedSize;
     
-    ModifyTorrentMap            m_modifyTorrentMap;
+    TorrentMap                  m_modifyTorrentMap;
 
     const char*                 m_dbgOurPeerName;
 
@@ -49,6 +54,11 @@ public:
         _LOG( "ClientSession deleted" );
     }
 public:
+
+    const std::array<uint8_t,32>& publicKey() override
+    {
+        return m_keyPair.publicKey().array();
+    }
 
     virtual void onTorrentDeleted( lt::torrent_handle handle ) override
     {
@@ -407,7 +417,7 @@ protected:
     void signHandshake( const uint8_t* bytes, size_t size, std::array<uint8_t,64>& signature ) override
     {
         crypto::Sign( m_keyPair, utils::RawBuffer{bytes,size}, reinterpret_cast<Signature&>(signature) );
-        _LOG( "SIGN HANDSHAKE: " << int(signature[0]) )
+        //_LOG( "SIGN HANDSHAKE: " << int(signature[0]) )
     }
 
     virtual bool verifyHandshake( const uint8_t* bytes, size_t size,
@@ -418,7 +428,7 @@ protected:
 
         bool ok = crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
         if ( !ok )
-            _LOG_ERR( "verifyHandshake: failed" )
+            _LOG( "verifyHandshake: failed" )
         return ok;
     }
 
@@ -452,35 +462,32 @@ protected:
                      reinterpret_cast<Signature &>(sig));
     }
 
-    const std::array<uint8_t,32>& publicKey() override
-    {
-        return m_keyPair.publicKey().array();
-    }
-
 //    void setStartReceivedSize( uint64_t downloadedSize ) override
 //    {
 //        // 'downloadedSize' should be set to proper value (last 'downloadedSize' of peviuos peer_connection)
 //        m_receivedSize = downloadedSize;
 //    }
 
-    void onPieceRequest( const std::array<uint8_t,32>&  transactionHash,
-                         const std::array<uint8_t,32>&  senderPublicKey,
-                         uint64_t                       pieceSize ) override
+    void onPieceRequestWrite( const std::array<uint8_t,32>&  transactionHash,
+                              const std::array<uint8_t,32>&  senderPublicKey,
+                              uint64_t                       pieceSize ) override
     {
         m_requestedSize[senderPublicKey] += pieceSize;
         //__LOG( "#*** onPieceRequest: " << int(senderPublicKey[0])<< ": " << m_requestedSize[senderPublicKey] )
     }
     
-    void onPieceRequestReceivedFromReplicator( const std::array<uint8_t,32>&  transactionHash,
+    bool onPieceRequestReceivedFromReplicator( const std::array<uint8_t,32>&  transactionHash,
                                                const std::array<uint8_t,32>&  receiverPublicKey,
                                                uint64_t                       pieceSize ) override
     {
+        return true;
     }
 
-    void onPieceRequestReceivedFromClient( const std::array<uint8_t,32>&  transactionHash,
+    bool onPieceRequestReceivedFromClient( const std::array<uint8_t,32>&  transactionHash,
                                            const std::array<uint8_t,32>&  receiverPublicKey,
                                            uint64_t                       pieceSize ) override
     {
+        return true;
     }
 
     void onPieceSent( const std::array<uint8_t,32>&  transactionHash,
@@ -511,6 +518,10 @@ protected:
 //    virtual void onMessageReceived( const std::string& query, const std::string& message, const boost::asio::ip::udp::endpoint& source ) override
 //    {
 //    }
+    
+    void handleDhtResponse( lt::bdecode_node response ) override
+    {
+    }
 
     const char* dbgOurPeerName() override
     {
@@ -518,7 +529,21 @@ protected:
     }
 
 private:
-    friend std::shared_ptr<ClientSession> createClientSession( const crypto::KeyPair&,
+    friend std::shared_ptr<ClientSession>     createClientSession( const crypto::KeyPair&,
+                                                                   const std::string&,
+                                                                   const LibTorrentErrorHandler&,
+                                                                   const endpoint_list&,
+                                                                   bool,
+                                                                   const char* );
+
+    friend std::shared_ptr<StreamerSession> createStreamerSession( const crypto::KeyPair&,
+                                                                   const std::string&,
+                                                                   const LibTorrentErrorHandler&,
+                                                                   const endpoint_list&,
+                                                                   bool,
+                                                                   const char* );
+
+    friend std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&,
                                                                const std::string&,
                                                                const LibTorrentErrorHandler&,
                                                                const endpoint_list&,
@@ -539,7 +564,7 @@ inline std::shared_ptr<ClientSession> createClientSession(  const crypto::KeyPai
     //LOG( "creating: " << dbgClientName << " with key: " <<  int(keyPair.publicKey().array()[0]) )
 
     std::shared_ptr<ClientSession> clientSession = std::make_shared<ClientSession>( keyPair, dbgClientName );
-    clientSession->m_session = createDefaultSession( address, errorHandler, clientSession, bootstraps, useTcpSocket );
+    clientSession->m_session = createDefaultSession( address, errorHandler, clientSession, bootstraps, {} );
     clientSession->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     return clientSession;
 }

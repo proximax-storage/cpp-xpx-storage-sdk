@@ -122,7 +122,7 @@ namespace sirius {
 
 		/// Converts \a value into a value that can be stored in a catapult exception.
 		template<typename TInputIterator>
-		std::string ConvertToValue(const utils::ContainerHexFormatter<TInputIterator>& value) {
+		PLUGIN_API std::string ConvertToValue(const utils::ContainerHexFormatter<TInputIterator>& value) {
 			// ContainerHexFormatter only holds iterators to data, which may not be valid at catch site
 			// since an exception is being thrown, perf doesn't matter, so stringify proactively
 			std::ostringstream out;

@@ -25,7 +25,7 @@
 namespace sirius { namespace ionet {
 
 	/// Result from a node interaction.
-	struct NodeInteractionResult {
+	struct PLUGIN_API NodeInteractionResult {
 	public:
 		/// Creates a default node interaction result.
 		NodeInteractionResult() : NodeInteractionResult(Key(), NodeInteractionResultCode::None)

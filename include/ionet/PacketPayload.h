@@ -22,12 +22,13 @@
 #include "Packet.h"
 #include "types.h"
 #include "utils/RawBuffer.h"
+#include "plugins.h"
 #include <vector>
 
 namespace sirius { namespace ionet {
 
 	/// A packet payload that can be written.
-	class PacketPayload {
+	class PLUGIN_API PacketPayload {
 	public:
 		/// Creates a default (empty) packet payload.
 		PacketPayload();

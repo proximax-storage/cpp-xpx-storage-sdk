@@ -9,7 +9,13 @@
 #include "types.h"
 #include "plugins.h"
 #include "drive/FlatDrive.h"
+#include "drive/Streaming.h"
 #include "crypto/Signer.h"
+
+#include <boost/asio/high_resolution_timer.hpp>
+//#include <libtorrent/torrent_handle.hpp>
+//#include <boost/asio/ip/tcp.hpp>
+
 
 namespace sirius::drive {
 
@@ -366,6 +372,10 @@ public:
     virtual void        asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& ) = 0;
     virtual void        asyncCancelDriveVerification( Key driveKey ) = 0;
 
+    virtual void        asyncStartStream( Key driveKey, mobj<StreamRequest>&& ) = 0;
+    virtual void        asyncIncreaseStream( Key driveKey, mobj<StreamIncreaseRequest>&& ) = 0;
+    virtual void        asyncFinishStream( Key driveKey, mobj<StreamFinishRequest>&& ) = 0;
+
     // It is called when Replicator is added to the Download Channel Shard
     virtual void        asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&&  downloadRequest, bool mustBeSynchronized = false ) = 0;
 
@@ -429,6 +439,9 @@ public:
     virtual const char* dbgReplicatorName() const = 0;
     virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) = 0;
     virtual const Key&  dbgReplicatorKey() const = 0;
+    
+    virtual void        dbgAsyncDownloadToSandbox( Key driveKey, InfoHash, std::function<void()> endNotifyer ) = 0;
+
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(

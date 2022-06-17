@@ -128,7 +128,7 @@ namespace sirius { namespace utils {
         };
 
         /// Insertion operator for outputting \a timeSpan to \a out.
-        std::ostream& operator<<(std::ostream& out, const TimeSpan& timeSpan);
+        PLUGIN_API std::ostream& operator<<(std::ostream& out, const TimeSpan& timeSpan);
 
         /// Adds \a timestamp and a \a timeSpan resulting in new timestamp.
         constexpr Timestamp operator+(const Timestamp& timestamp, const TimeSpan& timeSpan) {

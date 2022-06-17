@@ -4,7 +4,7 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "Session.h"
+#include "drive/Session.h"
 #include "ReplicatorInt.h"
 #include "drive/Utils.h"
 #include "drive/log.h"
@@ -92,7 +92,7 @@ class DefaultSession: public Session, std::enable_shared_from_this<DefaultSessio
 
     std::weak_ptr<ReplicatorInt>        m_replicator;
     std::weak_ptr<lt::session_delegate> m_downloadLimiter;
-    
+
     std::string                         m_dbgOurPeerName = "";
     
     bool                                m_stopping = false;
@@ -121,8 +121,10 @@ public:
     {
         m_dbgOurPeerName = m_downloadLimiter.lock()->dbgOurPeerName();
         
-        continueSessionCreation();
+        m_session.set_alert_notify( [this] { this->alertHandler(); } );
+        m_session.add_extension(std::make_shared<DhtRequestPlugin>(  m_replicator ));
         m_session.setDelegate( m_downloadLimiter );
+
         _LOG( "DefaultSession created: " );
         _LOG( "DefaultSession created: " << m_addressAndPort );
         _LOG( "DefaultSession created: " << m_addressAndPort << " " << m_replicator.lock() );
@@ -135,7 +137,8 @@ public:
                     LibTorrentErrorHandler                  alertHandler,
                     std::weak_ptr<lt::session_delegate>     downloadLimiter,
                     bool                                    useTcpSocket,
-                    const endpoint_list&                    bootstraps
+                    const endpoint_list&                    bootstraps,
+                    std::weak_ptr<DhtMessageHandler>        dhtMessageHandler
                     )
         : m_ownerIsReplicator(false)
         , m_addressAndPort(address)
@@ -146,8 +149,10 @@ public:
         if ( downloadLimiter.lock() )
             m_dbgOurPeerName = downloadLimiter.lock()->dbgOurPeerName();
         
-        continueSessionCreation();
+        m_session.set_alert_notify( [this] { this->alertHandler(); } );
+        m_session.add_extension(std::make_shared<DhtRequestPlugin>(  dhtMessageHandler ));
         m_session.setDelegate( m_downloadLimiter );
+
         _LOG( "DefaultSession created: " << m_addressAndPort );
     }
 
@@ -168,6 +173,7 @@ public:
         return m_session;
     }
     
+    //
     virtual void onTorrentDeleted( lt::torrent_handle handle ) override
     {
         if (m_stopping)
@@ -291,12 +297,6 @@ public:
     {
         m_dbgThreadId = std::this_thread::get_id();
     }
-    
-    // createSession
-    void continueSessionCreation() {
-        m_session.set_alert_notify( [this] { alertHandler(); } );
-        addDhtRequestPlugin();
-    }
 
     virtual void endSession() override {
         m_stopping = true;
@@ -417,7 +417,7 @@ public:
 //        }
 
         params.storage_mode     = lt::storage_mode_sparse;
-        params.save_path        = fs::path(folderWhereFileIsLocated);
+        params.save_path        = fs::path(folderWhereFileIsLocated).string();
         params.ti               = std::make_shared<lt::torrent_info>( buffer, lt::from_span );
         params.m_siriusFlags    = siriusFlags;
         if ( driveKey )
@@ -457,13 +457,14 @@ public:
     // downloadFile
     virtual lt_handle download( DownloadContext&&               downloadContext,
                                 const std::string&              saveFolder,
-                                const std::string&              saveTorrentFolder,
+                                const std::string&              saveTorrentFilePath,
                                 const ReplicatorList&           keysHints,
                                 const std::array<uint8_t,32>*   driveKey  = nullptr,
                                 const std::array<uint8_t,32>*   channelId = nullptr,
                                 const std::array<uint8_t,32>*   modifyTx  = nullptr,
                                 const endpoint_list&            endpointsHints = {} ) override
     {
+        _LOG( "download started " )
         // create add_torrent_params
         lt::error_code ec;
         lt::add_torrent_params params = lt::parse_magnet_uri( magnetLink(downloadContext.m_infoHash), ec );
@@ -473,8 +474,11 @@ public:
         }
 
         auto userdata = new LtClientData();
-        userdata->m_saveTorrentFilename = saveTorrentFolder;
+        userdata->m_saveTorrentFilename = saveTorrentFilePath;
         params.userdata = userdata;
+//        params.flags &= ~lt::torrent_flags::paused;
+//        //params.flags &= ~lt::torrent_flags::auto_managed;
+//        params.flags |= lt::torrent_flags::auto_managed;
 
         // where the file will be placed
         params.save_path = saveFolder;
@@ -494,6 +498,7 @@ public:
         // create torrent_handle
         lt::torrent_handle tHandle = m_session.add_torrent(params,ec);
         if (ec) {
+            _LOG( "downloadFile error: " << ec.message() << " " << magnetLink(downloadContext.m_infoHash) );
             throw std::runtime_error( std::string("downloadFile error: ") + ec.message() );
         }
 
@@ -527,7 +532,9 @@ public:
         }
         else if ( downloadContext.m_downloadType == DownloadContext::file_from_drive ) {
             if (downloadContext.m_saveAs.empty())
-                throw std::runtime_error("download(file_from_drive): DownloadContext::m_saveAs' is empty");
+            {
+                _LOG_ERR( "download(file_from_drive): DownloadContext::m_saveAs' is empty" )
+            }
         }
 
         __ASSERT( tHandle.userdata().get<LtClientData>() != nullptr )
@@ -576,7 +583,9 @@ public:
 //        std::weak_ptr<lt::session_delegate> m_replicator;
 //        DhtRequestPlugin( std::weak_ptr<lt::session_delegate> replicator ) : m_replicator(replicator) {}
         std::weak_ptr<ReplicatorInt> m_replicator;
-        DhtRequestPlugin( std::weak_ptr<ReplicatorInt> replicator ) : m_replicator(replicator) {}
+        std::weak_ptr<DhtMessageHandler> m_handler;
+        //DhtRequestPlugin( std::weak_ptr<ReplicatorInt> replicator ) : m_replicator(replicator) {}
+        DhtRequestPlugin( std::weak_ptr<DhtMessageHandler> replicator ) : m_handler(replicator) {}
 
         feature_flags_t implemented_features() override
         {
@@ -589,119 +598,22 @@ public:
             lt::bdecode_node const&                 message,
             lt::entry&                              response ) override
         {
-            //__LOG( "on_dht_request: query: " << query );
-            
-            if ( auto replicator = m_replicator.lock(); ! replicator || replicator->isStopped() )
-            {
-                return false;
-            }
-
             if ( query == "get_peers" || query == "announce_peer" )
             {
-                //(???) NULL dht_direct_response_alert?
                 return false;
             }
 
-//            _LOG( "message: " << message );
-//            _LOG( "response: " << response );
-
-            const std::set<lt::string_view> supportedQueries =
-                    { "opinion", "dn_opinion", "code_verify", "verify_opinion", "handshake", "endpoint_request", "endpoint_response" };
-            if ( supportedQueries.contains(query) )
+            if ( auto handler = m_handler.lock(); handler )
             {
-                auto str = message.dict_find_string_value("x");
-                std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
-
-                if ( auto replicator = m_replicator.lock(); replicator )
-                {
-                    replicator->onMessageReceived( std::string(query.begin(),query.end()), packet, source );
-                }
-
-                response["r"]["q"] = std::string(query);
-                response["r"]["ret"] = "ok";
-                return true;
-            }
-            
-            else if ( query == "get_dn_rcpts" )
-            {
-                // extract signature
-                auto sign = message.dict_find_string_value("sign");
-                Signature signature;
-                if ( sign.size() != signature.size() )
-                {
-                    __LOG_WARN( "invalid query 'get_dn_rcpts'" )
-                    return true;
-                }
-                memcpy( signature.data(), sign.data(), signature.size() );
-
-                // extract message
-                auto str = message.dict_find_string_value("x");
-
-                // extract request fields
-                //
-                ReplicatorKey senderKey;
-                DriveKey      driveKey;
-                ChannelId     channelId;
-
-                uint8_t* ptr = (uint8_t*)str.data();
-                memcpy( senderKey.data(), ptr, senderKey.size() );
-                ptr += senderKey.size();
-                memcpy( driveKey.data(), ptr, driveKey.size() );
-                ptr += driveKey.size();
-                memcpy( channelId.data(), ptr, channelId.size() );
-
-                if ( ! crypto::Verify( senderKey, { utils::RawBuffer{(const uint8_t*) str.data(), str.size()} }, signature ) )
-                {
-                    __LOG_WARN( "invalid signature of 'get_dn_rcpts'" )
-                    return true;
-                }
-
-
-                if ( auto replicator = m_replicator.lock(); replicator )
-                {
-                    std::ostringstream os( std::ios::binary );
-                    Signature responseSignature;
-                    if ( replicator->createSyncRcpts( driveKey, channelId, os, responseSignature ) )
-                    {
-                        __LOG( "response[r][q]: " << query );
-                        response["r"]["q"] = std::string(query);
-                        response["r"]["ret"] = os.str();
-                        response["r"]["sign"] = std::string( responseSignature.begin(), responseSignature.end() );
-                    }
-                    return true;
-                }
-            }
-                
-            else if ( query == "rcpt" )
-            {
-                auto str = message.dict_find_string_value("x");
-
-                RcptMessage msg( str.data(), str.size() );
-                
-                if ( ! msg.isValidSize() )
-                {
-                    __LOG( "WARNING!!!: invalid rcpt size" )
-                    return false;
-                }
-                
-                if ( auto replicator = m_replicator.lock(); replicator )
-                {
-                    replicator->acceptReceiptFromAnotherReplicator( msg );
-                }
-
-                response["r"]["q"] = std::string(query);
-                response["r"]["ret"] = "ok";
-                return true;
+                return handler->on_dht_request( query,
+                                                source,
+                                                message,
+                                                response );
             }
 
             return false;
         }
     };
-
-    void addDhtRequestPlugin()
-    {
-        m_session.add_extension(std::make_shared<DhtRequestPlugin>(  m_replicator ));
-    }
 
 //    void  sendMessage( boost::asio::ip::udp::endpoint udp, const std::vector<uint8_t>& ) override
 //    {
@@ -791,20 +703,32 @@ public:
 
     void handleDhtResponse( lt::bdecode_node response )
     {
-        try
+        if ( auto delegate = m_downloadLimiter.lock(); delegate )
         {
-            auto rDict = response.dict_find_dict("r");
-            auto query = rDict.dict_find_string_value("q");
-            if ( query == "get_dn_rcpts" )
-            {
-                lt::string_view response = rDict.dict_find_string_value("ret");
-                lt::string_view sign = rDict.dict_find_string_value("sign");
-                m_replicator.lock()->onSyncRcptReceived( response, sign );
-            }
+            delegate->handleDhtResponse( response );
         }
-        catch(...)
-        {
-        }
+//        try
+//        {
+//            auto rDict = response.dict_find_dict("r");
+//            auto query = rDict.dict_find_string_value("q");
+//            _LOG( "handleDhtResponse: " << query )
+//            if ( query == "get_dn_rcpts" )
+//            {
+//                lt::string_view response = rDict.dict_find_string_value("ret");
+//                lt::string_view sign = rDict.dict_find_string_value("sign");
+//                m_replicator.lock()->onSyncRcptReceived( response, sign );
+//            }
+//
+////            else if ( query == "get-chunks-info" )
+////            {
+////                lt::string_view response = rDict.dict_find_string_value("ret");
+////                lt::string_view sign = rDict.dict_find_string_value("sign");
+////                m_replicator.lock()->onSyncRcptReceived( response, sign );
+////            }
+//        }
+//        catch(...)
+//        {
+//        }
     }
     
     virtual std::optional<boost::asio::high_resolution_timer> startTimer( int miliseconds, const std::function<void()>& func ) override
@@ -857,6 +781,37 @@ private:
         limiter->onEndpointDiscovered(publicKey, endpoint);
     }
 
+    void saveTorrentFile( const std::shared_ptr<lt::torrent_info>&& ti, LtClientData* userdata )
+    {
+        lt::create_torrent ct(*ti);
+        lt::entry te = ct.generate();
+        std::vector<char> buffer;
+        bencode(std::back_inserter(buffer), te);
+
+        if ( FILE* f = fopen( userdata->m_saveTorrentFilename.string().c_str(), "wb+" ); f )
+        {
+            fwrite( &buffer[0], 1, buffer.size(), f );
+            fclose(f);
+        }
+
+//                                    userdata->m_saveTorrentFilename = {};
+
+        auto dnContext = userdata->m_dnContexts.front();
+        if ( dnContext.m_doNotDeleteTorrent )
+        {
+            // Notify about finishing
+            boost::asio::post( lt_session().get_context(), [=]
+            {
+                dnContext.m_downloadNotification( download_status::code::download_complete,
+                                                dnContext.m_infoHash,
+                                                dnContext.m_saveAs,
+                                                userdata->m_uploadedDataSize,
+                                                0,
+                                                "" );
+            });
+        }
+    }
+
     void alertHandler()
     {
         //DBG_MAIN_THREAD
@@ -872,6 +827,8 @@ private:
 
         // loop by alerts
         for (auto &alert : alerts) {
+
+            //_LOG( ">>>" << alert->what() << " (type="<< alert->type() <<"):  " << alert->message() );
 
 ////            if ( alert->type() == lt::dht_log_alert::alert_type || alert->type() == lt::dht_direct_response_alert::alert_type )
 //            {
@@ -898,18 +855,19 @@ private:
 //                    break;
 //                }
 
-                case lt::peer_log_alert::alert_type: {
-                    _LOG(  ": peer_log_alert: " << alert->message())
-                    break;
-                }
-
-                case lt::log_alert::alert_type: {
-                    _LOG(  ": session_log_alert: " << alert->message())
-                    break;
-                }
+//                case lt::peer_log_alert::alert_type: {
+//                    _LOG(  ": peer_log_alert: " << alert->message())
+//                    break;
+//                }
+//
+//                case lt::log_alert::alert_type: {
+//                    _LOG(  ": session_log_alert: " << alert->message())
+//                    break;
+//                }
 
                 case lt::dht_bootstrap_alert::alert_type: {
                     _LOG( "dht_bootstrap_alert: " << alert->message() )
+                    //m_bootstrapBarrier.set_value();
                     break;
                 }
 
@@ -963,7 +921,7 @@ private:
                             userdata->m_uploadedDataSize = theAlert->handle.torrent_file()->total_size();
 
                             bool limitIsExceeded = downloadLimit != 0 && downloadLimit < theAlert->handle.torrent_file()->total_size();
-                            _LOG( "+**** limitIsExceeded?: " << downloadLimit << " " << theAlert->handle.torrent_file()->total_size() );
+                            //_LOG( "+**** limitIsExceeded?: " << downloadLimit << " " << theAlert->handle.torrent_file()->total_size() );
                             if ( limitIsExceeded )
                             {
                                 _LOG( "+**** limitIsExceeded: " << theAlert->handle.torrent_file()->total_size() );
@@ -972,7 +930,7 @@ private:
                                 userdata->m_limitIsExceeded = true;
                                 _ASSERT( userdata->m_dnContexts.size()==1 )
                                 userdata->m_dnContexts.front().m_downloadNotification(
-                                                                    download_status::code::failed,
+                                                                    download_status::code::dn_failed,
                                                                     userdata->m_dnContexts.front().m_infoHash,
                                                                     userdata->m_dnContexts.front().m_saveAs,
                                                                     userdata->m_uploadedDataSize,
@@ -1010,8 +968,14 @@ private:
                          if ( rDict.type() == lt::bdecode_node::dict_t )
                          {
                              auto query = rDict.dict_find_string_value("q");
+                             if ( query.size() > 0 && query != "chunk-info" && query != "endpoint_request"
+                                    && query != "handshake" && query != "endpoint_response" )
+                             {
+                                 _LOG( "dht_query: " << query );
+                                 _LOG( "" );
+                             }
                              //_LOG( "dht_query: " << query )
-                             if ( query == "get_dn_rcpts" )
+                             if ( query == "get_dn_rcpts" || query == "get-chunks-info" )
                              {
                                  handleDhtResponse( response);
                              }
@@ -1061,6 +1025,8 @@ private:
                 // piece_finished_alert
                 case lt::piece_finished_alert::alert_type:
                 {
+                    //_LOG( "*** piece_finished_alert:" );
+
 //                    auto *theAlert = dynamic_cast<lt::piece_finished_alert *>(alert);
 //                    if ( theAlert ) _LOG( "piece_finished_alert: " << theAlert->handle.torrent_file()->files().file_path(0) );
 //
@@ -1128,7 +1094,7 @@ private:
                     _ASSERT( userdata != nullptr )
                     if ( userdata != nullptr && userdata->m_dnContexts.size()>0 )
                     {
-                        userdata->m_dnContexts.front().m_downloadNotification(   download_status::code::failed,
+                        userdata->m_dnContexts.front().m_downloadNotification(   download_status::code::dn_failed,
                                                                                  userdata->m_dnContexts.front().m_infoHash,
                                                                                  userdata->m_dnContexts.front().m_saveAs,
                                                                                  userdata->m_uploadedDataSize,
@@ -1165,7 +1131,7 @@ private:
                         break;
                     }
 
-                    if ( userdata != nullptr && userdata->m_dnContexts.size()>0 )
+                    if ( userdata->m_dnContexts.size()>0 )
                     {
                         auto dnContext = userdata->m_dnContexts.front();
                         if ( dnContext.m_doNotDeleteTorrent )
@@ -1187,36 +1153,18 @@ private:
                                 auto ti = theAlert->handle.torrent_file_with_hashes();
 
                                 // Save torrent file
-                                m_replicator.lock()->executeOnBackgroundThread( [ti=std::move(ti),userdata,this]
+                                if ( auto replicator = m_replicator.lock(); replicator )
                                 {
-                                    lt::create_torrent ct(*ti);
-                                    lt::entry te = ct.generate();
-                                    std::vector<char> buffer;
-                                    bencode(std::back_inserter(buffer), te);
-
-                                    if ( FILE* f = fopen( userdata->m_saveTorrentFilename.c_str(), "wb+" ); f )
+                                    replicator->executeOnBackgroundThread( [ti=std::move(ti),userdata,this]
                                     {
-                                        fwrite( &buffer[0], 1, buffer.size(), f );
-                                        fclose(f);
-                                    }
-
-//                                    userdata->m_saveTorrentFilename = {};
-
-                                    auto dnContext = userdata->m_dnContexts.front();
-                                    if ( dnContext.m_doNotDeleteTorrent )
-                                    {
-                                        // Notify about finishing
-                                        boost::asio::post( lt_session().get_context(), [=]
-                                        {
-                                            dnContext.m_downloadNotification( download_status::code::download_complete,
-                                                                            dnContext.m_infoHash,
-                                                                            dnContext.m_saveAs,
-                                                                            userdata->m_uploadedDataSize,
-                                                                            0,
-                                                                            "" );
-                                        });
-                                    }
-                                });
+                                        saveTorrentFile( std::move(ti), userdata );
+                                    });
+                                }
+                                else
+                                {
+                                    // Client could save torrent-file on main thread
+                                    saveTorrentFile( std::move(ti), userdata );
+                                }
                             }
                         }
                         else
@@ -1380,7 +1328,7 @@ InfoHash createTorrentFile( const std::string& fileOrFolder,
     lt::error_code ec;
     lt::set_piece_hashes( createInfo, rootFolder, ec );
     if ( ec ) {
-        LOG( "createTorrentFile error: " << ec );
+        __LOG( "createTorrentFile error: " << ec );
         throw std::runtime_error( std::string("createTorrentFile error: ") + ec.message() );
     }
 //    std::cout << ec.category().name() << ':' << ec.value();
@@ -1417,6 +1365,7 @@ InfoHash createTorrentFile( const std::string& fileOrFolder,
     // write to file
     if ( !outputTorrentFilename.empty() )
     {
+        __LOG( "outputTorrentFilename: " << outputTorrentFilename )
         std::ofstream fileStream( outputTorrentFilename, std::ios::binary );
         fileStream.write(torrentFileBytes.data(),torrentFileBytes.size());
     }
@@ -1448,7 +1397,7 @@ InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
 
     // calculate hashes
     lt::error_code ec;
-    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path() );
+    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path().string() );
     if ( ec )
     {
         throw std::runtime_error( std::string("moveFileToFlatDrive: libtorrent error: ") + ec.message() );
@@ -1536,7 +1485,7 @@ InfoHash calculateInfoHash( const std::string& pathToFile, const Key& drivePubli
 
     // calculate hashes
     lt::error_code ec;
-    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path() );
+    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path().string() );
     if ( ec )
     {
         throw std::runtime_error( std::string("moveFileToFlatDrive: libtorrent error: ") + ec.message() );
@@ -1594,9 +1543,9 @@ std::shared_ptr<Session> createDefaultSession( std::string                      
                                                const LibTorrentErrorHandler&        alertHandler,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
                                                const endpoint_list&                 bootstraps,
-                                               bool                                 useTcpSocket)
+                                               std::weak_ptr<DhtMessageHandler>     dhtMessageHandler )
 {
-    return std::make_shared<DefaultSession>( address, alertHandler, downloadLimiter, useTcpSocket, bootstraps );
+    return std::make_shared<DefaultSession>( address, alertHandler, downloadLimiter, false, bootstraps, dhtMessageHandler );
 }
 
 }

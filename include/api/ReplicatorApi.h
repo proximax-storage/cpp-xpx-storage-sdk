@@ -13,7 +13,7 @@ namespace sirius { namespace ionet { class PacketIo; } }
 namespace sirius { namespace api {
 
 	/// An api for making requests to replicators.
-	class ReplicatorApi {
+	class PLUGIN_API ReplicatorApi {
 	public:
 		ReplicatorApi() = default;
 		virtual ~ReplicatorApi() = default;
@@ -24,5 +24,5 @@ namespace sirius { namespace api {
 	};
 
 	/// Creates replicator api for interacting with a replicator with the specified \a io.
-	std::unique_ptr<ReplicatorApi> CreateReplicatorApi(ionet::PacketIo& io);
+	PLUGIN_API std::unique_ptr<ReplicatorApi> CreateReplicatorApi(ionet::PacketIo& io);
 }}

@@ -5,7 +5,7 @@
 */
 
 //#include "DownloadLimiter.h"
-//#include "DriveTaskBase.h"
+#include "DriveTaskBase.h"
 //#include "drive/FsTree.h"
 //#include "drive/ActionList.h"
 //#include "drive/FlatDrive.h"
@@ -75,7 +75,7 @@ protected:
             , m_sandboxFsTree( FsTree{} )
     {}
 
-    virtual void myRootHashIsCalculated()
+    void myRootHashIsCalculated()
     {
         DBG_MAIN_THREAD
 
@@ -167,17 +167,16 @@ protected:
                 }, true );
                 _LOG( "breakTorrentDownloadAndRunNextTask: remove torrents " )
             }
-        } else if ( ! isFinishCallable() )
-        {
-            // We have already executed all actions for modification
-            _LOG( "breakTorrentDownloadAndRunNextTask: m_sandboxCalculated " )
-            finishTask();
-        } else
-        {
-            _LOG( "breakTorrentDownloadAndRunNextTask: nothing " )
-            // We cannot break torrent download.
-            // Therefore, we will wait the end of current task, that will call m_drive.runNextTask()
         }
+        else
+        {
+            tryBreakTask();
+        }
+//        {
+//            _LOG( "breakTorrentDownloadAndRunNextTask: nothing " )
+//            // We cannot break torrent download.
+//            // Therefore, we will wait the end of current task, that will call m_drive.runNextTask()
+//        }
     }
 
     // updates drive (1st step after approve)
@@ -239,7 +238,8 @@ protected:
 
         std::error_code err;
 
-        if ( fs::exists( m_drive.m_sandboxRootPath, err ))
+        // Now, all drive files and torrents are placed directly on drive (not really in sandbox)
+        if ( fs::exists( m_drive.m_driveRootPath, err ))
         {
             metaFilesSize = fs::file_size( m_drive.m_sandboxFsTreeTorrent );
             driveSize = 0;
@@ -328,7 +328,7 @@ private:
     virtual void myOpinionIsCreated() = 0;
 
     // Whether the finishTask can be called by the task itself
-    virtual bool isFinishCallable() = 0;
+    virtual void tryBreakTask() = 0;
 };
 
 } // namespace sirius::drive

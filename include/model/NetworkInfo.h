@@ -54,10 +54,10 @@ namespace sirius { namespace model {
 #undef ENUM_VALUE
 
 	/// Insertion operator for outputting \a value to \a out.
-	std::ostream& operator<<(std::ostream& out, NetworkIdentifier value);
+	PLUGIN_API std::ostream& operator<<(std::ostream& out, NetworkIdentifier value);
 
 	/// Information about a network.
-	struct NetworkInfo {
+	struct PLUGIN_API NetworkInfo {
 	public:
 		/// Creates a default, uninitialized network info.
 		constexpr NetworkInfo() : NetworkInfo(Key())
@@ -74,5 +74,5 @@ namespace sirius { namespace model {
 	};
 
 	/// Tries to parse \a networkName into a network identifier (\a networkIdentifier).
-	bool TryParseValue(const std::string& networkName, NetworkIdentifier& networkIdentifier);
+	PLUGIN_API bool TryParseValue(const std::string& networkName, NetworkIdentifier& networkIdentifier);
 }}

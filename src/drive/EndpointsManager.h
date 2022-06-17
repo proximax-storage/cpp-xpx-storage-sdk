@@ -7,7 +7,7 @@
 #pragma once
 
 #include "drive/Replicator.h"
-#include "Session.h"
+#include "drive/Session.h"
 
 #include <cereal/archives/portable_binary.hpp>
 
@@ -253,7 +253,7 @@ private:
             return;
         }
 
-        int bootstrapToAskIndex = random() % m_bootstraps.size();
+        int bootstrapToAskIndex = rand() % m_bootstraps.size();
         const auto& bootstrapToAsk = m_bootstraps[bootstrapToAskIndex];
         m_externalEndpointRequest =
                 {

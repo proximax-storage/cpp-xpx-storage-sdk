@@ -42,7 +42,7 @@ namespace sirius { namespace utils {
 	/// This cast can only be used when data truncation is possible.
 	/// An exception is thrown if data truncation is detected.
 	template<typename TSource, typename TDest>
-	TDest checked_cast(TSource value) {
+	PLUGIN_API TDest checked_cast(TSource value) {
 		using dest_limits = std::numeric_limits<TDest>;
 		using source_limits = std::numeric_limits<TSource>;
 		static_assert(

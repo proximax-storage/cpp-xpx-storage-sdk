@@ -19,7 +19,7 @@
 **/
 
 #pragma once
-#include "Packet.h"
+#include "ionet/Packet.h"
 #include "PacketPayloadParser.h"
 #include "model/EntityRange.h"
 #include "model/EntityPtr.h"

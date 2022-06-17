@@ -38,14 +38,14 @@ namespace sirius { namespace utils {
 
 	/// Tries to encode an array of bytes pointed to by \a data into \a encodedData.
 	/// \note The size must be a multiple of 5.
-	bool TryBase32Encode(const RawBuffer& data, const MutableRawString& encodedData);
+	PLUGIN_API bool TryBase32Encode(const RawBuffer& data, const MutableRawString& encodedData);
 
 	/// Encodes an array of bytes pointed to by \a data into \a encodedData.
 	/// \note The size must be a multiple of 5.
-	void Base32Encode(const RawBuffer& data, const MutableRawString& encodedData);
+	PLUGIN_API void Base32Encode(const RawBuffer& data, const MutableRawString& encodedData);
 
 	/// Encodes an array of bytes pointed to by \a data. The size must be a multiple of 5.
-	std::string Base32Encode(const RawBuffer& data);
+	PLUGIN_API std::string Base32Encode(const RawBuffer& data);
 
 	// endregion
 
@@ -66,7 +66,7 @@ namespace sirius { namespace utils {
 
 	/// Decodes a base32 encoded string pointed to by \a encodedData. The string length must be a multiple of 8.
 	template<size_t N>
-	std::array<uint8_t, N> Base32Decode(const RawString& encodedData) {
+	PLUGIN_API std::array<uint8_t, N> Base32Decode(const RawString& encodedData) {
 		std::array<uint8_t, N> data;
 		Base32Decode(encodedData, data);
 		return data;
