@@ -191,6 +191,10 @@ std::condition_variable     verifyCompleteCondVar;
 std::atomic<int>            verifyCompleteCounter{0};
 std::mutex                  verifyCompleteMutex;
 
+std::condition_variable     downloadStreamCondVar;
+bool                        downloadStreamEnded{ false };
+std::mutex                  downloadStreamMutex;
+
 // Listen (socket) error handle
 //
 static void clientSessionErrorHandler( const lt::alert* alert )
@@ -496,7 +500,6 @@ static std::shared_ptr<Replicator> createReplicator(
     return replicator;
 }
 
-
 //
 // createClientFiles
 //
@@ -771,7 +774,9 @@ int main(int,char**)
     }
 #endif
 
-    gStreamerSession->sendFinishStreamMessage( 3, 7 );
+    sleep(1);
+
+    gStreamerSession->sendFinishStreamMessage( 3, 17 );
     
     {
         std::unique_lock<std::mutex> lock(modifyCompleteMutex);
@@ -779,9 +784,31 @@ int main(int,char**)
     }
 
     EXLOG( "@ Client started FsTree download !!!!! " );
-    sleep(1);
+    sleep(4);
     gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
     clientDownloadFsTree( gViewerSession );
+    InfoHash playlistInfoHash = getFile( * gFsTree.getFolderPtr("streamN1")->findChild( PLAYLIST_FILE_NAME ) ).hash();
+
+//    fs::path destFolder = gClientFolder / "streamFolder" / "chuncks";
+    fs::path destFolder = gClientFolder / "viewStreamFolder";
+    downloadStreamEnded = false;
+    gViewerSession->startDownloadStream( playlistInfoHash, destFolder, []( std::string playListPath, int chunkIndex, int chunkNumber, std::string error )
+    {
+        EXLOG( "chunkIndex,chunkNumber: " << chunkIndex << "," << chunkNumber )
+        if ( chunkIndex == chunkNumber )
+        {
+            downloadStreamEnded = true;
+            downloadStreamCondVar.notify_all();
+        }
+    } );
+
+    {
+        std::unique_lock<std::mutex> lock(downloadStreamMutex);
+        modifyCompleteCondVar.wait( lock, [] { return downloadStreamEnded; } );
+    }
+
+//    clientDownloadFiles(  gViewerSession, -1, gFsTree );
+
     
     /// Delete client session and replicators
     sleep(5);//(???++++!!!)

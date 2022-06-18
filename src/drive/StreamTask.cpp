@@ -736,8 +736,8 @@ public:
                            *m_opinionController.opinionTrafficTx(),
                            0, true, ""
                    ),
-                   m_drive.m_driveFolder,
-                   m_drive.m_torrentFolder / toString(*m_finishInfoHash),
+                   m_drive.m_sandboxStreamFolder,
+                   m_drive.m_sandboxStreamTFolder / toString(*m_finishInfoHash),
                    getUploaders(),
                    &m_drive.m_driveKey.array(),
                    nullptr,
@@ -918,43 +918,21 @@ public:
         // Calculate infoHash of playlist
         InfoHash finishPlaylistHash = createTorrentFile( tmp, m_drive.m_driveKey, m_drive.m_sandboxRootPath, {} );
         fs::path finishPlaylistFilename = m_drive.m_driveFolder / toString( finishPlaylistHash );
+        fs::path torrentFilename = m_drive.m_torrentFolder / toString( finishPlaylistHash );
         if ( ! fs::exists(finishPlaylistFilename) )
         {
             fs::rename( tmp, finishPlaylistFilename );
         }
-        InfoHash finishPlaylistHash2 = createTorrentFile( finishPlaylistFilename,
-                                                          m_drive.m_driveKey,
-                                                          m_drive.m_driveFolder,
-                                                          m_drive.m_torrentFolder / toString( finishPlaylistHash ) );
-        _ASSERT( finishPlaylistHash2 == finishPlaylistHash )
+        if ( ! fs::exists(torrentFilename) )
+        {
+            InfoHash finishPlaylistHash2 = createTorrentFile( finishPlaylistFilename,
+                                                              m_drive.m_driveKey,
+                                                              m_drive.m_driveFolder,
+                                                              torrentFilename );
+            _ASSERT( finishPlaylistHash2 == finishPlaylistHash )
+        }
         
         streamFolder->m_childs.emplace_front( File{ PLAYLIST_FILE_NAME, finishPlaylistHash, playlistTxt.size() } );
-
-//        // add playlist to libtorrent session
-//        if ( fs::exists( playlistFilename ) )
-//        {
-//            _LOG_WARN( "Playlist already exists: " << playlistFilename );
-//        }
-//        else
-//        {
-//            fs::create_symlink( tmp, playlistFilename );
-//
-//            fs::path torrentFilename = m_drive.m_sandboxStreamTFolder / toString( chunkHash );
-//            InfoHash chunkHash2 = createTorrentFile( playlistFilename, m_drive.m_driveKey, m_drive.m_sandboxStreamFolder, torrentFilename );
-//            _ASSERT( chunkHash2 == chunkHash )
-//
-//            if ( auto session = m_drive.m_session.lock(); session )
-//            {
-//                lt_handle torrentHandle = session->addTorrentFileToSession( torrentFilename,
-//                                                                            m_drive.m_sandboxStreamFolder,
-//                                                                            lt::SiriusFlags::client_has_modify_data,
-//                                                                            &m_drive.m_driveKey.array(),
-//                                                                            nullptr,
-//                                                                            &m_request->m_streamId.array(),
-//                                                                            {},
-//                                                                            nullptr );
-//            }
-//        }
 
         m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile );
 
@@ -974,10 +952,21 @@ public:
             return;
         }
 
-        m_drive.executeOnSessionThread( [this]() mutable
-                                        {
-                                            myRootHashIsCalculated();
-                                        } );
+        m_drive.executeOnSessionThread( [this,torrentFilename]() //mutable
+        {
+            if ( auto session = m_drive.m_session.lock(); session )
+            {
+                session->addTorrentFileToSession( torrentFilename,
+                                                  m_drive.m_driveFolder,
+                                                  lt::SiriusFlags::peer_is_replicator,
+                                                  &m_drive.m_driveKey.array(),
+                                                  nullptr,
+                                                  &m_request->m_streamId.array(),
+                                                  {},
+                                                  nullptr );
+            }
+            myRootHashIsCalculated();
+        } );
 
     }
     

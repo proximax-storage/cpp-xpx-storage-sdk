@@ -35,7 +35,7 @@ void Folder::dbgPrint( std::string leadingSpaces ) const {
             getFolder(*it).dbgPrint( leadingSpaces+"  " );
         }
         else {
-            std::cout << leadingSpaces << "  " << getFile(*it).name() << std::endl;
+            std::cout << leadingSpaces << "  " << getFile(*it).name() << " : " << toString(getFile(*it).hash()).substr(0,4) << std::endl;
         }
     }
 }

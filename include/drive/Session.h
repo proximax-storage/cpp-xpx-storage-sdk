@@ -51,7 +51,7 @@ struct DownloadContext {
         file_from_drive = 1,
         client_data = 3,
         missing_files = 4,
-        chunk_from_drive = 5,
+        stream_data = 5,
     };
 
     using Notification = std::function<void( download_status::code,
@@ -85,6 +85,11 @@ struct DownloadContext {
             if ( (m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty() )
             {
                 _LOG_ERR("(m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty()")
+            }
+            
+            if ( doNotDeleteTorrent && !saveAs.empty() )
+            {
+                __LOG_WARN( "doNotDeleteTorrent && !saveAs.empty()" )
             }
         }
 

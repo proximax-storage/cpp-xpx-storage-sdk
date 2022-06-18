@@ -981,7 +981,7 @@ static void clientDownloadFiles( std::shared_ptr<ClientSession> clientSession, i
         exit(-1);
     }
 
-    EXLOG("#======================client start downloading=== " << downloadFileCount );
+    EXLOG("@ ======================client start downloading=== " << downloadFileCount );
 
     clientDownloadFilesR( clientSession, fsTree );
 

@@ -21,10 +21,7 @@
 
 namespace sirius::drive {
 
-struct WatchOptions
-{
-    uint32_t    m_chunkRequestTimeIntervalMs = 100;
-};
+using DownloadStreamProgress = std::function<void( std::string playListPath, int chunkIndex, int chunkNumber, std::string error )>;
 
 class ViewerSession : public ClientSession, public DhtMessageHandler, public lt::plugin
 {
@@ -38,7 +35,7 @@ class ViewerSession : public ClientSession, public DhtMessageHandler, public lt:
     std::optional<Hash256>  m_streamId;     // tx hash
     Key                     m_streamerKey;  // streamer public key
     Key                     m_driveKey;
-    WatchOptions            m_watchOptions;
+    bool                    m_streamFinished = false;
     
     using udp_endpoint_list = std::set<boost::asio::ip::udp::endpoint>;
     udp_endpoint_list       m_replicatorEndpointList;
@@ -55,9 +52,15 @@ class ViewerSession : public ClientSession, public DhtMessageHandler, public lt:
     std::optional<lt_handle>    m_downloadingLtHandle;
     uint32_t                    m_tobeDownloadedChunkIndex = 0;
 
-    const std::string       m_dbgOurPeerName;
-    
-    std::mutex              m_chunkMutex;
+    // Downloading saved stream
+    std::optional< InfoHash >               m_downloadStreamPlaylistInfoHash;
+    fs::path                                m_downloadStreamDestFolder;
+    std::optional< DownloadStreamProgress > m_downloadStreamProgress;
+    std::deque<InfoHash>                    m_downloadStreamChunks;
+    std::deque<InfoHash>::iterator          m_downloadStreamChunksIt;
+    int                                     m_downloadStreamChunkIndex;
+
+    const std::string           m_dbgOurPeerName;
     
 public:
     ViewerSession( const crypto::KeyPair& keyPair, const char* dbgOurPeerName )
@@ -79,6 +82,11 @@ public:
     void on_tick() override
     {
         if ( ! m_streamId )
+        {
+            return;
+        }
+        
+        if ( m_streamFinished )
         {
             return;
         }
@@ -118,8 +126,7 @@ public:
                         const Key&              streamerKey,
                         const Key&              driveKey,
                         const fs::path&         workFolder,
-                        const endpoint_list&    replicatorEndpointList,
-                        const WatchOptions      watchOptions = {} )
+                        const endpoint_list&    replicatorEndpointList )
     {
         _ASSERT( ! m_streamId )
         _ASSERT( replicatorEndpointList.size() > 0 )
@@ -127,7 +134,6 @@ public:
         m_streamId = streamId;
         m_streamerKey = streamerKey;
         m_driveKey = driveKey;
-        m_watchOptions = watchOptions;
 
         for( const auto& endpoint : replicatorEndpointList )
         {
@@ -265,6 +271,11 @@ public:
             _LOG_ERR( "m_downloadChannelId was not set");
         }
         
+        if ( ! m_downloadingLtHandle && m_downloadStreamPlaylistInfoHash )
+        {
+            downloadPlaylist();
+        }
+        
         if ( m_downloadingLtHandle || m_chunkInfoList.size() <= m_tobeDownloadedChunkIndex )
         {
             return;
@@ -275,9 +286,10 @@ public:
         _ASSERT( m_tobeDownloadedChunkIndex == chunkInfo.m_chunkIndex )
         m_tobeDownloadedChunkIndex++;
 
+        _LOG( "m_downloadingLtHandle = " << InfoHash(chunkInfo.m_chunkInfoHash) )
         m_downloadingLtHandle = m_session->download(
                            DownloadContext(
-                                   DownloadContext::chunk_from_drive,
+                                   DownloadContext::stream_data,
 
                                    [this]( download_status::code code,
                                            const InfoHash& infoHash,
@@ -288,6 +300,7 @@ public:
                                    {
                                        if ( code == download_status::download_complete )
                                        {
+                                           _LOG( "m_downloadingLtHandle.reset: " << infoHash )
                                            updatePlaylist( m_tobeDownloadedChunkIndex-1 );
                                            m_downloadingLtHandle.reset();
                                            tryLoadNextChunk();
@@ -351,6 +364,257 @@ public:
         return true;
     }
 
+    void startDownloadStream( InfoHash              playlistInfoHash,
+                             std::filesystem::path  destFolder,
+                             DownloadStreamProgress downloadStreamProgress )
+    {
+        if ( m_downloadStreamProgress )
+        {
+            _LOG_WARN( "cannot start download stream before previous stream download is not ended" )
+            throw std::runtime_error( "cannot start download stream before previous stream download is not ended" );
+        }
+        
+        m_downloadStreamPlaylistInfoHash = playlistInfoHash;
+        m_downloadStreamDestFolder       = destFolder;
+        m_downloadStreamProgress         = downloadStreamProgress;
+
+        boost::asio::post( m_session->lt_session().get_context(), [this]() //mutable
+        {
+            if ( m_downloadingLtHandle )
+            {
+                _LOG( "waiting m_downloadingLtHandle.reset()" )
+                return;
+            }
+            
+            downloadPlaylist();
+        });
+    }
+    
+    void downloadPlaylist()
+    {
+        _LOG( "m_downloadingLtHandle: downloadPlaylist" )
+
+        m_downloadingLtHandle = m_session->download(
+                           DownloadContext(
+                                   DownloadContext::stream_data,
+
+                                   [this]( download_status::code code,
+                                           const InfoHash& infoHash,
+                                           const std::filesystem::path saveAs,
+                                           size_t downloadedSize,
+                                           size_t /*fileSize*/,
+                                           const std::string& errorText )
+                                   {
+                                       if ( code == download_status::download_complete )
+                                       {
+                                           auto playlistFilePath = m_downloadStreamDestFolder / PLAYLIST_FILE_NAME;
+                                           std::error_code err;
+                                           if ( fs::exists( playlistFilePath, err ) )
+                                           {
+                                               fs::remove( playlistFilePath, err );
+                                           }
+                                           fs::rename( m_downloadStreamDestFolder / toString(*m_downloadStreamPlaylistInfoHash),
+                                                       playlistFilePath,
+                                                       err );
+
+                                           m_downloadingLtHandle.reset();
+                                           m_downloadStreamPlaylistInfoHash.reset();
+                                           downloadChunks();
+                                       }
+                                       else if ( code == download_status::dn_failed )
+                                       {
+                                       }
+                                   },
+
+                                   *m_downloadStreamPlaylistInfoHash,
+                                   *m_streamId,
+                                   0,
+                                   false, {}
+                           ),
+
+                           m_downloadStreamDestFolder,
+                           {},
+                           {},
+                           &m_driveKey.array(),
+                           &(*m_downloadChannelId),
+                           &m_streamId->array()
+                        );
+    }
+    
+    void downloadChunks()
+    {
+        try
+        {
+        m_downloadStreamChunks.clear();
+        
+        std::ifstream fin( m_downloadStreamDestFolder / PLAYLIST_FILE_NAME );
+        std::stringstream fPlaylist;
+        fPlaylist << fin.rdbuf();
+        
+        std::string line;
+        
+        if ( ! std::getline( fPlaylist, line ) || memcmp( line.c_str(), "#EXTM3U", 7 ) != 0 )
+        {
+            _LOG_WARN( "1-st line of playlist must be '#EXTM3U'" );
+            //todo? display error by UI
+        }
+        
+        for(;;)
+        {
+            if ( ! std::getline( fPlaylist, line ) )
+            {
+                break;
+            }
+
+            if ( memcmp( line.c_str(), "#EXT-X-VERSION:", 15 ) == 0 )
+            {
+                int version;
+                try
+                {
+                    version = std::stoi( line.substr(15) );
+                    //_LOG( "version: " << version )
+                }
+                catch(...)
+                {
+                    _LOG_WARN( std::string("invalid playlist format: ") + line );
+                    return;
+                }
+                
+                if ( version != 3 && version != 4 )
+                {
+                    _LOG_WARN( std::string("invalid version number: ") + line.substr(15) );
+                    return;
+                }
+                continue;
+            }
+
+            if ( memcmp( line.c_str(), "#EXT-X-TARGETDURATION:", 16+6 ) == 0 )
+            {
+                continue;
+            }
+
+            if ( memcmp( line.c_str(), "#EXT-X-MEDIA-SEQUENCE:", 16+6 ) == 0 )
+            {
+                try
+                {
+                    std::stoi( line.substr(16+6) );
+                }
+                catch(...)
+                {
+                    _LOG_ERR( std::string("cannot read sequence number: ") + line );
+                    return;
+                }
+                continue;
+            }
+
+            if ( memcmp( line.c_str(), "#EXTINF:", 8 ) == 0 )
+            {
+                try
+                {
+                    std::stof( line.substr(8) );
+                }
+                catch(...)
+                {
+                    _LOG_WARN( std::string("cannot read duration attribute: ") + line );
+                }
+                
+                if ( ! std::getline( fPlaylist, line ) )
+                {
+                    break;
+                }
+                
+                _LOG( line );
+                m_downloadStreamChunks.emplace_back( stringToHash(line) );
+
+                continue;
+            }
+        }
+            
+        m_downloadStreamChunksIt = m_downloadStreamChunks.begin();
+        m_downloadStreamChunkIndex = -1;
+        continueDownloadChunks();
+            
+        }
+        catch( const std::exception& e )
+        {
+            //todo? display error by UI
+            _LOG_WARN( "downloadChunks: exception: " << e.what() )
+        }
+        catch( ... )
+        {
+            _LOG_ERR( "downloadChunks: unknown exception" )
+        }
+    }
+    
+    void continueDownloadChunks()
+    {
+download_next_chunk:
+
+        if ( m_downloadStreamChunkIndex >= 0 )
+        {
+            m_downloadStreamChunksIt++;
+        }
+
+        m_downloadStreamChunkIndex++;
+
+        if ( m_downloadStreamChunksIt == m_downloadStreamChunks.end() )
+        {
+            (*m_downloadStreamProgress)( m_downloadStreamDestFolder / PLAYLIST_FILE_NAME, m_downloadStreamChunkIndex, int(m_downloadStreamChunks.size()), {} );
+            return;
+        }
+        
+        auto it = std::find_if( m_chunkInfoList.begin(), m_chunkInfoList.end(), [this](const auto& chunkInfo) { return chunkInfo.m_chunkInfoHash == m_downloadStreamChunksIt->array(); } );
+        if (  it != m_chunkInfoList.end() )
+        {
+            if ( m_chunkFolder != m_downloadStreamDestFolder )
+            {
+                std::error_code err;
+                fs::copy( m_chunkFolder / toString( *m_downloadStreamChunksIt ), m_downloadStreamDestFolder / toString( *m_downloadStreamChunksIt ), err );
+            }
+
+            (*m_downloadStreamProgress)( m_downloadStreamDestFolder / PLAYLIST_FILE_NAME, m_downloadStreamChunkIndex, int(m_downloadStreamChunks.size()), {} );
+
+            goto download_next_chunk;
+        }
+        
+        m_downloadingLtHandle = m_session->download(
+                           DownloadContext(
+                                   DownloadContext::stream_data,
+
+                                   [this]( download_status::code code,
+                                           const InfoHash& infoHash,
+                                           const std::filesystem::path saveAs,
+                                           size_t downloadedSize,
+                                           size_t /*fileSize*/,
+                                           const std::string& errorText )
+                                   {
+                                       if ( code == download_status::download_complete )
+                                       {
+                                           m_downloadingLtHandle.reset();
+                                           (*m_downloadStreamProgress)( m_downloadStreamDestFolder / PLAYLIST_FILE_NAME, m_downloadStreamChunkIndex, int(m_downloadStreamChunks.size()), {} );
+                                           continueDownloadChunks();
+                                       }
+                                       else if ( code == download_status::dn_failed )
+                                       {
+                                       }
+                                   },
+
+                                   *m_downloadStreamChunksIt,
+                                   *m_streamId,
+                                   0,
+                                   false, {}
+                           ),
+
+                           m_chunkFolder,
+                           {},
+                           {}, //getUploaders(),
+                           &m_driveKey.array(),
+                           &(*m_downloadChannelId),
+                           &m_streamId->array()
+                        );
+
+    }
+    
 };
 
 inline std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&        keyPair,

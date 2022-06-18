@@ -100,12 +100,12 @@ public:
         arch( m_childs );
     }
 
+    // returns nullptr if child is absent
+    Child* findChild( const std::string& childName );
+
 protected:
     // creates subfolder if not exist
     Folder& getSubfolderOrCreate( const std::string& subFolderName );
-
-    // returns nullptr if child is absent
-    Child* findChild( const std::string& childName );
 
     // returns child iteraror
     std::list<Child>::iterator findChildIt( const std::string& childName );
