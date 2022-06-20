@@ -45,14 +45,14 @@ cd ..
 IMPORTANT: For all commands, run cmd as an administrator.
 
 ### Install MinGW-W64 ###
-If you do not have MinGW-W64 installed, download the 12.1.0 MSVCRT runtime version from here https://winlibs.com/
+If you do not have MinGW-W64 installed, download the 12.1.0 MSVCRT runtime version from here https://winlibs.com/  
 Extract the zip file to your C: drive, then add C:\mingw64\bin to PATH in system variables.
 
 ###  Install Boost 1.79.0
 
-Download boost zip folder from https://www.boost.org/users/history/version_1_79_0.html
-Extract to C: drive.
-
+Download boost zip folder from https://www.boost.org/users/history/version_1_79_0.html  
+Extract to C: drive.  
+  
 Now go to C: drive using Command Prompt, then run:
 
 ```shell
