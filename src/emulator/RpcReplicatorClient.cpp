@@ -248,7 +248,7 @@ namespace sirius::emulator {
 
                 callback(fsTree, code);
             }
-            else if ( code == drive::download_status::failed )
+            else if ( code == drive::download_status::dn_failed )
             {
                 std::cout << "Client. downloadHandler. Error receiving FsTree: " << code << " errorText: " << errorText <<std::endl;
                 callback(fsTree, code);
