@@ -21,7 +21,6 @@ option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build XPX-STORAGE SDK examples." OFF)
 
 ### setup boost
 if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
-    SET(Boost_COMPILER ${Boost_COMPILER} "-mgw12")
     SET(Boost_NAMESPACE ${Boost_NAMESPACE} "libboost")
     SET(Boost_ARCHITECTURE "-x64")
 endif()
@@ -31,9 +30,11 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 
 include_directories(cereal/include)
 add_subdirectory(libtorrent)
+include_directories(libtorrent/include)
 
 if (XPX_STORAGE_SDK_BUILD_EMULATOR)
     add_subdirectory(cpp-xpx-rpclib)
+    include_directories(${PROJECT_SOURCE_DIR}/cpp-xpx-storage-sdk/cpp-xpx-rpclib/include)
 endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")

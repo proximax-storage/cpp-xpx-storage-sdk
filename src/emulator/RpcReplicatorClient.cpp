@@ -175,7 +175,7 @@ namespace sirius::emulator {
 
         // start file uploading
         uint64_t totalModifyDataSize;
-        const drive::InfoHash infoHash = m_clientSession->addActionListToSession( actionList, m_keyPair.publicKey(), rpcDriveInfo.getReplicators(), tmpFolder, totalModifyDataSize);
+        const drive::InfoHash infoHash = m_clientSession->addActionListToSession( actionList, m_keyPair.publicKey(), rpcDriveInfo.getReplicators(), tmpFolder.string(), totalModifyDataSize);
 
         std::cout << "Client. modifyDrive. New InfoHash: " << infoHash << std::endl;
 
@@ -248,7 +248,7 @@ namespace sirius::emulator {
 
                 callback(fsTree, code);
             }
-            else if ( code == drive::download_status::failed )
+            else if ( code == drive::download_status::dn_failed )
             {
                 std::cout << "Client. downloadHandler. Error receiving FsTree: " << code << " errorText: " << errorText <<std::endl;
                 callback(fsTree, code);
