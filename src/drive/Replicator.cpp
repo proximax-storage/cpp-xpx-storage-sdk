@@ -1836,6 +1836,17 @@ public:
             return false;
         }
         
+        try
+        {
+            std::istringstream is( data, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            iarchive( m_dnChannelMapBackup );
+        }
+        catch(...)
+        {
+            return false;
+        }
+       
         return true;
     }
     

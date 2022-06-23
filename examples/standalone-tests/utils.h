@@ -3,7 +3,6 @@
 #include <condition_variable>
 #include <drive/FsTree.h>
 #include "types.h"
-#include "../../src/drive/Session.h"
 #include "drive/ClientSession.h"
 #include "drive/Utils.h"
 #include "crypto/Signer.h"
