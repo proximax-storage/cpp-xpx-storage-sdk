@@ -125,7 +125,7 @@ public:
         // it must be overriden by StreamTask
     }
 
-    virtual void acceptFinishStreamMessage( mobj<FinishStream>&&, const boost::asio::ip::udp::endpoint& streamer )
+    virtual void acceptFinishStreamMessage( mobj<FinishStreamMsg>&&, const boost::asio::ip::udp::endpoint& streamer )
     {
         // it must be overriden by StreamTask
     }
@@ -134,7 +134,13 @@ public:
                                                     const boost::asio::ip::udp::endpoint& viewer )
     {
         // it must be overriden by StreamTask
-        return "";
+
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        int32_t streamIsEnded = 0xffFFffFF;
+        archive( streamIsEnded );
+
+        return os.str();
     }
 
 protected:

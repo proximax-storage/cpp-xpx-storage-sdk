@@ -519,7 +519,7 @@ protected:
 //    {
 //    }
     
-    void handleDhtResponse( lt::bdecode_node response ) override
+    void handleDhtResponse( lt::bdecode_node response, boost::asio::ip::udp::endpoint endpoint ) override
     {
     }
 

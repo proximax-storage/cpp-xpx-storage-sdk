@@ -172,7 +172,7 @@ public:
                                                                       nullptr );
 
         {
-            FinishStream finishStream{ m_streamId->array(), infoHash.array(), {} };
+            FinishStreamMsg finishStream{ m_streamId->array(), infoHash.array(), {} };
             finishStream.Sign( m_keyPair );
             
             std::ostringstream os( std::ios::binary );

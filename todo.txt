@@ -53,5 +53,7 @@ CloseDrive - storageExt should remember that drive started closing and not compl
 asyncInitializationFinished()
 После этого нужно поудалять все неиспользуемые драйвы и каналы!
 
+Добавить map в folder (для быстрого доступа к вложенным folder-ам?)
+
 
 

@@ -726,7 +726,7 @@ public:
         }
     }
 
-    void acceptFinishStreamMessage( mobj<FinishStream>&& finishStream, const boost::asio::ip::udp::endpoint& streamer ) override
+    void acceptFinishStreamMessage( mobj<FinishStreamMsg>&& finishStream, const boost::asio::ip::udp::endpoint& streamer ) override
     {
         DBG_MAIN_THREAD
         
@@ -746,10 +746,52 @@ public:
             return m_task->acceptGetChunksInfoMessage( chunkIndex, viewer );
         }
         
-        return {};
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        int32_t streamIsEnded = 0xffFFffFF;
+        archive( streamIsEnded );
+
+        return os.str();
     }
+    
     ////////////
 
+    virtual std::string acceptGetPlaylistHashRequest( const std::array<uint8_t,32>& streamId ) override
+    {
+        DBG_MAIN_THREAD
+        
+        const Folder* streamFolder = m_fsTree->findStreamFolder( streamId );
+        
+        if ( streamFolder == nullptr )
+        {
+            return {};
+        }
+
+        const InfoHash* playlistHash = nullptr;
+        streamFolder->iterate( [&playlistHash]  (const File& file) -> bool
+        {
+            if ( file.name() == PLAYLIST_FILE_NAME )
+            {
+                playlistHash = &file.hash();
+                return true;
+            }
+            return false;
+        });
+        
+        if ( playlistHash == nullptr )
+        {
+            return {};
+        }
+
+        // Prepare message
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( streamId );
+        archive( playlistHash->array() );
+
+        return os.str();
+    }
+    
     void dbgPrintDriveStatus() override
     {
         LOG("Drive Status:")

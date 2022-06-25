@@ -127,6 +127,16 @@ public:
     {
         DBG_MAIN_THREAD
 
+//        if ( m_sandboxFsTree )
+//        {
+//            std::ostringstream os( std::ios::binary );
+//            cereal::PortableBinaryOutputArchive archive( os );
+//            int32_t streamIsEnded = 0xffFFffFF;
+//            archive( streamIsEnded );
+//
+//            return os.str();
+//        }
+        
         if ( m_chunkInfoList.size() <= requestedIndex || m_chunkInfoList[requestedIndex].get() == nullptr )
         {
             // so far we do not have requested chunkInfo (not signed info could be received by finish-stream)
@@ -660,10 +670,10 @@ public:
 
 
 #ifdef __APPLE__
-#pragma mark --FinishStream--
+#pragma mark --FinishStreamMsg--
 #endif
     
-    void acceptFinishStreamMessage( mobj<FinishStream>&& finishStream, const boost::asio::ip::udp::endpoint& streamer ) override
+    void acceptFinishStreamMessage( mobj<FinishStreamMsg>&& finishStream, const boost::asio::ip::udp::endpoint& streamer ) override
     {
         DBG_MAIN_THREAD
 
@@ -761,6 +771,11 @@ public:
             std::ifstream finishInfoFile( fs::path(status.save_path) / status.name, std::ios::binary );
             cereal::PortableBinaryInputArchive iarchive(finishInfoFile);
             iarchive( m_finishInfo );
+        }
+        catch( const std::runtime_error& e )
+        {
+            _LOG_WARN( "Error in finishStreamFile: " << e.what() )
+            return;
         }
         catch(...)
         {
@@ -933,6 +948,8 @@ public:
         }
         
         streamFolder->m_childs.emplace_front( File{ PLAYLIST_FILE_NAME, finishPlaylistHash, playlistTxt.size() } );
+        streamFolder->m_isaStream = true;
+        streamFolder->m_streamId  = m_request->m_streamId;
 
         m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile );
 

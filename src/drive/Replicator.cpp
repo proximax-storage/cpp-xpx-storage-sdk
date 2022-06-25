@@ -1507,7 +1507,7 @@ public:
                 iarchive( info );
                 processDownloadOpinion(info);
             }
-            catch(...){}
+            catch(...){ _LOG_WARN( "execption occured" ) }
 
             return;
         }
@@ -1522,7 +1522,7 @@ public:
                 iarchive( *info );
                 processVerificationCode( std::move(info) );
             }
-            catch(...){}
+            catch(...){ _LOG_WARN( "execption occured" ) }
 
             return;
         }
@@ -1538,7 +1538,7 @@ public:
                 iarchive( *info );
                 processVerificationOpinion( std::move(info) );
             }
-            catch(...){}
+            catch(...){ _LOG_WARN( "execption occured" ) }
 
             return;
         }
@@ -1553,7 +1553,7 @@ public:
 
                 processHandshake( handshake, {source.address(), source.port()} );
             }
-            catch(...){}
+            catch(...){ _LOG_WARN( "execption occured" ) }
 
             return;
         }
@@ -1567,7 +1567,7 @@ public:
 
                 processEndpointRequest(request, {source.address(), source.port()});
             }
-            catch(...){}
+            catch(...){ _LOG_WARN( "execption occured" ) }
 
             return;
         }
@@ -1581,7 +1581,7 @@ public:
 
                 m_endpointsManager.updateExternalEndpoint(response);
             }
-            catch(...){}
+            catch(...){ _LOG_WARN( "execption occured" ) }
 
             return;
         }
@@ -1607,7 +1607,7 @@ public:
                     _LOG_WARN( "Unknown drive: " << Key(driveKey) )
                 }
             }
-            catch(...){}
+            catch(...){ _LOG_WARN( "execption occured" ) }
 
             return;
         }
@@ -1622,7 +1622,7 @@ public:
                 
                 if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
                 {
-                    mobj<FinishStream> finishStream{FinishStream{}};
+                    mobj<FinishStreamMsg> finishStream{FinishStreamMsg{}};
                     iarchive( *finishStream );
                     _ASSERT( finishStream )
                     
@@ -1964,10 +1964,47 @@ public:
                     _LOG_WARN( "Unknown drive: " << Key(driveKey) )
                 }
             }
-            catch(...){}
+            catch(...){ _LOG_WARN( "execption occured" ) }
 
             return true;
         }
+
+        else if ( query == "get-playlist-hash" ) // message from 'viewer'
+        {
+            try
+            {
+                //std::string message( query.begin(), query.end() );
+                auto str = message.dict_find_string_value("x");
+                std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
+
+                std::istringstream is( packet, std::ios::binary );
+                cereal::PortableBinaryInputArchive iarchive(is);
+                std::array<uint8_t,32> driveKey;
+                iarchive( driveKey );
+                
+                if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+                {
+                    std::array<uint8_t,32> streamId;
+                    iarchive( streamId );
+
+                    std::string result = driveIt->second->acceptGetPlaylistHashRequest( streamId );
+                    if ( ! result.empty() )
+                    {
+                        response["r"]["q"] = std::string(query);
+                        response["r"]["ret"] = result;
+                    }
+                    return true;
+                }
+                else
+                {
+                    _LOG_WARN( "Unknown drive: " << Key(driveKey) )
+                }
+            }
+            catch(...){ _LOG_WARN( "execption occured" ) }
+
+            return true;
+        }
+        
         return false;
     }
     
@@ -1991,7 +2028,7 @@ public:
         });
     }
 
-    void handleDhtResponse( lt::bdecode_node response ) override
+    void handleDhtResponse( lt::bdecode_node response, boost::asio::ip::udp::endpoint /*endpoint*/ ) override
     {
         try
         {

@@ -701,11 +701,11 @@ public:
         }
     }
 
-    void handleDhtResponse( lt::bdecode_node response )
+    void handleDhtResponse( lt::bdecode_node response, boost::asio::ip::udp::endpoint endpoint )
     {
         if ( auto delegate = m_downloadLimiter.lock(); delegate )
         {
-            delegate->handleDhtResponse( response );
+            delegate->handleDhtResponse( response, endpoint );
         }
 //        try
 //        {
@@ -975,9 +975,9 @@ private:
                                  _LOG( "" );
                              }
                              //_LOG( "dht_query: " << query )
-                             if ( query == "get_dn_rcpts" || query == "get-chunks-info" )
+                             if ( query == "get_dn_rcpts" || query == "get-chunks-info" || query == "get-playlist-hash" )
                              {
-                                 handleDhtResponse( response);
+                                 handleDhtResponse( response, theAlert->endpoint );
                              }
                          }
                      }

@@ -94,38 +94,7 @@ namespace sirius::drive {
         uint32_t                    m_chunkIndex;
     };
     
-//    struct StreamPlayListInfo
-//    {
-//        Hash256                     m_streamId;
-//        Key                         m_driveKey;
-//        InfoHash                    m_playlistInfoHash;
-//        uint32_t                    m_chunkIndex; // number of 1-st chunk
-//        Signature                   m_sign;
-//    };
-//
-//    struct StreamChunk
-//    {
-//        int                         m_durationMs;
-//        uint64_t                    m_size;
-//        InfoHash                    m_hash;
-//    };
-//
-//    struct StreamPlayList
-//    {
-//        Hash256                     m_streamId;
-//        int                         m_version;
-//        int                         m_chunkIndex; // number of 1-st chunk
-//        std::vector<StreamChunk>    m_chunks;
-//    };
-//
-//    struct ClientRequest
-//    {
-//        Hash256                     m_streamId;
-//        Key                         m_driveKey;
-//        //int   m_timeOffsetMs;
-//    };
-
-    struct FinishStreamChunkInfo
+    struct FinishStreamChunkInfo // it is a record from 'finishStreamInfo' file (on streamer side)
     {
         uint32_t                    m_chunkIndex;
         std::array<uint8_t,32>      m_chunkInfoHash;
@@ -143,7 +112,7 @@ namespace sirius::drive {
         }
     };
 
-    struct FinishStream
+    struct FinishStreamMsg
     {
         std::array<uint8_t,32>      m_streamId;
         std::array<uint8_t,32>      m_finishDataInfoHash;
@@ -176,6 +145,5 @@ namespace sirius::drive {
                                   reinterpret_cast<const Signature &>(m_sign) );
         }
     };
-
 
 }

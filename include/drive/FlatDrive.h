@@ -610,10 +610,12 @@ class Replicator;
         static std::string  driveIsClosingPath( const std::string& driveRootPath );
 
         virtual void        acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
-        virtual void        acceptFinishStreamMessage( mobj<FinishStream>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
+        virtual void        acceptFinishStreamMessage( mobj<FinishStreamMsg>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
 
         virtual std::string acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
                                                         const boost::asio::ip::udp::endpoint&  viewer ) = 0;
+      
+        virtual std::string acceptGetPlaylistHashRequest( const std::array<uint8_t,32>& streamId ) = 0;
     };
 
     class Session;

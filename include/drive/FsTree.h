@@ -81,12 +81,20 @@ public:
     std::string& name()
     { return m_name; }
 
+    bool& isaStream()
+    { return m_isaStream; }
+
+    Hash256& streamId()
+    { return m_streamId; }
+
     bool initWithFolder( const std::string& pathToFolder );
     void dbgPrint( std::string leadingSpaces = "" ) const;
 
     bool operator==( const Folder& f ) const { return m_name==f.m_name && m_childs==f.m_childs; }
 
-    void iterate( const std::function<void(File&)>& func );
+    bool iterate( const std::function<bool(const File&)>& func ) const;
+    
+    const Folder* findStreamFolder( const Hash256& streamId ) const;
     
     void getSizes( const std::filesystem::path& driveFolder,
                    const std::filesystem::path& torrentFolder,
@@ -98,6 +106,11 @@ public:
     template <class Archive> void serialize( Archive & arch ) {
         arch( m_name );
         arch( m_childs );
+        arch( m_isaStream );
+        if ( m_isaStream )
+        {
+            arch( cereal::binary_data( m_streamId.data(), m_streamId.size() ) );
+        }
     }
 
     // returns nullptr if child is absent
@@ -118,6 +131,8 @@ protected:
 
     std::string       m_name;
     std::list<Child>  m_childs;
+    bool              m_isaStream;
+    Hash256           m_streamId;
 };
 
 // variant utilities
@@ -128,22 +143,51 @@ inline       Folder& getFolder( Folder::Child& child )       { return std::get<0
 inline const File&   getFile( const Folder::Child& child )   { return std::get<1>(child); }
 inline       File&   getFile( Folder::Child& child )         { return std::get<1>(child); }
 
-inline void Folder::iterate( const std::function<void(File&)>& func )
+inline bool Folder::iterate( const std::function<bool(const File&)>& func ) const
 {
     for( auto& child : m_childs )
     {
        if ( isFolder(child) )
        {
-           getFolder(child).iterate( func );
+           if ( getFolder(child).iterate( func ) )
+           {
+               return true;
+           }
        }
        else
        {
-           File& file = getFile(child);
-           func( file );
+           const File& file = getFile(child);
+           if ( func(file) )
+           {
+               return true;
+           }
        }
-   }
-
+    }
+    return false;
 }
+
+inline const Folder* Folder::findStreamFolder( const Hash256& streamId ) const
+{
+    for( auto& child : m_childs )
+    {
+       if ( isFolder(child) )
+       {
+           const auto& folder = getFolder(child);
+           //std::cerr << "@ findStreamFolder: " << folder.m_name << " " << folder.m_isaStream;
+           if ( folder.m_isaStream )
+           {
+               //std::cerr << "@ ... findStreamFolder: " << folder.m_streamId << " " << streamId;
+           }
+           if ( folder.m_isaStream && folder.m_streamId == streamId )
+           {
+               return &folder;
+           }
+           folder.findStreamFolder( streamId );
+       }
+    }
+    return nullptr;
+}
+
 
 // for sorting
 inline bool operator<(const Folder::Child& a, const Folder::Child& b) {

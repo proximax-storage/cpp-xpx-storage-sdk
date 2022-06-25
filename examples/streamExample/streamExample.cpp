@@ -738,8 +738,21 @@ int main(int,char**)
     }
     gStreamerSession->initStream( streamTx, DRIVE_PUB_KEY, OSB_OUTPUT_PLAYLIST, STREAMER_WORK_FOLDER / "streamFolder", endpointList );
 
+    auto progress = []( std::string playListPath, int chunkIndex, int chunkNumber, std::string error )
+    {
+        EXLOG( "@ chunkIndex,chunkNumber: " << chunkIndex << "," << chunkNumber )
+        if ( chunkIndex == chunkNumber )
+        {
+            downloadStreamEnded = true;
+            downloadStreamCondVar.notify_all();
+        }
+    };
+    
+    //
+    // startWatchingLiveStream
+    //
     gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
-    gViewerSession->startWatching( streamTx, gStreamerSession->publicKey(), DRIVE_PUB_KEY, CLIENT_WORK_FOLDER / "streamFolder", endpointList );
+    gViewerSession->startWatchingLiveStream( streamTx, gStreamerSession->publicKey(), DRIVE_PUB_KEY, CLIENT_WORK_FOLDER / "streamFolder", endpointList, progress );
 
     const uint64_t maxStreamSize = 1024*1024*1024;
     StreamRequest streamRequest{ streamTx, clientKeyPair.publicKey(), "streamN1", maxStreamSize, replicatorList };
@@ -787,31 +800,19 @@ int main(int,char**)
     sleep(4);
     gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
     clientDownloadFsTree( gViewerSession );
-    InfoHash playlistInfoHash = getFile( * gFsTree.getFolderPtr("streamN1")->findChild( PLAYLIST_FILE_NAME ) ).hash();
-
-//    fs::path destFolder = gClientFolder / "streamFolder" / "chuncks";
-    fs::path destFolder = gClientFolder / "viewStreamFolder";
-    downloadStreamEnded = false;
-    gViewerSession->startDownloadStream( playlistInfoHash, destFolder, []( std::string playListPath, int chunkIndex, int chunkNumber, std::string error )
-    {
-        EXLOG( "chunkIndex,chunkNumber: " << chunkIndex << "," << chunkNumber )
-        if ( chunkIndex == chunkNumber )
-        {
-            downloadStreamEnded = true;
-            downloadStreamCondVar.notify_all();
-        }
-    } );
+//    InfoHash playlistInfoHash = getFile( * gFsTree.getFolderPtr("streamN1")->findChild( PLAYLIST_FILE_NAME ) ).hash();
+//
+//    fs::path destFolder = gClientFolder / "viewStreamFolder";
+//    downloadStreamEnded = false;
+//    gViewerSession->startWatchingStream( streamTx, DRIVE_PUB_KEY, destFolder, endpointList, progress );
 
     {
         std::unique_lock<std::mutex> lock(downloadStreamMutex);
         modifyCompleteCondVar.wait( lock, [] { return downloadStreamEnded; } );
     }
 
-//    clientDownloadFiles(  gViewerSession, -1, gFsTree );
-
-    
     /// Delete client session and replicators
-    sleep(5);//(???++++!!!)
+    //sleep(5);//(???++++!!!)
 
 
     /// Delete client session and replicators
