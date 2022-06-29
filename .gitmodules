@@ -8,3 +8,6 @@
 [submodule "cpp-xpx-rpclib"]
 	path = cpp-xpx-rpclib
 	url = https://github.com/proximax-storage/cpp-xpx-rpclib.git
+[submodule "js-xpx-streaming-app"]
+	path = js-xpx-streaming-app
+	url = https://github.com/proximax-storage/js-xpx-streaming-app
