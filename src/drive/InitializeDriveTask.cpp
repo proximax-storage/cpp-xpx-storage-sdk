@@ -82,6 +82,7 @@ private:
             try
             {
                 m_drive.m_fsTree->deserialize( m_drive.m_fsTreeFile );
+                m_drive.updateStreamMap();
             }
             catch (const std::exception& ex)
             {

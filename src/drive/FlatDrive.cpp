@@ -726,29 +726,31 @@ public:
         }
     }
 
-    void acceptFinishStreamMessage( mobj<FinishStreamMsg>&& finishStream, const boost::asio::ip::udp::endpoint& streamer ) override
+    void acceptFinishStreamTx( mobj<StreamFinishRequest>&& finishStream ) override
     {
         DBG_MAIN_THREAD
         
         if ( m_task )
         {
-            m_task->acceptFinishStreamMessage( std::move(finishStream), streamer );
+            m_task->acceptFinishStreamTx( std::move(finishStream) );
         }
     }
 
-    std::string acceptGetChunksInfoMessage( uint32_t                               chunkIndex,
+    std::string acceptGetChunksInfoMessage( const std::array<uint8_t,32>&          streamId,
+                                            uint32_t                               chunkIndex,
                                             const boost::asio::ip::udp::endpoint&  viewer ) override
     {
         DBG_MAIN_THREAD
         
         if ( m_task )
         {
-            return m_task->acceptGetChunksInfoMessage( chunkIndex, viewer );
+            return m_task->acceptGetChunksInfoMessage( streamId, chunkIndex, viewer );
         }
         
+        bool streamFinished = m_streamMap.find( Hash256(streamId) ) != m_streamMap.end();
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
-        int32_t streamIsEnded = 0xffFFffFF;
+        int32_t streamIsEnded = streamFinished ? 0xffffFFFF : 0xffffFFF0;
         archive( streamIsEnded );
 
         return os.str();

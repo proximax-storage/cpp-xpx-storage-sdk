@@ -122,20 +122,23 @@ public:
         return m_request->m_streamId;
     }
     
-    virtual std::string acceptGetChunksInfoMessage( uint32_t                               requestedIndex,
+    virtual std::string acceptGetChunksInfoMessage( const std::array<uint8_t,32>&          streamId,
+                                                    uint32_t                               requestedIndex,
                                                     const boost::asio::ip::udp::endpoint&  viewer ) override
     {
         DBG_MAIN_THREAD
 
-//        if ( m_sandboxFsTree )
-//        {
-//            std::ostringstream os( std::ios::binary );
-//            cereal::PortableBinaryOutputArchive archive( os );
-//            int32_t streamIsEnded = 0xffFFffFF;
-//            archive( streamIsEnded );
-//
-//            return os.str();
-//        }
+        if ( m_request->m_streamId != streamId )
+        {
+            _LOG( "m_request->m_streamId != streamId:" << InfoHash(m_request->m_streamId) << " " << InfoHash(streamId) )
+            bool streamFinished = m_drive.m_streamMap.find( Hash256(streamId) ) != m_drive.m_streamMap.end();
+            std::ostringstream os( std::ios::binary );
+            cereal::PortableBinaryOutputArchive archive( os );
+            int32_t streamIsEnded = streamFinished ? 0xffffFFFF : 0xffffFFF0;
+            archive( streamIsEnded );
+
+            return os.str();
+        }
         
         if ( m_chunkInfoList.size() <= requestedIndex || m_chunkInfoList[requestedIndex].get() == nullptr )
         {
@@ -670,10 +673,10 @@ public:
 
 
 #ifdef __APPLE__
-#pragma mark --FinishStreamMsg--
+#pragma mark --acceptFinishStreamTx--
 #endif
     
-    void acceptFinishStreamMessage( mobj<FinishStreamMsg>&& finishStream, const boost::asio::ip::udp::endpoint& streamer ) override
+    void acceptFinishStreamTx( mobj<StreamFinishRequest>&& finishStream ) override
     {
         DBG_MAIN_THREAD
 
@@ -686,12 +689,6 @@ public:
         if ( finishStream->m_streamId != m_request->m_streamId.array() )
         {
             _LOG_WARN( "ignore unkown stream" )
-            return;
-        }
-        
-        if ( ! finishStream->Verify( m_request->m_streamerKey ) )
-        {
-            _LOG_WARN( "Bad sign" )
             return;
         }
         

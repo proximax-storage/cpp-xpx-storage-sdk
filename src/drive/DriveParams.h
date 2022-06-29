@@ -245,6 +245,10 @@ public:
     // FsTree
     std::unique_ptr<FsTree> m_fsTree;
     lt_handle m_fsTreeLtHandle; // used for removing FsTree torrent from session
+    
+    // key - streamTx, value - playlist-InfoHash
+    using StreamMap = std::map<Hash256,InfoHash>;
+    StreamMap m_streamMap;
 
     // For debugging:
     const std::string                       m_dbgOurPeerName;
@@ -284,6 +288,26 @@ public:
     virtual const ReplicatorList& getAllReplicators() const = 0;
 
     virtual void runNextTask() = 0;
+    
+    void updateStreamMap()
+    {
+        m_streamMap.clear();
+        m_fsTree->iterateAllFolders( [this]  (const Folder& folder)
+        {
+            if ( folder.isaStream() )
+            {
+                folder.iterate( [&folder,this]  (const File& file) -> bool
+                {
+                    if ( file.name() == PLAYLIST_FILE_NAME )
+                    {
+                        m_streamMap[ folder.streamId() ] = file.hash();
+                        return true;
+                    }
+                    return false;
+                });
+            }
+        });
+    }
 };
 
 //class ModifyOpinionController

@@ -374,7 +374,7 @@ public:
 
     virtual void        asyncStartStream( Key driveKey, mobj<StreamRequest>&& ) = 0;
     virtual void        asyncIncreaseStream( Key driveKey, mobj<StreamIncreaseRequest>&& ) = 0;
-    virtual void        asyncFinishStream( Key driveKey, mobj<StreamFinishRequest>&& ) = 0;
+    virtual void        asyncFinishStreamTxPublished( Key driveKey, mobj<StreamFinishRequest>&& ) = 0;
 
     // It is called when Replicator is added to the Download Channel Shard
     virtual void        asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&&  downloadRequest, bool mustBeSynchronized = false ) = 0;

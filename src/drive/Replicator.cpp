@@ -684,7 +684,7 @@ public:
         });//post
     }
     
-    void asyncFinishStream( Key driveKey, mobj<StreamFinishRequest>&& ) override
+    void asyncFinishStreamTxPublished( Key driveKey, mobj<StreamFinishRequest>&& finishInfo ) override
     {
         _FUNC_ENTRY()
 
@@ -697,13 +697,15 @@ public:
                 return;
             }
 
-            if ( const auto drive = getDrive(driveKey); drive )
+            if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
             {
-                //drive->finishStream( std::move(request) );
-                return;
+                driveIt->second->acceptFinishStreamTx( std::move(finishInfo) );
+            }
+            else
+            {
+                _LOG_WARN( "Unknown drive: " << Key(driveKey) )
             }
 
-            _LOG( "unknown drive: " << driveKey );
         });//post
     }
 
@@ -1611,34 +1613,34 @@ public:
 
             return;
         }
-        else if ( query == "finish-stream" )
-        {
-            try
-            {
-                std::istringstream is( message, std::ios::binary );
-                cereal::PortableBinaryInputArchive iarchive(is);
-                std::array<uint8_t,32> driveKey;
-                iarchive( driveKey );
-                
-                if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
-                {
-                    mobj<FinishStreamMsg> finishStream{FinishStreamMsg{}};
-                    iarchive( *finishStream );
-                    _ASSERT( finishStream )
-                    
-                    driveIt->second->acceptFinishStreamMessage( std::move(finishStream), source );
-                }
-                else
-                {
-                    _LOG_WARN( "Unknown drive: " << Key(driveKey) )
-                }
-            }
-            catch(...){
-                _LOG_WARN( "bad 'finish-stream' message" )
-            }
-
-            return;
-        }
+//        else if ( query == "finish-stream" )
+//        {
+//            try
+//            {
+//                std::istringstream is( message, std::ios::binary );
+//                cereal::PortableBinaryInputArchive iarchive(is);
+//                std::array<uint8_t,32> driveKey;
+//                iarchive( driveKey );
+//
+//                if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+//                {
+//                    mobj<FinishStreamMsg> finishStream{FinishStreamMsg{}};
+//                    iarchive( *finishStream );
+//                    _ASSERT( finishStream )
+//
+//                    driveIt->second->acceptFinishStreamTx( std::move(finishStream), source );
+//                }
+//                else
+//                {
+//                    _LOG_WARN( "Unknown drive: " << Key(driveKey) )
+//                }
+//            }
+//            catch(...){
+//                _LOG_WARN( "bad 'finish-stream' message" )
+//            }
+//
+//            return;
+//        }
 
         _LOG_WARN( "Unknown query: " << query );
 
@@ -1853,7 +1855,7 @@ public:
 
         const std::set<lt::string_view> supportedQueries =
                 { "opinion", "dn_opinion", "code_verify", "verify_opinion", "handshake", "endpoint_request", "endpoint_response",
-                    "chunk-info", "finish-stream"
+                    "chunk-info" //, "finish-stream"
                 };
         if ( supportedQueries.contains(query) )
         {
@@ -1948,10 +1950,12 @@ public:
 
                 if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
                 {
+                    std::array<uint8_t,32> streamId;
+                    iarchive( streamId );
                     uint32_t chunkIndex;
                     iarchive( chunkIndex );
 
-                    std::string result = driveIt->second->acceptGetChunksInfoMessage( chunkIndex, source );
+                    std::string result = driveIt->second->acceptGetChunksInfoMessage( streamId, chunkIndex, source );
                     if ( ! result.empty() )
                     {
                         response["r"]["q"] = std::string(query);

@@ -117,14 +117,19 @@ public:
         fs::create_directories( m_torrentFolder );
     }
     
-    void sendFinishStreamMessage( uint64_t startTimeSecods = 0, uint64_t endTimeSecods = std::numeric_limits<uint64_t>::max() )
+    struct FinishStreamInfo{ InfoHash infoHash; uint64_t streamSizeBytes; };
+    
+    FinishStreamInfo finishStream( uint64_t startTimeSecods = 0, uint64_t endTimeSecods = std::numeric_limits<uint64_t>::max() )
     {
         if ( ! m_streamId )
-            return;
+        {
+            throw std::runtime_error("no active stream");
+        }
         
         std::vector<FinishStreamChunkInfo> finishStreamInfo;
         
         uint64_t timeMks = 0;
+        uint64_t streamSize = 0;
         for( uint32_t i=0; (i < m_chunkInfoMap.size()); i++ )
         {
             auto chunkInfoIt = m_chunkInfoMap.find(i);
@@ -146,6 +151,18 @@ public:
                                                             chunkInfoIt->second.m_sizeBytes,
                                                             true } );
             timeMks += chunkInfoIt->second.m_durationMks;
+            
+            std::error_code ec;
+            auto fileSize = fs::file_size( m_chunkFolder / toString(chunkInfoIt->second.m_chunkInfoHash), ec );
+            if ( ! ec )
+            {
+                streamSize += fileSize;
+            }
+            auto torrentFileSize = fs::file_size( m_torrentFolder / toString(chunkInfoIt->second.m_chunkInfoHash), ec );
+            if ( ! ec )
+            {
+                streamSize += torrentFileSize;
+            }
         }
         
 //        std::ostringstream os( std::ios::binary );
@@ -171,21 +188,24 @@ public:
                                                                       {},
                                                                       nullptr );
 
-        {
-            FinishStreamMsg finishStream{ m_streamId->array(), infoHash.array(), {} };
-            finishStream.Sign( m_keyPair );
-            
-            std::ostringstream os( std::ios::binary );
-            cereal::PortableBinaryOutputArchive archive( os );
-            auto driveKey = m_driveKey.array();
-            archive( driveKey );
-            archive( finishStream );
-
-            for( auto& endpoint : m_endPointList )
-            {
-                m_session->sendMessage( "finish-stream", endpoint, os.str() );
-            }
-        }
+//        {
+//            FinishStreamMsg finishStream{ m_streamId->array(), infoHash.array(), {} };
+//            finishStream.Sign( m_keyPair );
+//
+//            std::ostringstream os( std::ios::binary );
+//            cereal::PortableBinaryOutputArchive archive( os );
+//            auto driveKey = m_driveKey.array();
+//            archive( driveKey );
+//            archive( finishStream );
+//
+//            for( auto& endpoint : m_endPointList )
+//            {
+//                m_session->sendMessage( "finish-stream", endpoint, os.str() );
+//            }
+//        }
+        
+        m_streamId.reset();
+        return { infoHash, streamSize };
     }
     
     void addChunkToStream( const std::vector<uint8_t>& chunk, uint32_t durationMs, InfoHash* dbgInfoHash = nullptr )

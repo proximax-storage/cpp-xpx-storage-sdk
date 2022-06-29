@@ -543,62 +543,62 @@ static fs::path createClientFiles( size_t bigFileSize )
 //
 // clientDownloadHandler
 //
-static void clientDownloadHandler( download_status::code code,
-                                   const InfoHash& infoHash,
-                                   const std::filesystem::path /*filePath*/,
-                                   size_t /*downloaded*/,
-                                   size_t /*fileSize*/,
-                                   const std::string& /*errorText*/ )
-{
-    if ( code == download_status::download_complete )
-    {
-        EXLOG( "# Client received FsTree: " << toString(infoHash) );
-        EXLOG( "# FsTree file path: " << gClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
-        gFsTree.deserialize( gClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
-
-        // print FsTree
-        {
-            std::lock_guard<std::mutex> autolock( gExLogMutex );
-            gFsTree.dbgPrint();
-        }
-
-        isDownloadCompleted = true;
-        clientCondVar.notify_all();
-    }
-    else if ( code == download_status::dn_failed )
-    {
-        exit(-1);
-    }
-}
+//static void clientDownloadHandler( download_status::code code,
+//                                   const InfoHash& infoHash,
+//                                   const std::filesystem::path /*filePath*/,
+//                                   size_t /*downloaded*/,
+//                                   size_t /*fileSize*/,
+//                                   const std::string& /*errorText*/ )
+//{
+//    if ( code == download_status::download_complete )
+//    {
+//        EXLOG( "# Client received FsTree: " << toString(infoHash) );
+//        EXLOG( "# FsTree file path: " << gClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
+//        gFsTree.deserialize( gClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
+//
+//        // print FsTree
+//        {
+//            std::lock_guard<std::mutex> autolock( gExLogMutex );
+//            gFsTree.dbgPrint();
+//        }
+//
+//        isDownloadCompleted = true;
+//        clientCondVar.notify_all();
+//    }
+//    else if ( code == download_status::dn_failed )
+//    {
+//        exit(-1);
+//    }
+//}
 
 //
 // clientDownloadFsTree
 //
-static void clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession )
-{
-    InfoHash rootHash = *driveRootHash;
-    driveRootHash.reset();
-
-    isDownloadCompleted = false;
-
-    LOG("");
-    EXLOG( "# Client started FsTree download: " << toString(rootHash) );
-
-    clientSession->download( DownloadContext(
-                                    DownloadContext::fs_tree,
-                                    clientDownloadHandler,
-                                    rootHash,
-                                    *clientSession->downloadChannelId(), 0 ),
-                                    gClientFolder / "fsTree-folder",
-                                    "",
-                            {});//endpointList);
-
-    /// wait the end of file downloading
-    {
-        std::unique_lock<std::mutex> lock(clientMutex);
-        clientCondVar.wait( lock, [] { return isDownloadCompleted; } );
-    }
-}
+//static void clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession )
+//{
+//    InfoHash rootHash = *driveRootHash;
+//    driveRootHash.reset();
+//
+//    isDownloadCompleted = false;
+//
+//    LOG("");
+//    EXLOG( "# Client started FsTree download: " << toString(rootHash) );
+//
+//    clientSession->download( DownloadContext(
+//                                    DownloadContext::fs_tree,
+//                                    clientDownloadHandler,
+//                                    rootHash,
+//                                    *clientSession->downloadChannelId(), 0 ),
+//                                    gClientFolder / "fsTree-folder",
+//                                    "",
+//                            {});//endpointList);
+//
+//    /// wait the end of file downloading
+//    {
+//        std::unique_lock<std::mutex> lock(clientMutex);
+//        clientCondVar.wait( lock, [] { return isDownloadCompleted; } );
+//    }
+//}
 
 static std::string now_str()
 {
@@ -738,13 +738,16 @@ int main(int,char**)
     }
     gStreamerSession->initStream( streamTx, DRIVE_PUB_KEY, OSB_OUTPUT_PLAYLIST, STREAMER_WORK_FOLDER / "streamFolder", endpointList );
 
+    downloadStreamEnded = false;
     auto progress = []( std::string playListPath, int chunkIndex, int chunkNumber, std::string error )
     {
         EXLOG( "@ chunkIndex,chunkNumber: " << chunkIndex << "," << chunkNumber )
         if ( chunkIndex == chunkNumber )
         {
+            //std::unique_lock<std::mutex> lock(downloadStreamMutex);
             downloadStreamEnded = true;
             downloadStreamCondVar.notify_all();
+            downloadStreamCondVar.notify_one();
         }
     };
     
@@ -788,8 +791,17 @@ int main(int,char**)
 #endif
 
     sleep(1);
+    
+    //
+    // FinishStream
+    //
 
-    gStreamerSession->sendFinishStreamMessage( 3, 17 );
+    auto finishInfo = gStreamerSession->finishStream( 3, 17 );
+    
+    for( auto replicator : gReplicatorArray )
+    {
+        replicator->asyncFinishStreamTxPublished( DRIVE_PUB_KEY, StreamFinishRequest{ streamTx, finishInfo.infoHash, finishInfo.streamSizeBytes } );
+    }
     
     {
         std::unique_lock<std::mutex> lock(modifyCompleteMutex);
@@ -797,18 +809,13 @@ int main(int,char**)
     }
 
     EXLOG( "@ Client started FsTree download !!!!! " );
-    sleep(4);
+    //sleep(2);
     gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
-    clientDownloadFsTree( gViewerSession );
-//    InfoHash playlistInfoHash = getFile( * gFsTree.getFolderPtr("streamN1")->findChild( PLAYLIST_FILE_NAME ) ).hash();
-//
-//    fs::path destFolder = gClientFolder / "viewStreamFolder";
-//    downloadStreamEnded = false;
-//    gViewerSession->startWatchingStream( streamTx, DRIVE_PUB_KEY, destFolder, endpointList, progress );
+    //clientDownloadFsTree( gViewerSession );
 
     {
         std::unique_lock<std::mutex> lock(downloadStreamMutex);
-        modifyCompleteCondVar.wait( lock, [] { return downloadStreamEnded; } );
+        downloadStreamCondVar.wait( lock, [] { return downloadStreamEnded; } );
     }
 
     /// Delete client session and replicators
@@ -823,8 +830,8 @@ int main(int,char**)
     gReplicator3.reset();
     gReplicator4.reset();
 
-    _EXLOG( "" );
-    _EXLOG( "total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
+    _EXLOG( "@" );
+    _EXLOG( "@ total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
 
     return 0;
 }

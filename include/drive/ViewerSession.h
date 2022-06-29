@@ -38,8 +38,10 @@ class ViewerSession : public ClientSession, public DhtMessageHandler, public lt:
     Key                     m_driveKey;
     bool                    m_streamFinished = false;
     
+    endpoint_list           m_replicatorEndpointList;
+
     using udp_endpoint_list = std::set<boost::asio::ip::udp::endpoint>;
-    udp_endpoint_list       m_replicatorEndpointList;
+    udp_endpoint_list       m_udpReplicatorEndpointList;
     
     std::set<std::array<uint8_t,32>> m_replicatorSet;
     
@@ -119,9 +121,10 @@ public:
         cereal::PortableBinaryOutputArchive archive( os );
         
         archive( m_driveKey.array() );
+        archive( m_streamId->array() );
         archive( chunkIndex );
 
-        for( auto& endpoint : m_replicatorEndpointList )
+        for( auto& endpoint : m_udpReplicatorEndpointList )
         {
             m_session->sendMessage( "get-chunks-info", endpoint, os.str() );
         }
@@ -141,10 +144,11 @@ public:
         m_streamerKey = streamerKey;
         m_driveKey = driveKey;
         m_downloadStreamProgress = downloadStreamProgress;
+        m_replicatorEndpointList = replicatorEndpointList;
 
         for( const auto& endpoint : replicatorEndpointList )
         {
-            m_replicatorEndpointList.emplace( endpoint.address(), endpoint.port() );
+            m_udpReplicatorEndpointList.emplace( endpoint.address(), endpoint.port() );
         }
         
         fs::remove_all( workFolder );
@@ -224,7 +228,7 @@ public:
                 uint32_t  chunkIndex;
                 iarchive( chunkIndex );
                 
-                if ( chunkIndex == 0xffFFffFF )
+                if ( chunkIndex == 0xffffFFFF )
                 {
                     // stream maybe is ended
                     if ( ! m_playlistInfoHashReceived )
@@ -233,7 +237,12 @@ public:
                     }
                     return;
                 }
-                
+                else if ( chunkIndex == 0xffffFFF0 )
+                {
+                    // wait stream start
+                    return;
+                }
+
                 uint32_t  chunkNumber;
                 iarchive( chunkNumber );
                 _LOG( "chunkIndex:" << chunkIndex << " chunkNumber:" << chunkNumber )
@@ -273,7 +282,7 @@ public:
                     return;
                 }
                 
-                if ( m_replicatorEndpointList.find(endpoint) == m_replicatorEndpointList.end() )
+                if ( m_udpReplicatorEndpointList.find(endpoint) == m_udpReplicatorEndpointList.end() )
                 {
                     return;
                 }
@@ -282,7 +291,7 @@ public:
                 iarchive( playlistInfoHash );
                 m_playlistInfoHashMap[endpoint] = InfoHash(playlistInfoHash);
                 
-                if ( m_playlistInfoHashMap.size() > (m_replicatorEndpointList.size()*2)/3 + 1 )
+                if ( m_playlistInfoHashMap.size() > (m_udpReplicatorEndpointList.size()*2)/3 + 1 )
                 {
                     struct VoteCounter { int counter = 0; };
                     std::map<InfoHash,VoteCounter> votingMap;
@@ -290,7 +299,7 @@ public:
                     for( auto& pair : m_playlistInfoHashMap )
                     {
                         size_t voteNumber = votingMap[pair.second].counter++;
-                        if ( voteNumber >= (m_replicatorEndpointList.size()*2)/3 + 1 )
+                        if ( voteNumber >= (m_udpReplicatorEndpointList.size()*2)/3 + 1 )
                         {
                             m_playlistInfoHashReceived = true;
                             startDownloadFinishedStream( pair.second, m_chunkFolder );
@@ -318,7 +327,7 @@ public:
         archive( m_driveKey.array() );
         archive( m_streamId->array() );
 
-        for( auto& endpoint : m_replicatorEndpointList )
+        for( auto& endpoint : m_udpReplicatorEndpointList )
         {
             //todo filter end-of-stream-peers
             m_session->sendMessage( "get-playlist-hash", endpoint, os.str() );
@@ -403,7 +412,8 @@ public:
                            {}, //getUploaders(),
                            &m_driveKey.array(),
                            &(*m_downloadChannelId),
-                           &m_streamId->array()
+                           &m_streamId->array(),
+                           m_replicatorEndpointList
                         );
     }
     
@@ -446,26 +456,26 @@ public:
         return true;
     }
 
-    void startWatchingStream( const Hash256&          streamId,
-                              const Key&              driveKey,
-                              const fs::path&         destFolder,
-                              const endpoint_list&    replicatorEndpointList,
-                              DownloadStreamProgress  downloadStreamProgress )
-    {
-        _ASSERT( ! m_streamId )
-
-        if ( m_downloadStreamProgress )
-        {
-            _LOG_WARN( "cannot start download stream before previous stream download is not ended" )
-            throw std::runtime_error( "cannot start download stream before previous stream download is not ended" );
-        }
-        
-        m_streamId = streamId;
-        m_driveKey = driveKey;
-        m_downloadStreamProgress = downloadStreamProgress;
-
-        requestPlaylistInfoHash();
-    }
+//    void startWatchingStream( const Hash256&          streamId,
+//                              const Key&              driveKey,
+//                              const fs::path&         destFolder,
+//                              const endpoint_list&    replicatorEndpointList,
+//                              DownloadStreamProgress  downloadStreamProgress )
+//    {
+//        _ASSERT( ! m_streamId )
+//
+//        if ( m_downloadStreamProgress )
+//        {
+//            _LOG_WARN( "cannot start download stream before previous stream download is not ended" )
+//            throw std::runtime_error( "cannot start download stream before previous stream download is not ended" );
+//        }
+//
+//        m_streamId = streamId;
+//        m_driveKey = driveKey;
+//        m_downloadStreamProgress = downloadStreamProgress;
+//
+//        requestPlaylistInfoHash();
+//    }
     
     void startDownloadFinishedStream( InfoHash              playlistInfoHash,
                                       std::filesystem::path destFolder )
@@ -530,7 +540,8 @@ public:
                            {},
                            &m_driveKey.array(),
                            &(*m_downloadChannelId),
-                           &m_streamId->array()
+                           &m_streamId->array(),
+                           m_replicatorEndpointList
                         );
     }
     
@@ -703,7 +714,8 @@ download_next_chunk:
                            {}, //getUploaders(),
                            &m_driveKey.array(),
                            &(*m_downloadChannelId),
-                           &m_streamId->array()
+                           &m_streamId->array(),
+                           m_replicatorEndpointList
                         );
     }
     

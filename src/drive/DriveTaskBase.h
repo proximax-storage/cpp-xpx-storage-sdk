@@ -125,19 +125,21 @@ public:
         // it must be overriden by StreamTask
     }
 
-    virtual void acceptFinishStreamMessage( mobj<FinishStreamMsg>&&, const boost::asio::ip::udp::endpoint& streamer )
+    virtual void acceptFinishStreamTx( mobj<StreamFinishRequest>&& )
     {
         // it must be overriden by StreamTask
     }
 
-    virtual std::string acceptGetChunksInfoMessage( uint32_t                              chunkIndex,
+    virtual std::string acceptGetChunksInfoMessage( const std::array<uint8_t,32>&         streamId,
+                                                    uint32_t                              chunkIndex,
                                                     const boost::asio::ip::udp::endpoint& viewer )
     {
         // it must be overriden by StreamTask
 
+        bool streamFinished = m_drive.m_streamMap.find( Hash256(streamId) ) != m_drive.m_streamMap.end();
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
-        int32_t streamIsEnded = 0xffFFffFF;
+        int32_t streamIsEnded = streamFinished ? 0xffffFFFF : 0xffffFFF0;
         archive( streamIsEnded );
 
         return os.str();

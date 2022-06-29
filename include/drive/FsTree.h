@@ -81,10 +81,10 @@ public:
     std::string& name()
     { return m_name; }
 
-    bool& isaStream()
+    bool isaStream() const
     { return m_isaStream; }
 
-    Hash256& streamId()
+    const Hash256& streamId() const
     { return m_streamId; }
 
     bool initWithFolder( const std::string& pathToFolder );
@@ -93,7 +93,8 @@ public:
     bool operator==( const Folder& f ) const { return m_name==f.m_name && m_childs==f.m_childs; }
 
     bool iterate( const std::function<bool(const File&)>& func ) const;
-    
+    void iterateAllFolders( const std::function<void(const Folder&)>& func ) const;
+
     const Folder* findStreamFolder( const Hash256& streamId ) const;
     
     void getSizes( const std::filesystem::path& driveFolder,
@@ -164,6 +165,18 @@ inline bool Folder::iterate( const std::function<bool(const File&)>& func ) cons
        }
     }
     return false;
+}
+
+inline void Folder::iterateAllFolders( const std::function<void(const Folder&)>& func ) const
+{
+    for( auto& child : m_childs )
+    {
+       if ( isFolder(child) )
+       {
+           func( getFolder(child) );
+           getFolder(child).iterateAllFolders( func );
+       }
+    }
 }
 
 inline const Folder* Folder::findStreamFolder( const Hash256& streamId ) const

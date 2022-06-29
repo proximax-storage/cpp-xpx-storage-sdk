@@ -24,7 +24,7 @@ namespace sirius::drive {
     {
         Hash256                     m_streamId;     // transaction hash
         Key                         m_streamerKey;  // streamer public key
-        std::string                 m_folder;       // where it will be saved
+        std::string                 m_folder;       // where it will be saved in FsTree
         uint64_t                    m_maxSizeBytes; // could be increased
         ReplicatorList              m_replicatorList;
     };
@@ -38,7 +38,7 @@ namespace sirius::drive {
     struct StreamFinishRequest
     {
         Hash256                     m_streamId; // transaction hash
-        InfoHash                    m_streamStructureInfoHash;
+        InfoHash                    m_finishDataInfoHash;
         uint64_t                    m_streamSizeBytes; // stream size after increasing
     };
 
@@ -112,38 +112,38 @@ namespace sirius::drive {
         }
     };
 
-    struct FinishStreamMsg
-    {
-        std::array<uint8_t,32>      m_streamId;
-        std::array<uint8_t,32>      m_finishDataInfoHash;
-        std::array<uint8_t, 64>     m_sign;
-
-        template <class Archive> void serialize( Archive & arch )
-        {
-            arch( m_streamId );
-            arch( m_finishDataInfoHash );
-            arch( m_sign );
-        }
-
-        void Sign( const crypto::KeyPair& keyPair )
-        {
-            crypto::Sign( keyPair,
-                          {
-                                utils::RawBuffer{m_streamId},
-                                utils::RawBuffer{m_finishDataInfoHash},
-                          },
-                         reinterpret_cast<Signature &>(m_sign) );
-        }
-
-        bool Verify( const Key& streamerKey ) const
-        {
-            return crypto::Verify( streamerKey,
-                                   {
-                                        utils::RawBuffer{m_streamId},
-                                        utils::RawBuffer{m_finishDataInfoHash},
-                                   },
-                                  reinterpret_cast<const Signature &>(m_sign) );
-        }
-    };
+//    struct FinishStreamMsg
+//    {
+//        std::array<uint8_t,32>      m_streamId;
+//        std::array<uint8_t,32>      m_finishDataInfoHash;
+//        std::array<uint8_t, 64>     m_sign;
+//
+//        template <class Archive> void serialize( Archive & arch )
+//        {
+//            arch( m_streamId );
+//            arch( m_finishDataInfoHash );
+//            arch( m_sign );
+//        }
+//
+//        void Sign( const crypto::KeyPair& keyPair )
+//        {
+//            crypto::Sign( keyPair,
+//                          {
+//                                utils::RawBuffer{m_streamId},
+//                                utils::RawBuffer{m_finishDataInfoHash},
+//                          },
+//                         reinterpret_cast<Signature &>(m_sign) );
+//        }
+//
+//        bool Verify( const Key& streamerKey ) const
+//        {
+//            return crypto::Verify( streamerKey,
+//                                   {
+//                                        utils::RawBuffer{m_streamId},
+//                                        utils::RawBuffer{m_finishDataInfoHash},
+//                                   },
+//                                  reinterpret_cast<const Signature &>(m_sign) );
+//        }
+//    };
 
 }

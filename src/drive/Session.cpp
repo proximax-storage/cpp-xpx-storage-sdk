@@ -968,12 +968,12 @@ private:
                          if ( rDict.type() == lt::bdecode_node::dict_t )
                          {
                              auto query = rDict.dict_find_string_value("q");
-                             if ( query.size() > 0 && query != "chunk-info" && query != "endpoint_request"
-                                    && query != "handshake" && query != "endpoint_response" )
-                             {
-                                 _LOG( "dht_query: " << query );
-                                 _LOG( "" );
-                             }
+//                             if ( query.size() > 0 && query != "chunk-info" && query != "endpoint_request"
+//                                    && query != "handshake" && query != "endpoint_response" )
+//                             {
+//                                 _LOG( "dht_query: " << query );
+//                                 _LOG( "" );
+//                             }
                              //_LOG( "dht_query: " << query )
                              if ( query == "get_dn_rcpts" || query == "get-chunks-info" || query == "get-playlist-hash" )
                              {

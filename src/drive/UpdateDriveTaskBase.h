@@ -124,6 +124,7 @@ protected:
         m_drive.m_fsTreeLtHandle = *m_sandboxFsTreeLtHandle;
         m_sandboxFsTreeLtHandle.reset();
 
+        m_drive.updateStreamMap();
 //        m_isSynchronizing = false;
 
         finishTask();
