@@ -40,6 +40,7 @@ public:
 
     void cancel() override {
         m_cancelled = true;
+        m_timer.cancel();
     }
 
 private:
