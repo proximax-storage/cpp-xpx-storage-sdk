@@ -18,14 +18,12 @@ namespace sirius::drive {
 class RcptSyncronizer
 {
 private:
-    using Timer         = boost::asio::high_resolution_timer;
-
     struct ChannelSyncInfo
     {
         std::shared_ptr<FlatDrive>  m_drive;
         std::set<ReplicatorKey>     m_responseSet;
         size_t                      m_consensusThreshould;
-        std::optional<Timer>        m_syncTimeoutTimer;
+        Timer                       m_syncTimeoutTimer;
     };
     
     using SyncChannelMap = std::map<ChannelId,ChannelSyncInfo>;
@@ -58,7 +56,7 @@ public:
 
         if ( syncChannelIt == m_syncChannelMap.end() )
         {
-            syncChannelIt = m_syncChannelMap.insert( syncChannelIt, { channelId, ChannelSyncInfo{drive,{},consensusThreshould,{}} } );
+            syncChannelIt = m_syncChannelMap.insert( syncChannelIt, { channelId, ChannelSyncInfo{drive,{},consensusThreshould, Timer() } } );
         }
         
         auto& channelSyncInfo = syncChannelIt->second;
@@ -87,7 +85,7 @@ public:
         //(???+) todo: startTimer( "15*1000" )
         channelSyncInfo.m_syncTimeoutTimer = m_session->startTimer( 15*1000, [&,this]{
             requestOpinons( channelId, channelSyncInfo );
-            channelSyncInfo.m_syncTimeoutTimer.reset();
+            channelSyncInfo.m_syncTimeoutTimer.cancel();
         } );
     }
     
@@ -104,7 +102,7 @@ public:
         syncChannelIt->second.m_responseSet.insert( replicatorKey );
         if ( syncChannelIt->second.m_responseSet.size() >= syncChannelIt->second.m_consensusThreshould )
         {
-            syncChannelIt->second.m_syncTimeoutTimer.reset();
+            syncChannelIt->second.m_syncTimeoutTimer.cancel();
             m_syncChannelMap.erase( syncChannelIt );
             _LOG( "channel is synced: chId=" << int(channelId[0]) )
         }

@@ -100,6 +100,9 @@ namespace sirius::drive::test
 
         env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS);
 
+        // Replicators should find each other
+        sleep(5);
+
         auto folderToCorrupt = fs::path( env.m_rootFolders.back() ) / toString(DRIVE_PUB_KEY) / "drive";
         for (const auto & entry : fs::directory_iterator(folderToCorrupt))
         {

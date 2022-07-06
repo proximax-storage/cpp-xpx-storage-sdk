@@ -176,7 +176,7 @@ public:
             return false;
         }
 
-        if ( it->second.m_isSyncronizing )
+        if ( it->second.m_isSynchronizing )
         {
             _LOG ("Check Download Limit: channel is syncronizing");
             return false;
@@ -656,43 +656,45 @@ public:
 
         bool isAccepted = acceptUploadSize( msg, channelInfo );
         
-        if ( isAccepted && fromAnotherReplicator )
+        if ( isAccepted )
         {
+            //
+            // Select 4 replicators and forward them the receipt
+            //
+
+            std::vector<ReplicatorKey> receivers;
             if ( fromAnotherReplicator )
             {
-                //
-                // Select 4 replicators and forward them the receipt
-                //
-                auto keyPointersSize = channelInfoIt->second.m_dnReplicatorShard.size() - 1;
-                Key* keyPointers[keyPointersSize];
-                auto keyIt = keyPointers;
-                for( auto replicatorIt = channelInfoIt->second.m_dnReplicatorShard.begin(); replicatorIt != channelInfoIt->second.m_dnReplicatorShard.end(); replicatorIt++ )
+                std::vector<ReplicatorKey> candidates;
+                for( const auto& key: channelInfoIt->second.m_dnReplicatorShard )
                 {
-                    if ( *replicatorIt != m_keyPair.publicKey().array() )
+                    if ( key != m_keyPair.publicKey().array() )
                     {
-                        *keyIt = &(*replicatorIt);
-                        keyIt++;
+                        receivers.emplace_back(key);
                     }
                 }
-                
-                auto forwardSize = keyPointersSize;
-                while( forwardSize > 4 )
+
+                while ( !candidates.empty() && receivers.size() < 4 )
                 {
-                    int randIndex = random() % forwardSize;
-                    if ( keyPointers[randIndex] != nullptr )
+                    auto randIndex = random() % candidates.size();
+                    std::swap( candidates[randIndex], candidates.back() );
+                    receivers.emplace_back(candidates.back());
+                    candidates.pop_back();
+                }
+            }
+            else {
+                for( const auto& key: channelInfoIt->second.m_dnReplicatorShard )
+                {
+                    if ( key != m_keyPair.publicKey().array() )
                     {
-                        keyPointers[randIndex] = nullptr;
-                        forwardSize--;
+                        receivers.emplace_back(key);
                     }
                 }
-                
-                for( size_t i=0; i<keyPointersSize; i++ )
-                {
-                    if ( keyPointers[i] != nullptr )
-                    {
-                        sendMessage( "rcpt", keyPointers[i]->array(), msg );
-                    }
-                }
+            }
+
+            for( const auto& key: receivers )
+            {
+                sendMessage( "rcpt", key, msg );
             }
         }
         
@@ -738,41 +740,40 @@ public:
 
         if ( msg.replicatorKey() == m_keyPair.publicKey().array() )
         {
+            uint64_t uploadedSize = 0;
             if ( auto clientSizesIt = channelInfo.m_dnClientMap.find( msg.clientKey() ); clientSizesIt != channelInfo.m_dnClientMap.end() )
             {
-                auto requestedSize = msg.downloadedSize() - clientSizesIt->second.m_uploadedSize;
-                if ( requestedSize >= m_advancePaymentLimit )
-                {
-                    // The client is forbidden to prepay too much in order to avoid an attack
-                    _LOG_WARN("attempt to hand over large receipt");
-                    return false;
-                }
+                uploadedSize = clientSizesIt->second.m_uploadedSize;
+            }
+
+            auto requestedSize = msg.downloadedSize() - uploadedSize;
+            if ( requestedSize >= m_advancePaymentLimit )
+            {
+                // The client is forbidden to prepay too much in order to avoid an attack
+                _LOG_WARN("attempt to hand over large receipt");
+                return false;
             }
         }
         
         channelInfo.m_totalReceiptsSize += msg.downloadedSize() - lastAcceptedUploadSize;
         replicatorInfoIt->second.acceptReceipt( msg.clientKey(), msg.downloadedSize() );
         
-        auto clientReceiptIt = channelInfo.m_clientReceiptMap.lower_bound( msg.clientKey() );
+        auto clientReceiptIt = channelInfo.m_clientReceiptMap.find( msg.clientKey() );
         
         if ( clientReceiptIt == channelInfo.m_clientReceiptMap.end() )
         {
             ClientReceipts receipts;
-            channelInfo.m_clientReceiptMap.insert( clientReceiptIt, { msg.clientKey(), receipts } );
+            auto [insertedIt, success] = channelInfo.m_clientReceiptMap.insert( { msg.clientKey(), receipts } );
+            clientReceiptIt = insertedIt;
         }
-        else
+
+        auto replicatorIt = clientReceiptIt->second.find( msg.clientKey() );
+        if ( replicatorIt == clientReceiptIt->second.end() )
         {
-            auto replicatorIt = clientReceiptIt->second.lower_bound( msg.clientKey() );
-            if ( replicatorIt == clientReceiptIt->second.end() )
-            {
-                clientReceiptIt->second.insert( replicatorIt, { msg.replicatorKey(), msg } );
-            }
-            else
-            {
-                //todo+++ (???++++) _ASSERT( replicatorIt->second.downloadedSize() <= msg.downloadedSize() );
-                replicatorIt->second = std::move(msg);
-            }
+            auto [insertedIt, success] = clientReceiptIt->second.insert( { msg.replicatorKey(), RcptMessage() } );
+            replicatorIt = insertedIt;
         }
+        replicatorIt->second = msg;
         
         return true;
     }

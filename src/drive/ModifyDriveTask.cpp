@@ -44,7 +44,7 @@ private:
     
     uint64_t m_uploadedDataSize = 0;
 
-    std::optional<boost::asio::high_resolution_timer> m_shareMyOpinionTimer;
+    Timer    m_shareMyOpinionTimer;
 #ifndef __APPLE__
     const int m_shareMyOpinionTimerDelayMs = 1000 * 60;
 #else
@@ -52,7 +52,7 @@ private:
     const int m_shareMyOpinionTimerDelayMs = 1000 * 1;
 #endif
 
-    std::optional<boost::asio::high_resolution_timer> m_modifyOpinionTimer;
+    Timer m_modifyOpinionTimer;
 
 public:
 
@@ -72,8 +72,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_modifyOpinionTimer.reset();
-        m_shareMyOpinionTimer.reset();
+        m_modifyOpinionTimer.cancel();
+        m_shareMyOpinionTimer.cancel();
 
         breakTorrentDownloadAndRunNextTask();
     }

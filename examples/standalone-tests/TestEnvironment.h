@@ -474,7 +474,9 @@ public:
         EXLOG( "modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
         const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
 
-        if ( m_drives[transactionInfo.m_driveKey].m_pendingModifications.front().m_transactionHash == transactionInfo.m_modifyTransactionHash )
+        auto& pendingModifications = m_drives[transactionInfo.m_driveKey].m_pendingModifications;
+
+        if ( !pendingModifications.empty() && pendingModifications.front().m_transactionHash == transactionInfo.m_modifyTransactionHash )
         {
 
             const auto & replicators = m_drives[transactionInfo.m_driveKey].m_driveRequest.m_fullReplicatorList;
@@ -518,7 +520,7 @@ public:
             {
                 if ( auto r = getReplicator( key ); r )
                 {
-                    r->asyncApprovalTransactionHasBeenPublished(
+                   r->asyncApprovalTransactionHasBeenPublished(
                         PublishedModificationApprovalTransactionInfo( transactionInfo ));
                 }
             }

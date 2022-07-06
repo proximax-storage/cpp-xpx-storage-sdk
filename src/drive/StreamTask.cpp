@@ -59,7 +59,7 @@ class StreamTask : public UpdateDriveTaskBase
     
     uint64_t m_uploadedDataSize = 0;
 
-    std::optional<boost::asio::high_resolution_timer> m_shareMyOpinionTimer;
+    Timer m_shareMyOpinionTimer;
 #ifndef __APPLE__
     const int m_shareMyOpinionTimerDelayMs = 1000 * 60;
 #else
@@ -67,7 +67,7 @@ class StreamTask : public UpdateDriveTaskBase
     const int m_shareMyOpinionTimerDelayMs = 1000 * 1;
 #endif
 
-    std::optional<boost::asio::high_resolution_timer> m_modifyOpinionTimer;
+    Timer m_modifyOpinionTimer;
 
     
 public:

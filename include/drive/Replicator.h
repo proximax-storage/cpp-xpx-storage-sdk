@@ -9,6 +9,7 @@
 #include "types.h"
 #include "plugins.h"
 #include "drive/FlatDrive.h"
+#include "drive/Timer.h"
 #include "drive/Streaming.h"
 #include "crypto/Signer.h"
 
@@ -64,8 +65,8 @@ struct DownloadOpinionMapValue
     std::map<std::array<uint8_t,32>, DownloadOpinion>   m_opinions;
     bool                                                m_modifyApproveTransactionSent = false;
     bool                                                m_approveTransactionReceived = false;
-    std::optional<boost::asio::high_resolution_timer>   m_timer = {};
-    std::optional<boost::asio::high_resolution_timer>   m_opinionShareTimer = {};
+    Timer                                               m_timer = {};
+    Timer                                               m_opinionShareTimer = {};
     boost::posix_time::ptime                            m_creationTime = boost::posix_time::microsec_clock::universal_time();
 
     DownloadOpinionMapValue() {}
@@ -164,7 +165,7 @@ struct DownloadChannelInfo
         }
     };
 
-    bool     m_isSyncronizing;
+    bool     m_isSynchronizing;
 
     uint64_t m_prepaidDownloadSize;
     uint64_t m_totalReceiptsSize = 0;
@@ -314,7 +315,7 @@ struct DhtHandshake
 struct EndpointInformation
 {
     std::optional<boost::asio::ip::tcp::endpoint> m_endpoint;
-    std::optional<boost::asio::high_resolution_timer> m_timer;
+    Timer m_timer;
 };
 
 //
