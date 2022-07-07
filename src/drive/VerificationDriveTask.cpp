@@ -84,15 +84,19 @@ public:
         //
         // Run verification task on separate thread
         //
-        m_verifyThread = std::thread( [this]
-                                      {
-                                          verify();
-                                      } );
+        m_verifyThread = std::thread( [t = weak_from_this()]
+        {
+            if ( auto task = t.lock(); task ) {
+                task->verify();
+            }
+        } );
     }
 
     void terminate() override
     {
         DBG_MAIN_THREAD
+
+        _LOG( "Verification Is Terminated" )
 
         m_verifyCodeTimer.cancel();
         m_verifyOpinionTimer.cancel();
@@ -249,6 +253,8 @@ private:
         // commented because of races
         //            DBG_VERIFY_THREAD
 
+        _LOG( "Started Verify Thread" )
+
         m_verificationCodes = std::vector<uint64_t>(
                 m_request->m_replicators.size(), 0 );
 
@@ -321,6 +327,8 @@ private:
     {
         //        DBG_VERIFY_THREAD
 
+        _LOG( "Started Calculating Verify Codes" )
+
         for( const auto& child : folder.childs() )
         {
             if ( m_verificationMustBeInterrupted )
@@ -369,6 +377,8 @@ private:
     {
         DBG_MAIN_THREAD
 
+        _LOG( "Verification Codes Completed" )
+
         if ( m_verificationMustBeInterrupted )
         {
             // 'Verify Approval Tx' already published or canceled (we are late)
@@ -416,6 +426,8 @@ private:
     {
         DBG_MAIN_THREAD
 
+        _LOG( "Check Verify Code Number" )
+
         _ASSERT( m_myVerifyCodesCalculated )
 
         auto replicatorNumber = m_request->m_replicators.size();
@@ -456,6 +468,8 @@ private:
     {
         DBG_MAIN_THREAD
 
+        _LOG( "Verify Opinion Timer Expired" )
+
         if ( m_verificationMustBeInterrupted )
         {
             return;
@@ -471,6 +485,8 @@ private:
     void verifyCodeTimerExpired()
     {
         DBG_MAIN_THREAD
+
+        _LOG( "Verify Code Timer Expired" )
 
         if ( m_verificationMustBeInterrupted )
         {
