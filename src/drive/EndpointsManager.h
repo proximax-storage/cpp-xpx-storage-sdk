@@ -25,7 +25,7 @@ private:
     ReplicatorInt& m_replicator;
     std::weak_ptr<Session> m_session;
 
-    std::optional<boost::asio::high_resolution_timer> m_externalPointUpdateTimer;
+    Timer m_externalPointUpdateTimer;
 
     std::optional<boost::asio::ip::tcp::endpoint> m_externalEndpoint;
     std::optional<ExternalEndpointRequest> m_externalEndpointRequest;
@@ -66,10 +66,10 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_externalPointUpdateTimer.reset();
+        m_externalPointUpdateTimer.cancel();
         for (auto&[key, value]: m_endpointsMap)
         {
-            value.m_timer.reset();
+            value.m_timer.cancel();
         }
     }
 
@@ -137,7 +137,7 @@ public:
                     });
                 }
 #else
-                it->second.m_timer.reset();
+                it->second.m_timer.cancel();
 #endif
             } else
             {

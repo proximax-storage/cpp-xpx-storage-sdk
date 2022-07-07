@@ -106,6 +106,9 @@ namespace sirius::drive::test
 
         env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS);
 
+        // Replicators should find each other
+        sleep(5);
+
         verify(env);
         verify(env);
     }

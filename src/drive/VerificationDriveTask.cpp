@@ -37,8 +37,8 @@ private:
 
     std::vector<uint64_t>                                       m_verificationCodes;
 
-    std::optional<boost::asio::high_resolution_timer>           m_verifyCodeTimer;
-    std::optional<boost::asio::high_resolution_timer>           m_verifyOpinionTimer;
+    Timer                                                       m_verifyCodeTimer;
+    Timer                                                       m_verifyOpinionTimer;
 
     std::map<std::array<uint8_t,32>, VerificationCodeInfo>      m_receivedCodes;
     std::optional<VerifyApprovalTxInfo>                         m_myVerificationApprovalTxInfo;
@@ -94,8 +94,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_verifyCodeTimer.reset();
-        m_verifyOpinionTimer.reset();
+        m_verifyCodeTimer.cancel();
+        m_verifyOpinionTimer.cancel();
 
         m_verificationMustBeInterrupted = false;
 
@@ -423,7 +423,7 @@ private:
         // check code number
         if ( m_receivedCodes.size() == replicatorNumber-1 )
         {
-            m_verifyCodeTimer.reset();
+            m_verifyCodeTimer.cancel();
             verifyCodeTimerExpired();
         }
         else if ( !m_codeTimerRun )
@@ -462,8 +462,8 @@ private:
         }
 
         m_verifyApproveTxSent = true;
-        m_verifyCodeTimer.reset();
-        m_verifyOpinionTimer.reset();
+        m_verifyCodeTimer.cancel();
+        m_verifyOpinionTimer.cancel();
 
         m_drive.m_eventHandler.verificationTransactionIsReady( m_drive.m_replicator, *m_myVerificationApprovalTxInfo );
     }

@@ -731,7 +731,7 @@ public:
 //        }
     }
     
-    virtual std::optional<boost::asio::high_resolution_timer> startTimer( int miliseconds, const std::function<void()>& func ) override
+    virtual Timer startTimer( int milliseconds, std::function<void()> func ) override
     {
         auto delegate = m_downloadLimiter.lock();
         if ( !delegate || delegate->isStopped() )
@@ -739,17 +739,7 @@ public:
             return {};
         }
 
-        boost::asio::high_resolution_timer timer( m_session.get_context() );
-        
-        timer.expires_after( std::chrono::milliseconds( miliseconds ) );
-        timer.async_wait( [func=func] (boost::system::error_code const& e) {
-            if ( !e )
-            {
-                func();
-            }
-        });
-        
-        return timer;
+        return { m_session.get_context(), milliseconds, std::move( func ) };
     }
 
 

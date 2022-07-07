@@ -132,8 +132,8 @@ public:
         {
             for ( auto& [event, opinion]: value.m_downloadOpinionMap )
             {
-                opinion.m_timer.reset();
-                opinion.m_opinionShareTimer.reset();
+                opinion.m_timer.cancel();
+                opinion.m_opinionShareTimer.cancel();
             }
         }
 
@@ -439,7 +439,7 @@ public:
     	});
 	}
 
-	virtual void asyncSetChanelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys ) {
+	virtual void asyncSetChanelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys ) override {
     	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
     	{
     		DBG_MAIN_THREAD
@@ -993,7 +993,7 @@ public:
             return;
         }
 
-        auto &channel = channelIt->second;
+        auto& channel = channelIt->second;
         auto blockHash = opinion->m_blockHash;
 
         if (channel.m_downloadOpinionMap.find(opinion->m_blockHash) == channel.m_downloadOpinionMap.end())
@@ -1022,29 +1022,37 @@ public:
             if (!opinionInfo.m_timer)
             {
                 //todo check
-                opinionInfo.m_timer = m_session->startTimer(m_downloadApprovalTransactionTimerDelayMs,
-                                                            [this, &opinionInfo]()
-                                                            { onDownloadApprovalTimeExpired(opinionInfo); });
+                opinionInfo.m_timer = m_session->startTimer( m_downloadApprovalTransactionTimerDelayMs,[this, channelId = opinion->m_downloadChannelId, blockHash = blockHash]() {
+                                                                 onDownloadApprovalTimeExpired(
+                                                                         ChannelId( channelId ), Hash256( blockHash ));
+                                                             } );
             }
         }
     }
     
-    void onDownloadApprovalTimeExpired( DownloadOpinionMapValue& mapValue )
+    void onDownloadApprovalTimeExpired( const ChannelId& channelId, const Hash256& blockHash )
     {
         DBG_MAIN_THREAD
-        
-        if ( mapValue.m_modifyApproveTransactionSent || mapValue.m_approveTransactionReceived )
+
+        auto channelIt = m_dnChannelMap.find(channelId);
+
+        _ASSERT( channelIt != m_dnChannelMap.end() )
+
+        auto& downloadMapValue = channelIt->second.m_downloadOpinionMap.find( blockHash.array() )->second;
+
+        if ( downloadMapValue.m_modifyApproveTransactionSent || downloadMapValue.m_approveTransactionReceived ) {
             return;
+        }
 
         // notify
         std::vector<DownloadOpinion> opinions;
-        for (const auto& [replicatorId, opinion]: mapValue.m_opinions)
+        for (const auto& [replicatorId, opinion]: downloadMapValue.m_opinions)
         {
             opinions.push_back(opinion);
         }
-        auto transactionInfo = DownloadApprovalTransactionInfo{mapValue.m_eventHash, mapValue.m_downloadChannelId, std::move(opinions)};
+        auto transactionInfo = DownloadApprovalTransactionInfo{downloadMapValue.m_eventHash, downloadMapValue.m_downloadChannelId, std::move(opinions)};
         m_eventHandler.downloadApprovalTransactionIsReady( *this, transactionInfo );
-        mapValue.m_modifyApproveTransactionSent = true;
+        downloadMapValue.m_modifyApproveTransactionSent = true;
     }
     
     virtual void asyncInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) override
@@ -1178,7 +1186,7 @@ public:
                     }
                     if ( opinionInfo.m_timer )
                     {
-                        opinionInfo.m_timer.reset();
+                        opinionInfo.m_timer.cancel();
                     }
                     auto receivedOpinions = opinionInfo.m_opinions;
                     opinionInfo.m_opinions.clear();
@@ -1229,8 +1237,8 @@ public:
                 else if ( auto it = opinions.find( eventHash.array() ); it != opinions.end() )
                 {
                     // TODO maybe remove the entry?
-                    it->second.m_timer.reset();
-                    it->second.m_opinionShareTimer.reset();
+                    it->second.m_timer.cancel();
+                    it->second.m_opinionShareTimer.cancel();
                     it->second.m_approveTransactionReceived = true;
                 }
             }
