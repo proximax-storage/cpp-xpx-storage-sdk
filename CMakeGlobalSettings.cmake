@@ -11,7 +11,7 @@ set(Boost_USE_STATIC_RUNTIME OFF)
 
 ### set compiler settings
 if(MSVC)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /WX /EHsc")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /EHsc /DBOOST_LOG_DYN_LINK")
         # in debug disable "potentially uninitialized local variable" (FP)
         set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd /D_SCL_SECURE_NO_WARNINGS /wd4701")
         set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MD /Zi")
@@ -28,6 +28,7 @@ if(MSVC)
         # min/max macros are useless
         add_definitions(-DNOMINMAX)
         add_definitions(-DWIN32_LEAN_AND_MEAN)
+        add_definitions(-D _WIN32_WINNT=0x0601)
 
         # mongo cxx view inherits std::iterator
         add_definitions(-D_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING)
@@ -35,7 +36,7 @@ if(MSVC)
         add_definitions(-D_SILENCE_CXX17_ALLOCATOR_VOID_DEPRECATION_WARNING)
 elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
         # -Wstrict-aliasing=1 perform most paranoid strict aliasing checks
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wstrict-aliasing=1 -Wnon-virtual-dtor -Wno-error=uninitialized -Wno-error=unknown-pragmas -Wno-unused-parameter")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-error=attributes -Wno-error=cpp -Wstrict-aliasing=1 -Wnon-virtual-dtor -Wno-error=uninitialized -Wno-error=unknown-pragmas -Wno-unused-parameter -DBOOST_LOG_DYN_LINK")
 
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden")
@@ -83,26 +84,29 @@ elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
 endif()
 
 # set runpath for built binaries on linux
-if(("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU") OR ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" AND "${CMAKE_SYSTEM_NAME}" MATCHES "Linux"))
-        file(MAKE_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/boost")
-        set(CMAKE_SKIP_BUILD_RPATH FALSE)
+if (NOT WIN32)
+        if(("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU") OR ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" AND "${CMAKE_SYSTEM_NAME}" MATCHES "Linux"))
+                file(MAKE_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/boost")
+                set(CMAKE_SKIP_BUILD_RPATH FALSE)
 
-        # $origin - to load plugins when running the server
-        # $origin/boost - same, use our boost libs
-        set(CMAKE_INSTALL_RPATH "$ORIGIN:$ORIGIN/deps${CMAKE_INSTALL_RPATH}")
-        set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-        set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+                # $origin - to load plugins when running the server
+                # $origin/boost - same, use our boost libs
+                set(CMAKE_INSTALL_RPATH "$ORIGIN:$ORIGIN/deps${CMAKE_INSTALL_RPATH}")
+                set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+                set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-        # use rpath for executables
-        # (executable rpath will be used for loading indirect libs, this is needed because boost libs do not set runpath)
-        # use newer runpath for shared libs
-        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--enable-new-dtags")
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--disable-new-dtags")
-endif()
+                # use rpath for executables
+                # (executable rpath will be used for loading indirect libs, this is needed because boost libs do not set runpath)
+                # use newer runpath for shared libs
+                set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--enable-new-dtags")
+                set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--disable-new-dtags")
+        endif()
 
-if(ARCHITECTURE_NAME)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=${ARCHITECTURE_NAME}")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=${ARCHITECTURE_NAME}")
+
+        if(ARCHITECTURE_NAME)
+                set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=${ARCHITECTURE_NAME}")
+                set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=${ARCHITECTURE_NAME}")
+        endif()
 endif()
 
 ### define target helper functions
@@ -111,8 +115,14 @@ endif()
 function(storage_sdk_target TARGET_NAME)
         set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 20)
 
+        include_directories(${CMAKE_SOURCE_DIR}/include)
+
         # indicate boost as a dependency
         target_link_libraries(${TARGET_NAME} ${Boost_LIBRARIES} ${CMAKE_DL_LIBS})
+
+        if(WIN32)
+            target_link_libraries(${TARGET_NAME} wsock32 ws2_32)
+        endif()
 
         # copy boost shared libraries
         foreach(BOOST_COMPONENT ATOMIC SYSTEM DATE_TIME REGEX TIMER CHRONO LOG THREAD FILESYSTEM) # PROGRAM_OPTIONS STACKTRACE_BACKTRACE)
@@ -191,10 +201,6 @@ function(storage_sdk_shared_library TARGET_NAME)
 
         add_definitions(-DDLL_EXPORTS)
 
-        if(MSVC)
-                set_win_version_definitions(${TARGET_NAME} VFT_DLL)
-        endif()
-
         if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
            add_library(${TARGET_NAME} ${${TARGET_NAME}_FILES} ${VERSION_RESOURCES})
         else()
@@ -206,36 +212,4 @@ endfunction()
 function(storage_sdk_shared_library_target TARGET_NAME)
         storage_sdk_shared_library(${TARGET_NAME} ${ARGN})
         storage_sdk_target(${TARGET_NAME})
-endfunction()
-
-# used to define a catapult executable, creating an appropriate source group and adding an executable
-function(storage_sdk_executable TARGET_NAME)
-        storage_sdk_find_all_target_files("exe" ${TARGET_NAME} ${ARGN})
-
-        if(MSVC)
-                set_win_version_definitions(${TARGET_NAME} VFT_APP)
-        endif()
-
-        add_executable(${TARGET_NAME} ${${TARGET_NAME}_FILES} ${VERSION_RESOURCES})
-
-        if(WIN32 AND MINGW)
-                target_link_libraries(${TARGET_NAME} wsock32 ws2_32)
-        endif()
-endfunction()
-
-# used to define a catapult header only target, creating an appropriate source group in order to allow VS to create an appropriate folder
-function(storage_sdk_header_only_target TARGET_NAME)
-        if(MSVC)
-                storage_sdk_find_all_target_files("hdr" ${TARGET_NAME} ${ARGN})
-
-                if (CMAKE_VERBOSE_MAKEFILE)
-                        foreach(arg ${ARGN})
-                                message("adding subdirectory '${arg}'")
-                        endforeach()
-                endif()
-
-                # https://stackoverflow.com/questions/39887352/how-to-create-a-cmake-header-only-library-that-depends-on-external-header-files
-                # target_sources doesn't work with interface libraries, but we can use custom_target (with empty action)
-                add_custom_target(${TARGET_NAME} SOURCES ${${TARGET_NAME}_FILES})
-        endif()
 endfunction()

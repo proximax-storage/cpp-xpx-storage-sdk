@@ -52,7 +52,7 @@ namespace sirius::drive {
 
 std::string FlatDrive::driveIsClosingPath( const std::string& driveRootPath )
 {
-    return fs::path(driveRootPath) / "restart-data" / "drive-is-closing";
+    return (fs::path(driveRootPath) / "restart-data" / "drive-is-closing").string();
 }
 
 
@@ -794,8 +794,8 @@ public:
                            *m_opinionController.opinionTrafficTx(),
                            0, true, ""
                    ),
-                   m_sandboxRootPath,
-                   m_sandboxRootPath / toString(infoHash),
+                   m_sandboxRootPath.string(),
+                   (m_sandboxRootPath / toString(infoHash)).string(),
                    {},
                    &m_driveKey.array(),
                    nullptr,

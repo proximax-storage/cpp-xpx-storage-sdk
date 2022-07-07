@@ -335,7 +335,7 @@ private:
             else
             {
                 const auto& fileHash = getFile(child).hash();
-                std::string fileName = m_drive.m_driveFolder / toString(fileHash);
+                std::string fileName = (m_drive.m_driveFolder / toString(fileHash)).string();
 
                 std::error_code err;
                 if ( !fs::exists( fileName, err ) )

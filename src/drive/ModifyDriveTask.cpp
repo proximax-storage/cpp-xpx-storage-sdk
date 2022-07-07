@@ -142,7 +142,7 @@ public:
                                                    m_request->m_maxDataSize - m_uploadedDataSize,
                                                    false,
                                                    "" ),
-                                               m_drive.m_sandboxRootPath,
+                                               m_drive.m_sandboxRootPath.string(),
                                                "",
                                                getUploaders(),
                                                &m_drive.m_driveKey.array(),
@@ -171,7 +171,7 @@ public:
         // Load 'actionList' into memory
         ActionList actionList;
         try {
-            actionList.deserialize( actionListFilename );
+            actionList.deserialize( actionListFilename.string() );
         } catch (...)
         {
             _LOG_WARN( "modifyDriveInSandbox: invalid 'ActionList'" << m_request->m_clientDataInfoHash );
@@ -258,8 +258,8 @@ public:
                                                                    m_request->m_maxDataSize - m_uploadedDataSize,
                                                                    true,
                                                                    "" ),
-                                                           m_drive.m_driveFolder,
-                                                           m_drive.m_torrentFolder / (toString(*fileToDownload)),
+                                                           m_drive.m_driveFolder.string(),
+                                                           (m_drive.m_torrentFolder / toString(*fileToDownload)).string(),
                                                            getUploaders(),
                                                            &m_drive.m_driveKey.array(),
                                                            nullptr,
@@ -290,10 +290,10 @@ public:
         // Load 'actionList' into memory
         ActionList actionList;
         auto actionListFilename = m_drive.m_sandboxRootPath / hashToFileName( m_request->m_clientDataInfoHash );
-        actionList.deserialize( actionListFilename );
+        actionList.deserialize( actionListFilename.string() );
 
         // Make copy of current FsTree
-        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
+        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile.string() );
 
         auto& torrentHandleMap = m_drive.m_torrentHandleMap;
 
@@ -345,8 +345,8 @@ public:
                             srcFile = fs::path( action.m_param2 ).filename();
                             destFolder = fs::path( action.m_param2 ).parent_path();
                         }
-                        m_sandboxFsTree->addFile( destFolder,
-                                                  srcFile,
+                        m_sandboxFsTree->addFile( destFolder.string(),
+                                                  srcFile.string(),
                                                   fileHash,
                                                   fileSize );
 
@@ -451,12 +451,12 @@ public:
         } // end of for( const Action& action : actionList )
 
         // create FsTree in sandbox
-        m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile );
+        m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile.string() );
 
-        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile,
+        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile.string(),
                                                m_drive.m_driveKey,
-                                               m_drive.m_sandboxRootPath,
-                                               m_drive.m_sandboxFsTreeTorrent );
+                                               m_drive.m_sandboxRootPath.string(),
+                                               m_drive.m_sandboxFsTreeTorrent.string() );
 
         getSandboxDriveSizes( m_metaFilesSize, m_sandboxDriveSize );
         m_fsTreeSize = sandboxFsTreeSize();
@@ -618,7 +618,7 @@ protected:
         }
 
         m_sandboxRootHash = m_drive.m_rootHash;
-        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
+        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile.string() );
         std::error_code ec;
         fs::remove( m_drive.m_sandboxFsTreeFile, ec );
         fs::copy( m_drive.m_fsTreeFile, m_drive.m_sandboxFsTreeFile );
@@ -810,8 +810,8 @@ private:
                     {
                         std::string fileName = hashToFileName( it.first );
                         it.second.m_ltHandle = session->addTorrentFileToSession(
-                                m_drive.m_torrentFolder / fileName,
-                                m_drive.m_driveFolder,
+                                (m_drive.m_torrentFolder / fileName).string(),
+                                m_drive.m_driveFolder.string(),
                                 lt::SiriusFlags::peer_is_replicator,
                                 &m_drive.m_driveKey.array(),
                                 nullptr,
@@ -825,8 +825,8 @@ private:
             // Add FsTree torrent to session
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
-                                                                            m_drive.m_fsTreeTorrent.parent_path(),
+                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent.string(),
+                                                                            m_drive.m_fsTreeTorrent.parent_path().string(),
                                                                             lt::SiriusFlags::peer_is_replicator,
                                                                             &m_drive.m_driveKey.array(),
                                                                             nullptr,

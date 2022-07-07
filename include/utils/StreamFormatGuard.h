@@ -26,7 +26,7 @@ namespace sirius { namespace utils {
 
 	/// RAII class for modifying and restoring ostream formatting options.
 	/// \note stream width is not sticky so it doesn't need to be saved and restored even if it is modified.
-	class StreamFormatGuard : public NonCopyable {
+	class PLUGIN_API StreamFormatGuard : public NonCopyable {
 	public:
 		/// Creates a guard around \a out that sets format \a flags and character \a fill.
 		StreamFormatGuard(std::ostream& out, std::ios_base::fmtflags flags, char fill)

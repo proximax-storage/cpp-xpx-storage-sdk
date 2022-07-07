@@ -79,6 +79,7 @@ public:
         DBG_MAIN_THREAD
 
         _ASSERT(0)
+        return false;
     }
 
 private:

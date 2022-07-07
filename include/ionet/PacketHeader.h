@@ -27,7 +27,7 @@ namespace sirius { namespace ionet {
 #pragma pack(push, 1)
 
 	/// A packet header that all transferable information is expected to have.
-	struct PacketHeader {
+	struct PLUGIN_API PacketHeader {
 		/// Size of the packet.
 		uint32_t Size;
 
@@ -43,5 +43,5 @@ namespace sirius { namespace ionet {
 	}
 
 	/// Insertion operator for outputting \a header to \a out.
-	std::ostream& operator<<(std::ostream& out, const PacketHeader& header);
+	PLUGIN_API std::ostream& operator<<(std::ostream& out, const PacketHeader& header);
 }}

@@ -26,18 +26,18 @@
 namespace sirius { namespace model {
 
 	/// Creates an address from an encoded address (\a encoded).
-	Address StringToAddress(const std::string& encoded);
+	PLUGIN_API Address StringToAddress(const std::string& encoded);
 
 	/// Creates an encoded address from an \a address.
-	std::string AddressToString(const Address& address);
+	PLUGIN_API std::string AddressToString(const Address& address);
 
 	/// Creates an address from a public key (\a publicKey) for the network identified by \a networkIdentifier.
-	Address PublicKeyToAddress(const Key& publicKey, NetworkIdentifier networkIdentifier);
+	PLUGIN_API Address PublicKeyToAddress(const Key& publicKey, NetworkIdentifier networkIdentifier);
 
 	/// Returns a value indicating whether or not the given \a address is valid for the network identified by \a networkIdentifier.
-	bool IsValidAddress(const Address& address, NetworkIdentifier networkIdentifier);
+	PLUGIN_API bool IsValidAddress(const Address& address, NetworkIdentifier networkIdentifier);
 
 	/// Returns a value indicating whether or not the given \a encoded address is valid for the
 	/// network identified by \a networkIdentifier.
-	bool IsValidEncodedAddress(const std::string& encoded, NetworkIdentifier networkIdentifier);
+	PLUGIN_API bool IsValidEncodedAddress(const std::string& encoded, NetworkIdentifier networkIdentifier);
 }}

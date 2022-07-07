@@ -64,7 +64,7 @@ public:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( value );
 
-        saveRestartData( m_restartRootPath / path, os.str());
+        saveRestartData( (fs::path(m_restartRootPath) / path).string(), os.str());
     }
 
     template<class T>
@@ -74,7 +74,7 @@ public:
 
         std::string data;
 
-        if ( !loadRestartData( m_restartRootPath / path, data ))
+        if ( !loadRestartData( (fs::path(m_restartRootPath) / path).string(), data ))
         {
             return false;
         }

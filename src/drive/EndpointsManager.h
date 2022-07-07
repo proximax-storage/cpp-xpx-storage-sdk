@@ -253,7 +253,7 @@ private:
             return;
         }
 
-        int bootstrapToAskIndex = random() % m_bootstraps.size();
+        int bootstrapToAskIndex = rand() % m_bootstraps.size();
         const auto& bootstrapToAsk = m_bootstraps[bootstrapToAskIndex];
         m_externalEndpointRequest =
                 {

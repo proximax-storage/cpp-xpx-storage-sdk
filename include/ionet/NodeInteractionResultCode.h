@@ -19,6 +19,7 @@
 **/
 
 #pragma once
+#include "plugins.h"
 #include <iosfwd>
 #include <stdint.h>
 
@@ -45,5 +46,5 @@ namespace sirius { namespace ionet {
 #undef ENUM_VALUE
 
 	/// Insertion operator for outputting \a value to \a out.
-	std::ostream& operator<<(std::ostream& out, NodeInteractionResultCode value);
+	PLUGIN_API std::ostream& operator<<(std::ostream& out, NodeInteractionResultCode value);
 }}

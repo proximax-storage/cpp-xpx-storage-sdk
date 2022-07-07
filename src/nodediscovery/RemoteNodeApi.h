@@ -27,7 +27,7 @@ namespace sirius { namespace ionet { class PacketIo; } }
 namespace sirius { namespace api {
 
 	/// An api for retrieving node information from a remote node.
-	class RemoteNodeApi {
+	class PLUGIN_API RemoteNodeApi {
 	public:
 		virtual ~RemoteNodeApi() = default;
 
@@ -40,5 +40,5 @@ namespace sirius { namespace api {
 	};
 
 	/// Creates a node api for interacting with a remote node with the specified \a io.
-	std::unique_ptr<RemoteNodeApi> CreateRemoteNodeApi(ionet::PacketIo& io);
+	PLUGIN_API std::unique_ptr<RemoteNodeApi> CreateRemoteNodeApi(ionet::PacketIo& io);
 }}

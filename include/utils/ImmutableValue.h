@@ -27,7 +27,7 @@ namespace sirius { namespace utils {
 
 	/// A move-only value wrapper.
 	template<typename TValue>
-	class ImmutableValue : public utils::MoveOnly {
+	class PLUGIN_API ImmutableValue : public utils::MoveOnly {
 	public:
 		/// Creates an immutable value around \a value.
 		constexpr explicit ImmutableValue(TValue value) : m_value(value)

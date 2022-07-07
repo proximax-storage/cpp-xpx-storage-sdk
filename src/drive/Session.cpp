@@ -417,7 +417,7 @@ public:
 //        }
 
         params.storage_mode     = lt::storage_mode_sparse;
-        params.save_path        = fs::path(folderWhereFileIsLocated);
+        params.save_path        = fs::path(folderWhereFileIsLocated).string();
         params.ti               = std::make_shared<lt::torrent_info>( buffer, lt::from_span );
         params.m_siriusFlags    = siriusFlags;
         if ( driveKey )
@@ -778,7 +778,7 @@ private:
         std::vector<char> buffer;
         bencode(std::back_inserter(buffer), te);
 
-        if ( FILE* f = fopen( userdata->m_saveTorrentFilename.c_str(), "wb+" ); f )
+        if ( FILE* f = fopen( userdata->m_saveTorrentFilename.string().c_str(), "wb+" ); f )
         {
             fwrite( &buffer[0], 1, buffer.size(), f );
             fclose(f);
@@ -1387,7 +1387,7 @@ InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
 
     // calculate hashes
     lt::error_code ec;
-    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path() );
+    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path().string() );
     if ( ec )
     {
         throw std::runtime_error( std::string("moveFileToFlatDrive: libtorrent error: ") + ec.message() );
@@ -1475,7 +1475,7 @@ InfoHash calculateInfoHash( const std::string& pathToFile, const Key& drivePubli
 
     // calculate hashes
     lt::error_code ec;
-    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path() );
+    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path().string() );
     if ( ec )
     {
         throw std::runtime_error( std::string("moveFileToFlatDrive: libtorrent error: ") + ec.message() );

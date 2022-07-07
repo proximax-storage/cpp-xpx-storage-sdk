@@ -73,7 +73,7 @@ public:
             {
                 m_sandboxRootHash = m_request->m_rootHash;
                 m_sandboxRootHash = m_drive.m_rootHash;
-                m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
+                m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile.string() );
                 std::error_code ec;
                 fs::remove( m_drive.m_sandboxFsTreeFile, ec );
                 fs::copy( m_drive.m_fsTreeFile, m_drive.m_sandboxFsTreeFile );
@@ -124,8 +124,8 @@ public:
                            *m_opinionController.opinionTrafficTx(),
                            0, true, m_drive.m_sandboxFsTreeFile
                    ),
-                   m_drive.m_sandboxRootPath,
-                   m_drive.m_sandboxFsTreeTorrent,
+                   m_drive.m_sandboxRootPath.string(),
+                   m_drive.m_sandboxFsTreeTorrent.string(),
                    getUploaders(),
                    &m_drive.m_driveKey.array(),
                    nullptr,
@@ -142,7 +142,7 @@ public:
         {
 			// TODO do not read file on main thread
 
-			m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile );
+			m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile.string() );
             m_sandboxFsTree->dbgPrint();
         }
         catch (...)
@@ -252,7 +252,7 @@ public:
         //
         try
         {
-            m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile );
+            m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile.string() );
         }
         catch (...)
         {
@@ -342,8 +342,8 @@ public:
                                                                *m_opinionController.opinionTrafficTx(),
                                                                0, true, ""
                                                            ),
-                                                           m_drive.m_driveFolder,
-                                                           m_drive.m_torrentFolder / (toString(missingFileHash)),
+                                                           m_drive.m_driveFolder.string(),
+                                                           (m_drive.m_torrentFolder / toString(missingFileHash)).string(),
                                                            getUploaders(),
                                                            &m_drive.m_driveKey.array(),
                                                            nullptr,
@@ -437,8 +437,8 @@ public:
             // Add FsTree torrent to session
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
-                                                                            m_drive.m_fsTreeTorrent.parent_path(),
+                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent.string(),
+                                                                            m_drive.m_fsTreeTorrent.parent_path().string(),
                                                                             lt::SiriusFlags::peer_is_replicator,
                                                                             &m_drive.m_driveKey.array(),
                                                                             nullptr,

@@ -14,7 +14,7 @@
 
 namespace sirius { namespace connection {
 
-    class NodeConnector {
+    class PLUGIN_API NodeConnector {
     public:
         using ConnectCallback = consumer<net::PeerConnectCode, const std::shared_ptr<ionet::PacketSocket>&>;
 
