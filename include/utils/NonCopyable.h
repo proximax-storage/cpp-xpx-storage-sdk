@@ -19,11 +19,12 @@
 **/
 
 #pragma once
+#include "plugins.h"
 
 namespace sirius { namespace utils {
 
         /// A class that can neither be copied nor moved.
-        class NonCopyable {
+        class PLUGIN_API NonCopyable {
         public:
             /// Default constructor.
             constexpr NonCopyable() = default;
@@ -40,7 +41,7 @@ namespace sirius { namespace utils {
         };
 
         /// A class that can be moved but not copied.
-        class MoveOnly {
+        class PLUGIN_API MoveOnly {
         public:
             /// Default constructor.
             constexpr MoveOnly() = default;

@@ -43,10 +43,10 @@ namespace sirius { namespace ionet {
 #undef ENUM_VALUE
 
 	/// Insertion operator for outputting \a value to \a out.
-	std::ostream& operator<<(std::ostream& out, PacketExtractResult value);
+	PLUGIN_API std::ostream& operator<<(std::ostream& out, PacketExtractResult value);
 
 	/// Helper for extracting a packet from a working buffer.
-	class PacketExtractor {
+	class PLUGIN_API PacketExtractor {
 	public:
 		/// Creates a packet extractor for extracting a packet from \a data that allows a maximum packet data
 		/// size of \a maxPacketDataSize.

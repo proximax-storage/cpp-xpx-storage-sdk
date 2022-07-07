@@ -44,5 +44,5 @@ namespace sirius { namespace ionet {
 #undef ENUM_VALUE
 
 	/// Insertion operator for outputting \a value to \a out.
-	std::ostream& operator<<(std::ostream& out, ConnectResult value);
+	PLUGIN_API std::ostream& operator<<(std::ostream& out, ConnectResult value);
 }}

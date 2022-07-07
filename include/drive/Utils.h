@@ -34,7 +34,7 @@ PLUGIN_API std::string hexToString( const void* begin, const void* end );
 PLUGIN_API Hash256 ltDataToHash( const char* ptr );
 
 template<class T>
-PLUGIN_API T randomByteArray()
+T randomByteArray()
 {
     T data;
     for (auto it = data.begin(); it != data.end(); it++)

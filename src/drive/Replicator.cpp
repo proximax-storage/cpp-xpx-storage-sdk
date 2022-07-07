@@ -239,7 +239,7 @@ public:
                 const auto entryName = entry.path().filename().string();
                 
                 std::error_code errorCode;
-                if ( fs::exists( FlatDrive::driveIsClosingPath( rootFolderPath / entryName ), errorCode ) )
+                if ( fs::exists( FlatDrive::driveIsClosingPath( (rootFolderPath / entryName).string() ), errorCode ) )
                 {
                     fs::remove_all( rootFolderPath / entryName );
                 }
@@ -1812,6 +1812,7 @@ public:
             return it->second;
         }
         assert(0);
+        return std::shared_ptr<sirius::drive::FlatDrive>(nullptr);
     }
     
     void saveDownloadChannelMap()
@@ -1820,14 +1821,14 @@ public:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( m_dnChannelMap );
 
-        saveRestartData( fs::path(m_storageDirectory) / "downloadChannelMap", os.str() );
+        saveRestartData( (fs::path(m_storageDirectory) / "downloadChannelMap").string(), os.str() );
     }
     
     bool loadDownloadChannelMap()
     {
         std::string data;
         
-        if ( !loadRestartData( fs::path(m_storageDirectory) / "downloadChannelMap", data ) )
+        if ( !loadRestartData( (fs::path(m_storageDirectory) / "downloadChannelMap").string(), data ) )
         {
             return false;
         }
@@ -1843,6 +1844,17 @@ public:
             return false;
         }
         
+        try
+        {
+            std::istringstream is( data, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            iarchive( m_dnChannelMapBackup );
+        }
+        catch(...)
+        {
+            return false;
+        }
+       
         return true;
     }
     

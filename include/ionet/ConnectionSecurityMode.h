@@ -41,8 +41,8 @@ namespace sirius { namespace ionet {
 	MAKE_BITWISE_ENUM(ConnectionSecurityMode)
 
 	/// Insertion operator for outputting \a value to \a out.
-	std::ostream& operator<<(std::ostream& out, ConnectionSecurityMode value);
+	PLUGIN_API std::ostream& operator<<(std::ostream& out, ConnectionSecurityMode value);
 
 	/// Tries to parse \a str into connection security \a modes.
-	bool TryParseValue(const std::string& str, ConnectionSecurityMode& modes);
+	PLUGIN_API bool TryParseValue(const std::string& str, ConnectionSecurityMode& modes);
 }}

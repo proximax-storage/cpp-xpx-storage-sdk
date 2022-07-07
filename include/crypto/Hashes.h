@@ -66,17 +66,17 @@ namespace sirius { namespace crypto {
 
 	public:
 		/// Creates a builder.
-		KeccakBuilder();
+		PLUGIN_API KeccakBuilder();
 
 	public:
 		/// Updates the state of hash with data inside \a dataBuffer.
-		void update(const utils::RawBuffer& dataBuffer) noexcept;
+		PLUGIN_API void update(const utils::RawBuffer& dataBuffer) noexcept;
 
 		/// Updates the state of hash with concatenated \a buffers.
-		void update(std::initializer_list<const utils::RawBuffer> buffers) noexcept;
+		PLUGIN_API void update(std::initializer_list<const utils::RawBuffer> buffers) noexcept;
 
 		/// Finalize hash calculation. Returns result in \a output.
-		void final(OutputType& output) noexcept;
+		PLUGIN_API void final(OutputType& output) noexcept;
 
 	private:
 		// size below is related to amount of data Keccak needs for its internal state

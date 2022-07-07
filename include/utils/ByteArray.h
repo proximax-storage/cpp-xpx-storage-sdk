@@ -26,7 +26,7 @@ namespace sirius { namespace utils {
 
 	/// Base class for wrappers of byte array types, to provide some type-safety.
 	template<size_t N, typename TTag>
-	class ByteArray : TTag {
+	class PLUGIN_API ByteArray : TTag {
 	public:
 		using const_iterator = typename std::array<uint8_t, N>::const_iterator;
 

@@ -28,7 +28,7 @@ namespace sirius { namespace ionet {
 #pragma pack(push, 1)
 
 	/// Information about a catapult node that is propagated through the network.
-	struct NetworkNode {
+	struct PLUGIN_API NetworkNode {
 		/// Size of the node.
 		uint32_t Size;
 
@@ -66,5 +66,5 @@ namespace sirius { namespace ionet {
 #pragma pack(pop)
 
 	/// Unpacks a network node (\a networkNode) into a node model.
-	Node UnpackNode(const NetworkNode& networkNode);
+	PLUGIN_API Node UnpackNode(const NetworkNode& networkNode);
 }}

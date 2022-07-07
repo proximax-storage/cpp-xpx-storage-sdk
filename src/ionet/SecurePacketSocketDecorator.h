@@ -32,7 +32,7 @@ namespace sirius { namespace ionet {
 
 	/// Secures a packet socket (\a pSocket) to conform with \a securityMode for a connection from \a sourceKeyPair to \a remoteKey
 	/// allowing a specified max packet data size (\a maxPacketDataSize).
-	std::shared_ptr<PacketSocket> Secure(
+	PLUGIN_API std::shared_ptr<PacketSocket> Secure(
 			const std::shared_ptr<PacketSocket>& pSocket,
 			ConnectionSecurityMode securityMode,
 			const crypto::KeyPair& sourceKeyPair,

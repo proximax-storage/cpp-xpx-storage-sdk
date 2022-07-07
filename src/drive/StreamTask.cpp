@@ -355,8 +355,8 @@ public:
                                *m_opinionController.opinionTrafficTx(),
                                0, true, ""
                        ),
-                       m_drive.m_driveFolder,
-                       m_drive.m_torrentFolder / toString(chunkInfoHash),
+                       m_drive.m_driveFolder.string(),
+                       (m_drive.m_torrentFolder / toString(chunkInfoHash)).string(),
                        getUploaders(),
                        &m_drive.m_driveKey.array(),
                        nullptr,
@@ -597,8 +597,8 @@ public:
                            *m_opinionController.opinionTrafficTx(),
                            0, true, ""
                    ),
-                   m_drive.m_driveFolder,
-                   m_drive.m_torrentFolder / toString(*m_finishInfoHash),
+                   m_drive.m_driveFolder.string(),
+                   (m_drive.m_torrentFolder / toString(*m_finishInfoHash)).string(),
                    getUploaders(),
                    &m_drive.m_driveKey.array(),
                    nullptr,
@@ -722,7 +722,7 @@ public:
 
     void completeStreamFinishing()
     {
-        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
+        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile.string() );
         
         if ( ! m_sandboxFsTree->addFolder( m_request->m_folder ) )
         {
@@ -777,16 +777,16 @@ public:
         }
         
         // Calculate infoHash of playlist
-        InfoHash finishPlaylistHash = createTorrentFile( tmp, m_drive.m_driveKey, m_drive.m_sandboxRootPath, {} );
+        InfoHash finishPlaylistHash = createTorrentFile( tmp.string(), m_drive.m_driveKey, m_drive.m_sandboxRootPath.string(), {} );
         fs::path finishPlaylistFilename = m_drive.m_driveFolder / toString( finishPlaylistHash );
         if ( ! fs::exists(finishPlaylistFilename) )
         {
             fs::rename( tmp, finishPlaylistFilename );
         }
-        InfoHash finishPlaylistHash2 = createTorrentFile( finishPlaylistFilename,
+        InfoHash finishPlaylistHash2 = createTorrentFile( finishPlaylistFilename.string(),
                                                           m_drive.m_driveKey,
-                                                          m_drive.m_driveFolder,
-                                                          m_drive.m_torrentFolder / toString( finishPlaylistHash ) );
+                                                          m_drive.m_driveFolder.string(),
+                                                          (m_drive.m_torrentFolder / toString( finishPlaylistHash )).string() );
         _ASSERT( finishPlaylistHash2 == finishPlaylistHash )
         
         streamFolder->m_childs.emplace_front( File{ PLAYLIST_FILE_NAME, finishPlaylistHash, playlistTxt.size() } );
@@ -817,12 +817,12 @@ public:
 //            }
 //        }
 
-        m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile );
+        m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile.string() );
 
-        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile,
+        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile.string(),
                                                m_drive.m_driveKey,
-                                               m_drive.m_sandboxRootPath,
-                                               m_drive.m_sandboxFsTreeTorrent );
+                                               m_drive.m_sandboxRootPath.string(),
+                                               m_drive.m_sandboxFsTreeTorrent.string() );
 
         getSandboxDriveSizes( m_metaFilesSize, m_sandboxDriveSize );
         m_fsTreeSize = sandboxFsTreeSize();

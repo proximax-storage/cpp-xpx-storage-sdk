@@ -27,7 +27,7 @@ namespace sirius { namespace utils {
 
 	/// Base class for immutable wrappers of basic types, to provide some type-safety.
 	template<typename TValue, typename TTag, typename TBaseValue>
-	class BasicBaseValue : TTag {
+	class PLUGIN_API BasicBaseValue : TTag {
 	public:
 		/// Raw value type.
 		using ValueType = TValue;
@@ -97,7 +97,7 @@ namespace sirius { namespace utils {
 
 	/// Immutable wrapper for basic types, to provide some type-safety.
 	template<typename TValue, typename TTag>
-	class BaseValue : public BasicBaseValue<TValue, TTag, BaseValue<TValue, TTag>> {
+	class PLUGIN_API BaseValue : public BasicBaseValue<TValue, TTag, BaseValue<TValue, TTag>> {
 	public:
 		/// Creates a base value from a raw \a value.
 		constexpr explicit BaseValue(TValue value = 0)

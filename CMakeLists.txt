@@ -8,19 +8,33 @@ set(CMAKE_CXX_EXTENSIONS ON)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
+if(WIN32)
+        set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+        set(BUILD_SHARED_LIBS TRUE)
+endif()
+
+include_directories(include)
+
 # Libtorrent
 option(XPX_STORAGE_SDK_BUILD_EMULATOR "Build XPX-STORAGE SDK emulator." ON)
 option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build XPX-STORAGE SDK examples." OFF)
 
 ### setup boost
-find_package(Boost COMPONENTS atomic system date_time regex timer chrono log thread filesystem program_options random REQUIRED)
+if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
+    SET(Boost_NAMESPACE ${Boost_NAMESPACE} "libboost")
+    SET(Boost_ARCHITECTURE "-x64")
+endif()
+
+find_package(Boost COMPONENTS atomic system date_time regex timer chrono log log_setup thread filesystem program_options random REQUIRED)
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 
 include_directories(cereal/include)
 add_subdirectory(libtorrent)
+include_directories(libtorrent/include)
 
 if (XPX_STORAGE_SDK_BUILD_EMULATOR)
     add_subdirectory(cpp-xpx-rpclib)
+    include_directories(${PROJECT_SOURCE_DIR}/cpp-xpx-storage-sdk/cpp-xpx-rpclib/include)
 endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")

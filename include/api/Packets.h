@@ -11,7 +11,7 @@ namespace sirius { namespace api {
 
 #pragma pack(push, 1)
 		template<ionet::PacketType packetType>
-		struct FileDownloadPacket : public ionet::Packet {
+		struct PLUGIN_API FileDownloadPacket : public ionet::Packet {
 			static constexpr ionet::PacketType Packet_Type = packetType;
 
 			Key DriveKey;

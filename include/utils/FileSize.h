@@ -109,5 +109,5 @@ namespace sirius { namespace utils {
 	};
 
 	/// Insertion operator for outputting \a fileSize to \a out.
-	std::ostream& operator<<(std::ostream& out, const FileSize& fileSize);
+	PLUGIN_API std::ostream& operator<<(std::ostream& out, const FileSize& fileSize);
 }}
