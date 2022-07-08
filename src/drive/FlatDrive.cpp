@@ -201,6 +201,10 @@ public:
         return m_allReplicators;
     }
 
+    const ReplicatorList& getDonatorShard() const override {
+        return m_modifyDonatorShard;
+    }
+
     const Key& driveOwner() const override
     {
         return m_driveOwner;

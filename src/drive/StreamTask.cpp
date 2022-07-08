@@ -327,7 +327,7 @@ public:
                                {
                                    DBG_MAIN_THREAD
 
-                                   _ASSERT( !m_taskIsStopped );
+                                   _ASSERT( !m_taskIsInterrupted );
 
                                    if ( code == download_status::dn_failed )
                                    {
@@ -399,7 +399,7 @@ public:
 
         _ASSERT( m_myOpinion )
 
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             finishTask();
             return;
@@ -575,7 +575,7 @@ public:
                            {
                                DBG_MAIN_THREAD
 
-                               _ASSERT( !m_taskIsStopped );
+                               _ASSERT( !m_taskIsInterrupted );
 
                                if ( code == download_status::dn_failed )
                                {

@@ -4,22 +4,8 @@
 *** license that can be found in the LICENSE file.
 */
 
-//#include "DownloadLimiter.h"
 #include "DriveTaskBase.h"
-//#include "drive/FsTree.h"
-//#include "drive/ActionList.h"
-//#include "drive/FlatDrive.h"
 #include "DriveParams.h"
-
-//#include <boost/multiprecision/cpp_int.hpp>
-//
-//#include <numeric>
-
-//#include <cereal/types/vector.hpp>
-//#include <cereal/types/array.hpp>
-//#include <cereal/types/map.hpp>
-//#include <cereal/types/optional.hpp>
-//#include <cereal/archives/portable_binary.hpp>
 
 namespace sirius::drive
 {
@@ -48,13 +34,13 @@ protected:
 
     bool m_sandboxCalculated = false;
 
-    bool m_taskIsStopped     = false;
+    bool m_taskIsInterrupted = false;
 
 public:
 
     void onDriveClose( const DriveClosureRequest& closureRequest ) override
     {
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             return;
         }
@@ -82,7 +68,7 @@ protected:
         _ASSERT( m_sandboxFsTree )
         _ASSERT( m_sandboxRootHash )
 
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             finishTask();
             return;
@@ -99,7 +85,7 @@ protected:
         }
 
         /// (???) replace with replicators of the shard
-        m_opinionController.updateCumulativeUploads( m_drive.getAllReplicators(), getToBeApprovedDownloadSize(), [this]
+        m_opinionController.updateCumulativeUploads( m_drive.getDonatorShard(), getToBeApprovedDownloadSize(), [this]
         {
             onCumulativeUploadsUpdated();
         } );
@@ -133,16 +119,7 @@ protected:
     {
         DBG_MAIN_THREAD
 
-        m_drive.m_isWaitingNextTask = false;
-
-        if ( m_drive.m_isRemovingUnusedTorrents )
-        {
-            // wait the end of the removing
-            m_drive.m_isWaitingNextTask = true;
-            return;
-        }
-
-        m_taskIsStopped = true;
+        m_taskIsInterrupted = true;
         
         if ( m_downloadingLtHandle )
         {
@@ -186,7 +163,7 @@ protected:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_taskIsStopped )
+        _ASSERT( !m_taskIsInterrupted )
 
         auto& torrentHandleMap = m_drive.m_torrentHandleMap;
 
@@ -277,7 +254,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             finishTask();
             return;

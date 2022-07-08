@@ -104,7 +104,7 @@ public:
                            {
                                DBG_MAIN_THREAD
 
-                               _ASSERT( !m_taskIsStopped );
+                               _ASSERT( !m_taskIsInterrupted );
 
                                if ( code == download_status::dn_failed )
                                {
@@ -133,7 +133,7 @@ public:
             m_drive.m_torrentHandleMap[m_request->m_rootHash] = { *m_downloadingLtHandle, false };
         }
     }
-    
+
     void createUnusedFileList()
     {
         DBG_MAIN_THREAD
@@ -182,8 +182,6 @@ public:
         // Remove unused torrents
         if ( auto session = m_drive.m_session.lock(); session )
         {
-            m_drive.m_isRemovingUnusedTorrents = true;
-            
             session->removeTorrentsFromSession( toBeRemovedTorrents, [this]
             {
                 std::set<InfoHash> filesToRemove;
@@ -225,13 +223,11 @@ public:
         // remove unused data from 'fileMap'
         std::erase_if( m_drive.m_torrentHandleMap, [] (const auto& it) { return ! it.second.m_isUsed; } );
 
-        m_drive.m_isRemovingUnusedTorrents = false;
-
         m_drive.executeOnSessionThread( [this]
         {
-            if ( m_drive.m_isWaitingNextTask )
+            if ( m_taskIsInterrupted )
             {
-                breakTorrentDownloadAndRunNextTask();
+                finishTask();
             }
             else
             {
@@ -296,7 +292,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_taskIsStopped );
+        _ASSERT( !m_taskIsInterrupted );
 
         if ( m_catchingUpFileIt == m_catchingUpFileSet.end())
         {
@@ -383,7 +379,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             return true;
         }
@@ -469,7 +465,7 @@ public:
 
         _ASSERT( m_myOpinion )
 
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             finishTask();
             return;

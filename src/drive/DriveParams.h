@@ -232,9 +232,6 @@ public:
     // and for deleting unused files and torrents from session
     //
     std::map<InfoHash, UseTorrentInfo> m_torrentHandleMap;
-    
-    bool                               m_isRemovingUnusedTorrents = false;
-    bool                               m_isWaitingNextTask        = false;
 
     //
     // Drive state
@@ -282,6 +279,8 @@ protected:
 public:
 
     virtual const ReplicatorList& getAllReplicators() const = 0;
+
+    virtual const ReplicatorList& getDonatorShard() const = 0;
 
     virtual void runNextTask() = 0;
 };

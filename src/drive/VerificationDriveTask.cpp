@@ -77,7 +77,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _LOG ( "Started Verification" )
+        _LOG( "Started Verification " << m_request->m_tx )
 
         m_verificationStartedAt = boost::posix_time::microsec_clock::universal_time();
 
@@ -86,7 +86,8 @@ public:
         //
         m_verifyThread = std::thread( [t = weak_from_this()]
         {
-            if ( auto task = t.lock(); task ) {
+            if ( auto task = t.lock(); task )
+            {
                 task->verify();
             }
         } );
@@ -96,12 +97,12 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _LOG( "Verification Is Terminated" )
+        _LOG( "Verification Is Terminated " << m_request->m_tx )
 
         m_verifyCodeTimer.cancel();
         m_verifyOpinionTimer.cancel();
 
-        m_verificationMustBeInterrupted = false;
+        m_verificationMustBeInterrupted = true;
 
         if ( m_verifyThread.joinable() )
         {
@@ -233,7 +234,12 @@ public:
                 if ( auto session = m_drive.m_session.lock(); session )
                 {
                     m_verifyOpinionTimer = session->startTimer( m_drive.m_replicator.getVerifyApprovalTransactionTimerDelay(),
-                                                                [this]() { verifyOpinionTimerExpired(); } );
+                                                                [t = weak_from_this()]() {
+                        if ( auto task = t.lock(); task )
+                        {
+                            task->verifyOpinionTimerExpired();
+                        }
+                    } );
                 }
             }
         }
@@ -253,7 +259,7 @@ private:
         // commented because of races
         //            DBG_VERIFY_THREAD
 
-        _LOG( "Started Verify Thread" )
+        _LOG( "Started Verify Thread " << m_request->m_tx )
 
         m_verificationCodes = std::vector<uint64_t>(
                 m_request->m_replicators.size(), 0 );
@@ -271,12 +277,12 @@ private:
         calculateVerifyCodes( *m_drive.m_fsTree );
 
         m_drive.executeOnSessionThread( [t = weak_from_this()]
-                                        {
-                                            if ( auto task = t.lock(); task )
-                                            {
-                                                task->verificationCodesCompleted();
-                                            }
-                                        } );
+        {
+            if ( auto task = t.lock(); task )
+            {
+                task->verificationCodesCompleted();
+            }
+        } );
     }
 
     uint64_t calcHash64( uint64_t initValue, uint8_t* begin, uint8_t* end )
@@ -327,8 +333,6 @@ private:
     {
         //        DBG_VERIFY_THREAD
 
-        _LOG( "Started Calculating Verify Codes" )
-
         for( const auto& child : folder.childs() )
         {
             if ( m_verificationMustBeInterrupted )
@@ -377,7 +381,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        _LOG( "Verification Codes Completed" )
+        _LOG( "Verification Codes Completed " << m_request->m_tx )
 
         if ( m_verificationMustBeInterrupted )
         {
@@ -412,7 +416,6 @@ private:
         //
         for( const auto& replicatorKey: m_request->m_replicators )
         {
-            //TODO?            m_replicator.sendMessage( "code_verify", replicatorKey.array(), os.str() );
             if ( replicatorKey != m_drive.m_replicator.dbgReplicatorKey() )
             {
                 m_drive.m_replicator.sendMessage( "code_verify", replicatorKey, os.str() );
@@ -426,7 +429,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        _LOG( "Check Verify Code Number" )
+        _LOG( "Check Verify Code Number " << m_request->m_tx )
 
         _ASSERT( m_myVerifyCodesCalculated )
 
@@ -458,8 +461,13 @@ private:
 
 			if ( auto session = m_drive.m_session.lock(); session )
 			{
-				m_verifyCodeTimer = session->startTimer( codesDelay,
-														 [this]() { verifyCodeTimerExpired(); } );
+                m_verifyCodeTimer = session->startTimer( codesDelay, [t = weak_from_this()]()
+                {
+                    if ( auto task = t.lock(); task )
+                    {
+                        task->verifyCodeTimerExpired();
+                    }
+                } );
 			}
         }
     }
@@ -468,7 +476,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        _LOG( "Verify Opinion Timer Expired" )
+        _LOG( "Verify Opinion Timer Expired " << m_request->m_tx )
 
         if ( m_verificationMustBeInterrupted )
         {
@@ -486,7 +494,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        _LOG( "Verify Code Timer Expired" )
+        _LOG( "Verify Code Timer Expired " << m_request->m_tx )
 
         if ( m_verificationMustBeInterrupted )
         {
