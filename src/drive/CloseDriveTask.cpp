@@ -33,6 +33,8 @@ public:
     {
         DBG_MAIN_THREAD
 
+		_LOG( "Started Drive Closure " << m_drive.m_driveKey )
+
         //
         // Remove torrents from session
         //

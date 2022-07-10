@@ -711,14 +711,21 @@ public:
                 if ( std::find( m_blockedReplicators.begin(), m_blockedReplicators.end(), replicatorKey )
                         != m_blockedReplicators.end() )
                 {
+					_LOG_WARN( "Connection From Blocked Replicator " << replicatorKey )
                     return false;
                 }
             }
         }
 
-        return std::find( m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), replicatorKey )
-                    != m_modifyRecipientShard.end();
-    }
+		if (std::find(m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), replicatorKey) ==
+			m_modifyRecipientShard.end())
+		{
+			_LOG_WARN( "Connection From Not Shard Replicator " << replicatorKey )
+			return false;
+		}
+
+		return true;
+	}
 
     void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& streamer ) override
     {
