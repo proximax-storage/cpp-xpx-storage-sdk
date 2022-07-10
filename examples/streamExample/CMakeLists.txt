@@ -8,9 +8,11 @@ file(GLOB SOURCES ../../src/drive/*.cpp)
 find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
 
-add_executable(streamExample streamExample.cpp ${SOURCES})
+#add_executable(streamExample streamExample.cpp ${SOURCES})
+add_executable(streamExample offchainTest.cpp ${SOURCES})
 
-#target_precompile_headers(modifyDriveFlat PRIVATE pch.h)
+#configure_file( ${CMAKE_CURRENT_SOURCE_DIR}../../../js-xpx-streaming-app/client/player.html
+#        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/js/player.html COPYONLY)
 
 add_definitions(-DDEBUG_OFF_CATAPULT)
 add_definitions(-DMINI_SIGNATURE)

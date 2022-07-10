@@ -493,8 +493,9 @@ public:
             }
             else
             {
+                //(???)
                 _LOG( "received piece from viewer/client: " << Key(modifyTx) );
-                _LOG_WARN( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
+                //todo+++++ _LOG_WARN( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
             }
             return;
         }
@@ -541,7 +542,12 @@ public:
         DBG_MAIN_THREAD
         
         //_LOG( "verifyHandshake: " << int(signature[0]) )
-        return crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
+        auto ok = crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
+        if ( !ok )
+        {
+            _LOG_WARN( "verifyHandshake: failed" );
+        }
+        return ok;
     }
 
     void signReceipt( const std::array<uint8_t,32>& downloadChannelId,

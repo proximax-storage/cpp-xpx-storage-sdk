@@ -120,8 +120,10 @@ public:
     {
         DBG_MAIN_THREAD
 
+#ifndef __APPLE__
         _LOG("Update Endpoint of " << int(key[0]) << " at " << endpoint->address() << " " << endpoint->port());
-
+#endif
+        
         auto it = m_endpointsMap.find(key);
         if (it != m_endpointsMap.end())
         {

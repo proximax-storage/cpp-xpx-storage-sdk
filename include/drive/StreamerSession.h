@@ -50,6 +50,7 @@ class StreamerSession : public ClientSession, public DhtMessageHandler, public l
     boost::asio::high_resolution_timer                                          m_tickTimer;
     
     int m_startSequenceNumber = -1;
+    int m_lastSequenceNumber = -1;
 
 
 public:
@@ -223,14 +224,12 @@ public:
             fileStream.write( (char*) chunk.data(), chunk.size() );
         }
 
-        addMediaToStream( tmp, durationMs, m_lastChunkIndex, dbgInfoHash );
+        addMediaToStream( tmp, durationMs, dbgInfoHash );
     }
 
-    void addMediaToStream( const fs::path& tmp, uint32_t durationMs, uint32_t chunkIndex, InfoHash* dbgInfoHash = nullptr )
+    void addMediaToStream( const fs::path& tmp, uint32_t durationMs, InfoHash* dbgInfoHash = nullptr )
     {
         std::lock_guard<std::mutex> lock( m_chunkMutex );
-        
-        _ASSERT( chunkIndex == m_lastChunkIndex )
         
         uint64_t chunkSize = fs::file_size( tmp );
         
@@ -241,8 +240,6 @@ public:
         {
             *dbgInfoHash = chunkHash;
         }
-
-        _LOG( "*** chunkFilename: " << chunkFilename );
 
         // add chunk to libtorrent session
         if ( fs::exists( chunkFilename ) )
@@ -353,8 +350,6 @@ public:
     
     std::string parseM3u8Playlist()
     {
-        //_LOG( "m_m3u8Playlist: " << m_m3u8Playlist )
-        
         // copy file (it could be chaged)
         std::ifstream fin( m_m3u8Playlist );
         std::stringstream fPlaylist;
@@ -414,7 +409,7 @@ public:
                     return std::string("cannot read sequence number: ") + line;
                 }
                 
-                if ( m_startSequenceNumber == -1 )
+                if ( m_startSequenceNumber == -1 || sequenceNumber < m_lastSequenceNumber )
                 {
                     m_startSequenceNumber = sequenceNumber;
                 }
@@ -447,7 +442,7 @@ public:
                 
                 if ( m_chunkInfoMap.find( chunkIndex ) == m_chunkInfoMap.end() )
                 {
-                    addMediaToStream( m_mediaFolder / line, duration*1000000, chunkIndex );
+                    addMediaToStream( m_mediaFolder / line, duration*1000000  );
                     mediaIndex++;
                 }
                 continue;

@@ -495,8 +495,6 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100*1024*1024, 0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
 
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash1.array(), 1024*1024*1024, replicatorList, { viewerKeyPair.publicKey() }} );
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024, replicatorList, { viewerKeyPair.publicKey() }} );
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash3.array(), 1024*1024, replicatorList, { viewerKeyPair.publicKey() }} );
 
     return replicator;
 }
@@ -539,67 +537,6 @@ static fs::path createClientFiles( size_t bigFileSize )
     // Return path to file
     return dataFolder.parent_path();
 }
-
-
-//
-// clientDownloadHandler
-//
-//static void clientDownloadHandler( download_status::code code,
-//                                   const InfoHash& infoHash,
-//                                   const std::filesystem::path /*filePath*/,
-//                                   size_t /*downloaded*/,
-//                                   size_t /*fileSize*/,
-//                                   const std::string& /*errorText*/ )
-//{
-//    if ( code == download_status::download_complete )
-//    {
-//        EXLOG( "# Client received FsTree: " << toString(infoHash) );
-//        EXLOG( "# FsTree file path: " << gClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
-//        gFsTree.deserialize( gClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
-//
-//        // print FsTree
-//        {
-//            std::lock_guard<std::mutex> autolock( gExLogMutex );
-//            gFsTree.dbgPrint();
-//        }
-//
-//        isDownloadCompleted = true;
-//        clientCondVar.notify_all();
-//    }
-//    else if ( code == download_status::dn_failed )
-//    {
-//        exit(-1);
-//    }
-//}
-
-//
-// clientDownloadFsTree
-//
-//static void clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession )
-//{
-//    InfoHash rootHash = *driveRootHash;
-//    driveRootHash.reset();
-//
-//    isDownloadCompleted = false;
-//
-//    LOG("");
-//    EXLOG( "# Client started FsTree download: " << toString(rootHash) );
-//
-//    clientSession->download( DownloadContext(
-//                                    DownloadContext::fs_tree,
-//                                    clientDownloadHandler,
-//                                    rootHash,
-//                                    *clientSession->downloadChannelId(), 0 ),
-//                                    gClientFolder / "fsTree-folder",
-//                                    "",
-//                            {});//endpointList);
-//
-//    /// wait the end of file downloading
-//    {
-//        std::unique_lock<std::mutex> lock(clientMutex);
-//        clientCondVar.wait( lock, [] { return isDownloadCompleted; } );
-//    }
-//}
 
 static std::string now_str()
 {
@@ -682,8 +619,6 @@ int main(int,char**)
     endpointList.push_back( {e3, REPLICATOR_PORT_3} );
     endpointList.push_back( {e4, REPLICATOR_PORT_4} );
 
-//    printf( "client0 key[0] :     0x%x %i\n", clientKeyPair.publicKey().array()[0], clientKeyPair.publicKey().array()[0] );
-//    printf( "client1 key[0] :     0x%x %i\n", clientKeyPair1.publicKey().array()[0], clientKeyPair1.publicKey().array()[0] );
     printf( "replicator1 key[0] : 0x%x %i\n", replicatorList[0][0], replicatorList[0][0] );
     printf( "replicator2 key[0] : 0x%x %i\n", replicatorList[1][0], replicatorList[1][0] );
     printf( "replicator3 key[0] : 0x%x %i\n", replicatorList[2][0], replicatorList[2][0] );
@@ -744,7 +679,7 @@ int main(int,char**)
     downloadStreamEnded = false;
     auto progress = []( std::string playListPath, int chunkIndex, int chunkNumber, std::string error )
     {
-        EXLOG( "@ chunkIndex,chunkNumber: " << chunkIndex << "," << chunkNumber )
+        EXLOG( "@@@ chunkIndex,chunkNumber: " << chunkIndex << "," << chunkNumber )
         if ( chunkIndex == chunkNumber )
         {
             //std::unique_lock<std::mutex> lock(downloadStreamMutex);
@@ -758,26 +693,28 @@ int main(int,char**)
     // startWatchingLiveStream
     //
 #ifdef __APPLE__
-    auto startPlayer = []( std::string addr )
+    auto startPlayer = []( std::string address )
     {
-        auto cmd = std::string( "open -a /Users/alex/Applications/VLC.app/Contents/MacOS/VLC " + addr + "");
+        std::cout << "startPlayer address: " << address <<std::endl;
+        auto cmd = std::string( "open -a /Users/alex/Applications/VLC.app/Contents/MacOS/VLC " + address + "");
         system( cmd.c_str() );
     };
 #else
-    auto startPlayer = []( std::string addr, std::string port )
+    auto startPlayer = []( std::string address )
     {
         std::cout << "startPlayer() not implemented";
+        assert(0);
     };
 #endif
+
     gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
-    gViewerSession->startWatchingLiveStream( streamTx,
-                                            gStreamerSession->publicKey(),
-                                            DRIVE_PUB_KEY, CLIENT_WORK_FOLDER / "streamFolder",
-                                            endpointList,
-                                            startPlayer,
-                                            {"localhost","5151"},
-                                            progress );
-//    sleep(100000);
+//    gViewerSession->startWatchingLiveStream( streamTx,
+//                                            gStreamerSession->publicKey(),
+//                                            DRIVE_PUB_KEY, CLIENT_WORK_FOLDER / "streamFolder",
+//                                            endpointList,
+//                                            startPlayer,
+//                                            {"localhost","5151"},
+//                                            progress );
 
     const uint64_t maxStreamSize = 1024*1024*1024;
     StreamRequest streamRequest{ streamTx, clientKeyPair.publicKey(), "streamN1", maxStreamSize, replicatorList };
@@ -787,32 +724,22 @@ int main(int,char**)
         replicator->asyncStartStream( DRIVE_PUB_KEY, streamRequest );
     }
 
-#if 1
-    // Emulate Streaming
-    for( int i=0; i<10; i++ )
+    for( int i=0; i<60; i++ )
     {
-        std::vector<uint8_t> chunk(1024+150);
-        //std::generate( chunk.begin(), chunk.end(), std::rand );
-        uint8_t counter=i;
-        std::generate( chunk.begin(), chunk.end(), [&] { return counter++;} );
-
-        if ( 0 ) //i%2 == 1 )
-        {
-            InfoHash infoHash;
-            gStreamerSession->addChunkToStream( chunk, 1000000, &infoHash );
-        }
-        else
-        {
-            gStreamerSession->addChunkToStream( chunk, 1000000 );//, &infoHash );
-        }
-
-        //__LOG( "*** c i=" << i )
-        usleep(100000);
-        //usleep(5000000);
+        std::cout << "@@@ " << i << " sec" << std::endl;
+        sleep(1);
     }
-#endif
 
-    sleep(1);
+    gViewerSession->startWatchingLiveStream( streamTx,
+                                            gStreamerSession->publicKey(),
+                                            DRIVE_PUB_KEY, CLIENT_WORK_FOLDER / "streamFolder",
+                                            endpointList,
+                                            startPlayer,
+                                            {"localhost","5151"},
+                                            progress );
+
+    int n;
+    std::cin >> n;
     
     //
     // FinishStream
@@ -832,7 +759,7 @@ int main(int,char**)
 
     EXLOG( "@ Client started FsTree download !!!!! " );
     //sleep(2);
-    //gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
+    gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
     //clientDownloadFsTree( gViewerSession );
 
     {

@@ -845,25 +845,27 @@ private:
 #ifdef __APPLE__
 #pragma mark --alerts--
 #endif
+            //_LOG( alert->message() );
+
             switch (alert->type()) {
                     
                 //todo++++
-//                case lt::torrent_log_alert::alert_type:
-//                {
-//                    auto* theAlert = dynamic_cast<lt::torrent_log_alert*>(alert);
-//                    _LOG( "torrent_log_alert:" << m_addressAndPort << ": " <<  theAlert->message() );
-//                    break;
-//                }
+                case lt::torrent_log_alert::alert_type:
+                {
+                    auto* theAlert = dynamic_cast<lt::torrent_log_alert*>(alert);
+                    _LOG( theAlert->message() );
+                    break;
+                }
 
 //                case lt::peer_log_alert::alert_type: {
 //                    _LOG(  ": peer_log_alert: " << alert->message())
 //                    break;
 //                }
-//
-//                case lt::log_alert::alert_type: {
-//                    _LOG(  ": session_log_alert: " << alert->message())
-//                    break;
-//                }
+
+                case lt::log_alert::alert_type: {
+                    _LOG(  ": session_log_alert: " << alert->message())
+                    break;
+                }
 
                 case lt::dht_bootstrap_alert::alert_type: {
                     _LOG( "dht_bootstrap_alert: " << alert->message() )
@@ -1022,24 +1024,22 @@ private:
 //                    break;
                 }
 
+#ifdef __APPLE__
+#pragma mark --download-progress--
+#endif
                 // piece_finished_alert
                 case lt::piece_finished_alert::alert_type:
                 {
-                    //_LOG( "*** piece_finished_alert:" );
-
 //                    auto *theAlert = dynamic_cast<lt::piece_finished_alert *>(alert);
-//                    if ( theAlert ) _LOG( "piece_finished_alert: " << theAlert->handle.torrent_file()->files().file_path(0) );
 //
 //                    if ( theAlert ) {
+//
+//                        _LOG( "@@@ piece_finished_alert: " << theAlert->handle.torrent_file()->files().file_path(0) );
 //
 //                        // TODO: better to use piece_granularity
 //                        std::vector<int64_t> fp = theAlert->handle.file_progress();// lt::torrent_handle::piece_granularity );
 //
-#ifdef __APPLE__
-#pragma mark --download-progress--
-#endif
-//                        //todo++++
-//                        bool calculatePercents = true;//false;//true;
+//                        bool calculatePercents = false;//true;
 //                        uint64_t dnBytes = 0;
 //                        uint64_t totalBytes = 0;
 //
@@ -1059,20 +1059,19 @@ private:
 //                            }
 //
 //                            //dbg/////////////////////////
-////                            const std::string filePath = theAlert->handle.torrent_file()->files().file_path(i);
-////                            _LOG( m_addressAndPort << ": " << filePath << ": alert: progress: " << fp[i] << " of " << fsize );
+//                            const std::string filePath = theAlert->handle.torrent_file()->files().file_path(i);
+//                            _LOG( "@@@ progress: " << fp[i] << " of " << fsize << " " << filePath );
 //                            //dbg/////////////////////////
 //                        }
 //
 //                        if ( calculatePercents )
 //                        {
-//                            m_dbgPieceCounter++;
-//                            _LOG( m_addressAndPort << ":  progress: " << 100.*double(dnBytes)/double(totalBytes) << "   " << dnBytes << "/" << totalBytes << "  piece_index=" << theAlert->piece_index << "  piece_count=" << m_dbgPieceCounter );
+//                            _LOG( "@@@  progress: " << 100.*double(dnBytes)/double(totalBytes) << "   " << dnBytes << "/" << totalBytes << "  piece_index=" << theAlert->piece_index );
 //                        }
 //
 //                        if ( isAllComplete )
 //                        {
-//                            _LOG( m_addressAndPort << ": all complete" )
+//                            _LOG( "@@@ all completed: " << theAlert->handle.torrent_file()->files().file_path(0) )
 //                        }
 //                    }
                     break;
