@@ -271,7 +271,11 @@ private:
             m_verificationCodes[i] = initHash;
         }
 
+		_LOG( "Started Calculating Verification Codes " << m_request->m_tx );
+
         calculateVerifyCodes( *m_drive.m_fsTree );
+
+        _LOG( "Finished Calculating Verification Codes " << m_request->m_tx );
 
         m_drive.executeOnSessionThread( [t = weak_from_this()]
         {
