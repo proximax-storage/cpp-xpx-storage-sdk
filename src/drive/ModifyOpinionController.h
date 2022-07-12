@@ -75,7 +75,10 @@ public:
         // We save 'AccountedUploads' because they will be needed after restart
         //
         m_serializer.loadRestartValue( m_approvedCumulativeUploads,      "approvedAccountedUploads" );
-        m_serializer.loadRestartValue( m_notApprovedCumulativeUploads,  "notApprovedAccountedUploads" );
+
+        // TODO Now notApprovedCumulativeUploads are not saved due to possible problems with modification cancellation
+        // m_serializer.loadRestartValue( m_notApprovedCumulativeUploads,      "notApprovedAccountedUploads" );
+        m_notApprovedCumulativeUploads = m_approvedCumulativeUploads;
     }
 
     void increaseApprovedExpectedCumulativeDownload( uint64_t add )
@@ -134,7 +137,7 @@ public:
         }
 
         auto accountedCumulativeDownload = std::accumulate( m_notApprovedCumulativeUploads.begin(),
-                                                            m_notApprovedCumulativeUploads.end(), 0,
+                                                            m_notApprovedCumulativeUploads.end(), 0ul,
                                                             []( const auto& sum, const auto& item )
                                                             {
                                                                 return sum + item.second;
@@ -142,6 +145,8 @@ public:
         auto expectedCumulativeDownload = m_approvedExpectedCumulativeDownload + addCumulativeDownload;
 
         _ASSERT( expectedCumulativeDownload > 0 )
+
+        _ASSERT( expectedCumulativeDownload >= accountedCumulativeDownload )
 
         uint64_t targetSize = expectedCumulativeDownload - accountedCumulativeDownload;
         normalizeUploads(currentUploads, targetSize);
@@ -158,7 +163,8 @@ public:
         }
 
         m_threadManager.executeOnBackgroundThread([=, this] {
-            m_serializer.saveRestartValue( m_notApprovedCumulativeUploads, "notApprovedAccountedUploads" );
+            // TODO Now notApprovedCumulativeUploads are not saved due to possible problems with modification cancellation
+            // m_serializer.saveRestartValue( m_notApprovedCumulativeUploads, "notApprovedAccountedUploads" );
             m_threadManager.executeOnSessionThread([=] {
                 callback();
             });
@@ -218,7 +224,8 @@ public:
 
         m_threadManager.executeOnBackgroundThread( [=, this]
             {
-               m_serializer.saveRestartValue( m_notApprovedCumulativeUploads, "notApprovedAccountedUploads" );
+              // TODO Now notApprovedCumulativeUploads are not saved due to possible problems with modification cancellation
+              // m_serializer.loadRestartValue( m_notApprovedCumulativeUploads,      "notApprovedAccountedUploads" );
                m_threadManager.executeOnSessionThread( [=]
                {
                    callback();

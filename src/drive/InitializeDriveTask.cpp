@@ -22,8 +22,8 @@ public:
 
     InitializeDriveTask( DriveParams& drive,
                          ModifyOpinionController& opinionTaskController)
-            : DriveTaskBase( DriveTaskType::DRIVE_INITIALIZATION, drive ),
-              m_opinionController( opinionTaskController )
+            : DriveTaskBase( DriveTaskType::DRIVE_INITIALIZATION, drive )
+            , m_opinionController( opinionTaskController )
     {}
 
     void run() override
