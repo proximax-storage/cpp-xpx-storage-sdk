@@ -234,11 +234,8 @@ public:
                 if ( auto session = m_drive.m_session.lock(); session )
                 {
                     m_verifyOpinionTimer = session->startTimer( m_drive.m_replicator.getVerifyApprovalTransactionTimerDelay(),
-                                                                [t = weak_from_this()]() {
-                        if ( auto task = t.lock(); task )
-                        {
-                            task->verifyOpinionTimerExpired();
-                        }
+                                                                [this]() {
+                    	verifyOpinionTimerExpired();
                     } );
                 }
             }
@@ -274,7 +271,11 @@ private:
             m_verificationCodes[i] = initHash;
         }
 
+		_LOG( "Started Calculating Verification Codes " << m_request->m_tx );
+
         calculateVerifyCodes( *m_drive.m_fsTree );
+
+        _LOG( "Finished Calculating Verification Codes " << m_request->m_tx );
 
         m_drive.executeOnSessionThread( [t = weak_from_this()]
         {
@@ -461,12 +462,9 @@ private:
 
 			if ( auto session = m_drive.m_session.lock(); session )
 			{
-                m_verifyCodeTimer = session->startTimer( codesDelay, [t = weak_from_this()]()
+                m_verifyCodeTimer = session->startTimer( codesDelay, [this]()
                 {
-                    if ( auto task = t.lock(); task )
-                    {
-                        task->verifyCodeTimerExpired();
-                    }
+                	verifyCodeTimerExpired();
                 } );
 			}
         }
@@ -478,10 +476,7 @@ private:
 
         _LOG( "Verify Opinion Timer Expired " << m_request->m_tx )
 
-        if ( m_verificationMustBeInterrupted )
-        {
-            return;
-        }
+        _ASSERT( !m_verificationMustBeInterrupted )
 
         m_verifyApproveTxSent = true;
         m_verifyCodeTimer.cancel();
@@ -496,10 +491,7 @@ private:
 
         _LOG( "Verify Code Timer Expired " << m_request->m_tx )
 
-        if ( m_verificationMustBeInterrupted )
-        {
-            return;
-        }
+        _ASSERT( !m_verificationMustBeInterrupted )
 
         _ASSERT( m_myVerifyCodesCalculated )
         _ASSERT( !m_verifyApproveTxSent )

@@ -388,8 +388,11 @@ public:
                 return true;
             }
         }
+		else
+		{
+			_LOG_WARN( "Unknown driveKey: " << Key(driveKey) << " from_peer:" << Key(peerKey) )
+		}
 
-        _LOG_WARN( "Unknown driveKey: " << Key(driveKey) << " from_peer:" << Key(peerKey) )
         return false;
     }
 
