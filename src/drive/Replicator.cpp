@@ -283,7 +283,15 @@ public:
     }
 
     void asyncInitializationFinished() override
-    {}
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post(m_session->lt_session().get_context(), [this]
+        {
+            removeUnusedDrives( m_storageDirectory );
+            removeUnusedDrives( m_sandboxDirectory );
+        });
+    }
 
     void asyncAddDrive( Key driveKey, mobj<AddDriveRequest>&& driveRequest ) override
     {
@@ -2033,6 +2041,48 @@ public:
 private:
     std::shared_ptr<sirius::drive::Session> session() {
         return m_session;
+    }
+
+    void removeUnusedDrives( const std::string& path )
+    {
+        DBG_MAIN_THREAD
+
+        // Despite the fact we work on the main thread,
+        // it is ok to work with fs since it is done once during the Replicator initialization
+
+        auto rootFolderPath = fs::path( path );
+
+        {
+            std::error_code ec;
+            if ( !std::filesystem::is_directory(rootFolderPath,ec) )
+            {
+                return;
+            }
+        }
+
+        for( const auto& entry : std::filesystem::directory_iterator(rootFolderPath) )
+        {
+            if ( entry.is_directory() )
+            {
+                const auto entryName = entry.path().filename().string();
+
+                try
+                {
+                    auto driveKey = stringToByteArray<Key>(entryName);
+
+                    if ( !m_driveMap.contains(driveKey) )
+                    {
+                        {
+                            std::error_code ec;
+                            fs::remove_all( entry.path(), ec );
+                        }
+                    }
+                }
+                catch(...) {
+                    _LOG_WARN( "Invalid Attempt To Remove " << entry.path() );
+                }
+            }
+        }
     }
 };
 

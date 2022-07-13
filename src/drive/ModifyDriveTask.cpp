@@ -187,7 +187,7 @@ public:
             switch (action.m_actionId)
             {
                 case action_list_id::upload:
-                    m_missedFileSet.insert( stringToHash( action.m_param1 ) );
+                    m_missedFileSet.insert( stringToByteArray<Hash256>( action.m_param1 ) );
                     break;
                 case action_list_id::new_folder:
                 case action_list_id::move:
@@ -328,7 +328,7 @@ public:
                     try
                     {
                         size_t fileSize = std::filesystem::file_size( clientFile );
-                        auto fileHash = stringToHash(action.m_param1);
+                        auto fileHash = stringToByteArray<Hash256>( action.m_param1 );
                         
                         //
                         // add file in resultFsTree

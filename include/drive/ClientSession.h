@@ -254,7 +254,7 @@ public:
             {
                 case action_list_id::upload:
                 {
-                    InfoHash infoHash = stringToHash( action.m_param1 );
+                    InfoHash infoHash = stringToByteArray<Hash256>( action.m_param1 );
                     if ( m_modifyTorrentMap.find(infoHash) == m_modifyTorrentMap.end() )
                     {
                         fs::path filenameInSandbox = workFolder/action.m_param1;

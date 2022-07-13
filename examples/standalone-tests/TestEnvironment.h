@@ -138,6 +138,7 @@ public:
                 replicator->setDownloadApprovalTransactionTimerDelay( modifyApprovalDelay );
                 replicator->setModifyApprovalTransactionTimerDelay( downloadApprovalDelay );
                 replicator->start();
+                replicator->asyncInitializationFinished();
                 m_replicators.emplace_back( replicator );
             } else
             {
@@ -200,6 +201,7 @@ public:
                     }
                 }
             }
+            replicator->asyncInitializationFinished();
         }
     }
 
