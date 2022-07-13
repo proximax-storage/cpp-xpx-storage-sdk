@@ -21,7 +21,7 @@ protected:
 
     std::optional<ApprovalTransactionInfo> m_myOpinion;
 
-    mobj<FsTree> m_sandboxFsTree;
+    std::unique_ptr<FsTree> m_sandboxFsTree;
     std::optional<InfoHash> m_sandboxRootHash;
     uint64_t m_metaFilesSize = 0;
     uint64_t m_sandboxDriveSize = 0;
@@ -58,7 +58,6 @@ protected:
             ModifyOpinionController& opinionTaskController)
             : DriveTaskBase( type, drive )
             , m_opinionController( opinionTaskController )
-            , m_sandboxFsTree( FsTree{} )
     {}
 
     void myRootHashIsCalculated()

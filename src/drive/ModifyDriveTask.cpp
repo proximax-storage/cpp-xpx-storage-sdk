@@ -293,7 +293,8 @@ public:
         actionList.deserialize( actionListFilename.string() );
 
         // Make copy of current FsTree
-        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile.string() );
+        _ASSERT( m_drive.m_fsTree )
+        m_sandboxFsTree = std::make_unique<FsTree>( *m_drive.m_fsTree );
 
         auto& torrentHandleMap = m_drive.m_torrentHandleMap;
 
@@ -617,16 +618,24 @@ protected:
                                          errorText, errorCode );
         }
 
-        m_sandboxRootHash = m_drive.m_rootHash;
-        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile.string() );
-        std::error_code ec;
-        fs::remove( m_drive.m_sandboxFsTreeFile, ec );
-        fs::copy( m_drive.m_fsTreeFile, m_drive.m_sandboxFsTreeFile );
-        fs::remove( m_drive.m_sandboxFsTreeTorrent, ec );
-        fs::copy( m_drive.m_fsTreeTorrent, m_drive.m_sandboxFsTreeTorrent );
-
         m_downloadingLtHandle.reset();
-        myRootHashIsCalculated();
+
+        m_drive.executeOnBackgroundThread([this]
+        {
+            _ASSERT( m_drive.m_fsTree )
+            m_sandboxRootHash = m_drive.m_rootHash;
+            m_sandboxFsTree = std::make_unique<FsTree>( *m_drive.m_fsTree );
+            std::error_code ec;
+            fs::remove( m_drive.m_sandboxFsTreeFile, ec );
+            fs::copy( m_drive.m_fsTreeFile, m_drive.m_sandboxFsTreeFile );
+            fs::remove( m_drive.m_sandboxFsTreeTorrent, ec );
+            fs::copy( m_drive.m_fsTreeTorrent, m_drive.m_sandboxFsTreeTorrent );
+
+            m_drive.executeOnSessionThread([this]
+            {
+                myRootHashIsCalculated();
+            });
+        });
     }
 
     const Hash256& getModificationTransactionHash() override

@@ -73,6 +73,7 @@ public:
             {
                 m_sandboxRootHash = m_request->m_rootHash;
                 m_sandboxRootHash = m_drive.m_rootHash;
+                m_sandboxFsTree = std::make_unique<FsTree>();
                 m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile.string() );
                 std::error_code ec;
                 fs::remove( m_drive.m_sandboxFsTreeFile, ec );
@@ -117,7 +118,23 @@ public:
                                {
                                    m_sandboxRootHash = infoHash;
                                    m_downloadingLtHandle.reset();
-                                   createUnusedFileList();
+                                   m_drive.executeOnBackgroundThread([this] {
+                                       try
+                                       {
+                                           m_sandboxFsTree = std::make_unique<FsTree>();
+                                           m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile.string() );
+                                           m_sandboxFsTree->dbgPrint();
+                                       }
+                                       catch (...)
+                                       {
+                                           _LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
+                                           return;
+                                       }
+
+                                       m_drive.executeOnSessionThread([this] {
+                                           createUnusedFileList();
+                                       });
+                                   });
                                }
                            },
                            m_request->m_rootHash,
@@ -137,19 +154,8 @@ public:
     void createUnusedFileList()
     {
         DBG_MAIN_THREAD
-        
-        try
-        {
-			// TODO do not read file on main thread
 
-			m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile.string() );
-            m_sandboxFsTree->dbgPrint();
-        }
-        catch (...)
-        {
-            _LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
-            return;
-        }
+        _ASSERT( m_sandboxFsTree )
 
         //
         // Create list/set of unused files
@@ -243,17 +249,7 @@ public:
         _LOG( "startDownloadMissingFiles: " << m_downloadingLtHandle->id() << " "
                                                                        << m_downloadingLtHandle->info_hashes().v2 );
 
-        //
-        // Deserialize FsTree
-        //
-        try
-        {
-            m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile.string() );
-        }
-        catch (...)
-        {
-            _LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
-        }
+        _ASSERT( m_sandboxFsTree )
 
         //
         // Prepare missing list and start download
@@ -355,15 +351,6 @@ public:
     void modifyDriveInSandbox()
     {
         DBG_BG_THREAD
-
-//        // create FsTree in sandbox
-//        m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile );
-//
-//        //(???+++++)
-//        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile,
-//                                               m_drive.m_driveKey,
-//                                               m_drive.m_sandboxRootPath,
-//                                               m_drive.m_sandboxFsTreeTorrent );
 
         getSandboxDriveSizes( m_metaFilesSize, m_sandboxDriveSize );
         m_fsTreeSize = sandboxFsTreeSize();

@@ -167,6 +167,8 @@ public:
 
     FsTree() = default;
 
+    FsTree( const FsTree& ) = default;
+
     void     doSerialize( std::string fileName );
     void     deserialize( std::string fileName );
 
