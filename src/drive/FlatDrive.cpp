@@ -487,7 +487,6 @@ public:
 
         if ( !m_verificationTask || !m_verificationTask->processedVerificationCode( *code ))
         {
-
             m_unknownVerificationCodeQueue[code->m_tx].push_back(*code);
         }
     }

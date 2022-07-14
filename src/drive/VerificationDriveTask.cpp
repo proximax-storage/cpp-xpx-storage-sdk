@@ -512,7 +512,7 @@ private:
         {
             auto& key = keyList[i].array();
 
-            if ( key == m_drive.m_replicator.dbgReplicatorKey().array() )
+            if ( key == m_drive.m_replicator.keyPair().publicKey().array() )
             {
                 myOpinion.m_opinions[i] = 1;
             }
@@ -540,8 +540,7 @@ private:
 
         for( const auto& replicatorKey: m_request->m_replicators )
         {
-            //TODO?            m_replicator.sendMessage( "code_verify", replicatorKey.array(), os.str() );
-            if ( replicatorKey != m_drive.m_replicator.dbgReplicatorKey() )
+            if ( replicatorKey != m_drive.m_replicator.keyPair().publicKey() )
             {
                 m_drive.m_replicator.sendMessage( "verify_opinion", replicatorKey.array(), os.str() );
             }
