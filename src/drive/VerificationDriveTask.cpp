@@ -311,7 +311,7 @@ private:
         }
 
         hash ^= lastValue;
-        hash = (hash >> 1) | (hash << 63);
+        hash = ( hash >> 1 ) | ( hash << 63 );
 
         return hash;
     }
