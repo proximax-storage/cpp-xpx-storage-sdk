@@ -2052,6 +2052,8 @@ private:
 
         auto rootFolderPath = fs::path( path );
 
+        std::set<fs::path> toRemove;
+
         {
             std::error_code ec;
             if ( !std::filesystem::is_directory(rootFolderPath,ec) )
@@ -2073,8 +2075,7 @@ private:
                     if ( !m_driveMap.contains(driveKey) )
                     {
                         {
-                            std::error_code ec;
-                            fs::remove_all( entry.path(), ec );
+                            toRemove.insert(entry.path());
                         }
                     }
                 }
@@ -2082,6 +2083,11 @@ private:
                     _LOG_WARN( "Invalid Attempt To Remove " << entry.path() );
                 }
             }
+        }
+
+        for ( const auto& p: toRemove) {
+            std::error_code ec;
+            fs::remove_all( p, ec );
         }
     }
 };
