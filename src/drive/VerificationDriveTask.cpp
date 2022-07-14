@@ -299,14 +299,7 @@ private:
             hash ^= *reinterpret_cast<uint64_t*>(ptr);
 
             // Circular Shift
-            if ( hash&0x1 )
-            {
-                hash = (hash >> 1) | 0x8000000000000000;
-            }
-            else
-            {
-                hash = (hash >> 1);
-            }
+            hash = (hash >> 1) | ( hash << 63 );
         }
 
         // At the end, we process tail
@@ -318,14 +311,7 @@ private:
         }
 
         hash ^= lastValue;
-        if ( hash&0x1 )
-        {
-            hash = (hash >> 1) | 0x8000000000000000;
-        }
-        else
-        {
-            hash = (hash >> 1);
-        }
+        hash = (hash >> 1) | (hash << 63);
 
         return hash;
     }
