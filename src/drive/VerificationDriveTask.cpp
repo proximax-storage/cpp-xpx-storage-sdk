@@ -299,7 +299,7 @@ private:
             hash ^= *reinterpret_cast<uint64_t*>(ptr);
 
             // Circular Shift
-            hash = (hash >> 1) | ( hash << 63 );
+            hash = ( hash >> 1 ) | ( hash << 63 );
         }
 
         // At the end, we process tail
