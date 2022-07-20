@@ -246,7 +246,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        if (m_bootstraps.empty() == 0)
+        if (m_bootstraps.empty())
         {
             // TODO maybe ask other nodes?
             return;

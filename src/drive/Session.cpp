@@ -973,7 +973,6 @@ private:
                                     && query != "handshake" && query != "endpoint_response" )
                              {
                                  _LOG( "dht_query: " << query );
-                                 _LOG( "" );
                              }
                              //_LOG( "dht_query: " << query )
                              if ( query == "get_dn_rcpts" || query == "get-chunks-info" )
