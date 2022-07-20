@@ -73,10 +73,15 @@ namespace sirius::drive::test {
             fs::path b_bin = clientFolder / "b.bin";
             fs::create_directories( b_bin.parent_path() );
             //        std::vector<uint8_t> data(10*1024*1024);
-            std::vector<uint8_t> data(bigFileSize);
-            std::generate( data.begin(), data.end(), std::rand );
             std::ofstream file( b_bin );
-            file.write( (char*) data.data(), data.size() );
+            while (bigFileSize > 0) {
+                // Max portion is 1GB
+                auto portion = std::min(static_cast<unsigned long long>(bigFileSize), 1024ULL * 1024ULL * 1024ULL);
+                std::vector<uint8_t> data(portion);
+                std::generate( data.begin(), data.end(), std::rand );
+                file.write( (char*) data.data(), data.size() );
+                bigFileSize -= portion;
+            }
         }
         {
             fs::path b_bin = clientFolder / "c.bin";
@@ -109,9 +114,9 @@ namespace sirius::drive::test {
         return clientFolder.parent_path();
     }
 
-    ActionList createActionList(const fs::path& clientRootFolder) {
+    ActionList createActionList(const fs::path& clientRootFolder, uint64_t size) {
         fs::path clientFolder = clientRootFolder / "client_files";
-        createClientFiles(clientFolder, BIG_FILE_SIZE);
+        createClientFiles(clientFolder, size);
         ActionList actionList;
         actionList.push_back(Action::newFolder("fff1/"));
         actionList.push_back(Action::newFolder("fff1/ffff1"));
@@ -123,6 +128,10 @@ namespace sirius::drive::test {
         actionList.push_back(Action::upload(clientFolder / "b.bin", "f2/b2.bin"));
         actionList.push_back(Action::upload(clientFolder / "a.txt", "f2/a.txt"));
         return actionList;
+    }
+
+    ActionList createActionList(const fs::path& clientRootFolder) {
+        return createActionList(clientRootFolder, BIG_FILE_SIZE);
     }
 
     ActionList createActionList_2(const fs::path& clientRootFolder) {

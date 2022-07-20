@@ -38,6 +38,7 @@ private:
 
     std::map<std::array<uint8_t,32>,ApprovalTransactionInfo> m_receivedOpinions;
 
+    bool m_modifyIsCompletedWithError = false;
     bool m_actionListIsReceived = false;
     bool m_modifyApproveTransactionSent = false;
     bool m_modifyApproveTxReceived = false;
@@ -461,7 +462,7 @@ public:
 
         getSandboxDriveSizes( m_metaFilesSize, m_sandboxDriveSize );
         m_fsTreeSize = sandboxFsTreeSize();
-        
+
         if ( m_metaFilesSize + m_sandboxDriveSize + m_fsTreeSize > m_drive.m_maxSize )
         {
             m_drive.executeOnSessionThread( [this] {
@@ -511,7 +512,7 @@ public:
         m_modifyApproveTxReceived = true;
 
         if ( m_request->m_transactionHash == transaction.m_modifyTransactionHash
-             && m_actionListIsReceived )
+             && ( m_actionListIsReceived || m_modifyIsCompletedWithError ))
         {
             if ( !m_sandboxCalculated )
             {
@@ -619,6 +620,8 @@ protected:
         }
 
         m_downloadingLtHandle.reset();
+
+        m_modifyIsCompletedWithError = true;
 
         m_drive.executeOnBackgroundThread([this]
         {

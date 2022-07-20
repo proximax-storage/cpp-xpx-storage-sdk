@@ -212,7 +212,6 @@ public:
         if ( !m_myVerificationApprovalTxInfo )
         {
             m_myVerificationApprovalTxInfo = info;
-            return true;
         }
 
         _ASSERT( m_myVerificationApprovalTxInfo->m_tx == info.m_tx )

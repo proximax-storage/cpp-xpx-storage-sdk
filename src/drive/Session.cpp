@@ -51,8 +51,6 @@ namespace fs = std::filesystem;
 
 namespace sirius::drive {
 
-enum { PIECE_SIZE = 16*1024 };
-
 // Libtorrent "ClientData"
 //
 struct LtClientData
@@ -72,7 +70,7 @@ struct LtClientData
 
     uint64_t                        m_downloadLimit       = 0;
     uint64_t                        m_uploadedDataSize    = 0;
-    bool                            m_limitIsExceeded     = false;
+    bool                            m_invalidMetadata     = false;
     
     bool                            m_isRemoved           = false;
 };
@@ -190,7 +188,7 @@ public:
         
         auto& contextVector = userdata->m_dnContexts;
 
-        if ( ! contextVector.empty() && ! userdata->m_limitIsExceeded )
+        if ( ! contextVector.empty() && ! userdata->m_invalidMetadata )
         {
             fs::path srcFilePath = fs::path(userdata->m_saveFolder) / hashToFileName( contextVector[0].m_infoHash );
 
@@ -904,29 +902,42 @@ private:
                     if ( theAlert->handle.is_valid() && theAlert->handle.userdata().get<LtClientData>() != nullptr )
                     {
                         auto userdata = theAlert->handle.userdata().get<LtClientData>();
-                        
-                        if ( userdata != nullptr )
+
+                        std::optional<std::string> errorText;
+
+                        auto torrentInfo = theAlert->handle.torrent_file();
+                        auto expectedPieceSize = lt::create_torrent::automatic_piece_size(torrentInfo->total_size());
+                        auto actualPieceSize = torrentInfo->piece_length();
+
+                        if (expectedPieceSize != actualPieceSize) {
+                            errorText = "Invalid Piece Size";
+                            _LOG( "+**** Invalid Piece Size: " << actualPieceSize << " " << expectedPieceSize );
+                        }
+
+                        if ( !errorText )
                         {
                             int64_t downloadLimit = (userdata->m_dnContexts.size() == 0) ? 0 : userdata->m_dnContexts.front().m_downloadLimit;
                             userdata->m_uploadedDataSize = theAlert->handle.torrent_file()->total_size();
 
-                            bool limitIsExceeded = downloadLimit != 0 && downloadLimit < theAlert->handle.torrent_file()->total_size();
-                            //_LOG( "+**** limitIsExceeded?: " << downloadLimit << " " << theAlert->handle.torrent_file()->total_size() );
-                            if ( limitIsExceeded )
-                            {
-                                _LOG( "+**** limitIsExceeded: " << theAlert->handle.torrent_file()->total_size() );
-                                m_session.remove_torrent( theAlert->handle, lt::session::delete_files );
-
-                                userdata->m_limitIsExceeded = true;
-                                _ASSERT( userdata->m_dnContexts.size()==1 )
-                                userdata->m_dnContexts.front().m_downloadNotification(
-                                                                    download_status::code::dn_failed,
-                                                                    userdata->m_dnContexts.front().m_infoHash,
-                                                                    userdata->m_dnContexts.front().m_saveAs,
-                                                                    userdata->m_uploadedDataSize,
-                                                                    0,
-                                                                    "Limit Is Exceeded" );
+                            if ( downloadLimit != 0 && downloadLimit < torrentInfo->total_size() ) {
+                                errorText = "Limit Is Exceeded";
                             }
+                            _LOG( "+**** limitIsExceeded: " << torrentInfo->total_size() );
+                        }
+
+                        if ( errorText )
+                        {
+                            m_session.remove_torrent( theAlert->handle, lt::session::delete_files );
+
+                            userdata->m_invalidMetadata = true;
+                            _ASSERT( userdata->m_dnContexts.size()==1 )
+                            userdata->m_dnContexts.front().m_downloadNotification(
+                                                                download_status::code::dn_failed,
+                                                                userdata->m_dnContexts.front().m_infoHash,
+                                                                userdata->m_dnContexts.front().m_saveAs,
+                                                                userdata->m_uploadedDataSize,
+                                                                0,
+                                                                *errorText);
                         }
                     }
                     
@@ -1312,7 +1323,7 @@ InfoHash createTorrentFile( const std::string& fileOrFolder,
     lt::add_files( fStorage, fileOrFolder, lt::create_flags_t{} );
 
     // create torrent info
-    lt::create_torrent createInfo( fStorage, PIECE_SIZE, lt::create_torrent::v2_only );
+    lt::create_torrent createInfo( fStorage, 0, lt::create_torrent::v2_only );
 
     // calculate hashes for 'fileOrFolder' relative to 'rootFolder'
     lt::error_code ec;
@@ -1383,7 +1394,7 @@ InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
     lt::add_files( fStorage, pathToFile, lt::create_flags_t{} );
 
     // create torrent info
-    lt::create_torrent createInfo( fStorage, PIECE_SIZE, lt::create_torrent::v2_only );
+    lt::create_torrent createInfo( fStorage, 0, lt::create_torrent::v2_only );
 
     // calculate hashes
     lt::error_code ec;
@@ -1471,7 +1482,7 @@ InfoHash calculateInfoHash( const std::string& pathToFile, const Key& drivePubli
     lt::add_files( fStorage, pathToFile, lt::create_flags_t{} );
 
     // create torrent info
-    lt::create_torrent createInfo( fStorage, PIECE_SIZE, lt::create_torrent::v2_only );
+    lt::create_torrent createInfo( fStorage, 0, lt::create_torrent::v2_only );
 
     // calculate hashes
     lt::error_code ec;
