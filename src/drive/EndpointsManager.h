@@ -10,6 +10,7 @@
 #include "drive/Session.h"
 
 #include <cereal/archives/portable_binary.hpp>
+#include <utility>
 
 namespace sirius::drive
 {
@@ -44,6 +45,9 @@ public:
                      const std::string& dbgOurPeerName)
             : m_replicator(replicator), m_bootstraps(bootstraps), m_dbgOurPeerName(dbgOurPeerName)
     {
+        std::erase_if( m_bootstraps, [this]( const auto& item ) {
+            return m_replicator.keyPair().publicKey() == item.m_publicKey;
+        } );
         for (const auto&[endpoint, key] : bootstraps)
         {
             m_endpointsMap[key] = {endpoint, {}};
@@ -52,7 +56,7 @@ public:
 
     void start(std::weak_ptr<Session> session)
     {
-        m_session = session;
+        m_session = std::move(session);
         m_dbgThreadId = std::this_thread::get_id();
 
         //(???++++) !!!!!!
@@ -242,7 +246,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        if (m_bootstraps.size() == 0)
+        if (m_bootstraps.empty() == 0)
         {
             // TODO maybe ask other nodes?
             return;
