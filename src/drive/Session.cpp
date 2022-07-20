@@ -80,7 +80,9 @@ struct LtClientData
 //
 class DefaultSession: public Session, std::enable_shared_from_this<DefaultSession>
 {
-    bool                    m_ownerIsReplicator = true;
+	const uint64_t						m_maxTotalSize = 256ULL * 1024ULL * 1024ULL * 1024ULL; // 256GB
+
+	bool                    m_ownerIsReplicator = true;
     
     std::string             m_addressAndPort;
     lt::session             m_session;
@@ -906,13 +908,22 @@ private:
                         std::optional<std::string> errorText;
 
                         auto torrentInfo = theAlert->handle.torrent_file();
-                        auto expectedPieceSize = lt::create_torrent::automatic_piece_size(torrentInfo->total_size());
-                        auto actualPieceSize = torrentInfo->piece_length();
 
-                        if (expectedPieceSize != actualPieceSize) {
-                            errorText = "Invalid Piece Size";
-                            _LOG( "+**** Invalid Piece Size: " << actualPieceSize << " " << expectedPieceSize );
-                        }
+						if (torrentInfo->total_size() > m_maxTotalSize) {
+							errorText = "Max Total Size Exceeded";
+							_LOG( "+**** Max Total Size Exceeded: " << torrentInfo->total_size() );
+						}
+
+						if ( !errorText )
+						{
+							auto expectedPieceSize = lt::create_torrent::automatic_piece_size(torrentInfo->total_size());
+							auto actualPieceSize = torrentInfo->piece_length();
+
+							if (expectedPieceSize != actualPieceSize) {
+								errorText = "Invalid Piece Size";
+								_LOG( "+**** Invalid Piece Size: " << actualPieceSize << " " << expectedPieceSize );
+							}
+						}
 
                         if ( !errorText )
                         {
