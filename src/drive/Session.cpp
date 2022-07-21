@@ -80,7 +80,7 @@ struct LtClientData
 //
 class DefaultSession: public Session, std::enable_shared_from_this<DefaultSession>
 {
-	const uint64_t						m_maxTotalSize = 256ULL * 1024ULL * 1024ULL * 1024ULL; // 256GB
+	const int64_t			m_maxTotalSize = 256LL * 1024LL * 1024LL * 1024LL; // 256GB
 
 	bool                    m_ownerIsReplicator = true;
     

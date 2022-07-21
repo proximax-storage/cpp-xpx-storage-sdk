@@ -142,8 +142,7 @@ public:
 
     virtual ~DefaultReplicator()
     {
-        m_replicatorIsDestructing = true;
-        
+
 #ifdef DEBUG_OFF_CATAPULT
         _LOG( "~DefaultReplicator() ")
 #endif
@@ -180,6 +179,8 @@ public:
         std::promise<void> bootstrapBarrier;
         m_bootstrapFuture = bootstrapBarrier.get_future();
 
+        loadDownloadChannelMap();
+
         m_session = createDefaultSession( m_replicatorContext, m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
                                          {
                                              if ( pAlert->type() == lt::listen_failed_alert::alert_type )
@@ -194,7 +195,7 @@ public:
                                          bootstrapEndpoints,
                                          std::move(bootstrapBarrier) );
 
-        m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName.c_str();
+        m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName;
         
         m_libtorrentThread = std::thread( [this] {
             //m_sesion->setDbgThreadId();
@@ -215,36 +216,7 @@ public:
             m_endpointsManager.start(m_session);
         });
 
-        removeDriveDataOfBrokenClose();
-        loadDownloadChannelMap();
-        
-        //(???+) !!!
-        //m_bootstrapFuture.wait();
-
         m_dnOpinionSyncronizer.start( m_session );
-    }
-    
-    void removeDriveDataOfBrokenClose()
-    {
-        auto rootFolderPath = fs::path( m_storageDirectory );
-
-        std::error_code ec;
-        if ( !std::filesystem::is_directory(rootFolderPath,ec) )
-            return;
-
-        for( const auto& entry : std::filesystem::directory_iterator(rootFolderPath) )
-        {
-            if ( entry.is_directory() )
-            {
-                const auto entryName = entry.path().filename().string();
-                
-                std::error_code errorCode;
-                if ( fs::exists( FlatDrive::driveIsClosingPath( (rootFolderPath / entryName).string() ), errorCode ) )
-                {
-                    fs::remove_all( rootFolderPath / entryName );
-                }
-            }
-        }
     }
 
     Hash256 dbgGetRootHash( const DriveKey& driveKey ) override
@@ -1865,7 +1837,7 @@ public:
        
         return true;
     }
-    
+
     virtual bool on_dht_request( lt::string_view                         query,
                                  boost::asio::ip::udp::endpoint const&   source,
                                  lt::bdecode_node const&                 message,
@@ -2062,14 +2034,14 @@ private:
             }
         }
 
-        for( const auto& entry : std::filesystem::directory_iterator(rootFolderPath) )
+        try
         {
-            if ( entry.is_directory() )
+            for( const auto& entry : std::filesystem::directory_iterator(rootFolderPath) )
             {
-                const auto entryName = entry.path().filename().string();
-
-                try
+                if ( entry.is_directory() )
                 {
+                    const auto entryName = entry.path().filename().string();
+
                     auto driveKey = stringToByteArray<Key>(entryName);
 
                     if ( !m_driveMap.contains(driveKey) )
@@ -2079,10 +2051,10 @@ private:
                         }
                     }
                 }
-                catch(...) {
-                    _LOG_WARN( "Invalid Attempt To Remove " << entry.path() );
-                }
             }
+        }
+        catch(...) {
+            _LOG_WARN( "Invalid Attempt To Iterate " << rootFolderPath );
         }
 
         for ( const auto& p: toRemove) {
