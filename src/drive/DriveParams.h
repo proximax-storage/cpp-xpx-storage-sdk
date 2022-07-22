@@ -237,7 +237,8 @@ public:
     // Drive state
     //
 
-    InfoHash m_rootHash;
+    InfoHash                m_rootHash;
+    std::optional<Hash256>  m_lastApprovedModification;
 
     // FsTree
     std::unique_ptr<FsTree> m_fsTree;

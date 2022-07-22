@@ -39,6 +39,7 @@ public:
 
     AddDriveRequest m_driveRequest;
     std::deque<ModificationRequest> m_pendingModifications;
+    std::optional<VerificationRequest> m_pendingVerification;
     std::optional<ApprovalTransactionInfo> m_lastApprovedModification;
 };
 
@@ -195,6 +196,10 @@ public:
                     {
                         replicator->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*drive.m_lastApprovedModification) );
                     }
+                    if ( drive.m_pendingVerification )
+                    {
+                        replicator->asyncStartDriveVerification(key, *drive.m_pendingVerification);
+                    }
                     for ( const auto& modification: drive.m_pendingModifications )
                     {
                         replicator->asyncModify( key, modification );
@@ -221,7 +226,7 @@ public:
         {
             replicators = m_addrList;
         }
-        m_drives[driveKey] = { {driveSize, 0, replicators, client, replicators, replicators}, {}, {}};
+        m_drives[driveKey] = { {driveSize, 0, replicators, client, replicators, replicators}, {}, {}, {}};
         for ( auto& key: replicators )
         {
             auto replicator = getReplicator( key );
@@ -380,7 +385,11 @@ public:
 
     virtual void startVerification( const Key& driveKey, const VerificationRequest& request )
     {
-        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        auto& drive = m_drives[driveKey];
+        ASSERT_FALSE( drive.m_pendingVerification );
+        drive.m_pendingVerification = request;
+        for ( auto& key: drive.m_driveRequest.m_fullReplicatorList )
         {
             auto replicator = getReplicator( key );
             if ( replicator )
@@ -392,6 +401,13 @@ public:
 
     virtual void cancelVerification( const Key& driveKey, const Hash256& request )
     {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        auto& drive = m_drives[driveKey];
+        if ( !drive.m_pendingVerification || drive.m_pendingVerification->m_tx != request )
+        {
+            return;
+        }
+        drive.m_pendingVerification.reset();
         for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
         {
             auto replicator = getReplicator( key );
@@ -435,6 +451,12 @@ public:
                                                  const VerifyApprovalTxInfo& info ) override
     {
         const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        auto& drive = m_drives[info.m_driveKey];
+        if ( !drive.m_pendingVerification || drive.m_pendingVerification->m_tx != info.m_tx )
+        {
+            return;
+        }
+        drive.m_pendingVerification.reset();
         if ( !m_verifyApprovalTransactionInfo.contains( info.m_tx ))
         {
             m_verifyApprovalTransactionInfo[info.m_tx] = info;

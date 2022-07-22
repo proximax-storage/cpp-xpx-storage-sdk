@@ -108,6 +108,7 @@ protected:
         m_drive.m_rootHash = *m_sandboxRootHash;
         m_drive.m_fsTreeLtHandle = *m_sandboxFsTreeLtHandle;
         m_sandboxFsTreeLtHandle.reset();
+        m_drive.m_lastApprovedModification = getModificationTransactionHash();
 
 //        m_isSynchronizing = false;
 

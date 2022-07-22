@@ -320,7 +320,7 @@ class Replicator;
     {
         Hash256                     m_tx;
         uint16_t                    m_shardId = 0;
-        InfoHash                    m_actualRootHash;
+        Hash256                     m_approvedModification;
         std::vector<Key>            m_replicators;
         std::uint32_t               m_durationMs;
         std::set<Key>               m_blockedReplicators; // blocked until verification will be approved

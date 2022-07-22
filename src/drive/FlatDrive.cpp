@@ -242,7 +242,7 @@ public:
 
         if( m_deferredVerificationRequest )
         {
-            if (m_deferredVerificationRequest->m_actualRootHash == m_rootHash )
+            if ( m_lastApprovedModification == m_deferredVerificationRequest->m_approvedModification )
             {
                 runVerificationTask();
 
@@ -445,9 +445,9 @@ public:
             _LOG_ERR("startVerification: internal error: m_verificationRequest != null")
         }
 
-        _LOG ( "Received Verification Request " << m_deferredVerificationRequest->m_actualRootHash << " " << m_rootHash );
+        _LOG ( "Received Verification Request " << m_deferredVerificationRequest->m_approvedModification );
 
-        if (m_deferredVerificationRequest->m_actualRootHash == m_rootHash )
+        if ( m_lastApprovedModification == m_deferredVerificationRequest->m_approvedModification )
         {
             runVerificationTask();
         }
@@ -499,14 +499,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_blockedReplicators.clear();
-
-        if ( m_verificationTask )
-        {
-            //(???+++) replace by? m_verificationTask->terminate();
-            m_verificationTask->onApprovalTxPublished(transaction);
-            m_verificationTask.reset();
-        }
+        cancelVerification();
 
         // Notify task about 'ApprovalTxPublished'
         // and check that 'CatchingUp' should be started
@@ -544,16 +537,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_blockedReplicators.clear();
-
-        if ( !m_verificationTask )
-        {
-            _LOG_ERR( "verifyApprovalPublished: internal error: m_verificationRequest == null" )
-            return;
-        }
-
-        m_verificationTask->cancelVerification();
-        m_verificationTask.reset();
+        cancelVerification();
     }
 
     ////////////
@@ -625,6 +609,8 @@ public:
         DBG_MAIN_THREAD
 
         m_blockedReplicators.clear();
+
+        m_deferredVerificationRequest.reset();
 
         if ( !m_verificationTask )
         {

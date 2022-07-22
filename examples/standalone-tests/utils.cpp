@@ -74,13 +74,14 @@ namespace sirius::drive::test {
             fs::create_directories( b_bin.parent_path() );
             //        std::vector<uint8_t> data(10*1024*1024);
             std::ofstream file( b_bin );
-            while (bigFileSize > 0) {
+            auto sizeLeft = bigFileSize;
+            while (sizeLeft > 0) {
                 // Max portion is 1GB
-                auto portion = std::min(static_cast<unsigned long long>(bigFileSize), 1024ULL * 1024ULL * 1024ULL);
+                auto portion = std::min(static_cast<unsigned long long>(sizeLeft), 1024ULL * 1024ULL * 1024ULL);
                 std::vector<uint8_t> data(portion);
                 std::generate( data.begin(), data.end(), std::rand );
                 file.write( (char*) data.data(), data.size() );
-                bigFileSize -= portion;
+                sizeLeft -= portion;
             }
         }
         {
