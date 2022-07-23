@@ -1,0 +1,412 @@
+/*
+*** Copyright 2022 ProximaX Limited. All rights reserved.
+*** Use of this source code is governed by the Apache 2.0
+*** license that can be found in the LICENSE file.
+*/
+
+#pragma once
+
+#include "drive/RpcClient.h"
+//#include "drive/FlatDrive.h"
+#include "drive/Replicator.h"
+
+namespace sirius::drive {
+
+class RpcRemoteReplicator : public RpcClient, public ReplicatorEventHandler, public DbgReplicatorEventHandler
+{
+    std::shared_ptr<Replicator> m_replicator;
+    crypto::KeyPair* m_keyPair = nullptr;
+    
+public:
+    
+    RpcRemoteReplicator(std::shared_ptr<Replicator>&& replicator ) { m_replicator = std::move(replicator); }
+    
+    ~RpcRemoteReplicator() { delete m_keyPair; }
+
+    void setReplicator( std::shared_ptr<Replicator>&& replicator ) { m_replicator = std::move(replicator); }
+
+    virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive& iarchive ) override
+    {
+        switch( command )
+        {
+            case RPC_CMD::READY_TO_USE:
+            {
+                rpcCall( RPC_CMD::READY_TO_USE );
+                break;
+            }
+            case RPC_CMD::createReplicator:
+            {
+                Key key;
+                iarchive( key );
+
+                crypto::PrivateKey pKey = crypto::PrivateKey::FromStringSecure( (char*)key.data(), key.size() );
+                m_keyPair = new crypto::KeyPair( crypto::KeyPair::FromPrivate( std::move(pKey) ) );
+                
+                std::string  address;
+                iarchive( address );
+                std::string  port;
+                iarchive( port );
+                std::string  storageDirectory;
+                iarchive( storageDirectory );
+                std::string  sandboxDirectory;
+                iarchive( sandboxDirectory );
+                std::vector<ReplicatorInfo>  bootstraps;
+                int bootstrapNumber;
+                iarchive( bootstrapNumber );
+                for( int i=0; i<bootstrapNumber; i++ )
+                {
+                    Key         pubKey;
+                    std::string address;
+                    int         port;
+                    iarchive( pubKey );
+                    iarchive( address );
+                    iarchive( port );
+                    bootstraps.emplace_back( ReplicatorInfo{{ boost::asio::ip::make_address(address), (boost::asio::ip::port_type)port }, pubKey} );
+                }
+                bool  dbgEventHandlerIsSet;
+                iarchive( dbgEventHandlerIsSet );
+                std::string dbgReplicatorName;
+                iarchive( dbgReplicatorName );
+
+                m_replicator = createDefaultReplicator(
+                                     *m_keyPair,
+                                     std::move(address),
+                                     std::move(port),
+                                     std::move(storageDirectory),
+                                     std::move(sandboxDirectory),
+                                     bootstraps,
+                                     false, // use TCP socket (instead of uTP)
+                                     *this,
+                                     dbgEventHandlerIsSet ? this : nullptr,
+                                     dbgReplicatorName );
+                
+                sendAnswer(RPC_CMD::done);
+                break;
+            }
+            case RPC_CMD::destroyReplicator:
+            {
+                m_replicator.reset();
+                sendAnswer(RPC_CMD::done);
+            }
+            case RPC_CMD::start:
+            {
+                m_replicator->start();
+                break;
+            }
+            case RPC_CMD::asyncInitializationFinished:
+            {
+                m_replicator->asyncInitializationFinished();
+                break;
+            }
+            case RPC_CMD::asyncModify:
+            {
+                Key                         driveKey;
+                mobj<ModificationRequest>   modifyRequest{ModificationRequest{}};
+                iarchive( driveKey );
+                iarchive( *modifyRequest );
+                
+                m_replicator->asyncModify( driveKey, std::move(modifyRequest) );
+                break;
+            }
+            case RPC_CMD::asyncCancelModify:
+            {
+                Key       driveKey;
+                Hash256   tx;
+                iarchive( driveKey );
+                iarchive( tx );
+                
+                m_replicator->asyncCancelModify( driveKey, tx );
+                break;
+            }
+            case RPC_CMD::asyncAddDownloadChannelInfo:
+            {
+                Key                     driveKey;
+                mobj<DownloadRequest>   downloadRequest{DownloadRequest{}};
+                bool                    mustBeSynchronized;
+                iarchive( driveKey );
+                iarchive( *downloadRequest );
+                iarchive( mustBeSynchronized );
+
+                m_replicator->asyncAddDownloadChannelInfo( driveKey, std::move(downloadRequest), mustBeSynchronized );
+                break;
+            }
+            case RPC_CMD::asyncInitiateDownloadApprovalTransactionInfo:
+            {
+                Hash256 blockHash;
+                Hash256 channelId;
+                iarchive( blockHash );
+                iarchive( channelId );
+
+                m_replicator->asyncInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
+                break;
+            }
+            case RPC_CMD::asyncRemoveDownloadChannelInfo:
+            {
+                Hash256 channelId;
+                iarchive( channelId );
+
+                m_replicator->asyncRemoveDownloadChannelInfo( channelId );
+                break;
+            }
+            case RPC_CMD::asyncIncreaseDownloadChannelSize:
+            {
+                Hash256 channelId;
+                uint64_t size;
+                iarchive( channelId );
+                iarchive( size );
+
+                m_replicator->asyncIncreaseDownloadChannelSize( channelId, size );
+                break;
+            }
+            case RPC_CMD::asyncAddDrive:
+            {
+                Key                     driveKey;
+                mobj<AddDriveRequest>   driveRequest{AddDriveRequest{}};
+                iarchive( driveKey );
+                iarchive( *driveRequest );
+
+                m_replicator->asyncAddDrive( driveKey, std::move(driveRequest) );
+                break;
+            }
+            case RPC_CMD::asyncRemoveDrive:
+            {
+                Key driveKey;
+                iarchive( driveKey );
+
+                m_replicator->asyncRemoveDrive( driveKey );
+                break;
+            }
+            case RPC_CMD::asyncCloseDrive:
+            {
+                Key         driveKey;
+                Hash256     transactionHash;
+                iarchive( driveKey );
+                iarchive( transactionHash );
+
+                m_replicator->asyncCloseDrive( driveKey, transactionHash );
+                break;
+            }
+            case RPC_CMD::asyncStartDriveVerification:
+            {
+                Key                         driveKey;
+                mobj<VerificationRequest>   request{VerificationRequest{}};
+                iarchive( driveKey );
+                iarchive( *request );
+
+                m_replicator->asyncStartDriveVerification( driveKey, std::move(request) );
+                break;
+            }
+            case RPC_CMD::asyncCancelDriveVerification:
+            {
+                Key                         driveKey;
+                iarchive( driveKey );
+
+                m_replicator->asyncCancelDriveVerification( driveKey );
+                break;
+            }
+            case RPC_CMD::asyncSetReplicators:
+            {
+                Key                     driveKey;
+                mobj<std::vector<Key>>  replicatorKeys{std::vector<Key>{}};
+                iarchive( driveKey );
+                iarchive( *replicatorKeys );
+
+                m_replicator->asyncSetReplicators( driveKey, std::move(replicatorKeys) );
+                break;
+            }
+            case RPC_CMD::asyncSetShardDonator:
+            {
+                Key                     driveKey;
+                mobj<std::vector<Key>>  replicatorKeys{std::vector<Key>{}};
+                iarchive( driveKey );
+                iarchive( *replicatorKeys );
+
+                m_replicator->asyncSetShardDonator( driveKey, std::move(replicatorKeys) );
+                break;
+            }
+            case RPC_CMD::asyncSetShardRecipient:
+            {
+                Key                     driveKey;
+                mobj<std::vector<Key>>  replicatorKeys{std::vector<Key>{}};
+                iarchive( driveKey );
+                iarchive( *replicatorKeys );
+
+                m_replicator->asyncSetShardRecipient( driveKey, std::move(replicatorKeys) );
+                break;
+            }
+            case RPC_CMD::asyncSetChanelShard:
+            {
+                mobj<Hash256>           channelId{Hash256{}};
+                mobj<std::vector<Key>>  replicatorKeys{std::vector<Key>{}};
+                iarchive( *channelId );
+                iarchive( *replicatorKeys );
+
+                m_replicator->asyncSetChanelShard( std::move(channelId), std::move(replicatorKeys) );
+                break;
+            }
+            case RPC_CMD::asyncApprovalTransactionHasBeenPublished:
+            {
+                mobj<PublishedModificationApprovalTransactionInfo>&& txInfo{PublishedModificationApprovalTransactionInfo{}};
+                iarchive( *txInfo );
+
+                m_replicator->asyncApprovalTransactionHasBeenPublished( std::move(txInfo) );
+                break;
+            }
+            case RPC_CMD::asyncSingleApprovalTransactionHasBeenPublished:
+            {
+                mobj<PublishedModificationSingleApprovalTransactionInfo>&& txInfo{PublishedModificationSingleApprovalTransactionInfo{}};
+                iarchive( *txInfo );
+
+                m_replicator->asyncSingleApprovalTransactionHasBeenPublished( std::move(txInfo) );
+                break;
+            }
+            case RPC_CMD::asyncDownloadApprovalTransactionHasBeenPublished:
+            {
+                Hash256 blockHash;
+                Hash256 channelId;
+                bool    driveIsClosed;
+                iarchive( blockHash );
+                iarchive( channelId );
+                iarchive( driveIsClosed );
+
+                m_replicator->asyncDownloadApprovalTransactionHasBeenPublished( blockHash, channelId, driveIsClosed );
+                break;
+            }
+            case RPC_CMD::asyncVerifyApprovalTransactionHasBeenPublished:
+            {
+                PublishedVerificationApprovalTransactionInfo txInfo;
+                iarchive( txInfo );
+
+                m_replicator->asyncVerifyApprovalTransactionHasBeenPublished( txInfo );
+                break;
+            }
+
+            default:
+                __LOG( "Unexpected command received:" << static_cast<int>(command) );
+                __LOG( "Unexpected command received:" << CMD_STR(command) );
+                rpcCall( RPC_CMD::onLibtorrentSessionError, "Unexpected command received:" + std::to_string(static_cast<int>(command)) );
+                exit(1);
+                break;
+        }
+
+    }
+
+    virtual void handleError( std::error_code ) override
+    {
+        
+    }
+
+    virtual void handleConnectionLost() override
+    {
+        
+    }
+
+    virtual void verificationTransactionIsReady( Replicator&                    replicator,
+                                                const VerifyApprovalTxInfo&     transactionInfo ) override
+    {
+        rpcCall( RPC_CMD::verificationTransactionIsReady, transactionInfo );
+    }
+    
+    // It will initiate the approving of modify transaction
+    virtual void modifyApprovalTransactionIsReady( Replicator& replicator, const ApprovalTransactionInfo& transactionInfo ) override
+    {
+        rpcCall( RPC_CMD::modifyApprovalTransactionIsReady, transactionInfo );
+    }
+    
+    // It will initiate the approving of single modify transaction
+    virtual void singleModifyApprovalTransactionIsReady( Replicator& replicator, const ApprovalTransactionInfo& transactionInfo ) override
+    {
+        rpcCall( RPC_CMD::singleModifyApprovalTransactionIsReady, transactionInfo );
+    }
+    
+    // It will be called when transaction could not be completed
+    virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& transactionInfo ) override
+    {
+        rpcCall( RPC_CMD::downloadApprovalTransactionIsReady, transactionInfo );
+    }
+    
+    virtual void opinionHasBeenReceived(  Replicator& replicator,
+                                          const ApprovalTransactionInfo& transactionInfo ) override
+    {
+        rpcCall( RPC_CMD::opinionHasBeenReceived, transactionInfo );
+    }
+    
+    virtual void downloadOpinionHasBeenReceived(  Replicator& replicator,
+                                                  const DownloadApprovalTransactionInfo& transactionInfo ) override
+    {
+        rpcCall( RPC_CMD::downloadOpinionHasBeenReceived, transactionInfo );
+    }
+    
+    virtual void onLibtorrentSessionError( const std::string& message ) override
+    {
+        rpcCall( RPC_CMD::onLibtorrentSessionError, message );
+    }
+    
+    
+    //////////////////////////////////
+
+    virtual void driveModificationIsCompleted( Replicator&                    replicator,
+                                               const sirius::Key&             driveKey,
+                                               const Hash256&                 modifyTransactionHash,
+                                               const sirius::drive::InfoHash& rootHash ) override
+    {
+        rpcCall( RPC_CMD::driveModificationIsCompleted, driveKey, modifyTransactionHash, rootHash );
+    }
+
+    virtual void rootHashIsCalculated( Replicator&                    replicator,
+                                       const sirius::Key&             driveKey,
+                                       const Hash256&                 modifyTransactionHash,
+                                       const sirius::drive::InfoHash& sandboxRootHash ) override
+    {
+        rpcCall( RPC_CMD::rootHashIsCalculated, driveKey, modifyTransactionHash, sandboxRootHash );
+    }
+    
+    virtual void willBeTerminated( Replicator& replicator ) override
+    {
+        rpcCall( RPC_CMD::willBeTerminated );
+    }
+
+    virtual void driveAdded( const sirius::Key& driveKey ) override
+    {
+        rpcCall( RPC_CMD::driveAdded, driveKey );
+    }
+
+    virtual void driveIsInitialized( Replicator&                    replicator,
+                                     const sirius::Key&             driveKey,
+                                     const sirius::drive::InfoHash& rootHash ) override
+    {
+        rpcCall( RPC_CMD::driveIsInitialized, driveKey, rootHash );
+    }
+
+    virtual void driveIsClosed(  Replicator&                replicator,
+                                 const sirius::Key&         driveKey,
+                                 const Hash256&             transactionHash ) override
+    {
+        rpcCall( RPC_CMD::driveIsClosed, driveKey, transactionHash );
+    }
+
+    virtual void driveIsRemoved(  Replicator&                replicator,
+                                  const sirius::Key&         driveKey ) override
+    {
+        rpcCall( RPC_CMD::driveIsRemoved, driveKey );
+    }
+
+    virtual void  driveModificationIsCanceled(  Replicator&                  replicator,
+                                               const sirius::Key&           driveKey,
+                                               const Hash256&               modifyTransactionHash ) override
+    {
+        rpcCall( RPC_CMD::driveModificationIsCanceled, driveKey, modifyTransactionHash );
+    }
+
+    virtual void modifyTransactionEndedWithError( Replicator&               replicator,
+                                                 const sirius::Key&         driveKey,
+                                                 const ModificationRequest& modifyRequest,
+                                                 const std::string&         reason,
+                                                 int                        errorCode ) override
+    {
+        rpcCall( RPC_CMD::driveModificationIsCanceled, driveKey, modifyRequest, reason, errorCode );
+    }
+
+};
+
+}

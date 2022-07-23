@@ -82,7 +82,7 @@ public:
                ReplicatorEventHandler& handler,
                DbgReplicatorEventHandler*  dbgEventHandler,
                const std::vector<ReplicatorInfo>& bootstraps,
-               const char*   dbgReplicatorName ) : DownloadLimiter( keyPair, dbgReplicatorName ),
+               const std::string&   dbgReplicatorName ) : DownloadLimiter( keyPair, dbgReplicatorName ),
 
         m_address( std::move(address) ),
         m_port( std::move(port) ),
@@ -1797,16 +1797,16 @@ public:
         }
     }
 
-    const char* dbgReplicatorName() const override { return m_dbgOurPeerName.c_str(); }
+    std::string dbgReplicatorName() const override { return m_dbgOurPeerName.c_str(); }
     
-    virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) override
-    {
-        if ( auto it = m_driveMap.find(driveKey); it != m_driveMap.end() )
-        {
-            return it->second;
-        }
-        assert(0);
-    }
+//    virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) override
+//    {
+//        if ( auto it = m_driveMap.find(driveKey); it != m_driveMap.end() )
+//        {
+//            return it->second;
+//        }
+//        assert(0);
+//    }
     
     void saveDownloadChannelMap()
     {
@@ -2067,7 +2067,7 @@ std::shared_ptr<Replicator> createDefaultReplicator(
                                         bool                                useTcpSocket,
                                         ReplicatorEventHandler&             handler,
                                         DbgReplicatorEventHandler*          dbgEventHandler,
-                                        const char*                         dbgReplicatorName )
+                                        const std::string&                  dbgReplicatorName )
 {
     return std::make_shared<DefaultReplicator>(
                                                keyPair,

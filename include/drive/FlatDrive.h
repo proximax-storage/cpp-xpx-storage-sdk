@@ -14,6 +14,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ip/udp.hpp>
 #include <cereal/archives/binary.hpp>
+#include <cereal/types/set.hpp>
 #include <memory>
 
 namespace sirius::drive {
@@ -37,6 +38,18 @@ class Replicator;
         Key               m_client;
         ReplicatorList    m_modifyDonatorShard;
         ReplicatorList    m_modifyRecipientShard;
+        
+        template<class Archive>
+        void serialize(Archive &arch)
+        {
+            arch(m_driveSize);
+            arch(m_expectedCumulativeDownloadSize);
+            arch(m_fullReplicatorList);
+            arch(m_client);
+            arch(m_modifyDonatorShard);
+            arch(m_modifyRecipientShard);
+        }
+
     };
 
     using DriveModifyHandler = std::function<void( modify_status::code, const FlatDrive& drive, const std::string& error )>;
@@ -49,6 +62,16 @@ class Replicator;
         ReplicatorList  m_replicatorList;
 
         bool m_isCanceled = false;
+
+        template<class Archive>
+        void serialize(Archive &arch)
+        {
+            arch(m_clientDataInfoHash);
+            arch(m_transactionHash);
+            arch(m_maxDataSize);
+            arch(m_replicatorList);
+            arch(m_isCanceled);
+        }
     };
 
     struct CatchingUpRequest
@@ -72,6 +95,15 @@ class Replicator;
         uint64_t             m_prepaidDownloadSize;
         std::vector<Key>     m_replicators;
         std::vector<Key>     m_clients;
+
+        template<class Archive>
+        void serialize(Archive &arch)
+        {
+            arch(m_channelKey);
+            arch(m_prepaidDownloadSize);
+            arch(m_replicators);
+            arch(m_clients);
+        }
     };
 
     struct KeyAndBytes
@@ -175,6 +207,13 @@ class Replicator;
 
         // Keys of the cosigners
         std::vector<std::array<uint8_t, 32>> m_replicatorKeys;
+
+        template <class Archive> void serialize( Archive & arch ) {
+            arch( m_driveKey );
+            arch( m_modifyTransactionHash );
+            arch( m_rootHash );
+            arch( m_replicatorKeys );
+        }
     };
 
     struct PublishedModificationSingleApprovalTransactionInfo
@@ -184,6 +223,11 @@ class Replicator;
 
         // A reference to the transaction that initiated the modification
         std::array<uint8_t, 32> m_modifyTransactionHash;
+
+        template <class Archive> void serialize( Archive & arch ) {
+            arch( m_driveKey );
+            arch( m_modifyTransactionHash );
+        }
     };
 
     struct PublishedVerificationApprovalTransactionInfo
@@ -193,6 +237,11 @@ class Replicator;
 
         // Drive public key
         std::array<uint8_t, 32> m_driveKey;
+
+        template <class Archive> void serialize( Archive & arch ) {
+            arch( m_tx );
+            arch( m_driveKey );
+        }
     };
 
     // It is used in 2 cases:
@@ -324,6 +373,16 @@ class Replicator;
         std::vector<Key>            m_replicators;
         std::uint32_t               m_durationMs;
         std::set<Key>               m_blockedReplicators; // blocked until verification will be approved
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_tx );
+            arch( m_shardId );
+            arch( m_actualRootHash );
+            arch( m_replicators );
+            arch( m_durationMs );
+            arch( m_blockedReplicators );
+        }
     };
 
     struct VerificationCodeInfo

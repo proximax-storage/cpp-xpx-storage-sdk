@@ -46,6 +46,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 add_subdirectory(src)
+add_subdirectory(replicator-service)
 
 if (XPX_STORAGE_SDK_BUILD_EXAMPLES)
     add_subdirectory(examples)

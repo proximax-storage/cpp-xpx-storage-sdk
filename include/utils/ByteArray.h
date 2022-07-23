@@ -22,6 +22,11 @@
 #include "HexFormatter.h"
 #include <array>
 
+//#include <cereal/types/vector.hpp>
+#include <cereal/types/array.hpp>
+//#include <cereal/types/memory.hpp>
+#include <cereal/archives/portable_binary.hpp>
+
 namespace sirius { namespace utils {
 
 	/// Base class for wrappers of byte array types, to provide some type-safety.
@@ -164,6 +169,10 @@ namespace sirius { namespace utils {
 			out << HexFormat(byteArray.m_array);
 			return out;
 		}
+
+        template <class Archive> void serialize( Archive & arch ) {
+            arch( m_array );
+        }
 
 	private:
 		std::array<uint8_t, N> m_array;

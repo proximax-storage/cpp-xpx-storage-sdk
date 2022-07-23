@@ -149,7 +149,7 @@ static std::shared_ptr<Replicator> createReplicator(
         bool                                useTcpSocket,
         const std::vector<ReplicatorInfo>&  bootstraps,
         MyReplicatorEventHandler&           handler,
-        const char*                         dbgReplicatorName );
+        const std::string&                  dbgReplicatorName );
 
 
 //
@@ -470,7 +470,7 @@ static std::shared_ptr<Replicator> createReplicator(
         bool                                useTcpSocket,
         const std::vector<ReplicatorInfo>&  bootstraps,
         MyReplicatorEventHandler&           handler,
-        const char*                         dbgReplicatorName )
+        const std::string&                  dbgReplicatorName )
 {
     EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(keyPair.publicKey().array()[0]) );
 
@@ -602,6 +602,20 @@ int main(int,char**)
 
     auto startTime = std::clock();
 
+    std::ostringstream os( std::ios::binary );
+    cereal::PortableBinaryOutputArchive archive( os );
+    sirius::Key k;
+    for(int i=0; i<10; i++ ) k[i]=i;
+    archive( k );
+    
+    std::istringstream is( os.str(), std::ios::binary );
+    cereal::PortableBinaryInputArchive iarchive(is);
+    sirius::Key k2;
+    iarchive( k2 );
+    assert( k==k2 );
+
+    
+    
     ///
     /// Make the list of replicator addresses
     ///

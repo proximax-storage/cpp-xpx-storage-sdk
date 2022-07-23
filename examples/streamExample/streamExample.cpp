@@ -149,7 +149,7 @@ static std::shared_ptr<Replicator> createReplicator(
         bool                                useTcpSocket,
         const std::vector<ReplicatorInfo>&  bootstraps,
         MyReplicatorEventHandler&           handler,
-        const char*                         dbgReplicatorName );
+        const std::string&                  dbgReplicatorName );
 
 
 //
@@ -470,7 +470,7 @@ static std::shared_ptr<Replicator> createReplicator(
         bool                                useTcpSocket,
         const std::vector<ReplicatorInfo>&  bootstraps,
         MyReplicatorEventHandler&           handler,
-        const char*                         dbgReplicatorName )
+        const std::string&                  dbgReplicatorName )
 {
     EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(keyPair.publicKey().array()[0]) );
 

@@ -1,6 +1,7 @@
 #include "types.h"
 #include "drive/ClientSession.h"
 #include "drive/Replicator.h"
+#include "drive/RpcReplicator.h"
 #include "drive/FlatDrive.h"
 #include "drive/FsTree.h"
 #include "drive/Utils.h"
@@ -23,6 +24,9 @@ const bool testLateReplicator = false;
 const bool gRestartReplicators = true;
 const bool testSmallModifyDataSize = true;
 bool gBreak_On_Warning = false;//true;
+
+#define RPC_PORT 5357
+const char* RPC_REPLICATOR_NAME = "replicator1";
 
 //
 // This example shows interaction between 'client' and 'replicator'.
@@ -129,7 +133,7 @@ static std::shared_ptr<Replicator> createReplicator(
         bool                                useTcpSocket,
         const std::vector<ReplicatorInfo>&  bootstraps,
         MyReplicatorEventHandler&           handler,
-        const char*                         dbgReplicatorName );
+        const std::string&                  dbgReplicatorName );
 
 static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const sirius::Key&             driveKey,
@@ -208,7 +212,7 @@ public:
     // It will be called before 'replicator' shuts down
     virtual void willBeTerminated( Replicator& replicator ) override
     {
-        EXLOG( "Replicator will be terminated: " << replicator.dbgReplicatorName() );
+//        EXLOG( "Replicator will be terminated: " << replicator.dbgReplicatorName() );
     }
 
     virtual void downloadApprovalTransactionIsReady( Replicator& replicator, const DownloadApprovalTransactionInfo& info ) override
@@ -390,7 +394,6 @@ auto replicatorKeyPair_3 = sirius::crypto::KeyPair::FromPrivate(
 ///
 void createReplicators(const std::vector<ReplicatorInfo>&  bootstraps)
 {
-
     std::thread t1( [=] {
         gReplicator = createReplicator( replicatorKeyPair,
                                         REPLICATOR_IP_ADDR,
@@ -760,21 +763,43 @@ static std::shared_ptr<Replicator> createReplicator(
         bool                                useTcpSocket,
         const std::vector<ReplicatorInfo>&  bootstraps,
         MyReplicatorEventHandler&           handler,
-        const char*                         dbgReplicatorName )
+        const std::string&                  dbgReplicatorName )
 {
     EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(keyPair.publicKey().array()[0]) );
 
-    auto replicator = createDefaultReplicator(
-            std::move( keyPair ),
-            std::move( ipAddr ),
-            std::to_string(port),
-            std::move( rootFolder ),
-            std::move( sandboxRootFolder ),
-            bootstraps,
-            useTcpSocket,
-            handler,
-            &handler,
-            dbgReplicatorName );
+    std::shared_ptr<Replicator> replicator;
+    
+    if ( dbgReplicatorName == std::string(RPC_REPLICATOR_NAME) )
+    {
+        boost::asio::io_context io_context;
+        replicator = std::make_shared<RpcReplicator>(
+                "127.0.0.1",
+                RPC_PORT,
+                std::move( keyPair ),
+                std::move( ipAddr ),
+                std::to_string(port),
+                std::move( rootFolder ),
+                std::move( sandboxRootFolder ),
+                bootstraps,
+                useTcpSocket,
+                handler,
+                &handler,
+                dbgReplicatorName );
+    }
+    else
+    {
+        replicator = createDefaultReplicator(
+                std::move( keyPair ),
+                std::move( ipAddr ),
+                std::to_string(port),
+                std::move( rootFolder ),
+                std::move( sandboxRootFolder ),
+                bootstraps,
+                useTcpSocket,
+                handler,
+                &handler,
+                dbgReplicatorName );
+    }
 
     replicator->setDownloadApprovalTransactionTimerDelay(1);
     replicator->setModifyApprovalTransactionTimerDelay(1);
@@ -965,8 +990,9 @@ static void clientDownloadFiles( std::shared_ptr<ClientSession> clientSession, i
 
     downloadFileCount = 0;
     downloadedFileCount = 0;
-    fsTree.iterate([](File& /*file*/) {
+    fsTree.iterate([](const File& /*file*/) {
         downloadFileCount++;
+        return false;
     });
 
     if ( downloadFileCount == 0 )

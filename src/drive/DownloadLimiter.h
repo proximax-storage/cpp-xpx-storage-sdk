@@ -56,7 +56,7 @@ protected:
     std::thread::id     m_dbgThreadId;
 
 public:
-    DownloadLimiter( const crypto::KeyPair& keyPair, const char* dbgOurPeerName ) : m_keyPair(keyPair), m_dbgOurPeerName(dbgOurPeerName)
+    DownloadLimiter( const crypto::KeyPair& keyPair, const std::string& dbgOurPeerName ) : m_keyPair(keyPair), m_dbgOurPeerName(dbgOurPeerName)
     {
     }
     
