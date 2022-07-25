@@ -52,6 +52,7 @@ private:
     int         m_verifyCodeTimerDelayMs                  = 5 * 60 * 1000;
     int         m_verifyApprovalTransactionTimerDelayMs   = 10 * 1000;
     int         m_shareMyDownloadOpinionTimerDelayMs      = 60 * 1000;
+    int         m_verificationShareTimerDelay             = 60 * 1000;
 
 
     bool        m_replicatorIsDestructing = false;
@@ -1762,14 +1763,24 @@ public:
         return m_verifyCodeTimerDelayMs;
     }
 
-    void        setVerifyApprovalTransactionTimerDelay( int miliseconds ) override
+    void        setVerifyApprovalTransactionTimerDelay( int milliseconds ) override
     {
-        m_verifyApprovalTransactionTimerDelayMs = miliseconds;
+        m_verifyApprovalTransactionTimerDelayMs = milliseconds;
     }
 
     int         getVerifyApprovalTransactionTimerDelay() override
     {
         return m_verifyApprovalTransactionTimerDelayMs;
+    }
+
+    void setVerificationShareTimerDelay( int milliseconds ) override
+    {
+        m_verificationShareTimerDelay = milliseconds;
+    }
+
+    int getVerificationShareTimerDelay() override
+    {
+        return m_verificationShareTimerDelay;
     }
 
     void        setSessionSettings(const lt::settings_pack& settings, bool localNodes) override

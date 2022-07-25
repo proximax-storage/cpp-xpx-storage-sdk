@@ -39,6 +39,11 @@ private:
 
     Timer                                                       m_verifyCodeTimer;
     Timer                                                       m_verifyOpinionTimer;
+    Timer                                                       m_shareVerifyCodeTimer;
+    Timer                                                       m_shareVerifyOpinionTimer;
+
+    std::optional<VerificationCodeInfo>                         m_myCodeInfo;
+    std::optional<VerifyApprovalTxInfo>                         m_myOpinion;
 
     std::map<std::array<uint8_t,32>, VerificationCodeInfo>      m_receivedCodes;
     std::optional<VerifyApprovalTxInfo>                         m_myVerificationApprovalTxInfo;
@@ -101,6 +106,8 @@ public:
 
         m_verifyCodeTimer.cancel();
         m_verifyOpinionTimer.cancel();
+        m_shareVerifyCodeTimer.cancel();
+        m_shareVerifyOpinionTimer.cancel();
 
         m_verificationMustBeInterrupted = true;
 
@@ -391,22 +398,10 @@ private:
         //
         // Prepare message
         //
-        VerificationCodeInfo info{ m_request->m_tx.array(), ourKey.array(), m_drive.m_driveKey.array(), ourCode, {} };
-        info.Sign( m_drive.m_replicator.keyPair() );
-        std::ostringstream os( std::ios::binary );
-        cereal::PortableBinaryOutputArchive archive( os );
-        archive( info );
+        m_myCodeInfo = { m_request->m_tx.array(), ourKey.array(), m_drive.m_driveKey.array(), ourCode, {} };
+        m_myCodeInfo->Sign( m_drive.m_replicator.keyPair() );
 
-        //
-        // Send message to other replicators
-        //
-        for( const auto& replicatorKey: m_request->m_replicators )
-        {
-            if ( replicatorKey != m_drive.m_replicator.dbgReplicatorKey() )
-            {
-                m_drive.m_replicator.sendMessage( "code_verify", replicatorKey, os.str() );
-            }
-        }
+        shareVerifyCode();
 
         checkVerifyCodeNumber();
     }
@@ -482,7 +477,7 @@ private:
         _ASSERT( !m_verifyApproveTxSent )
 
         // Prepare 'Verify Approval Tx Info'
-        VerifyApprovalTxInfo info {
+        m_myOpinion = {
             m_request->m_tx.array(),
             m_drive.m_driveKey.array(),
             m_request->m_shardId,
@@ -514,14 +509,55 @@ private:
             }
         }
 
-        myOpinion.Sign( m_drive.m_replicator.keyPair(), info.m_tx, info.m_driveKey, info.m_shardId );
+        myOpinion.Sign( m_drive.m_replicator.keyPair(), m_myOpinion->m_tx, m_myOpinion->m_driveKey, m_myOpinion->m_shardId );
 
-        info.m_opinions.push_back( myOpinion );
-        _ASSERT ( processedVerificationOpinion( {info} ) );
+        m_myOpinion->m_opinions.push_back( myOpinion );
+
+        shareVerifyOpinion();
+
+        _ASSERT ( processedVerificationOpinion( {*m_myOpinion} ) );
+    }
+
+
+    void shareVerifyCode()
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_myCodeInfo )
 
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
-        archive( info );
+        archive( *m_myCodeInfo );
+
+        //
+        // Send message to other replicators
+        //
+        for( const auto& replicatorKey: m_request->m_replicators )
+        {
+            if ( replicatorKey != m_drive.m_replicator.dbgReplicatorKey() )
+            {
+                m_drive.m_replicator.sendMessage( "code_verify", replicatorKey, os.str() );
+            }
+        }
+
+        if ( auto session = m_drive.m_session.lock(); session )
+        {
+            m_shareVerifyCodeTimer = session->startTimer( m_drive.m_replicator.getVerificationShareTimerDelay(),
+                                                        [this]() {
+                shareVerifyCode();
+            } );
+        }
+    }
+
+    void shareVerifyOpinion()
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_myOpinion )
+
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( *m_myOpinion );
 
         for( const auto& replicatorKey: m_request->m_replicators )
         {
@@ -530,8 +566,15 @@ private:
                 m_drive.m_replicator.sendMessage( "verify_opinion", replicatorKey.array(), os.str() );
             }
         }
-    }
 
+        if ( auto session = m_drive.m_session.lock(); session )
+        {
+            m_shareVerifyOpinionTimer = session->startTimer( m_drive.m_replicator.getVerifyApprovalTransactionTimerDelay(),
+                                                        [this]() {
+                shareVerifyOpinion();
+            } );
+        }
+    }
 };
 
 std::shared_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,

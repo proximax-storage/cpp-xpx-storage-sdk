@@ -51,6 +51,8 @@ namespace fs = std::filesystem;
 
 namespace sirius::drive {
 
+enum { PIECE_SIZE = 16*1024 };
+
 // Libtorrent "ClientData"
 //
 struct LtClientData
@@ -916,13 +918,13 @@ private:
 
 						if ( !errorText )
 						{
-							auto expectedPieceSize = lt::create_torrent::automatic_piece_size(torrentInfo->total_size());
-							auto actualPieceSize = torrentInfo->piece_length();
-
-							if (expectedPieceSize != actualPieceSize) {
-								errorText = "Invalid Piece Size";
-								_LOG( "+**** Invalid Piece Size: " << actualPieceSize << " " << expectedPieceSize );
-							}
+//							auto expectedPieceSize = lt::create_torrent::automatic_piece_size(torrentInfo->total_size());
+//							auto actualPieceSize = torrentInfo->piece_length();
+//
+//							if (expectedPieceSize != actualPieceSize) {
+//								errorText = "Invalid Piece Size";
+//								_LOG( "+**** Invalid Piece Size: " << actualPieceSize << " " << expectedPieceSize );
+//							}
 						}
 
                         if ( !errorText )
@@ -1333,7 +1335,7 @@ InfoHash createTorrentFile( const std::string& fileOrFolder,
     lt::add_files( fStorage, fileOrFolder, lt::create_flags_t{} );
 
     // create torrent info
-    lt::create_torrent createInfo( fStorage, 0, lt::create_torrent::v2_only );
+    lt::create_torrent createInfo( fStorage, PIECE_SIZE, lt::create_torrent::v2_only );
 
     // calculate hashes for 'fileOrFolder' relative to 'rootFolder'
     lt::error_code ec;
@@ -1404,7 +1406,7 @@ InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
     lt::add_files( fStorage, pathToFile, lt::create_flags_t{} );
 
     // create torrent info
-    lt::create_torrent createInfo( fStorage, 0, lt::create_torrent::v2_only );
+    lt::create_torrent createInfo( fStorage, PIECE_SIZE, lt::create_torrent::v2_only );
 
     // calculate hashes
     lt::error_code ec;
@@ -1492,7 +1494,7 @@ InfoHash calculateInfoHash( const std::string& pathToFile, const Key& drivePubli
     lt::add_files( fStorage, pathToFile, lt::create_flags_t{} );
 
     // create torrent info
-    lt::create_torrent createInfo( fStorage, 0, lt::create_torrent::v2_only );
+    lt::create_torrent createInfo( fStorage, PIECE_SIZE, lt::create_torrent::v2_only );
 
     // calculate hashes
     lt::error_code ec;

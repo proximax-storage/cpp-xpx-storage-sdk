@@ -90,7 +90,7 @@ namespace sirius::drive::test
                                {
                                        verificationFirst,
                                        0,
-                                       env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash,
+                                       env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_modifyTransactionHash,
                                        env.m_addrList,
                                        3 * 1000, {}} );
         env.cancelVerification(DRIVE_PUB_KEY, verificationFirst);
@@ -100,7 +100,7 @@ namespace sirius::drive::test
                                {
                                        verificationSecond,
                                        0,
-                                       env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash,
+                                       env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_modifyTransactionHash,
                                        env.m_addrList,
                                        3 * 1000, {}} );
         env.waitVerificationApproval(verificationSecond);

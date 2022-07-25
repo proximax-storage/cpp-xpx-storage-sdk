@@ -96,7 +96,7 @@ TEST(ModificationTest, TEST_NAME)
                            {
         verification,
         0,
-        env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash,
+        env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_modifyTransactionHash,
         env.m_addrList,
         3 * 1000, {}} );
     env.waitVerificationApproval(verification);

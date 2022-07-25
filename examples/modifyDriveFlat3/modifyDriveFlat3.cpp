@@ -659,6 +659,7 @@ int main(int,char**)
     replicatorKeys.push_back( gReplicator2->dbgReplicatorKey() );
     replicatorKeys.push_back( gReplicator3->dbgReplicatorKey() );
 
+    // TODO Modify Tx Must be here instead of actual root hash
 //    gReplicator->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
 //    gReplicator2->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
 //    gReplicator3->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );

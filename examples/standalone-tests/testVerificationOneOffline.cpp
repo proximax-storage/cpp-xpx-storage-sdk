@@ -90,7 +90,7 @@ namespace sirius::drive::test
                                {
                                        verification,
                                        0,
-                                       env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash,
+                                       env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_modifyTransactionHash,
                                        env.m_addrList,
                                        10 * 1000, {}} );
         env.waitVerificationApproval(verification);

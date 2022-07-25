@@ -120,22 +120,24 @@ namespace sirius::drive::test
                                {
             verification,
             0,
-            env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash,
+            env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_modifyTransactionHash,
             env.m_addrList,
-            3 * 1000, {}} );
+            30 * 60 * 1000, {}} );
 
         env.startReplicator(NUMBER_OF_REPLICATORS,
                             REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
                             SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000);
 
-//    std::this_thread::sleep_for(std::chrono::seconds(60));
+        env.waitVerificationApproval(verification);
 
-        env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[1],
-                                        client.m_modificationTransactionHashes[1],
-                                        BIG_FILE_SIZE + 1024 * 1024,
-                                        env.m_addrList });
-
-        env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS);
+        const auto& verify_tx = env.m_verifyApprovalTransactionInfo[verification];
+        for ( const auto& opinion: verify_tx.m_opinions )
+        {
+            for ( const auto& res: opinion.m_opinions )
+            {
+                EXPECT_EQ(res, 1);
+            }
+        }
     }
 
 #undef TEST_NAME
