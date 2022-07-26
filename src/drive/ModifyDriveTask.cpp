@@ -712,16 +712,15 @@ private:
 
         // m_drive.getReplicator()List is the list of other replicators (it does not contain our replicator)
 #ifndef MINI_SIGNATURE
-        auto replicatorNumber = m_drive.getAllReplicators().size() + 1;
+        auto replicatorNumber = (std::max(m_drive.m_replicator.getMinReplicatorsNumber(), m_drive.getAllReplicators().size() + 1) * 2) / 3;
 #else
-        auto replicatorNumber = m_drive.getAllReplicators().size();//todo++++ +1;
+        auto replicatorNumber = (m_drive.getAllReplicators().size() * 2) / 3;
 #endif
 
 // check opinion number
 
         if ( m_myOpinion &&
-                m_receivedOpinions.size() >=
-             ((replicatorNumber) * 2) / 3 &&
+             m_receivedOpinions.size() >= replicatorNumber&&
              !m_modifyApproveTransactionSent &&
              !m_modifyApproveTxReceived )
         {

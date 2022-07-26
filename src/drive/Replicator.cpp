@@ -53,7 +53,7 @@ private:
     int         m_verifyApprovalTransactionTimerDelayMs   = 10 * 1000;
     int         m_shareMyDownloadOpinionTimerDelayMs      = 60 * 1000;
     int         m_verificationShareTimerDelay             = 60 * 1000;
-
+    uint64_t    m_minReplicatorsNumber                    = 4;
 
     bool        m_replicatorIsDestructing = false;
 
@@ -994,10 +994,11 @@ public:
         // check opinion number
         //_LOG( "///// " << opinionInfo.m_opinions.size() << " " <<  (opinionInfo.m_replicatorNumber*2)/3 );
 #ifndef MINI_SIGNATURE
-        if (opinions.size() > (channel.m_dnReplicatorShard.size() * 2) / 3)
+        auto replicatorNumber = (std::max(getMinReplicatorsNumber(), channel.m_dnReplicatorShard.size()) * 2) / 3 + 1;
 #else
-        if (opinions.size() >= (channel.m_dnReplicatorShard.size() * 2) / 3)
+        auto replicatorNumber = (channel.m_dnReplicatorShard.size() * 2) / 3;
 #endif
+        if (opinions.size() >= replicatorNumber)
         {
             // start timer if it is not started
             if (!opinionInfo.m_timer)
@@ -1781,6 +1782,14 @@ public:
     int getVerificationShareTimerDelay() override
     {
         return m_verificationShareTimerDelay;
+    }
+
+    void setMinReplicatorsNumber( uint64_t number ) override {
+        m_minReplicatorsNumber = number;
+    }
+
+    uint64_t getMinReplicatorsNumber() override {
+        return m_minReplicatorsNumber;
     }
 
     void        setSessionSettings(const lt::settings_pack& settings, bool localNodes) override

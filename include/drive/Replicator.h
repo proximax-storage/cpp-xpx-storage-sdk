@@ -432,6 +432,8 @@ public:
     virtual int         getVerifyApprovalTransactionTimerDelay() = 0;
     virtual void        setVerificationShareTimerDelay( int milliseconds ) = 0;
     virtual int         getVerificationShareTimerDelay() = 0;
+    virtual void        setMinReplicatorsNumber( uint64_t number ) = 0;
+    virtual uint64_t    getMinReplicatorsNumber() = 0;
     virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
 
     // Functions for debugging
