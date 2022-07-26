@@ -14,6 +14,7 @@
 #include "drive/Utils.h"
 #include "drive/log.h"
 
+#include <cereal/types/map.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <numeric>
 
@@ -21,6 +22,17 @@ namespace sirius::drive {
 
 class RestartValueSerializer;
 class ThreadManager;
+
+struct CumulativeUploads {
+    std::array<uint8_t,32> m_modificationId;
+    std::map<std::array<uint8_t,32>, uint64_t> m_uploads;
+
+    template<class Archive>
+    void serialize( Archive& arch ) {
+        arch( m_modificationId );
+        arch( m_uploads );
+    }
+};
 
 class ModifyOpinionController
 {
@@ -38,11 +50,11 @@ private:
     ThreadManager&                              m_threadManager;
 
     // It is needed for right calculation of my 'modify' opinion
-    std::optional<std::array<uint8_t, 32>>      m_opinionTrafficTx; // (***)
-    uint64_t                                    m_approvedExpectedCumulativeDownload;
-//    uint64_t                                    m_accountedCumulativeDownload; // (***)
-    std::map<std::array<uint8_t,32>, uint64_t>  m_approvedCumulativeUploads; // (***)
-    std::map<std::array<uint8_t,32>, uint64_t>  m_notApprovedCumulativeUploads; // (***)
+    std::optional<std::array<uint8_t, 32>>  m_opinionTrafficTx; // (***)
+    uint64_t                                m_approvedExpectedCumulativeDownload;
+
+    CumulativeUploads                       m_approvedCumulativeUploads; // (***)
+    CumulativeUploads                       m_notApprovedCumulativeUploads; // (***)
 
     std::thread::id     m_dbgThreadId;
     std::string         m_dbgOurPeerName;
@@ -68,17 +80,24 @@ public:
             , m_dbgOurPeerName( dbgOurPeerName )
     {}
 
-    void initialize()
+    void initialize( const std::function<ModificationStatus( const Hash256& )>& modificationStatusExtractor )
     {
         DBG_BG_THREAD
 
         // We save 'AccountedUploads' because they will be needed after restart
         //
-        m_serializer.loadRestartValue( m_approvedCumulativeUploads,      "approvedAccountedUploads" );
+        m_serializer.loadRestartValue( m_approvedCumulativeUploads,      "approvedCumulativeUploads" );
+        m_serializer.loadRestartValue( m_notApprovedCumulativeUploads,      "notApprovedCumulativeUploads" );
 
-        // TODO Now notApprovedCumulativeUploads are not saved due to possible problems with modification cancellation
-        // m_serializer.loadRestartValue( m_notApprovedCumulativeUploads,      "notApprovedAccountedUploads" );
-        m_notApprovedCumulativeUploads = m_approvedCumulativeUploads;
+        Hash256 lastModification = m_notApprovedCumulativeUploads.m_modificationId;
+        if ( lastModification != Hash256() )
+        {
+            auto status = modificationStatusExtractor( lastModification );
+            if ( status == ModificationStatus::CANCELLED )
+            {
+                m_notApprovedCumulativeUploads = m_approvedCumulativeUploads;
+            }
+        }
     }
 
     void increaseApprovedExpectedCumulativeDownload( uint64_t add )
@@ -103,12 +122,20 @@ public:
     }
 
     void updateCumulativeUploads( const ReplicatorList&         replicators,
+                                  const Hash256&                modificationId,
                                   uint64_t                      addCumulativeDownload,
                                   const std::function<void()>&  callback )
     {
         DBG_MAIN_THREAD
 
         _ASSERT( m_opinionTrafficTx )
+
+        if ( modificationId.array() == m_approvedCumulativeUploads.m_modificationId ) {
+            m_threadManager.executeOnSessionThread([=] {
+                callback();
+            });
+            return;
+        }
 
         const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(*m_opinionTrafficTx)
                 .m_modifyTrafficMap;
@@ -136,8 +163,8 @@ public:
             currentUploads[m_clientKey.array()] = 0;
         }
 
-        auto accountedCumulativeDownload = std::accumulate( m_notApprovedCumulativeUploads.begin(),
-                                                            m_notApprovedCumulativeUploads.end(), 0ul,
+        auto accountedCumulativeDownload = std::accumulate( m_notApprovedCumulativeUploads.m_uploads.begin(),
+                                                            m_notApprovedCumulativeUploads.m_uploads.end(), 0ul,
                                                             []( const auto& sum, const auto& item )
                                                             {
                                                                 return sum + item.second;
@@ -155,41 +182,54 @@ public:
 
         for (const auto&[uploaderKey, bytes]: currentUploads)
         {
-            if (m_notApprovedCumulativeUploads.find(uploaderKey) == m_notApprovedCumulativeUploads.end())
+            if (m_notApprovedCumulativeUploads.m_uploads.find(uploaderKey)
+                    == m_notApprovedCumulativeUploads.m_uploads.end())
             {
-                m_notApprovedCumulativeUploads[uploaderKey] = 0;
+                m_notApprovedCumulativeUploads.m_uploads[uploaderKey] = 0;
             }
-            m_notApprovedCumulativeUploads[uploaderKey] += bytes;
+            m_notApprovedCumulativeUploads.m_uploads[uploaderKey] += bytes;
         }
 
+        m_notApprovedCumulativeUploads.m_modificationId = modificationId.array();
+
         m_threadManager.executeOnBackgroundThread([=, this] {
-            // TODO Now notApprovedCumulativeUploads are not saved due to possible problems with modification cancellation
-            // m_serializer.saveRestartValue( m_notApprovedCumulativeUploads, "notApprovedAccountedUploads" );
+            m_serializer.saveRestartValue( m_notApprovedCumulativeUploads, "notApprovedCumulativeUploads" );
             m_threadManager.executeOnSessionThread([=] {
                 callback();
             });
         });
     }
 
-    void fillOpinion( std::vector<KeyAndBytes>& replicatorsUploads )
+    void fillOpinion( const Hash256& modificationId, std::vector<KeyAndBytes>& replicatorsUploads )
     {
         DBG_MAIN_THREAD
 
         _ASSERT ( replicatorsUploads.empty() )
 
-        for ( const auto&[key, bytes] : m_notApprovedCumulativeUploads )
+        if ( modificationId.array() == m_approvedCumulativeUploads.m_modificationId )
         {
-            replicatorsUploads.push_back( {key, bytes} );
+            fillOpinion( replicatorsUploads, m_approvedCumulativeUploads.m_uploads );
+        } else
+        {
+            _ASSERT( modificationId.array() == m_notApprovedCumulativeUploads.m_modificationId );
+            fillOpinion( replicatorsUploads, m_notApprovedCumulativeUploads.m_uploads );
         }
     }
 
-    void approveCumulativeUploads( const std::function<void()>& callback )
+    void approveCumulativeUploads( const Hash256& modificationId, const std::function<void()>& callback )
     {
         DBG_MAIN_THREAD
 
+        if ( modificationId.array() == m_approvedCumulativeUploads.m_modificationId ) {
+            m_threadManager.executeOnSessionThread([=] {
+                callback();
+            });
+            return;
+        }
+
         m_approvedCumulativeUploads = m_notApprovedCumulativeUploads;
-        m_approvedExpectedCumulativeDownload = std::accumulate( m_approvedCumulativeUploads.begin(),
-                                                                m_approvedCumulativeUploads.end(), 0,
+        m_approvedExpectedCumulativeDownload = std::accumulate( m_approvedCumulativeUploads.m_uploads.begin(),
+                                                                m_approvedCumulativeUploads.m_uploads.end(), 0,
                                                                 []( const auto& sum, const auto& item )
                                                                 {
                                                                     return sum + item.second;
@@ -206,10 +246,19 @@ public:
         } );
     }
 
-    void disapproveCumulativeUploads( const std::function<void()>& callback )
+    void disapproveCumulativeUploads( const Hash256& modificationId, const std::function<void()>& callback )
     {
 
         DBG_MAIN_THREAD
+
+        if ( modificationId.array() != m_notApprovedCumulativeUploads.m_modificationId )
+        {
+            m_threadManager.executeOnSessionThread( [=]
+            {
+                callback();
+            } );
+            return;
+        }
 
         // We have already taken into account information
         // about uploads of the modification to be canceled;
@@ -224,8 +273,7 @@ public:
 
         m_threadManager.executeOnBackgroundThread( [=, this]
             {
-              // TODO Now notApprovedCumulativeUploads are not saved due to possible problems with modification cancellation
-              // m_serializer.loadRestartValue( m_notApprovedCumulativeUploads,      "notApprovedAccountedUploads" );
+               m_serializer.saveRestartValue( m_notApprovedCumulativeUploads,      "notApprovedCumulativeUploads" );
                m_threadManager.executeOnSessionThread( [=]
                {
                    callback();
@@ -234,6 +282,19 @@ public:
     }
 
 private:
+
+    void fillOpinion( std::vector<KeyAndBytes>& replicatorsUploads,
+                      const std::map<std::array<uint8_t,32>, uint64_t>& source)
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT ( replicatorsUploads.empty() )
+
+        for ( const auto&[key, bytes] : source )
+        {
+            replicatorsUploads.push_back( {key, bytes} );
+        }
+    }
 
     void normalizeUploads(std::map<std::array<uint8_t,32>, uint64_t>& modificationUploads, uint64_t targetSum)
     {

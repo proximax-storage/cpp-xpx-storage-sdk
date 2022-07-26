@@ -366,6 +366,11 @@ public:
     {
         //EXLOG( "@ driveIsInitialized: " << replicator.dbgReplicatorName() );
     }
+
+    ModificationStatus getModificationStatus( sirius::Key driveKey, sirius::Hash256 modificationId ) override
+    {
+        return ModificationStatus::UNKNOWN;
+    }
 };
 
 std::optional<ApprovalTransactionInfo>          MyReplicatorEventHandler::m_approvalTransactionInfo;

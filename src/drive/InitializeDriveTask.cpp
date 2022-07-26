@@ -135,7 +135,10 @@ private:
 
         m_singleTx = loadSingleApprovalTransaction();
 
-        m_opinionController.initialize();
+        m_opinionController.initialize( [&extractor=m_drive.m_eventHandler,
+                                         driveKey=m_drive.m_driveKey] ( const Hash256& modificationId ) {
+            return extractor.getModificationStatus( driveKey, modificationId );
+        });
 
         m_drive.executeOnSessionThread( [this]
                                         {

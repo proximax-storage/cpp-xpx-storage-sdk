@@ -84,15 +84,18 @@ protected:
         }
 
         /// (???) replace with replicators of the shard
-        m_opinionController.updateCumulativeUploads( m_drive.getDonatorShard(), getToBeApprovedDownloadSize(), [this]
-        {
-            onCumulativeUploadsUpdated();
-        } );
+        m_opinionController.updateCumulativeUploads( m_drive.getDonatorShard(),
+                                                     getModificationTransactionHash(),
+                                                     getToBeApprovedDownloadSize(),
+                                                     [this]
+                                                     {
+                                                        onCumulativeUploadsUpdated();
+                                                     } );
     }
 
     void synchronizationIsCompleted()
     {
-        m_opinionController.approveCumulativeUploads( [this]
+        m_opinionController.approveCumulativeUploads( getModificationTransactionHash(), [this]
         {
             modifyIsCompleted();
         });
@@ -265,7 +268,7 @@ private:
         const auto& keyPair = m_drive.m_replicator.keyPair();
         SingleOpinion opinion( keyPair.publicKey().array());
 
-        m_opinionController.fillOpinion( opinion.m_uploadLayout );
+        m_opinionController.fillOpinion( getModificationTransactionHash(), opinion.m_uploadLayout );
 
         opinion.Sign( keyPair,
                       m_drive.m_driveKey,

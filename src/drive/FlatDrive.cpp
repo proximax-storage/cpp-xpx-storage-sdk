@@ -582,6 +582,18 @@ public:
                 return;
             }
 
+            if ( it == m_deferredModificationRequests.begin() )
+            {
+                // TODO This is a workaround for the situation
+                //  when after the initialization of the Replicator a modification that has been downloaded before
+                //  is cancelled and we have to clear opinion controller
+                m_modificationCancelRequest = request;
+                if ( !m_task )
+                {
+                    runNextTask();
+                }
+            }
+
             m_deferredModificationRequests.erase( it );
         }
     }

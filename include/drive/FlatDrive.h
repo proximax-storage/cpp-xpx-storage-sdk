@@ -433,6 +433,10 @@ class Replicator;
         }
     };
 
+    enum class ModificationStatus {
+        UNKNOWN, APPROVED, CANCELLED
+    };
+
     // Interface for storage extension
     class ReplicatorEventHandler
     {
@@ -464,6 +468,8 @@ class Replicator;
 
         virtual void downloadOpinionHasBeenReceived(  Replicator& replicator,
                                                       const DownloadApprovalTransactionInfo& ) = 0;
+
+        virtual ModificationStatus getModificationStatus( Key driveKey, Hash256 modificationId ) = 0;
 
         virtual void onLibtorrentSessionError( const std::string& message )
         {
