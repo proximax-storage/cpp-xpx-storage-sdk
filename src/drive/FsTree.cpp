@@ -178,6 +178,20 @@ void Folder::getSizes( const fs::path& driveFolder, const fs::path& torrentFolde
     }
 }
 
+void Folder::getUniqueFiles( std::set<InfoHash>& files ) const
+{
+    for( auto it = m_childs.begin(); it != m_childs.end(); it++ )
+    {
+        if ( isFolder(*it) ) {
+            getFolder(*it).getUniqueFiles( files );
+        }
+        else {
+            const auto& fileHash = getFile(*it).hash();
+            files.insert( fileHash );
+        }
+    }
+}
+
 
 // doSerialize
 void FsTree::doSerialize( std::string fileName ) {

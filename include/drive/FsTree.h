@@ -93,6 +93,8 @@ public:
                    uint64_t& outMetaFilesSize,
                    uint64_t& outFilesSize ) const;
 
+    void getUniqueFiles( std::set<InfoHash>& ) const;
+
 public:
     // for cereal
     template <class Archive> void serialize( Archive & arch ) {

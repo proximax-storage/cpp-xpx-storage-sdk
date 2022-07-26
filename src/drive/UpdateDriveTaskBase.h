@@ -216,18 +216,27 @@ protected:
         std::error_code err;
 
         // Now, all drive files and torrents are placed directly on drive (not really in sandbox)
-        if ( fs::exists( m_drive.m_driveRootPath, err ))
-        {
-            metaFilesSize = fs::file_size( m_drive.m_sandboxFsTreeTorrent );
-            driveSize = 0;
-            m_sandboxFsTree->getSizes( m_drive.m_driveFolder, m_drive.m_torrentFolder, metaFilesSize,
-                                       driveSize );
-            driveSize += metaFilesSize;
-        } else
+        if ( !fs::exists( m_drive.m_driveRootPath, err ))
         {
             metaFilesSize = 0;
             driveSize = 0;
+            return;
         }
+
+        metaFilesSize = fs::file_size( m_drive.m_sandboxFsTreeTorrent );
+        driveSize = fs::file_size( m_drive.m_sandboxFsTreeFile );
+
+        std::set<InfoHash> files;
+        m_sandboxFsTree->getUniqueFiles( files );
+        for ( const auto& file: files )
+        {
+            metaFilesSize += fs::file_size( m_drive.m_torrentFolder / toString(file) );
+            driveSize += fs::file_size( m_drive.m_driveFolder / toString(file) );
+        }
+
+        driveSize += metaFilesSize;
+
+        _LOG( "Drive Sizes " << m_drive.m_driveKey << " " << driveSize << " " << metaFilesSize )
     }
 
     uint64_t sandboxFsTreeSize() const
