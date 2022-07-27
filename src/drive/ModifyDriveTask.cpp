@@ -123,8 +123,9 @@ public:
                                                        }
                                                        else if ( code == download_status::download_complete )
                                                        {
-                                                           //(???+++)
-                                                           _ASSERT( !m_taskIsStopped );
+                                                           //_ASSERT( !m_taskIsStopped );
+                                                           // it could be stopped after asyncApprovalTransactionHasBeenPublished
+                                                           // if 'actionList' have not been doewloaded
                                                            if ( ! m_taskIsStopped )
                                                            {
                                                                m_uploadedDataSize += downloadedSize;

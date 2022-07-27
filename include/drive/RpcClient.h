@@ -7,6 +7,7 @@
 
 #include "RpcReplicatorCommands.h"
 
+#include <syslog.h>
 #include <thread>
 
 #include <boost/asio/connect.hpp>
@@ -28,83 +29,171 @@
 #include <cereal/types/optional.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
+#ifdef DEBUG_REPLICATOR_SERVICE
+#   define RPC_LOG(expr)    \
+                                __LOG( "*RPC* " << expr)
+#   define RPC_ERR(expr)    \
+                                __LOG(expr)
+#else
+
+#   define RPC_LOG(expr)    {\
+                                std::ostringstream out; \
+                                out << expr; \
+                                syslog( LOG_INFO | LOG_USER, "%s", out.str().c_str() ); \
+                            }
+#   define RPC_ERR(expr)    {\
+                                std::ostringstream out; \
+                                out << expr; \
+                                syslog( LOG_ERR | LOG_USER, "Error: %s", out.str().c_str() ); \
+                            }
+#endif
+
 
 namespace asio = boost::asio;
 using     tcp  = boost::asio::ip::tcp;
 
 
-class RpcTcpSocket
+class RpcTcpSocketBase
 {
+protected:
     asio::io_context        m_context;
     tcp::socket             m_socket;
 
-public:
-    RpcTcpSocket() : m_socket(m_context)
+    RpcTcpSocketBase() : m_socket(m_context)
     {
     }
     
-    ~RpcTcpSocket()
+    ~RpcTcpSocketBase()
     {
         m_socket.close();
     }
     
+public:
+    
     void connect( std::string address, std::string port )
     {
+        RPC_LOG( "try to connect: " << address << ", " << port )
+
         tcp::resolver::query query( address, port );
         tcp::resolver::iterator iter = tcp::resolver( m_context ).resolve(query);
 
+#ifdef DEBUG_REPLICATOR_SERVICE
+        boost::system::error_code ec = boost::asio::error::would_block;
+
+        while ( ec == boost::asio::error::would_block || ec == boost::asio::error::connection_refused )
+        {
+            boost::asio::connect( m_socket, iter, ec );
+
+            //RPC_LOG( "ec: " << ec << " " << boost::asio::error::connection_refused )
+            if ( !ec )
+            {
+                break;
+            }
+            usleep(10000);
+        }
+        RPC_LOG( "connect ec: " << ec )
+#else
         boost::system::error_code ec = boost::asio::error::would_block;
         boost::asio::async_connect( m_socket, iter, boost::lambda::var(ec) = boost::lambda::_1);
-        do m_context.run_one(); while (ec == boost::asio::error::would_block);
 
-        if (ec || !m_socket.is_open())
+        while ( ec == boost::asio::error::would_block )
         {
-          throw boost::system::system_error(
-              ec ? ec : boost::asio::error::operation_aborted);
+            m_context.run_one();
+        }
+#endif
+
+        if ( ec || !m_socket.is_open() )
+        {
+            RPC_LOG( "connect failed; ec: " << ec )
+            exit(0);
+            //throw boost::system::system_error( ec ? ec : boost::asio::error::operation_aborted );
+        }
+        RPC_LOG( "connected: " << address << ", " << port )
+    }
+    
+    void sendCommandWoAck( RPC_CMD command )
+    {
+        boost::system::error_code ec = boost::asio::error::would_block;
+        asio::write( m_socket, asio::buffer( &command, sizeof(command) ), ec );
+        if (ec)
+        {
+            RPC_LOG( "!write error!: " << ec.what() )
+            exit(0);
+        }
+
+        uint16_t packetLen = 0;
+        boost::asio::write( m_socket, asio::buffer( &packetLen, sizeof(packetLen) ), ec );
+
+        if (ec)
+        {
+            RPC_LOG( "!write error!: " << ec.what() )
+            exit(0);
+        }
+
+        if ( command != RPC_CMD::PING )//&& command != RPC_CMD::ack  )
+        {
+            RPC_LOG( "sendCommandWoAck: " << (void*)this << " " << CMD_STR(command) )
+            RPC_LOG( "" )
         }
     }
     
-    void sendCommand( RPC_CMD command )
+    void readAck()
     {
-        __LOG( "sendCommand: " << CMD_STR(command) )
-
-        boost::system::error_code ec = boost::asio::error::would_block;
-        asio::write( m_socket, asio::buffer( &command, sizeof(command) ), ec );
-        if (ec)
+        RPC_CMD command;
+        boost::system::error_code ec;
+        asio::read( m_socket,
+                   asio::buffer( &command, sizeof(command) ),
+                   asio::transfer_exactly( sizeof(command) ),
+                   ec );
+        if ( ec )
         {
-            __LOG( "!write error!: " << ec.what() )
+            _LOG_ERR( "readAck() error: " << ec )
             exit(0);
         }
 
-        uint16_t packetLen = 0;
-        boost::asio::write( m_socket, asio::buffer( &packetLen, sizeof(packetLen) ), ec );
-
-        if (ec)
+        uint16_t packetLen;
+        asio::read( m_socket,
+                   asio::buffer( &packetLen, sizeof(packetLen) ),
+                   asio::transfer_exactly( sizeof(packetLen) ),
+                   ec );
+        if ( ec )
         {
-            __LOG( "!write error!: " << ec.what() )
+            _LOG_ERR( "readAck() error: " << ec )
             exit(0);
         }
-        __LOG( "sendCommand done: " << CMD_STR(command) )
+
+        assert( command == RPC_CMD::ack && packetLen == 0 );
     }
+};
 
+// From remote to chain
+//
+class UpRpcTcpSocket : public RpcTcpSocketBase
+{
+public:
+    UpRpcTcpSocket()
+    {
+    }
+    
     void sendCommand( RPC_CMD command, const std::string& parameters )
     {
-        __LOG( "sendCommand: " << CMD_STR(command) )
+        RPC_LOG( "->> sendCommand: " << CMD_STR(command) << " parameters.size=" << parameters.size() )
+        RPC_LOG( "" )
 
         boost::system::error_code ec = boost::asio::error::would_block;
         asio::write( m_socket, asio::buffer( &command, sizeof(command) ), ec );
         if (ec)
         {
-            __LOG( "!write error!: " << ec.what() )
+            RPC_LOG( "!write error!: " << ec.what() )
             exit(0);
         }
 
-        uint16_t packetLen = 0;
+        uint16_t packetLen = (uint16_t)parameters.size();
         boost::asio::write( m_socket, asio::buffer( &packetLen, sizeof(packetLen) ), ec );
 
         if (ec)
         {
-            __LOG( "!write error! (2): " << ec.what() )
+            RPC_LOG( "!write error! (2): " << ec.what() )
             exit(0);
         }
 
@@ -112,16 +201,30 @@ public:
 
         if (ec)
         {
-            __LOG( "!write error! (3): " << ec.what() )
+            RPC_LOG( "!write error! (3): " << ec.what() )
             exit(0);
         }
 
-        __LOG( "sendCommand(2) done: " << CMD_STR(command) )
+        readAck();
+        
+        //RPC_LOG( "sendCommand(2) done: " << CMD_STR(command) )
     }
+};
 
-    RPC_CMD readPacket( asio::streambuf& streambuf )
+
+// From chain to remote
+//
+class DnRpcTcpSocket : public RpcTcpSocketBase
+{
+public:
+    
+    DnRpcTcpSocket()
     {
-        __LOG( "readPacket(): started" )
+    }
+    
+    RPC_CMD readCommand( asio::streambuf& streambuf )
+    {
+        //RPC_LOG( "readCommand(): started" )
 
         boost::system::error_code ec;
 
@@ -130,71 +233,97 @@ public:
 
         if( ec )
         {
-            __LOG( "ec: " << ec.what() )
+            RPC_LOG( "read command error: ec: " << ec.what() )
             exit(0);
         }
         
         if ( len != sizeof(command) )
         {
-            __LOG( "bad len: " << len << " "  << sizeof(command) )
+            RPC_LOG( "bad len: " << len << " "  << sizeof(command) )
             exit(0);
         }
                               
-        __LOG( "child: command: " << CMD_STR(command) )
+//        RPC_LOG( "command: " << CMD_STR(command) )
         
         uint16_t packetLen;
         len = asio::read( m_socket, asio::buffer( &packetLen, sizeof(packetLen) ), asio::transfer_exactly( sizeof(packetLen) ), ec );
 
+//        RPC_LOG( "packetLen: " << packetLen )
+
         if( ec )
         {
-            __LOG( "ec(2): " << ec.what() )
+            RPC_LOG( "ec(2): " << ec.what() )
             exit(0);
         }
         
         if ( len != sizeof(packetLen) )
         {
-            __LOG( "bad len(2): " << len << " "  << sizeof(packetLen) )
+            RPC_LOG( "bad len(2): " << len << " "  << sizeof(packetLen) )
             exit(0);
         }
 
-        if ( len > 0 )
+        if ( packetLen > 0 )
         {
             streambuf.prepare( packetLen );
 
+//            RPC_LOG( "child: read packet: " << packetLen )
             auto len = asio::read( m_socket, streambuf, asio::transfer_exactly( packetLen ), ec );
+//            RPC_LOG( "child: packet received: " << packetLen )
 
             if( ec )
             {
-                __LOG( "ec(3): " << ec.what() )
+                RPC_LOG( "ec(3): " << ec.what() )
                 exit(0);
             }
             
-            if ( len != sizeof(packetLen) )
+            if ( len != packetLen )
             {
-                __LOG( "bad len(3): " << len << " "  << sizeof(packetLen) )
+                RPC_LOG( "bad len(3): " << len << " "  << packetLen )
                 exit(0);
             }
-
-            streambuf.consume( len );
         }
         
         return command;
     }
 
-    RPC_CMD readCommand()
+    // for debugging
+    void sendHashAnswer( RPC_CMD command, const std::array<uint8_t,32>& hash )
     {
-        RPC_CMD command;
-        boost::system::error_code ec;
-        auto len = asio::read( m_socket, asio::buffer( &command, sizeof(command) ), asio::transfer_exactly( sizeof(command) ), ec );
-        assert( !ec && len == sizeof(command) );
-        return command;
+        boost::system::error_code ec = boost::asio::error::would_block;
+        asio::write( m_socket, asio::buffer( &command, sizeof(command) ), ec );
+        if (ec)
+        {
+            RPC_LOG( "!write error!: " << ec.what() )
+            exit(0);
+        }
+
+        uint16_t packetLen = 32;
+        boost::asio::write( m_socket, asio::buffer( &packetLen, sizeof(packetLen) ), ec );
+
+        if (ec)
+        {
+            RPC_LOG( "!write error!: " << ec.what() )
+            exit(0);
+        }
+
+        boost::asio::write( m_socket, asio::buffer( hash.data(), 32 ), ec );
+
+        if (ec)
+        {
+            RPC_LOG( "!write error!: " << ec.what() )
+            exit(0);
+        }
+
+        RPC_LOG( "sendHashAnswer: " << (void*)this << " " << CMD_STR(command) )
+        RPC_LOG( "" )
     }
 };
 
 class RpcClient
 {
-    RpcTcpSocket    m_upSocket; // from client to server
-    RpcTcpSocket    m_dnSocket; // from server to client
+protected:
+    UpRpcTcpSocket  m_upSocket; // from client to server
+    DnRpcTcpSocket  m_dnSocket; // from server to client
     
     std::mutex      m_upMutex;
 
@@ -206,7 +335,7 @@ protected:
     
     virtual ~RpcClient() = default;
     
-    virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive& parameters ) = 0;
+    virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive* parameters ) = 0;
 
     virtual void handleError( std::error_code ) = 0;
 
@@ -216,69 +345,78 @@ public:
     
     void run( std::string address, std::string port )
     {
-        std::thread( [this,address,port]
-        {
-            boost::asio::streambuf inStreambuf;
-            
-            m_upSocket.connect( address, port );
-            m_upSocket.sendCommand( RPC_CMD::UP_CHANNEL_INIT );
+        boost::asio::streambuf inStreambuf;
+        
+        m_upSocket.connect( address, port );
+        m_upSocket.sendCommandWoAck( RPC_CMD::UP_CHANNEL_INIT );
 
-            m_dnSocket.connect( address, port );
-            m_dnSocket.sendCommand( RPC_CMD::DOWN_CHANNEL_INIT );
-            
-            std::thread( [this]
-            {
-                for(;;)
-                {
-                    sleep(1);
-                    std::unique_lock<std::mutex> lock(m_upMutex);
-                    m_dnSocket.sendCommand( RPC_CMD::PING );
-                }
-            }).detach();
-            
+        m_dnSocket.connect( address, port );
+        m_dnSocket.sendCommandWoAck( RPC_CMD::DOWN_CHANNEL_INIT );
+        
+        std::thread( [this]
+        {
             for(;;)
             {
-                //__LOG( "m_dnSocket.readPacket: " )
-                RPC_CMD command = m_dnSocket.readPacket( inStreambuf );
-                
-                switch (command)
-                {
-                    case RPC_CMD::dbgCrash:
-                    {
-                        __LOG( "!!! switch RPC_CMD::dbgCrash" );
-                        //*((int*)0) = 42;
-                        abort();
-                        __LOG( "!!!!!!!!!!!!!!!!!!!!!!!!!" );
-                        break;
-                    }
-                    case RPC_CMD::PING:
-                    {
-                        m_upSocket.sendCommand( RPC_CMD::dbgCrash );
-                        break;
-                    }
-                    default:
-                    {
-                        std::istream is( &inStreambuf );
-                        cereal::PortableBinaryInputArchive iarchive(is);
-                        handleCommand( command, iarchive );
-                        break;
-                    }
-                };
-                
-                __LOG( "inStreambuf.size: " << inStreambuf.size() )
+                sleep(1);
+                std::unique_lock<std::mutex> lock(m_upMutex);
+                m_dnSocket.sendCommandWoAck( RPC_CMD::PING );
             }
         }).detach();
+        
+        for(;;)
+        {
+            RPC_CMD command = m_dnSocket.readCommand( inStreambuf );
+            RPC_LOG( "<<- RpcClient.command: " << CMD_STR(command) )
+            RPC_LOG( "" )
+
+            switch (command)
+            {
+                case RPC_CMD::dbgCrash:
+                {
+                    RPC_LOG( "!!! switch RPC_CMD::dbgCrash" );
+                    //*((int*)0) = 42;
+                    abort();
+                    RPC_LOG( "!!!!!!!!!!!!!!!!!!!!!!!!!" );
+                    break;
+                }
+                case RPC_CMD::PING:
+                {
+                    m_upSocket.sendCommand( RPC_CMD::dbgCrash, "" );
+                    break;
+                }
+                default:
+                {
+                    if ( inStreambuf.size() > 0 )
+                    {
+                        std::istream is( &inStreambuf );
+                        __LOG( "os.str(): " << int( ((char*)inStreambuf.data().data())[0]) << " "
+                              << int( ((char*)inStreambuf.data().data())[1]) << " "
+                              << int( ((char*)inStreambuf.data().data())[2]) << " "
+                              << int( ((char*)inStreambuf.data().data())[3]) << " " )
+
+                        cereal::PortableBinaryInputArchive iarchive(is);
+                        handleCommand( command, &iarchive );
+                        inStreambuf.consume( inStreambuf.size() );
+                    }
+                    else
+                    {
+                        handleCommand( command, nullptr );
+                    }
+                    break;
+                }
+            };
+        }
     }
     
-    void sendAnswer( RPC_CMD func )
+    void sendAck()
     {
-        m_dnSocket.sendCommand( func );
+        m_dnSocket.sendCommandWoAck( RPC_CMD::ack );
     }
     
     void rpcCall( RPC_CMD func )
     {
         std::unique_lock<std::mutex> lock(m_upMutex);
-        m_upSocket.sendCommand( func );
+        m_upSocket.sendCommand( func, "" );
     }
 
     template<class T>
@@ -330,5 +468,4 @@ public:
         std::unique_lock<std::mutex> lock(m_upMutex);
         m_upSocket.sendCommand( func, os.str() );
     }
-
 };

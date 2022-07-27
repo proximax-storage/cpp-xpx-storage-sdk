@@ -21,9 +21,9 @@
 
 //(???+) !!!
 const bool testLateReplicator = false;
-const bool gRestartReplicators = true;
+const bool gRestartReplicators = false;
 const bool testSmallModifyDataSize = true;
-bool gBreak_On_Warning = false;//true;
+bool gBreak_On_Warning = true;
 
 #define RPC_PORT 5357
 const char* RPC_REPLICATOR_NAME = "replicator1";
@@ -345,6 +345,8 @@ public:
 
             driveRootHash = std::make_shared<InfoHash>( replicator.dbgGetRootHash( driveKey.array() ) );
             EXLOG( "@ Drive modified: counter=" << modifyCompleteCounter << ": " << replicator.dbgReplicatorName() << "      rootHash:" << rootHash );
+            driveRootHash = std::make_shared<InfoHash>( replicator.dbgGetRootHash( driveKey.array() ) );
+            EXLOG( "@ Drive modified: counter=" << modifyCompleteCounter << ": " << replicator.dbgReplicatorName() << "      rootHash:" << rootHash );
 
             modifyCompleteCondVar.notify_all();
 
@@ -518,7 +520,7 @@ int main(int,char**)
     _EXLOG("");
 
     // set root drive hash
-    driveRootHash = std::make_shared<InfoHash>( gReplicator->dbgGetRootHash( DRIVE_PUB_KEY ) );
+    driveRootHash = std::make_shared<InfoHash>( gReplicator2->dbgGetRootHash( DRIVE_PUB_KEY ) );
 
     fs::path clientFolder = gClientFolder / "client_files";
 
@@ -637,7 +639,7 @@ int main(int,char**)
     //clientDownloadFiles( gClientSession, 5, gFsTree );
 
     //todo++
-    gReplicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024+1, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }}, true );
+    //gReplicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024+1, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }}, true );
 
     ///TODO
 //    sleep(1);
@@ -771,7 +773,6 @@ static std::shared_ptr<Replicator> createReplicator(
     
     if ( dbgReplicatorName == std::string(RPC_REPLICATOR_NAME) )
     {
-        boost::asio::io_context io_context;
         replicator = std::make_shared<RpcReplicator>(
                 "127.0.0.1",
                 RPC_PORT,

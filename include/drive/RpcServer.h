@@ -26,10 +26,6 @@ class RpcServer : public RpcTcpServer
     
 public:
     
-    void start()
-    {
-    }
-    
     void startService()
     {
     }
@@ -44,14 +40,24 @@ public:
         
     }
     
-    void readAnswer()
-    {
-        RpcTcpServer::readAnswer();
-    }
-    
     void rpcCall( RPC_CMD func )
     {
         RpcTcpServer::rpcCall( func, "" );
+    }
+
+    void rpcCallArchStr( RPC_CMD func, const std::string& str )
+    {
+        RpcTcpServer::rpcCall( func, str );
+    }
+
+    template<class K>
+    std::array<uint8_t,32> rpcDbgGetRootHash( K& key )
+    {
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( key );
+
+        return RpcTcpServer::rpcDbgGetRootHash( os.str() );
     }
 
     template<class T>
@@ -102,15 +108,16 @@ public:
 
 
 protected:
-    RpcServer( boost::asio::io_context& io_context, std::string address, int port ) : RpcTcpServer( io_context, address, port )
+public:
+    RpcServer( std::string address, int port ) : RpcTcpServer()
     {
-        __LOG( "RpcParent()" )
+        startTcpServer( address, port );
     }
 
-    virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive& parameters ) = 0;
+    virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive* parameters ) {}
 
-    virtual void handleError( std::error_code ) = 0;
+    virtual void handleError( std::error_code ) {}
 
-    virtual void handleConnectionLost() = 0;
+    virtual void handleConnectionLost() {}
 
 };

@@ -9,7 +9,7 @@ set(CMAKE_CXX_EXTENSIONS ON)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Libtorrent
-option(XPX_STORAGE_SDK_BUILD_EMULATOR "Build XPX-STORAGE SDK emulator." ON)
+option(XPX_STORAGE_SDK_BUILD_EMULATOR "Build XPX-STORAGE SDK emulator." OFF)
 option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build XPX-STORAGE SDK examples." OFF)
 
 ### setup boost
@@ -20,7 +20,7 @@ include_directories(cereal/include)
 add_subdirectory(libtorrent)
 
 if (XPX_STORAGE_SDK_BUILD_EMULATOR)
-    add_subdirectory(cpp-xpx-rpclib)
+#    add_subdirectory(cpp-xpx-rpclib)
 endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")

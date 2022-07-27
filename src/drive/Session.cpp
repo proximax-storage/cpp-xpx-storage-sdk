@@ -850,12 +850,12 @@ private:
             switch (alert->type()) {
                     
                 //todo++++
-                case lt::torrent_log_alert::alert_type:
-                {
-                    auto* theAlert = dynamic_cast<lt::torrent_log_alert*>(alert);
-                    _LOG( theAlert->message() );
-                    break;
-                }
+//                case lt::torrent_log_alert::alert_type:
+//                {
+//                    auto* theAlert = dynamic_cast<lt::torrent_log_alert*>(alert);
+//                    _LOG( theAlert->message() );
+//                    break;
+//                }
 
 //                case lt::peer_log_alert::alert_type: {
 //                    _LOG(  ": peer_log_alert: " << alert->message())

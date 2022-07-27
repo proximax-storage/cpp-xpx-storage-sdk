@@ -7,7 +7,7 @@
 #pragma once
 
 #include "drive/RpcClient.h"
-//#include "drive/FlatDrive.h"
+#include "drive/Utils.h"
 #include "drive/Replicator.h"
 
 namespace sirius::drive {
@@ -19,27 +19,21 @@ class RpcRemoteReplicator : public RpcClient, public ReplicatorEventHandler, pub
     
 public:
     
-    RpcRemoteReplicator(std::shared_ptr<Replicator>&& replicator ) { m_replicator = std::move(replicator); }
-    
+    RpcRemoteReplicator() {}
     ~RpcRemoteReplicator() { delete m_keyPair; }
 
-    void setReplicator( std::shared_ptr<Replicator>&& replicator ) { m_replicator = std::move(replicator); }
-
-    virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive& iarchive ) override
+    virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive* iarchivePtr ) override
     {
+        cereal::PortableBinaryInputArchive& iarchive = *iarchivePtr;
         switch( command )
         {
-            case RPC_CMD::READY_TO_USE:
-            {
-                rpcCall( RPC_CMD::READY_TO_USE );
-                break;
-            }
             case RPC_CMD::createReplicator:
             {
-                Key key;
+                std::array<uint8_t,32> key;
                 iarchive( key );
 
-                crypto::PrivateKey pKey = crypto::PrivateKey::FromStringSecure( (char*)key.data(), key.size() );
+                std::string keyStr = toString( key );
+                crypto::PrivateKey pKey = crypto::PrivateKey::FromStringSecure( (char*)keyStr.c_str(), keyStr.size() );
                 m_keyPair = new crypto::KeyPair( crypto::KeyPair::FromPrivate( std::move(pKey) ) );
                 
                 std::string  address;
@@ -80,13 +74,13 @@ public:
                                      dbgEventHandlerIsSet ? this : nullptr,
                                      dbgReplicatorName );
                 
-                sendAnswer(RPC_CMD::done);
+                RPC_LOG("Remote replicator created")
                 break;
             }
             case RPC_CMD::destroyReplicator:
             {
                 m_replicator.reset();
-                sendAnswer(RPC_CMD::done);
+                break;
             }
             case RPC_CMD::start:
             {
@@ -281,14 +275,28 @@ public:
                 break;
             }
 
+            case RPC_CMD::dbgGetRootHash:
+            {
+                DriveKey key;
+                iarchive( key );
+
+                auto hash = m_replicator->dbgGetRootHash( key );
+                m_dnSocket.sendHashAnswer( RPC_CMD::dbgHash, hash.array() );
+
+                break;
+            }
+
             default:
-                __LOG( "Unexpected command received:" << static_cast<int>(command) );
-                __LOG( "Unexpected command received:" << CMD_STR(command) );
+            {
+                RPC_LOG( "Unexpected command received:" << static_cast<int>(command) );
+                RPC_LOG( "Unexpected command received:" << CMD_STR(command) );
                 rpcCall( RPC_CMD::onLibtorrentSessionError, "Unexpected command received:" + std::to_string(static_cast<int>(command)) );
                 exit(1);
                 break;
+            }
         }
-
+        
+        sendAck();
     }
 
     virtual void handleError( std::error_code ) override
@@ -368,34 +376,34 @@ public:
 
     virtual void driveAdded( const sirius::Key& driveKey ) override
     {
-        rpcCall( RPC_CMD::driveAdded, driveKey );
+        //rpcCall( RPC_CMD::driveAdded, driveKey );
     }
 
     virtual void driveIsInitialized( Replicator&                    replicator,
                                      const sirius::Key&             driveKey,
                                      const sirius::drive::InfoHash& rootHash ) override
     {
-        rpcCall( RPC_CMD::driveIsInitialized, driveKey, rootHash );
+        //rpcCall( RPC_CMD::driveIsInitialized, driveKey, rootHash );
     }
 
     virtual void driveIsClosed(  Replicator&                replicator,
                                  const sirius::Key&         driveKey,
                                  const Hash256&             transactionHash ) override
     {
-        rpcCall( RPC_CMD::driveIsClosed, driveKey, transactionHash );
+        //rpcCall( RPC_CMD::driveIsClosed, driveKey, transactionHash );
     }
 
     virtual void driveIsRemoved(  Replicator&                replicator,
                                   const sirius::Key&         driveKey ) override
     {
-        rpcCall( RPC_CMD::driveIsRemoved, driveKey );
+        //rpcCall( RPC_CMD::driveIsRemoved, driveKey );
     }
 
     virtual void  driveModificationIsCanceled(  Replicator&                  replicator,
                                                const sirius::Key&           driveKey,
                                                const Hash256&               modifyTransactionHash ) override
     {
-        rpcCall( RPC_CMD::driveModificationIsCanceled, driveKey, modifyTransactionHash );
+        //rpcCall( RPC_CMD::driveModificationIsCanceled, driveKey, modifyTransactionHash );
     }
 
     virtual void modifyTransactionEndedWithError( Replicator&               replicator,
@@ -404,7 +412,7 @@ public:
                                                  const std::string&         reason,
                                                  int                        errorCode ) override
     {
-        rpcCall( RPC_CMD::driveModificationIsCanceled, driveKey, modifyRequest, reason, errorCode );
+        rpcCall( RPC_CMD::modifyTransactionEndedWithError, driveKey, modifyRequest, reason, errorCode );
     }
 
 };

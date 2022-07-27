@@ -12,18 +12,20 @@
 #ifndef RPC_TEST
 #include "drive/log.h"
 #else
-inline std::mutex gLogMutex;
-
-// __LOG
-#define __LOG(expr) { \
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        std::cout << expr << std::endl << std::flush; \
-    }
+//inline std::mutex gLogMutex;
+//
+//// __LOG
+//#define __LOG(expr) { \
+//        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+//        std::cout << expr << std::endl << std::flush; \
+//    }
 #endif
 
 DECLARE_ENUM16 ( RPC_CMD,
 
-    // to remote replicator
+    ack, // will be send after RPC command performed (for syncronizing)
+
+    // dn - to remote replicator
     createReplicator,
     destroyReplicator,
     start,
@@ -48,8 +50,11 @@ DECLARE_ENUM16 ( RPC_CMD,
     asyncDownloadApprovalTransactionHasBeenPublished,
     asyncVerifyApprovalTransactionHasBeenPublished,
                 
-    // from remote replicator
-    done,
+    // for debugging (dn)
+    dbgGetRootHash,
+                
+    // up - from remote replicator
+    dbgHash,
     verificationTransactionIsReady,
     modifyApprovalTransactionIsReady,
     singleModifyApprovalTransactionIsReady,
@@ -60,10 +65,9 @@ DECLARE_ENUM16 ( RPC_CMD,
 
     UP_CHANNEL_INIT,
     DOWN_CHANNEL_INIT,
-    READY_TO_USE,
     PING,
 
-    // for debugging
+    // for debugging (up)
     driveModificationIsCompleted,
     rootHashIsCalculated,
     willBeTerminated,

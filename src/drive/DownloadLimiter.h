@@ -224,6 +224,7 @@ public:
         DBG_MAIN_THREAD
 
         if ( auto it = m_dnChannelMap.find(channelId); it != m_dnChannelMap.end() ) {
+            _LOG( "???" );
 			_LOG_ERR( "Attempt To Add Already Existing Drive " << int(channelId[0]) );
 			return;
 		}

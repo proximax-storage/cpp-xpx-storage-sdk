@@ -17,13 +17,9 @@ namespace sirius::drive {
 //
 class RpcReplicator : public Replicator, public RpcServer
 {
-    boost::asio::io_context         m_context;
-
     Key     m_unusedKey;
     Hash256 m_unusedHash;
     
-    int                             m_rpcPort;
-
     const crypto::KeyPair&          m_keyPair;
     std::string                     m_address;
     std::string                     m_port;
@@ -34,6 +30,9 @@ class RpcReplicator : public Replicator, public RpcServer
     ReplicatorEventHandler&         m_eventHandler;
     DbgReplicatorEventHandler*      m_dbgEventHandler;
     const std::string               m_dbgReplicatorName;
+    
+    bool                            m_isRemoteServiceConnected = false;
+
     
 public:
 
@@ -51,8 +50,7 @@ public:
               DbgReplicatorEventHandler*    dbgEventHandler = nullptr,
               const std::string&            dbgReplicatorName = ""
             )
-              : RpcServer( m_context, rpcAddress, rpcPort ),
-                m_rpcPort(rpcPort),
+              : RpcServer( rpcAddress, rpcPort ),
                 m_keyPair(keyPair),
                 m_address(address),
                 m_port(port),
@@ -64,143 +62,150 @@ public:
                 m_dbgEventHandler(dbgEventHandler),
                 m_dbgReplicatorName(dbgReplicatorName)
     {
+        __LOG("Waiting Remote Replicator Service connection...")
+        for( int i=0; i<6000; i++) // wait 60 secs
+        {
+            if ( m_isRemoteServiceConnected )
+            {
+                __LOG("...Remote Replicator Service connected")
+                return;
+            }
+            usleep(10000);
+        }
+        
+        _LOG_ERR("Remote Replicator Service not connected!")
     }
 
     ~RpcReplicator()
     {
         rpcCall( RPC_CMD::destroyReplicator );
-        readAnswer();
     }
     
     virtual void startRemoteReplicator()
     {
-//        // it runs in child process
-//        auto remoteReplicator = RpcRemoteReplicator();
-//
-//        remoteReplicator.setReplicator(
-//                      createDefaultReplicator( m_keyPair,
-//                                              std::move(m_address),
-//                                              std::move(m_port),
-//                                              std::move(m_storageDirectory),
-//                                              std::move(m_sandboxDirectory),
-//                                              m_bootstraps,
-//                                              m_useTcpSocket,
-//                                              remoteReplicator,
-//                                              m_dbgEventHandler,
-//                                              m_dbgReplicatorName ) );
-//
-//        remoteReplicator.run( "127.0.0.1", std::to_string(m_rpcPort) );
-//
-//        for( int i=0; i<100; i++ )
-//        {
-//            sleep(1);
-//        }
-//       __LOG( "runChild exited" );
+#ifndef RPC_REPLICATOR_NAME // this macro defined for local test
+#endif
+    }
+    
+    virtual void initiateRemoteService() override
+    {
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+
+        class MyKeyPair {
+        public:
+            Key m_privateKey;
+            Key m_publicKey;
+        };
+
+        const Key& pKey = reinterpret_cast<const MyKeyPair&>(m_keyPair).m_privateKey;
+        archive( pKey.array() );
+        
+        archive( m_address );
+        archive( m_port );
+        archive( m_storageDirectory );
+        archive( m_sandboxDirectory );
+        int bootstrapNumber = (int) m_bootstraps.size();
+        archive( bootstrapNumber );
+        for( int i=0; i<bootstrapNumber; i++ )
+        {
+            const Key&  pubKey  = m_bootstraps[i].m_publicKey;
+            std::string address = m_bootstraps[i].m_endpoint.address().to_string();
+            int         port    = m_bootstraps[i].m_endpoint.port();
+            archive( pubKey );
+            archive( address );
+            archive( port );
+        }
+        bool  dbgEventHandlerIsSet = (m_dbgEventHandler != nullptr);
+        archive( dbgEventHandlerIsSet );
+        archive( m_dbgReplicatorName );
+
+        __LOG( "os.str().size(): " << os.str().size() );
+        __LOG( "os.str(): " << int(os.str()[0]) << " "<< int(os.str()[1]) << " "<< int(os.str()[2]) << " "<< int(os.str()[3]) << " " );
+        rpcCallArchStr( RPC_CMD::createReplicator, os.str() );
+        
+        __LOG("Remote replicator created")
+        
+        m_isRemoteServiceConnected = true;
     }
 
-    virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive& iarchive )  override
+    virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive* iarchive )  override
     {
         try
         {
             switch( command )
             {
-                case RPC_CMD::READY_TO_USE:
-                {
-                    std::ostringstream os( std::ios::binary );
-                    cereal::PortableBinaryOutputArchive archive( os );
-
-                    class MyKeyPair {
-                    public:
-                        Key m_privateKey;
-                        Key m_publicKey;
-                    };
-
-                    const Key& pKey = reinterpret_cast<const MyKeyPair&>(m_keyPair).m_privateKey;
-                    archive( pKey );
-                    
-                    archive( m_address );
-                    archive( m_port );
-                    archive( m_storageDirectory );
-                    archive( m_sandboxDirectory );
-                    int bootstrapNumber = (int) m_bootstraps.size();
-                    archive( bootstrapNumber );
-                    for( int i=0; i<bootstrapNumber; i++ )
-                    {
-                        const Key&  pubKey  = m_bootstraps[i].m_publicKey;
-                        std::string address = m_bootstraps[i].m_endpoint.address().to_string();
-                        int         port    = m_bootstraps[i].m_endpoint.port();
-                        archive( pubKey );
-                        archive( address );
-                        archive( port );
-                    }
-                    bool  dbgEventHandlerIsSet = (m_dbgEventHandler != nullptr);
-                    archive( dbgEventHandlerIsSet );
-                    archive( m_dbgReplicatorName );
-
-                    rpcCall( RPC_CMD::createReplicator, os.str() );
-                    readAnswer();
-                    break;
-                }
                 case RPC_CMD::verificationTransactionIsReady:
                 {
                     VerifyApprovalTxInfo transactionInfo;
-                    iarchive( transactionInfo );
+                    (*iarchive)( transactionInfo );
                     m_eventHandler.verificationTransactionIsReady( *this, transactionInfo );
                     break;
                 }
                 case RPC_CMD::modifyApprovalTransactionIsReady:
                 {
                     ApprovalTransactionInfo transactionInfo;
-                    iarchive( transactionInfo );
+                    (*iarchive)( transactionInfo );
                     m_eventHandler.modifyApprovalTransactionIsReady( *this, transactionInfo );
                     break;
                 }
                 case RPC_CMD::singleModifyApprovalTransactionIsReady:
                 {
                     ApprovalTransactionInfo transactionInfo;
-                    iarchive( transactionInfo );
+                    (*iarchive)( transactionInfo );
                     m_eventHandler.singleModifyApprovalTransactionIsReady( *this, transactionInfo );
                     break;
                 }
                 case RPC_CMD::downloadApprovalTransactionIsReady:
                 {
                     DownloadApprovalTransactionInfo transactionInfo;
-                    iarchive( transactionInfo );
+                    (*iarchive)( transactionInfo );
                     m_eventHandler.downloadApprovalTransactionIsReady( *this, transactionInfo );
                     break;
                 }
                 case RPC_CMD::opinionHasBeenReceived:
                 {
                     ApprovalTransactionInfo transactionInfo;
-                    iarchive( transactionInfo );
+                    (*iarchive)( transactionInfo );
                     m_eventHandler.opinionHasBeenReceived( *this, transactionInfo );
                     break;
                 }
                 case RPC_CMD::downloadOpinionHasBeenReceived:
                 {
                     DownloadApprovalTransactionInfo transactionInfo;
-                    iarchive( transactionInfo );
+                    (*iarchive)( transactionInfo );
                     m_eventHandler.downloadOpinionHasBeenReceived( *this, transactionInfo );
                     break;
                 }
                 case RPC_CMD::onLibtorrentSessionError:
                 {
                     std::string message;
-                    iarchive( message );
+                    (*iarchive)( message );
                     m_eventHandler.onLibtorrentSessionError( message );
                     break;
                 }
-                    ///
+                    
+                /// For debugging
                 case RPC_CMD::driveModificationIsCompleted:
+                {
+                    sirius::Key             driveKey;
+                    sirius::drive::InfoHash modifyTransactionHash;
+                    sirius::drive::InfoHash sandboxRootHash;
+                    (*iarchive)( driveKey );
+                    (*iarchive)( modifyTransactionHash );
+                    (*iarchive)( sandboxRootHash );
+                    m_dbgEventHandler->driveModificationIsCompleted( *this, driveKey, modifyTransactionHash, sandboxRootHash );
+                    break;
+                }
 
                 case RPC_CMD::rootHashIsCalculated:
                 {
                     sirius::Key             driveKey;
                     sirius::drive::InfoHash modifyTransactionHash;
                     sirius::drive::InfoHash sandboxRootHash;
-                    iarchive( driveKey );
-                    iarchive( modifyTransactionHash );
-                    iarchive( sandboxRootHash );
+                    (*iarchive)( driveKey );
+                    (*iarchive)( modifyTransactionHash );
+                    (*iarchive)( sandboxRootHash );
                     m_dbgEventHandler->rootHashIsCalculated( *this, driveKey, modifyTransactionHash, sandboxRootHash );
                     break;
                 }
@@ -210,13 +215,14 @@ public:
                     ModificationRequest     modifyRequest;
                     std::string             reason;
                     int                     errorCode;
-                    iarchive( driveKey );
-                    iarchive( modifyRequest );
-                    iarchive( reason );
-                    iarchive( errorCode );
+                    (*iarchive)( driveKey );
+                    (*iarchive)( modifyRequest );
+                    (*iarchive)( reason );
+                    (*iarchive)( errorCode );
                     m_dbgEventHandler->modifyTransactionEndedWithError( *this, driveKey, modifyRequest, reason, errorCode );
                     break;
                 }
+
 //                case RPC_CMD::driveAdded:
 //                case RPC_CMD::driveIsInitialized:
 //                case RPC_CMD::driveIsClosed:
@@ -377,11 +383,17 @@ public:
     virtual int         getVerifyApprovalTransactionTimerDelay() override { __ASSERT(0); return 0; }
     virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) override {}
 
-    virtual Hash256     dbgGetRootHash( const DriveKey& driveKey ) override { __ASSERT(0); return m_unusedHash; }
+    virtual Hash256     dbgGetRootHash( const DriveKey& driveKey ) override
+    {
+        //__ASSERT(0); return m_unusedHash;
+        auto hash = rpcDbgGetRootHash( driveKey );
+        return hash;
+    }
+    
     virtual void        dbgPrintDriveStatus( const Key& driveKey ) override {}
     virtual void        dbgPrintTrafficDistribution( std::array<uint8_t,32>  transactionHash ) override {}
     virtual std::string dbgReplicatorName() const override { return m_dbgReplicatorName; }
-    virtual const Key&  dbgReplicatorKey() const override { __ASSERT(0); return m_unusedKey; }
+    virtual const Key&  dbgReplicatorKey() const override { return m_keyPair.publicKey(); }
     
     virtual void        dbgAsyncDownloadToSandbox( Key driveKey, InfoHash, std::function<void()> endNotifyer ) override {}
 };

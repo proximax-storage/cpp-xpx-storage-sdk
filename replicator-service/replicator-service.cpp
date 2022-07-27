@@ -8,6 +8,8 @@
 #include <syslog.h>
 #include <unistd.h>
 
+        //TODO!!!!!
+#define DEBUG_REPLICATOR_SERVICE
 
 #include "drive/RpcRemoteReplicator.h"
 #include "drive/Replicator.h"
@@ -20,13 +22,10 @@ int main( int argc, char* argv[] )
     std::string address;
     std::string port;
     
-    if ( argc == 1 )
-    {
-        //TODO!!!!!
-        runInBackground = true;
+#ifdef DEBUG_REPLICATOR_SERVICE
         address         = "127.0.0.1";
         port            = "5357";
-    }
+#else
     if ( argc == 4 && std::string(argv[1])=="-d" )
     {
         runInBackground = true;
@@ -42,27 +41,16 @@ int main( int argc, char* argv[] )
     {
         std::cout << "usage: replicatro-service [-d] <address> <port>\n";
     }
-    
+#endif
+
     if ( runInBackground )
     {
         runServiceInBackground();
     }
-    
-//    auto replicator = createDefaultReplicator(
-//                                              const crypto::KeyPair&,
-//                                              std::string&&  address,
-//                                              std::string&&  port,
-//                                              std::string&&  storageDirectory,
-//                                              std::string&&  sandboxDirectory,
-//                                              const std::vector<ReplicatorInfo>&  bootstraps,
-//                                              bool           useTcpSocket, // use TCP socket (instead of uTP)
-//                                              ReplicatorEventHandler&,
-//                                              DbgReplicatorEventHandler*  dbgEventHandler = nullptr,
-//                                              const std::string& dbgReplicatorName = "" );
-//    );
-//    
-//    RpcRemoteReplicator remoteReplicator;
-//    remoteReplicator.
+
+    __LOG( "RpcRemoteReplicator replicator" )
+    sirius::drive::RpcRemoteReplicator replicator;
+    replicator.run( address, port );
 }
 
 int runServiceInBackground()

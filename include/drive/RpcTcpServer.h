@@ -63,19 +63,17 @@ class RpcTcpServer
                                               asio::transfer_exactly( sizeof(self->packetLen) ),
                                               [self = self] ( boost::system::error_code error, std::size_t bytes_transferred )
                     {
-                        __LOG( "self->packetLen: " << self->packetLen );
                         if ( !error )
                         {
                             if ( self->command == RPC_CMD::UP_CHANNEL_INIT )
                             {
                                 self->m_server.setUpSession( self->weak_from_this() );
+                                self->readNextCommand();
                             }
                             else if ( self->command == RPC_CMD::DOWN_CHANNEL_INIT )
                             {
                                 self->m_server.setDnSession( self->weak_from_this() );
                             }
-                            
-                            self->readNextCommand();
                         }
                     });
                 }
@@ -97,46 +95,52 @@ class RpcTcpServer
                     {
                         if ( auto self = w.lock(); self && !error )
                         {
-                            __LOG( "self->packetLen: " << self->packetLen );
+//                            __LOG( "self->packetLen: " << self->packetLen );
 
                             if ( self->command == RPC_CMD::UP_CHANNEL_INIT )
                             {
-                                self->m_server.setUpSession( self->weak_from_this() );
+                                __LOG_WARN( "ignore unexpected command: RPC_CMD::UP_CHANNEL_INIT" );
                             }
                             else if ( self->command == RPC_CMD::DOWN_CHANNEL_INIT )
                             {
-                                self->m_server.setDnSession( self->weak_from_this() );
+                                __LOG_WARN( "ignore unexpected command: RPC_CMD::DOWN_CHANNEL_INIT" );
                             }
                             else if ( self->command == RPC_CMD::PING )
                             {
-                                abort();
+                                __LOG_WARN( "ignore unexpected command: RPC_CMD::PING" );
                             }
                             else
                             {
-                                if ( self->streambuf.size() < self->packetLen )
+                                if ( self->packetLen == 0 )
+                                {
+                                    self->m_server.handleCommand( self->command, nullptr );
+                                    self->sendAck();
+                                }
+                                else
                                 {
                                     self->streambuf.prepare( self->packetLen );
-                                }
 
-                                asio::async_read( self->socket, self->streambuf,
-                                                                asio::transfer_exactly( self->packetLen ),
-                                                                [self = self] ( boost::system::error_code error, std::size_t bytes_transferred )
-                                {
-                                    if ( ! error && bytes_transferred == self->packetLen )
+                                    asio::async_read( self->socket, self->streambuf,
+                                                                    asio::transfer_exactly( self->packetLen ),
+                                                                    [self = self] ( boost::system::error_code error, std::size_t bytes_transferred )
                                     {
-
-                                        __LOG( "self->packet_len: " << self->packetLen )
-                                        __LOG( "self->streambuf.size: " << self->streambuf.size() )
-
-                                        //self->streambuf.commit(bytes_transferred);
-                                        std::istream is( &self->streambuf );
+                                        if ( ! error && bytes_transferred == self->packetLen )
                                         {
-                                            cereal::PortableBinaryInputArchive iarchive(is);
-                                            self->handleCommand( self->command, iarchive );
+
+//                                            __LOG( "self->packet_len: " << self->packetLen )
+//                                            __LOG( "self->streambuf.size: " << self->streambuf.size() )
+
+                                            //self->streambuf.commit(bytes_transferred);
+                                            std::istream is( &self->streambuf );
+                                            {
+                                                cereal::PortableBinaryInputArchive iarchive(is);
+                                                self->m_server.handleCommand( self->command, &iarchive );
+                                            }
+                                            self->streambuf.consume( bytes_transferred );
+                                            self->sendAck();
                                         }
-                                        self->streambuf.consume( bytes_transferred );
-                                    }
-                                });
+                                    });
+                                }
                             }
                             
                             self->readNextCommand();
@@ -145,13 +149,28 @@ class RpcTcpServer
                 }
             });
         }
-
-        void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive& parameters )
-        {
-            
-        }
         
-        void send( RPC_CMD command, std::string&& parameters )
+        void sendAck()
+        {
+            RPC_CMD command = RPC_CMD::ack;
+            boost::system::error_code error;
+            std::size_t bytes_transferred = asio::write( socket, asio::buffer( &command, sizeof(command) ), error );
+            if ( error || bytes_transferred != sizeof(command) )
+            {
+                //TODO
+                _LOG_ERR( "sendAck error: " << error )
+            }
+
+            uint16_t packetLen = 0;
+            bytes_transferred = asio::write( socket, asio::buffer( &packetLen, sizeof(packetLen) ), error );
+            if ( error || bytes_transferred != sizeof(packetLen) )
+            {
+                //TODO
+                _LOG_ERR( "sendAck error (2): " << error )
+            }
+        }
+
+        void send( RPC_CMD command, const std::string& parameters )
         {
             __LOG( "server send: " << CMD_STR(command) )
             boost::system::error_code error;
@@ -159,7 +178,7 @@ class RpcTcpServer
             if ( error || bytes_transferred != sizeof(command) )
             {
                 //TODO
-                __LOG( "send error: " << error )
+                _LOG_ERR( "send error: " << error )
             }
 
             uint16_t packetLen = (uint16_t) parameters.size();
@@ -167,66 +186,70 @@ class RpcTcpServer
             if ( error || bytes_transferred != sizeof(packetLen) )
             {
                 //TODO
-                __LOG( "send error (2): " << error )
+                _LOG_ERR( "send error (2): " << error )
             }
                     
             if ( parameters.size() > 0 )
             {
-                bytes_transferred = asio::write( socket, asio::buffer( parameters.data(), sizeof(parameters.size()) ), error );
-                if ( error || bytes_transferred != sizeof(parameters.size()) )
+                bytes_transferred = asio::write( socket, asio::buffer( parameters.c_str(), parameters.size() ), error );
+//                __LOG( "parameters.size(): " << parameters.size() )
+//                __LOG( "bytes_transferred" << bytes_transferred )
+                if ( error || bytes_transferred != parameters.size() )
                 {
                     //TODO
-                    __LOG( "send error (3): " << error )
+                    _LOG_ERR( "send error (3): " << error )
                 }
             }
 
         }
         
-        void async_send( RPC_CMD command, std::string&& parameters )
-        {
-            __LOG( "server send: " << CMD_STR(command) )
-            asio::async_write( socket,
-                               asio::buffer( &command, sizeof(command) ),
-                               [self = shared_from_this(),parameters=std::move(parameters)] ( std::error_code error, std::size_t bytes_transferred )
-            {
-                if ( error )
-                {
-                    //TODO
-                    __LOG( "send error: " << error )
-                }
-                uint16_t packetLen = (uint16_t) parameters.size();
-                asio::async_write( self->socket,
-                                   asio::buffer( &packetLen, sizeof(packetLen) ),
-                                  [self=self,parameters=std::move(parameters)] ( std::error_code error, std::size_t bytes_transferred )
-                {
-                    if ( error )
-                    {
-                        //TODO
-                        __LOG( "send error (2): " << error )
-                    }
-                    
-                    if ( parameters.size() > 0 )
-                    {
-                        asio::async_write( self->socket,
-                                           asio::buffer( parameters.data(), sizeof(parameters.size()) ),
-                                          [self=self,parameters=std::move(parameters)] ( std::error_code error, std::size_t bytes_transferred )
-                        {
-                            if ( error )
-                            {
-                                //TODO
-                                __LOG( "send error (3): " << error )
-                            }
-                        });
-                    }
-                });
-            });
-
-        }
+//        void async_send( RPC_CMD command, std::string&& parameters )
+//        {
+//            __LOG( "server send: " << CMD_STR(command) )
+//            asio::async_write( socket,
+//                               asio::buffer( &command, sizeof(command) ),
+//                               [self = shared_from_this(),parameters=std::move(parameters)] ( std::error_code error, std::size_t bytes_transferred )
+//            {
+//                if ( error )
+//                {
+//                    //TODO
+//                    _LOG_ERR( "send error: " << error )
+//                }
+//                uint16_t packetLen = (uint16_t) parameters.size();
+//                asio::async_write( self->socket,
+//                                   asio::buffer( &packetLen, sizeof(packetLen) ),
+//                                  [self=self,parameters=std::move(parameters)] ( std::error_code error, std::size_t bytes_transferred )
+//                {
+//                    if ( error )
+//                    {
+//                        //TODO
+//                        _LOG_ERR( "send error (2): " << error )
+//                    }
+//
+//                    if ( parameters.size() > 0 )
+//                    {
+//                        asio::async_write( self->socket,
+//                                           asio::buffer( parameters.data(), sizeof(parameters.size()) ),
+//                                          [self=self,parameters=std::move(parameters)] ( std::error_code error, std::size_t bytes_transferred )
+//                        {
+//                            if ( error )
+//                            {
+//                                //TODO
+//                                _LOG_ERR( "send error (3): " << error )
+//                            }
+//                        });
+//                    }
+//                });
+//            });
+//
+//        }
         
-        void readAnswer()
+        void readAck()
         {
             RPC_CMD command;
             boost::system::error_code ec;
+            
+        readAgain:
             asio::read( socket,
                        asio::buffer( &command, sizeof(command) ),
                        asio::transfer_exactly( sizeof(command) ),
@@ -242,66 +265,76 @@ class RpcTcpServer
                        asio::buffer( &packetLen, sizeof(packetLen) ),
                        asio::transfer_exactly( sizeof(packetLen) ),
                        ec );
-            assert( packetLen == 0 );
+            if ( ec )
+            {
+                //TODO
+                _LOG_ERR( "send error: " << ec )
+            }
+            if ( command == RPC_CMD::PING )
+                goto readAgain;
+            
+            __ASSERT( command == RPC_CMD::ack && packetLen == 0 );
+        }
+
+        std::array<uint8_t,32> readAckDbgGetRootHash()
+        {
+            RPC_CMD command;
+            boost::system::error_code ec;
+            
+        readAgain:
+            asio::read( socket,
+                       asio::buffer( &command, sizeof(command) ),
+                       asio::transfer_exactly( sizeof(command) ),
+                       ec );
             if ( ec )
             {
                 //TODO
                 __LOG( "send error: " << ec )
             }
+
+            uint16_t packetLen;
+            asio::read( socket,
+                       asio::buffer( &packetLen, sizeof(packetLen) ),
+                       asio::transfer_exactly( sizeof(packetLen) ),
+                       ec );
+            if ( ec )
+            {
+                //TODO
+                _LOG_ERR( "send error: " << ec )
+            }
+            if ( command == RPC_CMD::PING )
+                goto readAgain;
+
+            std::array<uint8_t,32> hash;
+            __ASSERT( command == RPC_CMD::dbgHash && packetLen == 32 );
+
+            asio::read( socket,
+                       asio::buffer( hash.data(), 32 ),
+                       asio::transfer_exactly( 32 ),
+                       ec );
+            if ( ec )
+            {
+                //TODO
+                _LOG_ERR( "send error: " << ec )
+            }
+            
+            return hash;
         }
     };
 
 private:
 
-    asio::io_context&                    m_context;
-    asio::ip::tcp::acceptor              m_acceptor;
+    asio::io_context                     m_context;
+    std::optional<asio::ip::tcp::acceptor> m_acceptor;
     std::optional<asio::ip::tcp::socket> m_socket;
     std::shared_ptr<Session>             m_upSession;
     std::shared_ptr<Session>             m_dnSession;
     
-    void async_accept()
-    {
-        m_socket.emplace( m_context );
-
-        m_acceptor.async_accept( *m_socket, [&] (boost::system::error_code error)
-        {
-            __LOG( "accepted" )
-            std::make_shared<Session>( std::move(*m_socket), *this )->start();
-            async_accept();
-        });
-    }
-
-    void setUpSession( std::weak_ptr<Session> s )
-    {
-        __LOG( "setUpSession()" );
-        m_upSession = s.lock();
-        
-        if ( m_upSession && m_dnSession )
-        {
-            m_dnSession->send( RPC_CMD::READY_TO_USE, "" );
-        }
-    }
-    
-    void setDnSession( std::weak_ptr<Session> s )
-    {
-        __LOG( "setDnSession()" );
-        m_dnSession = s.lock();
-
-        if ( m_upSession && m_dnSession )
-        {
-            m_dnSession->send( RPC_CMD::READY_TO_USE, "" );
-        }
-    }
-    
 public:
     
-    RpcTcpServer( asio::io_context& io_context, std::string address, std::uint16_t port )
-        : m_context(io_context)
-        , m_acceptor( m_context, asio::ip::tcp::endpoint( boost::asio::ip::address::from_string(address.c_str()), port ))
+    RpcTcpServer()
     {
-        __LOG( "RpcTcpServer()" )
-
-        async_accept();
+        __LOG( "RpcTcpServer(); address: " )
     }
     
     virtual ~RpcTcpServer()
@@ -309,22 +342,98 @@ public:
         closeSockets();
     }
     
+    void startTcpServer( std::string address, std::uint16_t port )
+    {
+        m_acceptor.emplace( m_context, asio::ip::tcp::endpoint( boost::asio::ip::address::from_string(address.c_str()), port ) );
+
+        async_accept();
+        
+        std::thread( [this]
+        {
+            m_context.run();
+        }).detach();
+    }
+    
     void closeSockets()
     {
         m_socket->close();
     }
     
-    void rpcCall( RPC_CMD func, std::string&& parameters )
+    void rpcCall( RPC_CMD func, const std::string& parameters )
     {
-        m_dnSession->send( func, std::move(parameters) );
+        m_dnSession->send( func, parameters );
+        __LOG( "*rpc* rpcCall: " << CMD_STR(func) )
+        m_dnSession->readAck();
     }
     
-    void readAnswer()
+    std::array<uint8_t,32> rpcDbgGetRootHash( const std::string& parameters )
     {
-        m_dnSession->readAnswer();
+        m_dnSession->send( RPC_CMD::dbgGetRootHash, parameters );
+        __LOG( "*rpc* rpcDbgGetRootHash: " )
+        auto hash = m_dnSession->readAckDbgGetRootHash();
+        m_dnSession->readAck();
+        return hash;
     }
     
-    virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive& parameters ) = 0;
+    virtual void initiateRemoteService() = 0;
+
+    virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive* parameters ) = 0;
+
+private:
+    void async_accept()
+    {
+        m_socket.emplace( m_context );
+
+        m_acceptor->async_accept( *m_socket, [&] (boost::system::error_code ec)
+        {
+            if ( ec )
+            {
+                _LOG_ERR( "error in RpcTcpServer::async_accept : " << ec )
+            }
+            else
+            {
+                __LOG( "accepted" )
+                std::make_shared<Session>( std::move(*m_socket), *this )->start();
+            }
+            async_accept();
+        });
+    }
+
+    void setUpSession( std::weak_ptr<Session> s )
+    {
+        if ( m_upSession )
+        {
+            __LOG_WARN( "double setUpSession()" );
+            return;
+        }
+
+        __LOG( "setUpSession()" );
+        m_upSession = s.lock();
+        
+        if ( m_upSession && m_dnSession )
+        {
+            initiateRemoteService();
+        }
+    }
+    
+    void setDnSession( std::weak_ptr<Session> s )
+    {
+        if ( m_dnSession )
+        {
+            __LOG_WARN( "double setDnSession()" );
+            return;
+        }
+
+        __LOG( "setDnSession()" );
+        m_dnSession = s.lock();
+
+        if ( m_upSession && m_dnSession )
+        {
+            initiateRemoteService();
+        }
+    }
+    
+
 };
     
 
