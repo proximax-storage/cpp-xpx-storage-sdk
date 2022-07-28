@@ -164,6 +164,13 @@ public:
         if ( keyIt == replicatorKeys.end() )
         {
             _LOG_WARN( "processVerificationCode: unknown replicatorKey" << Key(info.m_replicatorKey) );
+            return true;
+        }
+
+        if ( m_receivedCodes.contains(info.m_replicatorKey) )
+        {
+            _LOG( "Ignoring Duplicate Verification Code" );
+            return true;
         }
 
         m_receivedCodes[info.m_replicatorKey] = info;
@@ -226,9 +233,17 @@ public:
         // At any case opinions with the same replicator key must be removed
         //
         auto& opinions = m_myVerificationApprovalTxInfo->m_opinions;
-        std::erase_if( opinions, [&info] (const auto& it) {
+
+        auto it = std::find_if( opinions.begin(), opinions.end(), [&info]( const auto& it )
+        {
             return it.m_publicKey == info.m_opinions[0].m_publicKey;
-        });
+        } );
+
+        if ( it != opinions.end() )
+        {
+            _LOG( "Ignoring Duplicate Verification Opinion" );
+            return true;
+        }
 
         m_myVerificationApprovalTxInfo->m_opinions.emplace_back( info.m_opinions[0] );
 
@@ -569,7 +584,7 @@ private:
 
         if ( auto session = m_drive.m_session.lock(); session )
         {
-            m_shareVerifyOpinionTimer = session->startTimer( m_drive.m_replicator.getVerifyApprovalTransactionTimerDelay(),
+            m_shareVerifyOpinionTimer = session->startTimer( m_drive.m_replicator.getVerificationShareTimerDelay(),
                                                         [this]() {
                 shareVerifyOpinion();
             } );

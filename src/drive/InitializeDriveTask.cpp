@@ -214,8 +214,6 @@ private:
             m_drive.cancelModifyDrive( ModificationCancelRequest{ it->m_modificationId } );
         }
 
-        _LOG( "Before tt" );
-
         if ( m_opinionController.approvedModificationId() != m_drive.m_lastApprovedModification )
         {
             // This is the case if the modification has been interrupted and approved modifications has not been updated
@@ -232,7 +230,6 @@ private:
     {
         DBG_MAIN_THREAD
 
-        _LOG( "On Approved Opinion Restored" );
         if ( m_drive.m_dbgEventHandler )
         {
             m_drive.m_dbgEventHandler->driveIsInitialized( m_drive.m_replicator, m_drive.m_driveKey,
