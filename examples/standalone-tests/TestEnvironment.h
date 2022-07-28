@@ -55,6 +55,10 @@ public:
     std::map<Hash256, int> modifyCompleteCounters;
     std::mutex modifyCompleteMutex;
 
+    std::map<Key, std::condition_variable> m_driveIsInitializedCondVars;
+    std::map<Key, int> m_driveIsInitializedCounters;
+    std::mutex m_driveIsInitializedMutex;
+
     std::map<Hash256, std::condition_variable> m_rootHashCalculatedCondVars;
     std::map<Hash256, int> m_rootHashCalculatedCounters;
     std::mutex m_rootHashCalculatedMutex;
@@ -486,6 +490,15 @@ public:
         m_rootHashCalculatedCondVars[modifyTransactionHash].notify_all();
     }
 
+    void driveIsInitialized( Replicator& replicator, const Key& driveKey, const InfoHash& rootHash ) override {
+        EXLOG( "DriveIsInitialized: " << replicator.dbgReplicatorName());
+        std::unique_lock<std::mutex> lock( m_driveIsInitializedMutex );
+        m_driveIsInitializedCounters[driveKey]++;
+        m_driveIsInitializedCondVars[driveKey].notify_all();
+    }
+
+public:
+
     // It will be called when transaction could not be completed
     virtual void modifyTransactionEndedWithError( Replicator& replicator,
                                                   const sirius::Key& driveKey,
@@ -662,6 +675,15 @@ public:
     void downloadOpinionHasBeenReceived( Replicator& replicator, const DownloadApprovalTransactionInfo& info ) override
     {
         replicator.asyncOnDownloadOpinionReceived( info );
+    }
+
+    void waitDriveIsInitialized( const Key& driveKey, int number )
+    {
+        std::unique_lock<std::mutex> lock( m_rootHashCalculatedMutex );
+        m_driveIsInitializedCondVars[driveKey].wait( lock, [this, driveKey, number]
+        {
+            return m_driveIsInitializedCounters[driveKey] == number;
+        } );
     }
 
     void waitRootHashCalculated( const Hash256& modification, int number )

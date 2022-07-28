@@ -127,8 +127,6 @@ public:
             drive->terminate();
         }
 
-        m_backgroundExecutor.stop();
-
         for ( auto& [channelId, value]: m_dnChannelMap )
         {
             for ( auto& [event, opinion]: value.m_downloadOpinionMap )
@@ -157,9 +155,11 @@ public:
         });
         barrier.get_future().wait();
 
+        m_backgroundExecutor.stop();
+
         auto blockedDestructor = m_session->lt_session().abort();
         m_session.reset();
-        
+
         if ( m_libtorrentThread.joinable() )
         {
             _LOG( "m_libtorrentThread joined" )

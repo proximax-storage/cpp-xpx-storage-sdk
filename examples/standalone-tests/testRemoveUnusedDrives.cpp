@@ -64,26 +64,33 @@ namespace sirius::drive::test
         env.addDrive( driveToRemove, randomByteArray<Key>(), 1024 * 1024, {} );
         env.addDrive( driveNotToRemove, randomByteArray<Key>(), 1024 * 1024, {} );
 
+        sleep(5);
+
         env.stopReplicator(1);
 
-//        sleep(5);
-//
-//        env.m_drives.erase(driveToRemove);
-//
-//        EXLOG( "Want To Start" )
-//
-//        env.startReplicator(1,
-//                            REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
-//                            SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000);
-//
-//        sleep(5);
-//
-//        const auto& rootFolder = env.m_rootFolders[0];
-//        const auto& sandboxFolder = env.m_sandboxFolders[0];
-//        EXPECT_TRUE( !fs::exists( fs::path(rootFolder) / toString(driveToRemove.array())) );
-//        EXPECT_TRUE( !fs::exists( fs::path(sandboxFolder) / toString(driveToRemove.array())) );
-//        EXPECT_TRUE( fs::exists( fs::path(rootFolder) / toString(driveNotToRemove.array())) );
-//        EXPECT_TRUE( fs::exists( fs::path(sandboxFolder) / toString(driveNotToRemove.array())) );
+        const auto& rootFolder = env.m_rootFolders[0];
+        const auto& sandboxFolder = env.m_sandboxFolders[0];
+        EXPECT_TRUE( fs::exists( fs::path(rootFolder) / toString(driveToRemove.array())) );
+        EXPECT_TRUE( fs::exists( fs::path(sandboxFolder) / toString(driveToRemove.array())) );
+        EXPECT_TRUE( fs::exists( fs::path(rootFolder) / toString(driveNotToRemove.array())) );
+        EXPECT_TRUE( fs::exists( fs::path(sandboxFolder) / toString(driveNotToRemove.array())) );
+
+        sleep(5);
+
+        env.m_drives.erase(driveToRemove);
+
+        EXLOG( "Want To Start" )
+
+        env.startReplicator(1,
+                            REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
+                            SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000);
+
+        sleep(5);
+
+        EXPECT_TRUE( !fs::exists( fs::path(rootFolder) / toString(driveToRemove.array())) );
+        EXPECT_TRUE( !fs::exists( fs::path(sandboxFolder) / toString(driveToRemove.array())) );
+        EXPECT_TRUE( fs::exists( fs::path(rootFolder) / toString(driveNotToRemove.array())) );
+        EXPECT_TRUE( fs::exists( fs::path(sandboxFolder) / toString(driveNotToRemove.array())) );
     }
 
 #undef TEST_NAME
