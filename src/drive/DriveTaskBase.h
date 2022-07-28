@@ -220,7 +220,8 @@ protected:
     }
 };
 
-std::unique_ptr<DriveTaskBase> createDriveInitializationTask( DriveParams&              drive,
+std::unique_ptr<DriveTaskBase> createDriveInitializationTask( std::vector<CompletedModification>&&,
+                                                              DriveParams&              drive,
                                                               ModifyOpinionController&  opinionTaskController );
 
 std::unique_ptr<DriveTaskBase> createModificationTask(

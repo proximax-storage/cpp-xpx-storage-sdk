@@ -226,7 +226,7 @@ public:
         {
             replicators = m_addrList;
         }
-        m_drives[driveKey] = { {driveSize, 0, replicators, client, replicators, replicators}, {}, {}, {}};
+        m_drives[driveKey] = { {driveSize, 0, {}, replicators, client, replicators, replicators}, {}, {}, {}};
         for ( auto& key: replicators )
         {
             auto replicator = getReplicator( key );
@@ -369,6 +369,9 @@ public:
     virtual void cancelModification( const Key& driveKey, const Hash256& transactionHash )
     {
         const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+
+        m_drives[driveKey].m_driveRequest.m_completedModifications.push_back( {transactionHash, CompletedModification::CompletedModificationStatus::CANCELLED} );
+
         std::erase_if( m_drives[driveKey].m_pendingModifications, [&]( const auto& item )
         {
             return item.m_transactionHash == transactionHash;

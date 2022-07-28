@@ -30,13 +30,24 @@ class Replicator;
         };
     };
 
+    struct CompletedModification {
+
+        enum class CompletedModificationStatus {
+            APPROVED, CANCELLED
+        };
+
+        Hash256                     m_modificationId;
+        CompletedModificationStatus m_status;
+    };
+
     struct AddDriveRequest {
-        uint64_t          m_driveSize;
-        uint64_t          m_expectedCumulativeDownloadSize;
-        ReplicatorList    m_fullReplicatorList;
-        Key               m_client;
-        ReplicatorList    m_modifyDonatorShard;
-        ReplicatorList    m_modifyRecipientShard;
+        uint64_t                                m_driveSize;
+        uint64_t                                m_expectedCumulativeDownloadSize;
+        std::vector<CompletedModification>      m_completedModifications;
+        ReplicatorList                          m_fullReplicatorList;
+        Key                                     m_client;
+        ReplicatorList                          m_modifyDonatorShard;
+        ReplicatorList                          m_modifyRecipientShard;
     };
 
     using DriveModifyHandler = std::function<void( modify_status::code, const FlatDrive& drive, const std::string& error )>;
@@ -618,18 +629,20 @@ class Replicator;
 
     class Session;
 
-    PLUGIN_API std::shared_ptr<FlatDrive> createDefaultFlatDrive( std::shared_ptr<Session> session,
-                                                       const std::string&           replicatorRootFolder,
-                                                       const std::string&           replicatorSandboxRootFolder,
-                                                       const Key&                   drivePubKey,
-                                                       const Key&                   clientPubKey,
-                                                       size_t                       maxSize,
-                                                       size_t                       expectedCumulativeDownload,
-                                                       ReplicatorEventHandler&      eventHandler,
-                                                       Replicator&                  replicator,
-                                                       const ReplicatorList&        fullReplicatorList,
-                                                       const ReplicatorList&        modifyDonatorShard,
-                                                       const ReplicatorList&        modifyRecipientShard,
-                                                       DbgReplicatorEventHandler*   dbgEventHandler = nullptr );
+    PLUGIN_API std::shared_ptr<FlatDrive> createDefaultFlatDrive(
+                                                       std::shared_ptr<Session>                 session,
+                                                       const std::string&                       replicatorRootFolder,
+                                                       const std::string&                       replicatorSandboxRootFolder,
+                                                       const Key&                               drivePubKey,
+                                                       const Key&                               clientPubKey,
+                                                       size_t                                   maxSize,
+                                                       size_t                                   expectedCumulativeDownload,
+                                                       std::vector<CompletedModification>&&     completedModifications,
+                                                       ReplicatorEventHandler&                  eventHandler,
+                                                       Replicator&                              replicator,
+                                                       const ReplicatorList&                    fullReplicatorList,
+                                                       const ReplicatorList&                    modifyDonatorShard,
+                                                       const ReplicatorList&                    modifyRecipientShard,
+                                                       DbgReplicatorEventHandler*               dbgEventHandler = nullptr );
 }
 

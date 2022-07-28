@@ -132,19 +132,20 @@ class DefaultFlatDrive: public FlatDrive, public DriveParams
 public:
 
     DefaultFlatDrive(
-                std::shared_ptr<Session>    session,
-                const std::string&          replicatorRootFolder,
-                const std::string&          replicatorSandboxRootFolder,
-                const Key&                  drivePubKey,
-                const Key&                  driveOwner,
-                size_t                      maxSize,
-                size_t                      expectedCumulativeDownload,
-                ReplicatorEventHandler&     eventHandler,
-                ReplicatorInt&              replicator,
-                const ReplicatorList&       fullReplicatorList,
-                const ReplicatorList&       modifyDonatorShard,
-                const ReplicatorList&       modifyRecipientShard,
-                DbgReplicatorEventHandler*  dbgEventHandler
+                std::shared_ptr<Session>                session,
+                const std::string&                      replicatorRootFolder,
+                const std::string&                      replicatorSandboxRootFolder,
+                const Key&                              drivePubKey,
+                const Key&                              driveOwner,
+                size_t                                  maxSize,
+                size_t                                  expectedCumulativeDownload,
+                std::vector<CompletedModification>&&    completedModifications,
+                ReplicatorEventHandler&                 eventHandler,
+                ReplicatorInt&                          replicator,
+                const ReplicatorList&                   fullReplicatorList,
+                const ReplicatorList&                   modifyDonatorShard,
+                const ReplicatorList&                   modifyRecipientShard,
+                DbgReplicatorEventHandler*              dbgEventHandler
             )
             : DriveParams(
                     drivePubKey,
@@ -165,7 +166,7 @@ public:
             , m_opinionController(m_driveKey, m_driveOwner, m_replicator, m_serializer, *this, expectedCumulativeDownload, replicator.dbgReplicatorName() )
 
     {
-        runDriveInitializationTask();
+        runDriveInitializationTask( std::move( completedModifications ) );
     }
 
     virtual~DefaultFlatDrive() {
@@ -271,13 +272,13 @@ public:
         }
     }
 
-    void runDriveInitializationTask()
+    void runDriveInitializationTask( std::vector<CompletedModification>&& completedModifications )
     {
         DBG_MAIN_THREAD
 
         _ASSERT( !m_task )
 
-        m_task = createDriveInitializationTask( *this, m_opinionController );
+        m_task = createDriveInitializationTask( std::move(completedModifications), *this, m_opinionController );
 
         _ASSERT( m_task->getTaskType() == DriveTaskType::DRIVE_INITIALIZATION )
 
@@ -571,19 +572,15 @@ public:
             m_modificationCancelRequest = request;
         }
 
-        else
-        {
-            auto it = std::find_if(m_deferredModificationRequests.begin(), m_deferredModificationRequests.end(), [&request](const auto& item)
+        auto it = std::find_if(m_deferredModificationRequests.begin(), m_deferredModificationRequests.end(), [&request](const auto& item)
             { return item.transactionHash() == request->m_modifyTransactionHash; });
 
-            if (it == m_deferredModificationRequests.end() )
-            {
-                _LOG_ERR( "cancelModifyDrive(): invalid transactionHash: " << request->m_modifyTransactionHash );
-                return;
-            }
-
-            m_deferredModificationRequests.erase( it );
+        if (it == m_deferredModificationRequests.end() )
+        {
+            return;
         }
+
+        m_deferredModificationRequests.erase( it );
     }
 
     void startDriveClosing( mobj<DriveClosureRequest>&& request ) override
@@ -805,19 +802,20 @@ public:
 
 
 std::shared_ptr<FlatDrive> createDefaultFlatDrive(
-        std::shared_ptr<Session>    session,
-        const std::string&          replicatorRootFolder,
-        const std::string&          replicatorSandboxRootFolder,
-        const Key&                  drivePubKey,
-        const Key&                  clientPubKey,
-        size_t                      maxSize,
-        size_t                      expectedCumulativeDownload,
-        ReplicatorEventHandler&     eventHandler,
-        Replicator&                 replicator,
-        const ReplicatorList&       fullReplicatorList,
-        const ReplicatorList&       modifyDonatorShard,
-        const ReplicatorList&       modifyRecipientShard,
-        DbgReplicatorEventHandler*  dbgEventHandler )
+        std::shared_ptr<Session>                session,
+        const std::string&                      replicatorRootFolder,
+        const std::string&                      replicatorSandboxRootFolder,
+        const Key&                              drivePubKey,
+        const Key&                              clientPubKey,
+        size_t                                  maxSize,
+        size_t                                  expectedCumulativeDownload,
+        std::vector<CompletedModification>&&    completedModifications,
+        ReplicatorEventHandler&                 eventHandler,
+        Replicator&                             replicator,
+        const ReplicatorList&                   fullReplicatorList,
+        const ReplicatorList&                   modifyDonatorShard,
+        const ReplicatorList&                   modifyRecipientShard,
+        DbgReplicatorEventHandler*              dbgEventHandler )
 
 {
     return std::make_shared<DefaultFlatDrive>( session,
@@ -827,6 +825,7 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
                                            clientPubKey,
                                            maxSize,
                                            expectedCumulativeDownload,
+                                           std::move( completedModifications ),
                                            eventHandler,
                                            dynamic_cast<ReplicatorInt&>(replicator),
                                            fullReplicatorList,

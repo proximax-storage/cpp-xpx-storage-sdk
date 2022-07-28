@@ -84,7 +84,7 @@ protected:
         }
 
         /// (???) replace with replicators of the shard
-        m_opinionController.updateCumulativeUploads( m_drive.getDonatorShard(), getToBeApprovedDownloadSize(), [this]
+        m_opinionController.updateCumulativeUploads( getModificationTransactionHash(), m_drive.getDonatorShard(), getToBeApprovedDownloadSize(), [this]
         {
             onCumulativeUploadsUpdated();
         } );
@@ -92,7 +92,9 @@ protected:
 
     void synchronizationIsCompleted()
     {
-        m_opinionController.approveCumulativeUploads( [this]
+        DBG_MAIN_THREAD
+
+        m_opinionController.approveCumulativeUploads( getModificationTransactionHash(), [this]
         {
             modifyIsCompleted();
         });

@@ -141,7 +141,7 @@ public:
         m_endpointsManager.stop();
     }
 
-    virtual ~DefaultReplicator()
+    ~DefaultReplicator() override
     {
 
 #ifdef DEBUG_OFF_CATAPULT
@@ -162,6 +162,7 @@ public:
         
         if ( m_libtorrentThread.joinable() )
         {
+            _LOG( "m_libtorrentThread joined" )
             m_libtorrentThread.join();
         }
 
@@ -304,6 +305,7 @@ public:
                     driveRequest->m_client,
                     driveRequest->m_driveSize,
                     driveRequest->m_expectedCumulativeDownloadSize,
+                    std::move( driveRequest->m_completedModifications ),
                     m_eventHandler,
                     *this,
                     driveRequest->m_fullReplicatorList,

@@ -5,6 +5,7 @@
 */
 
 #include "DriveTaskBase.h"
+#include "drive/FlatDrive.h"
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/optional.hpp>
@@ -14,15 +15,23 @@ namespace sirius::drive
 class InitializeDriveTask : public DriveTaskBase
 {
 
+    std::vector<CompletedModification> m_completedModifications;
+
     ModifyOpinionController& m_opinionController;
 
     std::optional<ApprovalTransactionInfo> m_singleTx;
 
+    std::vector<ModificationCancelRequest> m_cancelRequests;
+
+    bool m_initialized = false;
+
 public:
 
-    InitializeDriveTask( DriveParams& drive,
+    InitializeDriveTask( std::vector<CompletedModification>&& completedModifications,
+                         DriveParams& drive,
                          ModifyOpinionController& opinionTaskController)
             : DriveTaskBase( DriveTaskType::DRIVE_INITIALIZATION, drive )
+            , m_completedModifications( std::move( completedModifications ) )
             , m_opinionController( opinionTaskController )
     {}
 
@@ -44,6 +53,25 @@ public:
     {
         // We will try to catch up, if we are already on the actual root hash, nothing will happen
         return true;
+    }
+
+    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( m_initialized )
+        {
+            if ( m_opinionController.notApprovedModificationId() == cancelRequest.m_modifyTransactionHash )
+            {
+                return true;
+            }
+
+            return false;
+        }
+        else {
+            m_cancelRequests.push_back(cancelRequest);
+            return false;
+        }
     }
 
 private:
@@ -114,6 +142,12 @@ private:
         
         _LOG( "m_rootHash=" << m_drive.m_rootHash )
 
+        std::array<uint8_t, 32> modificationId{};
+        m_drive.m_serializer.loadRestartValue( modificationId, "approvedModification" );
+        m_drive.m_lastApprovedModification = modificationId;
+
+        _LOG( "m_lastApprovedModificationId=" << m_drive.m_lastApprovedModification )
+
         // Add files to session
         addFilesToSession( *m_drive.m_fsTree );
 
@@ -147,12 +181,58 @@ private:
     {
         DBG_MAIN_THREAD
 
+        m_initialized = true;
+
         if ( m_singleTx )
         {
             // send single tx info that was be saved
             sendSingleApprovalTransaction( *m_singleTx );
         }
 
+        bool foundAppropriateCancel = false;
+
+        for ( const auto& cancelRequest: m_cancelRequests)
+        {
+            if ( cancelRequest.m_modifyTransactionHash == m_opinionController.notApprovedModificationId() )
+            {
+                _ASSERT( !foundAppropriateCancel )
+                foundAppropriateCancel = true;
+                _LOG( "Modification Has Been Cancelled During Initialization" );
+                m_drive.cancelModifyDrive( cancelRequest );
+            }
+        }
+
+        auto it = std::find_if( m_completedModifications.begin(), m_completedModifications.end(), [this] (const auto& item) {
+            return item.m_modificationId == m_opinionController.notApprovedModificationId();
+        });
+
+        if ( it != m_completedModifications.end() && it->m_status == CompletedModification::CompletedModificationStatus::CANCELLED )
+        {
+            _ASSERT( !foundAppropriateCancel )
+            foundAppropriateCancel = true;
+            _LOG( "Modification Has Been Cancelled During Offline" );
+            m_drive.cancelModifyDrive( ModificationCancelRequest{ it->m_modificationId } );
+        }
+
+        _LOG( "Before tt" );
+
+        if ( m_opinionController.approvedModificationId() != m_drive.m_lastApprovedModification )
+        {
+            // This is the case if the modification has been interrupted and approved modifications has not been updated
+            m_opinionController.approveCumulativeUploads( m_drive.m_lastApprovedModification, [this] {
+                onApprovedOpinionRestored();
+            });
+
+            return;
+        }
+        onApprovedOpinionRestored();
+    }
+
+    void onApprovedOpinionRestored()
+    {
+        DBG_MAIN_THREAD
+
+        _LOG( "On Approved Opinion Restored" );
         if ( m_drive.m_dbgEventHandler )
         {
             m_drive.m_dbgEventHandler->driveIsInitialized( m_drive.m_replicator, m_drive.m_driveKey,
@@ -207,10 +287,11 @@ private:
     }
 };
 
-std::unique_ptr<DriveTaskBase> createDriveInitializationTask( DriveParams& drive,
+std::unique_ptr<DriveTaskBase> createDriveInitializationTask( std::vector<CompletedModification>&& completedModifications,
+                                                              DriveParams& drive,
                                                               ModifyOpinionController& opinionTaskController )
 {
-    return std::make_unique<InitializeDriveTask>( drive, opinionTaskController );
+    return std::make_unique<InitializeDriveTask>( std::move(completedModifications), drive, opinionTaskController );
 }
 
 }

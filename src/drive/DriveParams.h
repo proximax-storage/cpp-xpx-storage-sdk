@@ -54,7 +54,7 @@ public:
     {}
 
     template<class T>
-    void saveRestartValue( T& value, std::string path ) const
+    void saveRestartValue( const T& value, std::string path ) const
     {
         DBG_BG_THREAD
 
@@ -68,7 +68,7 @@ public:
     }
 
     template<class T>
-    bool loadRestartValue( T& value, std::string path ) const
+    bool loadRestartValue( T& value, const std::string& path ) const
     {
         DBG_BG_THREAD
 
@@ -92,7 +92,7 @@ public:
 
 private:
 
-    void saveRestartData( std::string outputFile, const std::string data ) const
+    void saveRestartData( const std::string& outputFile, const std::string& data ) const
     {
         try
         {
@@ -111,7 +111,7 @@ private:
         }
     }
 
-    bool loadRestartData( std::string outputFile, std::string& data ) const
+    bool loadRestartData( const std::string& outputFile, std::string& data ) const
     {
         std::error_code err;
 
@@ -238,7 +238,7 @@ public:
     //
 
     InfoHash                m_rootHash;
-    std::optional<Hash256>  m_lastApprovedModification;
+    Hash256                 m_lastApprovedModification;
 
     // FsTree
     std::unique_ptr<FsTree> m_fsTree;
@@ -282,6 +282,8 @@ public:
     virtual const ReplicatorList& getAllReplicators() const = 0;
 
     virtual const ReplicatorList& getDonatorShard() const = 0;
+
+    virtual void  cancelModifyDrive( mobj<ModificationCancelRequest>&& request ) = 0;
 
     virtual void runNextTask() = 0;
 };

@@ -58,6 +58,13 @@ public:
     {
         DBG_MAIN_THREAD
 
+        if ( m_drive.m_lastApprovedModification == m_request->m_modifyTransactionHash )
+        {
+            _ASSERT( m_drive.m_rootHash == m_request->m_rootHash );
+            finishTask();
+            return;
+        }
+
         if ( ! m_opinionController.opinionTrafficTx() )
         {
             m_opinionController.setOpinionTrafficTx( m_request->m_modifyTransactionHash.array() );
@@ -149,6 +156,24 @@ public:
                    &m_opinionController.opinionTrafficTx().value().array() );
             m_drive.m_torrentHandleMap[m_request->m_rootHash] = { *m_downloadingLtHandle, false };
         }
+    }
+
+    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override {
+
+        DBG_MAIN_THREAD
+
+        // It is a very rare situation:
+        // After the initialization we are running the task
+        // Without actually need to catch up
+        // During the task is beeing finished the cancel is requested
+        if ( cancelRequest.m_modifyTransactionHash == m_opinionController.notApprovedModificationId() )
+        {
+            _ASSERT( cancelRequest.m_modifyTransactionHash != m_request->m_modifyTransactionHash )
+            _ASSERT( m_drive.m_lastApprovedModification == m_request->m_modifyTransactionHash )
+            return true;
+        }
+
+        return false;
     }
 
     void createUnusedFileList()
@@ -401,6 +426,8 @@ public:
 
             fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
             fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
+
+            m_drive.m_serializer.saveRestartValue( getModificationTransactionHash().array(), "approvedModification" );
 
             auto& torrentHandleMap = m_drive.m_torrentHandleMap;
 
