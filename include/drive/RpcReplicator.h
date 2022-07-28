@@ -8,7 +8,6 @@
 
 #include "drive/Replicator.h"
 #include "drive/RpcServer.h"
-#include "drive/RpcRemoteReplicator.h"
 
 namespace sirius::drive {
 
@@ -32,7 +31,7 @@ class RpcReplicator : public Replicator, public RpcServer
     const std::string               m_dbgReplicatorName;
     
     bool                            m_isRemoteServiceConnected = false;
-
+    bool                            m_isConnectionLost = false;
     
 public:
 
@@ -50,7 +49,7 @@ public:
               DbgReplicatorEventHandler*    dbgEventHandler = nullptr,
               const std::string&            dbgReplicatorName = ""
             )
-              : RpcServer( rpcAddress, rpcPort ),
+              : RpcServer(),
                 m_keyPair(keyPair),
                 m_address(address),
                 m_port(port),
@@ -62,6 +61,12 @@ public:
                 m_dbgEventHandler(dbgEventHandler),
                 m_dbgReplicatorName(dbgReplicatorName)
     {
+    }
+    
+    void startTcpServer( std::string address, std::uint16_t port )
+    {
+        RpcTcpServer::startTcpServer( address, port );
+
         __LOG("Waiting Remote Replicator Service connection...")
         for( int i=0; i<6000; i++) // wait 60 secs
         {
@@ -81,6 +86,12 @@ public:
         rpcCall( RPC_CMD::destroyReplicator );
     }
     
+    virtual bool isConnectionLost() const override
+    {
+        return false;
+    };
+
+    
     virtual void startRemoteReplicator()
     {
 #ifndef RPC_REPLICATOR_NAME // this macro defined for local test
@@ -89,41 +100,6 @@ public:
     
     virtual void initiateRemoteService() override
     {
-        std::ostringstream os( std::ios::binary );
-        cereal::PortableBinaryOutputArchive archive( os );
-
-        class MyKeyPair {
-        public:
-            Key m_privateKey;
-            Key m_publicKey;
-        };
-
-        const Key& pKey = reinterpret_cast<const MyKeyPair&>(m_keyPair).m_privateKey;
-        archive( pKey.array() );
-        
-        archive( m_address );
-        archive( m_port );
-        archive( m_storageDirectory );
-        archive( m_sandboxDirectory );
-        int bootstrapNumber = (int) m_bootstraps.size();
-        archive( bootstrapNumber );
-        for( int i=0; i<bootstrapNumber; i++ )
-        {
-            const Key&  pubKey  = m_bootstraps[i].m_publicKey;
-            std::string address = m_bootstraps[i].m_endpoint.address().to_string();
-            int         port    = m_bootstraps[i].m_endpoint.port();
-            archive( pubKey );
-            archive( address );
-            archive( port );
-        }
-        bool  dbgEventHandlerIsSet = (m_dbgEventHandler != nullptr);
-        archive( dbgEventHandlerIsSet );
-        archive( m_dbgReplicatorName );
-
-        __LOG( "os.str().size(): " << os.str().size() );
-        __LOG( "os.str(): " << int(os.str()[0]) << " "<< int(os.str()[1]) << " "<< int(os.str()[2]) << " "<< int(os.str()[3]) << " " );
-        rpcCallArchStr( RPC_CMD::createReplicator, os.str() );
-        
         __LOG("Remote replicator created")
         
         m_isRemoteServiceConnected = true;
@@ -247,11 +223,46 @@ public:
 
     virtual void handleConnectionLost()  override
     {
-        
+        m_isConnectionLost = true;
     }
 
     virtual void start() override
     {
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+
+        class MyKeyPair {
+        public:
+            Key m_privateKey;
+            Key m_publicKey;
+        };
+
+        const Key& pKey = reinterpret_cast<const MyKeyPair&>(m_keyPair).m_privateKey;
+        archive( pKey.array() );
+        
+        archive( m_address );
+        archive( m_port );
+        archive( m_storageDirectory );
+        archive( m_sandboxDirectory );
+        int bootstrapNumber = (int) m_bootstraps.size();
+        archive( bootstrapNumber );
+        for( int i=0; i<bootstrapNumber; i++ )
+        {
+            const Key&  pubKey  = m_bootstraps[i].m_publicKey;
+            std::string address = m_bootstraps[i].m_endpoint.address().to_string();
+            int         port    = m_bootstraps[i].m_endpoint.port();
+            archive( pubKey );
+            archive( address );
+            archive( port );
+        }
+        bool  dbgEventHandlerIsSet = (m_dbgEventHandler != nullptr);
+        archive( dbgEventHandlerIsSet );
+        archive( m_dbgReplicatorName );
+
+        __LOG( "os.str().size(): " << os.str().size() );
+        __LOG( "os.str(): " << int(os.str()[0]) << " "<< int(os.str()[1]) << " "<< int(os.str()[2]) << " "<< int(os.str()[3]) << " " );
+        rpcCallArchStr( RPC_CMD::createReplicator, os.str() );
+
         rpcCall( RPC_CMD::start );
     }
 

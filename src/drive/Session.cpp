@@ -360,9 +360,12 @@ public:
             {
 //                if ( torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer )
 //                {
+                if ( torrentHandle.is_valid() && torrentHandle.status().state > 2 )
+                {
                     _LOG( "+++ ex :remove_torrent(3): " << torrentHandle.info_hashes().v2 );
                     lt::remove_flags_t removeFlag = removeFiles ? lt::session::delete_files : lt::session::delete_partfile;
                     m_session.remove_torrent( torrentHandle, removeFlag );
+                }
 //                }
             }
         }

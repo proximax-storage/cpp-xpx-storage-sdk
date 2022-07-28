@@ -431,6 +431,9 @@ public:
     virtual int         getVerifyApprovalTransactionTimerDelay() = 0;
     virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
 
+    // For RPC support
+    virtual bool        isConnectionLost() const { return false; };
+    
     // Functions for debugging
     //
     virtual Hash256     dbgGetRootHash( const DriveKey& driveKey ) = 0;

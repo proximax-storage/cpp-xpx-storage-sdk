@@ -22,23 +22,14 @@
 
 class RpcServer : public RpcTcpServer
 {
-    pid_t m_childPid = 0;
-    
+protected:
+    RpcServer() : RpcTcpServer()
+    {
+    }
+
+    //virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive* parameters ) {}
+
 public:
-    
-    void startService()
-    {
-    }
-    
-    void restartService()
-    {
-        
-    }
-    
-    void stop()
-    {
-        
-    }
     
     void rpcCall( RPC_CMD func )
     {
@@ -105,19 +96,4 @@ public:
 
         RpcTcpServer::rpcCall( func, os.str() );
     }
-
-
-protected:
-public:
-    RpcServer( std::string address, int port ) : RpcTcpServer()
-    {
-        startTcpServer( address, port );
-    }
-
-    virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive* parameters ) {}
-
-    virtual void handleError( std::error_code ) {}
-
-    virtual void handleConnectionLost() {}
-
 };

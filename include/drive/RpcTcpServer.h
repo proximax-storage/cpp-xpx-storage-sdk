@@ -25,15 +25,60 @@
 namespace asio = boost::asio;
 using     tcp  = boost::asio::ip::tcp;
 
-using CallHandler = std::function< void( const std::string& functionName, std::ostringstream& parameters ) >;
-
-class RpcTcpServer
+class RpcTcpServer : public std::enable_shared_from_this<RpcTcpServer>
 {
+protected:
+
     class Session;
+
+    asio::io_context                        m_context;
+    std::optional<asio::ip::tcp::acceptor>  m_acceptor;
+    std::optional<asio::ip::tcp::socket>    m_socket;
+    std::shared_ptr<Session>                m_upSession; // up command channel - from remote process to RPC server
+    std::shared_ptr<Session>                m_dnSession; // dn command channel - from RPC server to remote process
+
+protected:
+
+    RpcTcpServer()
+    {
+        __LOG( "RpcTcpServer(); address: " )
+    }
     
+    virtual ~RpcTcpServer()
+    {
+        closeSockets();
+    }
+
+    virtual void initiateRemoteService() = 0;
+
+    virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive* parameters ) = 0;
+
+    virtual void handleError( std::error_code ) = 0;
+
+    virtual void handleConnectionLost() = 0;
+    
+    void rpcCall( RPC_CMD func, const std::string& parameters );
+    
+    std::array<uint8_t,32> rpcDbgGetRootHash( const std::string& parameters );
+
+public:
+    void startTcpServer( std::string address, std::uint16_t port )
+    {
+        m_acceptor.emplace( m_context, asio::ip::tcp::endpoint( boost::asio::ip::address::from_string(address.c_str()), port ) );
+
+        async_accept();
+        
+        std::thread( [this]
+        {
+            m_context.run();
+        }).detach();
+    }
+    
+protected:
+    // Session -
     class Session : public std::enable_shared_from_this<Session>
     {
-        RpcTcpServer&           m_server;
+        std::weak_ptr<RpcTcpServer> m_server;
         
         asio::ip::tcp::socket   socket;
         asio::streambuf         streambuf;
@@ -44,7 +89,7 @@ class RpcTcpServer
 
     public:
 
-        Session( asio::ip::tcp::socket&& socket, RpcTcpServer& server )
+        Session( asio::ip::tcp::socket&& socket, std::weak_ptr<RpcTcpServer> server )
             : m_server(server), socket( std::move(socket) )
         {
         }
@@ -67,12 +112,18 @@ class RpcTcpServer
                         {
                             if ( self->command == RPC_CMD::UP_CHANNEL_INIT )
                             {
-                                self->m_server.setUpSession( self->weak_from_this() );
+                                if ( auto server = self->m_server.lock(); server )
+                                {
+                                    server->setUpSession( self->weak_from_this() );
+                                }
                                 self->readNextCommand();
                             }
                             else if ( self->command == RPC_CMD::DOWN_CHANNEL_INIT )
                             {
-                                self->m_server.setDnSession( self->weak_from_this() );
+                                if ( auto server = self->m_server.lock(); server )
+                                {
+                                    server->setDnSession( self->weak_from_this() );
+                                }
                             }
                         }
                     });
@@ -113,7 +164,10 @@ class RpcTcpServer
                             {
                                 if ( self->packetLen == 0 )
                                 {
-                                    self->m_server.handleCommand( self->command, nullptr );
+                                    if ( auto server = self->m_server.lock(); server )
+                                    {
+                                        server->handleCommand( self->command, nullptr );
+                                    }
                                     self->sendAck();
                                 }
                                 else
@@ -134,7 +188,10 @@ class RpcTcpServer
                                             std::istream is( &self->streambuf );
                                             {
                                                 cereal::PortableBinaryInputArchive iarchive(is);
-                                                self->m_server.handleCommand( self->command, &iarchive );
+                                                if ( auto server = self->m_server.lock(); server )
+                                                {
+                                                    server->handleCommand( self->command, &iarchive );
+                                                }
                                             }
                                             self->streambuf.consume( bytes_transferred );
                                             self->sendAck();
@@ -202,47 +259,6 @@ class RpcTcpServer
             }
 
         }
-        
-//        void async_send( RPC_CMD command, std::string&& parameters )
-//        {
-//            __LOG( "server send: " << CMD_STR(command) )
-//            asio::async_write( socket,
-//                               asio::buffer( &command, sizeof(command) ),
-//                               [self = shared_from_this(),parameters=std::move(parameters)] ( std::error_code error, std::size_t bytes_transferred )
-//            {
-//                if ( error )
-//                {
-//                    //TODO
-//                    _LOG_ERR( "send error: " << error )
-//                }
-//                uint16_t packetLen = (uint16_t) parameters.size();
-//                asio::async_write( self->socket,
-//                                   asio::buffer( &packetLen, sizeof(packetLen) ),
-//                                  [self=self,parameters=std::move(parameters)] ( std::error_code error, std::size_t bytes_transferred )
-//                {
-//                    if ( error )
-//                    {
-//                        //TODO
-//                        _LOG_ERR( "send error (2): " << error )
-//                    }
-//
-//                    if ( parameters.size() > 0 )
-//                    {
-//                        asio::async_write( self->socket,
-//                                           asio::buffer( parameters.data(), sizeof(parameters.size()) ),
-//                                          [self=self,parameters=std::move(parameters)] ( std::error_code error, std::size_t bytes_transferred )
-//                        {
-//                            if ( error )
-//                            {
-//                                //TODO
-//                                _LOG_ERR( "send error (3): " << error )
-//                            }
-//                        });
-//                    }
-//                });
-//            });
-//
-//        }
         
         void readAck()
         {
@@ -324,78 +340,39 @@ class RpcTcpServer
 
 private:
 
-    asio::io_context                     m_context;
-    std::optional<asio::ip::tcp::acceptor> m_acceptor;
-    std::optional<asio::ip::tcp::socket> m_socket;
-    std::shared_ptr<Session>             m_upSession;
-    std::shared_ptr<Session>             m_dnSession;
-    
-public:
-    
-    RpcTcpServer()
-    {
-        __LOG( "RpcTcpServer(); address: " )
-    }
-    
-    virtual ~RpcTcpServer()
-    {
-        closeSockets();
-    }
-    
-    void startTcpServer( std::string address, std::uint16_t port )
-    {
-        m_acceptor.emplace( m_context, asio::ip::tcp::endpoint( boost::asio::ip::address::from_string(address.c_str()), port ) );
-
-        async_accept();
-        
-        std::thread( [this]
-        {
-            m_context.run();
-        }).detach();
-    }
-    
     void closeSockets()
     {
         m_socket->close();
     }
     
-    void rpcCall( RPC_CMD func, const std::string& parameters )
-    {
-        m_dnSession->send( func, parameters );
-        __LOG( "*rpc* rpcCall: " << CMD_STR(func) )
-        m_dnSession->readAck();
-    }
-    
-    std::array<uint8_t,32> rpcDbgGetRootHash( const std::string& parameters )
-    {
-        m_dnSession->send( RPC_CMD::dbgGetRootHash, parameters );
-        __LOG( "*rpc* rpcDbgGetRootHash: " )
-        auto hash = m_dnSession->readAckDbgGetRootHash();
-        m_dnSession->readAck();
-        return hash;
-    }
-    
-    virtual void initiateRemoteService() = 0;
-
-    virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive* parameters ) = 0;
-
-private:
     void async_accept()
     {
         m_socket.emplace( m_context );
 
-        m_acceptor->async_accept( *m_socket, [&] (boost::system::error_code ec)
+        assert( weak_from_this().lock());
+        
+        m_acceptor->async_accept( *m_socket, [weak_ptr=weak_from_this()] (boost::system::error_code ec)
         {
-            if ( ec )
+            if ( auto self = weak_ptr.lock(); self )
             {
-                _LOG_ERR( "error in RpcTcpServer::async_accept : " << ec )
+                if ( ec )
+                {
+                    if ( ec.value() == boost::system::errc::operation_canceled )
+                    {
+                        self->handleConnectionLost();
+                    }
+                    else
+                    {
+                        _LOG_ERR( "error in RpcTcpServer::async_accept : " << ec.what() )
+                    }
+                }
+                else
+                {
+                    __LOG( "accepted" )
+                    std::make_shared<Session>( std::move(*self->m_socket), self->weak_from_this() )->start();
+                    self->async_accept();
+                }
             }
-            else
-            {
-                __LOG( "accepted" )
-                std::make_shared<Session>( std::move(*m_socket), *this )->start();
-            }
-            async_accept();
         });
     }
 
@@ -432,8 +409,22 @@ private:
             initiateRemoteService();
         }
     }
-    
-
 };
     
+void RpcTcpServer::rpcCall( RPC_CMD func, const std::string& parameters )
+{
+    m_dnSession->send( func, parameters );
+    __LOG( "*rpc* rpcCall: " << CMD_STR(func) )
+    m_dnSession->readAck();
+}
+
+std::array<uint8_t,32> RpcTcpServer::rpcDbgGetRootHash( const std::string& parameters )
+{
+    m_dnSession->send( RPC_CMD::dbgGetRootHash, parameters );
+    __LOG( "*rpc* rpcDbgGetRootHash: " )
+    auto hash = m_dnSession->readAckDbgGetRootHash();
+    m_dnSession->readAck();
+    return hash;
+}
+
 
