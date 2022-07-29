@@ -85,7 +85,7 @@ public:
     
     virtual bool isConnectionLost() const override
     {
-        return false;
+        return m_isConnectionLost;
     };
 
     
