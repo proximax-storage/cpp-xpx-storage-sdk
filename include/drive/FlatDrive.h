@@ -397,7 +397,7 @@ class Replicator;
         {
             arch( m_tx );
             arch( m_shardId );
-            arch( m_actualRootHash );
+            arch( m_approvedModification );
             arch( m_replicators );
             arch( m_durationMs );
             arch( m_blockedReplicators );

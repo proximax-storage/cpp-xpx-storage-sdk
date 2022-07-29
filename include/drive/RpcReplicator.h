@@ -247,7 +247,7 @@ public:
         {
             const Key&  pubKey  = m_bootstraps[i].m_publicKey;
             std::string address = m_bootstraps[i].m_endpoint.address().to_string();
-            int         port    = m_bootstraps[i].m_endpoint.port();
+            uint16_t    port    = m_bootstraps[i].m_endpoint.port();
             archive( pubKey );
             archive( address );
             archive( port );

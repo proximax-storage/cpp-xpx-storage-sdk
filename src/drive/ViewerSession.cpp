@@ -322,7 +322,10 @@ public:
 
                 std::array<uint8_t,32> streamId;
                 iarchive( streamId );
-                if ( streamId != m_streamId )
+
+                _ASSERT( m_streamId )
+
+                if ( streamId != m_streamId->array() )
                 {
                     // ignore bad reply
                     _LOG_WARN( "streamId != m_streamId" )
@@ -659,7 +662,7 @@ public:
                 }
                 
                 //_LOG( line );
-                m_downloadStreamChunks.emplace_back( stringToHash(line) );
+                m_downloadStreamChunks.emplace_back( stringToByteArray<Hash256>(line) );
 
                 continue;
             }

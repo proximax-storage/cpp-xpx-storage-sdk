@@ -632,20 +632,15 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             return true;
         }
 
         m_modifyApproveTxReceived = true;
 
-        if ( m_request->m_streamId == transaction.m_modifyTransactionHash )
+        if ( m_request->m_streamId == transaction.m_modifyTransactionHash && m_sandboxCalculated )
         {
-            if ( ! m_sandboxCalculated )
-            {
-                return false;
-            }
-
             if ( *m_sandboxRootHash != transaction.m_rootHash ) {
                 _LOG_ERR( "Invalid Sandbox Root Hash: " << *m_sandboxRootHash << " " << Hash256(transaction.m_rootHash) )
             }

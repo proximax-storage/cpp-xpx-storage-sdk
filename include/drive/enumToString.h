@@ -57,7 +57,8 @@ static const char* const* tokenize_enum_string(char* base, int length,
 //  }
 //
 //  return max;
-//}
-//#define string_to_enum(T, value)     \
-//  static_cast<T>(string_to_enum_int( \
-//      T##_tokens, static_cast<__underlying_type(T)>(T::MAX), value))
+// }
+/*
+ #define string_to_enum(T, value)     \
+  static_cast<T>(string_to_enum_int( \
+      T##_tokens, static_cast<__underlying_type(T)>(T::MAX), value)) */

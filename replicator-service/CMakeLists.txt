@@ -26,5 +26,5 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
             ${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
             )
 else()
-    target_link_libraries(replicator-service crypto libtorrent-rasterbar.so Threads::Threads)
+    target_link_libraries(replicator-service crypto torrent-sirius Threads::Threads)
 endif()

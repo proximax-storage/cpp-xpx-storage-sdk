@@ -75,7 +75,7 @@ void connection::do_read()
             do_read();
           }
         }
-        else if ( boost::system::error_code(ec) != asio::error::operation_aborted)
+        else if ( ec.value() != asio::error::operation_aborted)
         {
           connection_manager_.stop(shared_from_this());
         }
@@ -96,7 +96,7 @@ void connection::do_write()
             ignored_ec);
         }
 
-        if ( boost::system::error_code(ec) != asio::error::operation_aborted)
+        if ( ec.value() != asio::error::operation_aborted)
         {
           connection_manager_.stop(shared_from_this());
         }

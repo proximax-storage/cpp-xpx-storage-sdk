@@ -51,11 +51,11 @@ public:
                 {
                     Key         pubKey;
                     std::string address;
-                    int         port;
+                    uint16_t    port;
                     iarchive( pubKey );
                     iarchive( address );
                     iarchive( port );
-                    bootstraps.emplace_back( ReplicatorInfo{{ boost::asio::ip::make_address(address), (boost::asio::ip::port_type)port }, pubKey} );
+                    bootstraps.emplace_back( ReplicatorInfo{{ boost::asio::ip::make_address(address), port }, pubKey} );
                 }
                 bool  dbgEventHandlerIsSet;
                 iarchive( dbgEventHandlerIsSet );

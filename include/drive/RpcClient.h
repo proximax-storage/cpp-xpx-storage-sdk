@@ -18,6 +18,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/read_until.hpp>
 #include <boost/asio/streambuf.hpp>
+#include <boost/asio.hpp>
 
 #include <boost/lambda/bind.hpp>
 #include <boost/lambda/lambda.hpp>
@@ -74,8 +75,8 @@ public:
     {
         RPC_LOG( "try to connect: " << address << ", " << port )
 
-        tcp::resolver::query query( address, port );
-        tcp::resolver::iterator iter = tcp::resolver( m_context ).resolve(query);
+        tcp::resolver resolver( m_context );
+        auto iter =  resolver.resolve( address, port );
 
 #ifdef DEBUG_REPLICATOR_SERVICE
         boost::system::error_code ec = boost::asio::error::would_block;
@@ -117,7 +118,7 @@ public:
         asio::write( m_socket, asio::buffer( &command, sizeof(command) ), ec );
         if (ec)
         {
-            RPC_LOG( "!write error!: " << ec.what() )
+            RPC_LOG( "!write error!: " << ec.message() )
             exit(0);
         }
 
@@ -126,7 +127,7 @@ public:
 
         if (ec)
         {
-            RPC_LOG( "!write error!: " << ec.what() )
+            RPC_LOG( "!write error!: " << ec.message() )
             exit(0);
         }
 
@@ -184,7 +185,7 @@ public:
         asio::write( m_socket, asio::buffer( &command, sizeof(command) ), ec );
         if (ec)
         {
-            RPC_LOG( "!write error!: " << ec.what() )
+            RPC_LOG( "!write error!: " << ec.message() )
             exit(0);
         }
 
@@ -193,7 +194,7 @@ public:
 
         if (ec)
         {
-            RPC_LOG( "!write error! (2): " << ec.what() )
+            RPC_LOG( "!write error! (2): " << ec.message() )
             exit(0);
         }
 
@@ -201,7 +202,7 @@ public:
 
         if (ec)
         {
-            RPC_LOG( "!write error! (3): " << ec.what() )
+            RPC_LOG( "!write error! (3): " << ec.message() )
             exit(0);
         }
 
@@ -233,7 +234,7 @@ public:
 
         if( ec )
         {
-            RPC_LOG( "read command error: ec: " << ec.what() )
+            RPC_LOG( "read command error: ec: " << ec.message() )
             exit(0);
         }
         
@@ -252,7 +253,7 @@ public:
 
         if( ec )
         {
-            RPC_LOG( "ec(2): " << ec.what() )
+            RPC_LOG( "ec(2): " << ec.message() )
             exit(0);
         }
         
@@ -267,12 +268,12 @@ public:
             streambuf.prepare( packetLen );
 
 //            RPC_LOG( "child: read packet: " << packetLen )
-            auto len = asio::read( m_socket, streambuf, asio::transfer_exactly( packetLen ), ec );
+            len = asio::read( m_socket, streambuf, asio::transfer_exactly( packetLen ), ec );
 //            RPC_LOG( "child: packet received: " << packetLen )
 
             if( ec )
             {
-                RPC_LOG( "ec(3): " << ec.what() )
+                RPC_LOG( "ec(3): " << ec.message() )
                 exit(0);
             }
             
@@ -293,7 +294,7 @@ public:
         asio::write( m_socket, asio::buffer( &command, sizeof(command) ), ec );
         if (ec)
         {
-            RPC_LOG( "!write error!: " << ec.what() )
+            RPC_LOG( "!write error!: " << ec.message() )
             exit(0);
         }
 
@@ -302,7 +303,7 @@ public:
 
         if (ec)
         {
-            RPC_LOG( "!write error!: " << ec.what() )
+            RPC_LOG( "!write error!: " << ec.message() )
             exit(0);
         }
 
@@ -310,7 +311,7 @@ public:
 
         if (ec)
         {
-            RPC_LOG( "!write error!: " << ec.what() )
+            RPC_LOG( "!write error!: " << ec.message() )
             exit(0);
         }
 

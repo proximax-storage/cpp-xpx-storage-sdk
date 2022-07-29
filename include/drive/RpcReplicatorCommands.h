@@ -12,13 +12,15 @@
 #ifndef RPC_TEST
 #include "drive/log.h"
 #else
-//inline std::mutex gLogMutex;
-//
-//// __LOG
-//#define __LOG(expr) { \
-//        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-//        std::cout << expr << std::endl << std::flush; \
-//    }
+/*
+ inline std::mutex gLogMutex;
+
+ // __LOG
+ #define __LOG(expr) { \
+        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::cout << expr << std::endl << std::flush; \
+    }
+ */
 #endif
 
 DECLARE_ENUM16 ( RPC_CMD,
