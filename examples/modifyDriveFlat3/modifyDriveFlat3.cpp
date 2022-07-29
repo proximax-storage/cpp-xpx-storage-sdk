@@ -773,10 +773,10 @@ static std::shared_ptr<Replicator> createReplicator(
     
     if ( dbgReplicatorName == std::string(RPC_REPLICATOR_NAME) )
     {
-        auto r = std::make_shared<RpcReplicator>(
+        replicator = createRpcReplicator(
                 "127.0.0.1",
                 RPC_PORT,
-                std::move( keyPair ),
+                keyPair,
                 std::move( ipAddr ),
                 std::to_string(port),
                 std::move( rootFolder ),
@@ -786,9 +786,6 @@ static std::shared_ptr<Replicator> createReplicator(
                 handler,
                 &handler,
                 dbgReplicatorName );
-
-        r->startTcpServer( "127.0.0.1", RPC_PORT );        
-        replicator = std::move(r);
     }
     else
     {

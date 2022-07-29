@@ -86,11 +86,12 @@ struct DownloadContext {
             {
                 _LOG_ERR("(m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty()")
             }
-            
-            if ( doNotDeleteTorrent && !saveAs.empty() )
-            {
-                __LOG_WARN( "doNotDeleteTorrent && !saveAs.empty()" )
-            }
+  
+// it is not true for catching-up
+//            if ( doNotDeleteTorrent && !saveAs.empty() )
+//            {
+//                __LOG_WARN( "doNotDeleteTorrent && !saveAs.empty()" )
+//            }
         }
 
     download_type         m_downloadType;

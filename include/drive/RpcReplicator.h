@@ -34,10 +34,7 @@ class RpcReplicator : public Replicator, public RpcServer
     bool                            m_isConnectionLost = false;
     
 public:
-
     RpcReplicator(
-              std::string   rpcAddress,
-              int           rpcPort,
               const crypto::KeyPair& keyPair,
               std::string&&  address,
               std::string&&  port,
@@ -410,16 +407,34 @@ public:
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createRpcReplicator(
-                                               const crypto::KeyPair&,
-                                               std::string&&  address,
-                                               std::string&&  port,
-                                               std::string&&  storageDirectory,
-                                               std::string&&  sandboxDirectory,
+                                               std::string&&            rpcAddress,
+                                               int                      rpcPort,
+                                               const crypto::KeyPair&   keyPair,
+                                               std::string&&            address,
+                                               std::string&&            port,
+                                               std::string&&            storageDirectory,
+                                               std::string&&            sandboxDirectory,
                                                const std::vector<ReplicatorInfo>&  bootstraps,
-                                               bool           useTcpSocket, // use TCP socket (instead of uTP)
-                                               ReplicatorEventHandler&,
+                                               bool                     useTcpSocket, // use TCP socket (instead of uTP)
+                                               ReplicatorEventHandler&  handler,
                                                DbgReplicatorEventHandler*  dbgEventHandler = nullptr,
-                                               const std::string&    dbgReplicatorName = ""
-);
+                                               const std::string&    dbgReplicatorName = "" )
+{
+    auto replicator = std::make_shared<RpcReplicator>(
+                        keyPair,
+                        std::move( address ),
+                        std::move(port),
+                        std::move( storageDirectory ),
+                        std::move( sandboxDirectory ),
+                        bootstraps,
+                        useTcpSocket,
+                        handler,
+                        dbgEventHandler,
+                        dbgReplicatorName );
+
+    replicator->startTcpServer( rpcAddress, rpcPort );
+
+    return replicator;
+}
 
 }
