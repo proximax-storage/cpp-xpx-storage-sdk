@@ -51,7 +51,7 @@ namespace fs = std::filesystem;
 
 namespace sirius::drive {
 
-enum { PIECE_SIZE = 16*1024 };
+enum { PIECE_SIZE = 0 };
 
 // Libtorrent "ClientData"
 //
@@ -918,13 +918,13 @@ private:
 
 						if ( !errorText )
 						{
-//							auto expectedPieceSize = lt::create_torrent::automatic_piece_size(torrentInfo->total_size());
-//							auto actualPieceSize = torrentInfo->piece_length();
-//
-//							if (expectedPieceSize != actualPieceSize) {
-//								errorText = "Invalid Piece Size";
-//								_LOG( "+**** Invalid Piece Size: " << actualPieceSize << " " << expectedPieceSize );
-//							}
+							auto expectedPieceSize = lt::create_torrent::automatic_piece_size(torrentInfo->total_size());
+							auto actualPieceSize = torrentInfo->piece_length();
+
+							if (expectedPieceSize != actualPieceSize) {
+								errorText = "Invalid Piece Size";
+								_LOG( "+**** Invalid Piece Size: " << actualPieceSize << " " << expectedPieceSize );
+							}
 						}
 
                         if ( !errorText )
@@ -934,8 +934,8 @@ private:
 
                             if ( downloadLimit != 0 && downloadLimit < torrentInfo->total_size() ) {
                                 errorText = "Limit Is Exceeded";
+                                _LOG( "+**** limitIsExceeded: " << torrentInfo->total_size() );
                             }
-                            _LOG( "+**** limitIsExceeded: " << torrentInfo->total_size() );
                         }
 
                         if ( errorText )

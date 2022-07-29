@@ -85,22 +85,34 @@ namespace sirius::drive::test {
             }
         }
         {
-            fs::path b_bin = clientFolder / "c.bin";
-            fs::create_directories( b_bin.parent_path() );
-            //        std::vector<uint8_t> data(10*1024*1024);
-            std::vector<uint8_t> data(bigFileSize);
-            std::generate( data.begin(), data.end(), std::rand );
-            std::ofstream file( b_bin );
-            file.write( (char*) data.data(), data.size() );
+            fs::path c_bin = clientFolder / "c.bin";
+            fs::create_directories( c_bin.parent_path() );
+            std::ofstream file( c_bin );
+            auto sizeLeft = bigFileSize;
+            while (sizeLeft > 0) {
+                // Max portion is 1GB
+                auto portion = std::min(static_cast<unsigned long long>(sizeLeft), 1024ULL * 1024ULL * 1024ULL);
+                std::vector<uint8_t> data(portion);
+                std::generate( data.begin(), data.end(), std::rand );
+                file.write( (char*) data.data(), data.size() );
+                sizeLeft -= portion;
+                EXLOG( "SizeLeft " << sizeLeft );
+            }
         }
         {
             fs::path d_bin = clientFolder / "d.bin";
             fs::create_directories( d_bin.parent_path() );
-            //        std::vector<uint8_t> data(10*1024*1024);
-            std::vector<uint8_t> data(bigFileSize);
-            std::generate( data.begin(), data.end(), std::rand );
             std::ofstream file( d_bin );
-            file.write( (char*) data.data(), data.size() );
+            auto sizeLeft = bigFileSize;
+            while (sizeLeft > 0) {
+                // Max portion is 1GB
+                auto portion = std::min(static_cast<unsigned long long>(sizeLeft), 1024ULL * 1024ULL * 1024ULL);
+                std::vector<uint8_t> data(portion);
+                std::generate( data.begin(), data.end(), std::rand );
+                file.write( (char*) data.data(), data.size() );
+                sizeLeft -= portion;
+                EXLOG( "SizeLeft " << sizeLeft );
+            }
         }
         {
             std::ofstream file(clientFolder / "c.txt" );
@@ -118,6 +130,7 @@ namespace sirius::drive::test {
     ActionList createActionList(const fs::path& clientRootFolder, uint64_t size) {
         fs::path clientFolder = clientRootFolder / "client_files";
         createClientFiles(clientFolder, size);
+
         ActionList actionList;
         actionList.push_back(Action::newFolder("fff1/"));
         actionList.push_back(Action::newFolder("fff1/ffff1"));
@@ -128,6 +141,7 @@ namespace sirius::drive::test {
         actionList.push_back(Action::upload(clientFolder / "b.bin", "f1/b1.bin"));
         actionList.push_back(Action::upload(clientFolder / "b.bin", "f2/b2.bin"));
         actionList.push_back(Action::upload(clientFolder / "a.txt", "f2/a.txt"));
+        EXLOG( "Created action list" )
         return actionList;
     }
 
