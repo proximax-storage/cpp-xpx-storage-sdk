@@ -26,13 +26,13 @@
 
 namespace sirius { namespace ionet {
 
-        struct NodeVersion_tag {};
+        struct PLUGIN_API NodeVersion_tag {};
 
         /// 32-bit node version where first three bytes represent { major, minor, build } and last byte is user defined.
         using NodeVersion = utils::BaseValue<uint32_t, NodeVersion_tag>;
 
         /// A node's publicly accessible endpoint.
-        struct NodeEndpoint {
+        struct PLUGIN_API NodeEndpoint {
             /// Host.
             std::string Host;
 
@@ -41,7 +41,7 @@ namespace sirius { namespace ionet {
         };
 
         /// Additional node information.
-        struct NodeMetadata {
+        struct PLUGIN_API NodeMetadata {
         public:
             /// Creates default metadata.
             NodeMetadata() : NodeMetadata(model::NetworkIdentifier::Zero)
@@ -79,7 +79,7 @@ namespace sirius { namespace ionet {
         };
 
         /// A node in the catapult network.
-        class Node {
+        class PLUGIN_API Node {
         public:
             /// Creates a default node.
             Node();
@@ -109,7 +109,7 @@ namespace sirius { namespace ionet {
 
         public:
             /// Insertion operator for outputting \a node to \a out.
-            friend std::ostream& operator<<(std::ostream& out, const Node& node);
+            friend PLUGIN_API std::ostream& operator<<(std::ostream& out, const Node& node);
 
         private:
             Key m_identityKey;
@@ -120,7 +120,7 @@ namespace sirius { namespace ionet {
         };
 
         /// Hasher object for a node.
-        struct NodeHasher {
+        struct PLUGIN_API NodeHasher {
             /// Hashes \a node.
             size_t operator()(const Node& node) const {
                 return utils::ArrayHasher<Key>()(node.identityKey());

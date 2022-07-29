@@ -15,7 +15,7 @@
 namespace sirius { namespace connection {
 
     /// Creates a single node peers requestor.
-    class SinglePeersRequestor {
+    class PLUGIN_API SinglePeersRequestor {
     private:
         using NodesConsumer = consumer<const ionet::NodeSet&>;
         using RemoteApiResults = std::vector<ionet::NodeInteractionResult>;

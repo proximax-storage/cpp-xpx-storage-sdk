@@ -130,21 +130,6 @@ int charToInt( char input )
     throw std::invalid_argument("Invalid input string");
 }
 
-Hash256 stringToHash( const boost::string_view& str )
-{
-    if ( str.size() != 64 )
-        throw std::invalid_argument("Invalid input string");
-
-    Hash256 hash;
-
-    for( unsigned int i=0; i<32; i++ )
-    {
-        hash[i] = (charToInt(str[2*i])<<4) + charToInt(str[2*i+1]);
-    }
-
-    return hash;
-}
-
 std::string hexToString( const void* begin, const void* end )
 {
     uint8_t* ptr = (uint8_t*)begin;

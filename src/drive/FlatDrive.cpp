@@ -52,7 +52,7 @@ namespace sirius::drive {
 
 std::string FlatDrive::driveIsClosingPath( const std::string& driveRootPath )
 {
-    return fs::path(driveRootPath) / "restart-data" / "drive-is-closing";
+    return (fs::path(driveRootPath) / "restart-data" / "drive-is-closing").string();
 }
 
 
@@ -132,19 +132,20 @@ class DefaultFlatDrive: public FlatDrive, public DriveParams
 public:
 
     DefaultFlatDrive(
-                std::shared_ptr<Session>    session,
-                const std::string&          replicatorRootFolder,
-                const std::string&          replicatorSandboxRootFolder,
-                const Key&                  drivePubKey,
-                const Key&                  driveOwner,
-                size_t                      maxSize,
-                size_t                      expectedCumulativeDownload,
-                ReplicatorEventHandler&     eventHandler,
-                ReplicatorInt&                 replicator,
-                const ReplicatorList&       fullReplicatorList,
-                const ReplicatorList&       modifyDonatorShard,
-                const ReplicatorList&       modifyRecipientShard,
-                DbgReplicatorEventHandler*  dbgEventHandler
+                std::shared_ptr<Session>                session,
+                const std::string&                      replicatorRootFolder,
+                const std::string&                      replicatorSandboxRootFolder,
+                const Key&                              drivePubKey,
+                const Key&                              driveOwner,
+                size_t                                  maxSize,
+                size_t                                  expectedCumulativeDownload,
+                std::vector<CompletedModification>&&    completedModifications,
+                ReplicatorEventHandler&                 eventHandler,
+                ReplicatorInt&                          replicator,
+                const ReplicatorList&                   fullReplicatorList,
+                const ReplicatorList&                   modifyDonatorShard,
+                const ReplicatorList&                   modifyRecipientShard,
+                DbgReplicatorEventHandler*              dbgEventHandler
             )
             : DriveParams(
                     drivePubKey,
@@ -165,7 +166,7 @@ public:
             , m_opinionController(m_driveKey, m_driveOwner, m_replicator, m_serializer, *this, expectedCumulativeDownload, replicator.dbgReplicatorName() )
 
     {
-        runDriveInitializationTask();
+        runDriveInitializationTask( std::move( completedModifications ) );
     }
 
     virtual~DefaultFlatDrive() {
@@ -199,6 +200,10 @@ public:
     
     const ReplicatorList& getAllReplicators() const override {
         return m_allReplicators;
+    }
+
+    const ReplicatorList& getDonatorShard() const override {
+        return m_modifyDonatorShard;
     }
 
     const Key& driveOwner() const override
@@ -238,7 +243,7 @@ public:
 
         if( m_deferredVerificationRequest )
         {
-            if (m_deferredVerificationRequest->m_actualRootHash == m_rootHash )
+            if ( m_lastApprovedModification == m_deferredVerificationRequest->m_approvedModification )
             {
                 runVerificationTask();
 
@@ -267,13 +272,13 @@ public:
         }
     }
 
-    void runDriveInitializationTask()
+    void runDriveInitializationTask( std::vector<CompletedModification>&& completedModifications )
     {
         DBG_MAIN_THREAD
 
         _ASSERT( !m_task )
 
-        m_task = createDriveInitializationTask( *this, m_opinionController );
+        m_task = createDriveInitializationTask( std::move(completedModifications), *this, m_opinionController );
 
         _ASSERT( m_task->getTaskType() == DriveTaskType::DRIVE_INITIALIZATION )
 
@@ -441,9 +446,9 @@ public:
             _LOG_ERR("startVerification: internal error: m_verificationRequest != null")
         }
 
-        _LOG ( "Received Verification Request " << m_deferredVerificationRequest->m_actualRootHash << " " << m_rootHash );
+        _LOG ( "Received Verification Request " << m_deferredVerificationRequest->m_approvedModification );
 
-        if (m_deferredVerificationRequest->m_actualRootHash == m_rootHash )
+        if ( m_lastApprovedModification == m_deferredVerificationRequest->m_approvedModification )
         {
             runVerificationTask();
         }
@@ -483,7 +488,6 @@ public:
 
         if ( !m_verificationTask || !m_verificationTask->processedVerificationCode( *code ))
         {
-
             m_unknownVerificationCodeQueue[code->m_tx].push_back(*code);
         }
     }
@@ -496,14 +500,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_blockedReplicators.clear();
-
-        if ( m_verificationTask )
-        {
-            //(???+++) replace by? m_verificationTask->terminate();
-            m_verificationTask->onApprovalTxPublished(transaction);
-            m_verificationTask.reset();
-        }
+        cancelVerification();
 
         // Notify task about 'ApprovalTxPublished'
         // and check that 'CatchingUp' should be started
@@ -541,16 +538,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_blockedReplicators.clear();
-
-        if ( !m_verificationTask )
-        {
-            _LOG_ERR( "verifyApprovalPublished: internal error: m_verificationRequest == null" )
-            return;
-        }
-
-        m_verificationTask->cancelVerification();
-        m_verificationTask.reset();
+        cancelVerification();
     }
 
     ////////////
@@ -584,19 +572,15 @@ public:
             m_modificationCancelRequest = request;
         }
 
-        else
-        {
-            auto it = std::find_if(m_deferredModificationRequests.begin(), m_deferredModificationRequests.end(), [&request](const auto& item)
+        auto it = std::find_if(m_deferredModificationRequests.begin(), m_deferredModificationRequests.end(), [&request](const auto& item)
             { return item.transactionHash() == request->m_modifyTransactionHash; });
 
-            if (it == m_deferredModificationRequests.end() )
-            {
-                _LOG_ERR( "cancelModifyDrive(): invalid transactionHash: " << request->m_modifyTransactionHash );
-                return;
-            }
-
-            m_deferredModificationRequests.erase( it );
+        if (it == m_deferredModificationRequests.end() )
+        {
+            return;
         }
+
+        m_deferredModificationRequests.erase( it );
     }
 
     void startDriveClosing( mobj<DriveClosureRequest>&& request ) override
@@ -622,6 +606,8 @@ public:
         DBG_MAIN_THREAD
 
         m_blockedReplicators.clear();
+
+        m_deferredVerificationRequest.reset();
 
         if ( !m_verificationTask )
         {
@@ -707,14 +693,21 @@ public:
                 if ( std::find( m_blockedReplicators.begin(), m_blockedReplicators.end(), replicatorKey )
                         != m_blockedReplicators.end() )
                 {
+					_LOG_WARN( "Connection From Blocked Replicator " << replicatorKey )
                     return false;
                 }
             }
         }
 
-        return std::find( m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), replicatorKey )
-                    != m_modifyRecipientShard.end();
-    }
+		if (std::find(m_modifyRecipientShard.begin(), m_modifyRecipientShard.end(), replicatorKey) ==
+			m_modifyRecipientShard.end())
+		{
+			_LOG_WARN( "Connection From Not Shard Replicator " << replicatorKey )
+			return false;
+		}
+
+		return true;
+	}
 
     void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& streamer ) override
     {
@@ -838,8 +831,8 @@ public:
                            *m_opinionController.opinionTrafficTx(),
                            0, true, ""
                    ),
-                   m_sandboxRootPath,
-                   m_sandboxRootPath / toString(infoHash),
+                   m_sandboxRootPath.string(),
+                   (m_sandboxRootPath / toString(infoHash)).string(),
                    {},
                    &m_driveKey.array(),
                    nullptr,
@@ -853,19 +846,20 @@ public:
 
 
 std::shared_ptr<FlatDrive> createDefaultFlatDrive(
-        std::shared_ptr<Session>    session,
-        const std::string&          replicatorRootFolder,
-        const std::string&          replicatorSandboxRootFolder,
-        const Key&                  drivePubKey,
-        const Key&                  clientPubKey,
-        size_t                      maxSize,
-        size_t                      usedDriveSizeExcludingMetafiles,
-        ReplicatorEventHandler&     eventHandler,
-        Replicator&                 replicator,
-        const ReplicatorList&       fullReplicatorList,
-        const ReplicatorList&       modifyDonatorShard,
-        const ReplicatorList&       modifyRecipientShard,
-        DbgReplicatorEventHandler*  dbgEventHandler )
+        std::shared_ptr<Session>                session,
+        const std::string&                      replicatorRootFolder,
+        const std::string&                      replicatorSandboxRootFolder,
+        const Key&                              drivePubKey,
+        const Key&                              clientPubKey,
+        size_t                                  maxSize,
+        size_t                                  expectedCumulativeDownload,
+        std::vector<CompletedModification>&&    completedModifications,
+        ReplicatorEventHandler&                 eventHandler,
+        Replicator&                             replicator,
+        const ReplicatorList&                   fullReplicatorList,
+        const ReplicatorList&                   modifyDonatorShard,
+        const ReplicatorList&                   modifyRecipientShard,
+        DbgReplicatorEventHandler*              dbgEventHandler )
 
 {
     return std::make_shared<DefaultFlatDrive>( session,
@@ -874,7 +868,8 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
                                            drivePubKey,
                                            clientPubKey,
                                            maxSize,
-                                           usedDriveSizeExcludingMetafiles,
+                                           expectedCumulativeDownload,
+                                           std::move( completedModifications ),
                                            eventHandler,
                                            dynamic_cast<ReplicatorInt&>(replicator),
                                            fullReplicatorList,

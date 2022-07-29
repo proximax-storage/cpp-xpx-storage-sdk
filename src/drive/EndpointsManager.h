@@ -10,6 +10,7 @@
 #include "drive/Session.h"
 
 #include <cereal/archives/portable_binary.hpp>
+#include <utility>
 
 namespace sirius::drive
 {
@@ -25,7 +26,7 @@ private:
     ReplicatorInt& m_replicator;
     std::weak_ptr<Session> m_session;
 
-    std::optional<boost::asio::high_resolution_timer> m_externalPointUpdateTimer;
+    Timer m_externalPointUpdateTimer;
 
     std::optional<boost::asio::ip::tcp::endpoint> m_externalEndpoint;
     std::optional<ExternalEndpointRequest> m_externalEndpointRequest;
@@ -44,6 +45,9 @@ public:
                      const std::string& dbgOurPeerName)
             : m_replicator(replicator), m_bootstraps(bootstraps), m_dbgOurPeerName(dbgOurPeerName)
     {
+        std::erase_if( m_bootstraps, [this]( const auto& item ) {
+            return m_replicator.keyPair().publicKey() == item.m_publicKey;
+        } );
         for (const auto&[endpoint, key] : bootstraps)
         {
             m_endpointsMap[key] = {endpoint, {}};
@@ -52,7 +56,7 @@ public:
 
     void start(std::weak_ptr<Session> session)
     {
-        m_session = session;
+        m_session = std::move(session);
         m_dbgThreadId = std::this_thread::get_id();
 
         //(???++++) !!!!!!
@@ -66,10 +70,10 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_externalPointUpdateTimer.reset();
+        m_externalPointUpdateTimer.cancel();
         for (auto&[key, value]: m_endpointsMap)
         {
-            value.m_timer.reset();
+            value.m_timer.cancel();
         }
     }
 
@@ -139,7 +143,7 @@ public:
                     });
                 }
 #else
-                it->second.m_timer.reset();
+                it->second.m_timer.cancel();
 #endif
             } else
             {
@@ -173,11 +177,6 @@ public:
     void updateExternalEndpoint(const ExternalEndpointResponse& response)
     {
         DBG_MAIN_THREAD
-        
-        //(???++++) !!!!!!
-//#ifdef __APPLE__
-//        return;
-//#endif
 
         if (!m_externalEndpointRequest ||
             m_externalEndpointRequest->m_challenge != response.m_challenge ||
@@ -249,13 +248,13 @@ private:
     {
         DBG_MAIN_THREAD
 
-        if (m_bootstraps.size() == 0)
+        if (m_bootstraps.empty())
         {
             // TODO maybe ask other nodes?
             return;
         }
 
-        int bootstrapToAskIndex = random() % m_bootstraps.size();
+        int bootstrapToAskIndex = rand() % m_bootstraps.size();
         const auto& bootstrapToAsk = m_bootstraps[bootstrapToAskIndex];
         m_externalEndpointRequest =
                 {

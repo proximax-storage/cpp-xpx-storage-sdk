@@ -28,7 +28,7 @@
 namespace sirius { namespace ionet {
 
 	/// An interface for reading and writing packets.
-	class PacketIo {
+	class PLUGIN_API PacketIo {
 	public:
 		using ReadCallback = consumer<SocketOperationCode, const Packet*>;
 		using WriteCallback = consumer<SocketOperationCode>;

@@ -29,7 +29,7 @@ namespace sirius { namespace ionet {
 #pragma pack(push, 1)
 
         /// A packet header with a data payload.
-        struct Packet : public PacketHeader, public utils::NonCopyable {
+        struct PLUGIN_API Packet : public PacketHeader, public utils::NonCopyable {
         public:
             /// Returns a non-const pointer to data contained in this packet.
             uint8_t* Data() {
@@ -46,7 +46,7 @@ namespace sirius { namespace ionet {
 
         /// Creates a packet of the specified type (\a TPacket) with the specified payload size.
         template<typename TPacket>
-        std::shared_ptr<TPacket> CreateSharedPacket(uint32_t payloadSize = 0) {
+        PLUGIN_API std::shared_ptr<TPacket> CreateSharedPacket(uint32_t payloadSize = 0) {
             uint32_t packetSize = sizeof(TPacket) + payloadSize;
             auto pPacket = utils::MakeSharedWithSize<TPacket>(packetSize);
             pPacket->Size = packetSize;
@@ -65,7 +65,7 @@ namespace sirius { namespace ionet {
 
         /// Coerces \a pPacket to the desired packet type or \c nullptr if it is incompatible.
         template<typename TPacket>
-        const TPacket* CoercePacket(const Packet* pPacket) {
+        PLUGIN_API const TPacket* CoercePacket(const Packet* pPacket) {
             return TPacket::Packet_Type != pPacket->Type || sizeof(TPacket) != pPacket->Size
                    ? nullptr
                    : static_cast<const TPacket*>(pPacket);

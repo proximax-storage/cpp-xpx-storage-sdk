@@ -4,22 +4,8 @@
 *** license that can be found in the LICENSE file.
 */
 
-//#include "DownloadLimiter.h"
 #include "DriveTaskBase.h"
-//#include "drive/FsTree.h"
-//#include "drive/ActionList.h"
-//#include "drive/FlatDrive.h"
 #include "DriveParams.h"
-
-//#include <boost/multiprecision/cpp_int.hpp>
-//
-//#include <numeric>
-
-//#include <cereal/types/vector.hpp>
-//#include <cereal/types/array.hpp>
-//#include <cereal/types/map.hpp>
-//#include <cereal/types/optional.hpp>
-//#include <cereal/archives/portable_binary.hpp>
 
 namespace sirius::drive
 {
@@ -35,7 +21,7 @@ protected:
 
     std::optional<ApprovalTransactionInfo> m_myOpinion;
 
-    mobj<FsTree> m_sandboxFsTree;
+    std::unique_ptr<FsTree> m_sandboxFsTree;
     std::optional<InfoHash> m_sandboxRootHash;
     uint64_t m_metaFilesSize = 0;
     uint64_t m_sandboxDriveSize = 0;
@@ -48,13 +34,13 @@ protected:
 
     bool m_sandboxCalculated = false;
 
-    bool m_taskIsStopped     = false;
+    bool m_taskIsInterrupted = false;
 
 public:
 
     void onDriveClose( const DriveClosureRequest& closureRequest ) override
     {
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             return;
         }
@@ -72,7 +58,6 @@ protected:
             ModifyOpinionController& opinionTaskController)
             : DriveTaskBase( type, drive )
             , m_opinionController( opinionTaskController )
-            , m_sandboxFsTree( FsTree{} )
     {}
 
     void myRootHashIsCalculated()
@@ -82,7 +67,7 @@ protected:
         _ASSERT( m_sandboxFsTree )
         _ASSERT( m_sandboxRootHash )
 
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             finishTask();
             return;
@@ -99,7 +84,7 @@ protected:
         }
 
         /// (???) replace with replicators of the shard
-        m_opinionController.updateCumulativeUploads( m_drive.getAllReplicators(), getToBeApprovedDownloadSize(), [this]
+        m_opinionController.updateCumulativeUploads( getModificationTransactionHash(), m_drive.getDonatorShard(), getToBeApprovedDownloadSize(), [this]
         {
             onCumulativeUploadsUpdated();
         } );
@@ -107,7 +92,9 @@ protected:
 
     void synchronizationIsCompleted()
     {
-        m_opinionController.approveCumulativeUploads( [this]
+        DBG_MAIN_THREAD
+
+        m_opinionController.approveCumulativeUploads( getModificationTransactionHash(), [this]
         {
             modifyIsCompleted();
         });
@@ -123,6 +110,7 @@ protected:
         m_drive.m_rootHash = *m_sandboxRootHash;
         m_drive.m_fsTreeLtHandle = *m_sandboxFsTreeLtHandle;
         m_sandboxFsTreeLtHandle.reset();
+        m_drive.m_lastApprovedModification = getModificationTransactionHash();
 
         m_drive.updateStreamMap();
 //        m_isSynchronizing = false;
@@ -134,16 +122,7 @@ protected:
     {
         DBG_MAIN_THREAD
 
-        m_drive.m_isWaitingNextTask = false;
-
-        if ( m_drive.m_isRemovingUnusedTorrents )
-        {
-            // wait the end of the removing
-            m_drive.m_isWaitingNextTask = true;
-            return;
-        }
-
-        m_taskIsStopped = true;
+        m_taskIsInterrupted = true;
         
         if ( m_downloadingLtHandle )
         {
@@ -187,7 +166,7 @@ protected:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_taskIsStopped )
+        _ASSERT( !m_taskIsInterrupted )
 
         auto& torrentHandleMap = m_drive.m_torrentHandleMap;
 
@@ -240,18 +219,27 @@ protected:
         std::error_code err;
 
         // Now, all drive files and torrents are placed directly on drive (not really in sandbox)
-        if ( fs::exists( m_drive.m_driveRootPath, err ))
-        {
-            metaFilesSize = fs::file_size( m_drive.m_sandboxFsTreeTorrent );
-            driveSize = 0;
-            m_sandboxFsTree->getSizes( m_drive.m_driveFolder, m_drive.m_torrentFolder, metaFilesSize,
-                                       driveSize );
-            driveSize += metaFilesSize;
-        } else
+        if ( !fs::exists( m_drive.m_driveRootPath, err ))
         {
             metaFilesSize = 0;
             driveSize = 0;
+            return;
         }
+
+        metaFilesSize = fs::file_size( m_drive.m_sandboxFsTreeTorrent );
+        driveSize = fs::file_size( m_drive.m_sandboxFsTreeFile );
+
+        std::set<InfoHash> files;
+        m_sandboxFsTree->getUniqueFiles( files );
+        for ( const auto& file: files )
+        {
+            metaFilesSize += fs::file_size( m_drive.m_torrentFolder / toString(file) );
+            driveSize += fs::file_size( m_drive.m_driveFolder / toString(file) );
+        }
+
+        driveSize += metaFilesSize;
+
+        _LOG( "Drive Sizes " << m_drive.m_driveKey << " " << driveSize << " " << metaFilesSize )
     }
 
     uint64_t sandboxFsTreeSize() const
@@ -278,7 +266,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             finishTask();
             return;

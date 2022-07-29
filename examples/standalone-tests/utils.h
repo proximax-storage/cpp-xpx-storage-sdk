@@ -191,6 +191,8 @@ std::cout << now_str() << ": " << expr << std::endl << std::flush; \
 
     ActionList createActionList(const fs::path &clientRootFolder);
 
+    ActionList createActionList(const fs::path &clientRootFolder, uint64_t size);
+
     ActionList createActionList_2(const fs::path &clientRootFolder);
 
     ActionList createActionList_3(const fs::path &clientRootFolder);

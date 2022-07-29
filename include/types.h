@@ -63,14 +63,14 @@ namespace sirius {
         // InfoHash
         using InfoHash  = Hash256;// std::array<uint8_t,32>;
     
-        struct InfoHashPtrCompare {
+        struct PLUGIN_API InfoHashPtrCompare {
             bool operator() ( const InfoHash* l, const InfoHash* r) const { return *l < *r; }
         };
     
         using InfoHashPtrSet = std::set<const InfoHash*,InfoHashPtrCompare>;
 
         // Replicator requisites
-        struct ReplicatorInfo
+        struct PLUGIN_API ReplicatorInfo
         {
             bool operator==(const ReplicatorInfo& ri) const {
                 return ri.m_publicKey == m_publicKey;
@@ -81,7 +81,7 @@ namespace sirius {
         };
 
 #define DECL_KEY(KeyName) \
-        struct KeyName : public Key \
+        struct PLUGIN_API KeyName : public Key \
         { \
             KeyName() = default; \
             KeyName( const Key& key ) : Key(key) {} \
@@ -98,7 +98,7 @@ namespace sirius {
         };
     
 #define DECL_HASH(HashName) \
-        struct HashName : public Hash256 \
+        struct PLUGIN_API HashName : public Hash256 \
         { \
             HashName() = default; \
             HashName( const Hash256& key ) : Hash256(key) {} \
@@ -130,7 +130,7 @@ namespace sirius {
 
     // movable/nullable object with Args... constructor
     template< class T >
-    class mobj : public std::unique_ptr<T>
+    class PLUGIN_API mobj : public std::unique_ptr<T>
     {
     public:
 

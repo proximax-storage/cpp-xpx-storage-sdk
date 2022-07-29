@@ -1,6 +1,6 @@
-#include <numeric>
 #include "TestEnvironment.h"
 #include "utils.h"
+#include "gtest/gtest.h"
 
 #include "types.h"
 
@@ -11,8 +11,8 @@ using namespace sirius::drive::test;
 namespace sirius::drive::test
 {
 
-    /// change this macro for your test
-#define TEST_NAME VerificationCancelWithDelay
+/// change this macro for your test
+#define TEST_NAME RestartAndApprove
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -41,13 +41,33 @@ namespace sirius::drive::test
                 downloadApprovalDelay,
                 startReplicator)
         {
-            for ( const auto& r: m_replicators )
+        }
+
+        std::mutex m_approvalMutex;
+        bool m_allowModificationsApproval = false;
+        std::optional<ApprovalTransactionInfo> m_transactionInfo;
+
+        void
+        modifyApprovalTransactionIsReady( Replicator& replicator, const ApprovalTransactionInfo& transactionInfo ) override
+        {
+            std::unique_lock<std::mutex> lock( m_approvalMutex );
+            if ( !m_allowModificationsApproval )
             {
-                if ( r )
-                {
-                    r->setVerifyCodeTimerDelay(0);
-                    r->setVerifyApprovalTransactionTimerDelay(100 * 1000);
+                if ( !m_transactionInfo ) {
+                    m_transactionInfo = transactionInfo;
                 }
+                return;
+            }
+            lock.unlock();
+            TestEnvironment::modifyApprovalTransactionIsReady( replicator, transactionInfo );
+        }
+
+        void allowModificationsApproval()
+        {
+            m_allowModificationsApproval = true;
+            if ( m_transactionInfo )
+            {
+                TestEnvironment::modifyApprovalTransactionIsReady( *m_replicators[0], *m_transactionInfo );
             }
         }
     };
@@ -60,7 +80,7 @@ namespace sirius::drive::test
 
         ENVIRONMENT_CLASS env(
                 NUMBER_OF_REPLICATORS, REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
-                SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 1024 * 1024);
+                SANDBOX_ROOT_FOLDER, USE_TCP, 1, 1, 2 * 1024 * 1024);
 
         lt::settings_pack pack;
         pack.set_int(lt::settings_pack::upload_rate_limit, 0);
@@ -71,8 +91,8 @@ namespace sirius::drive::test
         }
         TestClient client(bootstraps, pack);
 
-        EXLOG("\n# Client started: 1-st upload");
         client.modifyDrive(createActionList(CLIENT_WORK_FOLDER), env.m_addrList, DRIVE_PUB_KEY);
+        client.modifyDrive(createActionList_2(CLIENT_WORK_FOLDER), env.m_addrList, DRIVE_PUB_KEY);
 
         env.addDrive(DRIVE_PUB_KEY, client.m_clientKeyPair.publicKey(), 100 * 1024 * 1024);
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[0],
@@ -80,43 +100,32 @@ namespace sirius::drive::test
                                         BIG_FILE_SIZE + 1024 * 1024,
                                         env.m_addrList });
 
-        env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS);
+        auto size = BIG_FILE_SIZE + 1024 * 1024;
+        std::cout << size << std::endl;
 
-        // Replicators should find each other
-        sleep(5);
+        // Wait until all nodes download all the files
+        sleep(10);
 
-        auto verificationFirst = randomByteArray<Hash256>();
-        env.startVerification( DRIVE_PUB_KEY,
-                               {
-                                       verificationFirst,
-                                       0,
-                                       env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_modifyTransactionHash,
-                                       env.m_addrList,
-                                       3 * 60 * 1000, {}} );
+        env.stopReplicator(NUMBER_OF_REPLICATORS);
+
+        env.allowModificationsApproval();
+
+        env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[1],
+                                        client.m_modificationTransactionHashes[1],
+                                        BIG_FILE_SIZE + 512 * 1024,
+                                        env.m_addrList });
+
+        env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS - 1);
+
+        env.startReplicator(NUMBER_OF_REPLICATORS,
+                            REPLICATOR_ADDRESS, PORT, DRIVE_ROOT_FOLDER,
+                            SANDBOX_ROOT_FOLDER, USE_TCP, 10000, 10000);
+
         std::this_thread::sleep_for(std::chrono::seconds(30));
-        env.cancelVerification(DRIVE_PUB_KEY, verificationFirst);
-
-        auto verificationSecond = randomByteArray<Hash256>();
-        env.startVerification( DRIVE_PUB_KEY,
-                               {
-                                       verificationSecond,
-                                       0,
-                                       env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_modifyTransactionHash,
-                                       env.m_addrList,
-                                       3 * 1000, {}} );
-        env.waitVerificationApproval(verificationSecond);
-
-        ASSERT_FALSE(env.m_verifyApprovalTransactionInfo.contains(verificationFirst));
-
-        const auto& verify_tx = env.m_verifyApprovalTransactionInfo[verificationSecond];
-        for ( const auto& opinion: verify_tx.m_opinions )
-        {
-            for ( const auto& res: opinion.m_opinions )
-            {
-                EXPECT_EQ(res, 1);
-            }
-        }
+        ASSERT_EQ(env.modifyCompleteCounters[client.m_modificationTransactionHashes[1]], NUMBER_OF_REPLICATORS);
     }
 
 #undef TEST_NAME
 }
+
+

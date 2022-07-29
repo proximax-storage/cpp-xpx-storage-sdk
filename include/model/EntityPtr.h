@@ -9,7 +9,7 @@ namespace sirius { namespace model {
          * Custom deleter type for Entity classes, allocated with MakeUniqueWithSize.
          */
         template <typename T>
-        struct EntityPtrDeleter {
+        struct PLUGIN_API EntityPtrDeleter {
             void operator()(T* t) {
                 ::operator delete(const_cast<void*>(reinterpret_cast<const void*>(t)));
             }

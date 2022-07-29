@@ -28,13 +28,28 @@ PLUGIN_API std::string hashToFileName( const InfoHash& key );
 
 PLUGIN_API bool isPathInsideFolder( const fs::path& path, const fs::path& folder );
 
-PLUGIN_API Hash256 stringToHash( const boost::string_view& str );
+PLUGIN_API int charToInt( char input );
+
+template<class T>
+PLUGIN_API T stringToByteArray( const boost::string_view& str ) {
+    if ( str.size() != 64 )
+        throw std::invalid_argument("Invalid input string");
+
+    T t;
+
+    for( unsigned int i=0; i<32; i++ )
+    {
+        t[i] = (charToInt(str[2*i])<<4) + charToInt(str[2*i+1]);
+    }
+
+    return t;
+};
 PLUGIN_API std::string hexToString( const void* begin, const void* end );
 
 PLUGIN_API Hash256 ltDataToHash( const char* ptr );
 
 template<class T>
-PLUGIN_API T randomByteArray()
+T randomByteArray()
 {
     T data;
     for (auto it = data.begin(); it != data.end(); it++)

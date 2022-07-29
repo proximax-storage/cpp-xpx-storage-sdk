@@ -31,19 +31,38 @@ class Replicator;
         };
     };
 
+    struct CompletedModification {
+
+        enum class CompletedModificationStatus {
+            APPROVED, CANCELLED
+        };
+
+        Hash256                     m_modificationId;
+        CompletedModificationStatus m_status;
+
+        template<class Archive>
+        void serialize( Archive& arch )
+        {
+            arch( m_modificationId );
+            arch( m_status );
+        }
+    };
+
     struct AddDriveRequest {
-        uint64_t          m_driveSize;
-        uint64_t          m_expectedCumulativeDownloadSize;
-        ReplicatorList    m_fullReplicatorList;
-        Key               m_client;
-        ReplicatorList    m_modifyDonatorShard;
-        ReplicatorList    m_modifyRecipientShard;
-        
+        uint64_t                                m_driveSize;
+        uint64_t                                m_expectedCumulativeDownloadSize;
+        std::vector<CompletedModification>      m_completedModifications;
+        ReplicatorList                          m_fullReplicatorList;
+        Key                                     m_client;
+        ReplicatorList                          m_modifyDonatorShard;
+        ReplicatorList                          m_modifyRecipientShard;
+
         template<class Archive>
         void serialize(Archive &arch)
         {
             arch(m_driveSize);
             arch(m_expectedCumulativeDownloadSize);
+            arch(m_completedModifications);
             arch(m_fullReplicatorList);
             arch(m_client);
             arch(m_modifyDonatorShard);
@@ -369,7 +388,7 @@ class Replicator;
     {
         Hash256                     m_tx;
         uint16_t                    m_shardId = 0;
-        InfoHash                    m_actualRootHash;
+        Hash256                     m_approvedModification;
         std::vector<Key>            m_replicators;
         std::uint32_t               m_durationMs;
         std::set<Key>               m_blockedReplicators; // blocked until verification will be approved
@@ -640,7 +659,7 @@ class Replicator;
         virtual void     setShardRecipient( mobj<ReplicatorList>&& replicatorKeys ) = 0;
 
         virtual const ReplicatorList& donatorShard()   const = 0;
-        virtual bool     acceptConnectionFromReplicator( const Key& ) const = 0;
+        virtual bool  				  acceptConnectionFromReplicator( const Key& ) const = 0;
 
         virtual void     onVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) = 0;
 
@@ -674,24 +693,26 @@ class Replicator;
         virtual std::string acceptGetChunksInfoMessage( const std::array<uint8_t,32>&          streamId,
                                                         uint32_t                               chunkIndex,
                                                         const boost::asio::ip::udp::endpoint&  viewer ) = 0;
-      
+
         virtual std::string acceptGetPlaylistHashRequest( const std::array<uint8_t,32>& streamId ) = 0;
     };
 
     class Session;
 
-    PLUGIN_API std::shared_ptr<FlatDrive> createDefaultFlatDrive( std::shared_ptr<Session> session,
-                                                       const std::string&           replicatorRootFolder,
-                                                       const std::string&           replicatorSandboxRootFolder,
-                                                       const Key&                   drivePubKey,
-                                                       const Key&                   clientPubKey,
-                                                       size_t                       maxSize,
-                                                       size_t                       expectedCumulativeDownload,
-                                                       ReplicatorEventHandler&      eventHandler,
-                                                       Replicator&                  replicator,
-                                                       const ReplicatorList&        fullReplicatorList,
-                                                       const ReplicatorList&        modifyDonatorShard,
-                                                       const ReplicatorList&        modifyRecipientShard,
-                                                       DbgReplicatorEventHandler*   dbgEventHandler = nullptr );
+    PLUGIN_API std::shared_ptr<FlatDrive> createDefaultFlatDrive(
+                                                       std::shared_ptr<Session>                 session,
+                                                       const std::string&                       replicatorRootFolder,
+                                                       const std::string&                       replicatorSandboxRootFolder,
+                                                       const Key&                               drivePubKey,
+                                                       const Key&                               clientPubKey,
+                                                       size_t                                   maxSize,
+                                                       size_t                                   expectedCumulativeDownload,
+                                                       std::vector<CompletedModification>&&     completedModifications,
+                                                       ReplicatorEventHandler&                  eventHandler,
+                                                       Replicator&                              replicator,
+                                                       const ReplicatorList&                    fullReplicatorList,
+                                                       const ReplicatorList&                    modifyDonatorShard,
+                                                       const ReplicatorList&                    modifyRecipientShard,
+                                                       DbgReplicatorEventHandler*               dbgEventHandler = nullptr );
 }
 

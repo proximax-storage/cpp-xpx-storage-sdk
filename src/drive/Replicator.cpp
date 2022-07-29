@@ -52,7 +52,8 @@ private:
     int         m_verifyCodeTimerDelayMs                  = 5 * 60 * 1000;
     int         m_verifyApprovalTransactionTimerDelayMs   = 10 * 1000;
     int         m_shareMyDownloadOpinionTimerDelayMs      = 60 * 1000;
-
+    int         m_verificationShareTimerDelay             = 60 * 1000;
+    uint64_t    m_minReplicatorsNumber                    = 4;
 
     bool        m_replicatorIsDestructing = false;
 
@@ -126,24 +127,21 @@ public:
             drive->terminate();
         }
 
-        m_backgroundExecutor.stop();
-
         for ( auto& [channelId, value]: m_dnChannelMap )
         {
             for ( auto& [event, opinion]: value.m_downloadOpinionMap )
             {
-                opinion.m_timer.reset();
-                opinion.m_opinionShareTimer.reset();
+                opinion.m_timer.cancel();
+                opinion.m_opinionShareTimer.cancel();
             }
         }
 
         m_endpointsManager.stop();
     }
 
-    virtual ~DefaultReplicator()
+    ~DefaultReplicator() override
     {
-        m_replicatorIsDestructing = true;
-        
+
 #ifdef DEBUG_OFF_CATAPULT
         _LOG( "~DefaultReplicator() ")
 #endif
@@ -157,11 +155,14 @@ public:
         });
         barrier.get_future().wait();
 
+        m_backgroundExecutor.stop();
+
         auto blockedDestructor = m_session->lt_session().abort();
         m_session.reset();
-        
+
         if ( m_libtorrentThread.joinable() )
         {
+            _LOG( "m_libtorrentThread joined" )
             m_libtorrentThread.join();
         }
 
@@ -180,6 +181,8 @@ public:
         std::promise<void> bootstrapBarrier;
         m_bootstrapFuture = bootstrapBarrier.get_future();
 
+        loadDownloadChannelMap();
+
         m_session = createDefaultSession( m_replicatorContext, m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
                                          {
                                              if ( pAlert->type() == lt::listen_failed_alert::alert_type )
@@ -194,7 +197,7 @@ public:
                                          bootstrapEndpoints,
                                          std::move(bootstrapBarrier) );
 
-        m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName.c_str();
+        m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName;
         
         m_libtorrentThread = std::thread( [this] {
             //m_sesion->setDbgThreadId();
@@ -215,36 +218,7 @@ public:
             m_endpointsManager.start(m_session);
         });
 
-        removeDriveDataOfBrokenClose();
-        loadDownloadChannelMap();
-        
-        //(???+) !!!
-        //m_bootstrapFuture.wait();
-
         m_dnOpinionSyncronizer.start( m_session );
-    }
-    
-    void removeDriveDataOfBrokenClose()
-    {
-        auto rootFolderPath = fs::path( m_storageDirectory );
-
-        std::error_code ec;
-        if ( !std::filesystem::is_directory(rootFolderPath,ec) )
-            return;
-
-        for( const auto& entry : std::filesystem::directory_iterator(rootFolderPath) )
-        {
-            if ( entry.is_directory() )
-            {
-                const auto entryName = entry.path().filename().string();
-                
-                std::error_code errorCode;
-                if ( fs::exists( FlatDrive::driveIsClosingPath( rootFolderPath / entryName ), errorCode ) )
-                {
-                    fs::remove_all( rootFolderPath / entryName );
-                }
-            }
-        }
     }
 
     Hash256 dbgGetRootHash( const DriveKey& driveKey ) override
@@ -283,7 +257,15 @@ public:
     }
 
     void asyncInitializationFinished() override
-    {}
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post(m_session->lt_session().get_context(), [this]
+        {
+            removeUnusedDrives( m_storageDirectory );
+            removeUnusedDrives( m_sandboxDirectory );
+        });
+    }
 
     void asyncAddDrive( Key driveKey, mobj<AddDriveRequest>&& driveRequest ) override
     {
@@ -323,6 +305,7 @@ public:
                     driveRequest->m_client,
                     driveRequest->m_driveSize,
                     driveRequest->m_expectedCumulativeDownloadSize,
+                    std::move( driveRequest->m_completedModifications ),
                     m_eventHandler,
                     *this,
                     driveRequest->m_fullReplicatorList,
@@ -995,7 +978,7 @@ public:
             return;
         }
 
-        auto &channel = channelIt->second;
+        auto& channel = channelIt->second;
         auto blockHash = opinion->m_blockHash;
 
         if (channel.m_downloadOpinionMap.find(opinion->m_blockHash) == channel.m_downloadOpinionMap.end())
@@ -1015,38 +998,47 @@ public:
         // check opinion number
         //_LOG( "///// " << opinionInfo.m_opinions.size() << " " <<  (opinionInfo.m_replicatorNumber*2)/3 );
 #ifndef MINI_SIGNATURE
-        if (opinions.size() > (channel.m_dnReplicatorShard.size() * 2) / 3)
+        auto replicatorNumber = (std::max(getMinReplicatorsNumber(), channel.m_dnReplicatorShard.size()) * 2) / 3 + 1;
 #else
-        if (opinions.size() >= (channel.m_dnReplicatorShard.size() * 2) / 3)
+        auto replicatorNumber = (channel.m_dnReplicatorShard.size() * 2) / 3;
 #endif
+        if (opinions.size() >= replicatorNumber)
         {
             // start timer if it is not started
             if (!opinionInfo.m_timer)
             {
                 //todo check
-                opinionInfo.m_timer = m_session->startTimer(m_downloadApprovalTransactionTimerDelayMs,
-                                                            [this, &opinionInfo]()
-                                                            { onDownloadApprovalTimeExpired(opinionInfo); });
+                opinionInfo.m_timer = m_session->startTimer( m_downloadApprovalTransactionTimerDelayMs,[this, channelId = opinion->m_downloadChannelId, blockHash = blockHash]() {
+                                                                 onDownloadApprovalTimeExpired(
+                                                                         ChannelId( channelId ), Hash256( blockHash ));
+                                                             } );
             }
         }
     }
     
-    void onDownloadApprovalTimeExpired( DownloadOpinionMapValue& mapValue )
+    void onDownloadApprovalTimeExpired( const ChannelId& channelId, const Hash256& blockHash )
     {
         DBG_MAIN_THREAD
-        
-        if ( mapValue.m_modifyApproveTransactionSent || mapValue.m_approveTransactionReceived )
+
+        auto channelIt = m_dnChannelMap.find(channelId);
+
+        _ASSERT( channelIt != m_dnChannelMap.end() )
+
+        auto& downloadMapValue = channelIt->second.m_downloadOpinionMap.find( blockHash.array() )->second;
+
+        if ( downloadMapValue.m_modifyApproveTransactionSent || downloadMapValue.m_approveTransactionReceived ) {
             return;
+        }
 
         // notify
         std::vector<DownloadOpinion> opinions;
-        for (const auto& [replicatorId, opinion]: mapValue.m_opinions)
+        for (const auto& [replicatorId, opinion]: downloadMapValue.m_opinions)
         {
             opinions.push_back(opinion);
         }
-        auto transactionInfo = DownloadApprovalTransactionInfo{mapValue.m_eventHash, mapValue.m_downloadChannelId, std::move(opinions)};
+        auto transactionInfo = DownloadApprovalTransactionInfo{downloadMapValue.m_eventHash, downloadMapValue.m_downloadChannelId, std::move(opinions)};
         m_eventHandler.downloadApprovalTransactionIsReady( *this, transactionInfo );
-        mapValue.m_modifyApproveTransactionSent = true;
+        downloadMapValue.m_modifyApproveTransactionSent = true;
     }
     
     virtual void asyncInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) override
@@ -1180,7 +1172,7 @@ public:
                     }
                     if ( opinionInfo.m_timer )
                     {
-                        opinionInfo.m_timer.reset();
+                        opinionInfo.m_timer.cancel();
                     }
                     auto receivedOpinions = opinionInfo.m_opinions;
                     opinionInfo.m_opinions.clear();
@@ -1231,8 +1223,8 @@ public:
                 else if ( auto it = opinions.find( eventHash.array() ); it != opinions.end() )
                 {
                     // TODO maybe remove the entry?
-                    it->second.m_timer.reset();
-                    it->second.m_opinionShareTimer.reset();
+                    it->second.m_timer.cancel();
+                    it->second.m_opinionShareTimer.cancel();
                     it->second.m_approveTransactionReceived = true;
                 }
             }
@@ -1776,14 +1768,32 @@ public:
         return m_verifyCodeTimerDelayMs;
     }
 
-    void        setVerifyApprovalTransactionTimerDelay( int miliseconds ) override
+    void        setVerifyApprovalTransactionTimerDelay( int milliseconds ) override
     {
-        m_verifyApprovalTransactionTimerDelayMs = miliseconds;
+        m_verifyApprovalTransactionTimerDelayMs = milliseconds;
     }
 
     int         getVerifyApprovalTransactionTimerDelay() override
     {
         return m_verifyApprovalTransactionTimerDelayMs;
+    }
+
+    void setVerificationShareTimerDelay( int milliseconds ) override
+    {
+        m_verificationShareTimerDelay = milliseconds;
+    }
+
+    int getVerificationShareTimerDelay() override
+    {
+        return m_verificationShareTimerDelay;
+    }
+
+    void setMinReplicatorsNumber( uint64_t number ) override {
+        m_minReplicatorsNumber = number;
+    }
+
+    uint64_t getMinReplicatorsNumber() override {
+        return m_minReplicatorsNumber;
     }
 
     void        setSessionSettings(const lt::settings_pack& settings, bool localNodes) override
@@ -1814,14 +1824,25 @@ public:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( m_dnChannelMap );
 
-        saveRestartData( fs::path(m_storageDirectory) / "downloadChannelMap", os.str() );
+        saveRestartData( (fs::path(m_storageDirectory) / "downloadChannelMap").string(), os.str() );
     }
     
     bool loadDownloadChannelMap()
     {
         std::string data;
         
-        if ( !loadRestartData( fs::path(m_storageDirectory) / "downloadChannelMap", data ) )
+        if ( !loadRestartData( (fs::path(m_storageDirectory) / "downloadChannelMap").string(), data ) )
+        {
+            return false;
+        }
+
+        try
+        {
+            std::istringstream is( data, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            iarchive( m_dnChannelMapBackup );
+        }
+        catch(...)
         {
             return false;
         }
@@ -1836,10 +1857,10 @@ public:
         {
             return false;
         }
-        
+
         return true;
     }
-    
+
     virtual bool on_dht_request( lt::string_view                         query,
                                  boost::asio::ip::udp::endpoint const&   source,
                                  lt::bdecode_node const&                 message,
@@ -1985,7 +2006,7 @@ public:
                 cereal::PortableBinaryInputArchive iarchive(is);
                 std::array<uint8_t,32> driveKey;
                 iarchive( driveKey );
-                
+
                 if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
                 {
                     std::array<uint8_t,32> streamId;
@@ -2008,7 +2029,7 @@ public:
 
             return true;
         }
-        
+
         return false;
     }
     
@@ -2054,6 +2075,54 @@ public:
 private:
     std::shared_ptr<sirius::drive::Session> session() {
         return m_session;
+    }
+
+    void removeUnusedDrives( const std::string& path )
+    {
+        DBG_MAIN_THREAD
+
+        // Despite the fact we work on the main thread,
+        // it is ok to work with fs since it is done once during the Replicator initialization
+
+        auto rootFolderPath = fs::path( path );
+
+        std::set<fs::path> toRemove;
+
+        {
+            std::error_code ec;
+            if ( !std::filesystem::is_directory(rootFolderPath,ec) )
+            {
+                return;
+            }
+        }
+
+        try
+        {
+            for( const auto& entry : std::filesystem::directory_iterator(rootFolderPath) )
+            {
+                if ( entry.is_directory() )
+                {
+                    const auto entryName = entry.path().filename().string();
+
+                    auto driveKey = stringToByteArray<Key>(entryName);
+
+                    if ( !m_driveMap.contains(driveKey) )
+                    {
+                        {
+                            toRemove.insert(entry.path());
+                        }
+                    }
+                }
+            }
+        }
+        catch(...) {
+            _LOG_WARN( "Invalid Attempt To Iterate " << rootFolderPath );
+        }
+
+        for ( const auto& p: toRemove) {
+            std::error_code ec;
+            fs::remove_all( p, ec );
+        }
     }
 };
 

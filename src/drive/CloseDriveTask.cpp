@@ -33,6 +33,8 @@ public:
     {
         DBG_MAIN_THREAD
 
+		_LOG( "Started Drive Closure " << m_drive.m_driveKey )
+
         //
         // Remove torrents from session
         //
@@ -50,10 +52,11 @@ public:
         {
             session->removeTorrentsFromSession( tobeRemovedTorrents, [this]()
             {
-			   if (m_request->m_removeDriveTx) {
-					m_drive.m_replicator.closeDriveChannels(*m_request->m_removeDriveTx, m_drive.m_driveKey);
-				}
-				m_drive.executeOnBackgroundThread( [this]
+                if ( m_request->m_removeDriveTx )
+                {
+                    m_drive.m_replicator.closeDriveChannels(*m_request->m_removeDriveTx, m_drive.m_driveKey);
+                }
+                m_drive.executeOnBackgroundThread( [this]
                                                    {
                                                        removeAllDriveData();
                                                    } );
@@ -79,6 +82,7 @@ public:
         DBG_MAIN_THREAD
 
         _ASSERT(0)
+        return false;
     }
 
 private:

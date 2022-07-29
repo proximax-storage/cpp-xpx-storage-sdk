@@ -7,7 +7,7 @@
 namespace sirius { namespace utils {
     /// Creates a unique pointer of the specified type with custom \a size.
     template<typename T>
-    model::UniqueEntityPtr<T> MakeUniqueWithSize(size_t size) {
+    PLUGIN_API model::UniqueEntityPtr<T> MakeUniqueWithSize(size_t size) {
         if (size < sizeof(T))
         CATAPULT_THROW_INVALID_ARGUMENT("size is insufficient");
 
@@ -16,7 +16,7 @@ namespace sirius { namespace utils {
 
         /// Creates a shared pointer of the specified type with custom \a size.
     template<typename T>
-    std::shared_ptr<T> MakeSharedWithSize(size_t size) {
+    PLUGIN_API std::shared_ptr<T> MakeSharedWithSize(size_t size) {
         if (size < sizeof(T))
             CATAPULT_THROW_INVALID_ARGUMENT("size is insufficient");
 

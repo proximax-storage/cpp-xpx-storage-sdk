@@ -26,7 +26,7 @@
 namespace sirius { namespace api {
 
 	/// Dispatches requests to a remote node
-	class RemoteRequestDispatcher {
+	class PLUGIN_API RemoteRequestDispatcher {
 	public:
 		/// Creates a remote request dispatcher around \a io.
 		explicit RemoteRequestDispatcher(ionet::PacketIo& io) : m_io(io)

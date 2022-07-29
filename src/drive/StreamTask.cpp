@@ -59,7 +59,7 @@ class StreamTask : public UpdateDriveTaskBase
     
     uint64_t m_uploadedDataSize = 0;
 
-    std::optional<boost::asio::high_resolution_timer> m_shareMyOpinionTimer;
+    Timer m_shareMyOpinionTimer;
 #ifndef __APPLE__
     const int m_shareMyOpinionTimerDelayMs = 1000 * 60;
 #else
@@ -67,7 +67,7 @@ class StreamTask : public UpdateDriveTaskBase
     const int m_shareMyOpinionTimerDelayMs = 1000 * 1;
 #endif
 
-    std::optional<boost::asio::high_resolution_timer> m_modifyOpinionTimer;
+    Timer m_modifyOpinionTimer;
 
     
 public:
@@ -139,7 +139,7 @@ public:
 
             return os.str();
         }
-        
+
         if ( m_chunkInfoList.size() <= requestedIndex || m_chunkInfoList[requestedIndex].get() == nullptr )
         {
             // so far we do not have requested chunkInfo (not signed info could be received by finish-stream)
@@ -340,7 +340,7 @@ public:
                                {
                                    DBG_MAIN_THREAD
 
-                                   _ASSERT( !m_taskIsStopped );
+                                   _ASSERT( !m_taskIsInterrupted );
 
                                    if ( code == download_status::dn_failed )
                                    {
@@ -368,8 +368,8 @@ public:
                                *m_opinionController.opinionTrafficTx(),
                                0, true, ""
                        ),
-                       m_drive.m_driveFolder,
-                       m_drive.m_torrentFolder / toString(chunkInfoHash),
+                       m_drive.m_driveFolder.string(),
+                       (m_drive.m_torrentFolder / toString(chunkInfoHash)).string(),
                        getUploaders(),
                        &m_drive.m_driveKey.array(),
                        nullptr,
@@ -385,7 +385,7 @@ public:
     void continueSynchronizingDriveWithSandbox() override
     {
         DBG_BG_THREAD
-        
+
         _LOG( "StreamTask::continueSynchronizingDriveWithSandbox" )
 
         try
@@ -471,7 +471,7 @@ public:
     void modifyIsCompleted() override
     {
         DBG_MAIN_THREAD
-        
+
         _LOG( "modifyIsCompleted" );
 
         if ( m_drive.m_dbgEventHandler ) {
@@ -507,7 +507,7 @@ public:
 
         _ASSERT( m_myOpinion )
 
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             finishTask();
             return;
@@ -627,11 +627,11 @@ public:
         }
         return true;
     }
-    
+
     bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
     {
         DBG_MAIN_THREAD
-        
+
         if ( m_taskIsStopped )
         {
             return true;
@@ -649,7 +649,7 @@ public:
             if ( *m_sandboxRootHash != transaction.m_rootHash ) {
                 _LOG_ERR( "Invalid Sandbox Root Hash: " << *m_sandboxRootHash << " " << Hash256(transaction.m_rootHash) )
             }
-            
+
             const auto& v = transaction.m_replicatorKeys;
             auto it = std::find( v.begin(), v.end(), m_drive.m_replicator.replicatorKey().array());
 
@@ -721,7 +721,7 @@ public:
                            {
                                DBG_MAIN_THREAD
 
-                               _ASSERT( !m_taskIsStopped );
+                               _ASSERT( !m_taskIsInterrupted );
 
                                if ( code == download_status::dn_failed )
                                {
@@ -873,7 +873,7 @@ public:
 
     void completeStreamFinishing()
     {
-        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
+        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile.string() );
         
         if ( ! m_sandboxFsTree->addFolder( m_request->m_folder ) )
         {
@@ -928,7 +928,7 @@ public:
         }
         
         // Calculate infoHash of playlist
-        InfoHash finishPlaylistHash = createTorrentFile( tmp, m_drive.m_driveKey, m_drive.m_sandboxRootPath, {} );
+        InfoHash finishPlaylistHash = createTorrentFile( tmp.string(), m_drive.m_driveKey, m_drive.m_sandboxRootPath.string(), {} );
         fs::path finishPlaylistFilename = m_drive.m_driveFolder / toString( finishPlaylistHash );
         fs::path torrentFilename = m_drive.m_torrentFolder / toString( finishPlaylistHash );
         if ( ! fs::exists(finishPlaylistFilename) )
@@ -943,17 +943,17 @@ public:
                                                               torrentFilename );
             _ASSERT( finishPlaylistHash2 == finishPlaylistHash )
         }
-        
+
         streamFolder->m_childs.emplace_front( File{ PLAYLIST_FILE_NAME, finishPlaylistHash, playlistTxt.size() } );
         streamFolder->m_isaStream = true;
         streamFolder->m_streamId  = m_request->m_streamId;
 
-        m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile );
+        m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile.string() );
 
-        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile,
+        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile.string(),
                                                m_drive.m_driveKey,
-                                               m_drive.m_sandboxRootPath,
-                                               m_drive.m_sandboxFsTreeTorrent );
+                                               m_drive.m_sandboxRootPath.string(),
+                                               m_drive.m_sandboxFsTreeTorrent.string() );
 
         getSandboxDriveSizes( m_metaFilesSize, m_sandboxDriveSize );
         m_fsTreeSize = sandboxFsTreeSize();

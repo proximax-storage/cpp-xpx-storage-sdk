@@ -38,13 +38,14 @@ private:
 
     std::map<std::array<uint8_t,32>,ApprovalTransactionInfo> m_receivedOpinions;
 
+    bool m_modifyIsCompletedWithError = false;
     bool m_actionListIsReceived = false;
     bool m_modifyApproveTransactionSent = false;
     bool m_modifyApproveTxReceived = false;
     
     uint64_t m_uploadedDataSize = 0;
 
-    std::optional<boost::asio::high_resolution_timer> m_shareMyOpinionTimer;
+    Timer    m_shareMyOpinionTimer;
 #ifndef __APPLE__
     const int m_shareMyOpinionTimerDelayMs = 1000 * 60;
 #else
@@ -52,7 +53,7 @@ private:
     const int m_shareMyOpinionTimerDelayMs = 1000 * 1;
 #endif
 
-    std::optional<boost::asio::high_resolution_timer> m_modifyOpinionTimer;
+    Timer m_modifyOpinionTimer;
 
 public:
 
@@ -72,8 +73,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_modifyOpinionTimer.reset();
-        m_shareMyOpinionTimer.reset();
+        m_modifyOpinionTimer.cancel();
+        m_shareMyOpinionTimer.cancel();
 
         breakTorrentDownloadAndRunNextTask();
     }
@@ -125,8 +126,8 @@ public:
                                                        {
                                                            //_ASSERT( !m_taskIsStopped );
                                                            // it could be stopped after asyncApprovalTransactionHasBeenPublished
-                                                           // if 'actionList' have not been doewloaded
-                                                           if ( ! m_taskIsStopped )
+                                                           // if 'actionList' have not been downloaded
+                                                           if ( ! m_taskIsInterrupted )
                                                            {
                                                                m_uploadedDataSize += downloadedSize;
                                                                m_actionListIsReceived = true;
@@ -143,7 +144,7 @@ public:
                                                    m_request->m_maxDataSize - m_uploadedDataSize,
                                                    false,
                                                    "" ),
-                                               m_drive.m_sandboxRootPath,
+                                               m_drive.m_sandboxRootPath.string(),
                                                "",
                                                getUploaders(),
                                                &m_drive.m_driveKey.array(),
@@ -172,7 +173,7 @@ public:
         // Load 'actionList' into memory
         ActionList actionList;
         try {
-            actionList.deserialize( actionListFilename );
+            actionList.deserialize( actionListFilename.string() );
         } catch (...)
         {
             _LOG_WARN( "modifyDriveInSandbox: invalid 'ActionList'" << m_request->m_clientDataInfoHash );
@@ -188,7 +189,7 @@ public:
             switch (action.m_actionId)
             {
                 case action_list_id::upload:
-                    m_missedFileSet.insert( stringToHash( action.m_param1 ) );
+                    m_missedFileSet.insert( stringToByteArray<Hash256>( action.m_param1 ) );
                     break;
                 case action_list_id::new_folder:
                 case action_list_id::move:
@@ -207,7 +208,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_taskIsStopped );
+        _ASSERT( !m_taskIsInterrupted );
 
         std::optional<Hash256> fileToDownload;
 
@@ -259,8 +260,8 @@ public:
                                                                    m_request->m_maxDataSize - m_uploadedDataSize,
                                                                    true,
                                                                    "" ),
-                                                           m_drive.m_driveFolder,
-                                                           m_drive.m_torrentFolder / (toString(*fileToDownload)),
+                                                           m_drive.m_driveFolder.string(),
+                                                           (m_drive.m_torrentFolder / toString(*fileToDownload)).string(),
                                                            getUploaders(),
                                                            &m_drive.m_driveKey.array(),
                                                            nullptr,
@@ -291,10 +292,11 @@ public:
         // Load 'actionList' into memory
         ActionList actionList;
         auto actionListFilename = m_drive.m_sandboxRootPath / hashToFileName( m_request->m_clientDataInfoHash );
-        actionList.deserialize( actionListFilename );
+        actionList.deserialize( actionListFilename.string() );
 
         // Make copy of current FsTree
-        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
+        _ASSERT( m_drive.m_fsTree )
+        m_sandboxFsTree = std::make_unique<FsTree>( *m_drive.m_fsTree );
 
         auto& torrentHandleMap = m_drive.m_torrentHandleMap;
 
@@ -328,7 +330,7 @@ public:
                     try
                     {
                         size_t fileSize = std::filesystem::file_size( clientFile );
-                        auto fileHash = stringToHash(action.m_param1);
+                        auto fileHash = stringToByteArray<Hash256>( action.m_param1 );
                         
                         //
                         // add file in resultFsTree
@@ -346,8 +348,8 @@ public:
                             srcFile = fs::path( action.m_param2 ).filename();
                             destFolder = fs::path( action.m_param2 ).parent_path();
                         }
-                        m_sandboxFsTree->addFile( destFolder,
-                                                  srcFile,
+                        m_sandboxFsTree->addFile( destFolder.string(),
+                                                  srcFile.string(),
                                                   fileHash,
                                                   fileSize );
 
@@ -452,16 +454,16 @@ public:
         } // end of for( const Action& action : actionList )
 
         // create FsTree in sandbox
-        m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile );
+        m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile.string() );
 
-        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile,
+        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile.string(),
                                                m_drive.m_driveKey,
-                                               m_drive.m_sandboxRootPath,
-                                               m_drive.m_sandboxFsTreeTorrent );
+                                               m_drive.m_sandboxRootPath.string(),
+                                               m_drive.m_sandboxFsTreeTorrent.string() );
 
         getSandboxDriveSizes( m_metaFilesSize, m_sandboxDriveSize );
         m_fsTreeSize = sandboxFsTreeSize();
-        
+
         if ( m_metaFilesSize + m_sandboxDriveSize + m_fsTreeSize > m_drive.m_maxSize )
         {
             m_drive.executeOnSessionThread( [this] {
@@ -503,7 +505,7 @@ public:
     {
         DBG_MAIN_THREAD
         
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             return true;
         }
@@ -511,7 +513,7 @@ public:
         m_modifyApproveTxReceived = true;
 
         if ( m_request->m_transactionHash == transaction.m_modifyTransactionHash
-             && m_actionListIsReceived )
+             && ( m_actionListIsReceived || m_modifyIsCompletedWithError ))
         {
             if ( !m_sandboxCalculated )
             {
@@ -545,7 +547,7 @@ public:
 
     bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
     {
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             return false;
         }
@@ -564,7 +566,7 @@ public:
         DBG_MAIN_THREAD
 
         if ( m_request->m_transactionHash == transactionHash &&
-             !m_taskIsStopped &&
+             !m_taskIsInterrupted &&
              !m_modifyApproveTxReceived )
         {
             m_modifyApproveTransactionSent = false;
@@ -618,16 +620,26 @@ protected:
                                          errorText, errorCode );
         }
 
-        m_sandboxRootHash = m_drive.m_rootHash;
-        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
-        std::error_code ec;
-        fs::remove( m_drive.m_sandboxFsTreeFile, ec );
-        fs::copy( m_drive.m_fsTreeFile, m_drive.m_sandboxFsTreeFile );
-        fs::remove( m_drive.m_sandboxFsTreeTorrent, ec );
-        fs::copy( m_drive.m_fsTreeTorrent, m_drive.m_sandboxFsTreeTorrent );
-
         m_downloadingLtHandle.reset();
-        myRootHashIsCalculated();
+
+        m_modifyIsCompletedWithError = true;
+
+        m_drive.executeOnBackgroundThread([this]
+        {
+            _ASSERT( m_drive.m_fsTree )
+            m_sandboxRootHash = m_drive.m_rootHash;
+            m_sandboxFsTree = std::make_unique<FsTree>( *m_drive.m_fsTree );
+            std::error_code ec;
+            fs::remove( m_drive.m_sandboxFsTreeFile, ec );
+            fs::copy( m_drive.m_fsTreeFile, m_drive.m_sandboxFsTreeFile );
+            fs::remove( m_drive.m_sandboxFsTreeTorrent, ec );
+            fs::copy( m_drive.m_fsTreeTorrent, m_drive.m_sandboxFsTreeTorrent );
+
+            m_drive.executeOnSessionThread([this]
+            {
+                myRootHashIsCalculated();
+            });
+        });
     }
 
     const Hash256& getModificationTransactionHash() override
@@ -643,7 +655,7 @@ private:
 
         _ASSERT( m_myOpinion )
 
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             finishTask();
             return;
@@ -701,16 +713,15 @@ private:
 
         // m_drive.getReplicator()List is the list of other replicators (it does not contain our replicator)
 #ifndef MINI_SIGNATURE
-        auto replicatorNumber = m_drive.getAllReplicators().size() + 1;
+        auto replicatorNumber = (std::max(m_drive.m_replicator.getMinReplicatorsNumber(), m_drive.getAllReplicators().size() + 1) * 2) / 3;
 #else
-        auto replicatorNumber = m_drive.getAllReplicators().size();//todo++++ +1;
+        auto replicatorNumber = (m_drive.getAllReplicators().size() * 2) / 3;
 #endif
 
 // check opinion number
 
         if ( m_myOpinion &&
-                m_receivedOpinions.size() >=
-             ((replicatorNumber) * 2) / 3 &&
+             m_receivedOpinions.size() >= replicatorNumber&&
              !m_modifyApproveTransactionSent &&
              !m_modifyApproveTxReceived )
         {
@@ -780,6 +791,8 @@ private:
             fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
             fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
 
+            m_drive.m_serializer.saveRestartValue( getModificationTransactionHash().array(), "approvedModification" );
+
             auto& torrentHandleMap = m_drive.m_torrentHandleMap;
             // remove unused files and torrent files from the drive
             for ( const auto& it : torrentHandleMap )
@@ -811,8 +824,8 @@ private:
                     {
                         std::string fileName = hashToFileName( it.first );
                         it.second.m_ltHandle = session->addTorrentFileToSession(
-                                m_drive.m_torrentFolder / fileName,
-                                m_drive.m_driveFolder,
+                                (m_drive.m_torrentFolder / fileName).string(),
+                                m_drive.m_driveFolder.string(),
                                 lt::SiriusFlags::peer_is_replicator,
                                 &m_drive.m_driveKey.array(),
                                 nullptr,
@@ -826,8 +839,8 @@ private:
             // Add FsTree torrent to session
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
-                                                                            m_drive.m_fsTreeTorrent.parent_path(),
+                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent.string(),
+                                                                            m_drive.m_fsTreeTorrent.parent_path().string(),
                                                                             lt::SiriusFlags::peer_is_replicator,
                                                                             &m_drive.m_driveKey.array(),
                                                                             nullptr,

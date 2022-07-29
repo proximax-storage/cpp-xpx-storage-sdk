@@ -37,8 +37,13 @@ private:
 
     std::vector<uint64_t>                                       m_verificationCodes;
 
-    std::optional<boost::asio::high_resolution_timer>           m_verifyCodeTimer;
-    std::optional<boost::asio::high_resolution_timer>           m_verifyOpinionTimer;
+    Timer                                                       m_verifyCodeTimer;
+    Timer                                                       m_verifyOpinionTimer;
+    Timer                                                       m_shareVerifyCodeTimer;
+    Timer                                                       m_shareVerifyOpinionTimer;
+
+    std::optional<VerificationCodeInfo>                         m_myCodeInfo;
+    std::optional<VerifyApprovalTxInfo>                         m_myOpinion;
 
     std::map<std::array<uint8_t,32>, VerificationCodeInfo>      m_receivedCodes;
     std::optional<VerifyApprovalTxInfo>                         m_myVerificationApprovalTxInfo;
@@ -77,27 +82,34 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _LOG ( "Started Verification" )
+        _LOG( "Started Verification " << m_request->m_tx )
 
         m_verificationStartedAt = boost::posix_time::microsec_clock::universal_time();
 
         //
         // Run verification task on separate thread
         //
-        m_verifyThread = std::thread( [this]
-                                      {
-                                          verify();
-                                      } );
+        m_verifyThread = std::thread( [t = weak_from_this()]
+        {
+            if ( auto task = t.lock(); task )
+            {
+                task->verify();
+            }
+        } );
     }
 
     void terminate() override
     {
         DBG_MAIN_THREAD
 
-        m_verifyCodeTimer.reset();
-        m_verifyOpinionTimer.reset();
+        _LOG( "Verification Is Terminated " << m_request->m_tx )
 
-        m_verificationMustBeInterrupted = false;
+        m_verifyCodeTimer.cancel();
+        m_verifyOpinionTimer.cancel();
+        m_shareVerifyCodeTimer.cancel();
+        m_shareVerifyOpinionTimer.cancel();
+
+        m_verificationMustBeInterrupted = true;
 
         if ( m_verifyThread.joinable() )
         {
@@ -152,6 +164,13 @@ public:
         if ( keyIt == replicatorKeys.end() )
         {
             _LOG_WARN( "processVerificationCode: unknown replicatorKey" << Key(info.m_replicatorKey) );
+            return true;
+        }
+
+        if ( m_receivedCodes.contains(info.m_replicatorKey) )
+        {
+            _LOG( "Ignoring Duplicate Verification Code" );
+            return true;
         }
 
         m_receivedCodes[info.m_replicatorKey] = info;
@@ -207,7 +226,6 @@ public:
         if ( !m_myVerificationApprovalTxInfo )
         {
             m_myVerificationApprovalTxInfo = info;
-            return true;
         }
 
         _ASSERT( m_myVerificationApprovalTxInfo->m_tx == info.m_tx )
@@ -215,9 +233,17 @@ public:
         // At any case opinions with the same replicator key must be removed
         //
         auto& opinions = m_myVerificationApprovalTxInfo->m_opinions;
-        std::erase_if( opinions, [&info] (const auto& it) {
+
+        auto it = std::find_if( opinions.begin(), opinions.end(), [&info]( const auto& it )
+        {
             return it.m_publicKey == info.m_opinions[0].m_publicKey;
-        });
+        } );
+
+        if ( it != opinions.end() )
+        {
+            _LOG( "Ignoring Duplicate Verification Opinion" );
+            return true;
+        }
 
         m_myVerificationApprovalTxInfo->m_opinions.emplace_back( info.m_opinions[0] );
 
@@ -229,7 +255,9 @@ public:
                 if ( auto session = m_drive.m_session.lock(); session )
                 {
                     m_verifyOpinionTimer = session->startTimer( m_drive.m_replicator.getVerifyApprovalTransactionTimerDelay(),
-                                                                [this]() { verifyOpinionTimerExpired(); } );
+                                                                [this]() {
+                    	verifyOpinionTimerExpired();
+                    } );
                 }
             }
         }
@@ -249,6 +277,8 @@ private:
         // commented because of races
         //            DBG_VERIFY_THREAD
 
+        _LOG( "Started Verify Thread " << m_request->m_tx )
+
         m_verificationCodes = std::vector<uint64_t>(
                 m_request->m_replicators.size(), 0 );
 
@@ -262,15 +292,19 @@ private:
             m_verificationCodes[i] = initHash;
         }
 
+		_LOG( "Started Calculating Verification Codes " << m_request->m_tx );
+
         calculateVerifyCodes( *m_drive.m_fsTree );
 
+        _LOG( "Finished Calculating Verification Codes " << m_request->m_tx );
+
         m_drive.executeOnSessionThread( [t = weak_from_this()]
-                                        {
-                                            if ( auto task = t.lock(); task )
-                                            {
-                                                task->verificationCodesCompleted();
-                                            }
-                                        } );
+        {
+            if ( auto task = t.lock(); task )
+            {
+                task->verificationCodesCompleted();
+            }
+        } );
     }
 
     uint64_t calcHash64( uint64_t initValue, uint8_t* begin, uint8_t* end )
@@ -286,14 +320,7 @@ private:
             hash ^= *reinterpret_cast<uint64_t*>(ptr);
 
             // Circular Shift
-            if ( hash&0x1 )
-            {
-                hash = (hash >> 1) | 0x8000000000000000;
-            }
-            else
-            {
-                hash = (hash >> 1);
-            }
+            hash = ( hash >> 1 ) | ( hash << 63 );
         }
 
         // At the end, we process tail
@@ -305,14 +332,7 @@ private:
         }
 
         hash ^= lastValue;
-        if ( hash&0x1 )
-        {
-            hash = (hash >> 1) | 0x8000000000000000;
-        }
-        else
-        {
-            hash = (hash >> 1);
-        }
+        hash = ( hash >> 1 ) | ( hash << 63 );
 
         return hash;
     }
@@ -335,7 +355,7 @@ private:
             else
             {
                 const auto& fileHash = getFile(child).hash();
-                std::string fileName = m_drive.m_driveFolder / toString(fileHash);
+                std::string fileName = (m_drive.m_driveFolder / toString(fileHash)).string();
 
                 std::error_code err;
                 if ( !fs::exists( fileName, err ) )
@@ -369,6 +389,8 @@ private:
     {
         DBG_MAIN_THREAD
 
+        _LOG( "Verification Codes Completed " << m_request->m_tx )
+
         if ( m_verificationMustBeInterrupted )
         {
             // 'Verify Approval Tx' already published or canceled (we are late)
@@ -391,23 +413,10 @@ private:
         //
         // Prepare message
         //
-        VerificationCodeInfo info{ m_request->m_tx.array(), ourKey.array(), m_drive.m_driveKey.array(), ourCode, {} };
-        info.Sign( m_drive.m_replicator.keyPair() );
-        std::ostringstream os( std::ios::binary );
-        cereal::PortableBinaryOutputArchive archive( os );
-        archive( info );
+        m_myCodeInfo = { m_request->m_tx.array(), ourKey.array(), m_drive.m_driveKey.array(), ourCode, {} };
+        m_myCodeInfo->Sign( m_drive.m_replicator.keyPair() );
 
-        //
-        // Send message to other replicators
-        //
-        for( const auto& replicatorKey: m_request->m_replicators )
-        {
-            //TODO?            m_replicator.sendMessage( "code_verify", replicatorKey.array(), os.str() );
-            if ( replicatorKey != m_drive.m_replicator.dbgReplicatorKey() )
-            {
-                m_drive.m_replicator.sendMessage( "code_verify", replicatorKey, os.str() );
-            }
-        }
+        shareVerifyCode();
 
         checkVerifyCodeNumber();
     }
@@ -416,6 +425,8 @@ private:
     {
         DBG_MAIN_THREAD
 
+        _LOG( "Check Verify Code Number " << m_request->m_tx )
+
         _ASSERT( m_myVerifyCodesCalculated )
 
         auto replicatorNumber = m_request->m_replicators.size();
@@ -423,7 +434,7 @@ private:
         // check code number
         if ( m_receivedCodes.size() == replicatorNumber-1 )
         {
-            m_verifyCodeTimer.reset();
+            m_verifyCodeTimer.cancel();
             verifyCodeTimerExpired();
         }
         else if ( !m_codeTimerRun )
@@ -446,8 +457,10 @@ private:
 
 			if ( auto session = m_drive.m_session.lock(); session )
 			{
-				m_verifyCodeTimer = session->startTimer( codesDelay,
-														 [this]() { verifyCodeTimerExpired(); } );
+                m_verifyCodeTimer = session->startTimer( codesDelay, [this]()
+                {
+                	verifyCodeTimerExpired();
+                } );
 			}
         }
     }
@@ -456,14 +469,13 @@ private:
     {
         DBG_MAIN_THREAD
 
-        if ( m_verificationMustBeInterrupted )
-        {
-            return;
-        }
+        _LOG( "Verify Opinion Timer Expired " << m_request->m_tx )
+
+        _ASSERT( !m_verificationMustBeInterrupted )
 
         m_verifyApproveTxSent = true;
-        m_verifyCodeTimer.reset();
-        m_verifyOpinionTimer.reset();
+        m_verifyCodeTimer.cancel();
+        m_verifyOpinionTimer.cancel();
 
         m_drive.m_eventHandler.verificationTransactionIsReady( m_drive.m_replicator, *m_myVerificationApprovalTxInfo );
     }
@@ -472,16 +484,15 @@ private:
     {
         DBG_MAIN_THREAD
 
-        if ( m_verificationMustBeInterrupted )
-        {
-            return;
-        }
+        _LOG( "Verify Code Timer Expired " << m_request->m_tx )
+
+        _ASSERT( !m_verificationMustBeInterrupted )
 
         _ASSERT( m_myVerifyCodesCalculated )
         _ASSERT( !m_verifyApproveTxSent )
 
         // Prepare 'Verify Approval Tx Info'
-        VerifyApprovalTxInfo info {
+        m_myOpinion = {
             m_request->m_tx.array(),
             m_drive.m_driveKey.array(),
             m_request->m_shardId,
@@ -496,7 +507,7 @@ private:
         {
             auto& key = keyList[i].array();
 
-            if ( key == m_drive.m_replicator.dbgReplicatorKey().array() )
+            if ( key == m_drive.m_replicator.keyPair().publicKey().array() )
             {
                 myOpinion.m_opinions[i] = 1;
             }
@@ -513,25 +524,72 @@ private:
             }
         }
 
-        myOpinion.Sign( m_drive.m_replicator.keyPair(), info.m_tx, info.m_driveKey, info.m_shardId );
+        myOpinion.Sign( m_drive.m_replicator.keyPair(), m_myOpinion->m_tx, m_myOpinion->m_driveKey, m_myOpinion->m_shardId );
 
-        info.m_opinions.push_back( myOpinion );
-        _ASSERT ( processedVerificationOpinion( {info} ) );
+        m_myOpinion->m_opinions.push_back( myOpinion );
+
+        shareVerifyOpinion();
+
+        _ASSERT ( processedVerificationOpinion( {*m_myOpinion} ) );
+    }
+
+
+    void shareVerifyCode()
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_myCodeInfo )
 
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
-        archive( info );
+        archive( *m_myCodeInfo );
+
+        //
+        // Send message to other replicators
+        //
+        for( const auto& replicatorKey: m_request->m_replicators )
+        {
+            if ( replicatorKey != m_drive.m_replicator.dbgReplicatorKey() )
+            {
+                m_drive.m_replicator.sendMessage( "code_verify", replicatorKey, os.str() );
+            }
+        }
+
+        if ( auto session = m_drive.m_session.lock(); session )
+        {
+            m_shareVerifyCodeTimer = session->startTimer( m_drive.m_replicator.getVerificationShareTimerDelay(),
+                                                        [this]() {
+                shareVerifyCode();
+            } );
+        }
+    }
+
+    void shareVerifyOpinion()
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_myOpinion )
+
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( *m_myOpinion );
 
         for( const auto& replicatorKey: m_request->m_replicators )
         {
-            //TODO?            m_replicator.sendMessage( "code_verify", replicatorKey.array(), os.str() );
-            if ( replicatorKey != m_drive.m_replicator.dbgReplicatorKey() )
+            if ( replicatorKey != m_drive.m_replicator.keyPair().publicKey() )
             {
                 m_drive.m_replicator.sendMessage( "verify_opinion", replicatorKey.array(), os.str() );
             }
         }
-    }
 
+        if ( auto session = m_drive.m_session.lock(); session )
+        {
+            m_shareVerifyOpinionTimer = session->startTimer( m_drive.m_replicator.getVerificationShareTimerDelay(),
+                                                        [this]() {
+                shareVerifyOpinion();
+            } );
+        }
+    }
 };
 
 std::shared_ptr<DriveTaskBase> createDriveVerificationTask( mobj<VerificationRequest>&& request,

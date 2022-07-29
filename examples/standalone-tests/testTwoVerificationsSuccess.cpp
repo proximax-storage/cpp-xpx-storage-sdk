@@ -59,7 +59,7 @@ namespace sirius::drive::test
                                {
                                        verification,
                                        0,
-                                       env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash,
+                                       env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_modifyTransactionHash,
                                        env.m_addrList,
                                        3 * 1000, {}} );
         env.waitVerificationApproval(verification);
@@ -105,6 +105,9 @@ namespace sirius::drive::test
                                         env.m_addrList });
 
         env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS);
+
+        // Replicators should find each other
+        sleep(5);
 
         verify(env);
         verify(env);

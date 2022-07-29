@@ -29,7 +29,7 @@ namespace sirius { namespace thread { namespace detail {
 
 	/// Shared state that is shared between a promise and a future.
 	template<typename T>
-	class shared_state : utils::NonCopyable {
+	class PLUGIN_API shared_state : utils::NonCopyable {
 	private:
 		using ContinuationFunc = consumer<const std::shared_ptr<shared_state<T>>>;
 

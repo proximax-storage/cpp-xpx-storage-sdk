@@ -179,7 +179,7 @@ public:
                     }
 
                     // calculate InfoHash
-                    InfoHash infoHash = createTorrentFile( action.m_param1, drivePublicKey, fs::path(action.m_param1).parent_path(), {} );
+                    InfoHash infoHash = createTorrentFile( action.m_param1, drivePublicKey, fs::path(action.m_param1).parent_path().string(), {} );
                     __LOG( "addActionListToSession: " << infoHash << " " << action.m_param1 )
                     if ( m_modifyTorrentMap.find(infoHash) == m_modifyTorrentMap.end() )
                     {
@@ -196,7 +196,7 @@ public:
                             }
                         }
                     }
-                    action.m_filename = fs::path( action.m_param1 ).filename();
+                    action.m_filename = fs::path( action.m_param1 ).filename().string();
                     action.m_param1 = hashToFileName(infoHash);
                     break;
                 }
@@ -216,9 +216,9 @@ public:
             }
         }
 
-        newActionList.serialize( workFolder/"actionList.bin" );
+        newActionList.serialize( (workFolder/"actionList.bin").string() );
 
-        InfoHash infoHash0 = createTorrentFile( workFolder/"actionList.bin", drivePublicKey, workFolder, {} );
+        InfoHash infoHash0 = createTorrentFile( (workFolder/"actionList.bin").string(), drivePublicKey, workFolder.string(), {} );
 
         if ( m_modifyTorrentMap.find(infoHash0) == m_modifyTorrentMap.end() )
         {
@@ -234,10 +234,10 @@ public:
                 throw std::runtime_error( "Internal error: fs::rename( workFolder/actionList.bin, filenameInSandbox );" );
             }
 
-            InfoHash infoHash2 = createTorrentFile( filenameInSandbox, drivePublicKey, workFolder, torrentFilenameInSandbox );
+            InfoHash infoHash2 = createTorrentFile( filenameInSandbox.string(), drivePublicKey, workFolder.string(), torrentFilenameInSandbox.string() );
             uint64_t totalSize = 0;
-            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox,
-                                                                          workFolder,
+            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox.string(),
+                                                                          workFolder.string(),
                                                                           lt::SiriusFlags::client_has_modify_data,
                                                                           &infoHash0.array(),
                                                                           nullptr,
@@ -254,19 +254,19 @@ public:
             {
                 case action_list_id::upload:
                 {
-                    InfoHash infoHash = stringToHash( action.m_param1 );
+                    InfoHash infoHash = stringToByteArray<Hash256>( action.m_param1 );
                     if ( m_modifyTorrentMap.find(infoHash) == m_modifyTorrentMap.end() )
                     {
                         fs::path filenameInSandbox = workFolder/action.m_param1;
                         fs::path torrentFilenameInSandbox = filenameInSandbox;
                         torrentFilenameInSandbox.replace_extension(".torrent");
 
-                        InfoHash infoHash2 = createTorrentFile( filenameInSandbox, drivePublicKey, workFolder, torrentFilenameInSandbox );
+                        InfoHash infoHash2 = createTorrentFile( filenameInSandbox.string(), drivePublicKey, workFolder.string(), torrentFilenameInSandbox.string() );
                         __ASSERT( infoHash == infoHash2 );
                         
                         uint64_t totalSize = 0;
-                        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox,
-                                                                                      workFolder,
+                        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox.string(),
+                                                                                      workFolder.string(),
                                                                                       lt::SiriusFlags::client_has_modify_data,
                                                                                       &infoHash0.array(),
                                                                                       nullptr,

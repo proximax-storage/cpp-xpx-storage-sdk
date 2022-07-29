@@ -58,6 +58,13 @@ public:
     {
         DBG_MAIN_THREAD
 
+        if ( m_drive.m_lastApprovedModification == m_request->m_modifyTransactionHash )
+        {
+            _ASSERT( m_drive.m_rootHash == m_request->m_rootHash );
+            finishTask();
+            return;
+        }
+
         if ( ! m_opinionController.opinionTrafficTx() )
         {
             m_opinionController.setOpinionTrafficTx( m_request->m_modifyTransactionHash.array() );
@@ -73,7 +80,8 @@ public:
             {
                 m_sandboxRootHash = m_request->m_rootHash;
                 m_sandboxRootHash = m_drive.m_rootHash;
-                m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
+                m_sandboxFsTree = std::make_unique<FsTree>();
+                m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile.string() );
                 std::error_code ec;
                 fs::remove( m_drive.m_sandboxFsTreeFile, ec );
                 fs::copy( m_drive.m_fsTreeFile, m_drive.m_sandboxFsTreeFile );
@@ -104,7 +112,7 @@ public:
                            {
                                DBG_MAIN_THREAD
 
-                               _ASSERT( !m_taskIsStopped );
+                               _ASSERT( !m_taskIsInterrupted );
 
                                if ( code == download_status::dn_failed )
                                {
@@ -117,15 +125,31 @@ public:
                                {
                                    m_sandboxRootHash = infoHash;
                                    m_downloadingLtHandle.reset();
-                                   createUnusedFileList();
+                                   m_drive.executeOnBackgroundThread([this] {
+                                       try
+                                       {
+                                           m_sandboxFsTree = std::make_unique<FsTree>();
+                                           m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile.string() );
+                                           m_sandboxFsTree->dbgPrint();
+                                       }
+                                       catch (...)
+                                       {
+                                           _LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
+                                           return;
+                                       }
+
+                                       m_drive.executeOnSessionThread([this] {
+                                           createUnusedFileList();
+                                       });
+                                   });
                                }
                            },
                            m_request->m_rootHash,
                            *m_opinionController.opinionTrafficTx(),
                            0, true, m_drive.m_sandboxFsTreeFile
                    ),
-                   m_drive.m_sandboxRootPath,
-                   m_drive.m_sandboxFsTreeTorrent,
+                   m_drive.m_sandboxRootPath.string(),
+                   m_drive.m_sandboxFsTreeTorrent.string(),
                    getUploaders(),
                    &m_drive.m_driveKey.array(),
                    nullptr,
@@ -133,23 +157,30 @@ public:
             m_drive.m_torrentHandleMap[m_request->m_rootHash] = { *m_downloadingLtHandle, false };
         }
     }
-    
+
+    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override {
+
+        DBG_MAIN_THREAD
+
+        // It is a very rare situation:
+        // After the initialization we are running the task
+        // Without actually need to catch up
+        // During the task is beeing finished the cancel is requested
+        if ( cancelRequest.m_modifyTransactionHash == m_opinionController.notApprovedModificationId() )
+        {
+            _ASSERT( cancelRequest.m_modifyTransactionHash != m_request->m_modifyTransactionHash )
+            _ASSERT( m_drive.m_lastApprovedModification == m_request->m_modifyTransactionHash )
+            return true;
+        }
+
+        return false;
+    }
+
     void createUnusedFileList()
     {
         DBG_MAIN_THREAD
-        
-        try
-        {
-			// TODO do not read file on main thread
 
-			m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile );
-            m_sandboxFsTree->dbgPrint();
-        }
-        catch (...)
-        {
-            _LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
-            return;
-        }
+        _ASSERT( m_sandboxFsTree )
 
         //
         // Create list/set of unused files
@@ -182,8 +213,6 @@ public:
         // Remove unused torrents
         if ( auto session = m_drive.m_session.lock(); session )
         {
-            m_drive.m_isRemovingUnusedTorrents = true;
-            
             session->removeTorrentsFromSession( toBeRemovedTorrents, [this]
             {
                 std::set<InfoHash> filesToRemove;
@@ -225,13 +254,11 @@ public:
         // remove unused data from 'fileMap'
         std::erase_if( m_drive.m_torrentHandleMap, [] (const auto& it) { return ! it.second.m_isUsed; } );
 
-        m_drive.m_isRemovingUnusedTorrents = false;
-
         m_drive.executeOnSessionThread( [this]
         {
-            if ( m_drive.m_isWaitingNextTask )
+            if ( m_taskIsInterrupted )
             {
-                breakTorrentDownloadAndRunNextTask();
+                finishTask();
             }
             else
             {
@@ -247,17 +274,7 @@ public:
         _LOG( "startDownloadMissingFiles: " << m_downloadingLtHandle->id() << " "
                                                                        << m_downloadingLtHandle->info_hashes().v2 );
 
-        //
-        // Deserialize FsTree
-        //
-        try
-        {
-            m_sandboxFsTree->deserialize( m_drive.m_sandboxFsTreeFile );
-        }
-        catch (...)
-        {
-            _LOG_ERR( "cannot deserialize 'CatchingUpFsTree'" );
-        }
+        _ASSERT( m_sandboxFsTree )
 
         //
         // Prepare missing list and start download
@@ -296,7 +313,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_taskIsStopped );
+        _ASSERT( !m_taskIsInterrupted );
 
         if ( m_catchingUpFileIt == m_catchingUpFileSet.end())
         {
@@ -342,8 +359,8 @@ public:
                                                                *m_opinionController.opinionTrafficTx(),
                                                                0, true, ""
                                                            ),
-                                                           m_drive.m_driveFolder,
-                                                           m_drive.m_torrentFolder / (toString(missingFileHash)),
+                                                           m_drive.m_driveFolder.string(),
+                                                           (m_drive.m_torrentFolder / toString(missingFileHash)).string(),
                                                            getUploaders(),
                                                            &m_drive.m_driveKey.array(),
                                                            nullptr,
@@ -360,15 +377,6 @@ public:
     {
         DBG_BG_THREAD
 
-//        // create FsTree in sandbox
-//        m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile );
-//
-//        //(???+++++)
-//        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile,
-//                                               m_drive.m_driveKey,
-//                                               m_drive.m_sandboxRootPath,
-//                                               m_drive.m_sandboxFsTreeTorrent );
-
         getSandboxDriveSizes( m_metaFilesSize, m_sandboxDriveSize );
         m_fsTreeSize = sandboxFsTreeSize();
 
@@ -383,7 +391,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             return true;
         }
@@ -419,6 +427,8 @@ public:
             fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
             fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
 
+            m_drive.m_serializer.saveRestartValue( getModificationTransactionHash().array(), "approvedModification" );
+
             auto& torrentHandleMap = m_drive.m_torrentHandleMap;
 
             // remove unused files and torrent files from the drive
@@ -437,8 +447,8 @@ public:
             // Add FsTree torrent to session
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
-                                                                            m_drive.m_fsTreeTorrent.parent_path(),
+                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent.string(),
+                                                                            m_drive.m_fsTreeTorrent.parent_path().string(),
                                                                             lt::SiriusFlags::peer_is_replicator,
                                                                             &m_drive.m_driveKey.array(),
                                                                             nullptr,
@@ -469,7 +479,7 @@ public:
 
         _ASSERT( m_myOpinion )
 
-        if ( m_taskIsStopped )
+        if ( m_taskIsInterrupted )
         {
             finishTask();
             return;

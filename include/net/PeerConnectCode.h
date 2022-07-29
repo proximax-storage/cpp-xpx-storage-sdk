@@ -47,5 +47,5 @@ namespace sirius { namespace net {
 #undef ENUM_VALUE
 
 	/// Insertion operator for outputting \a value to \a out.
-	std::ostream& operator<<(std::ostream& out, PeerConnectCode value);
+	PLUGIN_API std::ostream& operator<<(std::ostream& out, PeerConnectCode value);
 }}

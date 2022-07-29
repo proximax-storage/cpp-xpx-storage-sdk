@@ -664,6 +664,7 @@ int main(int,char**)
     replicatorKeys.push_back( gReplicator2->dbgReplicatorKey() );
     replicatorKeys.push_back( gReplicator3->dbgReplicatorKey() );
 
+    // TODO Modify Tx Must be here instead of actual root hash
 //    gReplicator->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
 //    gReplicator2->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
 //    gReplicator3->asyncStartDriveVerification( DRIVE_PUB_KEY, {VerificationRequest{ verifyTx,0,actualRootHash,replicatorKeys,1000}} );
@@ -808,7 +809,7 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->setVerifyApprovalTransactionTimerDelay(1);
     replicator->start();
 //    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100,         0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
-    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100*1024*1024, 0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
+    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100*1024*1024, 0, {}, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
 
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash1.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );

@@ -36,7 +36,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_opinionTaskController.disapproveCumulativeUploads([this] {
+        m_opinionTaskController.disapproveCumulativeUploads( m_request->m_modifyTransactionHash, [this] {
             onCumulativeUploadsDisapproved();
         });
     }

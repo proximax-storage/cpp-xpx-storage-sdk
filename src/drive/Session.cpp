@@ -51,7 +51,7 @@ namespace fs = std::filesystem;
 
 namespace sirius::drive {
 
-enum { PIECE_SIZE = 16*1024 };
+enum { PIECE_SIZE = 0 };
 
 // Libtorrent "ClientData"
 //
@@ -72,7 +72,7 @@ struct LtClientData
 
     uint64_t                        m_downloadLimit       = 0;
     uint64_t                        m_uploadedDataSize    = 0;
-    bool                            m_limitIsExceeded     = false;
+    bool                            m_invalidMetadata     = false;
     
     bool                            m_isRemoved           = false;
 };
@@ -82,7 +82,9 @@ struct LtClientData
 //
 class DefaultSession: public Session, std::enable_shared_from_this<DefaultSession>
 {
-    bool                    m_ownerIsReplicator = true;
+	const int64_t			m_maxTotalSize = 256LL * 1024LL * 1024LL * 1024LL; // 256GB
+
+	bool                    m_ownerIsReplicator = true;
     
     std::string             m_addressAndPort;
     lt::session             m_session;
@@ -190,7 +192,7 @@ public:
         
         auto& contextVector = userdata->m_dnContexts;
 
-        if ( ! contextVector.empty() && ! userdata->m_limitIsExceeded )
+        if ( ! contextVector.empty() && ! userdata->m_invalidMetadata )
         {
             fs::path srcFilePath = fs::path(userdata->m_saveFolder) / hashToFileName( contextVector[0].m_infoHash );
 
@@ -420,7 +422,7 @@ public:
 //        }
 
         params.storage_mode     = lt::storage_mode_sparse;
-        params.save_path        = fs::path(folderWhereFileIsLocated);
+        params.save_path        = fs::path(folderWhereFileIsLocated).string();
         params.ti               = std::make_shared<lt::torrent_info>( buffer, lt::from_span );
         params.m_siriusFlags    = siriusFlags;
         if ( driveKey )
@@ -734,7 +736,7 @@ public:
 //        }
     }
     
-    virtual std::optional<boost::asio::high_resolution_timer> startTimer( int miliseconds, const std::function<void()>& func ) override
+    virtual Timer startTimer( int milliseconds, std::function<void()> func ) override
     {
         auto delegate = m_downloadLimiter.lock();
         if ( !delegate || delegate->isStopped() )
@@ -742,17 +744,7 @@ public:
             return {};
         }
 
-        boost::asio::high_resolution_timer timer( m_session.get_context() );
-        
-        timer.expires_after( std::chrono::milliseconds( miliseconds ) );
-        timer.async_wait( [func=func] (boost::system::error_code const& e) {
-            if ( !e )
-            {
-                func();
-            }
-        });
-        
-        return timer;
+        return { m_session.get_context(), milliseconds, std::move( func ) };
     }
 
 
@@ -791,7 +783,7 @@ private:
         std::vector<char> buffer;
         bencode(std::back_inserter(buffer), te);
 
-        if ( FILE* f = fopen( userdata->m_saveTorrentFilename.c_str(), "wb+" ); f )
+        if ( FILE* f = fopen( userdata->m_saveTorrentFilename.string().c_str(), "wb+" ); f )
         {
             fwrite( &buffer[0], 1, buffer.size(), f );
             fclose(f);
@@ -919,29 +911,51 @@ private:
                     if ( theAlert->handle.is_valid() && theAlert->handle.userdata().get<LtClientData>() != nullptr )
                     {
                         auto userdata = theAlert->handle.userdata().get<LtClientData>();
-                        
-                        if ( userdata != nullptr )
+
+                        std::optional<std::string> errorText;
+
+                        auto torrentInfo = theAlert->handle.torrent_file();
+
+						if (torrentInfo->total_size() > m_maxTotalSize) {
+							errorText = "Max Total Size Exceeded";
+							_LOG( "+**** Max Total Size Exceeded: " << torrentInfo->total_size() );
+						}
+
+						if ( !errorText )
+						{
+							auto expectedPieceSize = lt::create_torrent::automatic_piece_size(torrentInfo->total_size());
+							auto actualPieceSize = torrentInfo->piece_length();
+
+							if (expectedPieceSize != actualPieceSize) {
+								errorText = "Invalid Piece Size";
+								_LOG( "+**** Invalid Piece Size: " << actualPieceSize << " " << expectedPieceSize );
+							}
+						}
+
+                        if ( !errorText )
                         {
                             int64_t downloadLimit = (userdata->m_dnContexts.size() == 0) ? 0 : userdata->m_dnContexts.front().m_downloadLimit;
                             userdata->m_uploadedDataSize = theAlert->handle.torrent_file()->total_size();
 
-                            bool limitIsExceeded = downloadLimit != 0 && downloadLimit < theAlert->handle.torrent_file()->total_size();
-                            //_LOG( "+**** limitIsExceeded?: " << downloadLimit << " " << theAlert->handle.torrent_file()->total_size() );
-                            if ( limitIsExceeded )
-                            {
-                                _LOG( "+**** limitIsExceeded: " << theAlert->handle.torrent_file()->total_size() );
-                                m_session.remove_torrent( theAlert->handle, lt::session::delete_files );
-
-                                userdata->m_limitIsExceeded = true;
-                                _ASSERT( userdata->m_dnContexts.size()==1 )
-                                userdata->m_dnContexts.front().m_downloadNotification(
-                                                                    download_status::code::dn_failed,
-                                                                    userdata->m_dnContexts.front().m_infoHash,
-                                                                    userdata->m_dnContexts.front().m_saveAs,
-                                                                    userdata->m_uploadedDataSize,
-                                                                    0,
-                                                                    "Limit Is Exceeded" );
+                            if ( downloadLimit != 0 && downloadLimit < torrentInfo->total_size() ) {
+                                errorText = "Limit Is Exceeded";
+                                _LOG( "+**** limitIsExceeded: " << torrentInfo->total_size() );
                             }
+                        }
+
+                        if ( errorText )
+                        {
+                            m_session.remove_torrent( theAlert->handle, lt::session::delete_files );
+
+                            userdata->m_invalidMetadata = true;
+                            _ASSERT( userdata->m_dnContexts.size()==1 )
+                            userdata->m_dnContexts.front().m_downloadNotification(
+                                                                download_status::code::dn_failed,
+                                                                userdata->m_dnContexts.front().m_infoHash,
+                                                                userdata->m_dnContexts.front().m_saveAs,
+                                                                userdata->m_uploadedDataSize,
+                                                                0,
+                                                                *errorText);
                         }
                     }
                     
@@ -1399,7 +1413,7 @@ InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
 
     // calculate hashes
     lt::error_code ec;
-    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path() );
+    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path().string() );
     if ( ec )
     {
         throw std::runtime_error( std::string("moveFileToFlatDrive: libtorrent error: ") + ec.message() );
@@ -1487,7 +1501,7 @@ InfoHash calculateInfoHash( const std::string& pathToFile, const Key& drivePubli
 
     // calculate hashes
     lt::error_code ec;
-    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path() );
+    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path().string() );
     if ( ec )
     {
         throw std::runtime_error( std::string("moveFileToFlatDrive: libtorrent error: ") + ec.message() );

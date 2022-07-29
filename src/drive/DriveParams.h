@@ -54,7 +54,7 @@ public:
     {}
 
     template<class T>
-    void saveRestartValue( T& value, std::string path ) const
+    void saveRestartValue( const T& value, std::string path ) const
     {
         DBG_BG_THREAD
 
@@ -64,17 +64,17 @@ public:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( value );
 
-        saveRestartData( m_restartRootPath / path, os.str());
+        saveRestartData( (fs::path(m_restartRootPath) / path).string(), os.str());
     }
 
     template<class T>
-    bool loadRestartValue( T& value, std::string path ) const
+    bool loadRestartValue( T& value, const std::string& path ) const
     {
         DBG_BG_THREAD
 
         std::string data;
 
-        if ( !loadRestartData( m_restartRootPath / path, data ))
+        if ( !loadRestartData( (fs::path(m_restartRootPath) / path).string(), data ))
         {
             return false;
         }
@@ -92,7 +92,7 @@ public:
 
 private:
 
-    void saveRestartData( std::string outputFile, const std::string data ) const
+    void saveRestartData( const std::string& outputFile, const std::string& data ) const
     {
         try
         {
@@ -111,7 +111,7 @@ private:
         }
     }
 
-    bool loadRestartData( std::string outputFile, std::string& data ) const
+    bool loadRestartData( const std::string& outputFile, std::string& data ) const
     {
         std::error_code err;
 
@@ -232,15 +232,13 @@ public:
     // and for deleting unused files and torrents from session
     //
     std::map<InfoHash, UseTorrentInfo> m_torrentHandleMap;
-    
-    bool                               m_isRemovingUnusedTorrents = false;
-    bool                               m_isWaitingNextTask        = false;
 
     //
     // Drive state
     //
 
-    InfoHash m_rootHash;
+    InfoHash                m_rootHash;
+    Hash256                 m_lastApprovedModification;
 
     // FsTree
     std::unique_ptr<FsTree> m_fsTree;
@@ -286,6 +284,10 @@ protected:
 public:
 
     virtual const ReplicatorList& getAllReplicators() const = 0;
+
+    virtual const ReplicatorList& getDonatorShard() const = 0;
+
+    virtual void  cancelModifyDrive( mobj<ModificationCancelRequest>&& request ) = 0;
 
     virtual void runNextTask() = 0;
     

@@ -115,7 +115,7 @@ bool Folder::initWithFolder( const std::string& pathToFolder ) try {
 #endif
 
     m_childs.clear();
-    m_name = fs::path(pathToFolder).filename();
+    m_name = fs::path(pathToFolder).filename().string();
     
     for (const auto& entry : std::filesystem::directory_iterator(pathToFolder)) {
 
@@ -126,7 +126,7 @@ bool Folder::initWithFolder( const std::string& pathToFolder ) try {
 
             Folder subfolder{entryName};
 
-            if ( !subfolder.initWithFolder( fs::path(pathToFolder) / entryName ) )
+            if ( !subfolder.initWithFolder( (fs::path(pathToFolder) / entryName).string() ) )
                 return false;
 
             m_childs.push_front( subfolder );
@@ -174,6 +174,20 @@ void Folder::getSizes( const fs::path& driveFolder, const fs::path& torrentFolde
             std::cout << "tname: " << torrentFolder / toString(fileHash) << "\n" << std::flush;
             metaFilesSize += fs::file_size( torrentFolder / toString(fileHash) );
             filesSize += fs::file_size( driveFolder / toString(fileHash) );
+        }
+    }
+}
+
+void Folder::getUniqueFiles( std::set<InfoHash>& files ) const
+{
+    for( auto it = m_childs.begin(); it != m_childs.end(); it++ )
+    {
+        if ( isFolder(*it) ) {
+            getFolder(*it).getUniqueFiles( files );
+        }
+        else {
+            const auto& fileHash = getFile(*it).hash();
+            files.insert( fileHash );
         }
     }
 }
@@ -354,14 +368,14 @@ bool FsTree::move( const std::string& srcPathAndName, const std::string& destPat
 
     fs::path destPath( destPathAndName );
     std::string destFilename = destPath.filename().string();
-    Folder* destParentFolder = getFolderPtr( destPath.parent_path() );
+    Folder* destParentFolder = getFolderPtr( destPath.parent_path().string() );
 
     // create destination parent folder if not exists
     if ( destParentFolder == nullptr )
     {
-        if ( !addFolder( destPath.parent_path() ) )
+        if ( !addFolder( destPath.parent_path().string() ) )
             return false;
-        destParentFolder = getFolderPtr( destPath.parent_path(), true );
+        destParentFolder = getFolderPtr( destPath.parent_path().string(), true );
     }
 
     auto destIt = destParentFolder->findChildIt( destFilename );
@@ -424,7 +438,7 @@ bool FsTree::moveFlat( const std::string& srcPathAndName,
 
    fs::path destPath( destPathAndName );
    std::string destFilename = destPath.filename().string();
-   Folder* destParentFolder = getFolderPtr( destPath.parent_path() );
+   Folder* destParentFolder = getFolderPtr( destPath.parent_path().string() );
 
     Folder::Child destChild = *srcIt;
     if ( isFolder(destChild) )
@@ -439,9 +453,9 @@ bool FsTree::moveFlat( const std::string& srcPathAndName,
    // create destination parent folder if not exists
    if ( destParentFolder == nullptr )
    {
-       if ( !addFolder( destPath.parent_path() ) )
+       if ( !addFolder( destPath.parent_path().string() ) )
            return false;
-       destParentFolder = getFolderPtr( destPath.parent_path(), true );
+       destParentFolder = getFolderPtr( destPath.parent_path().string(), true );
    }
 
    // remove dest entry if exists
@@ -472,13 +486,13 @@ Folder::Child* FsTree::getEntryPtr( const std::string& pathStr )
     Folder* parentFolder = this;
     if ( !path.parent_path().empty() )
     {
-        parentFolder = getFolderPtr( path.parent_path() );
+        parentFolder = getFolderPtr( path.parent_path().string() );
     }
 
     if ( parentFolder == nullptr )
         return nullptr;
 
-    return parentFolder->findChild( path.filename() );
+    return parentFolder->findChild( path.filename().string() );
 }
 
 // getFolderPtr

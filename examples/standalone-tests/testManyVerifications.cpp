@@ -12,7 +12,7 @@ namespace sirius::drive::test
 {
 
     /// change this macro for your test
-#define TEST_NAME VerificationCancel
+#define TEST_NAME ManyVerifications
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -85,35 +85,18 @@ namespace sirius::drive::test
         // Replicators should find each other
         sleep(5);
 
-        auto verificationFirst = randomByteArray<Hash256>();
-        env.startVerification( DRIVE_PUB_KEY,
-                               {
-                                       verificationFirst,
-                                       0,
-                                       env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_modifyTransactionHash,
-                                       env.m_addrList,
-                                       3 * 1000, {}} );
-        env.cancelVerification(DRIVE_PUB_KEY, verificationFirst);
-
-        auto verificationSecond = randomByteArray<Hash256>();
-        env.startVerification( DRIVE_PUB_KEY,
-                               {
-                                       verificationSecond,
-                                       0,
-                                       env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_modifyTransactionHash,
-                                       env.m_addrList,
-                                       3 * 1000, {}} );
-        env.waitVerificationApproval(verificationSecond);
-
-        ASSERT_FALSE(env.m_verifyApprovalTransactionInfo.contains(verificationFirst));
-
-        const auto& verify_tx = env.m_verifyApprovalTransactionInfo[verificationSecond];
-        for ( const auto& opinion: verify_tx.m_opinions )
+        for ( int i = 0; i < 10000; i++ )
         {
-            for ( const auto& res: opinion.m_opinions )
-            {
-                EXPECT_EQ(res, 1);
-            }
+            auto verification = randomByteArray<Hash256>();
+            env.startVerification( DRIVE_PUB_KEY,
+                                   {
+                verification,
+                0,
+                env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash,
+                env.m_addrList,
+                10 * 60 * 1000, {}} );
+            std::this_thread::sleep_for( std::chrono::milliseconds( rand() % 500 ) );
+            env.cancelVerification( DRIVE_PUB_KEY, verification );
         }
     }
 

@@ -39,7 +39,9 @@ public:
 
     AddDriveRequest m_driveRequest;
     std::deque<ModificationRequest> m_pendingModifications;
+    std::optional<VerificationRequest> m_pendingVerification;
     std::optional<ApprovalTransactionInfo> m_lastApprovedModification;
+    std::map<Key, std::vector<KeyAndBytes>> m_uploads;
 };
 
 class TestEnvironment : public ReplicatorEventHandler, DbgReplicatorEventHandler
@@ -53,6 +55,10 @@ public:
     std::map<Hash256, std::condition_variable> modifyCompleteCondVars;
     std::map<Hash256, int> modifyCompleteCounters;
     std::mutex modifyCompleteMutex;
+
+    std::map<Key, std::condition_variable> m_driveIsInitializedCondVars;
+    std::map<Key, int> m_driveIsInitializedCounters;
+    std::mutex m_driveIsInitializedMutex;
 
     std::map<Hash256, std::condition_variable> m_rootHashCalculatedCondVars;
     std::map<Hash256, int> m_rootHashCalculatedCounters;
@@ -138,6 +144,7 @@ public:
                 replicator->setDownloadApprovalTransactionTimerDelay( modifyApprovalDelay );
                 replicator->setModifyApprovalTransactionTimerDelay( downloadApprovalDelay );
                 replicator->start();
+                replicator->asyncInitializationFinished();
                 m_replicators.emplace_back( replicator );
             } else
             {
@@ -194,12 +201,17 @@ public:
                     {
                         replicator->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*drive.m_lastApprovedModification) );
                     }
+                    if ( drive.m_pendingVerification )
+                    {
+                        replicator->asyncStartDriveVerification(key, *drive.m_pendingVerification);
+                    }
                     for ( const auto& modification: drive.m_pendingModifications )
                     {
                         replicator->asyncModify( key, modification );
                     }
                 }
             }
+            replicator->asyncInitializationFinished();
         }
     }
 
@@ -219,7 +231,7 @@ public:
         {
             replicators = m_addrList;
         }
-        m_drives[driveKey] = { {driveSize, 0, replicators, client, replicators, replicators}, {}, {}};
+        m_drives[driveKey] = { {driveSize, 0, {}, replicators, client, replicators, replicators}, {}, {}, {}, {}};
         for ( auto& key: replicators )
         {
             auto replicator = getReplicator( key );
@@ -362,6 +374,9 @@ public:
     virtual void cancelModification( const Key& driveKey, const Hash256& transactionHash )
     {
         const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+
+        m_drives[driveKey].m_driveRequest.m_completedModifications.push_back( {transactionHash, CompletedModification::CompletedModificationStatus::CANCELLED} );
+
         std::erase_if( m_drives[driveKey].m_pendingModifications, [&]( const auto& item )
         {
             return item.m_transactionHash == transactionHash;
@@ -378,7 +393,11 @@ public:
 
     virtual void startVerification( const Key& driveKey, const VerificationRequest& request )
     {
-        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        auto& drive = m_drives[driveKey];
+        ASSERT_FALSE( drive.m_pendingVerification );
+        drive.m_pendingVerification = request;
+        for ( auto& key: drive.m_driveRequest.m_fullReplicatorList )
         {
             auto replicator = getReplicator( key );
             if ( replicator )
@@ -390,6 +409,13 @@ public:
 
     virtual void cancelVerification( const Key& driveKey, const Hash256& request )
     {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        auto& drive = m_drives[driveKey];
+        if ( !drive.m_pendingVerification || drive.m_pendingVerification->m_tx != request )
+        {
+            return;
+        }
+        drive.m_pendingVerification.reset();
         for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
         {
             auto replicator = getReplicator( key );
@@ -433,6 +459,12 @@ public:
                                                  const VerifyApprovalTxInfo& info ) override
     {
         const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        auto& drive = m_drives[info.m_driveKey];
+        if ( !drive.m_pendingVerification || drive.m_pendingVerification->m_tx != info.m_tx )
+        {
+            return;
+        }
+        drive.m_pendingVerification.reset();
         if ( !m_verifyApprovalTransactionInfo.contains( info.m_tx ))
         {
             m_verifyApprovalTransactionInfo[info.m_tx] = info;
@@ -459,6 +491,15 @@ public:
         m_rootHashCalculatedCondVars[modifyTransactionHash].notify_all();
     }
 
+    void driveIsInitialized( Replicator& replicator, const Key& driveKey, const InfoHash& rootHash ) override {
+        EXLOG( "DriveIsInitialized: " << replicator.dbgReplicatorName());
+        std::unique_lock<std::mutex> lock( m_driveIsInitializedMutex );
+        m_driveIsInitializedCounters[driveKey]++;
+        m_driveIsInitializedCondVars[driveKey].notify_all();
+    }
+
+public:
+
     // It will be called when transaction could not be completed
     virtual void modifyTransactionEndedWithError( Replicator& replicator,
                                                   const sirius::Key& driveKey,
@@ -474,7 +515,9 @@ public:
         EXLOG( "modifyApprovalTransactionIsReady: " << replicator.dbgReplicatorName());
         const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
 
-        if ( m_drives[transactionInfo.m_driveKey].m_pendingModifications.front().m_transactionHash == transactionInfo.m_modifyTransactionHash )
+        auto& pendingModifications = m_drives[transactionInfo.m_driveKey].m_pendingModifications;
+
+        if ( !pendingModifications.empty() && pendingModifications.front().m_transactionHash == transactionInfo.m_modifyTransactionHash )
         {
 
             const auto & replicators = m_drives[transactionInfo.m_driveKey].m_driveRequest.m_fullReplicatorList;
@@ -512,13 +555,39 @@ public:
             m_drives[transactionInfo.m_driveKey].m_driveRequest.m_expectedCumulativeDownloadSize
                     += m_drives[transactionInfo.m_driveKey].m_pendingModifications.front().m_maxDataSize;
             m_drives[transactionInfo.m_driveKey].m_pendingModifications.pop_front();
+
+            auto& drive = m_drives[transactionInfo.m_driveKey];
+
+            for ( const auto& opinion: transactionInfo.m_opinions )
+            {
+                auto it = drive.m_uploads.find(opinion.m_replicatorKey);
+
+                if ( it != drive.m_uploads.end() )
+                {
+                    const auto& initialOpinions = opinion.m_uploadLayout;
+                    for ( const auto& [key, bytes]: initialOpinions )
+                    {
+                        auto replicatorKey = key;
+                        auto opinionIt = std::find_if( it->second.begin(),
+                                                    it->second.end(),
+                                                    [&] (const auto& item) { return item.m_key == replicatorKey; });
+
+                        if ( opinionIt != it->second.end() )
+                        {
+                            ASSERT_LE( opinionIt->m_uploadedBytes, bytes );
+                        }
+                    }
+                }
+                drive.m_uploads[opinion.m_replicatorKey] = opinion.m_uploadLayout;
+            }
+
             m_drives[transactionInfo.m_driveKey].m_lastApprovedModification = transactionInfo;
             m_rootHashes[m_drives[transactionInfo.m_driveKey].m_lastApprovedModification->m_modifyTransactionHash] = transactionInfo.m_rootHash;
             for ( auto& key: m_drives[transactionInfo.m_driveKey].m_driveRequest.m_fullReplicatorList )
             {
                 if ( auto r = getReplicator( key ); r )
                 {
-                    r->asyncApprovalTransactionHasBeenPublished(
+                   r->asyncApprovalTransactionHasBeenPublished(
                         PublishedModificationApprovalTransactionInfo( transactionInfo ));
                 }
             }
@@ -559,7 +628,30 @@ public:
             EXLOG( "modifySingleApprovalTransactionIsReady: " << replicator.dbgReplicatorName()
                                                               << " "
                                                               << toString( transactionInfo.m_modifyTransactionHash ));
-            replicator.asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo(transactionInfo) );
+
+            auto& drive = m_drives[transactionInfo.m_driveKey];
+            for ( const auto& opinion: transactionInfo.m_opinions )
+            {
+                auto it = drive.m_uploads.find(opinion.m_replicatorKey);
+
+                if ( it != drive.m_uploads.end() )
+                {
+                    const auto& initialOpinions = opinion.m_uploadLayout;
+                    for ( const auto& [key, bytes]: initialOpinions )
+                    {
+                        auto replicatorKey = key;
+                        auto opinionIt = std::find_if( it->second.begin(),
+                                                       it->second.end(),
+                                                       [&] (const auto& item) { return item.m_key == replicatorKey; });
+
+                        if ( opinionIt != it->second.end() )
+                        {
+                            ASSERT_LE( opinionIt->m_uploadedBytes, bytes );
+                        }
+                    }
+                }
+                drive.m_uploads[opinion.m_replicatorKey] = opinion.m_uploadLayout;
+            }
 
             ASSERT_EQ( transactionInfo.m_opinions.size(), 1 );
 
@@ -595,6 +687,10 @@ public:
                 EXLOG( str.str());
             }
             ASSERT_EQ( m_modificationSizes[transactionInfo.m_modifyTransactionHash].size(), 1 );
+
+            EXLOG( "Single Size " << *m_modificationSizes[transactionInfo.m_modifyTransactionHash].begin() );
+
+            replicator.asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo(transactionInfo) );
         }
     };
 
@@ -633,6 +729,15 @@ public:
     void downloadOpinionHasBeenReceived( Replicator& replicator, const DownloadApprovalTransactionInfo& info ) override
     {
         replicator.asyncOnDownloadOpinionReceived( info );
+    }
+
+    void waitDriveIsInitialized( const Key& driveKey, int number )
+    {
+        std::unique_lock<std::mutex> lock( m_rootHashCalculatedMutex );
+        m_driveIsInitializedCondVars[driveKey].wait( lock, [this, driveKey, number]
+        {
+            return m_driveIsInitializedCounters[driveKey] == number;
+        } );
     }
 
     void waitRootHashCalculated( const Hash256& modification, int number )

@@ -8,6 +8,7 @@
 #include "types.h"
 #include "drive/ActionList.h"
 #include "drive/log.h"
+#include "Timer.h"
 
 #include "crypto/Signer.h"
 
@@ -178,7 +179,7 @@ public:
     virtual void      onTorrentDeleted( lt::torrent_handle handle ) = 0;
 
 
-    virtual std::optional<boost::asio::high_resolution_timer> startTimer( int miliseconds, const std::function<void()>& func ) = 0;
+    virtual Timer startTimer( int milliseconds, std::function<void()> func ) = 0;
 
 
     // for testing and debugging

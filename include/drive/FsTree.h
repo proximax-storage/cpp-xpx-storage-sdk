@@ -102,6 +102,8 @@ public:
                    uint64_t& outMetaFilesSize,
                    uint64_t& outFilesSize ) const;
 
+    void getUniqueFiles( std::set<InfoHash>& ) const;
+
 public:
     // for cereal
     template <class Archive> void serialize( Archive & arch ) {
@@ -223,6 +225,8 @@ class PLUGIN_API FsTree: public Folder {
 public:
 
     FsTree() = default;
+
+    FsTree( const FsTree& ) = default;
 
     void     doSerialize( std::string fileName );
     void     deserialize( std::string fileName );

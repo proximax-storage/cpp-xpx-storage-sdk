@@ -37,7 +37,7 @@ namespace sirius { namespace connection {
 #undef ENUM_VALUE
 
     /// Information about the verified node.
-    struct VerifiedPeerInfo {
+    struct PLUGIN_API VerifiedPeerInfo {
         /// Public key of the node.
         Key PublicKey;
 
@@ -46,13 +46,13 @@ namespace sirius { namespace connection {
     };
 
     /// Insertion operator for outputting \a value to \a out.
-    std::ostream& operator<<(std::ostream& out, VerifyResult value);
+    PLUGIN_API std::ostream& operator<<(std::ostream& out, VerifyResult value);
 
     using VerifyCallback = std::function<void(VerifyResult, const VerifiedPeerInfo)>;
 
     /// Attempts to verify a server (\a pServerIo) using \a serverPeerInfo and calls \a callback on completion.
     /// \a keyPair is used for responses from the client.
-    void VerifyServer(
+    PLUGIN_API void VerifyServer(
             const std::shared_ptr<ionet::PacketIo>& pServerIo,
             const VerifiedPeerInfo& serverPeerInfo,
             const crypto::KeyPair& keyPair,

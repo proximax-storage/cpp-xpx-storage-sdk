@@ -26,7 +26,7 @@
 namespace sirius { namespace ionet {
 
 	/// A node and packet io pair.
-	class NodePacketIoPair {
+	class PLUGIN_API NodePacketIoPair {
 	public:
 		/// Creates an empty pair.
 		NodePacketIoPair()

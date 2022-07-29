@@ -93,7 +93,7 @@ namespace sirius { namespace utils {
 	// region LogFilter
 
 	/// Filter used for filtering logs by level and/or component.
-	struct LogFilter {
+	struct PLUGIN_API LogFilter {
 	public:
 		/// Creates a log filter that sets the default log \a level across all components.
 		explicit LogFilter(LogLevel level);
@@ -119,7 +119,7 @@ namespace sirius { namespace utils {
 	// region [Basic|File]LoggerOptions
 
 	/// Basic logger options
-	struct BasicLoggerOptions {
+	struct PLUGIN_API BasicLoggerOptions {
 	public:
 		/// Creates default options.
 		BasicLoggerOptions()
@@ -135,7 +135,7 @@ namespace sirius { namespace utils {
 	};
 
 	/// File logger options.
-	struct FileLoggerOptions : public BasicLoggerOptions {
+	struct PLUGIN_API FileLoggerOptions : public BasicLoggerOptions {
 		/// Creates options that specify the creation of log files with the pattern \a filePattern in the \a directory.
 		explicit FileLoggerOptions(const std::string& directory, const std::string& filePattern)
 				: Directory(directory)
@@ -163,7 +163,7 @@ namespace sirius { namespace utils {
 	// region LoggingBootstrapper
 
 	/// Bootstraps boost logging.
-	class LoggingBootstrapper final {
+	class PLUGIN_API LoggingBootstrapper final {
 	public:
 		/// Creates a bootstrapper.
 		LoggingBootstrapper();
@@ -187,14 +187,14 @@ namespace sirius { namespace utils {
 
 	/// Flushes all buffered log records and waits for all sinks to complete processing of them.
 	/// \note This function is only intended to be called right before a crash.
-	void CatapultLogFlush();
+	PLUGIN_API void CatapultLogFlush();
 
 	// region boost logging configuration and utils
 
 	namespace log {
 		/// Removes an item from an attributes collection on destruction.
 		template<typename TAttributes>
-		class EraseOnExit {
+		class PLUGIN_API EraseOnExit {
 		private:
 			using IteratorType = typename std::remove_reference_t<TAttributes>::iterator;
 
@@ -214,7 +214,7 @@ namespace sirius { namespace utils {
 
 		/// A custom logging feature that allows tagging a log record with custom information.
 		template<typename TBase, typename TTraits>
-		class custom_info_tagger_feature : public TBase {
+		class PLUGIN_API custom_info_tagger_feature : public TBase {
 		public:
 			using char_type = typename TBase::char_type;
 			using threading_model = typename TBase::threading_model;
@@ -263,7 +263,7 @@ namespace sirius { namespace utils {
 
 		/// Allows custom_info_tagger_feature to be used as a source feature.
 		template<typename TCustomFeatureTraits>
-		struct custom_info_tagger {
+		struct PLUGIN_API custom_info_tagger {
 			template<typename TBase>
 			struct apply {
 				using type = custom_info_tagger_feature<TBase, TCustomFeatureTraits>;
@@ -299,7 +299,7 @@ namespace sirius { namespace utils {
 		};
 
 		/// Catapult logger type.
-		class catapult_logger :
+		class PLUGIN_API  catapult_logger :
 				public boost::log::sources::basic_composite_logger<
 						char,
 						catapult_logger,

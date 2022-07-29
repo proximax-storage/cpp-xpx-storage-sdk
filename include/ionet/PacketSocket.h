@@ -35,7 +35,7 @@ namespace sirius { namespace ionet {
 
 	/// An asio socket wrapper that natively supports packets.
 	/// This wrapper is threadsafe but does not prevent interleaving reads or writes.
-	class PacketSocket : public PacketIo, public BatchPacketReader {
+	class PLUGIN_API PacketSocket : public PacketIo, public BatchPacketReader {
 	public:
 		/// Statistics about a socket.
 		struct Stats {
@@ -65,7 +65,7 @@ namespace sirius { namespace ionet {
 	// region Accept
 
 	/// Result of a packet socket accept operation.
-	class AcceptedPacketSocketInfo {
+	class PLUGIN_API AcceptedPacketSocketInfo {
 	public:
 		/// Creates an empty info.
 		AcceptedPacketSocketInfo()
@@ -106,12 +106,12 @@ namespace sirius { namespace ionet {
 	using AcceptCallback = consumer<const AcceptedPacketSocketInfo&>;
 
 	/// Accepts a connection using \a acceptor and calls \a accept on completion configuring the socket with \a options.
-	void Accept(boost::asio::ip::tcp::acceptor& acceptor, const PacketSocketOptions& options, const AcceptCallback& accept);
+	PLUGIN_API void Accept(boost::asio::ip::tcp::acceptor& acceptor, const PacketSocketOptions& options, const AcceptCallback& accept);
 
 	/// Accepts a connection using \a acceptor and calls \a accept on completion configuring the socket with \a options.
 	/// \a configureSocket is called before starting the accept to allow custom configuration of asio sockets.
 	/// \note User callbacks passed to the accepted socket are serialized.
-	void Accept(
+	PLUGIN_API void Accept(
 			boost::asio::ip::tcp::acceptor& acceptor,
 			const PacketSocketOptions& options,
 			const ConfigureSocketCallback& configureSocket,
@@ -127,7 +127,7 @@ namespace sirius { namespace ionet {
 	/// Attempts to connect a socket to the specified \a endpoint using \a ioContext and calls \a callback on
 	/// completion configuring the socket with \a options. The returned function can be used to cancel the connect.
 	/// \note User callbacks passed to the connected socket are serialized.
-	action Connect(
+	PLUGIN_API action Connect(
 			boost::asio::io_context& ioContext,
 			const PacketSocketOptions& options,
 			const NodeEndpoint& endpoint,

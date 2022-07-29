@@ -26,7 +26,7 @@ namespace sirius { namespace thread {
 
 	/// Provides a way to access the result of an asynchronous operation.
 	template<typename T>
-	class future : public utils::MoveOnly {
+	class PLUGIN_API future : public utils::MoveOnly {
 	public:
 		/// Creates a default future.
 		future() = default;
@@ -82,7 +82,7 @@ namespace sirius { namespace thread {
 
 	/// Stores the result of an asynchronous operation.
 	template<typename T>
-	class promise : public utils::MoveOnly {
+	class PLUGIN_API promise : public utils::MoveOnly {
 	public:
 		/// Constructs a promise.
 		promise()
@@ -123,7 +123,7 @@ namespace sirius { namespace thread {
 
 	/// Produces a future that is ready immediately and holds the given \a value.
 	template<typename T>
-	future<T> make_ready_future(T&& value) {
+	PLUGIN_API future<T> make_ready_future(T&& value) {
 		auto pState = std::make_shared<detail::shared_state<T>>();
 		pState->set_value(std::forward<T>(value));
 		return future<T>(pState);
@@ -131,7 +131,7 @@ namespace sirius { namespace thread {
 
 	/// Produces a future that is ready immediately and holds the given exception (\a ex).
 	template<typename T, typename E>
-	future<T> make_exceptional_future(E ex) {
+	PLUGIN_API future<T> make_exceptional_future(E ex) {
 		auto pState = std::make_shared<detail::shared_state<T>>();
 		pState->set_exception(std::make_exception_ptr(ex));
 		return future<T>(pState);
