@@ -998,7 +998,7 @@ public:
         // check opinion number
         //_LOG( "///// " << opinionInfo.m_opinions.size() << " " <<  (opinionInfo.m_replicatorNumber*2)/3 );
 #ifndef MINI_SIGNATURE
-        auto replicatorNumber = (std::max(getMinReplicatorsNumber(), channel.m_dnReplicatorShard.size()) * 2) / 3 + 1;
+        auto replicatorNumber = (std::max((std::size_t)getMinReplicatorsNumber(), channel.m_dnReplicatorShard.size()) * 2) / 3 + 1;
 #else
         auto replicatorNumber = (channel.m_dnReplicatorShard.size() * 2) / 3;
 #endif
