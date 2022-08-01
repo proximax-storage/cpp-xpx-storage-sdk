@@ -64,7 +64,7 @@ protected:
 public:
     void startTcpServer( std::string address, std::uint16_t port )
     {
-        m_acceptor.emplace( m_context, asio::ip::tcp::endpoint( boost::asio::ip::address::from_string(address.c_str()), port ) );
+        m_acceptor.emplace( m_context, asio::ip::tcp::endpoint( boost::asio::ip::make_address(address.c_str()), port ) );
 
         async_accept();
         
