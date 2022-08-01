@@ -123,7 +123,7 @@ protected:
     // creates subfolder if not exist
     Folder& getSubfolderOrCreate( const std::string& subFolderName );
 
-    // returns child iteraror
+    // returns child iterator
     std::list<Child>::iterator findChildIt( const std::string& childName );
 
     void sort();
@@ -134,7 +134,7 @@ protected:
 
     std::string       m_name;
     std::list<Child>  m_childs;
-    bool              m_isaStream;
+    bool              m_isaStream = false;
     Hash256           m_streamId;
 };
 
