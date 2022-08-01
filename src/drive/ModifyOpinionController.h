@@ -204,13 +204,13 @@ public:
 
         m_approvedCumulativeUploads = m_notApprovedCumulativeUploads;
 
-        m_approvedExpectedCumulativeDownload = std::max( m_approvedExpectedCumulativeDownload,
-                                                         std::accumulate( m_approvedCumulativeUploads.m_uploads.begin(),
-                                                                          m_approvedCumulativeUploads.m_uploads.end(),
-                                                                          0UL,
-                                                                          []( const auto& sum, const auto& item ) {
-                                                                              return sum + item.second;
-                                                                          } ));
+        m_approvedExpectedCumulativeDownload = std::max(  m_approvedExpectedCumulativeDownload,
+                                                          (uint64_t) std::accumulate( m_approvedCumulativeUploads.m_uploads.begin(),
+                                                                                      m_approvedCumulativeUploads.m_uploads.end(),
+                                                                                      0UL,
+                                                                                      []( const auto& sum, const auto& item ) {
+                                                                                          return sum + item.second;
+                                                                                      } ));
 
         m_threadManager.executeOnBackgroundThread( [=, this]
         {

@@ -389,6 +389,10 @@ public:
     virtual int         getVerifyCodeTimerDelay() override { __ASSERT(0); return 0; }
     virtual void        setVerifyApprovalTransactionTimerDelay( int milliseconds ) override {}
     virtual int         getVerifyApprovalTransactionTimerDelay() override { __ASSERT(0); return 0; }
+    virtual void        setVerificationShareTimerDelay( int milliseconds ) override {}
+    virtual int         getVerificationShareTimerDelay() override { __ASSERT(0); return 0; }
+    virtual void        setMinReplicatorsNumber( uint64_t number ) override {}
+    virtual uint64_t    getMinReplicatorsNumber() override { __ASSERT(0); return 0; }
     virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) override {}
 
     virtual Hash256     dbgGetRootHash( const DriveKey& driveKey ) override
