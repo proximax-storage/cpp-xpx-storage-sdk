@@ -8,6 +8,8 @@
 
 #include "drive/Replicator.h"
 #include "drive/RpcServer.h"
+#include <unistd.h>
+#include <filesystem>
 
 namespace sirius::drive {
 
@@ -64,6 +66,8 @@ public:
     {
         RpcTcpServer::startTcpServer( address, port );
 
+        startRemoteReplicator();
+
         __LOG("Waiting Remote Replicator Service connection...")
         for( int i=0; i<6000; i++) // wait 60 secs
         {
@@ -92,6 +96,19 @@ public:
     virtual void startRemoteReplicator()
     {
 #ifndef RPC_REPLICATOR_NAME // this macro defined for local test
+    	char path[PATH_MAX+1] = { 0 };
+    	int nchar = readlink("/proc/self/exe", path, sizeof(path) );
+
+    	if ( nchar < 0 ) {
+    		_LOG_ERR("Invalid Read Link")
+			return;
+		}
+
+		path[nchar] = 0;
+
+		std::string executable = std::filesystem::path{path}.parent_path() / "replicator-service";
+
+		std::system((executable + " -d").c_str());
 #endif
     }
     
