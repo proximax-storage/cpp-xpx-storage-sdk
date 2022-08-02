@@ -214,3 +214,18 @@ function(storage_sdk_shared_library_target TARGET_NAME)
         storage_sdk_shared_library(${TARGET_NAME} ${ARGN})
         storage_sdk_target(${TARGET_NAME})
 endfunction()
+
+# used to define a catapult executable, creating an appropriate source group and adding an executable
+function(storage_sdk_executable TARGET_NAME)
+        storage_sdk_find_all_target_files("exe" ${TARGET_NAME} ${ARGN})
+
+        if(MSVC)
+                set_win_version_definitions(${TARGET_NAME} VFT_APP)
+        endif()
+
+        add_executable(${TARGET_NAME} ${${TARGET_NAME}_FILES} ${VERSION_RESOURCES})
+
+        if(WIN32 AND MINGW)
+                target_link_libraries(${TARGET_NAME} wsock32 ws2_32)
+        endif()
+endfunction()
