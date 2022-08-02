@@ -363,7 +363,7 @@ private:
                     }
                     else
                     {
-                        _LOG_ERR( "error in RpcTcpServer::async_accept : " << ec.what() )
+                        _LOG_ERR( "error in RpcTcpServer::async_accept : " << ec.message() )
                     }
                 }
                 else
