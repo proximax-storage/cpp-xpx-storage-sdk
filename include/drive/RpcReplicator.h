@@ -108,7 +108,7 @@ public:
 
 		std::string executable = std::filesystem::path{path}.parent_path() / "replicator-service";
 
-		std::system((executable + " -d").c_str());
+		std::system((executable + " -d 127.0.0.1 5357").c_str());
 #endif
     }
     

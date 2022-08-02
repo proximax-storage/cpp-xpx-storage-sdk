@@ -9,7 +9,7 @@
 #include <unistd.h>
 
         //TODO!!!!!
-#define DEBUG_REPLICATOR_SERVICE
+//#define DEBUG_REPLICATOR_SERVICE
 
 #include "drive/RpcRemoteReplicator.h"
 #include "drive/Replicator.h"
@@ -45,6 +45,7 @@ int main( int argc, char* argv[] )
 
     if ( runInBackground )
     {
+        __LOG( "Run In Background" )
         runServiceInBackground();
     }
 
@@ -55,7 +56,6 @@ int main( int argc, char* argv[] )
 
 int runServiceInBackground()
 {
-    assert(0);
     try
     {
       boost::asio::io_context io_service;
