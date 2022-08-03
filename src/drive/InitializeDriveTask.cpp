@@ -88,25 +88,33 @@ private:
         // Create nonexistent folders
         if ( !fs::exists( m_drive.m_fsTreeFile, err ))
         {
+			_LOG( "Ini " << __LINE__ << " " << err.message() );
             if ( !fs::exists( m_drive.m_driveFolder, err ))
             {
+            	_LOG( "Ini " << __LINE__ << " " << err.message() );
                 fs::create_directories( m_drive.m_driveFolder, err );
+                _LOG( "Ini " << __LINE__ << " " << err.message() );
             }
 
             if ( !fs::exists( m_drive.m_torrentFolder, err ))
             {
+            	_LOG( "Ini " << __LINE__ << " " << err.message() );
                 fs::create_directories( m_drive.m_torrentFolder, err );
+                _LOG( "Ini " << __LINE__ << " " << err.message() );
             }
         }
 
         if ( !fs::exists( m_drive.m_restartRootPath, err ))
         {
+        	_LOG( "Ini " << __LINE__ << " " << err.message() );
             fs::create_directories( m_drive.m_restartRootPath, err );
+            _LOG( "Ini " << __LINE__ << " " << err.message() );
         }
 
         // Load FsTree
         if ( fs::exists( m_drive.m_fsTreeFile, err ))
         {
+        	_LOG( "Ini " << __LINE__ << " " << err.message() );
             try
             {
                 m_drive.m_fsTree->deserialize( m_drive.m_fsTreeFile );
@@ -124,6 +132,7 @@ private:
         if ( !fs::exists( m_drive.m_fsTreeFile, err ))
         {
             fs::create_directories( m_drive.m_fsTreeFile.parent_path(), err );
+            _LOG( "Ini " << __LINE__ << " " << err.message() );
             m_drive.m_fsTree->name() = "/";
             try
             {
