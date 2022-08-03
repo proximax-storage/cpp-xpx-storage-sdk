@@ -93,7 +93,7 @@ public:
         _LOG_ERR("Remote Replicator Service not connected!")
     }
 
-    ~RpcReplicator()
+    ~RpcReplicator() override
     {
         rpcCall( RPC_CMD::destroyReplicator );
     }

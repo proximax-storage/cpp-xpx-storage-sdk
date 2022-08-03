@@ -33,25 +33,12 @@
 #include <iostream>
 #include <fstream>
 
-//#ifdef DEBUG_NO_DAEMON_REPLICATOR_SERVICE
 #   define RPC_LOG(expr) __LOG( "*RPC* " << expr)
 
 #   define RPC_ERR(expr) { \
         std::cout << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< expr << "\n" << std::flush; \
         exit(0); \
 }
-
-//#else
-//
-//inline std::ofstream gLogFile;
-//
-//#   define RPC_LOG(expr)    { gLogFile << expr << std::endl << std::flush; }
-//#   define RPC_ERR(expr)    { \
-//                                gLogFile << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< expr << std::endl << std::flush; \
-//                                exit(0); \
-//                            } \
-//}
-//#endif
 
 
 namespace asio = boost::asio;

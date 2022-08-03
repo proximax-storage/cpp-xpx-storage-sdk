@@ -27,6 +27,8 @@ protected:
     {
     }
 
+    ~RpcServer() override = default;
+
     //virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive* parameters ) {}
 
 public:

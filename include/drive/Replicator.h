@@ -325,9 +325,7 @@ class Replicator
 {
 public:
 
-    virtual ~Replicator()
-    {
-    }
+    virtual ~Replicator() = default;
 
     virtual void start() = 0;
 

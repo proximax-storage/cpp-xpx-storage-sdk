@@ -56,11 +56,11 @@ int main( int argc, char* argv[] )
     if ( runInBackground )
     {
         __LOG( "Run In Background" )
-#ifdef __linux__
-        daemon(1,0);
-#else
+//#ifdef __linux__
+//        daemon(1,0);
+//#else
         runServiceInBackground();
-#endif
+//#endif
     }
 
     __LOG( "RpcRemoteReplicator replicator" )
