@@ -1,6 +1,8 @@
 #include "types.h"
 #include "drive/ClientSession.h"
 #include "drive/Replicator.h"
+
+//#define DEBUG_NO_DAEMON_REPLICATOR_SERVICE
 #include "drive/RpcReplicator.h"
 #include "drive/FlatDrive.h"
 #include "drive/FsTree.h"

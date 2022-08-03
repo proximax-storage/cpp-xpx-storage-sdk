@@ -11,6 +11,11 @@
 #include <unistd.h>
 #include <filesystem>
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#include <limits.h>
+#endif
+
 namespace sirius::drive {
 
 //
@@ -34,6 +39,8 @@ class RpcReplicator : public Replicator, public RpcServer
     
     bool                            m_isRemoteServiceConnected = false;
     bool                            m_isConnectionLost = false;
+    
+    std::uint16_t                   m_rpcPort;
     
 public:
     RpcReplicator(
@@ -64,9 +71,13 @@ public:
     
     void startTcpServer( std::string address, std::uint16_t port )
     {
+        m_rpcPort = port;
+
         RpcTcpServer::startTcpServer( address, port );
 
+#ifndef DEBUG_NO_DAEMON_REPLICATOR_SERVICE
         startRemoteReplicator();
+#endif
 
         __LOG("Waiting Remote Replicator Service connection...")
         for( int i=0; i<6000; i++) // wait 60 secs
@@ -95,8 +106,8 @@ public:
     
     virtual void startRemoteReplicator()
     {
-#ifndef RPC_REPLICATOR_NAME // this macro defined for local test
-    	char path[PATH_MAX+1] = { 0 };
+#ifdef __linux__
+        char path[PATH_MAX+1] = { 0 };
     	int nchar = readlink("/proc/self/exe", path, sizeof(path) );
 
     	if ( nchar < 0 ) {
@@ -106,10 +117,21 @@ public:
 
 		path[nchar] = 0;
 
-		std::string executable = std::filesystem::path{path}.parent_path() / "replicator-service";
+#elif __APPLE__
 
-		std::system((executable + " -d 127.0.0.1 5357").c_str());
+        char path[PATH_MAX] = { 0 };
+        uint32_t bufsize = PATH_MAX;
+        if( int rc = _NSGetExecutablePath( path, &bufsize); rc )
+        {
+            _LOG_ERR("Error: _NSGetExecutablePath: " << rc )
+        }
+
 #endif
+
+        std::string executable = std::filesystem::path{path}.parent_path() / "replicator-service";
+        auto cmd = (executable + " -d 127.0.0.1 " + std::to_string(m_rpcPort) );
+        std::system( cmd.c_str() );
+        __LOG( "std::system( cmd.c_str() );" );
     }
     
     virtual void initiateRemoteService() override

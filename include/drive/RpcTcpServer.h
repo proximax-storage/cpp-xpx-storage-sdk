@@ -158,7 +158,8 @@ protected:
                             }
                             else if ( self->command == RPC_CMD::PING )
                             {
-                                __LOG_WARN( "ignore unexpected command: RPC_CMD::PING" );
+                                assert( self->packetLen == 0 );
+                                //__LOG_WARN( "ignore unexpected command: RPC_CMD::PING" );
                             }
                             else
                             {
