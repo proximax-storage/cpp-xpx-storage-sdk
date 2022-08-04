@@ -463,12 +463,25 @@ PLUGIN_API std::shared_ptr<Replicator> createRpcReplicator(
                                                DbgReplicatorEventHandler*  dbgEventHandler = nullptr,
                                                const std::string&    dbgReplicatorName = "" )
 {
+    std::error_code ec;
+    auto absoluteStorageDirectory = fs::absolute(storageDirectory, ec);
+    if (ec)
+    {
+        _LOG_ERR( "Unable To Find Absolute Path Of " << storageDirectory << ": " << ec.message() );
+    }
+
+    auto absoluteSandboxDirectory = fs::absolute(sandboxDirectory, ec);
+    if (ec)
+    {
+        _LOG_ERR( "Unable To Find Absolute Path Of " << sandboxDirectory << ": " << ec.message() );
+    }
+
     auto replicator = std::make_shared<RpcReplicator>(
                         keyPair,
                         std::move( address ),
                         std::move(port),
-                        std::move( storageDirectory ),
-                        std::move( sandboxDirectory ),
+                        std::move( absoluteStorageDirectory ),
+                        std::move( absoluteSandboxDirectory ),
                         bootstraps,
                         useTcpSocket,
                         handler,

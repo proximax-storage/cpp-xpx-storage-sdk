@@ -83,98 +83,93 @@ private:
         // Clear m_rootDriveHash
         m_drive.m_rootHash = Hash256();
 
-        std::error_code err;
-
-        // Create nonexistent folders
-        if ( !fs::exists( m_drive.m_fsTreeFile, err ))
+        try
         {
-			_LOG( "Ini " << __LINE__ << " " << err.message() );
-            if ( !fs::exists( m_drive.m_driveFolder, err ))
+            // Create nonexistent folders
+            if ( !fs::exists( m_drive.m_fsTreeFile ))
             {
-            	_LOG( "Ini " << __LINE__ << " " << err.message() );
-                fs::create_directories( m_drive.m_driveFolder, err );
-                _LOG( "Ini " << __LINE__ << " " << err.message() );
+                if ( !fs::exists( m_drive.m_driveFolder ))
+                {
+                    fs::create_directories( m_drive.m_driveFolder );
+                }
+
+                if ( !fs::exists( m_drive.m_torrentFolder ))
+                {
+                    fs::create_directories( m_drive.m_torrentFolder );
+                }
             }
 
-            if ( !fs::exists( m_drive.m_torrentFolder, err ))
+            if ( !fs::exists( m_drive.m_restartRootPath ))
             {
-            	_LOG( "Ini " << __LINE__ << " " << err.message() );
-                fs::create_directories( m_drive.m_torrentFolder, err );
-                _LOG( "Ini " << __LINE__ << " " << err.message() );
+                fs::create_directories( m_drive.m_restartRootPath );
             }
-        }
 
-        if ( !fs::exists( m_drive.m_restartRootPath, err ))
-        {
-        	_LOG( "Ini " << __LINE__ << " " << err.message() );
-            fs::create_directories( m_drive.m_restartRootPath, err );
-            _LOG( "Ini " << __LINE__ << " " << err.message() );
-        }
+            // Load FsTree
+            if ( fs::exists( m_drive.m_fsTreeFile ))
+            {
+                try
+                {
+                    m_drive.m_fsTree->deserialize( m_drive.m_fsTreeFile );
+                    m_drive.updateStreamMap();
+                }
+                catch (const std::exception& ex)
+                {
+                    _LOG_ERR( "initializeDrive: m_fsTree.deserialize exception: " << ex.what())
+                }
+            }
 
-        // Load FsTree
-        if ( fs::exists( m_drive.m_fsTreeFile, err ))
-        {
-        	_LOG( "Ini " << __LINE__ << " " << err.message() );
-            try
+            // If FsTree is absent,
+            // create it
+            if ( !fs::exists( m_drive.m_fsTreeFile ))
             {
-                m_drive.m_fsTree->deserialize( m_drive.m_fsTreeFile );
-                m_drive.updateStreamMap();
+                fs::create_directories( m_drive.m_fsTreeFile.parent_path() );
+                m_drive.m_fsTree->name() = "/";
+                try
+                {
+                    m_drive.m_fsTree->doSerialize( m_drive.m_fsTreeFile.string() );
+                }
+                catch (const std::exception& ex)
+                {
+                    _LOG_ERR( "m_fsTree.doSerialize exception:" << ex.what())
+                }
             }
-            catch (const std::exception& ex)
-            {
-                _LOG_ERR( "initializeDrive: m_fsTree.deserialize exception: " << ex.what())
-                fs::remove( m_drive.m_fsTreeFile, err );
-            }
-        }
 
-        // If FsTree is absent,
-        // create it
-        if ( !fs::exists( m_drive.m_fsTreeFile, err ))
-        {
-            fs::create_directories( m_drive.m_fsTreeFile.parent_path(), err );
-            _LOG( "Ini " << __LINE__ << " " << err.message() );
-            m_drive.m_fsTree->name() = "/";
-            try
-            {
-                m_drive.m_fsTree->doSerialize( m_drive.m_fsTreeFile.string() );
-            }
-            catch (const std::exception& ex)
-            {
-                _LOG_ERR( "m_fsTree.doSerialize exception:" << ex.what())
-            }
-        }
-
-        // Calculate torrent and root hash
-        m_drive.m_rootHash = createTorrentFile( m_drive.m_fsTreeFile.string(),
-                                                m_drive.m_driveKey,
-                                                m_drive.m_fsTreeFile.parent_path().string(),
-                                                m_drive.m_fsTreeTorrent.string() );
+            // Calculate torrent and root hash
+            m_drive.m_rootHash = createTorrentFile( m_drive.m_fsTreeFile.string(),
+                                                    m_drive.m_driveKey,
+                                                    m_drive.m_fsTreeFile.parent_path().string(),
+                                                    m_drive.m_fsTreeTorrent.string() );
         
-        _LOG( "m_rootHash=" << m_drive.m_rootHash )
+            _LOG( "m_rootHash=" << m_drive.m_rootHash )
 
-        std::array<uint8_t, 32> modificationId{};
-        m_drive.m_serializer.loadRestartValue( modificationId, "approvedModification" );
-        m_drive.m_lastApprovedModification = modificationId;
+            std::array<uint8_t, 32> modificationId{};
+            m_drive.m_serializer.loadRestartValue( modificationId, "approvedModification" );
+            m_drive.m_lastApprovedModification = modificationId;
 
-        _LOG( "m_lastApprovedModificationId=" << m_drive.m_lastApprovedModification )
+            _LOG( "m_lastApprovedModificationId=" << m_drive.m_lastApprovedModification )
 
-        // Add files to session
-        addFilesToSession( *m_drive.m_fsTree );
+            // Add files to session
+            addFilesToSession( *m_drive.m_fsTree );
 
-        // Add FsTree to session
-        if ( auto session = m_drive.m_session.lock(); session )
-        {
-            if ( !fs::exists( m_drive.m_fsTreeTorrent, err ))
+            // Add FsTree to session
+            if ( auto session = m_drive.m_session.lock(); session )
             {
-                //TODO try recovery!
-                _LOG_ERR( "disk corrupted: fsTreeTorrent does not exist: " << m_drive.m_fsTreeTorrent )
+                if ( !fs::exists( m_drive.m_fsTreeTorrent ))
+                {
+                    //TODO try recovery!
+                    _LOG_ERR( "disk corrupted: fsTreeTorrent does not exist: " << m_drive.m_fsTreeTorrent )
+                }
+                m_drive.m_fsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent.string(),
+                                                                             m_drive.m_fsTreeTorrent.parent_path().string(),
+                                                                             lt::SiriusFlags::peer_is_replicator,
+                                                                             &m_drive.m_driveKey.array(),
+                                                                             nullptr,
+                                                                             nullptr );
             }
-            m_drive.m_fsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent.string(),
-                                                                         m_drive.m_fsTreeTorrent.parent_path().string(),
-                                                                         lt::SiriusFlags::peer_is_replicator,
-                                                                         &m_drive.m_driveKey.array(),
-                                                                         nullptr,
-                                                                         nullptr );
+        }
+        catch (const fs::filesystem_error& ex)
+        {
+            _LOG_ERR( "Drive Initialization Error " << ex.what() << " " << ex.path1() << " " << ex.path2() )
         }
 
         m_singleTx = loadSingleApprovalTransaction();
