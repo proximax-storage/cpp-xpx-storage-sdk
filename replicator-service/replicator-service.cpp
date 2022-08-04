@@ -6,6 +6,7 @@
 #include <ctime>
 #include <syslog.h>
 #include <unistd.h>
+#include <filesystem>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -19,12 +20,7 @@ namespace fs = std::filesystem;
 
 //#define DEBUG_NO_DAEMON_REPLICATOR_SERVICE
 
-#ifdef __APPLE__
 #define LOG_FOLDER "/tmp/replicator_service_logs"
-#else
-//TODO
-#define LOG_FOLDER "/home/kyrylo/logs"
-#endif
 
 #include "drive/RpcRemoteReplicator.h"
 #include "drive/Replicator.h"
