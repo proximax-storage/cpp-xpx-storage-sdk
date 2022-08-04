@@ -25,6 +25,7 @@ inline std::mutex gLogMutex;
         }
 #else
     #define __LOG(expr) { \
+            const std::lock_guard<std::mutex> autolock( gLogMutex ); \
             std::ostringstream out; \
             out << m_dbgOurPeerName << ": " << expr; \
             CATAPULT_LOG(debug) << out.str(); \

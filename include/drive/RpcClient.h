@@ -107,8 +107,6 @@ public:
     
     void sendCommandWoAck( RPC_CMD command )
     {
-        RPC_LOG( "sendCommandWoAck: " << CMD_STR(command) )
-
         boost::system::error_code ec = boost::asio::error::would_block;
         asio::write( m_socket, asio::buffer( &command, sizeof(command) ), ec );
         if (ec)
@@ -346,9 +344,6 @@ public:
         m_upSocket.connect( address, port );
         m_upSocket.sendCommandWoAck( RPC_CMD::UP_CHANNEL_INIT );
 
-        m_dnSocket.connect( address, port );
-        m_dnSocket.sendCommandWoAck( RPC_CMD::DOWN_CHANNEL_INIT );
-        
         std::thread( [this]
         {
             for(;;)
@@ -358,6 +353,9 @@ public:
                 m_upSocket.sendCommandWoAck( RPC_CMD::PING );
             }
         }).detach();
+        
+        m_dnSocket.connect( address, port );
+        m_dnSocket.sendCommandWoAck( RPC_CMD::DOWN_CHANNEL_INIT );
         
         for(;;)
         {
