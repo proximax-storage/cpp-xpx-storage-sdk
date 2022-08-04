@@ -17,7 +17,6 @@ include_directories(include)
 
 # Libtorrent
 option(XPX_STORAGE_SDK_BUILD_EMULATOR "Build XPX-STORAGE SDK emulator." OFF)
-option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build XPX-STORAGE SDK examples." OFF)
 
 ### setup boost
 if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
@@ -68,6 +67,7 @@ endif()
 add_subdirectory(src)
 add_subdirectory(replicator-service)
 
-if (XPX_STORAGE_SDK_BUILD_EXAMPLES)
+if (XPX_STORAGE_SDK_NOT_BUILD_EXAMPLES)
+else()
     add_subdirectory(examples)
 endif()
