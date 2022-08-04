@@ -30,24 +30,15 @@
 #include <cereal/types/optional.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
-#ifdef DEBUG_REPLICATOR_SERVICE
-#   define RPC_LOG(expr)    \
-                                __LOG( "*RPC* " << expr)
-#   define RPC_ERR(expr)    \
-                                __LOG(expr)
-#else
+#include <iostream>
+#include <fstream>
 
-#   define RPC_LOG(expr)    {\
-                                std::ostringstream out; \
-                                out << expr; \
-                                syslog( LOG_INFO | LOG_USER, "%s", out.str().c_str() ); \
-                            }
-#   define RPC_ERR(expr)    {\
-                                std::ostringstream out; \
-                                out << expr; \
-                                syslog( LOG_ERR | LOG_USER, "Error: %s", out.str().c_str() ); \
-                            }
-#endif
+#   define RPC_LOG(expr) __LOG( "*RPC* " << expr)
+
+#   define RPC_ERR(expr) { \
+        std::cout << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< expr << "\n" << std::flush; \
+        exit(0); \
+}
 
 
 namespace asio = boost::asio;
@@ -78,7 +69,9 @@ public:
         tcp::resolver resolver( m_context );
         auto iter =  resolver.resolve( address, port );
 
-#ifdef DEBUG_REPLICATOR_SERVICE
+#ifdef DEBUG_NO_DAEMON_REPLICATOR_SERVICE
+        RPC_LOG( "DEBUG_NO_DAEMON_REPLICATOR_SERVICE" )
+
         boost::system::error_code ec = boost::asio::error::would_block;
 
         while ( ec == boost::asio::error::would_block || ec == boost::asio::error::connection_refused )
@@ -114,11 +107,13 @@ public:
     
     void sendCommandWoAck( RPC_CMD command )
     {
+        RPC_LOG( "sendCommandWoAck: " << CMD_STR(command) )
+
         boost::system::error_code ec = boost::asio::error::would_block;
         asio::write( m_socket, asio::buffer( &command, sizeof(command) ), ec );
         if (ec)
         {
-            RPC_LOG( "!write error!: " << ec.message() )
+            RPC_ERR( "!write error!: " << ec.message() )
             exit(0);
         }
 
@@ -127,7 +122,7 @@ public:
 
         if (ec)
         {
-            RPC_LOG( "!write error!: " << ec.message() )
+            RPC_ERR( "!write error!: " << ec.message() )
             exit(0);
         }
 
@@ -185,7 +180,7 @@ public:
         asio::write( m_socket, asio::buffer( &command, sizeof(command) ), ec );
         if (ec)
         {
-            RPC_LOG( "!write error!: " << ec.message() )
+            RPC_ERR( "!write error!: " << ec.message() )
             exit(0);
         }
 
@@ -294,7 +289,7 @@ public:
         asio::write( m_socket, asio::buffer( &command, sizeof(command) ), ec );
         if (ec)
         {
-            RPC_LOG( "!write error!: " << ec.message() )
+            RPC_ERR( "!write error!: " << ec.message() )
             exit(0);
         }
 
@@ -303,7 +298,7 @@ public:
 
         if (ec)
         {
-            RPC_LOG( "!write error!: " << ec.message() )
+            RPC_ERR( "!write error!: " << ec.message() )
             exit(0);
         }
 
@@ -311,7 +306,7 @@ public:
 
         if (ec)
         {
-            RPC_LOG( "!write error!: " << ec.message() )
+            RPC_ERR( "!write error!: " << ec.message() )
             exit(0);
         }
 
@@ -360,7 +355,7 @@ public:
             {
                 sleep(1);
                 std::unique_lock<std::mutex> lock(m_upMutex);
-                m_dnSocket.sendCommandWoAck( RPC_CMD::PING );
+                m_upSocket.sendCommandWoAck( RPC_CMD::PING );
             }
         }).detach();
         
@@ -382,7 +377,7 @@ public:
                 }
                 case RPC_CMD::PING:
                 {
-                    m_upSocket.sendCommand( RPC_CMD::dbgCrash, "" );
+                    //m_upSocket.sendCommand( RPC_CMD::dbgCrash, "" );
                     break;
                 }
                 default:
@@ -390,10 +385,10 @@ public:
                     if ( inStreambuf.size() > 0 )
                     {
                         std::istream is( &inStreambuf );
-                        __LOG( "os.str(): " << int( ((char*)inStreambuf.data().data())[0]) << " "
-                              << int( ((char*)inStreambuf.data().data())[1]) << " "
-                              << int( ((char*)inStreambuf.data().data())[2]) << " "
-                              << int( ((char*)inStreambuf.data().data())[3]) << " " )
+//                        __LOG( "os.str(): " << int( ((char*)inStreambuf.data().data())[0]) << " "
+//                              << int( ((char*)inStreambuf.data().data())[1]) << " "
+//                              << int( ((char*)inStreambuf.data().data())[2]) << " "
+//                              << int( ((char*)inStreambuf.data().data())[3]) << " " )
 
                         cereal::PortableBinaryInputArchive iarchive(is);
                         handleCommand( command, &iarchive );

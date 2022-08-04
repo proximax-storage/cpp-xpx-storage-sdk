@@ -31,6 +31,7 @@ protected:
 
     class Session;
 
+    std::thread                             m_thread;
     asio::io_context                        m_context;
     std::optional<asio::ip::tcp::acceptor>  m_acceptor;
     std::optional<asio::ip::tcp::socket>    m_socket;
@@ -47,6 +48,11 @@ protected:
     virtual ~RpcTcpServer()
     {
         closeSockets();
+        m_context.stop();
+        if ( m_thread.joinable() )
+        {
+            m_thread.join();
+        }
     }
 
     virtual void initiateRemoteService() = 0;
@@ -68,10 +74,10 @@ public:
 
         async_accept();
         
-        std::thread( [this]
+        m_thread = std::thread( [this]
         {
             m_context.run();
-        }).detach();
+        });
     }
     
 protected:
@@ -158,7 +164,8 @@ protected:
                             }
                             else if ( self->command == RPC_CMD::PING )
                             {
-                                __LOG_WARN( "ignore unexpected command: RPC_CMD::PING" );
+                                assert( self->packetLen == 0 );
+                                //__LOG_WARN( "ignore unexpected command: RPC_CMD::PING" );
                             }
                             else
                             {
@@ -342,7 +349,9 @@ private:
 
     void closeSockets()
     {
+        __LOG( "Start Close Sockets" )
         m_socket->close();
+        __LOG( "Finish Close Sockets" )
     }
     
     void async_accept()
@@ -416,6 +425,7 @@ void RpcTcpServer::rpcCall( RPC_CMD func, const std::string& parameters )
     m_dnSession->send( func, parameters );
     __LOG( "*rpc* rpcCall: " << CMD_STR(func) )
     m_dnSession->readAck();
+    __LOG(  "Read Ack" );
 }
 
 std::array<uint8_t,32> RpcTcpServer::rpcDbgGetRootHash( const std::string& parameters )

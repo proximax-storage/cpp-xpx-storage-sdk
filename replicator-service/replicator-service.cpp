@@ -4,49 +4,61 @@
 #include <boost/array.hpp>
 #include <boost/bind.hpp>
 #include <ctime>
-#include <iostream>
 #include <syslog.h>
 #include <unistd.h>
 
-        //TODO!!!!!
-//#define DEBUG_REPLICATOR_SERVICE
+//#define DEBUG_NO_DAEMON_REPLICATOR_SERVICE
+
+#define LOG_FILE "/tmp/replicator.daemon.log"
+#undef LOG_FILE
+#define LOG_FILE "/home/kyrylo/logs"
 
 #include "drive/RpcRemoteReplicator.h"
 #include "drive/Replicator.h"
 
-int runServiceInBackground();
+int runServiceInBackground(std::string, std::string);
 
 int main( int argc, char* argv[] )
 {
     bool runInBackground = false;
     std::string address;
     std::string port;
-    
-#ifdef DEBUG_REPLICATOR_SERVICE
+
+
+#ifdef DEBUG_NO_DAEMON_REPLICATOR_SERVICE
+//        runInBackground = true;
         address         = "127.0.0.1";
         port            = "5357";
 #else
     if ( argc == 4 && std::string(argv[1])=="-d" )
     {
+        __LOG( "argc == 4" )
         runInBackground = true;
         address         = argv[2];
         port            = argv[3];
     }
     else if ( argc == 3 )
     {
+        __LOG( "argc == 3" )
         address         = argv[1];
         port            = argv[2];
     }
     else
     {
         std::cout << "usage: replicatro-service [-d] <address> <port>\n";
+        //exit(0);
+        runInBackground = true;
+        address         = "127.0.0.1";
+        port            = "5357";
     }
 #endif
+
+    __LOG( "replicator-service started: " << address << ":" << port )
 
     if ( runInBackground )
     {
         __LOG( "Run In Background" )
-        runServiceInBackground();
+        runServiceInBackground(LOG_FILE, port);
     }
 
     __LOG( "RpcRemoteReplicator replicator" )
@@ -54,58 +66,39 @@ int main( int argc, char* argv[] )
     replicator.run( address, port );
 }
 
-int runServiceInBackground()
+int runServiceInBackground(std::string logFolder, std::string port)
 {
     try
     {
-      boost::asio::io_context io_service;
-
-      // Initialise the server before becoming a daemon. If the process is
-      // started from a shell, this means any errors will be reported back to the
-      // user.
-  //    udp_daytime_server server(io_service);
-
-      // Register signal handlers so that the daemon may be shut down. You may
-      // also want to register for other signals, such as SIGHUP to trigger a
-      // re-read of a configuration file.
-      boost::asio::signal_set signals(io_service, SIGINT, SIGTERM);
-      signals.async_wait(
-          boost::bind(&boost::asio::io_context::stop, &io_service));
-
-      // Inform the io_service that we are about to become a daemon. The
-      // io_service cleans up any internal resources, such as threads, that may
-      // interfere with forking.
-      io_service.notify_fork(boost::asio::io_context::fork_prepare);
-
       // Fork the process and have the parent exit. If the process was started
       // from a shell, this returns control to the user. Forking a new process is
       // also a prerequisite for the subsequent call to setsid().
       if (pid_t pid = fork())
       {
-        if (pid > 0)
-        {
-          // We're in the parent process and need to exit.
-          //
-          // When the exit() function is used, the program terminates without
-          // invoking local variables' destructors. Only global variables are
-          // destroyed. As the io_service object is a local variable, this means
-          // we do not have to call:
-          //
-          //   io_service.notify_fork(boost::asio::io_service::fork_parent);
-          //
-          // However, this line should be added before each call to exit() if
-          // using a global io_service object. An additional call:
-          //
-          //   io_service.notify_fork(boost::asio::io_service::fork_prepare);
-          //
-          // should also precede the second fork().
-          exit(0);
-        }
-        else
-        {
-          syslog(LOG_ERR | LOG_USER, "First fork failed: %m");
-          return 1;
-        }
+            if (pid > 0)
+            {
+                  // We're in the parent process and need to exit.
+                  //
+                  // When the exit() function is used, the program terminates without
+                  // invoking local variables' destructors. Only global variables are
+                  // destroyed. As the io_service object is a local variable, this means
+                  // we do not have to call:
+                  //
+                  //   io_service.notify_fork(boost::asio::io_service::fork_parent);
+                  //
+                  // However, this line should be added before each call to exit() if
+                  // using a global io_service object. An additional call:
+                  //
+                  //   io_service.notify_fork(boost::asio::io_service::fork_prepare);
+                  //
+                  // should also precede the second fork().
+                  exit(0);
+            }
+            else
+            {
+                  std::cerr << "First fork failed\n";
+                  return 1;
+            }
       }
 
       // Make the process a new session leader. This detaches it from the
@@ -132,7 +125,7 @@ int runServiceInBackground()
         }
         else
         {
-          syslog(LOG_ERR | LOG_USER, "Second fork failed: %m");
+            std::cerr << "Second fork failed\n";
           return 1;
         }
       }
@@ -150,37 +143,39 @@ int runServiceInBackground()
         return 1;
       }
 
-      // Send standard output to a log file.
-      const char* output = "/tmp/asio.daemon.out";
-      const int flags = O_WRONLY | O_CREAT | O_APPEND;
-      const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-      if (open(output, flags, mode) < 0)
-      {
-        syslog(LOG_ERR | LOG_USER, "Unable to open output file %s: %m", output);
-        return 1;
-      }
+        // Send standard output to a log file.
+	  	std::error_code ec;
+	  	std::filesystem::create_directories(logFolder, ec);
 
-      // Also send standard error to the same log file.
-      if (dup(1) < 0)
-      {
-        syslog(LOG_ERR | LOG_USER, "Unable to dup output descriptor: %m");
-        return 1;
-      }
+		if (ec)
+		{
+			exit(0);
+		}
 
-      // Inform the io_service that we have finished becoming a daemon. The
-      // io_service uses this opportunity to create any internal file descriptors
-      // that need to be private to the new process.
-      io_service.notify_fork(boost::asio::io_context::fork_child);
+        std::string output = logFolder + "replicator_service_" + port + ".log";
+//        const int flags = O_WRONLY | O_CREAT | O_APPEND;
+        const int flags = O_WRONLY | O_CREAT;
+        const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+        if (open(output.c_str(), flags, mode) < 0)
+        {
+          syslog(LOG_ERR | LOG_USER, "Unable to open output file %s: %m", output.c_str());
+          return 1;
+        }
 
-      // The io_service can now be used normally.
-      syslog(LOG_INFO | LOG_USER, "Daemon started");
-      io_service.run();
-      syslog(LOG_INFO | LOG_USER, "Daemon stopped");
+        // Also send standard error to the same log file.
+        if (dup(1) < 0)
+        {
+          syslog(LOG_ERR | LOG_USER, "Unable to dup output descriptor: %m");
+          return 1;
+        }
+
+        RPC_LOG( "Daemon started");
+        RPC_LOG( "--------------------------------------------------------");
     }
     catch (std::exception& e)
     {
-      syslog(LOG_ERR | LOG_USER, "Exception: %s", e.what());
-      std::cerr << "Exception: " << e.what() << std::endl;
+        std::cerr << "Exception: " << e.what() << std::endl;
+        RPC_LOG( "Exception: " << e.what() );
     }
     return 0;
 }
