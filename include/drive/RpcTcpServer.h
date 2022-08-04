@@ -131,6 +131,14 @@ protected:
                                     server->setDnSession( self->weak_from_this() );
                                 }
                             }
+                            else if ( self->command == RPC_CMD::log )
+                            {
+                                self->readLog( false );
+                            }
+                            else if ( self->command == RPC_CMD::log_err )
+                            {
+                                self->readLog( true );
+                            }
                         }
                     });
                 }
@@ -210,6 +218,29 @@ protected:
                             self->readNextCommand();
                         }
                     });
+                }
+            });
+        }
+        
+        void readLog( bool isError )
+        {
+            streambuf.prepare( packetLen );
+
+            asio::async_read( socket, streambuf,
+                                        asio::transfer_exactly( packetLen ),
+                                        [self = shared_from_this(),isError] ( boost::system::error_code error, std::size_t bytes_transferred )
+            {
+                if ( ! error )
+                {
+                    std::istream is( &self->streambuf );
+                    if ( isError )
+                    {
+                        __LOG( "!Daemon Error: " << is.rdbuf() );
+                    }
+                    else
+                    {
+                        __LOG( "!Daemon log: " << is.rdbuf() );
+                    }
                 }
             });
         }

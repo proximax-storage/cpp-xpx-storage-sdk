@@ -7,23 +7,37 @@
 #include <syslog.h>
 #include <unistd.h>
 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <errno.h>
+
+namespace fs = std::filesystem;
+
 //#define DEBUG_NO_DAEMON_REPLICATOR_SERVICE
 
-#define LOG_FILE "/tmp/replicator.daemon.log"
-#undef LOG_FILE
-#define LOG_FILE "/home/kyrylo/logs"
+#ifdef __APPLE__
+#define LOG_FOLDER "/tmp/replicator_service_logs"
+#else
+//TODO
+#define LOG_FOLDER "/home/kyrylo/logs"
+#endif
 
 #include "drive/RpcRemoteReplicator.h"
 #include "drive/Replicator.h"
 
-int runServiceInBackground(std::string, std::string);
+int runServiceInBackground( fs::path, const std::string& );
+int log( bool isError, const std::string& text );
+
+bool runInBackground = false;
+std::string address;
+std::string port;
 
 int main( int argc, char* argv[] )
 {
-    bool runInBackground = false;
-    std::string address;
-    std::string port;
-
 
 #ifdef DEBUG_NO_DAEMON_REPLICATOR_SERVICE
 //        runInBackground = true;
@@ -58,7 +72,7 @@ int main( int argc, char* argv[] )
     if ( runInBackground )
     {
         __LOG( "Run In Background" )
-        runServiceInBackground(LOG_FILE, port);
+        runServiceInBackground(LOG_FOLDER, port);
     }
 
     __LOG( "RpcRemoteReplicator replicator" )
@@ -66,7 +80,7 @@ int main( int argc, char* argv[] )
     replicator.run( address, port );
 }
 
-int runServiceInBackground(std::string logFolder, std::string port)
+int runServiceInBackground( fs::path logFolder, const std::string& port )
 {
     try
     {
@@ -96,8 +110,8 @@ int runServiceInBackground(std::string logFolder, std::string port)
             }
             else
             {
-                  std::cerr << "First fork failed\n";
-                  return 1;
+                log( true, "First fork failed");
+                exit(0);
             }
       }
 
@@ -114,7 +128,7 @@ int runServiceInBackground(std::string logFolder, std::string port)
       // The file mode creation mask is also inherited from the parent process.
       // We don't want to restrict the permissions on files created by the
       // daemon, so the mask is cleared.
-      umask(0);
+      //umask(0);
 
       // A second fork ensures the process cannot acquire a controlling terminal.
       if (pid_t pid = fork())
@@ -125,8 +139,8 @@ int runServiceInBackground(std::string logFolder, std::string port)
         }
         else
         {
-            std::cerr << "Second fork failed\n";
-          return 1;
+            log( true, "Second fork failed");
+            exit(0);
         }
       }
 
@@ -137,45 +151,90 @@ int runServiceInBackground(std::string logFolder, std::string port)
       close(2);
 
       // We don't want the daemon to have any standard input.
-      if (open("/dev/null", O_RDONLY) < 0)
+      if ( open("/dev/null", O_RDONLY) < 0 )
       {
-        syslog(LOG_ERR | LOG_USER, "Unable to open /dev/null: %m");
-        return 1;
+          log( true, "Unable to open /dev/null");
+          exit(0);
       }
 
         // Send standard output to a log file.
 	  	std::error_code ec;
-	  	std::filesystem::create_directories(logFolder, ec);
+	  	fs::create_directories( logFolder, ec );
 
 		if (ec)
 		{
-			exit(0);
+            log( true, "create_directories error");
 		}
+        
+        fs::permissions( logFolder,
+                            fs::perms::owner_all | fs::perms::group_all | fs::perms::others_all,
+                            fs::perm_options::add );
+         
 
-        std::string output = logFolder + "replicator_service_" + port + ".log";
+        std::string output = logFolder / ("replicator_service_" + port + ".log");
 //        const int flags = O_WRONLY | O_CREAT | O_APPEND;
         const int flags = O_WRONLY | O_CREAT;
-        const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-        if (open(output.c_str(), flags, mode) < 0)
+        const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+        if ( open(output.c_str(), flags, mode) < 0 )
         {
-          syslog(LOG_ERR | LOG_USER, "Unable to open output file %s: %m", output.c_str());
-          return 1;
+            log( true, "Unable to open output log file");
+            exit(0);
         }
 
         // Also send standard error to the same log file.
         if (dup(1) < 0)
         {
-          syslog(LOG_ERR | LOG_USER, "Unable to dup output descriptor: %m");
-          return 1;
+            log( true, "Unable to dup output descriptor");
+            exit(0);
         }
+        
+        log( false, " Daemon  started" );
+        log( false, " ---------------------------" );
 
         RPC_LOG( "Daemon started");
-        RPC_LOG( "--------------------------------------------------------");
+        RPC_LOG( "---------------------------------------------------------");
     }
     catch (std::exception& e)
     {
         std::cerr << "Exception: " << e.what() << std::endl;
         RPC_LOG( "Exception: " << e.what() );
     }
+    return 0;
+}
+
+int log( bool isError, const std::string& text )
+{
+    // init TCP socket
+    int sockfd = socket( AF_INET, SOCK_STREAM, 0 );
+    if (sockfd == -1)
+    {
+        __LOG( "log ERROR: sockfd == -1" )
+        return 1;
+    }
+
+    // assign IP, PORT
+    struct sockaddr_in servaddr;
+    bzero( &servaddr, sizeof(servaddr) );
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = inet_addr( address.c_str() );
+    servaddr.sin_port = htons( std::stoi(port) );
+   
+    // connect
+    if ( connect( sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr) ) != 0 )
+    {
+        __LOG( "log ERROR: connect" )
+        return 2;
+    }
+
+    // send packet
+    RPC_CMD command = isError ? RPC_CMD::log_err : RPC_CMD::log;
+    write( sockfd, &command, sizeof(command) );
+    uint16_t len = (uint16_t) text.size();
+    write( sockfd, &len, sizeof(len) );
+    write( sockfd, text.data(), text.length() );
+    
+    // close
+    close(sockfd);
+
     return 0;
 }
