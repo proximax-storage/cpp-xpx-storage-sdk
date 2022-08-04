@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include <filesystem>
 
+namespace fs = std::filesystem;
+
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #include <limits.h>
@@ -38,7 +40,6 @@ class RpcReplicator : public Replicator, public RpcServer
     const std::string               m_dbgReplicatorName;
     
     bool                            m_isRemoteServiceConnected = false;
-    bool                            m_isConnectionLost = false;
     
     std::uint16_t                   m_rpcPort;
     
@@ -259,7 +260,6 @@ public:
 
     virtual void handleConnectionLost()  override
     {
-        m_isConnectionLost = true;
     }
 
     virtual void start() override
@@ -306,55 +306,31 @@ public:
 
     virtual void asyncInitializationFinished() override
     {
-		if ( m_isConnectionLost )
-		{
-			return;
-		}
         rpcCall( RPC_CMD::asyncInitializationFinished );
     }
 
     virtual void asyncAddDrive( Key driveKey, mobj<AddDriveRequest>&& driveRequest ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
         rpcCall( RPC_CMD::asyncAddDrive, driveKey, *driveRequest );
     }
 
     virtual void asyncRemoveDrive( Key driveKey ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
         rpcCall( RPC_CMD::asyncRemoveDrive, driveKey );
     }
 
 	virtual void asyncSetReplicators( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncSetReplicators, driveKey, *replicatorKeys );
     }
 
     virtual void asyncSetShardDonator( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncSetShardDonator, driveKey, *replicatorKeys );
     }
 
     virtual void asyncSetShardRecipient( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncSetShardRecipient, driveKey, *replicatorKeys );
     }
 
@@ -365,46 +341,26 @@ public:
 
     virtual void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
         rpcCall( RPC_CMD::asyncCloseDrive, driveKey, transactionHash );
     }
 
     virtual void        asyncModify( Key driveKey, mobj<ModificationRequest>&&  modifyRequest ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncModify, driveKey, *modifyRequest );
     }
 
     virtual void        asyncCancelModify( Key driveKey, Hash256  transactionHash ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncCancelModify, driveKey, transactionHash );
     }
     
     virtual void        asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& request) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncStartDriveVerification, driveKey, *request );
     }
     
     virtual void        asyncCancelDriveVerification( Key driveKey ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncCancelDriveVerification, driveKey );
     }
 
@@ -414,28 +370,16 @@ public:
 
     virtual void        asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&&  downloadRequest, bool mustBeSynchronized = false ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncAddDownloadChannelInfo, driveKey, *downloadRequest, mustBeSynchronized );
     }
 
 	virtual void		asyncIncreaseDownloadChannelSize( ChannelId channelId, uint64_t size ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncIncreaseDownloadChannelSize, channelId, size );
     }
 
     virtual void        asyncRemoveDownloadChannelInfo( ChannelId channelId ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncRemoveDownloadChannelInfo, channelId );
     }
 
@@ -443,19 +387,11 @@ public:
     
     virtual void        asyncInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncInitiateDownloadApprovalTransactionInfo, blockHash, channelId );
     }
 
     virtual void        asyncDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed = false ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncDownloadApprovalTransactionHasBeenPublished, blockHash, channelId, driveIsClosed );
     }
 
@@ -465,10 +401,6 @@ public:
     
     virtual void        asyncApprovalTransactionHasBeenPublished( mobj<PublishedModificationApprovalTransactionInfo>&& transaction ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncApprovalTransactionHasBeenPublished, *transaction );
     }
 
@@ -476,19 +408,11 @@ public:
 
     virtual void        asyncSingleApprovalTransactionHasBeenPublished( mobj<PublishedModificationSingleApprovalTransactionInfo>&& transaction ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncSingleApprovalTransactionHasBeenPublished, *transaction );
     }
 
     virtual void        asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) override
     {
-    	if ( m_isConnectionLost )
-    	{
-    		return;
-    	}
 		rpcCall( RPC_CMD::asyncVerifyApprovalTransactionHasBeenPublished, info );
     }
 
