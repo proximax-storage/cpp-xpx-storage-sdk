@@ -15,8 +15,6 @@ endif()
 
 include_directories(include)
 
-# Libtorrent
-option(XPX_STORAGE_SDK_BUILD_EMULATOR "Build XPX-STORAGE SDK emulator." OFF)
 option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build XPX-STORAGE SDK examples." OFF)
 
 ### setup boost
