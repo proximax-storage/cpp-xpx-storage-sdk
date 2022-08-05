@@ -16,6 +16,8 @@
 #include <limits.h>
 #endif
 
+namespace fs = std::filesystem;
+
 namespace sirius::drive {
 
 //

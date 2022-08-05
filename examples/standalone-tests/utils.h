@@ -34,11 +34,8 @@ namespace sirius::drive::test
     extern std::mutex gExLogMutex;
 
 #define EXLOG(expr) { \
-const std::lock_guard<std::mutex> autolock( gExLogMutex ); \
-std::cout << now_str() << ": " << expr << std::endl << std::flush; \
+__LOG( "+++ exlog: " << expr << std::endl << std::flush); \
 }
-
-    std::string now_str();
 
     void clientSessionErrorHandler(const lt::alert *alert);
 

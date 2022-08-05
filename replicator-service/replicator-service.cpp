@@ -169,7 +169,7 @@ int runServiceInBackground( fs::path logFolder, const std::string& port )
 
         std::string output = logFolder / ("replicator_service_" + port + ".log");
 //        const int flags = O_WRONLY | O_CREAT | O_APPEND;
-        const int flags = O_WRONLY | O_CREAT;
+        const int flags = O_WRONLY | O_CREAT | O_APPEND;
         const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
         if ( open(output.c_str(), flags, mode) < 0 )
         {
