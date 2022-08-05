@@ -54,7 +54,11 @@ DECLARE_ENUM16 ( RPC_CMD,
     asyncSingleApprovalTransactionHasBeenPublished,
     asyncDownloadApprovalTransactionHasBeenPublished,
     asyncVerifyApprovalTransactionHasBeenPublished,
-                
+    asyncOnOpinionReceived,
+    asyncOnDownloadOpinionReceived,
+    asyncApprovalTransactionHasFailedInvalidOpinions,
+    asyncDownloadApprovalTransactionHasFailedInvalidOpinions,
+
     // for debugging (dn)
     dbgGetRootHash,
                 

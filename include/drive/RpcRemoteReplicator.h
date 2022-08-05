@@ -274,6 +274,43 @@ public:
                 m_replicator->asyncVerifyApprovalTransactionHasBeenPublished( txInfo );
                 break;
             }
+            case RPC_CMD::asyncOnOpinionReceived:
+            {
+                ApprovalTransactionInfo opinion;
+                iarchive( opinion );
+
+                m_replicator->asyncOnOpinionReceived( opinion );
+                break;
+            }
+            case RPC_CMD::asyncOnDownloadOpinionReceived:
+            {
+                DownloadApprovalTransactionInfo opinion;
+                iarchive( opinion );
+
+                m_replicator->asyncOnDownloadOpinionReceived( opinion );
+                break;
+            }
+            case RPC_CMD::asyncApprovalTransactionHasFailedInvalidOpinions:
+            {
+                Key driveKey;
+                Hash256 transactionHash;
+                iarchive( driveKey );
+                iarchive( transactionHash );
+
+                m_replicator->asyncApprovalTransactionHasFailedInvalidOpinions( driveKey, transactionHash );
+                break;
+            }
+            case RPC_CMD::asyncDownloadApprovalTransactionHasFailedInvalidOpinions:
+            {
+                Hash256 eventHash;
+                Hash256 channelId;
+                iarchive( eventHash );
+                iarchive( channelId );
+
+                m_replicator->asyncDownloadApprovalTransactionHasFailedInvalidOpinions( eventHash, channelId );
+                break;
+            }
+
 
             case RPC_CMD::dbgGetRootHash:
             {
