@@ -15,9 +15,6 @@ endif()
 
 include_directories(include)
 
-# Libtorrent
-option(XPX_STORAGE_SDK_BUILD_EMULATOR "Build XPX-STORAGE SDK emulator." OFF)
-
 ### setup boost
 if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
     SET(Boost_NAMESPACE ${Boost_NAMESPACE} "libboost")

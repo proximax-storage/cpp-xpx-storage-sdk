@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include <filesystem>
 
+namespace fs = std::filesystem;
+
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #include <limits.h>
@@ -40,7 +42,6 @@ class RpcReplicator : public Replicator, public RpcServer
     const std::string               m_dbgReplicatorName;
     
     bool                            m_isRemoteServiceConnected = false;
-    bool                            m_isConnectionLost = false;
     
     std::uint16_t                   m_rpcPort;
     
@@ -261,7 +262,6 @@ public:
 
     virtual void handleConnectionLost()  override
     {
-        m_isConnectionLost = true;
     }
 
     virtual void start() override
@@ -323,17 +323,17 @@ public:
 
 	virtual void asyncSetReplicators( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) override
     {
-        rpcCall( RPC_CMD::asyncSetReplicators, driveKey, *replicatorKeys );
+		rpcCall( RPC_CMD::asyncSetReplicators, driveKey, *replicatorKeys );
     }
 
     virtual void asyncSetShardDonator( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) override
     {
-        rpcCall( RPC_CMD::asyncSetShardDonator, driveKey, *replicatorKeys );
+		rpcCall( RPC_CMD::asyncSetShardDonator, driveKey, *replicatorKeys );
     }
 
     virtual void asyncSetShardRecipient( Key driveKey, mobj<std::vector<Key>>&& replicatorKeys ) override
     {
-        rpcCall( RPC_CMD::asyncSetShardRecipient, driveKey, *replicatorKeys );
+		rpcCall( RPC_CMD::asyncSetShardRecipient, driveKey, *replicatorKeys );
     }
 
     virtual void asyncSetChanelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys ) override
@@ -348,22 +348,22 @@ public:
 
     virtual void        asyncModify( Key driveKey, mobj<ModificationRequest>&&  modifyRequest ) override
     {
-        rpcCall( RPC_CMD::asyncModify, driveKey, *modifyRequest );
+		rpcCall( RPC_CMD::asyncModify, driveKey, *modifyRequest );
     }
 
     virtual void        asyncCancelModify( Key driveKey, Hash256  transactionHash ) override
     {
-        rpcCall( RPC_CMD::asyncCancelModify, driveKey, transactionHash );
+		rpcCall( RPC_CMD::asyncCancelModify, driveKey, transactionHash );
     }
     
     virtual void        asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& request) override
     {
-        rpcCall( RPC_CMD::asyncStartDriveVerification, driveKey, *request );
+		rpcCall( RPC_CMD::asyncStartDriveVerification, driveKey, *request );
     }
     
     virtual void        asyncCancelDriveVerification( Key driveKey ) override
     {
-        rpcCall( RPC_CMD::asyncCancelDriveVerification, driveKey );
+		rpcCall( RPC_CMD::asyncCancelDriveVerification, driveKey );
     }
 
     virtual void        asyncStartStream( Key driveKey, mobj<StreamRequest>&& ) override {}
@@ -372,17 +372,17 @@ public:
 
     virtual void        asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&&  downloadRequest, bool mustBeSynchronized = false ) override
     {
-        rpcCall( RPC_CMD::asyncAddDownloadChannelInfo, driveKey, *downloadRequest, mustBeSynchronized );
+		rpcCall( RPC_CMD::asyncAddDownloadChannelInfo, driveKey, *downloadRequest, mustBeSynchronized );
     }
 
 	virtual void		asyncIncreaseDownloadChannelSize( ChannelId channelId, uint64_t size ) override
     {
-        rpcCall( RPC_CMD::asyncIncreaseDownloadChannelSize, channelId, size );
+		rpcCall( RPC_CMD::asyncIncreaseDownloadChannelSize, channelId, size );
     }
 
     virtual void        asyncRemoveDownloadChannelInfo( ChannelId channelId ) override
     {
-        rpcCall( RPC_CMD::asyncRemoveDownloadChannelInfo, channelId );
+		rpcCall( RPC_CMD::asyncRemoveDownloadChannelInfo, channelId );
     }
 
     virtual void        asyncOnDownloadOpinionReceived( mobj<DownloadApprovalTransactionInfo>&& anOpinion ) override {
@@ -391,12 +391,12 @@ public:
     
     virtual void        asyncInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) override
     {
-        rpcCall( RPC_CMD::asyncInitiateDownloadApprovalTransactionInfo, blockHash, channelId );
+		rpcCall( RPC_CMD::asyncInitiateDownloadApprovalTransactionInfo, blockHash, channelId );
     }
 
     virtual void        asyncDownloadApprovalTransactionHasBeenPublished( Hash256 blockHash, Hash256 channelId, bool driveIsClosed = false ) override
     {
-        rpcCall( RPC_CMD::asyncDownloadApprovalTransactionHasBeenPublished, blockHash, channelId, driveIsClosed );
+		rpcCall( RPC_CMD::asyncDownloadApprovalTransactionHasBeenPublished, blockHash, channelId, driveIsClosed );
     }
 
     virtual void        asyncDownloadApprovalTransactionHasFailedInvalidOpinions( Hash256 eventHash, Hash256 channelId ) override {
@@ -409,7 +409,7 @@ public:
     
     virtual void        asyncApprovalTransactionHasBeenPublished( mobj<PublishedModificationApprovalTransactionInfo>&& transaction ) override
     {
-        rpcCall( RPC_CMD::asyncApprovalTransactionHasBeenPublished, *transaction );
+		rpcCall( RPC_CMD::asyncApprovalTransactionHasBeenPublished, *transaction );
     }
 
     virtual void        asyncApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 transactionHash ) override {
@@ -418,12 +418,12 @@ public:
 
     virtual void        asyncSingleApprovalTransactionHasBeenPublished( mobj<PublishedModificationSingleApprovalTransactionInfo>&& transaction ) override
     {
-        rpcCall( RPC_CMD::asyncSingleApprovalTransactionHasBeenPublished, *transaction );
+		rpcCall( RPC_CMD::asyncSingleApprovalTransactionHasBeenPublished, *transaction );
     }
 
     virtual void        asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) override
     {
-        rpcCall( RPC_CMD::asyncVerifyApprovalTransactionHasBeenPublished, info );
+		rpcCall( RPC_CMD::asyncVerifyApprovalTransactionHasBeenPublished, info );
     }
 
     virtual void        asyncVerifyApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 verificationId ) override {

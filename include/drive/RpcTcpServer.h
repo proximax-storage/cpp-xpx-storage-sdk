@@ -37,6 +37,7 @@ protected:
     std::optional<asio::ip::tcp::socket>    m_socket;
     std::shared_ptr<Session>                m_upSession; // up command channel - from remote process to RPC server
     std::shared_ptr<Session>                m_dnSession; // dn command channel - from RPC server to remote process
+    bool									m_isConnectionLost = false;
 
 protected:
 
@@ -399,6 +400,7 @@ private:
                 {
                     if ( ec.value() == boost::system::errc::operation_canceled )
                     {
+						self->m_isConnectionLost = true;
                         self->handleConnectionLost();
                     }
                     else
@@ -453,7 +455,10 @@ private:
     
 void RpcTcpServer::rpcCall( RPC_CMD func, const std::string& parameters )
 {
-    m_dnSession->send( func, parameters );
+    if ( m_isConnectionLost ) {
+		return;
+	}
+	m_dnSession->send( func, parameters );
     __LOG( "*rpc* rpcCall: " << CMD_STR(func) )
     m_dnSession->readAck();
     __LOG(  "Read Ack" );
