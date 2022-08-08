@@ -25,12 +25,14 @@
 namespace asio = boost::asio;
 using     tcp  = boost::asio::ip::tcp;
 
+inline bool gHandleLostConnection = false;
+
 class RpcTcpServer : public std::enable_shared_from_this<RpcTcpServer>
 {
 protected:
-
+    
     class Session;
-
+    
     std::thread                             m_thread;
     asio::io_context                        m_context;
     std::optional<asio::ip::tcp::acceptor>  m_acceptor;
@@ -38,9 +40,9 @@ protected:
     std::shared_ptr<Session>                m_upSession; // up command channel - from remote process to RPC server
     std::shared_ptr<Session>                m_dnSession; // dn command channel - from RPC server to remote process
     bool									m_isConnectionLost = false;
-
+    
 protected:
-
+    
     RpcTcpServer()
     {
         __LOG( "RpcTcpServer(); address: " )
@@ -55,13 +57,13 @@ protected:
             m_thread.join();
         }
     }
-
+    
     virtual void initiateRemoteService() = 0;
-
+    
     virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive* parameters ) = 0;
-
+    
     virtual void handleError( std::error_code ) = 0;
-
+    
     virtual void handleConnectionLost() = 0;
     
     virtual void dbgEmulateSignal( int index ) = 0;
@@ -69,16 +71,16 @@ protected:
     void rpcCall( RPC_CMD func, const std::string& parameters );
     
     std::array<uint8_t,32> rpcDbgGetRootHash( const std::string& parameters );
-
+    
 public:
     void startTcpServer( std::string address, std::uint16_t port )
     {
         m_acceptor.emplace( m_context, asio::ip::tcp::endpoint( boost::asio::ip::make_address(address.c_str()), port ) );
-
+        
         async_accept();
         
         m_thread = std::thread( [this]
-        {
+                               {
             m_context.run();
         });
     }
@@ -92,24 +94,24 @@ protected:
         asio::ip::tcp::socket   socket;
         asio::streambuf         streambuf;
         std::vector<uint8_t>    in_buff;
-
+        
         uint16_t                packetLen;
         RPC_CMD                 command;
-
+        
     public:
-
+        
         Session( asio::ip::tcp::socket&& socket, std::weak_ptr<RpcTcpServer> server )
-            : m_server(server), socket( std::move(socket) )
+        : m_server(server), socket( std::move(socket) )
         {
         }
-
+        
         void start()
         {
             __LOG( "start()" );
             asio::async_read( socket, asio::buffer( &command, sizeof(command) ),
-                                      asio::transfer_exactly( sizeof(command) ),
+                             asio::transfer_exactly( sizeof(command) ),
                              [self = shared_from_this()] ( boost::system::error_code error, std::size_t bytes_transferred )
-            {
+                             {
                 if ( !error )
                 {
                     // TODO!!! only for debugging catapult
@@ -125,9 +127,9 @@ protected:
                     
                     __LOG( "self->command: " << CMD_STR(self->command) );
                     asio::async_read( self->socket, asio::buffer( &self->packetLen, sizeof(self->packetLen) ),
-                                              asio::transfer_exactly( sizeof(self->packetLen) ),
-                                              [self = self] ( boost::system::error_code error, std::size_t bytes_transferred )
-                    {
+                                     asio::transfer_exactly( sizeof(self->packetLen) ),
+                                     [self = self] ( boost::system::error_code error, std::size_t bytes_transferred )
+                                     {
                         if ( !error )
                         {
                             if ( self->command == RPC_CMD::UP_CHANNEL_INIT )
@@ -162,20 +164,20 @@ protected:
         void readNextCommand()
         {
             asio::async_read( socket, asio::buffer( &command, sizeof(command) ),
-                                      asio::transfer_exactly( sizeof(command) ),
-                                      [w = weak_from_this()] ( boost::system::error_code error, std::size_t bytes_transferred )
-            {
+                             asio::transfer_exactly( sizeof(command) ),
+                             [w = weak_from_this()] ( boost::system::error_code error, std::size_t bytes_transferred )
+                             {
                 if ( auto self = w.lock(); self && !error )
                 {
                     __LOG( "readCommand::self->command: " << CMD_STR(self->command) );
                     asio::async_read( self->socket, asio::buffer( &self->packetLen, sizeof(self->packetLen) ),
-                                              asio::transfer_exactly( sizeof(self->packetLen) ),
-                                              [w = w] ( boost::system::error_code error, std::size_t bytes_transferred )
-                    {
+                                     asio::transfer_exactly( sizeof(self->packetLen) ),
+                                     [w = w] ( boost::system::error_code error, std::size_t bytes_transferred )
+                                     {
                         if ( auto self = w.lock(); self && !error )
                         {
-//                            __LOG( "self->packetLen: " << self->packetLen );
-
+                            //                            __LOG( "self->packetLen: " << self->packetLen );
+                            
                             if ( self->command == RPC_CMD::UP_CHANNEL_INIT )
                             {
                                 __LOG_WARN( "ignore unexpected command: RPC_CMD::UP_CHANNEL_INIT" );
@@ -202,17 +204,17 @@ protected:
                                 else
                                 {
                                     self->streambuf.prepare( self->packetLen );
-
+                                    
                                     asio::async_read( self->socket, self->streambuf,
-                                                                    asio::transfer_exactly( self->packetLen ),
-                                                                    [self = self] ( boost::system::error_code error, std::size_t bytes_transferred )
-                                    {
+                                                     asio::transfer_exactly( self->packetLen ),
+                                                     [self = self] ( boost::system::error_code error, std::size_t bytes_transferred )
+                                                     {
                                         if ( ! error && bytes_transferred == self->packetLen )
                                         {
-
-//                                            __LOG( "self->packet_len: " << self->packetLen )
-//                                            __LOG( "self->streambuf.size: " << self->streambuf.size() )
-
+                                            
+                                            //                                            __LOG( "self->packet_len: " << self->packetLen )
+                                            //                                            __LOG( "self->streambuf.size: " << self->streambuf.size() )
+                                            
                                             //self->streambuf.commit(bytes_transferred);
                                             std::istream is( &self->streambuf );
                                             {
@@ -239,11 +241,11 @@ protected:
         void readLog( bool isError )
         {
             streambuf.prepare( packetLen );
-
+            
             asio::async_read( socket, streambuf,
-                                        asio::transfer_exactly( packetLen ),
-                                        [self = shared_from_this(),isError] ( boost::system::error_code error, std::size_t bytes_transferred )
-            {
+                             asio::transfer_exactly( packetLen ),
+                             [self = shared_from_this(),isError] ( boost::system::error_code error, std::size_t bytes_transferred )
+                             {
                 if ( ! error )
                 {
                     std::istream is( &self->streambuf );
@@ -266,19 +268,37 @@ protected:
             std::size_t bytes_transferred = asio::write( socket, asio::buffer( &command, sizeof(command) ), error );
             if ( error || bytes_transferred != sizeof(command) )
             {
-                //TODO
-                _LOG_ERR( "sendAck error: " << error )
+                if ( gHandleLostConnection )
+                {
+                    if ( auto server = m_server.lock(); server )
+                    {
+                        server->handleConnectionLost();
+                    }
+                }
+                else
+                {
+                    _LOG_ERR( "sendAck error: " << error )
+                }
             }
-
+            
             uint16_t packetLen = 0;
             bytes_transferred = asio::write( socket, asio::buffer( &packetLen, sizeof(packetLen) ), error );
             if ( error || bytes_transferred != sizeof(packetLen) )
             {
-                //TODO
-                _LOG_ERR( "sendAck error (2): " << error )
+                if ( gHandleLostConnection )
+                {
+                    if ( auto server = m_server.lock(); server )
+                    {
+                        server->handleConnectionLost();
+                    }
+                }
+                else
+                {
+                    _LOG_ERR( "sendAck error (2): " << error )
+                }
             }
         }
-
+        
         void send( RPC_CMD command, const std::string& parameters )
         {
             __LOG( "server send: " << CMD_STR(command) )
@@ -286,30 +306,57 @@ protected:
             std::size_t bytes_transferred = asio::write( socket, asio::buffer( &command, sizeof(command) ), error );
             if ( error || bytes_transferred != sizeof(command) )
             {
-                //TODO
-                _LOG_ERR( "send error: " << error )
+                if ( gHandleLostConnection )
+                {
+                    if ( auto server = m_server.lock(); server )
+                    {
+                        server->handleConnectionLost();
+                    }
+                }
+                else
+                {
+                    _LOG_ERR( "send error: " << error )
+                }
             }
-
+            
             uint16_t packetLen = (uint16_t) parameters.size();
             bytes_transferred = asio::write( socket, asio::buffer( &packetLen, sizeof(packetLen) ), error );
             if ( error || bytes_transferred != sizeof(packetLen) )
             {
-                //TODO
-                _LOG_ERR( "send error (2): " << error )
+                if ( gHandleLostConnection )
+                {
+                    if ( auto server = m_server.lock(); server )
+                    {
+                        server->handleConnectionLost();
+                    }
+                }
+                else
+                {
+                    _LOG_ERR( "send error (2): " << error )
+                }
             }
-                    
+            
             if ( parameters.size() > 0 )
             {
                 bytes_transferred = asio::write( socket, asio::buffer( parameters.c_str(), parameters.size() ), error );
-//                __LOG( "parameters.size(): " << parameters.size() )
-//                __LOG( "bytes_transferred" << bytes_transferred )
+                //                __LOG( "parameters.size(): " << parameters.size() )
+                //                __LOG( "bytes_transferred" << bytes_transferred )
                 if ( error || bytes_transferred != parameters.size() )
                 {
-                    //TODO
-                    _LOG_ERR( "send error (3): " << error )
+                    if ( gHandleLostConnection )
+                    {
+                        if ( auto server = m_server.lock(); server )
+                        {
+                            server->handleConnectionLost();
+                        }
+                    }
+                    else
+                    {
+                        _LOG_ERR( "send error (3): " << error )
+                    }
                 }
             }
-
+            
         }
         
         void readAck()
@@ -324,10 +371,19 @@ protected:
                        ec );
             if ( ec )
             {
-                //TODO
-                __LOG( "send error: " << ec )
+                if ( gHandleLostConnection )
+                {
+                    if ( auto server = m_server.lock(); server )
+                    {
+                        server->handleConnectionLost();
+                    }
+                }
+                else
+                {
+                    __LOG( "send error: " << ec )
+                }
             }
-
+            
             uint16_t packetLen;
             asio::read( socket,
                        asio::buffer( &packetLen, sizeof(packetLen) ),
@@ -335,15 +391,24 @@ protected:
                        ec );
             if ( ec )
             {
-                //TODO
-                _LOG_ERR( "send error: " << ec )
+                if ( gHandleLostConnection )
+                {
+                    if ( auto server = m_server.lock(); server )
+                    {
+                        server->handleConnectionLost();
+                    }
+                }
+                else
+                {
+                    _LOG_ERR( "send error: " << ec )
+                }
             }
             if ( command == RPC_CMD::PING )
                 goto readAgain;
             
             __ASSERT( command == RPC_CMD::ack && packetLen == 0 );
         }
-
+        
         std::array<uint8_t,32> readAckDbgGetRootHash()
         {
             RPC_CMD command;
@@ -356,10 +421,19 @@ protected:
                        ec );
             if ( ec )
             {
-                //TODO
-                __LOG( "send error: " << ec )
+                if ( gHandleLostConnection )
+                {
+                    if ( auto server = m_server.lock(); server )
+                    {
+                        server->handleConnectionLost();
+                    }
+                }
+                else
+                {
+                    __LOG( "send error: " << ec )
+                }
             }
-
+            
             uint16_t packetLen;
             asio::read( socket,
                        asio::buffer( &packetLen, sizeof(packetLen) ),
@@ -367,31 +441,49 @@ protected:
                        ec );
             if ( ec )
             {
-                //TODO
-                _LOG_ERR( "send error: " << ec )
+                if ( gHandleLostConnection )
+                {
+                    if ( auto server = m_server.lock(); server )
+                    {
+                        server->handleConnectionLost();
+                    }
+                }
+                else
+                {
+                    _LOG_ERR( "send error: " << ec )
+                }
             }
             if ( command == RPC_CMD::PING )
                 goto readAgain;
-
+            
             std::array<uint8_t,32> hash;
             __ASSERT( command == RPC_CMD::dbgHash && packetLen == 32 );
-
+            
             asio::read( socket,
                        asio::buffer( hash.data(), 32 ),
                        asio::transfer_exactly( 32 ),
                        ec );
             if ( ec )
             {
-                //TODO
-                _LOG_ERR( "send error: " << ec )
+                if ( gHandleLostConnection )
+                {
+                    if ( auto server = m_server.lock(); server )
+                    {
+                        server->handleConnectionLost();
+                    }
+                }
+                else
+                {
+                    _LOG_ERR( "send error: " << ec )
+                }
             }
             
             return hash;
         }
     };
-
+    
 private:
-
+    
     void closeSockets()
     {
         __LOG( "Start Close Sockets" )
@@ -402,23 +494,30 @@ private:
     void async_accept()
     {
         m_socket.emplace( m_context );
-
+        
         assert( weak_from_this().lock());
         
         m_acceptor->async_accept( *m_socket, [weak_ptr=weak_from_this()] (boost::system::error_code ec)
-        {
+                                 {
             if ( auto self = weak_ptr.lock(); self )
             {
                 if ( ec )
                 {
                     if ( ec.value() == boost::system::errc::operation_canceled )
                     {
-						self->m_isConnectionLost = true;
+                        self->m_isConnectionLost = true;
                         self->handleConnectionLost();
                     }
                     else
                     {
-                        _LOG_ERR( "error in RpcTcpServer::async_accept : " << ec.message() )
+                        if ( gHandleLostConnection )
+                        {
+                            self->handleConnectionLost();
+                        }
+                        else
+                        {
+                            _LOG_ERR( "error in RpcTcpServer::async_accept : " << ec.message() )
+                        }
                     }
                 }
                 else
@@ -430,7 +529,7 @@ private:
             }
         });
     }
-
+    
     void setUpSession( std::weak_ptr<Session> s )
     {
         if ( m_upSession )
@@ -438,7 +537,7 @@ private:
             __LOG_WARN( "double setUpSession()" );
             return;
         }
-
+        
         __LOG( "setUpSession()" );
         m_upSession = s.lock();
         
@@ -455,23 +554,24 @@ private:
             __LOG_WARN( "double setDnSession()" );
             return;
         }
-
+        
         __LOG( "setDnSession()" );
         m_dnSession = s.lock();
-
+        
         if ( m_upSession && m_dnSession )
         {
             initiateRemoteService();
         }
     }
 };
-    
+
 void RpcTcpServer::rpcCall( RPC_CMD func, const std::string& parameters )
 {
-    if ( m_isConnectionLost ) {
-		return;
-	}
-	m_dnSession->send( func, parameters );
+    if ( m_isConnectionLost )
+    {
+        return;
+    }
+    m_dnSession->send( func, parameters );
     __LOG( "*rpc* rpcCall: " << CMD_STR(func) )
     m_dnSession->readAck();
     __LOG(  "Read Ack" );
