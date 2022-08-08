@@ -79,6 +79,8 @@ public:
             }
             case RPC_CMD::destroyReplicator:
             {
+                //todo+++++
+                //abort();
                 m_replicator.reset();
                 break;
             }
@@ -320,6 +322,41 @@ public:
                 auto hash = m_replicator->dbgGetRootHash( key );
                 m_dnSocket.sendHashAnswer( RPC_CMD::dbgHash, hash.array() );
 
+                break;
+            }
+
+            case RPC_CMD::dbgCrash:
+            {
+                int signalIndex;
+                iarchive(signalIndex);
+
+                RPC_LOG( "signalIndex: " << signalIndex )
+                switch( signalIndex )
+                {
+                    case 0:
+                    {
+                        raise(SIGILL);
+                    }
+                    case 1:
+                    {
+                        int * p = (int*)0x0;
+                        *p = 0;
+                    }
+                    case 2:
+                    {
+                        int * p = (int*)0x0;
+                        __LOG( "*p: " << *p )
+                    }
+                    case 3:
+                    {
+                        char b[] = "i12453e";
+                        lt::error_code ec;
+                        lt::bdecode_node e = lt::bdecode(b, ec);
+                        e.dict_find("unexisting");
+                    }
+                    default:
+                        break;
+                }
                 break;
             }
 

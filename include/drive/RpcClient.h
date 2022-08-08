@@ -33,6 +33,11 @@
 #include <iostream>
 #include <fstream>
 
+// only for debugging libtorrent asserts
+#include "libtorrent/bdecode.hpp"
+#include "libtorrent/entry.hpp"
+
+
 #   define RPC_LOG(expr) __LOG( "*RPC* " << expr)
 
 #   define RPC_ERR(expr) { \
@@ -365,14 +370,6 @@ public:
 
             switch (command)
             {
-                case RPC_CMD::dbgCrash:
-                {
-                    RPC_LOG( "!!! switch RPC_CMD::dbgCrash" );
-                    //*((int*)0) = 42;
-                    abort();
-                    RPC_LOG( "!!!!!!!!!!!!!!!!!!!!!!!!!" );
-                    break;
-                }
                 case RPC_CMD::PING:
                 {
                     //m_upSocket.sendCommand( RPC_CMD::dbgCrash, "" );
@@ -383,11 +380,6 @@ public:
                     if ( inStreambuf.size() > 0 )
                     {
                         std::istream is( &inStreambuf );
-//                        __LOG( "os.str(): " << int( ((char*)inStreambuf.data().data())[0]) << " "
-//                              << int( ((char*)inStreambuf.data().data())[1]) << " "
-//                              << int( ((char*)inStreambuf.data().data())[2]) << " "
-//                              << int( ((char*)inStreambuf.data().data())[3]) << " " )
-
                         cereal::PortableBinaryInputArchive iarchive(is);
                         handleCommand( command, &iarchive );
                         inStreambuf.consume( inStreambuf.size() );

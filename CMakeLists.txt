@@ -58,7 +58,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     #include_directories(SYSTEM "/usr/local/include/" "/Library/Developer/CommandLineTools/SDKs/MacOSX12.0.sdk/usr/include/")
     #include_directories(SYSTEM "/Library/Developer/CommandLineTools/SDKs/MacOSX12.0.sdk/usr/include/")
 
-    add_subdirectory(examples)
+#    add_subdirectory(examples)
 endif()
 
 add_subdirectory(src)

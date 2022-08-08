@@ -739,6 +739,7 @@ int main(int,char**)
     
     /// Delete client session and replicators
     sleep(5);//(???++++!!!)
+    sleep(120);
     gClientSession.reset();
     gReplicator.reset();
     gReplicator2.reset();

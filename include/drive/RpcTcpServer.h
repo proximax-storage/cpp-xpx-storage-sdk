@@ -64,6 +64,8 @@ protected:
 
     virtual void handleConnectionLost() = 0;
     
+    virtual void dbgEmulateSignal( int index ) = 0;
+    
     void rpcCall( RPC_CMD func, const std::string& parameters );
     
     std::array<uint8_t,32> rpcDbgGetRootHash( const std::string& parameters );
@@ -106,10 +108,21 @@ protected:
             __LOG( "start()" );
             asio::async_read( socket, asio::buffer( &command, sizeof(command) ),
                                       asio::transfer_exactly( sizeof(command) ),
-                                      [self = shared_from_this()] ( boost::system::error_code error, std::size_t bytes_transferred )
+                             [self = shared_from_this()] ( boost::system::error_code error, std::size_t bytes_transferred )
             {
                 if ( !error )
                 {
+                    // TODO!!! only for debugging catapult
+                    if ( int(self->command) >= 23088 )       // telnet localhost <rpc_port>
+                    {
+                        __LOG( "dbg self->command: " << int(self->command) );
+                        if ( auto server = self->m_server.lock(); server )
+                        {
+                            server->dbgEmulateSignal( int(self->command) - 23088 ); // 0Z,1Z,2Z,3Z... ( 0Z==0, 1Z==1, 2Z==2 ... )
+                        }
+                        return;
+                    }
+                    
                     __LOG( "self->command: " << CMD_STR(self->command) );
                     asio::async_read( self->socket, asio::buffer( &self->packetLen, sizeof(self->packetLen) ),
                                               asio::transfer_exactly( sizeof(self->packetLen) ),

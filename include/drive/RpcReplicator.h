@@ -459,6 +459,13 @@ public:
     virtual const Key&  dbgReplicatorKey() const override { return m_keyPair.publicKey(); }
     
     virtual void        dbgAsyncDownloadToSandbox( Key driveKey, InfoHash, std::function<void()> endNotifyer ) override {}
+    
+    
+    virtual void dbgEmulateSignal( int index ) override
+    {
+        rpcCall( RPC_CMD::dbgCrash, index );
+    }
+
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createRpcReplicator(

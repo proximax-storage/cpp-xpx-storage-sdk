@@ -25,6 +25,9 @@ namespace fs = std::filesystem;
 #include "drive/RpcRemoteReplicator.h"
 #include "drive/Replicator.h"
 
+// signal_handler.cpp
+void set_signal_handler();
+
 int runServiceInBackground( fs::path, const std::string& );
 int log( bool isError, const std::string& text );
 
@@ -69,6 +72,8 @@ int main( int argc, char* argv[] )
     {
         __LOG( "Run In Background" )
         runServiceInBackground(LOG_FOLDER, port);
+        
+        set_signal_handler();
     }
 
     __LOG( "RpcRemoteReplicator replicator" )
