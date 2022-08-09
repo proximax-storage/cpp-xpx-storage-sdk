@@ -25,6 +25,7 @@
 #include <execinfo.h>
 #include <cstdio>
 #include <string>
+#include <cstring>
 
 #if defined __GNUC__ && __GNUC__ >= 3 && !defined __UCLIBCXX_MAJOR__
 
