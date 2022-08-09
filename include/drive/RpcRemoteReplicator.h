@@ -336,16 +336,19 @@ public:
                     case 0:
                     {
                         raise(SIGILL);
+                        break;
                     }
                     case 1:
                     {
                         int * p = (int*)0x0;
                         *p = 0;
+                        break;
                     }
                     case 2:
                     {
                         int * p = (int*)0x0;
                         __LOG( "*p: " << *p )
+                        break;
                     }
                     case 3:
                     {
@@ -353,6 +356,7 @@ public:
                         lt::error_code ec;
                         lt::bdecode_node e = lt::bdecode(b, ec);
                         e.dict_find("unexisting");
+                        break;
                     }
                     default:
                         break;

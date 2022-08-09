@@ -262,6 +262,7 @@ void posix_signal_handler(int sig, siginfo_t *siginfo, void *context)
             puts("Caught SIGINT: Interactive attention signal, (usually ctrl+c)\n" );
             break;
         case SIGFPE:
+        {
             switch(siginfo->si_code)
             {
                 case FPE_INTDIV:
@@ -292,6 +293,8 @@ void posix_signal_handler(int sig, siginfo_t *siginfo, void *context)
                     puts("Caught SIGFPE: Arithmetic Exception\n" );
                     break;
             }
+            break;
+        }
         case SIGILL:
             switch(siginfo->si_code)
             {

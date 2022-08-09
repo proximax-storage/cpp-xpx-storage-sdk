@@ -25,7 +25,7 @@
 const bool testLateReplicator = false;
 const bool gRestartReplicators = false;
 const bool testSmallModifyDataSize = true;
-bool gBreak_On_Warning = true;
+bool gBreak_On_Warning = false;
 
 #define RPC_PORT 5357
 const char* RPC_REPLICATOR_NAME = "replicator1";
@@ -758,7 +758,7 @@ int main(int,char**)
 #pragma mark --replicator--
 #endif
 
-static std::shared_ptr<Replicator> createcreateReplicator(
+static std::shared_ptr<Replicator> createReplicator(
         const sirius::crypto::KeyPair&      keyPair,
         std::string&&                       ipAddr,
         int                                 port,
