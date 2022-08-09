@@ -189,6 +189,8 @@ int runServiceInBackground( fs::path logFolder, const std::string& port )
             exit(0);
         }
         
+        gIsRemoteRpcClient = true;
+        
         log( false, " Daemon  started" );
         log( false, " ---------------------------" );
 

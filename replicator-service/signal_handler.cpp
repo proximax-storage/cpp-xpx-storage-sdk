@@ -223,6 +223,31 @@ void set_signal_handler()
 }
 #else
 
+//#define MAX_STACK_FRAMES 64
+//static void *stack_traces[MAX_STACK_FRAMES];
+//void posix_print_stack_trace()
+//{
+//  int i, trace_size = 0;
+//  char **messages = (char **)NULL;
+//
+//  trace_size = backtrace(stack_traces, MAX_STACK_FRAMES);
+//  messages = backtrace_symbols(stack_traces, trace_size);
+//
+//  /* skip the first couple stack frames (as they are this function and
+//   our handler) and also skip the last frame as it's (always?) junk. */
+//  // for (i = 3; i < (trace_size - 1); ++i)
+//  for (i = 0; i < trace_size; ++i) // we'll use this for now so you can see what's going on
+//  {
+//    if (addr2line(icky_global_program_name, stack_traces[i]) != 0)
+//    {
+//      printf("  error determining line # for: %s\n", messages[i]);
+//    }
+//
+//  }
+//  if (messages) { free(messages); }
+//}
+
+
 void posix_signal_handler(int sig, siginfo_t *siginfo, void *context)
 {
     puts("\n");

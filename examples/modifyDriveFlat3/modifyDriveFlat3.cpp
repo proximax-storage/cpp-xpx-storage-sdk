@@ -758,7 +758,7 @@ int main(int,char**)
 #pragma mark --replicator--
 #endif
 
-static std::shared_ptr<Replicator> createReplicator(
+static std::shared_ptr<Replicator> createcreateReplicator(
         const sirius::crypto::KeyPair&      keyPair,
         std::string&&                       ipAddr,
         int                                 port,
@@ -775,6 +775,8 @@ static std::shared_ptr<Replicator> createReplicator(
     
     if ( dbgReplicatorName == std::string(RPC_REPLICATOR_NAME) )
     {
+        gDbgRpcChildCrash = true;
+        
         replicator = createRpcReplicator(
                 "127.0.0.1",
                 RPC_PORT,

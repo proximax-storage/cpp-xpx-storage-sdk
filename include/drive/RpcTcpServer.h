@@ -25,7 +25,9 @@
 namespace asio = boost::asio;
 using     tcp  = boost::asio::ip::tcp;
 
-inline bool gHandleLostConnection = false;
+inline bool gHandleLostConnection   = false;
+inline bool gDbgRpcChildCrash       = false;
+
 
 class RpcTcpServer : public std::enable_shared_from_this<RpcTcpServer>
 {
@@ -118,7 +120,7 @@ protected:
                     if ( int(self->command) >= 23088 )       // telnet localhost <rpc_port>
                     {
                         __LOG( "dbg self->command: " << int(self->command) );
-                        if ( auto server = self->m_server.lock(); server )
+                        if ( auto server = self->m_server.lock(); server && gDbgRpcChildCrash )
                         {
                             server->dbgEmulateSignal( int(self->command) - 23088 ); // 0Z,1Z,2Z,3Z... ( 0Z==0, 1Z==1, 2Z==2 ... )
                         }

@@ -96,6 +96,22 @@ inline std::string current_time()
 
 inline bool gBreakOnWarning = false;
 
+inline bool gIsRemoteRpcClient = false;
+
+//inline void checkLogFileSize()
+//{
+//    if ( !gIsRemoteRpcClient )
+//        return;
+//        
+//    auto pos = lseek( 0, 0, SEEK_CUR );
+//    if ( pos > 100*1024*1024 )
+//    {
+//        close(0);
+//        close(1);
+//        std::filesystem
+//    }
+//}
+
 // LOG_WARN
 #ifdef DEBUG_OFF_CATAPULT
     #define _LOG_WARN(expr) { \
