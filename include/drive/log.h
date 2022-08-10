@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <mutex>
+#include <filesystem>
 
 #include "boost/date_time/posix_time/posix_time.hpp"
 
@@ -98,19 +99,63 @@ inline bool gBreakOnWarning = false;
 
 inline bool gIsRemoteRpcClient = false;
 
-//inline void checkLogFileSize()
-//{
-//    if ( !gIsRemoteRpcClient )
-//        return;
-//        
-//    auto pos = lseek( 0, 0, SEEK_CUR );
-//    if ( pos > 100*1024*1024 )
-//    {
-//        close(0);
-//        close(1);
-//        std::filesystem
-//    }
-//}
+inline std::filesystem::path gLogFileName = "tmp/replicator_log"; // must be replaced by remote replicator
+
+inline std::string openLogFile()
+{
+    //
+    // Send standard output to a log file.
+    //
+    const int flags = O_WRONLY | O_CREAT | O_APPEND;
+    const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+    if ( open( gLogFileName.c_str(), flags, mode) < 0 )
+    {
+        return "Unable to open output log file";
+    }
+    
+    // Also send standard error to the same log file.
+    if (dup(1) < 0)
+    {
+        return "Unable to dup output descriptor (into 'stderr')";
+    }
+    
+    return {};
+}
+
+inline std::string setRemoteLogMode( const std::filesystem::path& logFileName )
+{
+    gLogFileName = logFileName;
+    gIsRemoteRpcClient = true;
+    
+    auto err = openLogFile();
+    if ( !err.empty() )
+    {
+        gIsRemoteRpcClient = false;
+    }
+    
+    return err;
+}
+
+inline void checkLogFileSize()
+{
+    if ( !gIsRemoteRpcClient )
+        return;
+
+    auto pos = lseek( 0, 0, SEEK_CUR );
+    if ( pos > 1024*1024*1024 )
+    {
+        auto bakLogFile = gLogFileName.replace_extension("bak");
+        if ( std::filesystem::exists(bakLogFile) )
+        {
+            std::filesystem::remove(bakLogFile);
+        }
+        close(0);
+        close(1);
+        
+        std::filesystem::rename( gLogFileName, bakLogFile );
+        openLogFile();
+    }
+}
 
 // LOG_WARN
 #ifdef DEBUG_OFF_CATAPULT

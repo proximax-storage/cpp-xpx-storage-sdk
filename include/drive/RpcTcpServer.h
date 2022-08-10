@@ -100,6 +100,8 @@ protected:
         uint16_t                packetLen;
         RPC_CMD                 command;
         
+        std::mutex              sendMutex;
+        
     public:
         
         Session( asio::ip::tcp::socket&& socket, std::weak_ptr<RpcTcpServer> server )
@@ -265,6 +267,8 @@ protected:
         
         void sendAck()
         {
+            std::lock_guard<std::mutex> lock( sendMutex );
+
             RPC_CMD command = RPC_CMD::ack;
             boost::system::error_code error;
             std::size_t bytes_transferred = asio::write( socket, asio::buffer( &command, sizeof(command) ), error );
@@ -304,6 +308,9 @@ protected:
         void send( RPC_CMD command, const std::string& parameters )
         {
             __LOG( "server send: " << CMD_STR(command) )
+
+            std::lock_guard<std::mutex> lock( sendMutex );
+
             boost::system::error_code error;
             std::size_t bytes_transferred = asio::write( socket, asio::buffer( &command, sizeof(command) ), error );
             if ( error || bytes_transferred != sizeof(command) )
