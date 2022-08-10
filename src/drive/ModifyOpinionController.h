@@ -275,7 +275,7 @@ private:
         uint128_t sumBefore = std::accumulate(modificationUploads.begin(),
                                               modificationUploads.end(),
                                               static_cast<uint64_t>(0),
-                                              [] (const uint64_t& value, const std::pair<Key, int>& p)
+                                              [] (const auto& value, const auto& p)
                                               { return value + p.second; }
                                               );
 
