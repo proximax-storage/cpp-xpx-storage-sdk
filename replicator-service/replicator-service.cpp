@@ -16,6 +16,11 @@
 #include <unistd.h>
 #include <errno.h>
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#include <limits.h>
+#endif
+
 namespace fs = std::filesystem;
 
 //#define DEBUG_NO_DAEMON_REPLICATOR_SERVICE
@@ -31,12 +36,35 @@ void set_signal_handler();
 int runServiceInBackground( fs::path, const std::string& );
 int log( bool isError, const std::string& text );
 
+char gExecutablePath[PATH_MAX+1] = { 0 };
+
+
 bool runInBackground = false;
 std::string address;
 std::string port;
 
 int main( int argc, char* argv[] )
 {
+
+#ifdef __linux__
+    
+    int nchar = readlink("/proc/self/exe", path, sizeof(path) );
+    if ( nchar < 0 ) {
+        _LOG_ERR("Invalid Read Link")
+        return;
+    }
+    gExecutablePath[nchar] = 0;
+
+#elif __APPLE__
+
+    uint32_t bufsize = PATH_MAX;
+    if( int rc = _NSGetExecutablePath( gExecutablePath, &bufsize); rc )
+    {
+        _LOG_ERR("Error: _NSGetExecutablePath: " << rc )
+    }
+
+#endif
+
 
 #ifdef DEBUG_NO_DAEMON_REPLICATOR_SERVICE
 //        runInBackground = true;
@@ -81,119 +109,155 @@ int main( int argc, char* argv[] )
     replicator.run( address, port );
 }
 
+std::filesystem::path gLogFileName = "tmp/replicator_log"; // must be set
+
+inline std::string openLogFile()
+{
+    log( false, " openLogFile: " + std::string(gLogFileName) );
+
+    //
+    // Send standard output to a log file.
+    //
+    const int flags = O_WRONLY | O_CREAT | O_APPEND;
+    const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+    if ( open( std::string(gLogFileName).c_str(), flags, mode) < 0 )
+    {
+        return "Unable to open output log file";
+    }
+    
+    // Also send standard error to the same log file.
+    if (dup(1) < 0)
+    {
+        return "Unable to dup output descriptor (into 'stderr')";
+    }
+    
+    return {};
+}
+
+inline void createLogBackup()
+{
+    auto bakLogFile = gLogFileName.replace_extension("bak");
+    if ( std::filesystem::exists(bakLogFile) )
+    {
+        std::filesystem::remove(bakLogFile);
+    }
+
+    close(0);
+    close(1);
+    
+    std::filesystem::rename( gLogFileName, bakLogFile );
+
+    auto error = openLogFile();
+    if ( !error.empty() )
+    {
+        log( true, " openLogFile error: " + error );
+    }
+}
+
+
 int runServiceInBackground( fs::path logFolder, const std::string& port )
 {
     try
     {
-      // Fork the process and have the parent exit. If the process was started
-      // from a shell, this returns control to the user. Forking a new process is
-      // also a prerequisite for the subsequent call to setsid().
-      if (pid_t pid = fork())
-      {
+        // Fork the process and have the parent exit. If the process was started
+        // from a shell, this returns control to the user. Forking a new process is
+        // also a prerequisite for the subsequent call to setsid().
+        if (pid_t pid = fork())
+        {
             if (pid > 0)
             {
-                  // We're in the parent process and need to exit.
-                  //
-                  // When the exit() function is used, the program terminates without
-                  // invoking local variables' destructors. Only global variables are
-                  // destroyed. As the io_service object is a local variable, this means
-                  // we do not have to call:
-                  //
-                  //   io_service.notify_fork(boost::asio::io_service::fork_parent);
-                  //
-                  // However, this line should be added before each call to exit() if
-                  // using a global io_service object. An additional call:
-                  //
-                  //   io_service.notify_fork(boost::asio::io_service::fork_prepare);
-                  //
-                  // should also precede the second fork().
-                  exit(0);
+                // We're in the parent process and need to exit.
+                //
+                // When the exit() function is used, the program terminates without
+                // invoking local variables' destructors. Only global variables are
+                // destroyed. As the io_service object is a local variable, this means
+                // we do not have to call:
+                //
+                //   io_service.notify_fork(boost::asio::io_service::fork_parent);
+                //
+                // However, this line should be added before each call to exit() if
+                // using a global io_service object. An additional call:
+                //
+                //   io_service.notify_fork(boost::asio::io_service::fork_prepare);
+                //
+                // should also precede the second fork().
+                exit(0);
             }
             else
             {
                 log( true, "First fork failed");
                 exit(0);
             }
-      }
-
-      // Make the process a new session leader. This detaches it from the
-      // terminal.
-      setsid();
-
-      // A process inherits its working directory from its parent. This could be
-      // on a mounted filesystem, which means that the running daemon would
-      // prevent this filesystem from being unmounted. Changing to the root
-      // directory avoids this problem.
-      chdir("/");
-
-      // The file mode creation mask is also inherited from the parent process.
-      // We don't want to restrict the permissions on files created by the
-      // daemon, so the mask is cleared.
-      //umask(0);
-
-      // A second fork ensures the process cannot acquire a controlling terminal.
-      if (pid_t pid = fork())
-      {
-        if (pid > 0)
-        {
-          exit(0);
         }
-        else
+        
+        // Make the process a new session leader. This detaches it from the
+        // terminal.
+        setsid();
+        
+        // A process inherits its working directory from its parent. This could be
+        // on a mounted filesystem, which means that the running daemon would
+        // prevent this filesystem from being unmounted. Changing to the root
+        // directory avoids this problem.
+        chdir("/");
+        
+        // The file mode creation mask is also inherited from the parent process.
+        // We don't want to restrict the permissions on files created by the
+        // daemon, so the mask is cleared.
+        //umask(0);
+        
+        // A second fork ensures the process cannot acquire a controlling terminal.
+        if (pid_t pid = fork())
         {
-            log( true, "Second fork failed");
+            if (pid > 0)
+            {
+                exit(0);
+            }
+            else
+            {
+                log( true, "Second fork failed");
+                exit(0);
+            }
+        }
+
+        close(0);
+        close(1);
+        close(2);
+
+        // We don't want the daemon to have any standard input.
+        if ( open("/dev/null", O_RDONLY) < 0 )
+        {
+            log( true, "Unable to open /dev/null");
             exit(0);
         }
-      }
-
-      // Close the standard streams. This decouples the daemon from the terminal
-      // that started it.
-      close(0);
-      close(1);
-      close(2);
-
-      // We don't want the daemon to have any standard input.
-      if ( open("/dev/null", O_RDONLY) < 0 )
-      {
-          log( true, "Unable to open /dev/null");
-          exit(0);
-      }
-
-        // Send standard output to a log file.
-	  	std::error_code ec;
-	  	fs::create_directories( logFolder, ec );
-
-		if (ec)
-		{
+        
+        // Check log folder
+        std::error_code ec;
+        fs::create_directories( logFolder, ec );
+        
+        if (ec)
+        {
             log( true, "create_directories error");
-		}
+        }
         
         fs::permissions( logFolder,
-                            fs::perms::owner_all | fs::perms::group_all | fs::perms::others_all,
-                            fs::perm_options::add );
-         
-
-        std::string output = logFolder / ("replicator_service_" + port + ".log");
-//        const int flags = O_WRONLY | O_CREAT | O_APPEND;
-        const int flags = O_WRONLY | O_CREAT | O_APPEND;
-        const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-        if ( open(output.c_str(), flags, mode) < 0 )
-        {
-            log( true, "Unable to open output log file");
-            exit(0);
-        }
-
-        // Also send standard error to the same log file.
-        if (dup(1) < 0)
-        {
-            log( true, "Unable to dup output descriptor");
-            exit(0);
-        }
+                        fs::perms::owner_all | fs::perms::group_all | fs::perms::others_all,
+                        fs::perm_options::add );
         
+        
+        gLogFileName = logFolder / ("replicator_service_" + port + ".log");
+        
+        auto error = openLogFile();
+        if ( !error.empty() )
+        {
+            log( true, " openLogFile error: " + error );
+        }
+
+        gCreateLogBackup = createLogBackup;
         gIsRemoteRpcClient = true;
         
         log( false, " Daemon  started" );
         log( false, " ---------------------------" );
-
+        
         RPC_LOG( "Daemon started");
         RPC_LOG( "---------------------------------------------------------");
     }

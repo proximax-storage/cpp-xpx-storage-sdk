@@ -26,6 +26,37 @@
 #include <cstdio>
 #include <string>
 #include <cstring>
+#include <boost/algorithm/string.hpp>
+
+#include "drive/log.h"
+
+extern char gExecutablePath[PATH_MAX+1];
+
+/* Resolve symbol name and source location given the path to the executable
+   and an address */
+void addr2line( char const * const program_name, void const * const addr )
+{
+    char addr2line_cmd[512] = {0};
+    
+    /* have addr2line map the address to the relent line in the code */
+#ifdef __APPLE__
+    /* apple does things differently... */
+    sprintf(addr2line_cmd,"atos -o %.256s %p", program_name, addr);
+#else
+    sprintf(addr2line_cmd,"addr2line -f -p -e %.256s %p", program_name, addr);
+#endif
+
+    auto fp = popen(addr2line_cmd, "r");
+    if ( fp != nullptr )
+    {
+        char lineInfo[1024] = {0};
+        fgets( lineInfo, 1024, fp );
+        pclose(fp);
+
+        puts( lineInfo );
+    }
+}
+
 
 #if defined __GNUC__ && __GNUC__ >= 3 && !defined __UCLIBCXX_MAJOR__
 
@@ -52,14 +83,14 @@ static std::string demangle(char const* name)
         }
         else start = name;
     }
-    
+
     char const* end = std::strchr(start, '+');
     if (end) while (*(end-1) == ' ') --end;
-    
+
     std::string in;
     if (end == nullptr) in.assign(start);
     else in.assign(start, end);
-    
+
     size_t len;
     int status;
     char* unmangled = ::abi::__cxa_demangle(in.c_str(), nullptr, &len, &status);
@@ -91,7 +122,7 @@ static void print_backtrace(char* out, int len, int max_depth )
     void* stack[50];
     int size = ::backtrace(stack, 50);
     char** symbols = ::backtrace_symbols(stack, size);
-    
+
     for (int i = 1; i < size && len > 0; ++i)
     {
         int ret = std::snprintf(out, std::size_t(len), "%d: %s\n", i, demangle(symbols[i]).c_str());
@@ -99,7 +130,7 @@ static void print_backtrace(char* out, int len, int max_depth )
         len -= ret;
         if (i - 1 == max_depth && max_depth > 0) break;
     }
-    
+
     ::free(symbols);
 }
 
@@ -129,7 +160,7 @@ void windows_print_stacktrace(CONTEXT* context)
                      SymGetModuleBase,
                      0 ) )
     {
-        addr2line(icky_global_program_name, (void*)frame.AddrPC.Offset);
+        addr2line(gExecutableName, (void*)frame.AddrPC.Offset);
     }
     
     SymCleanup( GetCurrentProcess() );
@@ -212,7 +243,7 @@ LONG WINAPI windows_exception_handler(EXCEPTION_POINTERS * ExceptionInfo)
     }
     else
     {
-        addr2line(icky_global_program_name, (void*)ExceptionInfo->ContextRecord->Eip);
+        addr2line(gExecutableName, (void*)ExceptionInfo->ContextRecord->Eip);
     }
     
     return EXCEPTION_EXECUTE_HANDLER;
@@ -222,35 +253,34 @@ void set_signal_handler()
 {
     SetUnhandledExceptionFilter(windows_exception_handler);
 }
-#else
 
-//#define MAX_STACK_FRAMES 64
-//static void *stack_traces[MAX_STACK_FRAMES];
-//void posix_print_stack_trace()
-//{
-//  int i, trace_size = 0;
-//  char **messages = (char **)NULL;
-//
-//  trace_size = backtrace(stack_traces, MAX_STACK_FRAMES);
-//  messages = backtrace_symbols(stack_traces, trace_size);
-//
-//  /* skip the first couple stack frames (as they are this function and
-//   our handler) and also skip the last frame as it's (always?) junk. */
-//  // for (i = 3; i < (trace_size - 1); ++i)
-//  for (i = 0; i < trace_size; ++i) // we'll use this for now so you can see what's going on
-//  {
-//    if (addr2line(icky_global_program_name, stack_traces[i]) != 0)
-//    {
-//      printf("  error determining line # for: %s\n", messages[i]);
-//    }
-//
-//  }
-//  if (messages) { free(messages); }
-//}
+#else // #ifdef _WIN32
+
+#define MAX_STACK_FRAMES 64
+static void *stack_traces[MAX_STACK_FRAMES];
+void posix_print_stack_trace()
+{
+    int i, trace_size = 0;
+    char **messages = (char **)NULL;
+    
+    trace_size = backtrace(stack_traces, MAX_STACK_FRAMES);
+    messages = backtrace_symbols(stack_traces, trace_size);
+    
+    /* skip the first couple stack frames (as they are this function and
+     our handler) and also skip the last frame as it's (always?) junk. */
+    for (i = 3; i < (trace_size - 1); ++i)
+    //for (i = 0; i < trace_size; ++i) // we'll use this for now so you can see what's going on
+    {
+        addr2line(gExecutablePath, stack_traces[i]);
+    }
+    if (messages) { free(messages); }
+}
 
 
 void posix_signal_handler(int sig, siginfo_t *siginfo, void *context)
 {
+    gLogMutex.try_lock(); // maybe signal occurred in the __LOG()
+    
     puts("\n");
     
     switch(sig)
@@ -337,11 +367,16 @@ void posix_signal_handler(int sig, siginfo_t *siginfo, void *context)
             break;
     }
     
-    char stack[8192];
-    stack[0] = '\0';
-    print_backtrace( stack, sizeof(stack), 0 );
+    if (1)
+    {
+        char stack[8192];
+        stack[0] = '\0';
+        print_backtrace( stack, sizeof(stack), 0 );
+
+        puts( stack );
+    }
     
-    puts( stack );
+    posix_print_stack_trace();
     
     _Exit(1);
 }
@@ -384,58 +419,3 @@ void set_signal_handler()
     }
 }
 #endif
-
-int  divide_by_zero();
-void cause_segfault();
-void illegal_instruction();
-void cause_calamity();
-
-//int main(int argc, char * argv[])
-//{
-//  (void)argc;
-//
-//  /* store off program path so we can use it later */
-//  icky_global_program_name = argv[0];
-//
-//  set_signal_handler();
-//
-//  cause_calamity();
-//
-//  puts("OMG! Nothing bad happend!");
-//
-//  return 0;
-//}
-
-void cause_calamity()
-{
-    /* uncomment one of the following error conditions to cause a calamity of
-     your choosing! */
-    
-    // (void)divide_by_zero();
-    cause_segfault();
-    // assert(false);
-    // illegal_instruction();
-}
-
-
-
-int divide_by_zero()
-{
-    int a = 1;
-    int b = 0;
-    return a / b;
-}
-
-void cause_segfault()
-{
-    int * p = (int*)0x12345678;
-    *p = 0;
-}
-
-void illegal_instruction()
-{
-    /* I couldn't find an easy way to cause this one, so I'm cheating */
-    raise(SIGILL);
-}
-
-

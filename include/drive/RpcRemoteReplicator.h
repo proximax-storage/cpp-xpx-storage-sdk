@@ -79,13 +79,13 @@ public:
             }
             case RPC_CMD::destroyReplicator:
             {
-                //todo+++++
-                //abort();
                 m_replicator.reset();
                 break;
             }
             case RPC_CMD::start:
             {
+                //todo+++++
+                //abort();
                 m_replicator->start();
                 break;
             }
