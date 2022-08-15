@@ -25,7 +25,10 @@
 
 DECLARE_ENUM16 ( RPC_CMD,
 
-    ack, // will be send after RPC command performed (for syncronizing)
+    ack     = 0, // will be send after RPC command performed (for syncronizing)
+                
+    log     = 1,
+    log_err = 2,
 
     // dn - to remote replicator
     createReplicator,
@@ -51,7 +54,11 @@ DECLARE_ENUM16 ( RPC_CMD,
     asyncSingleApprovalTransactionHasBeenPublished,
     asyncDownloadApprovalTransactionHasBeenPublished,
     asyncVerifyApprovalTransactionHasBeenPublished,
-                
+    asyncOnOpinionReceived,
+    asyncOnDownloadOpinionReceived,
+    asyncApprovalTransactionHasFailedInvalidOpinions,
+    asyncDownloadApprovalTransactionHasFailedInvalidOpinions,
+
     // for debugging (dn)
     dbgGetRootHash,
                 

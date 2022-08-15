@@ -79,6 +79,8 @@ public:
             }
             case RPC_CMD::destroyReplicator:
             {
+                //todo+++++
+                //abort();
                 m_replicator.reset();
                 break;
             }
@@ -274,6 +276,43 @@ public:
                 m_replicator->asyncVerifyApprovalTransactionHasBeenPublished( txInfo );
                 break;
             }
+            case RPC_CMD::asyncOnOpinionReceived:
+            {
+                ApprovalTransactionInfo opinion;
+                iarchive( opinion );
+
+                m_replicator->asyncOnOpinionReceived( opinion );
+                break;
+            }
+            case RPC_CMD::asyncOnDownloadOpinionReceived:
+            {
+                DownloadApprovalTransactionInfo opinion;
+                iarchive( opinion );
+
+                m_replicator->asyncOnDownloadOpinionReceived( opinion );
+                break;
+            }
+            case RPC_CMD::asyncApprovalTransactionHasFailedInvalidOpinions:
+            {
+                Key driveKey;
+                Hash256 transactionHash;
+                iarchive( driveKey );
+                iarchive( transactionHash );
+
+                m_replicator->asyncApprovalTransactionHasFailedInvalidOpinions( driveKey, transactionHash );
+                break;
+            }
+            case RPC_CMD::asyncDownloadApprovalTransactionHasFailedInvalidOpinions:
+            {
+                Hash256 eventHash;
+                Hash256 channelId;
+                iarchive( eventHash );
+                iarchive( channelId );
+
+                m_replicator->asyncDownloadApprovalTransactionHasFailedInvalidOpinions( eventHash, channelId );
+                break;
+            }
+
 
             case RPC_CMD::dbgGetRootHash:
             {
@@ -283,6 +322,45 @@ public:
                 auto hash = m_replicator->dbgGetRootHash( key );
                 m_dnSocket.sendHashAnswer( RPC_CMD::dbgHash, hash.array() );
 
+                break;
+            }
+
+            case RPC_CMD::dbgCrash:
+            {
+                int signalIndex;
+                iarchive(signalIndex);
+
+                RPC_LOG( "signalIndex: " << signalIndex )
+                switch( signalIndex )
+                {
+                    case 0:
+                    {
+                        raise(SIGILL);
+                        break;
+                    }
+                    case 1:
+                    {
+                        int * p = (int*)0x0;
+                        *p = 0;
+                        break;
+                    }
+                    case 2:
+                    {
+                        int * p = (int*)0x0;
+                        __LOG( "*p: " << *p )
+                        break;
+                    }
+                    case 3:
+                    {
+                        char b[] = "i12453e";
+                        lt::error_code ec;
+                        lt::bdecode_node e = lt::bdecode(b, ec);
+                        e.dict_find("unexisting");
+                        break;
+                    }
+                    default:
+                        break;
+                }
                 break;
             }
 

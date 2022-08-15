@@ -18,6 +18,8 @@ namespace fs = std::filesystem;
 #include <limits.h>
 #endif
 
+namespace fs = std::filesystem;
+
 namespace sirius::drive {
 
 //
@@ -383,7 +385,9 @@ public:
 		rpcCall( RPC_CMD::asyncRemoveDownloadChannelInfo, channelId );
     }
 
-    virtual void        asyncOnDownloadOpinionReceived( mobj<DownloadApprovalTransactionInfo>&& anOpinion ) override {}
+    virtual void        asyncOnDownloadOpinionReceived( mobj<DownloadApprovalTransactionInfo>&& anOpinion ) override {
+        rpcCall( RPC_CMD::asyncOnDownloadOpinionReceived, *anOpinion );
+    }
     
     virtual void        asyncInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) override
     {
@@ -395,16 +399,22 @@ public:
 		rpcCall( RPC_CMD::asyncDownloadApprovalTransactionHasBeenPublished, blockHash, channelId, driveIsClosed );
     }
 
-    virtual void        asyncDownloadApprovalTransactionHasFailedInvalidOpinions( Hash256 eventHash, Hash256 channelId ) override {}
+    virtual void        asyncDownloadApprovalTransactionHasFailedInvalidOpinions( Hash256 eventHash, Hash256 channelId ) override {
+        rpcCall( RPC_CMD::asyncDownloadApprovalTransactionHasFailedInvalidOpinions, eventHash, channelId );
+    }
 
-    virtual void        asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) override {}
+    virtual void        asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) override {
+        rpcCall( RPC_CMD::asyncOnOpinionReceived, anOpinion );
+    }
     
     virtual void        asyncApprovalTransactionHasBeenPublished( mobj<PublishedModificationApprovalTransactionInfo>&& transaction ) override
     {
 		rpcCall( RPC_CMD::asyncApprovalTransactionHasBeenPublished, *transaction );
     }
 
-    virtual void        asyncApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 transactionHash ) override {}
+    virtual void        asyncApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 transactionHash ) override {
+        rpcCall( RPC_CMD::asyncApprovalTransactionHasFailedInvalidOpinions, driveKey, transactionHash );
+    }
 
     virtual void        asyncSingleApprovalTransactionHasBeenPublished( mobj<PublishedModificationSingleApprovalTransactionInfo>&& transaction ) override
     {
@@ -416,7 +426,9 @@ public:
 		rpcCall( RPC_CMD::asyncVerifyApprovalTransactionHasBeenPublished, info );
     }
 
-    virtual void        asyncVerifyApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 verificationId ) override {}
+    virtual void        asyncVerifyApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 verificationId ) override {
+        __ASSERT(0);
+    }
 
     virtual uint64_t    receiptLimit() const override { __ASSERT(0); return 0; }
     virtual void        setReceiptLimit( uint64_t newLimitInBytes ) override {}
@@ -447,6 +459,13 @@ public:
     virtual const Key&  dbgReplicatorKey() const override { return m_keyPair.publicKey(); }
     
     virtual void        dbgAsyncDownloadToSandbox( Key driveKey, InfoHash, std::function<void()> endNotifyer ) override {}
+    
+    
+    virtual void dbgEmulateSignal( int index ) override
+    {
+        rpcCall( RPC_CMD::dbgCrash, index );
+    }
+
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createRpcReplicator(

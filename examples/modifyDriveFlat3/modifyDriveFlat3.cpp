@@ -25,7 +25,7 @@
 const bool testLateReplicator = false;
 const bool gRestartReplicators = false;
 const bool testSmallModifyDataSize = true;
-bool gBreak_On_Warning = true;
+bool gBreak_On_Warning = false;
 
 #define RPC_PORT 5357
 const char* RPC_REPLICATOR_NAME = "replicator1";
@@ -97,10 +97,8 @@ using namespace sirius::drive;
 
 inline std::mutex gExLogMutex;
 
-static std::string now_str();
-
 #define EXLOG(expr) { \
-        __LOG( "+++ exlog: " << now_str() << ": " << expr << std::endl << std::flush); \
+        __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
     }
 
 #define _EXLOG(expr) { \
@@ -741,6 +739,7 @@ int main(int,char**)
     
     /// Delete client session and replicators
     sleep(5);//(???++++!!!)
+    //sleep(120);
     gClientSession.reset();
     gReplicator.reset();
     gReplicator2.reset();
@@ -776,6 +775,8 @@ static std::shared_ptr<Replicator> createReplicator(
     
     if ( dbgReplicatorName == std::string(RPC_REPLICATOR_NAME) )
     {
+        gDbgRpcChildCrash = true;
+        
         replicator = createRpcReplicator(
                 "127.0.0.1",
                 RPC_PORT,
@@ -1060,48 +1061,4 @@ static fs::path createClientFiles( size_t bigFileSize ) {
 
     // Return path to file
     return dataFolder.parent_path();
-}
-
-
-static std::string now_str()
-{
-    // Get current time from the clock, using microseconds resolution
-    const boost::posix_time::ptime now =
-            boost::posix_time::microsec_clock::local_time();
-
-    // Get the time offset in current day
-    const boost::posix_time::time_duration td = now.time_of_day();
-
-    //
-    // Extract hours, minutes, seconds and milliseconds.
-    //
-    // Since there is no direct accessor ".milliseconds()",
-    // milliseconds are computed _by difference_ between total milliseconds
-    // (for which there is an accessor), and the hours/minutes/seconds
-    // values previously fetched.
-    //
-    const long hours        = td.hours();
-    const long minutes      = td.minutes();
-    const long seconds      = td.seconds();
-    const long milliseconds = td.total_milliseconds() -
-                              ((hours * 3600 + minutes * 60 + seconds) * 1000);
-
-    //
-    // Format like this:
-    //
-    //      hh:mm:ss.SS
-    //
-    // e.g. 02:15:40:321
-    //
-    //      ^          ^
-    //      |          |
-    //      123456789*12
-    //      ---------10-     --> 12 chars + \0 --> 13 chars should suffice
-    //
-    //
-    char buf[40];
-    sprintf(buf, "%02ld:%02ld:%02ld.%03ld",
-            hours, minutes, seconds, milliseconds);
-
-    return buf;
 }

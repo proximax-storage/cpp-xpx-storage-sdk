@@ -15,8 +15,6 @@ endif()
 
 include_directories(include)
 
-option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build XPX-STORAGE SDK examples." OFF)
-
 ### setup boost
 if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
     SET(Boost_NAMESPACE ${Boost_NAMESPACE} "libboost")
@@ -60,12 +58,13 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     #include_directories(SYSTEM "/usr/local/include/" "/Library/Developer/CommandLineTools/SDKs/MacOSX12.0.sdk/usr/include/")
     #include_directories(SYSTEM "/Library/Developer/CommandLineTools/SDKs/MacOSX12.0.sdk/usr/include/")
 
-    add_subdirectory(examples)
+#    add_subdirectory(examples)
 endif()
 
 add_subdirectory(src)
 add_subdirectory(replicator-service)
 
-if (XPX_STORAGE_SDK_BUILD_EXAMPLES)
+if (XPX_STORAGE_SDK_NOT_BUILD_EXAMPLES)
+else()
     add_subdirectory(examples)
 endif()
