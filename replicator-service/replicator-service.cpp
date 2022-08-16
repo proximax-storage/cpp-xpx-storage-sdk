@@ -48,10 +48,9 @@ int main( int argc, char* argv[] )
 
 #ifdef __linux__
     
-    int nchar = readlink("/proc/self/exe", path, sizeof(path) );
+    int nchar = readlink("/proc/self/exe", gExecutablePath, sizeof(gExecutablePath) );
     if ( nchar < 0 ) {
         _LOG_ERR("Invalid Read Link")
-        return;
     }
     gExecutablePath[nchar] = 0;
 

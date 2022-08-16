@@ -30,15 +30,17 @@ protected:
     };
     using TorrentMap = std::map<InfoHash,ModifyTorrentInfo>;
 
+    struct DownloadChannel {
+        std::vector<Key>            m_downloadReplicatorList;
+        std::map<Key, uint64_t>     m_requestedSize;
+        std::map<Key, uint64_t>     m_receivedSize;
+    };
+
     std::shared_ptr<Session>    m_session;
     const crypto::KeyPair&      m_keyPair;
-
-    DownloadChannelId           m_downloadChannelId;
-    ReplicatorList              m_downloadReplicatorList;
-    ReplicatorTraficMap         m_requestedSize;
-    ReplicatorTraficMap         m_receivedSize;
     
-    TorrentMap                  m_modifyTorrentMap;
+    TorrentMap                          m_modifyTorrentMap;
+    std::map<Hash256, DownloadChannel>  m_downloadChannelMap;
 
     const char*                 m_dbgOurPeerName;
 
@@ -66,19 +68,40 @@ public:
     }
 
     //
-    void setDownloadChannel( const ReplicatorList& replicatorList, Hash256 downloadChannelId, std::vector<uint64_t> alreadyReceivedSize = {} )
+    // TODO Wrong
+    void addDownloadChannel( Hash256 downloadChannelId )
     {
-        m_downloadReplicatorList = replicatorList;
-        m_downloadChannelId      = downloadChannelId.array();
-        
-        if ( replicatorList.size() == alreadyReceivedSize.size() )
+        if ( !m_downloadChannelMap.contains(downloadChannelId) )
         {
-            for( uint32_t i=0; i<replicatorList.size(); i++ )
-            {
-                m_receivedSize[replicatorList[i].array()]  = alreadyReceivedSize[i];
-                m_requestedSize[replicatorList[i].array()] = alreadyReceivedSize[i];
-            }
+            m_downloadChannelMap[downloadChannelId] = {};
         }
+    }
+
+    void setDownloadChannelReplicators( const Hash256& downloadChannelId, const ReplicatorList& replicators )
+    {
+        auto it = m_downloadChannelMap.find(downloadChannelId);
+        if (it == m_downloadChannelMap.end()) {
+            return;
+        }
+        it->second.m_downloadReplicatorList = replicators;
+    }
+
+    void setDownloadChannelRequestedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
+    {
+        auto it = m_downloadChannelMap.find(downloadChannelId);
+        if (it == m_downloadChannelMap.end()) {
+            return;
+        }
+        it->second.m_requestedSize = sizes;
+    }
+
+    void setDownloadChannelReceivedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
+    {
+        auto it = m_downloadChannelMap.find(downloadChannelId);
+        if (it == m_downloadChannelMap.end()) {
+            return;
+        }
+        it->second.m_requestedSize = sizes;
     }
 
     void onHandshake( uint64_t /*uploadedSize*/ ) override
@@ -87,20 +110,19 @@ public:
     }
 
     // Initiate file downloading (identified by downloadParameters.m_infoHash)
-    void download( DownloadContext&&    downloadParameters,
-                   const std::string&   saveFolder,
-                   const std::string&   saveTorrentFolder,
-                   const endpoint_list& endpointsHints = {})
+    void download( DownloadContext&&      downloadParameters,
+                   const Hash256&         downloadChannelId,
+                   const std::string&     saveFolder,
+                   const std::string&     saveTorrentFolder,
+                   const endpoint_list&   endpointsHints = {})
     {
         // check that download channel was set
-        if ( !m_downloadChannelId )
-            throw std::runtime_error("downloadChannel is not set");
-        
-        downloadParameters.m_transactionHash = *m_downloadChannelId;
+        if ( !m_downloadChannelMap.contains(downloadChannelId) )
+            throw std::runtime_error("downloadChannel does not exist");
 
-        // check that replicator list is not empty
-        if ( m_downloadReplicatorList.empty() )
-            throw std::runtime_error("downloadChannel is not set");
+        const auto& downloadChannel = m_downloadChannelMap[downloadChannelId];
+
+        downloadParameters.m_transactionHash = downloadChannelId;
         
         if ( auto it = m_modifyTorrentMap.find( downloadParameters.m_infoHash ); it != m_modifyTorrentMap.end() )
         {
@@ -127,13 +149,15 @@ public:
             }
         }
 
+        auto downloadChannelIdAsArray = downloadChannelId.array();
+
         // start downloading
         m_session->download( std::move(downloadParameters),
                              saveFolder,
                              saveTorrentFolder,
-                             m_downloadReplicatorList,
+                             downloadChannel.m_downloadReplicatorList,
                              nullptr,
-                             &(*m_downloadChannelId),
+                             &downloadChannelIdAsArray,
                              nullptr,
                              endpointsHints );
     }
@@ -323,11 +347,6 @@ public:
         
         m_modifyTorrentMap.clear();
     }
-    
-    const std::optional<std::array<uint8_t,32>> downloadChannelId()
-    {
-        return m_downloadChannelId;
-    }
 
     void setSessionSettings(const lt::settings_pack& settings, bool localNodes)
     {
@@ -386,7 +405,6 @@ protected:
                               uint64_t                      downloadedSize,
                               std::array<uint8_t,64>&       outSignature ) override
     {
-        assert( m_downloadChannelId );
         {
 //todo++
 //            _LOG( "SSS downloadChannelId: " << Key(downloadChannelId) );
@@ -472,7 +490,12 @@ protected:
                               const std::array<uint8_t,32>&  senderPublicKey,
                               uint64_t                       pieceSize ) override
     {
-        m_requestedSize[senderPublicKey] += pieceSize;
+        auto it = m_downloadChannelMap.find(transactionHash);
+        if (it == m_downloadChannelMap.end())
+        {
+            return;
+        }
+        it->second.m_requestedSize[senderPublicKey] += pieceSize;
         //__LOG( "#*** onPieceRequest: " << int(senderPublicKey[0])<< ": " << m_requestedSize[senderPublicKey] )
     }
     
@@ -497,22 +520,35 @@ protected:
         //todo++
     }
 
-    void onPieceReceived( const std::array<uint8_t,32>&  /*transactionHash*/,
+    void onPieceReceived( const std::array<uint8_t,32>&  transactionHash,
                           const std::array<uint8_t,32>&  senderPublicKey,
                           uint64_t                       pieceSize ) override
     {
-        m_receivedSize[senderPublicKey] += pieceSize;
+        auto it = m_downloadChannelMap.find(transactionHash);
+        if (it == m_downloadChannelMap.end()) {
+            return;
+        }
+        it->second.m_receivedSize[senderPublicKey] += pieceSize;
     }
 
-    uint64_t requestedSize( const std::array<uint8_t,32>&  peerPublicKey ) override
+    uint64_t requestedSize( const std::array<uint8_t,32>&  transactionHash,
+                            const std::array<uint8_t,32>&  peerPublicKey ) override
     {
-        //__LOG( "#*** requestedSize: " << int(peerPublicKey[0])<< ": " << m_requestedSize[peerPublicKey] )
-        return m_requestedSize[peerPublicKey];
+        auto it = m_downloadChannelMap.find(transactionHash);
+        if (it == m_downloadChannelMap.end()) {
+            return 0;
+        }
+        return it->second.m_requestedSize[peerPublicKey];
     }
 
-    uint64_t receivedSize( const std::array<uint8_t,32>&  peerPublicKey ) override
+    uint64_t receivedSize( const std::array<uint8_t,32>&  transactionHash,
+                           const std::array<uint8_t,32>&  peerPublicKey ) override
     {
-        return m_receivedSize[peerPublicKey];
+        auto it = m_downloadChannelMap.find(transactionHash);
+        if (it == m_downloadChannelMap.end()) {
+            return 0;
+        }
+        return it->second.m_receivedSize[peerPublicKey];
     }
     
 //    virtual void onMessageReceived( const std::string& query, const std::string& message, const boost::asio::ip::udp::endpoint& source ) override

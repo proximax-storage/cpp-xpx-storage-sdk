@@ -83,11 +83,13 @@ inline void checkLogFileSize()
 
 // LOG
 #define LOG(expr)
-//#define LOG(expr) { \
-//        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-//        checkLogFileSize(); \
-//        std::cout << current_time() << "\t" << expr << std::endl << std::flush; \
-//    }
+/*
+#define LOG(expr) { \
+        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        checkLogFileSize(); \
+        std::cout << current_time() << "\t" << expr << std::endl << std::flush; \
+    }
+*/
 
 // _LOG - with m_dbgOurPeerName
 #define _LOG(expr) { \

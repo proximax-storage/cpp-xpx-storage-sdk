@@ -104,7 +104,7 @@ __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
                                const ReplicatorList &replicatorList)
         {
             auto downloadChannelId = Hash256(downloadChannelKey.array());
-            m_clientSession->setDownloadChannel(replicatorList, downloadChannelId);
+            m_clientSession->addDownloadChannel(downloadChannelId);
             m_clientSession->download(DownloadContext(
                                               DownloadContext::fs_tree,
                                               [this] (download_status::code code,
@@ -120,7 +120,7 @@ __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
                                               },
                                               rootHash,
                                               downloadChannelId, 0),
-                                      m_clientFolder / "fsTree-folder", "");
+                                      downloadChannelId, m_clientFolder / "fsTree-folder", "");
             m_downloadChannels.push_back(downloadChannelId);
         }
 

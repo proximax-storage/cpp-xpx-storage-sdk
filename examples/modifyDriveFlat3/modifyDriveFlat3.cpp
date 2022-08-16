@@ -98,13 +98,8 @@ using namespace sirius::drive;
 inline std::mutex gExLogMutex;
 
 #define EXLOG(expr) { \
-        __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
-    }
-
-#define _EXLOG(expr) { \
-        std::lock_guard<std::mutex> autolock( gExLogMutex ); \
-        __LOG( "+++ exlog: " <<  expr << std::endl << std::flush); \
-    }
+__LOG( "+++ exlog: " << expr << std::endl << std::flush); \
+}
 
 // Replicators
 //
@@ -147,11 +142,11 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
 // Client functions
 //
 static fs::path createClientFiles( size_t bigFileSize );
-static void     clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession );
+static void     clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession, const sirius::Hash256& channelId );
 static void     clientModifyDrive( const ActionList& actionList,
                                    const ReplicatorList& replicatorList,
                                    const sirius::Hash256& transactionHash );
-static void     clientDownloadFiles( std::shared_ptr<ClientSession> clientSession, int fileNumber, Folder& folder );
+static void     clientDownloadFiles( std::shared_ptr<ClientSession> clientSession, int fileNumber, Folder& folder, const sirius::Hash256& downloadChannelId );
 
 // FsTree
 FsTree gFsTree;
@@ -227,8 +222,8 @@ public:
             std::thread( [info] { gReplicator->asyncDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
             std::thread( [info] { gReplicator2->asyncDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
             std::thread( [info] { gReplicator3->asyncDownloadApprovalTransactionHasBeenPublished( info.m_blockHash, info.m_downloadChannelId ); }).detach();
-            
-            
+
+
             for( const auto& opinion : info.m_opinions )
             {
                 EXLOG( "---------------------------------------------------------" );
@@ -277,7 +272,7 @@ public:
                 std::cout << int(opinion.m_uploadLayout[i].m_key[0]) << ":" << opinion.m_uploadLayout[i].m_uploadedBytes << " ";
             }
         }
-        
+
         gReplicator3->dbgPrintTrafficDistribution( modifyTransactionHash1.array() );
         gReplicator->dbgPrintTrafficDistribution( modifyTransactionHash1.array() );
         gReplicator2->dbgPrintTrafficDistribution( modifyTransactionHash1.array() );
@@ -364,7 +359,7 @@ public:
     {
         replicator.asyncOnDownloadOpinionReceived( opinion );
     }
-    
+
     // It will be called when rootHash is calculated in sandbox
     virtual void driveIsInitialized( Replicator&                    replicator,
                                      const sirius::Key&             driveKey,
@@ -419,7 +414,7 @@ void createReplicators(const std::vector<ReplicatorInfo>&  bootstraps)
                                         gMyReplicatorEventHandler2,
                                         "replicator2" );
     });
-    
+
     std::thread t3( [=] {
         gReplicator3 = createReplicator( replicatorKeyPair_3,
                                         REPLICATOR_IP_ADDR_3,
@@ -431,7 +426,7 @@ void createReplicators(const std::vector<ReplicatorInfo>&  bootstraps)
                                         gMyReplicatorEventHandler3,
                                         "replicator3" );
     });
-    
+
     t1.join();
     t2.join();
     t3.join();
@@ -453,7 +448,7 @@ endpoint_list bootstrapEndpoints;
 int main(int,char**)
 {
     gBreakOnWarning = gBreak_On_Warning;
-    
+
     fs::remove_all( ROOT_TEST_FOLDER );
 
     auto startTime = std::clock();
@@ -517,7 +512,7 @@ int main(int,char**)
                                           "client1" );
 
 
-    _EXLOG("");
+    EXLOG("");
 
     // set root drive hash
     driveRootHash = std::make_shared<InfoHash>( gReplicator2->dbgGetRootHash( DRIVE_PUB_KEY ) );
@@ -532,8 +527,9 @@ int main(int,char**)
 
 //    TODO++
     //sleep(1);
-    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
-    clientDownloadFsTree( gClientSession );
+    gClientSession->addDownloadChannel(downloadChannelHash1);
+    gClientSession->setDownloadChannelReplicators(downloadChannelHash1, replicatorList);
+    clientDownloadFsTree( gClientSession, downloadChannelHash1 );
 
     /// Client: request to modify drive (1)
     ///
@@ -553,7 +549,7 @@ int main(int,char**)
 
         clientModifyDrive( actionList, replicatorList, modifyTransactionHash1 );
     }
-    
+
     if ( testSmallModifyDataSize )
     {
 
@@ -567,7 +563,7 @@ int main(int,char**)
         {
             gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
         }
-        
+
         {
             std::unique_lock<std::mutex> lock(modifyCompleteMutex);
             modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 3; } );
@@ -615,12 +611,12 @@ int main(int,char**)
     {
         gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1b, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
     }
-    
+
     {
         std::unique_lock<std::mutex> lock(modifyCompleteMutex);
         modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 3; } );
     }
-    
+
     gReplicatorThread.join();
     gReplicatorThread2.join();
     if ( !testLateReplicator )
@@ -630,12 +626,12 @@ int main(int,char**)
 
     /// Client: read changed fsTree (2)
     ///
-    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash2 );
-    gClientSession1->setDownloadChannel( replicatorList, downloadChannelHash2 );
-    clientDownloadFsTree( gClientSession );
+    gClientSession->addDownloadChannel(downloadChannelHash2);
+    gClientSession->setDownloadChannelReplicators(downloadChannelHash2, replicatorList);
+    clientDownloadFsTree( gClientSession, downloadChannelHash2 );
 
     /// Client: read files from drive
-    clientDownloadFiles( gClientSession1, 5, gFsTree );
+    clientDownloadFiles( gClientSession1, 5, gFsTree, downloadChannelHash2 );
     //clientDownloadFiles( gClientSession, 5, gFsTree );
 
     //todo++
@@ -646,7 +642,7 @@ int main(int,char**)
 //    gReplicator->sendMessage( "dn_opinion", replicatorList[0].m_endpoint, "str" );
 //    sleep(1);
 //    usleep(1000);
-    //_EXLOG( "replicatorList[0].m_endpoint" << replicatorList[0].m_endpoint );
+    //EXLOG( "replicatorList[0].m_endpoint" << replicatorList[0].m_endpoint );
     std::thread( [&]() { gReplicator->asyncInitiateDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
     std::thread( [&]() { gReplicator2->asyncInitiateDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
     std::thread( [&]() { gReplicator3->asyncInitiateDownloadApprovalTransactionInfo( initApprovalHash, downloadChannelHash2 ); } ).detach();
@@ -656,7 +652,7 @@ int main(int,char**)
     //
     // Start verification
     //
-    
+
 //    auto actualRootHash = gReplicator->dbgGetRootHash( DRIVE_PUB_KEY );
 
     std::vector<sirius::Key> replicatorKeys;
@@ -714,7 +710,7 @@ int main(int,char**)
     gReplicatorThread2.join();
     if ( !testLateReplicator )
         gReplicatorThread3.join();
-    
+
     if ( gRestartReplicators )
     {
         gReplicatorMap.erase( gReplicator->dbgReplicatorKey() );
@@ -733,10 +729,11 @@ int main(int,char**)
     /// Client: read new fsTree (3)
     EXLOG( "# Client started FsTree download !!!!! " );
     sleep(1);
-    gClientSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
-    clientDownloadFsTree( gClientSession );
+    gClientSession->addDownloadChannel(downloadChannelHash1);
+    gClientSession->setDownloadChannelReplicators(downloadChannelHash1, replicatorList);
+    clientDownloadFsTree( gClientSession, downloadChannelHash1 );
 #endif
-    
+
     /// Delete client session and replicators
     sleep(5);//(???++++!!!)
     //sleep(120);
@@ -745,8 +742,8 @@ int main(int,char**)
     gReplicator2.reset();
     gReplicator3.reset();
 
-    _EXLOG( "" );
-    _EXLOG( "total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
+    EXLOG( "" );
+    EXLOG( "total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
 
     return 0;
 }
@@ -772,11 +769,11 @@ static std::shared_ptr<Replicator> createReplicator(
     EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(keyPair.publicKey().array()[0]) );
 
     std::shared_ptr<Replicator> replicator;
-    
+
     if ( dbgReplicatorName == std::string(RPC_REPLICATOR_NAME) )
     {
         gDbgRpcChildCrash = true;
-        
+
         replicator = createRpcReplicator(
                 "127.0.0.1",
                 RPC_PORT,
@@ -866,7 +863,7 @@ static void clientDownloadHandler( download_status::code code,
 //
 // clientDownloadFsTree
 //
-static void clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession )
+static void clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession, const sirius::Hash256& downloadChannelId )
 {
     InfoHash rootHash = *driveRootHash;
     driveRootHash.reset();
@@ -880,7 +877,8 @@ static void clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession )
                                     DownloadContext::fs_tree,
                                     clientDownloadHandler,
                                     rootHash,
-                                    *gClientSession->downloadChannelId(), 0 ),
+                                    downloadChannelId, 0 ),
+                                    downloadChannelId,
                                     gClientFolder / "fsTree-folder",
                                     "",
                             {});//endpointList);
@@ -959,13 +957,13 @@ static void clientDownloadFilesHandler( download_status::code code,
 //
 // Client: read files
 //
-static void clientDownloadFilesR( std::shared_ptr<ClientSession> clientSession, const Folder& folder )
+static void clientDownloadFilesR( std::shared_ptr<ClientSession> clientSession, const Folder& folder, const sirius::Hash256& downloadChannelId )
 {
     for( const auto& child: folder.childs() )
     {
         if ( isFolder(child) )
         {
-            clientDownloadFilesR( clientSession, getFolder(child) );
+            clientDownloadFilesR( clientSession, getFolder(child), downloadChannelId );
         }
         else
         {
@@ -985,11 +983,12 @@ static void clientDownloadFilesR( std::shared_ptr<ClientSession> clientSession, 
                     {}, 0, false,
                     gClientFolder / "downloaded_files" / folderName / file.name()
                 ),
+                downloadChannelId,
                 gClientFolder / "downloaded_files", "", endpointList );
         }
     }
 }
-static void clientDownloadFiles( std::shared_ptr<ClientSession> clientSession, int fileNumber, Folder& fsTree )
+static void clientDownloadFiles( std::shared_ptr<ClientSession> clientSession, int fileNumber, Folder& fsTree, const sirius::Hash256& downloadChannelId )
 {
     isDownloadCompleted = false;
 
@@ -1014,7 +1013,7 @@ static void clientDownloadFiles( std::shared_ptr<ClientSession> clientSession, i
 
     EXLOG("@ ======================client start downloading=== " << downloadFileCount );
 
-    clientDownloadFilesR( clientSession, fsTree );
+    clientDownloadFilesR( clientSession, fsTree, downloadChannelId );
 
     /// wait the end of file downloading
     {

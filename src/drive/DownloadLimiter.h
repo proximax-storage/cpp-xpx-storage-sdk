@@ -812,13 +812,15 @@ public:
 //    {
 //    }
 
-    uint64_t receivedSize( const std::array<uint8_t,32>&  peerKey ) override
+    uint64_t receivedSize( const std::array<uint8_t,32>&  transactionHash,
+                           const std::array<uint8_t,32>&  peerKey ) override
     {
         DBG_MAIN_THREAD
         return 0;
     }
 
-    uint64_t requestedSize( const std::array<uint8_t,32>&  peerKey ) override
+    uint64_t requestedSize( const std::array<uint8_t,32>&  transactionHash,
+                            const std::array<uint8_t,32>&  peerKey ) override
     {
         DBG_MAIN_THREAD
         return 0;
