@@ -709,6 +709,11 @@ public:
 		return true;
 	}
 
+	bool acceptConnectionFromClient( const Key& clientKey, const Hash256& fileHash ) const override
+	{
+        return clientKey == m_driveOwner && fileHash == m_rootHash;
+	}
+
     void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& streamer ) override
     {
         DBG_MAIN_THREAD

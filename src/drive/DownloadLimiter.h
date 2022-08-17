@@ -157,9 +157,9 @@ public:
     }
 
 
-    bool checkDownloadLimit( const std::array<uint8_t,64>& /*signature*/,
+    bool checkDownloadLimit( const std::array<uint8_t,32>& peerKey,
                              const std::array<uint8_t,32>& downloadChannelId,
-                             uint64_t /*downloadedSize*/) override
+                             uint64_t downloadedSize) override
     {
         DBG_MAIN_THREAD
         
@@ -182,20 +182,28 @@ public:
             return false;
         }
 
-// (???+) TODO!!!
-//        auto replicatorIt = it->second.m_replicatorUploadMap.find( publicKey() );
-//
-//        if( replicatorIt == it->second.m_replicatorUploadMap.end() )
-//        {
-//            _LOG ("Check Download Limit:  No Such a Replicator");
-//            return false;
-//        }
-//
-//        if ( it->second.m_myUploadedSize > replicatorIt->second.m_uploadedSize + m_receiptLimit )
-//        {
-//            _LOG ("Check Download Limit:  Receipts Size Exceeded");
-//            return false;
-//        }
+        uint64_t uploadedSize = 0;
+        auto clientIt = it->second.m_dnClientMap.find(peerKey);
+
+        if ( clientIt != it->second.m_dnClientMap.end() )
+        {
+            uploadedSize = clientIt->second.m_uploadedSize;
+        }
+
+        uint64_t prepaidSize = 0;
+
+        auto replicatorIt = it->second.m_replicatorUploadMap.find(publicKey());
+
+        if ( replicatorIt != it->second.m_replicatorUploadMap.end() )
+        {
+            prepaidSize = replicatorIt->second.uploadedSize(peerKey);
+        }
+
+        if ( uploadedSize > prepaidSize + m_receiptLimit )
+        {
+            _LOG ("Check Download Limit:  Receipts Size Exceeded");
+            return false;
+        }
         return true;
     }
 
@@ -339,46 +347,56 @@ public:
         m_modifyDriveMap.erase(modifyTransactionHash);
     }
 
-    bool acceptClientConnection( const std::array<uint8_t,32>&  channelId,
-                                 const std::array<uint8_t,32>&  peerKey ) override
+    lt::connection_status acceptClientConnection( const std::array<uint8_t,32>&  channelId,
+                                                  const std::array<uint8_t,32>&  peerKey,
+                                                  const std::array<uint8_t,32>&  driveKey,
+                                                  const std::array<uint8_t,32>&  fileHash) override
     {
         DBG_MAIN_THREAD
-        
+
         if ( m_session->isEnding() )
         {
-            return false;
+            return lt::connection_status::REJECTED;
         }
-        
+
+        if ( auto driveIt = m_driveMap.find( Key(driveKey) ); driveIt != m_driveMap.end() )
+        {
+            if ( driveIt->second->acceptConnectionFromClient( peerKey, fileHash ) )
+            {
+                return lt::connection_status::UNLIMITED;
+            }
+        }
+
         if ( auto it = m_dnChannelMap.find( channelId ); it != m_dnChannelMap.end() )
         {
             const auto& clientMap = it->second.m_dnClientMap;
             if ( clientMap.find(peerKey) == clientMap.end() ) {
-                return false;
+                return lt::connection_status::REJECTED;
             }
             if ( it->second.m_totalReceiptsSize < it->second.m_prepaidDownloadSize )
             {
-                return true;
+                return lt::connection_status::LIMITED;
             }
             else
             {
                 _LOG_WARN( "Failed: it->second.m_totalReceiptsSize < it->second.m_prepaidDownloadSize: "
                           << it->second.m_totalReceiptsSize << "  " << it->second.m_prepaidDownloadSize )
-                return false;
+                return lt::connection_status::REJECTED;
             }
         }
         
         _LOG_WARN( "Unknown channelId: " << Key(channelId) << " from_peer:" << Key(peerKey) )
-        return false;
+        return lt::connection_status::REJECTED;
     }
 
-    bool acceptReplicatorConnection( const std::array<uint8_t,32>&  driveKey,
+    lt::connection_status acceptReplicatorConnection( const std::array<uint8_t,32>&  driveKey,
                                      const std::array<uint8_t,32>&  peerKey ) override
     {
         DBG_MAIN_THREAD
         
         if ( m_session->isEnding() )
         {
-            return false;
+            return lt::connection_status::REJECTED;
         }
         
         // Replicator downloads from another replicator
@@ -386,7 +404,7 @@ public:
         {
             if ( driveIt->second->acceptConnectionFromReplicator( peerKey ) )
             {
-                return true;
+                return lt::connection_status::UNLIMITED;
             }
         }
 		else
@@ -394,7 +412,7 @@ public:
 			_LOG_WARN( "Unknown driveKey: " << Key(driveKey) << " from_peer:" << Key(peerKey) )
 		}
 
-        return false;
+		return lt::connection_status::REJECTED;
     }
 
     void onPieceRequestWrite( const std::array<uint8_t,32>&  txHash,
@@ -715,7 +733,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        auto replicatorInfoIt = channelInfo.m_replicatorUploadMap.lower_bound( msg.replicatorKey() );
+        auto replicatorInfoIt = channelInfo.m_replicatorUploadMap.find( msg.replicatorKey() );
         
         if ( replicatorInfoIt == channelInfo.m_replicatorUploadMap.end() )
         {
@@ -764,7 +782,7 @@ public:
                 return false;
             }
         }
-        
+
         channelInfo.m_totalReceiptsSize += msg.downloadedSize() - lastAcceptedUploadSize;
         replicatorInfoIt->second.acceptReceipt( msg.clientKey(), msg.downloadedSize() );
         

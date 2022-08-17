@@ -371,16 +371,18 @@ protected:
 
     bool isClient() const override { return true; }
     
-    bool acceptClientConnection( const std::array<uint8_t,32>&  /*transactionHash*/,
-                                 const std::array<uint8_t,32>&  /*peerPublicKey*/ ) override
+    lt::connection_status acceptClientConnection( const std::array<uint8_t,32>&  /*channelId*/,
+                                                  const std::array<uint8_t,32>&  /*peerKey*/,
+                                                  const std::array<uint8_t,32>&  /*driveKey*/,
+                                                  const std::array<uint8_t,32>&  /*fileHash*/ ) override
     {
-        return true;
+        return lt::connection_status::UNLIMITED;
     }
 
-    bool acceptReplicatorConnection( const std::array<uint8_t,32>&  /*transactionHash*/,
+    lt::connection_status acceptReplicatorConnection( const std::array<uint8_t,32>&  /*transactionHash*/,
                                      const std::array<uint8_t,32>&  /*peerPublicKey*/ ) override
     {
-        return true;
+        return lt::connection_status::UNLIMITED;
     }
 
     void onDisconnected( const std::array<uint8_t,32>&  transactionHash,
@@ -392,7 +394,7 @@ protected:
 //        _LOG( " - receivedSize:  " << m_receivedSize[peerPublicKey] );
     }
 
-    bool checkDownloadLimit( const std::array<uint8_t,64>& /*reciept*/,
+    bool checkDownloadLimit( const std::array<uint8_t,32>& /*reciept*/,
                              const std::array<uint8_t,32>& /*downloadChannelId*/,
                              uint64_t                      /*downloadedSize*/ ) override
     {
@@ -602,6 +604,7 @@ inline std::shared_ptr<ClientSession> createClientSession(  const crypto::KeyPai
     std::shared_ptr<ClientSession> clientSession = std::make_shared<ClientSession>( keyPair, dbgClientName );
     clientSession->m_session = createDefaultSession( address, errorHandler, clientSession, bootstraps, {} );
     clientSession->session()->lt_session().m_dbgOurPeerName = dbgClientName;
+    clientSession->addDownloadChannel(Hash256());
     return clientSession;
 }
 
