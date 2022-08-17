@@ -247,7 +247,7 @@ public:
 
         m_myVerificationApprovalTxInfo->m_opinions.emplace_back( info.m_opinions[0] );
 
-        if ( m_myVerificationApprovalTxInfo->m_opinions.size() > (m_request->m_replicators.size() * 2 ) / 3 )
+        if ( m_myOpinion && m_myVerificationApprovalTxInfo->m_opinions.size() > (m_request->m_replicators.size() * 2 ) / 3 )
         {
             // start timer if it is not started
             if ( !m_verifyOpinionTimer )

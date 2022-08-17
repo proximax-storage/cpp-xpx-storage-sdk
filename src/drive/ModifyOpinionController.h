@@ -147,7 +147,7 @@ public:
         }
 
         auto accountedCumulativeDownload = std::accumulate( m_notApprovedCumulativeUploads.m_uploads.begin(),
-                                                            m_notApprovedCumulativeUploads.m_uploads.end(), 0ul,
+                                                            m_notApprovedCumulativeUploads.m_uploads.end(), static_cast<uint64_t>(0),
                                                             []( const auto& sum, const auto& item )
                                                             {
                                                                 return sum + item.second;
@@ -207,7 +207,7 @@ public:
         m_approvedExpectedCumulativeDownload = std::max(  m_approvedExpectedCumulativeDownload,
                                                           (uint64_t) std::accumulate( m_approvedCumulativeUploads.m_uploads.begin(),
                                                                                       m_approvedCumulativeUploads.m_uploads.end(),
-                                                                                      0UL,
+                                                                                      static_cast<uint64_t>(0),
                                                                                       []( const auto& sum, const auto& item ) {
                                                                                           return sum + item.second;
                                                                                       } ));
@@ -274,8 +274,8 @@ private:
         uint128_t longTargetSum = targetSum;
         uint128_t sumBefore = std::accumulate(modificationUploads.begin(),
                                               modificationUploads.end(),
-                                              0,
-                                              [] (const uint64_t& value, const std::pair<Key, int>& p)
+                                              static_cast<uint64_t>(0),
+                                              [] (const auto& value, const auto& p)
                                               { return value + p.second; }
                                               );
 
@@ -291,6 +291,7 @@ private:
                     sumAfter += uploadBytes;
                 }
             }
+			_ASSERT( targetSum >= sumAfter );
             modificationUploads[m_clientKey.array()] = targetSum - sumAfter;
         }
         else

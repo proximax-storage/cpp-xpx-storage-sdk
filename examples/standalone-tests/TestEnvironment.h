@@ -597,7 +597,7 @@ public:
                 auto size =
                         std::accumulate( opinion.m_uploadLayout.begin(),
                                          opinion.m_uploadLayout.end(),
-                                         0,
+                                         0UL,
                                          []( const auto& sum, const auto& item )
                                          {
                                              return sum + item.m_uploadedBytes;
@@ -670,7 +670,7 @@ public:
                 auto size =
                         std::accumulate( opinion.m_uploadLayout.begin(),
                                          opinion.m_uploadLayout.end(),
-                                         0,
+                                         0UL,
                                          []( const auto& sum, const auto& item )
                                          {
                                              return sum + item.m_uploadedBytes;

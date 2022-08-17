@@ -338,8 +338,8 @@ class Replicator;
         {
             crypto::Sign( keyPair,
                           {
+            				utils::RawBuffer{downloadChannelId},
                             utils::RawBuffer{blockHash},
-                            utils::RawBuffer{downloadChannelId},
                             utils::RawBuffer{ (const uint8_t*) &m_downloadLayout[0],
                                               m_downloadLayout.size() * sizeof (m_downloadLayout[0]) },
                           },
@@ -350,8 +350,8 @@ class Replicator;
         {
             return crypto::Verify( m_replicatorKey,
                                    {
+            							utils::RawBuffer{downloadChannelId},
                                         utils::RawBuffer{blockHash},
-                                        utils::RawBuffer{downloadChannelId},
                                         utils::RawBuffer{ (const uint8_t*) &m_downloadLayout[0],
                                                           m_downloadLayout.size() * sizeof (m_downloadLayout[0]) },
                                    },
