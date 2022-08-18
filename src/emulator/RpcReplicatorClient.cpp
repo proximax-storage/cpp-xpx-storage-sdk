@@ -139,7 +139,8 @@ namespace sirius::emulator {
             return;
         }
 
-        m_clientSession->setDownloadChannel( rpcDriveInfo.getReplicators(), channelKey);
+        m_clientSession->addDownloadChannel(channelKey);
+        m_clientSession->setDownloadChannelReplicators(channelKey, rpcDriveInfo.getReplicators());
 
         types::RpcDownloadChannelInfo rpcDownloadChannelInfo;
         rpcDownloadChannelInfo.m_channelKey = channelKey;
@@ -256,7 +257,7 @@ namespace sirius::emulator {
         };
 
         drive::DownloadContext downloadContext( drive::DownloadContext::fs_tree, handler, rpcDriveInfo.m_rootHash, channelKey, 0 );
-        m_clientSession->download( std::move(downloadContext), pathToFsTree, "");
+        m_clientSession->download( std::move(downloadContext), channelKey, pathToFsTree, "");
     }
 
     void RpcReplicatorClient::downloadData(const drive::Folder& folder, const std::string& destinationFolder, DownloadDataCallabck callback) {
@@ -296,7 +297,7 @@ namespace sirius::emulator {
                                                 destinationFolder + "/" + folderName + "/" + file.name() );
                                                 //destinationFolder + "/" + folderName + "/" + file.name() );
 
-                m_clientSession->download( std::move(downloadContext), destinationFolder, "");
+                                                m_clientSession->download( std::move(downloadContext), channelKey, destinationFolder, "");
             }
         }
     }
@@ -321,7 +322,7 @@ namespace sirius::emulator {
                                                0,
                                                destinationFolder);
 
-        m_clientSession->download( std::move(downloadContext), tempFolder, "" );
+        m_clientSession->download( std::move(downloadContext), channelKey, tempFolder, "" );
     }
 
     std::filesystem::path RpcReplicatorClient::createClientFiles( size_t bigFileSize ) {
