@@ -85,7 +85,7 @@ public:
             case RPC_CMD::start:
             {
                 //todo+++++
-                //abort();
+//                abort();
                 m_replicator->start();
                 break;
             }

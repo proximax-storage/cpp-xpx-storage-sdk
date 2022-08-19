@@ -117,6 +117,7 @@ public:
                 m_verifyThread.join();
             }
             catch(...) {
+                _LOG_ERR( "Failed Joining Thread" );
             }
         }
     }
@@ -341,6 +342,8 @@ private:
     {
         //        DBG_VERIFY_THREAD
 
+        _LOG( "Calculate Verify Codes" )
+
         for( const auto& child : folder.childs() )
         {
             if ( m_verificationMustBeInterrupted )
@@ -350,10 +353,12 @@ private:
 
             if ( isFolder(child) )
             {
+                _LOG( "Calculate Verify Codes Folder " << getFolder(child).name() )
                 calculateVerifyCodes( getFolder(child) );
             }
             else
             {
+                _LOG( "Calculate Verify Codes File " << getFile(child).name() )
                 const auto& fileHash = getFile(child).hash();
                 std::string fileName = (m_drive.m_driveFolder / toString(fileHash)).string();
 
@@ -365,8 +370,16 @@ private:
                     return;
                 }
 
+                if (err) {
+                    _LOG_ERR( err.message() );
+                }
+
                 uint8_t buffer[4096];
                 FILE* file = fopen( fileName.c_str(), "rb" );
+
+                if ( file == nullptr ) {
+                    _LOG_ERR( "Cannot open the file: " << fileName );
+                }
 
                 while( !m_verificationMustBeInterrupted )
                 {
@@ -376,7 +389,6 @@ private:
 
                     for( uint32_t i=0; i<m_verificationCodes.size(); i++ )
                     {
-
                         uint64_t& hash = m_verificationCodes[i];
                         hash = calcHash64( hash, buffer, buffer+byteCount );
                     }

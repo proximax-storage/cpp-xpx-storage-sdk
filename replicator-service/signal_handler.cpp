@@ -32,6 +32,8 @@
 
 extern char gExecutablePath[PATH_MAX+1];
 
+void PrintBacktrace(void);
+
 /* Resolve symbol name and source location given the path to the executable
    and an address */
 void addr2line( char const * const program_name, void const * const addr )
@@ -62,6 +64,7 @@ void addr2line( char const * const program_name, void const * const addr )
 
 #include <cxxabi.h>
 
+#ifndef __linux__
 static std::string demangle(char const* name)
 {
     // in case this string comes
@@ -99,6 +102,7 @@ static std::string demangle(char const* name)
     ::free(unmangled);
     return ret;
 }
+#endif
 
 #elif defined _WIN32
 
@@ -117,6 +121,7 @@ static std::string demangle(char const* name)
 static std::string demangle(char const* name) { return name; }
 #endif
 
+#ifndef __linux__
 static void print_backtrace(char* out, int len, int max_depth )
 {
     void* stack[50];
@@ -133,7 +138,7 @@ static void print_backtrace(char* out, int len, int max_depth )
 
     ::free(symbols);
 }
-
+#endif
 
 #ifdef _WIN32
 void windows_print_stacktrace(CONTEXT* context)
@@ -282,7 +287,7 @@ void posix_signal_handler(int sig, siginfo_t *siginfo, void *context)
     gLogMutex.try_lock(); // maybe signal occurred in the __LOG()
     
     puts("\n");
-    
+
     switch(sig)
     {
         case SIGSEGV:
@@ -366,7 +371,10 @@ void posix_signal_handler(int sig, siginfo_t *siginfo, void *context)
         default:
             break;
     }
-    
+
+#ifdef __linux__
+    PrintBacktrace();
+#else
     if (1)
     {
         char stack[8192];
@@ -375,8 +383,8 @@ void posix_signal_handler(int sig, siginfo_t *siginfo, void *context)
 
         puts( stack );
     }
-    
     posix_print_stack_trace();
+#endif
     
     _Exit(1);
 }

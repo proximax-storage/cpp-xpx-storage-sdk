@@ -628,6 +628,8 @@ int main(int,char**)
     ///
     gClientSession->addDownloadChannel(downloadChannelHash2);
     gClientSession->setDownloadChannelReplicators(downloadChannelHash2, replicatorList);
+    gClientSession1->addDownloadChannel(downloadChannelHash2);
+    gClientSession1->setDownloadChannelReplicators(downloadChannelHash2, replicatorList);
     clientDownloadFsTree( gClientSession, downloadChannelHash2 );
 
     /// Client: read files from drive
@@ -736,7 +738,7 @@ int main(int,char**)
 
     /// Delete client session and replicators
     sleep(5);//(???++++!!!)
-    //sleep(120);
+//    sleep(120);
     gClientSession.reset();
     gReplicator.reset();
     gReplicator2.reset();
