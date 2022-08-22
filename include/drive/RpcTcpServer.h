@@ -77,10 +77,23 @@ protected:
 public:
     void startTcpServer( std::string address, std::uint16_t port )
     {
-        m_acceptor.emplace( m_context, asio::ip::tcp::endpoint( boost::asio::ip::make_address(address.c_str()), port ) );
+        try
+        {
+            m_acceptor.emplace( m_context, asio::ip::tcp::endpoint( boost::asio::ip::make_address(address.c_str()), port ) );
         
-        async_accept();
-        
+            async_accept();
+        }
+        catch( const std::runtime_error& ex )
+        {
+            __LOG( "Couldn't Start RPC Server: " << ex.what() );
+            exit(1);
+        }
+        catch(...)
+        {
+            __LOG( "Unknown Error" );
+            exit(1);
+        }
+
         m_thread = std::thread( [this]
                                {
             m_context.run();

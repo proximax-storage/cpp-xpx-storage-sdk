@@ -377,9 +377,10 @@ public:
         sendAck();
     }
 
-    virtual void handleError( std::error_code ) override
+    virtual void handleError( std::error_code code ) override
     {
-        
+        __LOG( "ERROR occurred " << code.message() );
+        exit(1);
     }
 
     virtual void handleConnectionLost() override
