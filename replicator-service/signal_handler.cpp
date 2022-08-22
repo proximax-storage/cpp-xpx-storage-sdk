@@ -398,7 +398,7 @@ void set_signal_handler()
         /* malloc is usually used here, I'm not 100% sure my static allocation
          is valid but it seems to work just fine. */
         ss.ss_sp = (void*)alternate_stack;
-        ss.ss_size = SIGSTKSZ;
+        ss.ss_size = 131072;
         ss.ss_flags = 0;
         
         if (sigaltstack(&ss, NULL) != 0) { err(1, "sigaltstack"); }

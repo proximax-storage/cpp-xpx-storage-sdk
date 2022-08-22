@@ -391,6 +391,7 @@ protected:
                 {
                     __LOG( "send error: " << ec )
                 }
+                return;
             }
             
             uint16_t packetLen;
@@ -411,6 +412,7 @@ protected:
                 {
                     _LOG_ERR( "send error: " << ec )
                 }
+                return;
             }
             if ( command == RPC_CMD::PING )
                 goto readAgain;
