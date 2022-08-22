@@ -389,7 +389,7 @@ void posix_signal_handler(int sig, siginfo_t *siginfo, void *context)
     _Exit(1);
 }
 
-static uint8_t alternate_stack[SIGSTKSZ];
+static uint8_t alternate_stack[131072];
 void set_signal_handler()
 {
     /* setup alternate stack */
