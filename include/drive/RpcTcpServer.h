@@ -461,7 +461,7 @@ protected:
                 {
                     __LOG( "send error: " << ec )
                 }
-                return;
+                return std::array<uint8_t,32>{};
             }
             
             uint16_t packetLen;
@@ -482,7 +482,7 @@ protected:
                 {
                     _LOG_ERR( "send error: " << ec )
                 }
-                return;
+                return std::array<uint8_t,32>{};
             }
             if ( command == RPC_CMD::PING )
                 goto readAgain;
@@ -507,7 +507,7 @@ protected:
                 {
                     _LOG_ERR( "send error: " << ec )
                 }
-                return;
+                return std::array<uint8_t,32>{};
             }
             
             return hash;
