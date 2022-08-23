@@ -19,7 +19,7 @@ include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/libtorrent/include)
 #add_subdirectory(downloadFileFlat)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    add_subdirectory(streamExample)
+    #add_subdirectory(streamExample)
     add_subdirectory(modifyDriveFlat3)
     #add_subdirectory(modifyDriveFlat5)
     #add_subdirectory(standalone-tests)
