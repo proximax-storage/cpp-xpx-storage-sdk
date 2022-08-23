@@ -291,7 +291,10 @@ public:
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
         settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, false );
         settingsPack.set_bool( lt::settings_pack::enable_ip_notifier, false );
-        
+
+        settingsPack.set_int( lt::settings_pack::max_retry_port_bind, 0 );
+        settingsPack.set_bool( lt::settings_pack::listen_system_port_fallback, false );
+
         return settingsPack;
     }
 
@@ -857,6 +860,17 @@ private:
 //                    break;
 //                }
 
+                case lt::listen_failed_alert::alert_type: {
+                    this->m_alertHandler( alert );
+
+                    auto *theAlert = dynamic_cast<lt::listen_failed_alert *>(alert);
+
+                    if ( theAlert ) {
+                        LOG(  "listen error: " << theAlert->message())
+                    }
+                    break;
+                }
+
                 case lt::log_alert::alert_type: {
                     _LOG(  ": session_log_alert: " << alert->message())
                     break;
@@ -1217,20 +1231,6 @@ private:
 //                    LOG("!!!!! block_finished_alert");
 //                    break;
 //                }
-
-
-
-
-                case lt::listen_failed_alert::alert_type: {
-                    this->m_alertHandler( alert );
-
-                    auto *theAlert = dynamic_cast<lt::listen_failed_alert *>(alert);
-
-                    if ( theAlert ) {
-                        LOG(  "listen error: " << theAlert->message())
-                    }
-                    break;
-                }
 
                 case lt::portmap_error_alert::alert_type: {
                     auto *theAlert = dynamic_cast<lt::portmap_error_alert *>(alert);
