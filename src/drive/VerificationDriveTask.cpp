@@ -393,6 +393,7 @@ private:
                         hash = calcHash64( hash, buffer, buffer+byteCount );
                     }
                 }
+                fclose( file );
             }
         }
     }

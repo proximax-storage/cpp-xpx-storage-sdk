@@ -298,6 +298,7 @@ protected:
                 {
                     _LOG_ERR( "sendAck error: " << error )
                 }
+                return;
             }
             
             uint16_t packetLen = 0;
@@ -315,6 +316,7 @@ protected:
                 {
                     _LOG_ERR( "sendAck error (2): " << error )
                 }
+                return;
             }
         }
         
@@ -339,6 +341,7 @@ protected:
                 {
                     _LOG_ERR( "send error: " << error )
                 }
+                return;
             }
             
             uint16_t packetLen = (uint16_t) parameters.size();
@@ -356,6 +359,7 @@ protected:
                 {
                     _LOG_ERR( "send error (2): " << error )
                 }
+                return;
             }
             
             if ( parameters.size() > 0 )
@@ -376,6 +380,7 @@ protected:
                     {
                         _LOG_ERR( "send error (3): " << error )
                     }
+                    return;
                 }
             }
             
@@ -456,6 +461,7 @@ protected:
                 {
                     __LOG( "send error: " << ec )
                 }
+                return std::array<uint8_t,32>{};
             }
             
             uint16_t packetLen;
@@ -476,6 +482,7 @@ protected:
                 {
                     _LOG_ERR( "send error: " << ec )
                 }
+                return std::array<uint8_t,32>{};
             }
             if ( command == RPC_CMD::PING )
                 goto readAgain;
@@ -500,6 +507,7 @@ protected:
                 {
                     _LOG_ERR( "send error: " << ec )
                 }
+                return std::array<uint8_t,32>{};
             }
             
             return hash;
@@ -542,6 +550,7 @@ private:
                         {
                             _LOG_ERR( "error in RpcTcpServer::async_accept : " << ec.message() )
                         }
+                        return;
                     }
                 }
                 else

@@ -257,17 +257,21 @@ namespace sirius::emulator {
         };
 
         drive::DownloadContext downloadContext( drive::DownloadContext::fs_tree, handler, rpcDriveInfo.m_rootHash, channelKey, 0 );
-        m_clientSession->download( std::move(downloadContext), channelKey, pathToFsTree, "");
+        m_clientSession->download( std::move(downloadContext), channelKey, destinationFolder, destinationFolder);
     }
 
-    void RpcReplicatorClient::downloadData(const drive::Folder& folder, const std::string& destinationFolder, DownloadDataCallabck callback) {
+    void RpcReplicatorClient::downloadData(
+            const drive::Folder& folder,
+            const std::string& destinationFolder,
+            const std::array<uint8_t,32>& channelKey,
+            DownloadDataCallabck callback) {
         std::cout << "Client. downloadData. Folder: " << folder.name() << std::endl;
 
         for( const auto& child: folder.childs() )
         {
             if ( isFolder(child) )
             {
-                downloadData( getFolder(child), destinationFolder, callback);
+                downloadData( getFolder(child), destinationFolder, channelKey, callback);
             }
             else
             {
@@ -295,14 +299,18 @@ namespace sirius::emulator {
                                                 0,
                                                 0,
                                                 destinationFolder + "/" + folderName + "/" + file.name() );
-                                                //destinationFolder + "/" + folderName + "/" + file.name() );
 
-                                                m_clientSession->download( std::move(downloadContext), channelKey, destinationFolder, "");
+                m_clientSession->download( std::move(downloadContext), channelKey, destinationFolder, destinationFolder);
             }
         }
     }
 
-    void RpcReplicatorClient::downloadData(const drive::InfoHash& hash, const std::string& tempFolder, const std::string& destinationFolder, DownloadDataCallabck callback) {
+    void RpcReplicatorClient::downloadData(
+            const drive::InfoHash& hash,
+            const std::string& tempFolder,
+            const std::string& destinationFolder,
+            const std::array<uint8_t,32>& channelKey,
+            DownloadDataCallabck callback) {
         std::cout << "Client. downloadData. Client started download file: " << drive::hashToFileName( hash ) << " : hash: " << drive::toString(hash) << std::endl;
 
         auto handler = [callback](drive::download_status::code code,
@@ -322,7 +330,7 @@ namespace sirius::emulator {
                                                0,
                                                destinationFolder);
 
-        m_clientSession->download( std::move(downloadContext), channelKey, tempFolder, "" );
+        m_clientSession->download( std::move(downloadContext), channelKey, destinationFolder, destinationFolder );
     }
 
     std::filesystem::path RpcReplicatorClient::createClientFiles( size_t bigFileSize ) {

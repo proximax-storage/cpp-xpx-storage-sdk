@@ -5,6 +5,8 @@
 //  Created by Aleksander Tsarenko on 13.07.22.
 //
 
+#pragma once
+
 #include "RpcReplicatorCommands.h"
 
 #include <syslog.h>

@@ -72,8 +72,8 @@ public:
                         DownloadFsTreeCallback callback,
                         const uint64_t downloadLimit = 0);
 
-    void downloadData(const drive::Folder& folder, const std::string& destinationFolder, DownloadDataCallabck callback);
-    void downloadData(const drive::InfoHash& hash, const std::string& tempFolder, const std::string& destinationFolder, DownloadDataCallabck callback);
+    void downloadData(const drive::Folder& folder, const std::string& destinationFolder, const std::array<uint8_t,32>& channelKey, DownloadDataCallabck callback);
+    void downloadData(const drive::InfoHash& hash, const std::string& tempFolder, const std::string& destinationFolder, const std::array<uint8_t,32>& channelKey, DownloadDataCallabck callback);
 
     std::filesystem::path createClientFiles( size_t bigFileSize );
 
