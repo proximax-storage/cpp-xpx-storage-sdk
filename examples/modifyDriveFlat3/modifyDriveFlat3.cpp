@@ -204,6 +204,12 @@ public:
     static std::optional<DownloadApprovalTransactionInfo>   m_dnApprovalTransactionInfo;
     static std::mutex                                       m_transactionInfoMutex;
 
+    void onLibtorrentSessionError( const std::string& message ) override
+    {
+        _LOG_ERR( "onLibtorrentSessionError: " << message );
+        exit(1);
+    }
+
     // It will be called before 'replicator' shuts down
     virtual void willBeTerminated( Replicator& replicator ) override
     {

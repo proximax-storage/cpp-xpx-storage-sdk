@@ -77,10 +77,23 @@ protected:
 public:
     void startTcpServer( std::string address, std::uint16_t port )
     {
-        m_acceptor.emplace( m_context, asio::ip::tcp::endpoint( boost::asio::ip::make_address(address.c_str()), port ) );
+        try
+        {
+            m_acceptor.emplace( m_context, asio::ip::tcp::endpoint( boost::asio::ip::make_address(address.c_str()), port ) );
         
-        async_accept();
-        
+            async_accept();
+        }
+        catch( const std::runtime_error& ex )
+        {
+            __LOG( "Couldn't Start RPC Server: " << ex.what() );
+            exit(1);
+        }
+        catch(...)
+        {
+            __LOG( "Unknown Error" );
+            exit(1);
+        }
+
         m_thread = std::thread( [this]
                                {
             m_context.run();
@@ -285,6 +298,7 @@ protected:
                 {
                     _LOG_ERR( "sendAck error: " << error )
                 }
+                return;
             }
             
             uint16_t packetLen = 0;
@@ -302,6 +316,7 @@ protected:
                 {
                     _LOG_ERR( "sendAck error (2): " << error )
                 }
+                return;
             }
         }
         
@@ -326,6 +341,7 @@ protected:
                 {
                     _LOG_ERR( "send error: " << error )
                 }
+                return;
             }
             
             uint16_t packetLen = (uint16_t) parameters.size();
@@ -343,6 +359,7 @@ protected:
                 {
                     _LOG_ERR( "send error (2): " << error )
                 }
+                return;
             }
             
             if ( parameters.size() > 0 )
@@ -363,6 +380,7 @@ protected:
                     {
                         _LOG_ERR( "send error (3): " << error )
                     }
+                    return;
                 }
             }
             
@@ -443,6 +461,7 @@ protected:
                 {
                     __LOG( "send error: " << ec )
                 }
+                return std::array<uint8_t,32>{};
             }
             
             uint16_t packetLen;
@@ -463,6 +482,7 @@ protected:
                 {
                     _LOG_ERR( "send error: " << ec )
                 }
+                return std::array<uint8_t,32>{};
             }
             if ( command == RPC_CMD::PING )
                 goto readAgain;
@@ -487,6 +507,7 @@ protected:
                 {
                     _LOG_ERR( "send error: " << ec )
                 }
+                return std::array<uint8_t,32>{};
             }
             
             return hash;
@@ -529,6 +550,7 @@ private:
                         {
                             _LOG_ERR( "error in RpcTcpServer::async_accept : " << ec.message() )
                         }
+                        return;
                     }
                 }
                 else
