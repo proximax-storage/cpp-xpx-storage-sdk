@@ -321,7 +321,7 @@ public:
         return infoHash0;
     }
 
-    void removeModifyTorrents()
+    void removeTorrents()
     {
         std::set<lt::torrent_handle>  torrents;
         
@@ -346,6 +346,28 @@ public:
         barrier.get_future().wait();
         
         m_modifyTorrentMap.clear();
+    }
+
+    void removeTorrents(const std::vector<std::array<uint8_t,32>>& hashes)
+    {
+        std::set<lt::torrent_handle>  torrents;
+        for (const auto& hash : hashes) {
+            if (m_modifyTorrentMap.contains(hash)) {
+                torrents.insert( m_modifyTorrentMap[hash].m_ltHandle );
+                m_modifyTorrentMap.erase(hash);
+            }
+        }
+
+        std::promise<void> barrier;
+        boost::asio::post(m_session->lt_session().get_context(), [&torrents,&barrier,this]() //mutable
+        {
+            m_session->removeTorrentsFromSession( torrents, [&barrier] {
+                __LOG("???? barrier.set_value();")
+                barrier.set_value();
+            }, true);
+        });
+
+        barrier.get_future().wait();
     }
 
     void setSessionSettings(const lt::settings_pack& settings, bool localNodes)
