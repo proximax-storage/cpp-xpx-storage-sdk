@@ -544,6 +544,7 @@ private:
                     {
                         if ( gHandleLostConnection )
                         {
+                        	self->m_isConnectionLost = true;
                             self->handleConnectionLost();
                         }
                         else
