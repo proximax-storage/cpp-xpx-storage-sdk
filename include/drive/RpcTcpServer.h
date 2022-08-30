@@ -66,7 +66,10 @@ protected:
     
     virtual void handleError( std::error_code ) = 0;
     
-    virtual void handleConnectionLost() = 0;
+    virtual void handleConnectionLost()
+	{
+		m_isConnectionLost = true;
+	}
     
     virtual void dbgEmulateSignal( int index ) = 0;
     
@@ -537,7 +540,6 @@ private:
                 {
                     if ( ec.value() == boost::system::errc::operation_canceled )
                     {
-                        self->m_isConnectionLost = true;
                         self->handleConnectionLost();
                     }
                     else
