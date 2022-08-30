@@ -321,6 +321,17 @@ public:
         return infoHash0;
     }
 
+    std::vector<std::array<uint8_t,32>> getTorrentHandleHashes() {
+        std::vector<std::array<uint8_t,32>> hashes;
+        hashes.reserve(m_modifyTorrentMap.size());
+        for( auto& [key,value]: m_modifyTorrentMap )
+        {
+            hashes.push_back(key.array());
+        }
+
+        return hashes;
+    }
+
     void removeTorrents()
     {
         std::set<lt::torrent_handle>  torrents;
