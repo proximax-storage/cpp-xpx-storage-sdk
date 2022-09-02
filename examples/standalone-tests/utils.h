@@ -96,7 +96,7 @@ __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
         }
 
         void removeModifyTorrents() {
-            m_clientSession->removeModifyTorrents();
+            m_clientSession->removeTorrents();
         }
 
         void downloadFromDrive(const InfoHash& rootHash,
