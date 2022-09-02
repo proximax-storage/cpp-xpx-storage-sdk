@@ -260,10 +260,6 @@ public:
         
     }
 
-    virtual void handleConnectionLost()  override
-    {
-    }
-
     virtual void start() override
     {
         std::ostringstream os( std::ios::binary );
