@@ -600,7 +600,7 @@ int main(int,char**)
 //                                          TRANSPORT_PROTOCOL,
 //                                          "client0" );
 
-    gClientSession->removeModifyTorrents();
+    gClientSession->removeTorrents();
     actionList.push_back( Action::newFolder( "fff000/" ) );
     clientModifyDrive( actionList, replicatorList, modifyTransactionHash1b );
 
@@ -628,7 +628,7 @@ int main(int,char**)
     if ( !testLateReplicator )
         gReplicatorThread3.join();
 
-    gClientSession->removeModifyTorrents();
+    gClientSession->removeTorrents();
 
     /// Client: read changed fsTree (2)
     ///
