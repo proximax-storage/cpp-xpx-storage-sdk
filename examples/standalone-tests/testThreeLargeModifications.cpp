@@ -73,14 +73,14 @@ namespace sirius::drive::test
                                         20ULL * 1024ULL * 1024ULL * 1024ULL,
                                         env.m_addrList });
 
-        env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS);
+        env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS);
 
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[1],
                                         client.m_modificationTransactionHashes[1],
                                         20ULL * 1024ULL * 1024ULL * 1024ULL,
                                         env.m_addrList });
 
-        env.waitModificationEnd(client.m_modificationTransactionHashes[0], NUMBER_OF_REPLICATORS);
+        env.waitModificationEnd(client.m_modificationTransactionHashes[1], NUMBER_OF_REPLICATORS);
 
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[2],
                                         client.m_modificationTransactionHashes[2],
