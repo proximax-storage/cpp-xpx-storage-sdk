@@ -79,6 +79,7 @@ auto clientKeyPair1 = sirius::crypto::KeyPair::FromPrivate(
 #define REPLICATOR_PRIVATE_KEY_5    "5000000000010203040501020304050102030405010203040501020304050102"
 
 #define DRIVE_PUB_KEY                   std::array<uint8_t,32>{1,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
+#define DRIVE_PUB_KEY_2                 std::array<uint8_t,32>{2,0,0,0,0,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1}
 
 const sirius::Hash256 downloadChannelHash1 = std::array<uint8_t,32>{1,1,1,1};
 const sirius::Hash256 downloadChannelHash2 = std::array<uint8_t,32>{2,2,2,2};
@@ -143,7 +144,8 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
 //
 static fs::path createClientFiles( size_t bigFileSize );
 static void     clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession, const sirius::Hash256& channelId );
-static void     clientModifyDrive( const ActionList& actionList,
+static void     clientModifyDrive( const sirius::Key& driveKey,
+                                   const ActionList& actionList,
                                    const ReplicatorList& replicatorList,
                                    const sirius::Hash256& transactionHash );
 static void     clientDownloadFiles( std::shared_ptr<ClientSession> clientSession, int fileNumber, Folder& folder, const sirius::Hash256& downloadChannelId );
@@ -543,51 +545,87 @@ int main(int,char**)
     /// Client: request to modify drive (1)
     ///
     EXLOG( "\n# Client started: 1-st upload" );
-    ActionList actionList;
     {
-        actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
-        actionList.push_back( Action::upload( clientFolder / "c.txt", "c.txt" ) );
-        actionList.push_back( Action::upload( clientFolder / "d.txt", "d.txt" ) );
-        actionList.push_back( Action::upload( clientFolder / "a.txt", "folder/aa.txt" ) );
-        actionList.push_back( Action::upload( clientFolder / "a.txt", "folder/sub_folder/aaa.txt" ) );
-        actionList.push_back( Action::upload( clientFolder / "c.txt", "folder/sub_folder/c.txt" ) );
-        actionList.push_back( Action::upload( clientFolder / "d.txt", "folder/sub_folder/d.txt" ) );
-        actionList.push_back( Action::upload( clientFolder / "b.bin", "f1/b1.bin" ) );
-        actionList.push_back( Action::upload( clientFolder / "b.bin", "f2/b2.bin" ) );
-        actionList.push_back( Action::upload( clientFolder / "b.bin", "f3/sub_folder/b2.bin" ) );
-        actionList.push_back( Action::upload( clientFolder / "a.txt", "f3/sub_folder/a.txt" ) );
-        actionList.push_back( Action::upload( clientFolder / "c.txt", "f3/sub_folder/c.txt" ) );
-        actionList.push_back( Action::upload( clientFolder / "d.txt", "f3/sub_folder/d.txt" ) );
+        ActionList actionList;
+        {
+            actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "c.txt", "c.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "d.txt", "d.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "a.txt", "folder/aa.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "a.txt", "folder/sub_folder/aaa.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "c.txt", "folder/sub_folder/c.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "d.txt", "folder/sub_folder/d.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "b.bin", "f1/b1.bin" ) );
+            actionList.push_back( Action::upload( clientFolder / "b.bin", "f2/b2.bin" ) );
+            actionList.push_back( Action::upload( clientFolder / "b.bin", "f3/sub_folder/b2.bin" ) );
+            actionList.push_back( Action::upload( clientFolder / "a.txt", "f3/sub_folder/a.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "c.txt", "f3/sub_folder/c.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "d.txt", "f3/sub_folder/d.txt" ) );
 
-        clientModifyDrive( actionList, replicatorList, modifyTransactionHash1 );
+            clientModifyDrive( DRIVE_PUB_KEY, actionList, replicatorList, modifyTransactionHash1 );
+        }
     }
 
-    if ( testSmallModifyDataSize )
+    modifyCompleteCounter = 0;
+    MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
+
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
+    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
+    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
+
     {
-
-        modifyCompleteCounter = 0;
-        MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
-
-        gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
-        gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
-
-        if ( !testLateReplicator )
-        {
-            gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
-        }
-
-        {
-            std::unique_lock<std::mutex> lock(modifyCompleteMutex);
-            modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 3; } );
-        }
-
-        gReplicatorThread.join();
-        gReplicatorThread2.join();
-        if ( !testLateReplicator )
-            gReplicatorThread3.join();
+        std::unique_lock<std::mutex> lock(modifyCompleteMutex);
+        modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 3; } );
     }
+
+    gReplicatorThread.join();
+    gReplicatorThread2.join();
+    gReplicatorThread3.join();
+
+    EXLOG( "driveRootHash: " << toString(driveRootHash->array()) );
+
+    gClientSession->removeTorrents();
+
+    // DRIVE_2
+    {
+        ActionList actionList;
+        {
+            actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "a.txt", "folder/aa.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "a.txt", "folder/sub_folder/aaa.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "b.bin", "f1/b1.bin" ) );
+            actionList.push_back( Action::upload( clientFolder / "b.bin", "f3/sub_folder/b2.bin" ) );
+
+            clientModifyDrive( DRIVE_PUB_KEY_2, actionList, replicatorList, modifyTransactionHash2 );
+        }
+    }
+
+    modifyCompleteCounter = 0;
+    MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
+
+    gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY_2, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
+    gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY_2, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
+    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY_2, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash2, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
+
+    {
+        std::unique_lock<std::mutex> lock(modifyCompleteMutex);
+        modifyCompleteCondVar.wait( lock, [] { return modifyCompleteCounter == 3; } );
+    }
+
+    gReplicatorThread.join();
+    gReplicatorThread2.join();
+    gReplicatorThread3.join();
+
+    gClientSession->removeTorrents();
     
-    EXLOG( "\n# blocked" );
+    gClientSession.reset();
+    
+    for(;;)
+    {
+        EXLOG( "driveRootHash: " << toString(driveRootHash->array()) );
+        EXLOG( "\n# blocked" );
+        sleep(10);
+    }
     std::mutex block;
     block.lock();
     block.lock();
@@ -611,9 +649,6 @@ int main(int,char**)
 //                                          TRANSPORT_PROTOCOL,
 //                                          "client0" );
 
-    gClientSession->removeTorrents();
-    actionList.push_back( Action::newFolder( "fff000/" ) );
-    clientModifyDrive( actionList, replicatorList, modifyTransactionHash1b );
 
 
     /// Try again modify with extended data size
@@ -623,11 +658,7 @@ int main(int,char**)
 
     gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1b, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
     gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1b, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
-
-    if ( !testLateReplicator )
-    {
-        gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1b, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
-    }
+    gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1b, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
 
     {
         std::unique_lock<std::mutex> lock(modifyCompleteMutex);
@@ -636,8 +667,7 @@ int main(int,char**)
 
     gReplicatorThread.join();
     gReplicatorThread2.join();
-    if ( !testLateReplicator )
-        gReplicatorThread3.join();
+    gReplicatorThread3.join();
 
     gClientSession->removeTorrents();
 
@@ -707,7 +737,7 @@ int main(int,char**)
         actionList.push_back( Action::remove( "f2/b2.bin" ) );
         actionList.push_back( Action::move( "f2/", "f2_renamed/" ) );
         actionList.push_back( Action::move( "f2_renamed/a.txt", "f2_renamed/a_renamed.txt" ) );
-        clientModifyDrive( actionList, replicatorList, modifyTransactionHash2 );
+        clientModifyDrive( DRIVE_PUB_KEY, actionList, replicatorList, modifyTransactionHash2 );
     }
 
     modifyCompleteCounter = 0;
@@ -829,10 +859,11 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->start();
 //    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100,         0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
     replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100*1024*1024, 0, {}, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
+    replicator->asyncAddDrive( DRIVE_PUB_KEY_2, AddDriveRequest{100*1024*1024, 0, {}, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
 
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash1.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash3.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY_2, DownloadRequest{ downloadChannelHash3.array(), 10*1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );
 
     return replicator;
 }
@@ -845,7 +876,7 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const ReplicatorList&          replicatorList,
                          uint64_t                       maxDataSize )
 {
-    replicator->asyncModify( DRIVE_PUB_KEY, ModificationRequest{ clientDataInfoHash, transactionHash, maxDataSize, replicatorList } );
+    replicator->asyncModify( driveKey, ModificationRequest{ clientDataInfoHash, transactionHash, maxDataSize, replicatorList } );
 }
 
 //
@@ -912,7 +943,8 @@ static void clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession, 
 //
 // clientModifyDrive
 //
-static void clientModifyDrive( const ActionList& actionList,
+static void clientModifyDrive( const sirius::Key& driveKey,
+                               const ActionList& actionList,
                                const ReplicatorList& replicatorList,
                                const sirius::Hash256& transactionHash )
 {
@@ -923,14 +955,14 @@ static void clientModifyDrive( const ActionList& actionList,
 
     // Create empty tmp folder for 'client modify data'
     //
-    auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
+    auto tmpFolder = fs::temp_directory_path() / toString(driveKey.array()) / "modify_drive_data";
     fs::remove_all( tmpFolder );
     fs::create_directories( tmpFolder );
     EXLOG( "# Client tmpFolder: " << tmpFolder );
 
     // start file uploading
     uint64_t totalModifySize;
-    InfoHash hash = gClientSession->addActionListToSession(  actionList, DRIVE_PUB_KEY, replicatorList, tmpFolder, totalModifySize );
+    InfoHash hash = gClientSession->addActionListToSession(  actionList, driveKey, replicatorList, tmpFolder, totalModifySize );
 
     // inform replicator
     clientModifyHash = hash;
