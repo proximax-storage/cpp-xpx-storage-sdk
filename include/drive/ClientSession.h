@@ -212,7 +212,13 @@ public:
                         {
                             try
                             {
+                                // remove symlink and not the file
+                                fs::remove( filenameInSandbox );
                                 fs::create_symlink( action.m_param1, filenameInSandbox );
+                            }
+                            catch( const std::filesystem::filesystem_error& err ) {
+                                __LOG( "ERRROR: " << err.what() << err.path1() << " " << err.path2() );
+                                throw std::runtime_error( "Internal error: fs::create_symlink( action.m_param1, filenameInSandbox );" );
                             }
                             catch(...)
                             {
