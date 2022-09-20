@@ -462,7 +462,7 @@ private:
 			int codesDelay;
 			if ( m_request->m_durationMs > msSinceVerificationStart + m_drive.m_replicator.getVerifyCodeTimerDelay() )
 			{
-				codesDelay = int(m_request->m_durationMs - msSinceVerificationStart + m_drive.m_replicator.getVerifyCodeTimerDelay());
+				codesDelay = int(m_request->m_durationMs - msSinceVerificationStart - m_drive.m_replicator.getVerifyCodeTimerDelay());
 			}
 			else
 			{
