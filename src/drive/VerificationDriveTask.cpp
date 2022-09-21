@@ -458,7 +458,6 @@ private:
 
 			auto msSinceVerificationStart =
 					(boost::posix_time::microsec_clock::universal_time() - *m_verificationStartedAt).total_milliseconds();
-			_LOG( "Verification Timings " << m_request->m_durationMs << " " << msSinceVerificationStart << " " << m_drive.m_replicator.getVerifyCodeTimerDelay() );
 			int codesDelay;
 			if ( m_request->m_durationMs > msSinceVerificationStart + m_drive.m_replicator.getVerifyCodeTimerDelay() )
 			{
@@ -533,7 +532,6 @@ private:
                 }
                 else
                 {
-					_LOG( "We have not received verification code" );
                     myOpinion.m_opinions[i] = 0;
                 }
             }
