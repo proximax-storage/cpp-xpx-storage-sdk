@@ -110,11 +110,11 @@ public:
     }
 
     // Initiate file downloading (identified by downloadParameters.m_infoHash)
-    void download( DownloadContext&&      downloadParameters,
-                   const Hash256&         downloadChannelId,
-                   const std::string&     saveFolder,
-                   const std::string&     saveTorrentFolder,
-                   const endpoint_list&   endpointsHints = {})
+    lt_handle download( DownloadContext&&     downloadParameters,
+                       const Hash256&         downloadChannelId,
+                       const std::string&     saveFolder,
+                       const std::string&     saveTorrentFolder,
+                       const endpoint_list&   endpointsHints = {})
     {
         // check that download channel was set
         if ( !m_downloadChannelMap.contains(downloadChannelId) )
@@ -140,7 +140,7 @@ public:
                                                               0,
                                                               0,
                                                               "" );
-                    return;
+                    return tHandle;
                 } catch(...) {}
             }
             else
@@ -152,14 +152,14 @@ public:
         auto downloadChannelIdAsArray = downloadChannelId.array();
 
         // start downloading
-        m_session->download( std::move(downloadParameters),
-                             saveFolder,
-                             saveTorrentFolder,
-                             downloadChannel.m_downloadReplicatorList,
-                             nullptr,
-                             &downloadChannelIdAsArray,
-                             nullptr,
-                             endpointsHints );
+        return m_session->download( std::move(downloadParameters),
+                                    saveFolder,
+                                    saveTorrentFolder,
+                                    downloadChannel.m_downloadReplicatorList,
+                                    nullptr,
+                                    &downloadChannelIdAsArray,
+                                    nullptr,
+                                    endpointsHints );
     }
 
     std::optional<boost::asio::ip::tcp::endpoint> getEndpoint(const std::array<uint8_t, 32> &key) override
@@ -212,7 +212,13 @@ public:
                         {
                             try
                             {
+                                // remove symlink and not the file
+                                fs::remove( filenameInSandbox );
                                 fs::create_symlink( action.m_param1, filenameInSandbox );
+                            }
+                            catch( const std::filesystem::filesystem_error& err ) {
+                                __LOG( "ERRROR: " << err.what() << err.path1() << " " << err.path2() );
+                                throw std::runtime_error( "Internal error: fs::create_symlink( action.m_param1, filenameInSandbox );" );
                             }
                             catch(...)
                             {

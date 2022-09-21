@@ -456,12 +456,12 @@ private:
 
 			_ASSERT( m_verificationStartedAt )
 
-			auto secondsSinceVerificationStart =
-					(boost::posix_time::microsec_clock::universal_time() - *m_verificationStartedAt).total_seconds();
+			auto msSinceVerificationStart =
+					(boost::posix_time::microsec_clock::universal_time() - *m_verificationStartedAt).total_milliseconds();
 			int codesDelay;
-			if ( m_request->m_durationMs > secondsSinceVerificationStart + m_drive.m_replicator.getVerifyCodeTimerDelay() )
+			if ( m_request->m_durationMs > msSinceVerificationStart + m_drive.m_replicator.getVerifyCodeTimerDelay() )
 			{
-				codesDelay = int(m_request->m_durationMs - secondsSinceVerificationStart + m_drive.m_replicator.getVerifyCodeTimerDelay());
+				codesDelay = int(m_request->m_durationMs - msSinceVerificationStart - m_drive.m_replicator.getVerifyCodeTimerDelay());
 			}
 			else
 			{

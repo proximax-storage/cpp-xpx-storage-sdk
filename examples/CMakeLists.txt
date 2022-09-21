@@ -18,11 +18,13 @@ include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/libtorrent/include)
 ### download flat file example
 #add_subdirectory(downloadFileFlat)
 
+
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     #add_subdirectory(streamExample)
-    add_subdirectory(modifyDriveFlat3)
+    #add_subdirectory(modifyDriveFlat3)
     #add_subdirectory(modifyDriveFlat5)
     #add_subdirectory(standalone-tests)
+    add_subdirectory(testForUiApp)
 else()
     add_subdirectory(modifyDriveFlat3)
     #add_subdirectory(modifyDriveFlat4)

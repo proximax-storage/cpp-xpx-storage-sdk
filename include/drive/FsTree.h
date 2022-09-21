@@ -119,14 +119,14 @@ public:
     // returns nullptr if child is absent
     Child* findChild( const std::string& childName );
 
+    void sort();
+
 protected:
     // creates subfolder if not exist
     Folder& getSubfolderOrCreate( const std::string& subFolderName );
 
     // returns child iterator
     std::list<Child>::iterator findChildIt( const std::string& childName );
-
-    void sort();
 
 protected:
     friend class FsTree;
