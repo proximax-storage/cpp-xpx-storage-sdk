@@ -195,11 +195,13 @@ public:
         if ( ! contextVector.empty() && ! userdata->m_invalidMetadata )
         {
             fs::path srcFilePath = fs::path(userdata->m_saveFolder) / hashToFileName( contextVector[0].m_infoHash );
+            //_LOG( "srcFilePath: " << srcFilePath )
 
             for( size_t i=0; i<contextVector.size(); i++ )
             {
                 if ( contextVector[i].m_doNotDeleteTorrent )
                 {
+                    //_LOG( "m_doNotDeleteTorrent: true" )
                     continue;
                 }
                 
@@ -207,6 +209,7 @@ public:
 
                 if ( ! context.m_saveAs.empty() && context.m_downloadType == DownloadContext::file_from_drive )
                 {
+                    //_LOG( "context.m_saveAs: " << context.m_saveAs )
                     _ASSERT( ! m_ownerIsReplicator )
                     
                     fs::path destFilePath = context.m_saveAs;
@@ -224,6 +227,10 @@ public:
                     if ( i == contextVector.size()-1 )
                     {
                         fs::rename( srcFilePath, destFilePath, err );
+                        if (err)
+                        {
+                            _LOG_WARN( "rename err: " << err.message() )
+                        }
                     }
                     else
                     {
@@ -277,6 +284,7 @@ public:
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
         settingsPack.set_bool( lt::settings_pack::enable_upnp, true );
+        settingsPack.set_bool( lt::settings_pack::enable_natpmp, true );
 
         std::ostringstream bootstrapsBuilder;
         for ( const auto& bootstrap: bootstraps )
@@ -472,7 +480,11 @@ public:
                                 const std::array<uint8_t,32>*   modifyTx  = nullptr,
                                 const endpoint_list&            endpointsHints = {} ) override
     {
-        _LOG( "download started " )
+        _LOG( "Session::download: dnCtxt.m_infoHash:   " << downloadContext.m_infoHash )
+        _LOG( "Session::download: dnCtxt.m_saveAs:     " << downloadContext.m_saveAs )
+        _LOG( "Session::download: saveFolder:          " << saveFolder )
+        _LOG( "Session::download: saveTorrentFilePath: " << saveTorrentFilePath )
+
         // create add_torrent_params
         lt::error_code ec;
         lt::add_torrent_params params = lt::parse_magnet_uri( magnetLink(downloadContext.m_infoHash), ec );
@@ -483,6 +495,7 @@ public:
 
         auto userdata = new LtClientData();
         userdata->m_saveTorrentFilename = saveTorrentFilePath;
+        userdata->m_saveFolder          = saveFolder;
         params.userdata = userdata;
 //        params.flags &= ~lt::torrent_flags::paused;
 //        //params.flags &= ~lt::torrent_flags::auto_managed;
