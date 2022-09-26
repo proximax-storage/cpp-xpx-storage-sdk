@@ -883,7 +883,8 @@ public:
         {
             if ( chunkInfo.m_saveOnDrive )
             {
-                streamFolder->m_childs.emplace_front( File{ toString(chunkInfo.m_chunkInfoHash), chunkInfo.m_chunkInfoHash, chunkInfo.m_sizeBytes} );
+                auto name = toString(chunkInfo.m_chunkInfoHash);
+                streamFolder->m_childs.emplace( name, File{ name, chunkInfo.m_chunkInfoHash, chunkInfo.m_sizeBytes} );
             }
         }
         
@@ -939,7 +940,7 @@ public:
             _ASSERT( finishPlaylistHash2 == finishPlaylistHash )
         }
 
-        streamFolder->m_childs.emplace_front( File{ PLAYLIST_FILE_NAME, finishPlaylistHash, playlistTxt.size() } );
+        streamFolder->m_childs.emplace( PLAYLIST_FILE_NAME, File{ PLAYLIST_FILE_NAME, finishPlaylistHash, playlistTxt.size() } );
         streamFolder->m_isaStream = true;
         streamFolder->m_streamId  = m_request->m_streamId;
 
