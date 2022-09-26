@@ -269,13 +269,13 @@ namespace sirius::emulator {
 
         for( const auto& child: folder.childs() )
         {
-            if ( isFolder(child) )
+            if ( isFolder(child.second) )
             {
-                downloadData( getFolder(child), destinationFolder, channelKey, callback);
+                downloadData( getFolder(child.second), destinationFolder, channelKey, callback);
             }
             else
             {
-                const drive::File& file = getFile(child);
+                const drive::File& file = getFile(child.second);
                 std::string folderName = "root";
                 if ( folder.name() != "/" )
                     folderName = folder.name();
