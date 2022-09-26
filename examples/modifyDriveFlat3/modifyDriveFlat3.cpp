@@ -967,7 +967,7 @@ static void clientDownloadFilesHandler( download_status::code code,
 //
 static void clientDownloadFilesR( std::shared_ptr<ClientSession> clientSession, const Folder& folder, const sirius::Hash256& downloadChannelId )
 {
-    for( const auto& child: folder.childs() )
+    for( const auto& [name, child]: folder.childs() )
     {
         if ( isFolder(child) )
         {
