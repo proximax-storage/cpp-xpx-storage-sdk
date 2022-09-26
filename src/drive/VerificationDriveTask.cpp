@@ -344,7 +344,7 @@ private:
 
         _LOG( "Calculate Verify Codes" )
 
-        for( const auto& child : folder.childs() )
+        for( const auto& [name, child] : folder.childs() )
         {
             if ( m_verificationMustBeInterrupted )
             {

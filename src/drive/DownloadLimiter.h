@@ -756,7 +756,7 @@ public:
         //_LOG("lastAcceptedUploadSize: " << int(msg.replicatorKey()[0]) << " " << lastAcceptedUploadSize << " " << msg.downloadedSize() );
         if ( msg.downloadedSize() <= lastAcceptedUploadSize  )
         {
-            _LOG("old receipt; it is ignored");
+            //_LOG("old receipt; it is ignored: " << msg.downloadedSize() << " <= " << lastAcceptedUploadSize )
             return false;
         }
         

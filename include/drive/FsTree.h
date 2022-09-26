@@ -7,7 +7,7 @@
 
 #include "types.h"
 #include "plugins.h"
-#include <list>
+#include <map>
 #include <variant>
 #include <functional>
 #include <filesystem>
@@ -52,11 +52,14 @@ private:
 
     File( std::string name, const InfoHash hash, size_t size ) : m_name(name), m_hash(hash), m_size(size) {}
 
+    File( std::string name, const InfoHash hash, size_t size, bool modifiable ) : m_name(name), m_hash(hash), m_size(size), m_isModifiable(modifiable) {}
+
     File( std::string name) : m_name(name), m_hash(InfoHash()), m_size(0) {}
 
     std::string m_name;
     InfoHash    m_hash;
     size_t      m_size;
+    bool        m_isModifiable = false;
 
 private:
 
@@ -75,7 +78,7 @@ public:
     const std::string& name() const
     { return m_name; }
 
-    const std::list<Child>& childs() const
+    const std::map<std::string, Child>& childs() const
     { return m_childs; }
 
     std::string& name()
@@ -119,21 +122,19 @@ public:
     // returns nullptr if child is absent
     Child* findChild( const std::string& childName );
 
-    void sort();
-
 protected:
     // creates subfolder if not exist
     Folder& getSubfolderOrCreate( const std::string& subFolderName );
 
     // returns child iterator
-    std::list<Child>::iterator findChildIt( const std::string& childName );
+    std::map<std::string, Child>::iterator findChildIt( const std::string& childName );
 
 protected:
     friend class FsTree;
     friend class StreamTask;
 
     std::string       m_name;
-    std::list<Child>  m_childs;
+    std::map<std::string, Child>  m_childs;
     bool              m_isaStream = false;
     Hash256           m_streamId;
 };
@@ -148,7 +149,7 @@ inline       File&   getFile( Folder::Child& child )         { return std::get<1
 
 inline bool Folder::iterate( const std::function<bool(const File&)>& func ) const
 {
-    for( auto& child : m_childs )
+    for( const auto& [name, child] : m_childs )
     {
        if ( isFolder(child) )
        {
@@ -171,7 +172,7 @@ inline bool Folder::iterate( const std::function<bool(const File&)>& func ) cons
 
 inline void Folder::iterateAllFolders( const std::function<void(const Folder&)>& func ) const
 {
-    for( auto& child : m_childs )
+    for( const auto& [name, child] : m_childs )
     {
        if ( isFolder(child) )
        {
@@ -183,7 +184,7 @@ inline void Folder::iterateAllFolders( const std::function<void(const Folder&)>&
 
 inline const Folder* Folder::findStreamFolder( const Hash256& streamId ) const
 {
-    for( auto& child : m_childs )
+    for( const auto& [name, child] : m_childs )
     {
        if ( isFolder(child) )
        {
@@ -237,6 +238,9 @@ public:
                       const std::string& filename,
                       const InfoHash&    infoHash,
                       size_t             size );
+
+    bool    addModifiableFile( const std::string& destinationPath,
+                               const std::string& filename );
 
     bool     addFolder( const std::string& folderPath );
 

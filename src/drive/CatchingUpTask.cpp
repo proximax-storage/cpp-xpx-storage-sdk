@@ -290,7 +290,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        for ( const auto& child : folder.childs() )
+        for ( const auto& [name, child] : folder.childs() )
         {
             if ( isFolder( child ))
             {
