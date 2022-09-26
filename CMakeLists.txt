@@ -30,6 +30,14 @@ else()
 endif()
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 
+#set(gRPC_SSL_PROVIDER package)
+#include(FetchContent)
+#FetchContent_Declare(
+#        grpc
+#        GIT_REPOSITORY https://github.com/grpc/grpc.git
+#        GIT_TAG        v1.45.2)
+#FetchContent_MakeAvailable(grpc)
+
 include_directories(cereal/include)
 add_subdirectory(libtorrent)
 include_directories(libtorrent/include)
@@ -63,6 +71,7 @@ endif()
 
 add_subdirectory(src)
 add_subdirectory(replicator-service)
+#add_subdirectory(supercontract-server)
 
 if (XPX_STORAGE_SDK_NOT_BUILD_EXAMPLES)
 else()

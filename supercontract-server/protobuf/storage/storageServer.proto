@@ -1,0 +1,77 @@
+// Copyright 2015 gRPC authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package storage;
+
+service StorageServer {
+  rpc SynchronizeStorage(SynchronizeStorageRequest) returns (SynchronizeStorageResponse) {}
+
+  rpc InitiateModifications(InitModificationsRequest) returns (InitModificationsResponse) {}
+
+  rpc ApplySandboxStorageModifications(ApplySandboxModificationsRequest) returns (ApplySandboxModificationsResponse) {}
+
+  rpc EvaluateStorageHash(EvaluateStorageHashRequest) returns (EvaluateStorageHashResponse) {}
+
+  rpc ApplyStorageModifications(ApplyStorageModificationsRequest) returns (ApplyStorageModificationsResponse) {}
+}
+
+message SynchronizeStorageRequest {
+  bytes drive_key = 1;
+  bytes storage_hash = 2;
+}
+
+message SynchronizeStorageResponse {
+  bool status = 1;
+}
+
+message InitModificationsRequest {
+  bytes drive_key = 1;
+}
+
+message InitModificationsResponse {
+  bool status = 1;
+}
+
+message ApplySandboxModificationsRequest {
+  bytes drive_key = 1;
+  bool  success = 2;
+}
+
+message ApplySandboxModificationsResponse {
+  bool success = 1;
+  int64 sandbox_size_delta = 2;
+  int64 state_size_delta = 3;
+}
+
+message EvaluateStorageHashRequest {
+  bytes drive_key = 1;
+}
+
+message EvaluateStorageHashResponse {
+  bytes storage_hash = 1;
+  uint64 used_drive_size = 2;
+  uint64 meta_files_size = 3;
+  uint64 file_structure_size = 4;
+}
+
+message ApplyStorageModificationsRequest {
+  bytes drive_key = 1;
+  bool success = 2;
+}
+
+message ApplyStorageModificationsResponse {
+  bool status = 1;
+}
