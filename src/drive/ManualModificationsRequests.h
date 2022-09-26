@@ -6,6 +6,9 @@
 
 #pragma once
 
+#include <vector>
+
+
 namespace sirius::drive {
 
 enum class OpenFileMode {
@@ -15,6 +18,16 @@ enum class OpenFileMode {
 struct OpenFileRequest {
     OpenFileMode m_mode;
     std::string  m_path;
+};
+
+struct ReadFileRequest {
+    uint64_t m_fileId;
+    uint64_t m_bytes;
+};
+
+struct WriteFileRequest {
+    uint64_t m_fileId;
+    std::vector<uint8_t> m_buffer;
 };
 
 }

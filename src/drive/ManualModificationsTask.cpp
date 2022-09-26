@@ -67,11 +67,44 @@ public:
                 return;
             }
 
-            m_drive.executeOnBackgroundThread([fileId] {
+            const auto& child = it->second;
+
+            if (!isFile(child)) {
+                // TODO return unsuccessful result
+                return;
+            }
+
+            auto name = toString(getFile(child).hash());
+
+            auto absolutePath = m_drive.m_driveFolder / name;
+
+            m_drive.executeOnBackgroundThread([=, this, mode=request.m_mode] () mutable {
+                createStream(std::move(absolutePath), mode, fileId);
             });
         }
         else {
+            if (!pFolder->childs().contains(p.filename())) {
+                m_lowerSandboxFsTree->addModifiableFile(p.parent_path(), p.filename());
+            }
 
+            auto it = pFolder->childs().find(p.filename());
+
+            _ASSERT(it != pFolder->childs().end());
+
+            const auto& child = it->second;
+
+            if (!isFile(child)) {
+                // TODO return unsuccessful result
+                return;
+            }
+
+            auto name = toString(getFile(child).hash());
+
+            auto absolutePath = m_drive.m_driveFolder / name;
+
+            m_drive.executeOnBackgroundThread([=, this, mode=request.m_mode] () mutable {
+                createStream(std::move(absolutePath), mode, fileId);
+            });
         }
     }
 
@@ -101,12 +134,46 @@ public:
         _ASSERT(!m_openFilesRead.contains(m_fileId))
         _ASSERT(!m_openFilesWrite.contains(m_fileId))
 
+        _ASSERT(stream.is_open())
+
         if (mode == OpenFileMode::READ) {
             m_openFilesRead[m_fileId] = std::move(stream);
         }
         else {
-            m_openFilesRead[m_fileId] = std::move(stream);
+            m_openFilesWrite[m_fileId] = std::move(stream);
         }
+    }
+
+    void readFile(ReadFileRequest&& request) {
+
+        DBG_MAIN_THREAD
+
+        auto it = m_openFilesRead.find(request.m_fileId);
+
+        if (it == m_openFilesRead.end()) {
+            // TODO return unsuccessful result
+            return;
+        }
+
+    }
+
+    void readStream(std::fstream& stream, uint64_t bytes) {
+        DBG_BG_THREAD
+
+        std::vector<uint8_t> buffer(bytes, 0);
+        stream.read(reinterpret_cast<char *>(buffer.data()), buffer.size());
+        auto read = stream.gcount();
+        buffer.resize(read);
+    }
+
+    void writeStream(std::fstream& stream, std::vector<uint8_t>&& buffer) {
+        DBG_BG_THREAD
+
+        stream.write(reinterpret_cast<char *>(buffer.data()), buffer.size());
+    }
+
+    void closeStream(std::fstream& stream) {
+        stream.close();
     }
 
 };
