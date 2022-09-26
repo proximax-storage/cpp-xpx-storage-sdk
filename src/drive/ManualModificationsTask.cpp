@@ -7,6 +7,7 @@
 #include "DriveTaskBase.h"
 #include "ManualModificationsRequests.h"
 #include "drive/log.h"
+#include "drive/Utils.h"
 
 namespace sirius::drive {
 
@@ -43,18 +44,35 @@ public:
     void openFile(OpenFileRequest&& request) {
         DBG_MAIN_THREAD
 
-//        uint64_t fileId = m_totalFilesOpened;
-//        m_totalFilesOpened++;
-//
-//        if (request.m_mode == OpenFileMode::READ) {
-//            _ASSERT(m_upperSandboxFsTree);
-//
-////            m_drive.executeOnBackgroundThread([fileId] {
-////            });
-//        }
-//        else {
-//
-//        }
+        _ASSERT(m_upperSandboxFsTree);
+
+        uint64_t fileId = m_totalFilesOpened;
+        m_totalFilesOpened++;
+
+        fs::path p(request.m_path);
+
+        auto pFolder = m_lowerSandboxFsTree->getFolderPtr(p.parent_path());
+
+        if (!pFolder) {
+            // TODO return unsuccessful result
+            return;
+        }
+
+        if (request.m_mode == OpenFileMode::READ) {
+
+            auto it = pFolder->childs().find(p.filename());
+
+            if (it == pFolder->childs().end()) {
+                // TODO return unsuccessful result
+                return;
+            }
+
+            m_drive.executeOnBackgroundThread([fileId] {
+            });
+        }
+        else {
+
+        }
     }
 
     void createStream(std::string&& path, OpenFileMode mode, uint64_t fileId) {
