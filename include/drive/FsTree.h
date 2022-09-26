@@ -52,11 +52,14 @@ private:
 
     File( std::string name, const InfoHash hash, size_t size ) : m_name(name), m_hash(hash), m_size(size) {}
 
+    File( std::string name, const InfoHash hash, size_t size, bool modifiable ) : m_name(name), m_hash(hash), m_size(size), m_isModifiable(modifiable) {}
+
     File( std::string name) : m_name(name), m_hash(InfoHash()), m_size(0) {}
 
     std::string m_name;
     InfoHash    m_hash;
     size_t      m_size;
+    bool        m_isModifiable = false;
 
 private:
 
@@ -235,6 +238,9 @@ public:
                       const std::string& filename,
                       const InfoHash&    infoHash,
                       size_t             size );
+
+    bool    addModifiableFile( const std::string& destinationPath,
+                               const std::string& filename );
 
     bool     addFolder( const std::string& folderPath );
 

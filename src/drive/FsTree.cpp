@@ -221,6 +221,25 @@ bool FsTree::addFile( const std::string& destPath, const std::string& filename, 
     return true;
 }
 
+// addModifiableFile
+bool FsTree::addModifiableFile( const std::string& destinationPath, const std::string& filename ) {
+    Folder* destFolder = getFolderPtr( destinationPath, true );
+
+    if ( destFolder == nullptr )
+        return false;
+
+    const auto destChildIt = destFolder->findChildIt( filename );
+
+    if ( destChildIt != destFolder->m_childs.end() )
+    {
+        destFolder->m_childs.erase( destChildIt );
+    }
+
+    destFolder->m_childs.emplace( filename, File{filename, randomByteArray<InfoHash>(),0, true} );
+
+    return true;
+}
+
 // addFolder
 bool FsTree::addFolder( const std::string& folderPath ) {
 
