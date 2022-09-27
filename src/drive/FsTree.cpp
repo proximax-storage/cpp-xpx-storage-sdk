@@ -488,7 +488,7 @@ Folder* FsTree::getFolderPtr( const std::string& fullPath, bool createIfNotExist
 
     for( auto pathIt = path.begin(); pathIt != path.end(); pathIt++ ) {
 
-        auto it = m_childs.find(pathIt->string());
+        auto it = treeWalker->m_childs.find(pathIt->string());
 
         if (it == treeWalker->m_childs.end() )
         {
@@ -496,7 +496,7 @@ Folder* FsTree::getFolderPtr( const std::string& fullPath, bool createIfNotExist
                 return nullptr;
 
             treeWalker->m_childs.emplace( pathIt->string(), Folder{pathIt->string()} );
-            treeWalker = &getFolder( m_childs[pathIt->string()] );
+            treeWalker = &getFolder( treeWalker->m_childs[pathIt->string()] );
         }
         else if ( isFolder(it->second) )
         {
