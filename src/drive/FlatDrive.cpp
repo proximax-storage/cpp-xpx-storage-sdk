@@ -657,6 +657,18 @@ public:
 		{
 			if ( replicators.find(key) == replicators.end() )
 			{
+				std::ostringstream s;
+				s << "My key: " << m_replicator.keyPair().publicKey() << "\n";
+				s << "Drive Replicators: ";
+				for (const auto& k: replicators) {
+					s << k << " ";
+				}
+				s << "\n";
+				s << "Shard Replicators: ";
+				for (const auto& k: m_modifyDonatorShard) {
+					s << k << " ";
+				}
+				_LOG(s.str());
 				_LOG_ERR( "Unknown Replicator Added to Shard Donator" )
 			}
 		}
@@ -672,6 +684,18 @@ public:
     	{
     		if ( replicators.find(key) == replicators.end() )
     		{
+				std::ostringstream s;
+				s << "My key: " << m_replicator.keyPair().publicKey() << "\n";
+				s << "Drive Replicators: ";
+				for (const auto& k: replicators) {
+					s << k << " ";
+				}
+				s << "\n";
+				s << "Shard Replicators: ";
+				for (const auto& k: m_modifyRecipientShard) {
+					s << k << " ";
+				}
+				_LOG(s.str());
     			_LOG_ERR( "Unknown Replicator Added to Shard Recipient" )
     		}
     	}
