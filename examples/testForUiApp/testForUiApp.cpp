@@ -34,7 +34,7 @@ const char* RPC_REPLICATOR_NAME = "no_replicator1";
 // This example shows interaction between 'client' and 'replicator'.
 //
 
-#define BIG_FILE_SIZE       1 * 1024*1024 //150//4
+#define BIG_FILE_SIZE       10 * 1024*1024 //150//4
 #define MODIFY_DATA_SIZE    (BIG_FILE_SIZE)-32000
 
 #define TRANSPORT_PROTOCOL false // true - TCP, false - uTP
@@ -551,12 +551,29 @@ int main(int,char**)
             actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
             actionList.push_back( Action::upload( clientFolder / "c.txt", "c.txt" ) );
             actionList.push_back( Action::upload( clientFolder / "d.txt", "d.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "b.bin", "b.bin" ) );
+            actionList.push_back( Action::upload( clientFolder / "bb.bin", "bb.bin" ) );
+            
+            actionList.push_back( Action::upload( clientFolder / "a.txt", "f1/a1.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "c.txt", "f1/c1.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "d.txt", "f1/d1.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "b.bin", "f1/b1.bin" ) );
+            actionList.push_back( Action::upload( clientFolder / "bb.bin", "f1/bb1.bin" ) );
+
+            actionList.push_back( Action::upload( clientFolder / "a.txt", "f2/a2.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "c.txt", "f2/c2.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "d.txt", "f2/d2.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "b.bin", "f2/b2.bin" ) );
+            actionList.push_back( Action::upload( clientFolder / "bb.bin", "f2/bb2.bin" ) );
+
             actionList.push_back( Action::upload( clientFolder / "a.txt", "folder/aa.txt" ) );
             actionList.push_back( Action::upload( clientFolder / "a.txt", "folder/sub_folder/aaa.txt" ) );
             actionList.push_back( Action::upload( clientFolder / "c.txt", "folder/sub_folder/c.txt" ) );
             actionList.push_back( Action::upload( clientFolder / "d.txt", "folder/sub_folder/d.txt" ) );
-            actionList.push_back( Action::upload( clientFolder / "b.bin", "f1/b1.bin" ) );
-            actionList.push_back( Action::upload( clientFolder / "b.bin", "f2/b2.bin" ) );
+
+            actionList.push_back( Action::upload( clientFolder / "b.bin", "ff1/b.bin" ) );
+            actionList.push_back( Action::upload( clientFolder / "bb.bin", "ff1/bb.bin" ) );
+
             actionList.push_back( Action::upload( clientFolder / "b.bin", "f3/sub_folder/b2.bin" ) );
             actionList.push_back( Action::upload( clientFolder / "a.txt", "f3/sub_folder/a.txt" ) );
             actionList.push_back( Action::upload( clientFolder / "c.txt", "f3/sub_folder/c.txt" ) );
@@ -1012,13 +1029,13 @@ static void clientDownloadFilesR( std::shared_ptr<ClientSession> clientSession, 
 {
     for( const auto& child: folder.childs() )
     {
-        if ( isFolder(child) )
+        if ( isFolder(child.second) )
         {
-            clientDownloadFilesR( clientSession, getFolder(child), downloadChannelId );
+            clientDownloadFilesR( clientSession, getFolder(child.second), downloadChannelId );
         }
         else
         {
-            const File& file = getFile(child);
+            const File& file = getFile(child.second);
             std::string folderName = "root";
             if ( folder.name() != "/" )
                 folderName = folder.name();
@@ -1092,7 +1109,15 @@ static fs::path createClientFiles( size_t bigFileSize ) {
     }
     {
         fs::path b_bin = dataFolder / "b.bin";
-        fs::create_directories( b_bin.parent_path() );
+        std::vector<uint8_t> data(bigFileSize/10);
+        //std::generate( data.begin(), data.end(), std::rand );
+        uint8_t counter=0;
+        std::generate( data.begin(), data.end(), [&] { return counter++;} );
+        std::ofstream file( b_bin );
+        file.write( (char*) data.data(), data.size() );
+    }
+    {
+        fs::path b_bin = dataFolder / "bb.bin";
         std::vector<uint8_t> data(bigFileSize);
         //std::generate( data.begin(), data.end(), std::rand );
         uint8_t counter=0;
