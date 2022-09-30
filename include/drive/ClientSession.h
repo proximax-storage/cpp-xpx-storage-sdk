@@ -405,6 +405,12 @@ public:
         m_session.reset();
     }
 
+    void setTorrentDeletedHandler( std::function<void(lt::torrent_handle)> handler )
+    {
+        m_session->setTorrentDeletedHandler( handler );
+    }
+
+
     // The next functions are called in libtorrent
 protected:
 

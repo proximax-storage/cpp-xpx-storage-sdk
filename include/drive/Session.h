@@ -78,10 +78,10 @@ struct DownloadContext {
           m_saveAs(saveAs),
           m_doNotDeleteTorrent(doNotDeleteTorrent)
         {
-            if ( m_downloadType == file_from_drive && m_saveAs.empty() )
-            {
-                _LOG_ERR("m_downloadType == file_from_drive && m_saveAs.empty()")
-            }
+//            if ( m_downloadType == file_from_drive && m_saveAs.empty() )
+//            {
+//                _LOG_ERR("m_downloadType == file_from_drive && m_saveAs.empty()")
+//            }
 
             if ( (m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty() )
             {
@@ -178,8 +178,9 @@ public:
     
     virtual void      onTorrentDeleted( lt::torrent_handle handle ) = 0;
 
+    virtual void      setTorrentDeletedHandler( std::function<void(lt::torrent_handle)> ) = 0;
 
-    virtual Timer startTimer( int milliseconds, std::function<void()> func ) = 0;
+    virtual Timer     startTimer( int milliseconds, std::function<void()> func ) = 0;
 
 
     // for testing and debugging
