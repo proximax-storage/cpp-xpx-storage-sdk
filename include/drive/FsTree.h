@@ -29,6 +29,12 @@ public:
     const std::string& name() const { return m_name; }
     const InfoHash&    hash() const { return m_hash; }
     size_t             size() const { return m_size; }
+    bool               isModifiable() const { return m_isModifiable; }
+
+    void               setName( const std::string& name) { m_name = name; };
+    void               setHash( const InfoHash& hash ) { m_hash = hash; };
+    void               setSize( uint64_t size ) { m_size = size; };
+    void               setIsModifiable( bool isModifiable ) { m_isModifiable = isModifiable; };
 
     bool operator==( const File& f ) const { return m_name==f.m_name; }//TODO && m_hash==f.m_hash; }
 
@@ -96,6 +102,7 @@ public:
     bool operator==( const Folder& f ) const { return m_name==f.m_name && m_childs==f.m_childs; }
 
     bool iterate( const std::function<bool(const File&)>& func ) const;
+    void mapFiles( const std::function<void(File&)>& func );
     void iterateAllFolders( const std::function<void(const Folder&)>& func ) const;
 
     const Folder* findStreamFolder( const Hash256& streamId ) const;
@@ -104,6 +111,9 @@ public:
                    const std::filesystem::path& torrentFolder,
                    uint64_t& outMetaFilesSize,
                    uint64_t& outFilesSize ) const;
+
+    uint64_t evaluateSizes( const std::filesystem::path& driveFolder,
+                            const std::filesystem::path& torrentFolder) const;
 
     void getUniqueFiles( std::set<InfoHash>& ) const;
 
@@ -168,6 +178,21 @@ inline bool Folder::iterate( const std::function<bool(const File&)>& func ) cons
        }
     }
     return false;
+}
+
+inline void Folder::mapFiles(const std::function<void(File&)>& func) {
+    for ( auto& [name, child]: m_childs )
+    {
+        if ( isFolder(child) )
+        {
+            auto& folder = getFolder(child);
+            folder.mapFiles(func);
+        }
+        else {
+            auto& file = getFile(child);
+            func(file);
+        }
+    }
 }
 
 inline void Folder::iterateAllFolders( const std::function<void(const Folder&)>& func ) const

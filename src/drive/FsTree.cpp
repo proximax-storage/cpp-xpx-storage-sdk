@@ -6,6 +6,7 @@
 
 #include "drive/FsTree.h"
 #include "drive/Utils.h"
+#include "drive/log.h"
 #include <filesystem>
 #include <iostream>
 #include <fstream>
@@ -134,13 +135,43 @@ void Folder::getSizes( const fs::path& driveFolder, const fs::path& torrentFolde
             getFolder(it->second).getSizes( driveFolder, torrentFolder, metaFilesSize, filesSize );
         }
         else {
-            const auto& fileHash = getFile(it->second).hash();
+            const auto& file = getFile(it->second);
+            __ASSERT(!file.isModifiable());
+            const auto& fileHash = file.hash();
             std::cout << "name:  " << getFile(it->second).name() << "\n" << std::flush;
             std::cout << "tname: " << torrentFolder / toString(fileHash) << "\n" << std::flush;
             metaFilesSize += fs::file_size( torrentFolder / toString(fileHash) );
             filesSize += fs::file_size( driveFolder / toString(fileHash) );
         }
     }
+}
+
+uint64_t Folder::evaluateSizes( const std::filesystem::path& driveFolder,
+                            const std::filesystem::path& torrentFolder) const
+{
+    uint64_t size = 0;
+    for( auto it = m_childs.begin(); it != m_childs.end(); it++ )
+    {
+        if ( isFolder(it->second) ) {
+            size += getFolder(it->second).evaluateSizes( driveFolder, torrentFolder);
+        }
+        else {
+            const auto& file = getFile(it->second);
+            const auto& fileHash = file.hash();
+            size += fs::file_size( driveFolder / toString(fileHash) );
+            if (!file.isModifiable())
+            {
+                size += fs::file_size( torrentFolder / toString(fileHash) );
+            }
+            else {
+                // Evaluate metafiles size as 5% of
+                uint64_t minMetaSize = 1024;
+                size += std::max((size + 19) / 20, minMetaSize);
+            }
+        }
+    }
+
+    return size;
 }
 
 void Folder::getUniqueFiles( std::set<InfoHash>& files ) const

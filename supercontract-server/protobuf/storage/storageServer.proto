@@ -21,6 +21,8 @@ service StorageServer {
 
   rpc InitiateModifications(InitModificationsRequest) returns (InitModificationsResponse) {}
 
+  rpc InitiateSandboxModifications()
+
   rpc ApplySandboxStorageModifications(ApplySandboxModificationsRequest) returns (ApplySandboxModificationsResponse) {}
 
   rpc EvaluateStorageHash(EvaluateStorageHashRequest) returns (EvaluateStorageHashResponse) {}
@@ -43,6 +45,14 @@ message InitModificationsRequest {
 
 message InitModificationsResponse {
   bool status = 1;
+}
+
+message InitSandboxRequest {
+  bytes drive_key = 1;
+}
+
+message InitSandboxResponse {
+  bool status = 2;
 }
 
 message ApplySandboxModificationsRequest {
