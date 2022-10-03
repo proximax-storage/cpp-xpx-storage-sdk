@@ -109,6 +109,7 @@ struct ApplySandboxModificationsRequest
 };
 
 struct EvaluateStorageHashResponse {
+    InfoHash m_state;
     uint64_t m_usedDriveSize;
     uint64_t m_metaFilesSize;
     uint64_t m_fileStructureSize;
