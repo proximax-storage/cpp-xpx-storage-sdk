@@ -48,6 +48,16 @@ public:
         breakTorrentDownloadAndRunNextTask();
     }
 
+    bool manualSynchronize( const SynchronizationRequest& request ) override
+    {
+        if ( !m_taskIsInterrupted )
+        {
+            breakTorrentDownloadAndRunNextTask();
+        }
+
+        return true;
+    }
+
 protected:
 
     virtual const Hash256& getModificationTransactionHash() = 0;

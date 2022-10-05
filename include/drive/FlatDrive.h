@@ -16,6 +16,7 @@
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/set.hpp>
 #include <memory>
+#include "drive/ManualModificationsRequests.h"
 
 namespace sirius::drive {
 
@@ -644,6 +645,18 @@ class Replicator;
 
         virtual void     startModifyDrive( mobj<ModificationRequest>&& modifyRequest ) = 0;
         virtual void     cancelModifyDrive( mobj<ModificationCancelRequest>&& request ) = 0;
+
+        virtual void     initiateManualModifications( mobj<InitiateModificationsRequest>&& request ) = 0;
+        virtual void     initiateManualSandboxModifications( mobj<InitiateSandboxModificationsRequest>&& request ) = 0;
+        virtual void     openFile( mobj<OpenFileRequest>&& request ) = 0;
+        virtual void     writeFile( mobj<WriteFileRequest>&& request ) = 0;
+        virtual void     readFile( mobj<ReadFileRequest>&& request ) = 0;
+        virtual void     flush( mobj<FlushRequest>&& request ) = 0;
+        virtual void     closeFile( mobj<CloseFileRequest>&& request ) = 0;
+        virtual void     applySandboxManualModifications( mobj<ApplySandboxModificationsRequest>&& request ) = 0;
+        virtual void     evaluateStorageHash( mobj<EvaluateStorageHashRequest>&& request ) = 0;
+        virtual void     applyStorageManualModifications( mobj<ApplyStorageModificationsRequest>&& request ) = 0;
+        virtual void     manualSynchronize( mobj<SynchronizationRequest>&& request ) = 0;
 
         virtual void     startDriveClosing( mobj<DriveClosureRequest>&& request ) = 0;
 

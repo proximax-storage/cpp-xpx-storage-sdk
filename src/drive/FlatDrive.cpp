@@ -93,6 +93,7 @@ class DefaultFlatDrive: public FlatDrive, public DriveParams
     mobj<DriveClosureRequest>               m_closeDriveRequest = {};
     mobj<ModificationCancelRequest>         m_modificationCancelRequest;
     mobj<CatchingUpRequest>                 m_catchingUpRequest;
+    mobj<SynchronizationRequest>            m_synchronizationRequest;
     
     struct DeferredRequest
     {
@@ -120,6 +121,7 @@ class DefaultFlatDrive: public FlatDrive, public DriveParams
         }
     };
     std::deque<DeferredRequest>             m_deferredModificationRequests;
+    mobj<InitiateModificationsRequest>      m_deferredManualModificationRequest;
     
     mobj<VerificationRequest>               m_deferredVerificationRequest;
 
@@ -264,11 +266,21 @@ public:
             runCatchingUpTask();
             return;
         }
+
+        if ( m_synchronizationRequest )
+        {
+            runSynchronizationTask();
+            return;
+        }
         
         if ( !m_deferredModificationRequests.empty() )
         {
             runDeferredModificationTask();
             return;
+        }
+
+        if ( m_deferredManualModificationRequest ) {
+            runDeferredModificationManualModificationTask();
         }
     }
 
@@ -334,6 +346,19 @@ public:
         m_task = createStreamTask( std::move(request), *this, m_opinionController );
 
         _ASSERT( m_task->getTaskType() == DriveTaskType::STREAM_REQUEST )
+
+        m_task->run();
+    }
+
+    void runSynchronizationTask()
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( !m_task )
+
+        m_task = createManualSynchronizationTask( std::move(m_synchronizationRequest), *this, m_opinionController );
+
+        _ASSERT( m_task->getTaskType() == DriveTaskType::MANUAL_SYNCHRONIZATION )
 
         m_task->run();
     }
@@ -425,6 +450,16 @@ public:
         m_verificationTask->run();
     }
 
+    void runDeferredModificationManualModificationTask() {
+        DBG_MAIN_THREAD
+
+        m_task = createManualModificationsTask( std::move(m_deferredManualModificationRequest), *this );
+
+        _ASSERT( m_task->getTaskType() == DriveTaskType::MANUAL_MODIFICATION )
+
+        m_task->run();
+    }
+
 
     //
     // CLOSE/REMOVE
@@ -499,6 +534,8 @@ public:
     void onApprovalTransactionHasBeenPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
     {
         DBG_MAIN_THREAD
+
+        _ASSERT(!m_synchronizationRequest)
 
         cancelVerification();
 
@@ -581,6 +618,125 @@ public:
         }
 
         m_deferredModificationRequests.erase( it );
+    }
+
+    void initiateManualModifications( mobj<InitiateModificationsRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        _LOG( "Initiated Manual Modifications" )
+
+        _ASSERT(!m_deferredManualModificationRequest)
+
+        m_deferredManualModificationRequest = std::move(request);
+
+        if (!m_task) {
+            runNextTask();
+        }
+    }
+
+    void initiateManualSandboxModifications( mobj<InitiateSandboxModificationsRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if (!m_task || !m_task->initiateSandboxModifications(*request)) {
+            request->m_callback({});
+        }
+    }
+
+    void openFile( mobj<OpenFileRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if (!m_task || !m_task->openFile(*request)) {
+            request->m_callback({});
+        }
+    }
+
+    void writeFile( mobj<WriteFileRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if (!m_task || !m_task->writeFile(*request)) {
+            request->m_callback({});
+        }
+    }
+
+    void readFile( mobj<ReadFileRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if (!m_task || !m_task->readFile(*request)) {
+            request->m_callback({});
+        }
+    }
+
+    void flush( mobj<FlushRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if (!m_task || !m_task->flush(*request)) {
+            request->m_callback({});
+        }
+    }
+
+    void closeFile( mobj<CloseFileRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if (!m_task || !m_task->closeFile(*request)) {
+            request->m_callback({});
+        }
+    }
+
+    void applySandboxManualModifications( mobj<ApplySandboxModificationsRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if (!m_task || !m_task->applySandboxModifications(*request)) {
+            request->m_callback({});
+        }
+    }
+
+    void evaluateStorageHash( mobj<EvaluateStorageHashRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if (!m_task || !m_task->evaluateStorageHash(*request)) {
+            request->m_callback({});
+        }
+    }
+
+    void applyStorageManualModifications( mobj<ApplyStorageModificationsRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if (!m_task || !m_task->applyStorageModifications(*request)) {
+            request->m_callback({});
+        }
+    }
+
+    void manualSynchronize( mobj<SynchronizationRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if (m_task && !m_task->manualSynchronize(*request))
+        {
+            request->m_callback({});
+            return;
+        }
+
+        if (m_catchingUpRequest)
+        {
+            m_catchingUpRequest.reset();
+        }
+
+        m_synchronizationRequest = std::move(request);
+
+        if (!m_task)
+        {
+            runNextTask();
+        }
     }
 
     void startDriveClosing( mobj<DriveClosureRequest>&& request ) override

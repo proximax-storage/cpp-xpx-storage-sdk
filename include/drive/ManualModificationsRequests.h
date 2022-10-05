@@ -19,7 +19,8 @@ struct InitiateModificationsResponse
 
 struct InitiateModificationsRequest
 {
-    std::function<void( InitiateModificationsResponse )> m_callback;
+    Hash256 m_modificationIdentifier;
+    std::function<void( std::optional<InitiateModificationsResponse> )> m_callback;
 };
 
 struct InitiateSandboxModificationsResponse
@@ -29,7 +30,7 @@ struct InitiateSandboxModificationsResponse
 
 struct InitiateSandboxModificationsRequest
 {
-    std::function<void( InitiateSandboxModificationsResponse )> m_callback;
+    std::function<void( std::optional<InitiateSandboxModificationsResponse> )> m_callback;
 };
 
 enum class OpenFileMode
@@ -46,7 +47,7 @@ struct OpenFileRequest
 {
     OpenFileMode m_mode;
     std::string m_path;
-    std::function<void( OpenFileResponse )> m_callback;
+    std::function<void( std::optional<OpenFileResponse> )> m_callback;
 };
 
 struct ReadFileResponse
@@ -58,7 +59,7 @@ struct ReadFileRequest
 {
     uint64_t m_fileId;
     uint64_t m_bytes;
-    std::function<void( ReadFileResponse )> m_callback;
+    std::function<void( std::optional<ReadFileResponse> )> m_callback;
 };
 
 struct WriteFileResponse
@@ -70,7 +71,7 @@ struct WriteFileRequest
 {
     uint64_t m_fileId;
     std::vector<uint8_t> m_buffer;
-    std::function<void( WriteFileResponse )> m_callback;
+    std::function<void( std::optional<WriteFileResponse> )> m_callback;
 };
 
 struct FlushResponse
@@ -81,7 +82,7 @@ struct FlushResponse
 struct FlushRequest
 {
     uint64_t m_fileId;
-    std::function<void( FlushResponse )> m_callback;
+    std::function<void( std::optional<FlushResponse> )> m_callback;
 };
 
 struct CloseFileResponse
@@ -92,7 +93,7 @@ struct CloseFileResponse
 struct CloseFileRequest
 {
     uint64_t m_fileId;
-    std::function<void( CloseFileResponse )> m_callback;
+    std::function<void( std::optional<CloseFileResponse> )> m_callback;
 };
 
 struct ApplySandboxModificationsResponse
@@ -105,10 +106,11 @@ struct ApplySandboxModificationsResponse
 struct ApplySandboxModificationsRequest
 {
     bool m_success;
-    std::function<void (ApplySandboxModificationsResponse)> m_callback;
+    std::function<void( std::optional<ApplySandboxModificationsResponse> )> m_callback;
 };
 
-struct EvaluateStorageHashResponse {
+struct EvaluateStorageHashResponse
+{
     InfoHash m_state;
     uint64_t m_usedDriveSize;
     uint64_t m_metaFilesSize;
@@ -117,17 +119,30 @@ struct EvaluateStorageHashResponse {
 
 struct EvaluateStorageHashRequest
 {
-    std::function<void (EvaluateStorageHashResponse)> m_callback;
+    std::function<void( std::optional<EvaluateStorageHashResponse> )> m_callback;
 };
 
-struct ApplyStorageModificationsResponse {
+struct ApplyStorageModificationsResponse
+{
     bool m_success;
 };
 
 struct ApplyStorageModificationsRequest
 {
     bool m_success;
-    std::function<void (ApplyStorageModificationsResponse)> m_callback;
+    std::function<void( std::optional<ApplyStorageModificationsResponse> )> m_callback;
+};
+
+struct SynchronizationResponse
+{
+    bool success;
+};
+
+struct SynchronizationRequest
+{
+    Hash256 m_modificationIdentifier;
+    Hash256 m_rootHash;
+    std::function<void( std::optional<SynchronizationResponse> )> m_callback;
 };
 
 }

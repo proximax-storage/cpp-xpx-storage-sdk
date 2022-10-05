@@ -5,7 +5,7 @@
 */
 
 #include "DriveTaskBase.h"
-#include "ManualModificationsRequests.h"
+#include "drive/ManualModificationsRequests.h"
 #include "drive/log.h"
 #include "drive/Utils.h"
 
@@ -18,7 +18,7 @@ class ManualModificationsTask
         : public DriveTaskBase
 {
 
-    Hash256 m_modificationIdentifier;
+    mobj<InitiateModificationsRequest> m_request;
 
     std::unique_ptr<FsTree> m_lowerSandboxFsTree;
     std::unique_ptr<FsTree> m_upperSandboxFsTree;
@@ -37,41 +37,53 @@ class ManualModificationsTask
 
     bool m_isExecutingQuery = false;
 
-    bool m_taskIsFinished = false;
+    bool m_taskIsInterrupted = false;
 
-    ManualModificationsTask( const Hash256& modificationIdentifier,
-                             const DriveTaskType& type,
+public:
+
+    ManualModificationsTask( mobj<InitiateModificationsRequest>&& request,
                              DriveParams& drive )
-            : DriveTaskBase( type, drive ), m_modificationIdentifier( modificationIdentifier )
+            : DriveTaskBase( DriveTaskType::MANUAL_MODIFICATION, drive ), m_request( std::move( request ))
     {}
 
 public:
+
     void run() override
     {
         DBG_MAIN_THREAD
 
         _ASSERT( m_drive.m_fsTree )
         m_lowerSandboxFsTree = std::make_unique<FsTree>( *m_drive.m_fsTree );
+        m_request->m_callback( {} );
     }
 
-    void initiateSandboxModifications( InitiateSandboxModificationsRequest&& request )
+    bool initiateSandboxModifications( const InitiateSandboxModificationsRequest& request ) override
     {
         DBG_MAIN_THREAD
 
         _ASSERT( !m_isExecutingQuery )
-        _ASSERT( !m_taskIsFinished )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
 
         m_upperSandboxFsTree = std::make_unique<FsTree>( *m_lowerSandboxFsTree );
         request.m_callback( {} );
+        return true;
     }
 
-    void openFile( OpenFileRequest&& request )
+    bool openFile( const OpenFileRequest& request ) override
     {
         DBG_MAIN_THREAD
 
         _ASSERT( m_upperSandboxFsTree );
         _ASSERT( !m_isExecutingQuery )
-        _ASSERT( !m_taskIsFinished )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
 
         uint64_t fileId = m_totalFilesOpened;
         m_totalFilesOpened++;
@@ -83,7 +95,7 @@ public:
         if ( !pFolder )
         {
             request.m_callback( {} );
-            return;
+            return true;
         }
 
         if ( request.m_mode == OpenFileMode::READ )
@@ -94,7 +106,7 @@ public:
             if ( it == pFolder->childs().end())
             {
                 request.m_callback( {} );
-                return;
+                return true;
             }
 
             const auto& child = it->second;
@@ -102,7 +114,7 @@ public:
             if ( !isFile( child ))
             {
                 request.m_callback( {} );
-                return;
+                return true;
             }
 
             auto name = toString( getFile( child ).hash());
@@ -123,7 +135,7 @@ public:
                 if ( !isFile( it->second ))
                 {
                     request.m_callback( {} );
-                    return;
+                    return true;
                 }
 
                 const auto& file = getFile( it->second );
@@ -154,10 +166,14 @@ public:
                                                    createStream( std::move( absolutePath ), mode, fileId, callback );
                                                } );
         }
+
+        return true;
     }
 
+private:
+
     void createStream( std::string&& path, OpenFileMode mode, uint64_t fileId,
-                       const std::function<void( OpenFileResponse )>& callback )
+                       const std::function<void( std::optional<OpenFileResponse> )>& callback )
     {
         DBG_BG_THREAD
 
@@ -190,7 +206,7 @@ public:
     }
 
     void onFileOpened( std::shared_ptr<std::fstream>&& stream, OpenFileMode mode, uint64_t fileId,
-                       const std::function<void( OpenFileResponse )>& callback )
+                       const std::function<void( std::optional<OpenFileResponse> )>& callback )
     {
 
         DBG_MAIN_THREAD
@@ -201,15 +217,16 @@ public:
 
         m_isExecutingQuery = false;
 
-        if ( m_taskIsFinished )
+        if ( m_taskIsInterrupted )
         {
+            callback( {} );
             finishTask();
             return;
         }
 
         if ( !stream->is_open())
         {
-            callback( {} );
+            callback( OpenFileResponse{} );
             return;
         }
 
@@ -221,23 +238,29 @@ public:
             m_openFilesWrite[fileId] = std::move( stream );
         }
 
-        callback( {fileId} );
+        callback( OpenFileResponse{fileId} );
     }
 
-    void readFile( ReadFileRequest&& request )
+public:
+
+    bool readFile( const ReadFileRequest& request ) override
     {
 
         DBG_MAIN_THREAD
 
         _ASSERT( !m_isExecutingQuery )
-        _ASSERT( !m_taskIsFinished )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
 
         auto it = m_openFilesRead.find( request.m_fileId );
 
         if ( it == m_openFilesRead.end())
         {
-            request.m_callback( {std::make_optional<std::vector<uint8_t>>()} );
-            return;
+            request.m_callback( ReadFileResponse{std::make_optional<std::vector<uint8_t>>()} );
+            return true;
         }
 
         m_isExecutingQuery = true;
@@ -249,10 +272,14 @@ public:
                 {
                     readStream( stream, bytes, callback );
                 } );
+
+        return true;
     }
 
+private:
+
     void readStream( const std::weak_ptr<std::fstream>& weakStream, uint64_t bytes,
-                     const std::function<void( ReadFileResponse )>& callback )
+                     const std::function<void( std::optional<ReadFileResponse> )>& callback )
     {
         DBG_BG_THREAD
 
@@ -273,7 +300,8 @@ public:
                                         } );
     }
 
-    void onReadFile( std::vector<uint8_t>&& bytes, const std::function<void( ReadFileResponse )>& callback )
+    void
+    onReadFile( std::vector<uint8_t>&& bytes, const std::function<void( std::optional<ReadFileResponse> )>& callback )
     {
 
         DBG_MAIN_THREAD
@@ -282,29 +310,36 @@ public:
 
         m_isExecutingQuery = false;
 
-        if ( m_taskIsFinished )
+        if ( m_taskIsInterrupted )
         {
+            callback( {} );
             finishTask();
             return;
         }
 
-        callback( {bytes} );
+        callback( ReadFileResponse{bytes} );
     }
 
-    void writeFile( WriteFileRequest&& request )
+public:
+
+    bool writeFile( const WriteFileRequest& request ) override
     {
 
         DBG_MAIN_THREAD
 
         _ASSERT( !m_isExecutingQuery )
-        _ASSERT( !m_taskIsFinished )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
 
         auto it = m_openFilesWrite.find( request.m_fileId );
 
         if ( it == m_openFilesWrite.end())
         {
-            request.m_callback( {false} );
-            return;
+            request.m_callback( WriteFileResponse{false} );
+            return true;
         }
 
         m_isExecutingQuery = true;
@@ -316,10 +351,14 @@ public:
                 {
                     writeStream( stream, std::move( buffer ), callback );
                 } );
+
+        return true;
     }
 
+private:
+
     void writeStream( const std::weak_ptr<std::fstream>& weakStream, std::vector<uint8_t>&& buffer,
-                      const std::function<void( WriteFileResponse )>& callback )
+                      const std::function<void( std::optional<WriteFileResponse> )>& callback )
     {
         DBG_BG_THREAD
 
@@ -337,7 +376,7 @@ public:
                                         } );
     }
 
-    void onFileWritten( bool success, const std::function<void( WriteFileResponse )>& callback )
+    void onFileWritten( bool success, const std::function<void( std::optional<WriteFileResponse> )>& callback )
     {
         DBG_MAIN_THREAD
 
@@ -345,28 +384,35 @@ public:
 
         m_isExecutingQuery = false;
 
-        if ( m_taskIsFinished )
+        if ( m_taskIsInterrupted )
         {
+            callback( {} );
             finishTask();
             return;
         }
 
-        callback( {success} );
+        callback( WriteFileResponse{success} );
     }
 
-    void flush( FlushRequest&& request )
+public:
+
+    bool flush( const FlushRequest& request ) override
     {
         DBG_MAIN_THREAD
 
         _ASSERT( !m_isExecutingQuery )
-        _ASSERT( !m_taskIsFinished )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
 
         auto it = m_openFilesWrite.find( request.m_fileId );
 
         if ( it == m_openFilesWrite.end())
         {
-            request.m_callback( {false} );
-            return;
+            request.m_callback( FlushResponse{false} );
+            return true;
         }
 
         auto stream = it->second;
@@ -376,10 +422,15 @@ public:
                                         {
                                             flushStream( stream, callback );
                                         } );
+
+        return true;
     }
 
+private:
+
     void
-    flushStream( const std::weak_ptr<std::fstream>& weakStream, const std::function<void( FlushResponse )>& callback )
+    flushStream( const std::weak_ptr<std::fstream>& weakStream,
+                 const std::function<void( std::optional<FlushResponse> )>& callback )
     {
 
         DBG_BG_THREAD
@@ -398,7 +449,7 @@ public:
                                         } );
     }
 
-    void onFlushed( bool success, const std::function<void( FlushResponse )>& callback )
+    void onFlushed( bool success, const std::function<void( std::optional<FlushResponse> )>& callback )
     {
         DBG_MAIN_THREAD
 
@@ -406,21 +457,28 @@ public:
 
         m_isExecutingQuery = false;
 
-        if ( m_taskIsFinished )
+        if ( m_taskIsInterrupted )
         {
+            callback( {} );
             finishTask();
             return;
         }
 
-        callback( {success} );
+        callback( FlushResponse{success} );
     }
 
-    void closeFile( CloseFileRequest&& request )
+public:
+
+    bool closeFile( const CloseFileRequest& request ) override
     {
         DBG_MAIN_THREAD
 
         _ASSERT( !m_isExecutingQuery )
-        _ASSERT( !m_taskIsFinished )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
 
         auto readIt = m_openFilesRead.find( request.m_fileId );
 
@@ -432,7 +490,7 @@ public:
                                                {
                                                    closeStream( stream, fileId, callback );
                                                } );
-            return;
+            return true;
         }
 
         auto writeIt = m_openFilesWrite.find( request.m_fileId );
@@ -445,14 +503,17 @@ public:
                                                {
                                                    closeStream( stream, fileId, callback );
                                                } );
-            return;
+            return true;
         }
 
-        request.m_callback( {false} );
+        request.m_callback( CloseFileResponse{false} );
+        return true;
     }
 
+private:
+
     void closeStream( const std::weak_ptr<std::fstream>& weakStream, uint64_t fileId,
-                      const std::function<void( CloseFileResponse )>& callback )
+                      const std::function<void( std::optional<CloseFileResponse> )>& callback )
     {
 
         DBG_BG_THREAD
@@ -476,7 +537,8 @@ public:
                                         } );
     }
 
-    void onFileClosed( uint64_t fileId, bool success, const std::function<void( CloseFileResponse )>& callback )
+    void onFileClosed( uint64_t fileId, bool success,
+                       const std::function<void( std::optional<CloseFileResponse> )>& callback )
     {
         DBG_MAIN_THREAD
 
@@ -484,8 +546,9 @@ public:
 
         m_isExecutingQuery = false;
 
-        if ( m_taskIsFinished )
+        if ( m_taskIsInterrupted )
         {
+            callback( {} );
             finishTask();
             return;
         }
@@ -495,7 +558,7 @@ public:
         if ( readIt != m_openFilesRead.end())
         {
             m_openFilesRead.erase( readIt );
-            callback( {success} );
+            callback( CloseFileResponse{success} );
             return;
         }
 
@@ -504,18 +567,24 @@ public:
         if ( writeIt != m_openFilesWrite.end())
         {
             m_openFilesWrite.erase( writeIt );
-            callback( {success} );
+            callback( CloseFileResponse{success} );
         }
 
         _LOG_ERR( "Close nonexisting stream" );
     }
 
-    void applySandboxModifications( ApplySandboxModificationsRequest&& request )
+public:
+
+    bool applySandboxModifications( const ApplySandboxModificationsRequest& request ) override
     {
         DBG_MAIN_THREAD
 
         _ASSERT( !m_isExecutingQuery )
-        _ASSERT( !m_taskIsFinished )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
 
         _ASSERT( m_upperSandboxFsTree )
 
@@ -540,9 +609,14 @@ public:
                                                    discardUpperSandboxModifications( callback );
                                                } );
         }
+
+        return true;
     }
 
-    void discardUpperSandboxModifications( const std::function<void( ApplySandboxModificationsResponse )>& callback )
+private:
+
+    void discardUpperSandboxModifications(
+            const std::function<void( std::optional<ApplySandboxModificationsResponse> )>& callback )
     {
         DBG_BG_THREAD
 
@@ -580,7 +654,8 @@ public:
         return valid;
     }
 
-    void acceptUpperSandboxModifications( const std::function<void( ApplySandboxModificationsResponse )>& callback )
+    void acceptUpperSandboxModifications(
+            const std::function<void( std::optional<ApplySandboxModificationsResponse> )>& callback )
     {
         DBG_BG_THREAD
 
@@ -611,7 +686,8 @@ public:
     }
 
     void onAppliedSandboxModifications( bool success,
-                                        const std::function<void( ApplySandboxModificationsResponse )>& callback )
+                                        const std::function<void(
+                                                std::optional<ApplySandboxModificationsResponse> )>& callback )
     {
 
         DBG_MAIN_THREAD
@@ -620,8 +696,9 @@ public:
 
         m_isExecutingQuery = false;
 
-        if ( m_taskIsFinished )
+        if ( m_taskIsInterrupted )
         {
+            callback( {} );
             finishTask();
             return;
         }
@@ -635,15 +712,21 @@ public:
             m_callManagedHashes.clear();
         }
 
-        callback( {success, 0, 0} );
+        callback( ApplySandboxModificationsResponse{success, 0, 0} );
     }
 
-    void evaluateStorageHash( EvaluateStorageHashRequest&& request )
+public:
+
+    bool evaluateStorageHash( const EvaluateStorageHashRequest& request ) override
     {
         DBG_MAIN_THREAD
 
         _ASSERT( !m_isExecutingQuery )
-        _ASSERT( !m_taskIsFinished )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
 
         _ASSERT( !m_upperSandboxFsTree )
 
@@ -652,9 +735,13 @@ public:
                                            {
                                                computeSandboxHash( callback );
                                            } );
+
+        return true;
     }
 
-    void computeSandboxHash( const std::function<void( EvaluateStorageHashResponse )>& callback )
+private:
+
+    void computeSandboxHash( const std::function<void( std::optional<EvaluateStorageHashResponse> )>& callback )
     {
         DBG_BG_THREAD
 
@@ -709,7 +796,7 @@ public:
     }
 
     void onStorageHashEvaluated( const InfoHash& storageHash,
-                                 const std::function<void( EvaluateStorageHashResponse )>& callback )
+                                 const std::function<void( std::optional<EvaluateStorageHashResponse> )>& callback )
     {
 
         DBG_MAIN_THREAD
@@ -718,21 +805,28 @@ public:
 
         m_isExecutingQuery = false;
 
-        if ( m_taskIsFinished )
+        if ( m_taskIsInterrupted )
         {
+            callback( {} );
             finishTask();
             return;
         }
 
-        callback( {storageHash, 0, 0, 0} );
+        callback( EvaluateStorageHashResponse{storageHash, 0, 0, 0} );
     }
 
-    void applyStorageModifications( ApplyStorageModificationsRequest&& request )
+public:
+
+    bool applyStorageModifications( const ApplyStorageModificationsRequest& request ) override
     {
         DBG_MAIN_THREAD
 
         _ASSERT( !m_isExecutingQuery )
-        _ASSERT( !m_taskIsFinished )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
 
         _ASSERT( !m_upperSandboxFsTree )
 
@@ -747,9 +841,14 @@ public:
             request.m_callback( {} );
             finishTask();
         }
+
+        return true;
     }
 
-    void addNewTorrentsToSession( const std::function<void( ApplyStorageModificationsResponse )>& callback )
+private:
+
+    void
+    addNewTorrentsToSession( const std::function<void( std::optional<ApplyStorageModificationsResponse> )>& callback )
     {
         DBG_BG_THREAD
 
@@ -783,7 +882,7 @@ public:
                                         } );
     }
 
-    void onNewTorrentAdded( const std::function<void( ApplyStorageModificationsResponse )>& callback )
+    void onNewTorrentAdded( const std::function<void( std::optional<ApplyStorageModificationsResponse> )>& callback )
     {
         DBG_MAIN_THREAD
 
@@ -822,10 +921,9 @@ public:
         }
     }
 
-    void onUnusedTorrentsDeleted( const std::function<void( ApplyStorageModificationsResponse )>& callback )
+    void
+    onUnusedTorrentsDeleted( const std::function<void( std::optional<ApplyStorageModificationsResponse> )>& callback )
     {
-        DBG_BG_THREAD
-
         DBG_BG_THREAD
 
         try
@@ -833,7 +931,7 @@ public:
             fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
             fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
 
-            m_drive.m_serializer.saveRestartValue( m_modificationIdentifier, "approvedModification" );
+            m_drive.m_serializer.saveRestartValue( m_request->m_modificationIdentifier, "approvedModification" );
 
             auto& torrentHandleMap = m_drive.m_torrentHandleMap;
 
@@ -876,7 +974,8 @@ public:
         }
     }
 
-    void onAppliedStorageModifications( const std::function<void( ApplyStorageModificationsResponse )>& callback )
+    void onAppliedStorageModifications(
+            const std::function<void( std::optional<ApplyStorageModificationsResponse> )>& callback )
     {
         DBG_MAIN_THREAD
 
@@ -886,12 +985,63 @@ public:
         m_drive.m_fsTree = std::move( m_lowerSandboxFsTree );
         m_drive.m_rootHash = *m_sandboxRootHash;
         m_drive.m_fsTreeLtHandle = *m_sandboxFsTreeHandle;
-        m_drive.m_lastApprovedModification = m_modificationIdentifier;
+        m_drive.m_lastApprovedModification = m_request->m_modificationIdentifier;
 
-        callback( {true} );
+        callback( ApplyStorageModificationsResponse{true} );
 
         finishTask();
     }
 
+public:
+
+    void terminate() override
+    {
+        DBG_MAIN_THREAD
+
+        if ( m_taskIsInterrupted )
+        {
+            return;
+        }
+
+        m_taskIsInterrupted = true;
+
+        if ( !m_isExecutingQuery )
+        {
+            finishTask();
+        }
+    }
+
+    bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
+    {
+        DBG_MAIN_THREAD
+
+        terminate();
+
+        return true;
+    }
+
+    void onDriveClose( const DriveClosureRequest& closureRequest ) override
+    {
+        DBG_MAIN_THREAD
+
+        terminate();
+    }
+
+    bool manualSynchronize( const SynchronizationRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        terminate();
+
+        return true;
+    }
+
 };
+
+std::unique_ptr<DriveTaskBase> createManualModificationsTask( mobj<InitiateModificationsRequest>&& request,
+                                                              DriveParams& drive )
+{
+    return std::make_unique<ManualModificationsTask>( std::move( request ), drive );
+}
+
 }

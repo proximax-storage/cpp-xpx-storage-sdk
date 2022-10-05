@@ -46,6 +46,13 @@ public:
         DBG_MAIN_THREAD
     }
 
+    bool manualSynchronize( const SynchronizationRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        return true;
+    }
+
 
 private:
 
