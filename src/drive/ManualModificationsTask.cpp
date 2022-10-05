@@ -54,7 +54,7 @@ public:
 
         _ASSERT( m_drive.m_fsTree )
         m_lowerSandboxFsTree = std::make_unique<FsTree>( *m_drive.m_fsTree );
-        m_request->m_callback( {} );
+        m_request->m_callback( InitiateModificationsResponse{} );
     }
 
     bool initiateSandboxModifications( const InitiateSandboxModificationsRequest& request ) override
@@ -69,7 +69,7 @@ public:
         }
 
         m_upperSandboxFsTree = std::make_unique<FsTree>( *m_lowerSandboxFsTree );
-        request.m_callback( {} );
+        request.m_callback( InitiateSandboxModificationsResponse{} );
         return true;
     }
 
@@ -94,7 +94,7 @@ public:
 
         if ( !pFolder )
         {
-            request.m_callback( {} );
+            request.m_callback( OpenFileResponse{} );
             return true;
         }
 
@@ -105,7 +105,7 @@ public:
 
             if ( it == pFolder->childs().end())
             {
-                request.m_callback( {} );
+                request.m_callback( OpenFileResponse{} );
                 return true;
             }
 
@@ -113,7 +113,7 @@ public:
 
             if ( !isFile( child ))
             {
-                request.m_callback( {} );
+                request.m_callback( OpenFileResponse{} );
                 return true;
             }
 
@@ -134,7 +134,7 @@ public:
             {
                 if ( !isFile( it->second ))
                 {
-                    request.m_callback( {} );
+                    request.m_callback( OpenFileResponse{} );
                     return true;
                 }
 
@@ -838,7 +838,7 @@ public:
                                                } );
         } else
         {
-            request.m_callback( {} );
+            request.m_callback( ApplyStorageModificationsResponse{} );
             finishTask();
         }
 
