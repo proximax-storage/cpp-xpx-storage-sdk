@@ -69,9 +69,9 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 #    add_subdirectory(examples)
 endif()
 
+add_subdirectory(supercontract-server)
 add_subdirectory(src)
 add_subdirectory(replicator-service)
-#add_subdirectory(supercontract-server)
 
 if (XPX_STORAGE_SDK_NOT_BUILD_EXAMPLES)
 else()

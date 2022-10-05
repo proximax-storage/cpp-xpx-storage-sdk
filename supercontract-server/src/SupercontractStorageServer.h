@@ -6,21 +6,10 @@
 
 #pragma once
 
-#include <supercontract-server/ContextKeeper.h>
 #include <map>
 #include <types.h>
 
 namespace sirius::drive {
 
-struct ActiveRequests {
-
-};
-
-class SupercontractStorageServer {
-
-    std::weak_ptr<ContextKeeper> m_contextKeeper;
-    std::
-
-}
 
 }

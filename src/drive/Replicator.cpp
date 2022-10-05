@@ -7,6 +7,7 @@
 #include "types.h"
 #include "drive/log.h"
 #include "drive/FlatDrive.h"
+#include "supercontract-server/ModificationsExecutor.h"
 #include "drive/Utils.h"
 #include "drive/Session.h"
 #include "DownloadLimiter.h"
@@ -28,17 +29,19 @@
 #undef DBG_MAIN_THREAD
 #define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
 
-namespace sirius::drive {
+namespace sirius::drive
+{
 
 //
 // DefaultReplicator
 //
-class DefaultReplicator : public DownloadLimiter // Replicator
+class DefaultReplicator
+        : public DownloadLimiter, public contract::ModificationsExecutor // Replicator
 {
 private:
     boost::asio::io_context m_replicatorContext;
-    std::thread             m_libtorrentThread;
-    
+    std::thread m_libtorrentThread;
+
     // Session listen interface
     std::string m_address;
     std::string m_port;
@@ -46,54 +49,49 @@ private:
     // Folders for drives and sandboxes
     std::string m_storageDirectory;
     std::string m_sandboxDirectory;
-    
-    int         m_downloadApprovalTransactionTimerDelayMs = 10 * 1000;
-    int         m_modifyApprovalTransactionTimerDelayMs   = 10 * 1000;
-    int         m_verifyCodeTimerDelayMs                  = 5 * 60 * 1000;
-    int         m_verifyApprovalTransactionTimerDelayMs   = 10 * 1000;
-    int         m_shareMyDownloadOpinionTimerDelayMs      = 60 * 1000;
-    int         m_verificationShareTimerDelay             = 60 * 1000;
-    uint64_t    m_minReplicatorsNumber                    = 4;
 
-    bool        m_replicatorIsDestructing = false;
+    int m_downloadApprovalTransactionTimerDelayMs = 10 * 1000;
+    int m_modifyApprovalTransactionTimerDelayMs = 10 * 1000;
+    int m_verifyCodeTimerDelayMs = 5 * 60 * 1000;
+    int m_verifyApprovalTransactionTimerDelayMs = 10 * 1000;
+    int m_shareMyDownloadOpinionTimerDelayMs = 60 * 1000;
+    int m_verificationShareTimerDelay = 60 * 1000;
+    uint64_t m_minReplicatorsNumber = 4;
 
-    bool        m_useTcpSocket;
-    
+    bool m_replicatorIsDestructing = false;
+
+    bool m_useTcpSocket;
+
     ReplicatorEventHandler& m_eventHandler;
-    DbgReplicatorEventHandler*  m_dbgEventHandler;
+    DbgReplicatorEventHandler* m_dbgEventHandler;
 
-    EndpointsManager        m_endpointsManager;
-    RcptSyncronizer         m_dnOpinionSyncronizer;
+    EndpointsManager m_endpointsManager;
+    RcptSyncronizer m_dnOpinionSyncronizer;
 
     // key is verify tx
-    std::map<std::array<uint8_t,32>, VerifyOpinion> m_verifyApprovalMap;
-    
-    std::future<void>       m_bootstrapFuture;
-    
-    BackgroundExecutor      m_backgroundExecutor;
+    std::map<std::array<uint8_t, 32>, VerifyOpinion> m_verifyApprovalMap;
+
+    std::future<void> m_bootstrapFuture;
+
+    BackgroundExecutor m_backgroundExecutor;
 
 public:
-    DefaultReplicator (
-               const crypto::KeyPair& keyPair,
-               std::string&& address,
-               std::string&& port,
-               std::string&& storageDirectory,
-               std::string&& sandboxDirectory,
-               bool          useTcpSocket,
-               ReplicatorEventHandler& handler,
-               DbgReplicatorEventHandler*  dbgEventHandler,
-               const std::vector<ReplicatorInfo>& bootstraps,
-               const std::string&   dbgReplicatorName ) : DownloadLimiter( keyPair, dbgReplicatorName ),
-
-        m_address( std::move(address) ),
-        m_port( std::move(port) ),
-        m_storageDirectory( std::move(storageDirectory) ),
-        m_sandboxDirectory( std::move(sandboxDirectory) ),
-        m_useTcpSocket( useTcpSocket ),
-        m_eventHandler( handler ),
-        m_dbgEventHandler( dbgEventHandler ),
-        m_endpointsManager( *this, bootstraps, m_dbgOurPeerName ),
-        m_dnOpinionSyncronizer( *this, m_dbgOurPeerName )
+    DefaultReplicator(
+            const crypto::KeyPair& keyPair,
+            std::string&& address,
+            std::string&& port,
+            std::string&& storageDirectory,
+            std::string&& sandboxDirectory,
+            bool useTcpSocket,
+            ReplicatorEventHandler& handler,
+            DbgReplicatorEventHandler* dbgEventHandler,
+            const std::vector<ReplicatorInfo>& bootstraps,
+            const std::string& dbgReplicatorName )
+            : DownloadLimiter( keyPair, dbgReplicatorName ), m_address( std::move( address )), m_port(
+            std::move( port )), m_storageDirectory( std::move( storageDirectory )), m_sandboxDirectory(
+            std::move( sandboxDirectory )), m_useTcpSocket( useTcpSocket ), m_eventHandler( handler )
+            , m_dbgEventHandler( dbgEventHandler ), m_endpointsManager( *this, bootstraps, m_dbgOurPeerName )
+            , m_dnOpinionSyncronizer( *this, m_dbgOurPeerName )
     {
     }
 
@@ -104,12 +102,13 @@ public:
 
         return m_replicatorIsDestructing;
     }
-    
+
     void executeOnBackgroundThread( const std::function<void()>& task ) override
     {
         DBG_MAIN_THREAD
 
-        m_backgroundExecutor.execute( [=] { task(); } );
+        m_backgroundExecutor.execute( [=]
+                                      { task(); } );
     }
 
     void stop()
@@ -121,15 +120,15 @@ public:
         m_session->endSession();
 
         m_dnOpinionSyncronizer.stop();
-        
-        for( auto& [key,drive]: m_driveMap )
+
+        for ( auto&[key, drive]: m_driveMap )
         {
             drive->terminate();
         }
 
-        for ( auto& [channelId, value]: m_dnChannelMap )
+        for ( auto&[channelId, value]: m_dnChannelMap )
         {
-            for ( auto& [event, opinion]: value.m_downloadOpinionMap )
+            for ( auto&[event, opinion]: value.m_downloadOpinionMap )
             {
                 opinion.m_timer.cancel();
                 opinion.m_opinionShareTimer.cancel();
@@ -143,16 +142,16 @@ public:
     {
 
 #ifdef DEBUG_OFF_CATAPULT
-        _LOG( "~DefaultReplicator() ")
+        _LOG( "~DefaultReplicator() " )
 #endif
-        
+
         std::promise<void> barrier;
-        boost::asio::post(m_session->lt_session().get_context(), [&barrier,this]() mutable
+        boost::asio::post( m_session->lt_session().get_context(), [&barrier, this]() mutable
         {
             DBG_MAIN_THREAD
             stop();
             barrier.set_value();
-        });
+        } );
         barrier.get_future().wait();
 
         m_backgroundExecutor.stop();
@@ -160,7 +159,7 @@ public:
         auto blockedDestructor = m_session->lt_session().abort();
         m_session.reset();
 
-        if ( m_libtorrentThread.joinable() )
+        if ( m_libtorrentThread.joinable())
         {
             _LOG( "m_libtorrentThread joined" )
             m_libtorrentThread.join();
@@ -169,11 +168,11 @@ public:
         //(???+++)
         saveDownloadChannelMap();
     }
-    
+
     void start() override
     {
         endpoint_list bootstrapEndpoints;
-        for ( const auto& info: m_endpointsManager.getBootstraps() )
+        for ( const auto& info: m_endpointsManager.getBootstraps())
         {
             bootstrapEndpoints.push_back( info.m_endpoint );
         }
@@ -183,40 +182,43 @@ public:
 
         loadDownloadChannelMap();
 
-        m_session = createDefaultSession( m_replicatorContext, m_address + ":" + m_port, [port=m_port,this] (const lt::alert* pAlert)
-                                         {
-                                             if ( pAlert->type() == lt::listen_failed_alert::alert_type )
-                                             {
-                                                 _LOG_WARN( "Replicator session alert: " << pAlert->message() );
-                                                 _LOG_WARN( "Port is busy?: " << port );
-                                                 m_eventHandler.onLibtorrentSessionError( pAlert->message() );
-                                             }
-                                         },
-                                         weak_from_this(),
-                                         weak_from_this(),
-                                         bootstrapEndpoints,
-                                         std::move(bootstrapBarrier) );
+        m_session = createDefaultSession( m_replicatorContext, m_address + ":" + m_port,
+                                          [port = m_port, this]( const lt::alert* pAlert )
+                                          {
+                                              if ( pAlert->type() == lt::listen_failed_alert::alert_type )
+                                              {
+                                                  _LOG_WARN( "Replicator session alert: " << pAlert->message());
+                                                  _LOG_WARN( "Port is busy?: " << port );
+                                                  m_eventHandler.onLibtorrentSessionError( pAlert->message());
+                                              }
+                                          },
+                                          weak_from_this(),
+                                          weak_from_this(),
+                                          bootstrapEndpoints,
+                                          std::move( bootstrapBarrier ));
 
         m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName;
-        
-        m_libtorrentThread = std::thread( [this] {
-            //m_sesion->setDbgThreadId();
-            m_dbgThreadId = std::this_thread::get_id();
 
-            m_replicatorContext.run();
+        m_libtorrentThread = std::thread( [this]
+                                          {
+                                              //m_sesion->setDbgThreadId();
+                                              m_dbgThreadId = std::this_thread::get_id();
+
+                                              m_replicatorContext.run();
 #ifdef DEBUG_OFF_CATAPULT
-            _LOG( "libtorrentThread ended" );
+                                              _LOG( "libtorrentThread ended" );
 #endif
-        });
+                                          } );
         m_dbgThreadId = m_libtorrentThread.get_id();
         _LOG( "m_dbgThreadId = " << m_dbgThreadId )
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
 
             DBG_MAIN_THREAD
 
-            m_endpointsManager.start(m_session);
-        });
+            m_endpointsManager.start( m_session );
+        } );
 
         m_dnOpinionSyncronizer.start( m_session );
     }
@@ -225,34 +227,34 @@ public:
     {
         std::promise<Hash256> thePromise;
         auto future = thePromise.get_future();
-        
-        boost::asio::post(m_session->lt_session().get_context(), [=,&thePromise,this]()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, &thePromise, this]()
         {
             DBG_MAIN_THREAD
-            
-            const auto drive = getDrive(driveKey);
+
+            const auto drive = getDrive( driveKey );
             _ASSERT( drive );
             auto rootHash = drive->rootHash();
             thePromise.set_value( rootHash );
-        });
-        
+        } );
+
         return future.get();
     }
 
     void dbgPrintDriveStatus( const Key& driveKey ) override
     {
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]()
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]()
         {
             DBG_MAIN_THREAD
 
-            if ( const auto drive = getDrive(driveKey); drive )
+            if ( const auto drive = getDrive( driveKey ); drive )
             {
                 return drive->dbgPrintDriveStatus();
             }
 
             _LOG_ERR( "unknown drive: " << driveKey );
-            throw std::runtime_error( std::string("unknown dive: ") + toString(driveKey.array()) );
-        });
+            throw std::runtime_error( std::string( "unknown dive: " ) + toString( driveKey.array()));
+        } );
 
     }
 
@@ -260,19 +262,20 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [this]
+        boost::asio::post( m_session->lt_session().get_context(), [this]
         {
             removeUnusedDrives( m_storageDirectory );
             removeUnusedDrives( m_sandboxDirectory );
-        });
+        } );
     }
 
     void asyncAddDrive( Key driveKey, mobj<AddDriveRequest>&& driveRequest ) override
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-        
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+
             DBG_MAIN_THREAD
 
             if ( m_replicatorIsDestructing )
@@ -282,15 +285,17 @@ public:
 
             _LOG( "adding drive " << driveKey );
 
-            if (m_driveMap.find(driveKey) != m_driveMap.end()) {
+            if ( m_driveMap.find( driveKey ) != m_driveMap.end())
+            {
                 _LOG_ERR( "drive already added" );
                 return;
             }
 
             // Exclude itself from replicator list
-            for( auto it = driveRequest->m_fullReplicatorList.begin();  it != driveRequest->m_fullReplicatorList.end(); it++ )
+            for ( auto it = driveRequest->m_fullReplicatorList.begin();
+                  it != driveRequest->m_fullReplicatorList.end(); it++ )
             {
-                if ( *it == publicKey() )
+                if ( *it == publicKey())
                 {
                     driveRequest->m_fullReplicatorList.erase( it );
                     break;
@@ -321,16 +326,16 @@ public:
             // Notify
             if ( m_dbgEventHandler )
             {
-                m_dbgEventHandler->driveAdded(drive->drivePublicKey());
+                m_dbgEventHandler->driveAdded( drive->drivePublicKey());
             }
-        });//post
+        } );//post
     }
 
     void asyncRemoveDrive( Key driveKey ) override
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
             DBG_MAIN_THREAD
 
@@ -340,111 +345,108 @@ public:
                 return;
             }
 
-            if ( auto drive = getDrive(driveKey); drive )
+            if ( auto drive = getDrive( driveKey ); drive )
             {
-                drive->startDriveClosing(  DriveClosureRequest() );
-            }
-            else
+                drive->startDriveClosing( DriveClosureRequest());
+            } else
             {
                 _LOG_ERR( "drive not found: " << driveKey );
                 return;
             }
-        });
+        } );
     }
 
     void asyncSetReplicators( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
     {
-    	_FUNC_ENTRY()
+        _FUNC_ENTRY()
 
-    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-    	{
-    		DBG_MAIN_THREAD
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
 
-    		if ( auto drive = getDrive(driveKey); drive )
-    		{
-    			for( auto it = replicatorKeys->begin();  it != replicatorKeys->end(); it++ )
-    			{
-    				if ( *it == publicKey() )
-    				{
-    					replicatorKeys->erase( it );
-    					break;
-    				}
-    			}
-    			m_endpointsManager.addEndpointsEntries( *replicatorKeys );
-    			drive->setReplicators( std::move(replicatorKeys) );
-    		}
-    		else
-    		{
-    			_LOG_ERR( "drive not found: " << driveKey );
-    			return;
-    		}
-    	});
-	}
+            if ( auto drive = getDrive( driveKey ); drive )
+            {
+                for ( auto it = replicatorKeys->begin(); it != replicatorKeys->end(); it++ )
+                {
+                    if ( *it == publicKey())
+                    {
+                        replicatorKeys->erase( it );
+                        break;
+                    }
+                }
+                m_endpointsManager.addEndpointsEntries( *replicatorKeys );
+                drive->setReplicators( std::move( replicatorKeys ));
+            } else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        } );
+    }
 
     // It notifies about changes in modification shards
     void asyncSetShardDonator( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
-	{
-    	_FUNC_ENTRY()
+    {
+        _FUNC_ENTRY()
 
-    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-    	{
-    		DBG_MAIN_THREAD
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
 
-    		if ( auto drive = getDrive(driveKey); drive )
-    		{
-    			drive->setShardDonator( std::move(replicatorKeys) );
-    		}
-    		else
-    		{
-    			_LOG_ERR( "drive not found: " << driveKey );
-    			return;
-    		}
-    	});
-	}
+            if ( auto drive = getDrive( driveKey ); drive )
+            {
+                drive->setShardDonator( std::move( replicatorKeys ));
+            } else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        } );
+    }
 
-	void asyncSetShardRecipient( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
-	{
-    	_FUNC_ENTRY()
+    void asyncSetShardRecipient( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
+    {
+        _FUNC_ENTRY()
 
-    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-    	{
-    		DBG_MAIN_THREAD
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
 
-    		if ( auto drive = getDrive(driveKey); drive )
-    		{
-    			drive->setShardRecipient( std::move(replicatorKeys) );
-    		}
-    		else
-    		{
-    			_LOG_ERR( "drive not found: " << driveKey );
-    			return;
-    		}
-    	});
-	}
+            if ( auto drive = getDrive( driveKey ); drive )
+            {
+                drive->setShardRecipient( std::move( replicatorKeys ));
+            } else
+            {
+                _LOG_ERR( "drive not found: " << driveKey );
+                return;
+            }
+        } );
+    }
 
-	virtual void asyncSetChanelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys ) override {
-    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-    	{
-    		DBG_MAIN_THREAD
+    virtual void asyncSetChanelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys ) override
+    {
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
 
-    		if ( auto channelInfoIt = m_dnChannelMap.find( channelId->array() ); channelInfoIt != m_dnChannelMap.end() )
-    		{
-    			channelInfoIt->second.m_dnReplicatorShard = *replicatorKeys;
-    		}
-    		else
-    		{
-    			_LOG_ERR( "Unknown channel hash: " << *channelId );
-    			return;
-    		}
-    	});
-	}
+            if ( auto channelInfoIt = m_dnChannelMap.find( channelId->array()); channelInfoIt != m_dnChannelMap.end())
+            {
+                channelInfoIt->second.m_dnReplicatorShard = *replicatorKeys;
+            } else
+            {
+                _LOG_ERR( "Unknown channel hash: " << *channelId );
+                return;
+            }
+        } );
+    }
 
     void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-        
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+
             DBG_MAIN_THREAD
 
             if ( m_replicatorIsDestructing )
@@ -452,16 +454,15 @@ public:
                 return;
             }
 
-            if ( auto drive = getDrive(driveKey); drive )
+            if ( auto drive = getDrive( driveKey ); drive )
             {
-                drive->startDriveClosing( { transactionHash } );
-            }
-            else
+                drive->startDriveClosing( {transactionHash} );
+            } else
             {
                 _LOG_ERR( "removeDrive: drive not found: " << driveKey );
                 return;
             }
-        });//post
+        } );//post
     }
 
     void asyncModify( Key driveKey, mobj<ModificationRequest>&& modifyRequest ) override
@@ -470,8 +471,9 @@ public:
 
         _LOG( "+++ ex startModifyDrive: " << modifyRequest->m_clientDataInfoHash )
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-        
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+
             DBG_MAIN_THREAD
 
             if ( m_replicatorIsDestructing )
@@ -481,11 +483,11 @@ public:
 
             std::shared_ptr<sirius::drive::FlatDrive> pDrive;
             {
-                if ( auto drive = getDrive(driveKey); drive )
+                if ( auto drive = getDrive( driveKey ); drive )
                 {
                     pDrive = drive;
-                }
-                else {
+                } else
+                {
                     _LOG( "asyncModify(): drive not found: " << driveKey );
                     return;
                 }
@@ -493,35 +495,36 @@ public:
 
             // Add ModifyTrafficInfo to DownloadLimiter
             bool added = addModifyTrafficInfo( modifyRequest->m_transactionHash.array(),
-                                driveKey,
-                                modifyRequest->m_maxDataSize,
-                                pDrive->driveOwner(),
-                                modifyRequest->m_replicatorList);
+                                               driveKey,
+                                               modifyRequest->m_maxDataSize,
+                                               pDrive->driveOwner(),
+                                               modifyRequest->m_replicatorList );
 
-            if ( ! added )
+            if ( !added )
             {
-               _LOG_ERR( "Internal Error: Modification Received after Approval or twice" )
+                _LOG_ERR( "Internal Error: Modification Received after Approval or twice" )
             }
-           
-            for( auto it = modifyRequest->m_replicatorList.begin();  it != modifyRequest->m_replicatorList.end(); it++ )
+
+            for ( auto it = modifyRequest->m_replicatorList.begin(); it != modifyRequest->m_replicatorList.end(); it++ )
             {
-                if ( *it == publicKey() )
+                if ( *it == publicKey())
                 {
                     modifyRequest->m_replicatorList.erase( it );
                     break;
                 }
             }
 
-            pDrive->startModifyDrive( std::move(modifyRequest) );
-        });//post
+            pDrive->startModifyDrive( std::move( modifyRequest ));
+        } );//post
     }
-    
+
     void asyncCancelModify( Key driveKey, Hash256 transactionHash ) override
     {
         _FUNC_ENTRY()
-       
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-        
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+
             DBG_MAIN_THREAD
 
             if ( m_replicatorIsDestructing )
@@ -529,39 +532,40 @@ public:
                 return;
             }
 
-            if ( const auto drive = getDrive(driveKey); drive )
+            if ( const auto drive = getDrive( driveKey ); drive )
             {
                 drive->cancelModifyDrive( transactionHash );
                 return;
             }
 
             _LOG( "asyncCancelModify: unknown drive: " << driveKey );
-        });//post
+        } );//post
     }
-    
+
     void asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& request ) override
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-        
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+
             DBG_MAIN_THREAD
 
-			_LOG( "started verification" );
+            _LOG( "started verification" );
 
             if ( m_replicatorIsDestructing )
             {
                 return;
             }
 
-            if ( const auto drive = getDrive(driveKey); drive )
+            if ( const auto drive = getDrive( driveKey ); drive )
             {
-                drive->startVerification( std::move(request) );
+                drive->startVerification( std::move( request ));
                 return;
             }
 
             _LOG( "asyncStartDriveVerification: unknown drive: " << driveKey );
-        });//post
+        } );//post
     }
 
     void asyncCancelDriveVerification( Key driveKey ) override
@@ -569,31 +573,33 @@ public:
         _FUNC_ENTRY()
 
         //TODO
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-         
-             DBG_MAIN_THREAD
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
 
-             if ( m_replicatorIsDestructing )
-             {
-                 return;
-             }
+            DBG_MAIN_THREAD
 
-             if ( const auto drive = getDrive(driveKey); drive )
-             {
-                 drive->cancelVerification();
-                 return;
-             }
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
-             _LOG( "asyncCancelDriveVerification: unknown drive: " << driveKey );
-         });//post
+            if ( const auto drive = getDrive( driveKey ); drive )
+            {
+                drive->cancelVerification();
+                return;
+            }
+
+            _LOG( "asyncCancelDriveVerification: unknown drive: " << driveKey );
+        } );//post
     }
 
     void asyncStartStream( Key driveKey, mobj<StreamRequest>&& request ) override
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-        
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+
             DBG_MAIN_THREAD
 
             if ( m_replicatorIsDestructing )
@@ -603,11 +609,11 @@ public:
 
             std::shared_ptr<sirius::drive::FlatDrive> pDrive;
             {
-                if ( auto drive = getDrive(driveKey); drive )
+                if ( auto drive = getDrive( driveKey ); drive )
                 {
                     pDrive = drive;
-                }
-                else {
+                } else
+                {
                     _LOG( "asyncModify(): drive not found: " << driveKey );
                     return;
                 }
@@ -620,11 +626,11 @@ public:
                                                request->m_streamerKey,
                                                request->m_replicatorList );
 
-            if ( ! added )
+            if ( !added )
             {
                 _LOG_ERR( "Internal Error: added twice?" )
             }
-           
+
 //            for( auto it = modifyRequest->m_replicatorList.begin();  it != modifyRequest->m_replicatorList.end(); it++ )
 //            {
 //                if ( *it == publicKey() )
@@ -633,23 +639,24 @@ public:
 //                    break;
 //                }
 //            }
-            
-            if ( const auto drive = getDrive(driveKey); drive )
+
+            if ( const auto drive = getDrive( driveKey ); drive )
             {
-                drive->startStream( std::move(request) );
+                drive->startStream( std::move( request ));
                 return;
             }
 
             _LOG( "unknown drive: " << driveKey );
-        });//post
+        } );//post
     }
-    
+
     void asyncIncreaseStream( Key driveKey, mobj<StreamIncreaseRequest>&& ) override
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-        
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+
             DBG_MAIN_THREAD
 
             if ( m_replicatorIsDestructing )
@@ -657,22 +664,23 @@ public:
                 return;
             }
 
-            if ( const auto drive = getDrive(driveKey); drive )
+            if ( const auto drive = getDrive( driveKey ); drive )
             {
                 //drive->increaseStream( std::move(request) );
                 return;
             }
 
             _LOG( "unknown drive: " << driveKey );
-        });//post
+        } );//post
     }
-    
+
     void asyncFinishStreamTxPublished( Key driveKey, mobj<StreamFinishRequest>&& finishInfo ) override
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-        
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+
             DBG_MAIN_THREAD
 
             if ( m_replicatorIsDestructing )
@@ -680,24 +688,24 @@ public:
                 return;
             }
 
-            if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+            if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end())
             {
-                driveIt->second->acceptFinishStreamTx( std::move(finishInfo) );
-            }
-            else
+                driveIt->second->acceptFinishStreamTx( std::move( finishInfo ));
+            } else
             {
-                _LOG_WARN( "Unknown drive: " << Key(driveKey) )
+                _LOG_WARN( "Unknown drive: " << Key( driveKey ))
             }
 
-        });//post
+        } );//post
     }
 
     void asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&& request, bool mustBeSyncronized ) override
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-        
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+
             DBG_MAIN_THREAD
 
             if ( m_replicatorIsDestructing )
@@ -705,10 +713,10 @@ public:
                 return;
             }
 
-            std::vector<std::array<uint8_t,32>> clientList;
-            for( const auto& it : request->m_clients )
-                clientList.push_back( it.array() );
-           
+            std::vector<std::array<uint8_t, 32>> clientList;
+            for ( const auto& it : request->m_clients )
+                clientList.push_back( it.array());
+
             addChannelInfo( request->m_channelKey.array(),
                             request->m_prepaidDownloadSize,
                             driveKey,
@@ -716,40 +724,42 @@ public:
                             clientList,
                             mustBeSyncronized );
 
-           if ( mustBeSyncronized )
-           {
-               if ( std::shared_ptr<sirius::drive::FlatDrive> drive = getDrive(driveKey); drive )
-               {
-                   auto replicators = drive->getAllReplicators();
-                   size_t consensusThreshould = std::min( (replicators.size()*3)/2, size_t(4) );
+            if ( mustBeSyncronized )
+            {
+                if ( std::shared_ptr<sirius::drive::FlatDrive> drive = getDrive( driveKey ); drive )
+                {
+                    auto replicators = drive->getAllReplicators();
+                    size_t consensusThreshould = std::min((replicators.size() * 3) / 2, size_t( 4 ));
 
-                   m_dnOpinionSyncronizer.startSync( request->m_channelKey.array(), drive, consensusThreshould );
-               }
-               else
-               {
-                   _LOG_WARN( "unknown drive:" << driveKey );
-               }
-           }
-        });//post
+                    m_dnOpinionSyncronizer.startSync( request->m_channelKey.array(), drive, consensusThreshould );
+                } else
+                {
+                    _LOG_WARN( "unknown drive:" << driveKey );
+                }
+            }
+        } );//post
     }
 
-    virtual void asyncIncreaseDownloadChannelSize( ChannelId channelId, uint64_t size ) override {
-    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-			DBG_MAIN_THREAD
+    virtual void asyncIncreaseDownloadChannelSize( ChannelId channelId, uint64_t size ) override
+    {
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
 
-			increaseChannelSize(channelId.array(), size);
-    	});//post
-	}
+            increaseChannelSize( channelId.array(), size );
+        } );//post
+    }
 
-    virtual DownloadChannelInfo* getDownloadChannelInfo( const std::array<uint8_t,32>& driveKey, const std::array<uint8_t,32>& downloadChannelHash ) override
+    virtual DownloadChannelInfo* getDownloadChannelInfo( const std::array<uint8_t, 32>& driveKey,
+                                                         const std::array<uint8_t, 32>& downloadChannelHash ) override
     {
         DBG_MAIN_THREAD
 
-        if ( auto infoIt = m_dnChannelMap.find( downloadChannelHash ); infoIt != m_dnChannelMap.end() )
+        if ( auto infoIt = m_dnChannelMap.find( downloadChannelHash ); infoIt != m_dnChannelMap.end())
         {
             if ( infoIt->second.m_driveKey != driveKey )
             {
-                _LOG_ERR( "Invalid driveKey: " << Key(driveKey) << " vs: " << Key(infoIt->second.m_driveKey) );
+                _LOG_ERR( "Invalid driveKey: " << Key( driveKey ) << " vs: " << Key( infoIt->second.m_driveKey ));
                 return nullptr;
             }
             return &infoIt->second;
@@ -763,22 +773,23 @@ public:
     {
         _FUNC_ENTRY()
 
-       boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
 
             DBG_MAIN_THREAD
 
-            removeChannelInfo(channelId);
-        });
+            removeChannelInfo( channelId );
+        } );
     }
 
     // It sends received receipt from 'client' to other replicators
-    virtual void sendReceiptToOtherReplicators( const std::array<uint8_t,32>&  downloadChannelId,
-                                                const std::array<uint8_t,32>&  clientPublicKey,
-                                                uint64_t                       downloadedSize,
-                                                const std::array<uint8_t,64>&  signature ) override
+    virtual void sendReceiptToOtherReplicators( const std::array<uint8_t, 32>& downloadChannelId,
+                                                const std::array<uint8_t, 32>& clientPublicKey,
+                                                uint64_t downloadedSize,
+                                                const std::array<uint8_t, 64>& signature ) override
     {
         DBG_MAIN_THREAD
-        
+
         auto replicatorPublicKey = publicKey();
 
 //        std::vector<uint8_t> message;
@@ -787,13 +798,14 @@ public:
 //        message.insert( message.end(), replicatorPublicKey.begin(), replicatorPublicKey.end() );
 //        message.insert( message.end(), (uint8_t*)&downloadedSize,   ((uint8_t*)&downloadedSize)+8 );
 //        message.insert( message.end(), signature.begin(),           signature.end() );
-        
+
         RcptMessage msg( downloadChannelId, clientPublicKey, replicatorPublicKey, downloadedSize, signature );
-        
-        if ( auto it = m_dnChannelMap.find(downloadChannelId); it != m_dnChannelMap.end() )
+
+        if ( auto it = m_dnChannelMap.find( downloadChannelId ); it != m_dnChannelMap.end())
         {
             // go throw replictor list
-            for( auto replicatorIt = it->second.m_dnReplicatorShard.begin(); replicatorIt != it->second.m_dnReplicatorShard.end(); replicatorIt++ )
+            for ( auto replicatorIt = it->second.m_dnReplicatorShard.begin();
+                  replicatorIt != it->second.m_dnReplicatorShard.end(); replicatorIt++ )
             {
                 if ( *replicatorIt != replicatorPublicKey )
                 {
@@ -803,50 +815,51 @@ public:
         }
     }
 
-    void onEndpointDiscovered(const std::array<uint8_t, 32> &key,
-                              const std::optional<boost::asio::ip::tcp::endpoint>& endpoint) override
+    void onEndpointDiscovered( const std::array<uint8_t, 32>& key,
+                               const std::optional<boost::asio::ip::tcp::endpoint>& endpoint ) override
     {
         DBG_MAIN_THREAD
 
-        m_endpointsManager.updateEndpoint(key, endpoint);
+        m_endpointsManager.updateEndpoint( key, endpoint );
     }
 
-    void processHandshake( const DhtHandshake& info, const boost::asio::ip::tcp::endpoint &endpoint )
+    void processHandshake( const DhtHandshake& info, const boost::asio::ip::tcp::endpoint& endpoint )
     {
-        if ( info.m_toPublicKey != m_keyPair.publicKey().array() )
+        if ( info.m_toPublicKey != m_keyPair.publicKey().array())
         {
             return;
         }
 
-        if ( !info.Verify() )
+        if ( !info.Verify())
         {
             return;
         }
 
-        _LOG ( "Received Handshake from " << int(info.m_fromPublicKey[0]) << " at " << endpoint.address().to_string() )
+        _LOG ( "Received Handshake from " << int( info.m_fromPublicKey[0] ) << " at " << endpoint.address().to_string())
 
-        onEndpointDiscovered(info.m_fromPublicKey, endpoint );
+        onEndpointDiscovered( info.m_fromPublicKey, endpoint );
     }
 
-    void processEndpointRequest( const ExternalEndpointRequest& request, const boost::asio::ip::tcp::endpoint& endpoint )
+    void
+    processEndpointRequest( const ExternalEndpointRequest& request, const boost::asio::ip::tcp::endpoint& endpoint )
     {
         if ( m_keyPair.publicKey() == request.m_requestTo )
         {
             ExternalEndpointResponse response;
             response.m_requestTo = request.m_requestTo;
             response.m_challenge = request.m_challenge;
-            response.m_endpoint = *reinterpret_cast<const std::array<uint8_t, sizeof(boost::asio::ip::tcp::endpoint)> *>(&endpoint);
-            response.Sign(m_keyPair);
+            response.m_endpoint = *reinterpret_cast<const std::array<uint8_t, sizeof( boost::asio::ip::tcp::endpoint )>*>(&endpoint);
+            response.Sign( m_keyPair );
 
             std::ostringstream os( std::ios::binary );
             cereal::PortableBinaryOutputArchive archive( os );
             archive( response );
 
-            m_session->sendMessage( "endpoint_response", { endpoint.address(), endpoint.port() }, os.str() );
+            m_session->sendMessage( "endpoint_response", {endpoint.address(), endpoint.port()}, os.str());
         }
     }
 
-    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint( const std::array<uint8_t,32>& key ) override
+    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint( const std::array<uint8_t, 32>& key ) override
     {
         return m_endpointsManager.getEndpoint( key );
     }
@@ -854,8 +867,9 @@ public:
     virtual void asyncOnDownloadOpinionReceived( mobj<DownloadApprovalTransactionInfo>&& anOpinion ) override
     {
         _FUNC_ENTRY()
-        
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
 
             DBG_MAIN_THREAD
 
@@ -869,58 +883,58 @@ public:
                 _LOG_ERR( "onDownloadOpinionReceived: invalid opinion format: anOpinion.m_opinions.size() != 1" )
                 return;
             }
-        
-            addOpinion( std::move(anOpinion) );
-        });
+
+            addOpinion( std::move( anOpinion ));
+        } );
     }
 
     void processDownloadOpinion( const DownloadApprovalTransactionInfo& anOpinion ) override
     {
         DBG_MAIN_THREAD
-        
-        m_eventHandler.downloadOpinionHasBeenReceived(*this, anOpinion);
+
+        m_eventHandler.downloadOpinionHasBeenReceived( *this, anOpinion );
     }
-    
+
     DownloadOpinion createMyOpinion( const DownloadChannelInfo& info )
     {
         DBG_MAIN_THREAD
 
-        DownloadOpinion myOpinion( publicKey() );
+        DownloadOpinion myOpinion( publicKey());
 
-        for( const auto& replicatorIt : info.m_dnReplicatorShard )
+        for ( const auto& replicatorIt : info.m_dnReplicatorShard )
         {
-            if ( auto downloadedIt = info.m_replicatorUploadMap.find( replicatorIt.array()); downloadedIt != info.m_replicatorUploadMap.end() )
+            if ( auto downloadedIt = info.m_replicatorUploadMap.find( replicatorIt.array()); downloadedIt !=
+                                                                                             info.m_replicatorUploadMap.end())
             {
-                myOpinion.m_downloadLayout.push_back( {downloadedIt->first.array(), downloadedIt->second.uploadedSize() } );
-            }
-            else if ( replicatorIt == publicKey() )
+                myOpinion.m_downloadLayout.push_back(
+                        {downloadedIt->first.array(), downloadedIt->second.uploadedSize()} );
+            } else if ( replicatorIt == publicKey())
             {
                 uint64_t uploadedSize = 0;
-                for( auto& cell: info.m_dnClientMap )
+                for ( auto& cell: info.m_dnClientMap )
                 {
                     uploadedSize += cell.second.m_uploadedSize;
                 }
-                myOpinion.m_downloadLayout.push_back( { publicKey(), uploadedSize } );
-            }
-            else
+                myOpinion.m_downloadLayout.push_back( {publicKey(), uploadedSize} );
+            } else
             {
-                myOpinion.m_downloadLayout.push_back( { replicatorIt.array(), 0 } );
+                myOpinion.m_downloadLayout.push_back( {replicatorIt.array(), 0} );
             }
         }
-        
+
         return myOpinion;
     }
 
-    bool createSyncRcpts( const DriveKey&       driveKey,
-                          const ChannelId&      channelId,
-                          std::ostringstream&   outOs,
-                          Signature&            outSignature ) override
+    bool createSyncRcpts( const DriveKey& driveKey,
+                          const ChannelId& channelId,
+                          std::ostringstream& outOs,
+                          Signature& outSignature ) override
     {
         DBG_MAIN_THREAD
 
         if ( auto drive = getDrive( driveKey ); drive )
         {
-            if ( auto channelInfoIt = m_dnChannelMap.find(channelId); channelInfoIt != m_dnChannelMap.end() )
+            if ( auto channelInfoIt = m_dnChannelMap.find( channelId ); channelInfoIt != m_dnChannelMap.end())
             {
                 cereal::PortableBinaryOutputArchive archive( outOs );
                 ReplicatorKey replicatorKey = m_keyPair.publicKey();
@@ -929,18 +943,18 @@ public:
 
                 // parse and accept receipts
                 //
-                for( auto& [clientKey,clientRcptMap] : channelInfoIt->second.m_clientReceiptMap )
+                for ( auto&[clientKey, clientRcptMap] : channelInfoIt->second.m_clientReceiptMap )
                 {
-                    for( auto& [key,msg] : clientRcptMap )
+                    for ( auto&[key, msg] : clientRcptMap )
                     {
                         archive( msg );
                     }
                 }
 
                 auto str = outOs.str();
-                crypto::Sign( m_keyPair, { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature);
+                crypto::Sign( m_keyPair, {utils::RawBuffer{(const uint8_t*) str.c_str(), str.size()}}, outSignature );
             }
-            
+
             return true;
         }
 
@@ -957,42 +971,42 @@ public:
         //
         auto now = boost::posix_time::microsec_clock::universal_time();
 
-        for (auto &[downloadChannelId, downloadChannel]: m_dnChannelMap)
+        for ( auto &[downloadChannelId, downloadChannel]: m_dnChannelMap )
         {
             //TODO Potential performance bottleneck
-            std::erase_if(downloadChannel.m_downloadOpinionMap, [&now](const auto &item)
+            std::erase_if( downloadChannel.m_downloadOpinionMap, [&now]( const auto& item )
             {
                 const auto&[key, value] = item;
                 return (now - value.m_creationTime).total_seconds() > 60 * 60;
-            });
+            } );
         }
 
         //
         // add opinion
         //
-        auto channelIt = m_dnChannelMap.find(opinion->m_downloadChannelId);
+        auto channelIt = m_dnChannelMap.find( opinion->m_downloadChannelId );
 
-        if (channelIt == m_dnChannelMap.end())
+        if ( channelIt == m_dnChannelMap.end())
         {
-            _LOG_WARN("Attempt to add opinion for a non-existing channel");
+            _LOG_WARN( "Attempt to add opinion for a non-existing channel" );
             return;
         }
 
         auto& channel = channelIt->second;
         auto blockHash = opinion->m_blockHash;
 
-        if (channel.m_downloadOpinionMap.find(opinion->m_blockHash) == channel.m_downloadOpinionMap.end())
+        if ( channel.m_downloadOpinionMap.find( opinion->m_blockHash ) == channel.m_downloadOpinionMap.end())
         {
-            channel.m_downloadOpinionMap.emplace( std::make_pair(blockHash, DownloadOpinionMapValue
+            channel.m_downloadOpinionMap.emplace( std::make_pair( blockHash, DownloadOpinionMapValue
                     (
                             opinion->m_blockHash,
                             opinion->m_downloadChannelId,
                             {}
-                     )));
+                    )));
         }
 
         auto& opinionInfo = channel.m_downloadOpinionMap[blockHash];
-        auto& opinions    = opinionInfo.m_opinions;
+        auto& opinions = opinionInfo.m_opinions;
         opinions[opinion->m_opinions[0].m_replicatorKey] = opinion->m_opinions[0];
 
         // check opinion number
@@ -1002,53 +1016,59 @@ public:
 #else
         auto replicatorNumber = (channel.m_dnReplicatorShard.size() * 2) / 3;
 #endif
-        if (opinions.size() >= replicatorNumber)
+        if ( opinions.size() >= replicatorNumber )
         {
             // start timer if it is not started
-            if (!opinionInfo.m_timer)
+            if ( !opinionInfo.m_timer )
             {
                 //todo check
-                opinionInfo.m_timer = m_session->startTimer( m_downloadApprovalTransactionTimerDelayMs,[this, channelId = opinion->m_downloadChannelId, blockHash = blockHash]() {
+                opinionInfo.m_timer = m_session->startTimer( m_downloadApprovalTransactionTimerDelayMs,
+                                                             [this, channelId = opinion->m_downloadChannelId, blockHash = blockHash]()
+                                                             {
                                                                  onDownloadApprovalTimeExpired(
                                                                          ChannelId( channelId ), Hash256( blockHash ));
                                                              } );
             }
         }
     }
-    
+
     void onDownloadApprovalTimeExpired( const ChannelId& channelId, const Hash256& blockHash )
     {
         DBG_MAIN_THREAD
 
-        auto channelIt = m_dnChannelMap.find(channelId);
+        auto channelIt = m_dnChannelMap.find( channelId );
 
-        _ASSERT( channelIt != m_dnChannelMap.end() )
+        _ASSERT( channelIt != m_dnChannelMap.end())
 
-        auto& downloadMapValue = channelIt->second.m_downloadOpinionMap.find( blockHash.array() )->second;
+        auto& downloadMapValue = channelIt->second.m_downloadOpinionMap.find( blockHash.array())->second;
 
-        if ( downloadMapValue.m_modifyApproveTransactionSent || downloadMapValue.m_approveTransactionReceived ) {
+        if ( downloadMapValue.m_modifyApproveTransactionSent || downloadMapValue.m_approveTransactionReceived )
+        {
             return;
         }
 
         // notify
         std::vector<DownloadOpinion> opinions;
-        for (const auto& [replicatorId, opinion]: downloadMapValue.m_opinions)
+        for ( const auto&[replicatorId, opinion]: downloadMapValue.m_opinions )
         {
-            opinions.push_back(opinion);
+            opinions.push_back( opinion );
         }
-        auto transactionInfo = DownloadApprovalTransactionInfo{downloadMapValue.m_eventHash, downloadMapValue.m_downloadChannelId, std::move(opinions)};
+        auto transactionInfo = DownloadApprovalTransactionInfo{downloadMapValue.m_eventHash,
+                                                               downloadMapValue.m_downloadChannelId,
+                                                               std::move( opinions )};
         m_eventHandler.downloadApprovalTransactionIsReady( *this, transactionInfo );
         downloadMapValue.m_modifyApproveTransactionSent = true;
     }
-    
+
     virtual void asyncInitiateDownloadApprovalTransactionInfo( Hash256 blockHash, Hash256 channelId ) override
     {
         //todo make queue for several simultaneous requests of the same channelId
 
         _FUNC_ENTRY()
-        
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-        
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+
             DBG_MAIN_THREAD
 
             if ( m_replicatorIsDestructing )
@@ -1057,33 +1077,32 @@ public:
             }
 
             doInitiateDownloadApprovalTransactionInfo( blockHash, channelId );
-        });//post
+        } );//post
     }
 
     void doInitiateDownloadApprovalTransactionInfo( const Hash256& blockHash, const Hash256& channelId )
     {
         DBG_MAIN_THREAD
-        
+
         //todo make queue for several simultaneous requests of the same channelId
-        
-        if ( auto it = m_dnChannelMap.find( channelId.array() ); it != m_dnChannelMap.end() )
+
+        if ( auto it = m_dnChannelMap.find( channelId.array()); it != m_dnChannelMap.end())
         {
             //
             // Create my opinion
             //
-            
-            auto myOpinion = createMyOpinion(it->second);
-            
-            myOpinion.Sign( keyPair(), blockHash.array(), channelId.array() );
-            
-            DownloadApprovalTransactionInfo transactionInfo{  blockHash.array(),
+
+            auto myOpinion = createMyOpinion( it->second );
+
+            myOpinion.Sign( keyPair(), blockHash.array(), channelId.array());
+
+            DownloadApprovalTransactionInfo transactionInfo{blockHash.array(),
                                                             channelId.array(),
-                                                            { myOpinion }};
-            
-            addOpinion( std::move(transactionInfo) );
+                                                            {myOpinion}};
+
+            addOpinion( std::move( transactionInfo ));
             shareDownloadOpinion( channelId, blockHash );
-        }
-        else
+        } else
         {
             _LOG_ERR( "channelId not found" );
         }
@@ -1093,36 +1112,37 @@ public:
     {
         DBG_MAIN_THREAD
 
-        auto it = m_dnChannelMap.find( downloadChannel.array() );
-        _ASSERT( it != m_dnChannelMap.end() );
+        auto it = m_dnChannelMap.find( downloadChannel.array());
+        _ASSERT( it != m_dnChannelMap.end());
 
-        auto eventIt = it->second.m_downloadOpinionMap.find( eventHash.array() );
-        _ASSERT( eventIt !=  it->second.m_downloadOpinionMap.end() )
+        auto eventIt = it->second.m_downloadOpinionMap.find( eventHash.array());
+        _ASSERT( eventIt != it->second.m_downloadOpinionMap.end())
 
-        auto myOpinion = eventIt->second.m_opinions.find(publicKey());
-        _ASSERT( myOpinion != eventIt->second.m_opinions.end() );
+        auto myOpinion = eventIt->second.m_opinions.find( publicKey());
+        _ASSERT( myOpinion != eventIt->second.m_opinions.end());
 
-        DownloadApprovalTransactionInfo opinionToShare = { eventHash.array(), downloadChannel.array(), { myOpinion->second } };
+        DownloadApprovalTransactionInfo opinionToShare = {eventHash.array(), downloadChannel.array(),
+                                                          {myOpinion->second}};
 
         // send opinion to other Replicators
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
         archive( opinionToShare );
 
-        for( const auto& replicatorIt : it->second.m_dnReplicatorShard )
+        for ( const auto& replicatorIt : it->second.m_dnReplicatorShard )
         {
-            if ( replicatorIt != publicKey() )
+            if ( replicatorIt != publicKey())
             {
                 //_LOG( "replicatorIt.m_endpoint: " << replicatorIt.m_endpoint << " " << os.str().length() << " " << dbgReplicatorName() );
-                sendMessage( "dn_opinion", replicatorIt.array(), os.str() );
+                sendMessage( "dn_opinion", replicatorIt.array(), os.str());
             }
         }
 
         // Repeat opinion sharing
-        eventIt->second.m_opinionShareTimer = m_session->startTimer(m_shareMyDownloadOpinionTimerDelayMs, [=, this]
+        eventIt->second.m_opinionShareTimer = m_session->startTimer( m_shareMyDownloadOpinionTimerDelayMs, [=, this]
         {
-            shareDownloadOpinion(downloadChannel, eventHash);
-        });
+            shareDownloadOpinion( downloadChannel, eventHash );
+        } );
     };
 
     // It is called when drive is closing
@@ -1131,22 +1151,23 @@ public:
         DBG_MAIN_THREAD
 
         _ASSERT( blockHash )
-        for( auto& [channelId,channelInfo] : m_dnChannelMap )
+        for ( auto&[channelId, channelInfo] : m_dnChannelMap )
         {
-            if ( channelInfo.m_driveKey == driveKey.array() )
+            if ( channelInfo.m_driveKey == driveKey.array())
             {
                 doInitiateDownloadApprovalTransactionInfo( *blockHash, channelId );
             }
         }
 
-        deleteDrive( driveKey.array() );
+        deleteDrive( driveKey.array());
     }
 
     void asyncDownloadApprovalTransactionHasFailedInvalidOpinions( Hash256 eventHash, Hash256 channelId ) override
     {
         _FUNC_ENTRY()
-       
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
 
             DBG_MAIN_THREAD
 
@@ -1155,7 +1176,7 @@ public:
                 return;
             }
 
-            if ( auto channelIt = m_dnChannelMap.find( channelId.array() ); channelIt != m_dnChannelMap.end())
+            if ( auto channelIt = m_dnChannelMap.find( channelId.array()); channelIt != m_dnChannelMap.end())
             {
                 if ( channelIt->second.m_isClosed )
                 {
@@ -1163,7 +1184,7 @@ public:
                 }
 
                 auto& opinions = channelIt->second.m_downloadOpinionMap;
-                if ( auto opinionInfoIt = opinions.find( eventHash.array() ); opinionInfoIt != opinions.end() )
+                if ( auto opinionInfoIt = opinions.find( eventHash.array()); opinionInfoIt != opinions.end())
                 {
                     auto& opinionInfo = opinionInfoIt->second;
                     if ( opinionInfo.m_approveTransactionReceived )
@@ -1176,34 +1197,35 @@ public:
                     }
                     auto receivedOpinions = opinionInfo.m_opinions;
                     opinionInfo.m_opinions.clear();
-                    opinionInfo.m_modifyApproveTransactionSent=false;
-                    for (const auto& [key, opinion]: receivedOpinions)
+                    opinionInfo.m_modifyApproveTransactionSent = false;
+                    for ( const auto&[key, opinion]: receivedOpinions )
                     {
-                        processDownloadOpinion(DownloadApprovalTransactionInfo
-                        {
-                            opinionInfo.m_eventHash,
-                            opinionInfo.m_downloadChannelId,
-                            {opinion}
-                        });
+                        processDownloadOpinion( DownloadApprovalTransactionInfo
+                                                        {
+                                                                opinionInfo.m_eventHash,
+                                                                opinionInfo.m_downloadChannelId,
+                                                                {opinion}
+                                                        } );
                     }
-                }
-                else
+                } else
                 {
                     _LOG_ERR( "eventHash not found" );
                 }
-            }
-            else {
+            } else
+            {
                 _LOG_ERR( "channelId not found" );
             }
-        });//post
+        } );//post
     }
-    
-    virtual void asyncDownloadApprovalTransactionHasBeenPublished( Hash256 eventHash, Hash256 channelId, bool channelMustBeClosed ) override
+
+    virtual void asyncDownloadApprovalTransactionHasBeenPublished( Hash256 eventHash, Hash256 channelId,
+                                                                   bool channelMustBeClosed ) override
     {
         _FUNC_ENTRY()
-        
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-        
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+
             DBG_MAIN_THREAD
 
             if ( m_replicatorIsDestructing )
@@ -1212,54 +1234,54 @@ public:
             }
 
             // clear opinion map
-            if ( auto channelIt = m_dnChannelMap.find( channelId.array() ); channelIt != m_dnChannelMap.end())
+            if ( auto channelIt = m_dnChannelMap.find( channelId.array()); channelIt != m_dnChannelMap.end())
             {
                 auto& opinions = channelIt->second.m_downloadOpinionMap;
                 if ( channelMustBeClosed )
                 {
                     m_dnChannelMap.erase( channelIt );
                     return;
-                }
-                else if ( auto it = opinions.find( eventHash.array() ); it != opinions.end() )
+                } else if ( auto it = opinions.find( eventHash.array()); it != opinions.end())
                 {
                     // TODO maybe remove the entry?
                     it->second.m_timer.cancel();
                     it->second.m_opinionShareTimer.cancel();
                     it->second.m_approveTransactionReceived = true;
                 }
-            }
-            else
+            } else
             {
                 _LOG_ERR( "channelId not found" );
             }
-        });//post
+        } );//post
     }
 
-    void deleteDrive( const std::array<uint8_t,32>& driveKey )
+    void deleteDrive( const std::array<uint8_t, 32>& driveKey )
     {
         DBG_MAIN_THREAD
 
-        std::erase_if( m_modifyDriveMap, [&driveKey] (const auto& item) {
+        std::erase_if( m_modifyDriveMap, [&driveKey]( const auto& item )
+        {
             return item.second.m_driveKey == driveKey;
-        });
+        } );
     }
 
-    void finishDriveClosure ( const Key& driveKey ) override
+    void finishDriveClosure( const Key& driveKey ) override
     {
         DBG_MAIN_THREAD
 
-		auto it = m_driveMap.find( driveKey );
+        auto it = m_driveMap.find( driveKey );
 
-        _ASSERT( it != m_driveMap.end() )
+        _ASSERT( it != m_driveMap.end())
 
         m_driveMap.erase( it );
     }
-    
+
     virtual void asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) override
     {
         _FUNC_ENTRY()
-        
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
 
             DBG_MAIN_THREAD
 
@@ -1271,29 +1293,30 @@ public:
             if ( auto drive = getDrive( anOpinion.m_driveKey ); drive )
             {
                 drive->onOpinionReceived( anOpinion );
-            }
-            else
+            } else
             {
                 _LOG_ERR( "drive not found" );
             }
-        });
+        } );
     }
 
 
     void processOpinion( const ApprovalTransactionInfo& anOpinion ) override
     {
         DBG_MAIN_THREAD
-        
-        m_eventHandler.opinionHasBeenReceived(*this, anOpinion);
+
+        m_eventHandler.opinionHasBeenReceived( *this, anOpinion );
     }
-    
-    virtual void asyncApprovalTransactionHasBeenPublished( mobj<PublishedModificationApprovalTransactionInfo>&& transaction ) override
+
+    virtual void asyncApprovalTransactionHasBeenPublished(
+            mobj<PublishedModificationApprovalTransactionInfo>&& transaction ) override
     {
         _FUNC_ENTRY()
-        
-        _LOG( "asyncApprovalTransactionHasBeenPublished, m_rootHash:" << Key(transaction->m_rootHash) )
-        
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+
+        _LOG( "asyncApprovalTransactionHasBeenPublished, m_rootHash:" << Key( transaction->m_rootHash ))
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
 
             DBG_MAIN_THREAD
 
@@ -1306,25 +1329,25 @@ public:
             {
                 //(???) remove replicator list from arguments
                 addModifyTrafficInfo( transaction->m_modifyTransactionHash,
-                                    transaction->m_driveKey,
-                                    LONG_LONG_MAX,
-                                    drive->driveOwner(),
-                                    drive->getAllReplicators());
+                                      transaction->m_driveKey,
+                                      LONG_LONG_MAX,
+                                      drive->driveOwner(),
+                                      drive->getAllReplicators());
 
                 drive->onApprovalTransactionHasBeenPublished( *transaction );
-            }
-            else
+            } else
             {
                 _LOG_ERR( "drive not found" );
             }
-        });//post
+        } );//post
     }
 
-    void asyncApprovalTransactionHasFailedInvalidOpinions(Key driveKey, Hash256 transactionHash) override
+    void asyncApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 transactionHash ) override
     {
         _FUNC_ENTRY()
-        
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
 
             DBG_MAIN_THREAD
 
@@ -1336,20 +1359,21 @@ public:
             if ( auto drive = getDrive( driveKey ); drive )
             {
                 drive->onApprovalTransactionHasFailedInvalidOpinions( transactionHash );
-            }
-            else
+            } else
             {
                 _LOG_ERR( "drive not found" );
             }
-        });//post
+        } );//post
     }
-    
-    virtual void asyncSingleApprovalTransactionHasBeenPublished( mobj<PublishedModificationSingleApprovalTransactionInfo>&& transaction ) override
+
+    virtual void asyncSingleApprovalTransactionHasBeenPublished(
+            mobj<PublishedModificationSingleApprovalTransactionInfo>&& transaction ) override
     {
         _FUNC_ENTRY()
-       
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
-        
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+
             DBG_MAIN_THREAD
 
             if ( m_replicatorIsDestructing )
@@ -1360,19 +1384,20 @@ public:
             if ( auto drive = getDrive( transaction->m_driveKey ); drive )
             {
                 drive->onSingleApprovalTransactionHasBeenPublished( *transaction );
-            }
-            else
+            } else
             {
                 _LOG_ERR( "drive not found" );
             }
-        });//post
+        } );//post
     }
 
-    virtual void asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) override
+    virtual void
+    asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) override
     {
         _FUNC_ENTRY()
-        
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
 
             DBG_MAIN_THREAD
 
@@ -1384,20 +1409,19 @@ public:
             if ( auto drive = getDrive( info.m_driveKey ); drive )
             {
                 drive->onVerifyApprovalTransactionHasBeenPublished( info );
-            }
-            else
+            } else
             {
                 _LOG_ERR( "drive not found" );
             }
-        });//post
+        } );//post
     }
 
     void asyncVerifyApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 verificationId ) override
     {}
 
-    virtual void sendMessage( const std::string&        query,
-                              const ReplicatorKey&      replicatorKey,
-                              const std::string&        message ) override
+    virtual void sendMessage( const std::string& query,
+                              const ReplicatorKey& replicatorKey,
+                              const std::string& message ) override
     {
         DBG_MAIN_THREAD
 
@@ -1409,18 +1433,17 @@ public:
         auto endpointTo = m_endpointsManager.getEndpoint( replicatorKey );
         if ( endpointTo )
         {
-            m_session->sendMessage( query, { endpointTo->address(), endpointTo->port() }, message );
-            _LOG( "sendMessage '" << query << "' to " << int(replicatorKey[0]) );
-        }
-        else
+            m_session->sendMessage( query, {endpointTo->address(), endpointTo->port()}, message );
+            _LOG( "sendMessage '" << query << "' to " << int( replicatorKey[0] ));
+        } else
         {
-            _LOG( "WARN!!! Failed to send '" << query << "' to " << int(replicatorKey[0]) );
+            _LOG( "WARN!!! Failed to send '" << query << "' to " << int( replicatorKey[0] ));
         }
     }
 
-    virtual void sendMessage( const std::string&           query,
-                              const ReplicatorKey&         replicatorKey,
-                              const std::vector<uint8_t>&  message ) override
+    virtual void sendMessage( const std::string& query,
+                              const ReplicatorKey& replicatorKey,
+                              const std::vector<uint8_t>& message ) override
     {
         DBG_MAIN_THREAD
 
@@ -1433,17 +1456,16 @@ public:
         if ( endpointTo )
         {
             //__LOG( "*** sendMessage: " << query << " to: " << *endpointTo << " " << int(replicatorKey[0]) );
-            m_session->sendMessage( query, { endpointTo->address(), endpointTo->port() }, message );
-        }
-        else
+            m_session->sendMessage( query, {endpointTo->address(), endpointTo->port()}, message );
+        } else
         {
-            __LOG( "sendMessage: absent endpoint: " << int(replicatorKey[0]) );
+            __LOG( "sendMessage: absent endpoint: " << int( replicatorKey[0] ));
         }
     }
 
-    virtual void sendSignedMessage( const std::string&           query,
-                                    const ReplicatorKey&         replicatorKey,
-                                    const std::vector<uint8_t>&  message ) override
+    virtual void sendSignedMessage( const std::string& query,
+                                    const ReplicatorKey& replicatorKey,
+                                    const std::vector<uint8_t>& message ) override
     {
         DBG_MAIN_THREAD
 
@@ -1456,13 +1478,12 @@ public:
         if ( endpointTo )
         {
             Signature signature;
-            crypto::Sign( m_keyPair, { utils::RawBuffer{ message } }, signature);
+            crypto::Sign( m_keyPair, {utils::RawBuffer{message}}, signature );
 
-            m_session->sendMessage( query, { endpointTo->address(), endpointTo->port() }, message, &signature );
-        }
-        else
+            m_session->sendMessage( query, {endpointTo->address(), endpointTo->port()}, message, &signature );
+        } else
         {
-            __LOG( "sendMessage: absent endpoint: " << int(replicatorKey[0]) );
+            __LOG( "sendMessage: absent endpoint: " << int( replicatorKey[0] ));
         }
     }
 
@@ -1470,141 +1491,143 @@ public:
                                     const std::string& message,
                                     const boost::asio::ip::udp::endpoint& source ) override
     {
-        try {
-
-        DBG_MAIN_THREAD
-
-        //_LOG( "query: " << query )
-            
-        if ( query == "opinion" )
+        try
         {
-            try
+
+            DBG_MAIN_THREAD
+
+            //_LOG( "query: " << query )
+
+            if ( query == "opinion" )
             {
-                std::istringstream is( message, std::ios::binary );
-                cereal::PortableBinaryInputArchive iarchive(is);
-                ApprovalTransactionInfo info;
-                iarchive( info );
-
-                processOpinion(info);
-            }
-            catch(...) {}
-
-            return;
-        }
-        else if ( query == "dn_opinion" )
-        {
-            try
-            {
-                std::istringstream is( message, std::ios::binary );
-                cereal::PortableBinaryInputArchive iarchive(is);
-                DownloadApprovalTransactionInfo info;
-                iarchive( info );
-                processDownloadOpinion(info);
-            }
-            catch(...){ _LOG_WARN( "execption occured" ) }
-
-            return;
-        }
-        else if ( query == "code_verify" )
-        {
-            try
-            {
-                std::istringstream is( message, std::ios::binary );
-                cereal::PortableBinaryInputArchive iarchive(is);
-
-                mobj<VerificationCodeInfo> info{VerificationCodeInfo{}};
-                iarchive( *info );
-                processVerificationCode( std::move(info) );
-            }
-            catch(...){ _LOG_WARN( "execption occured" ) }
-
-            return;
-        }
-
-        else if ( query == "verify_opinion" )
-        {
-            try
-            {
-                std::istringstream is( message, std::ios::binary );
-                cereal::PortableBinaryInputArchive iarchive(is);
-                
-                mobj<VerifyApprovalTxInfo> info{VerifyApprovalTxInfo{}};
-                iarchive( *info );
-                processVerificationOpinion( std::move(info) );
-            }
-            catch(...){ _LOG_WARN( "execption occured" ) }
-
-            return;
-        }
-        else if ( query == "handshake" )
-        {
-            try
-            {
-                std::istringstream is( message, std::ios::binary );
-                cereal::PortableBinaryInputArchive iarchive(is);
-                DhtHandshake handshake;
-                iarchive( handshake );
-
-                processHandshake( handshake, {source.address(), source.port()} );
-            }
-            catch(...){ _LOG_WARN( "execption occured" ) }
-
-            return;
-        }
-        else if ( query == "endpoint_request" ) {
-            try
-            {
-                std::istringstream is( message, std::ios::binary );
-                cereal::PortableBinaryInputArchive iarchive(is);
-                ExternalEndpointRequest request;
-                iarchive( request );
-
-                processEndpointRequest(request, {source.address(), source.port()});
-            }
-            catch(...){ _LOG_WARN( "execption occured" ) }
-
-            return;
-        }
-        else if ( query == "endpoint_response" ) {
-            try
-            {
-                std::istringstream is( message, std::ios::binary );
-                cereal::PortableBinaryInputArchive iarchive(is);
-                ExternalEndpointResponse response;
-                iarchive( response );
-
-                m_endpointsManager.updateExternalEndpoint(response);
-            }
-            catch(...){ _LOG_WARN( "execption occured" ) }
-
-            return;
-        }
-        else if ( query == "chunk-info" )
-        {
-            try
-            {
-                std::istringstream is( message, std::ios::binary );
-                cereal::PortableBinaryInputArchive iarchive(is);
-                std::array<uint8_t,32> driveKey;
-                iarchive( driveKey );
-                
-                if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+                try
                 {
-                    mobj<ChunkInfo> chunkInfo{ChunkInfo{}};
-                    iarchive( *chunkInfo );
-                    _ASSERT( chunkInfo )
-                    
-                    driveIt->second->acceptChunkInfoMessage( std::move(chunkInfo), source );
-                }
-                else
-                {
-                    _LOG_WARN( "Unknown drive: " << Key(driveKey) )
-                }
-            }
-            catch(...){ _LOG_WARN( "execption occured" ) }
+                    std::istringstream is( message, std::ios::binary );
+                    cereal::PortableBinaryInputArchive iarchive( is );
+                    ApprovalTransactionInfo info;
+                    iarchive( info );
 
-            return;
-        }
+                    processOpinion( info );
+                }
+                catch ( ... )
+                {}
+
+                return;
+            } else if ( query == "dn_opinion" )
+            {
+                try
+                {
+                    std::istringstream is( message, std::ios::binary );
+                    cereal::PortableBinaryInputArchive iarchive( is );
+                    DownloadApprovalTransactionInfo info;
+                    iarchive( info );
+                    processDownloadOpinion( info );
+                }
+                catch ( ... )
+                {_LOG_WARN( "execption occured" )}
+
+                return;
+            } else if ( query == "code_verify" )
+            {
+                try
+                {
+                    std::istringstream is( message, std::ios::binary );
+                    cereal::PortableBinaryInputArchive iarchive( is );
+
+                    mobj<VerificationCodeInfo> info{VerificationCodeInfo{}};
+                    iarchive( *info );
+                    processVerificationCode( std::move( info ));
+                }
+                catch ( ... )
+                {_LOG_WARN( "execption occured" )}
+
+                return;
+            } else if ( query == "verify_opinion" )
+            {
+                try
+                {
+                    std::istringstream is( message, std::ios::binary );
+                    cereal::PortableBinaryInputArchive iarchive( is );
+
+                    mobj<VerifyApprovalTxInfo> info{VerifyApprovalTxInfo{}};
+                    iarchive( *info );
+                    processVerificationOpinion( std::move( info ));
+                }
+                catch ( ... )
+                {_LOG_WARN( "execption occured" )}
+
+                return;
+            } else if ( query == "handshake" )
+            {
+                try
+                {
+                    std::istringstream is( message, std::ios::binary );
+                    cereal::PortableBinaryInputArchive iarchive( is );
+                    DhtHandshake handshake;
+                    iarchive( handshake );
+
+                    processHandshake( handshake, {source.address(), source.port()} );
+                }
+                catch ( ... )
+                {_LOG_WARN( "execption occured" )}
+
+                return;
+            } else if ( query == "endpoint_request" )
+            {
+                try
+                {
+                    std::istringstream is( message, std::ios::binary );
+                    cereal::PortableBinaryInputArchive iarchive( is );
+                    ExternalEndpointRequest request;
+                    iarchive( request );
+
+                    processEndpointRequest( request, {source.address(), source.port()} );
+                }
+                catch ( ... )
+                {_LOG_WARN( "execption occured" )}
+
+                return;
+            } else if ( query == "endpoint_response" )
+            {
+                try
+                {
+                    std::istringstream is( message, std::ios::binary );
+                    cereal::PortableBinaryInputArchive iarchive( is );
+                    ExternalEndpointResponse response;
+                    iarchive( response );
+
+                    m_endpointsManager.updateExternalEndpoint( response );
+                }
+                catch ( ... )
+                {_LOG_WARN( "execption occured" )}
+
+                return;
+            } else if ( query == "chunk-info" )
+            {
+                try
+                {
+                    std::istringstream is( message, std::ios::binary );
+                    cereal::PortableBinaryInputArchive iarchive( is );
+                    std::array<uint8_t, 32> driveKey;
+                    iarchive( driveKey );
+
+                    if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end())
+                    {
+                        mobj<ChunkInfo> chunkInfo{ChunkInfo{}};
+                        iarchive( *chunkInfo );
+                        _ASSERT( chunkInfo )
+
+                        driveIt->second->acceptChunkInfoMessage( std::move( chunkInfo ), source );
+                    } else
+                    {
+                        _LOG_WARN( "Unknown drive: " << Key( driveKey ))
+                    }
+                }
+                catch ( ... )
+                {_LOG_WARN( "execption occured" )}
+
+                return;
+            }
 //        else if ( query == "finish-stream" )
 //        {
 //            try
@@ -1634,9 +1657,9 @@ public:
 //            return;
 //        }
 
-        _LOG_WARN( "Unknown query: " << query );
+            _LOG_WARN( "Unknown query: " << query );
 
-        } catch(...)
+        } catch ( ... )
         {
             _LOG_ERR( "onMessageReceived: invalid message format: query=" << query );
         }
@@ -1646,8 +1669,8 @@ public:
     {
         try
         {
-            std::istringstream is( std::string( response.begin(), response.end() ), std::ios::binary );
-            cereal::PortableBinaryInputArchive iarchive(is);
+            std::istringstream is( std::string( response.begin(), response.end()), std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive( is );
 
             ReplicatorKey otherReplicatorKey;
             ChannelId channelId;
@@ -1657,14 +1680,15 @@ public:
             // Verify sign
             //
             Signature signature;
-            if ( sign.size() != signature.size() )
+            if ( sign.size() != signature.size())
             {
                 __LOG_WARN( "invalid sin size of 'get_dn_rcpts' response" )
                 return;
             }
-            memcpy( signature.data(), sign.data(), signature.size() );
+            memcpy( signature.data(), sign.data(), signature.size());
 
-            if ( ! crypto::Verify( otherReplicatorKey, {utils::RawBuffer{ (const uint8_t*)response.begin(), response.size() }}, signature) )
+            if ( !crypto::Verify( otherReplicatorKey,
+                                  {utils::RawBuffer{(const uint8_t*) response.begin(), response.size()}}, signature ))
             {
                 _LOG_WARN( "invalid sign of 'get_dn_rcpts' response" )
                 return;
@@ -1674,25 +1698,27 @@ public:
 
             // parse and accept receipts
             //
-            for(;;)
+            for ( ;; )
             {
                 RcptMessage msg;
-                try {
+                try
+                {
                     iarchive( msg );
-                } catch (...) {
+                } catch ( ... )
+                {
                     return;
                 }
 
-                if ( ! msg.isValidSize() )
+                if ( !msg.isValidSize())
                 {
                     _LOG_WARN( "invalid rcpt size" )
                     return;
                 }
-                
+
                 acceptReceiptFromAnotherReplicator( msg );
             }
         }
-        catch(...)
+        catch ( ... )
         {
             _LOG_WARN( "invalid 'get_dn_rcpts' response" )
             return;
@@ -1702,20 +1728,20 @@ public:
     void processVerificationCode( mobj<VerificationCodeInfo>&& info )
     {
         DBG_MAIN_THREAD
-        
-        if ( !info->Verify() )
+
+        if ( !info->Verify())
         {
-            _LOG_WARN("processVerificationCode: bad sign: " << Hash256(info->m_tx) )
+            _LOG_WARN( "processVerificationCode: bad sign: " << Hash256( info->m_tx ))
             return;
         }
 
-        if ( auto driveIt = m_driveMap.find( info->m_driveKey ); driveIt != m_driveMap.end() )
+        if ( auto driveIt = m_driveMap.find( info->m_driveKey ); driveIt != m_driveMap.end())
         {
-            driveIt->second->onVerificationCodeReceived( std::move(info) );
+            driveIt->second->onVerificationCodeReceived( std::move( info ));
             return;
         }
 
-        _LOG_WARN( "processVerificationCode: unknown drive: " << Key(info->m_driveKey) );
+        _LOG_WARN( "processVerificationCode: unknown drive: " << Key( info->m_driveKey ));
     }
 
     void processVerificationOpinion( mobj<VerifyApprovalTxInfo>&& info )
@@ -1724,56 +1750,56 @@ public:
 
         if ( info->m_opinions.size() != 1 )
         {
-            _LOG_WARN("processVerificationOpinion: invalid opinion size: " << info->m_opinions.size() )
+            _LOG_WARN( "processVerificationOpinion: invalid opinion size: " << info->m_opinions.size())
             return;
         }
 
-        if ( !info->m_opinions[0].Verify( info->m_tx, info->m_driveKey, info->m_shardId ) )
+        if ( !info->m_opinions[0].Verify( info->m_tx, info->m_driveKey, info->m_shardId ))
         {
-            _LOG_WARN("processVerificationOpinion: bad sign: " << Key(info->m_opinions[0].m_publicKey) )
+            _LOG_WARN( "processVerificationOpinion: bad sign: " << Key( info->m_opinions[0].m_publicKey ))
             return;
         }
 
-        if ( auto driveIt = m_driveMap.find( info->m_driveKey ); driveIt != m_driveMap.end() )
+        if ( auto driveIt = m_driveMap.find( info->m_driveKey ); driveIt != m_driveMap.end())
         {
-            driveIt->second->onVerificationOpinionReceived( std::move(info) );
+            driveIt->second->onVerificationOpinionReceived( std::move( info ));
             return;
         }
 
-        _LOG_WARN( "processVerificationCode: unknown drive: " << Key(info->m_driveKey) );
+        _LOG_WARN( "processVerificationCode: unknown drive: " << Key( info->m_driveKey ));
     }
 
-    void        setDownloadApprovalTransactionTimerDelay( int miliseconds ) override
+    void setDownloadApprovalTransactionTimerDelay( int miliseconds ) override
     {
         m_downloadApprovalTransactionTimerDelayMs = miliseconds;
     }
 
-    void        setModifyApprovalTransactionTimerDelay( int miliseconds ) override
+    void setModifyApprovalTransactionTimerDelay( int miliseconds ) override
     {
         m_modifyApprovalTransactionTimerDelayMs = miliseconds;
     }
-    
-    int         getModifyApprovalTransactionTimerDelay() override
+
+    int getModifyApprovalTransactionTimerDelay() override
     {
         return m_modifyApprovalTransactionTimerDelayMs;
     }
 
-    void        setVerifyCodeTimerDelay( int miliseconds ) override
+    void setVerifyCodeTimerDelay( int miliseconds ) override
     {
         m_verifyCodeTimerDelayMs = miliseconds;
     }
 
-    int         getVerifyCodeTimerDelay() override
+    int getVerifyCodeTimerDelay() override
     {
         return m_verifyCodeTimerDelayMs;
     }
 
-    void        setVerifyApprovalTransactionTimerDelay( int milliseconds ) override
+    void setVerifyApprovalTransactionTimerDelay( int milliseconds ) override
     {
         m_verifyApprovalTransactionTimerDelayMs = milliseconds;
     }
 
-    int         getVerifyApprovalTransactionTimerDelay() override
+    int getVerifyApprovalTransactionTimerDelay() override
     {
         return m_verifyApprovalTransactionTimerDelayMs;
     }
@@ -1788,27 +1814,31 @@ public:
         return m_verificationShareTimerDelay;
     }
 
-    void setMinReplicatorsNumber( uint64_t number ) override {
+    void setMinReplicatorsNumber( uint64_t number ) override
+    {
         m_minReplicatorsNumber = number;
     }
 
-    uint64_t getMinReplicatorsNumber() override {
+    uint64_t getMinReplicatorsNumber() override
+    {
         return m_minReplicatorsNumber;
     }
 
-    void        setSessionSettings(const lt::settings_pack& settings, bool localNodes) override
+    void setSessionSettings( const lt::settings_pack& settings, bool localNodes ) override
     {
-        m_session->lt_session().apply_settings(settings);
-        if (localNodes) {
+        m_session->lt_session().apply_settings( settings );
+        if ( localNodes )
+        {
             std::uint32_t const mask = 1 << lt::session::global_peer_class_id;
             lt::ip_filter f;
-            f.add_rule(lt::make_address("0.0.0.0"), lt::make_address("255.255.255.255"), mask);
-            m_session->lt_session().set_peer_class_filter(f);
+            f.add_rule( lt::make_address( "0.0.0.0" ), lt::make_address( "255.255.255.255" ), mask );
+            m_session->lt_session().set_peer_class_filter( f );
         }
     }
 
-    std::string dbgReplicatorName() const override { return m_dbgOurPeerName.c_str(); }
-    
+    std::string dbgReplicatorName() const override
+    { return m_dbgOurPeerName.c_str(); }
+
 //    virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) override
 //    {
 //        if ( auto it = m_driveMap.find(driveKey); it != m_driveMap.end() )
@@ -1817,21 +1847,21 @@ public:
 //        }
 //        assert(0);
 //    }
-    
+
     void saveDownloadChannelMap()
     {
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
         archive( m_dnChannelMap );
 
-        saveRestartData( (fs::path(m_storageDirectory) / "downloadChannelMap").string(), os.str() );
+        saveRestartData((fs::path( m_storageDirectory ) / "downloadChannelMap").string(), os.str());
     }
-    
+
     bool loadDownloadChannelMap()
     {
         std::string data;
-        
-        if ( !loadRestartData( (fs::path(m_storageDirectory) / "downloadChannelMap").string(), data ) )
+
+        if ( !loadRestartData((fs::path( m_storageDirectory ) / "downloadChannelMap").string(), data ))
         {
             return false;
         }
@@ -1839,21 +1869,21 @@ public:
         try
         {
             std::istringstream is( data, std::ios::binary );
-            cereal::PortableBinaryInputArchive iarchive(is);
+            cereal::PortableBinaryInputArchive iarchive( is );
             iarchive( m_dnChannelMapBackup );
         }
-        catch(...)
+        catch ( ... )
         {
             return false;
         }
-        
+
         try
         {
             std::istringstream is( data, std::ios::binary );
-            cereal::PortableBinaryInputArchive iarchive(is);
+            cereal::PortableBinaryInputArchive iarchive( is );
             iarchive( m_dnChannelMapBackup );
         }
-        catch(...)
+        catch ( ... )
         {
             return false;
         }
@@ -1861,12 +1891,12 @@ public:
         return true;
     }
 
-    virtual bool on_dht_request( lt::string_view                         query,
-                                 boost::asio::ip::udp::endpoint const&   source,
-                                 lt::bdecode_node const&                 message,
-                                 lt::entry&                              response ) override
+    virtual bool on_dht_request( lt::string_view query,
+                                 boost::asio::ip::udp::endpoint const& source,
+                                 lt::bdecode_node const& message,
+                                 lt::entry& response ) override
     {
-        if ( isStopped() )
+        if ( isStopped())
         {
             return false;
         }
@@ -1875,50 +1905,49 @@ public:
 //            _LOG( "response: " << response );
 
         const std::set<lt::string_view> supportedQueries =
-                { "opinion", "dn_opinion", "code_verify", "verify_opinion", "handshake", "endpoint_request", "endpoint_response",
-                    "chunk-info" //, "finish-stream"
+                {"opinion", "dn_opinion", "code_verify", "verify_opinion", "handshake", "endpoint_request",
+                 "endpoint_response",
+                 "chunk-info" //, "finish-stream"
                 };
-        if ( supportedQueries.contains(query) )
+        if ( supportedQueries.contains( query ))
         {
-            auto str = message.dict_find_string_value("x");
-            std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
+            auto str = message.dict_find_string_value( "x" );
+            std::string packet((char*) str.data(), (char*) str.data() + str.size());
 
-            onMessageReceived( std::string(query.begin(),query.end()), packet, source );
+            onMessageReceived( std::string( query.begin(), query.end()), packet, source );
 
-            response["r"]["q"] = std::string(query);
+            response["r"]["q"] = std::string( query );
             response["r"]["ret"] = "ok";
             return true;
-        }
-        
-        else if ( query == "get_dn_rcpts" )
+        } else if ( query == "get_dn_rcpts" )
         {
             // extract signature
-            auto sign = message.dict_find_string_value("sign");
+            auto sign = message.dict_find_string_value( "sign" );
             Signature signature;
-            if ( sign.size() != signature.size() )
+            if ( sign.size() != signature.size())
             {
                 __LOG_WARN( "invalid query 'get_dn_rcpts'" )
                 return true;
             }
-            memcpy( signature.data(), sign.data(), signature.size() );
+            memcpy( signature.data(), sign.data(), signature.size());
 
             // extract message
-            auto str = message.dict_find_string_value("x");
+            auto str = message.dict_find_string_value( "x" );
 
             // extract request fields
             //
             ReplicatorKey senderKey;
-            DriveKey      driveKey;
-            ChannelId     channelId;
+            DriveKey driveKey;
+            ChannelId channelId;
 
-            uint8_t* ptr = (uint8_t*)str.data();
-            memcpy( senderKey.data(), ptr, senderKey.size() );
+            uint8_t* ptr = (uint8_t*) str.data();
+            memcpy( senderKey.data(), ptr, senderKey.size());
             ptr += senderKey.size();
-            memcpy( driveKey.data(), ptr, driveKey.size() );
+            memcpy( driveKey.data(), ptr, driveKey.size());
             ptr += driveKey.size();
-            memcpy( channelId.data(), ptr, channelId.size() );
+            memcpy( channelId.data(), ptr, channelId.size());
 
-            if ( ! crypto::Verify( senderKey, { utils::RawBuffer{(const uint8_t*) str.data(), str.size()} }, signature ) )
+            if ( !crypto::Verify( senderKey, {utils::RawBuffer{(const uint8_t*) str.data(), str.size()}}, signature ))
             {
                 __LOG_WARN( "invalid signature of 'get_dn_rcpts'" )
                 return true;
@@ -1927,153 +1956,148 @@ public:
 
             std::ostringstream os( std::ios::binary );
             Signature responseSignature;
-            if ( createSyncRcpts( driveKey, channelId, os, responseSignature ) )
+            if ( createSyncRcpts( driveKey, channelId, os, responseSignature ))
             {
                 //_LOG( "response[r][q]: " << query );
-                response["r"]["q"] = std::string(query);
+                response["r"]["q"] = std::string( query );
                 response["r"]["ret"] = os.str();
-                response["r"]["sign"] = std::string( responseSignature.begin(), responseSignature.end() );
+                response["r"]["sign"] = std::string( responseSignature.begin(), responseSignature.end());
             }
             return true;
-        }
-            
-        else if ( query == "rcpt" )
+        } else if ( query == "rcpt" )
         {
-            auto str = message.dict_find_string_value("x");
+            auto str = message.dict_find_string_value( "x" );
 
-            RcptMessage msg( str.data(), str.size() );
-            
-            if ( ! msg.isValidSize() )
+            RcptMessage msg( str.data(), str.size());
+
+            if ( !msg.isValidSize())
             {
                 __LOG( "WARNING!!!: invalid rcpt size" )
                 return false;
             }
-            
+
             acceptReceiptFromAnotherReplicator( msg );
 
-            response["r"]["q"] = std::string(query);
+            response["r"]["q"] = std::string( query );
             response["r"]["ret"] = "ok";
             return true;
-        }
-        
-        else if ( query == "get-chunks-info" ) // message from 'viewer'
+        } else if ( query == "get-chunks-info" ) // message from 'viewer'
         {
             try
             {
                 //std::string message( query.begin(), query.end() );
-                auto str = message.dict_find_string_value("x");
-                std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
+                auto str = message.dict_find_string_value( "x" );
+                std::string packet((char*) str.data(), (char*) str.data() + str.size());
 
                 std::istringstream is( packet, std::ios::binary );
-                cereal::PortableBinaryInputArchive iarchive(is);
-                std::array<uint8_t,32> driveKey;
+                cereal::PortableBinaryInputArchive iarchive( is );
+                std::array<uint8_t, 32> driveKey;
                 iarchive( driveKey );
 
-                if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+                if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end())
                 {
-                    std::array<uint8_t,32> streamId;
+                    std::array<uint8_t, 32> streamId;
                     iarchive( streamId );
                     uint32_t chunkIndex;
                     iarchive( chunkIndex );
 
                     std::string result = driveIt->second->acceptGetChunksInfoMessage( streamId, chunkIndex, source );
-                    if ( ! result.empty() )
+                    if ( !result.empty())
                     {
-                        response["r"]["q"] = std::string(query);
+                        response["r"]["q"] = std::string( query );
                         response["r"]["ret"] = result;
                     }
                     return true;
-                }
-                else
+                } else
                 {
-                    _LOG_WARN( "Unknown drive: " << Key(driveKey) )
+                    _LOG_WARN( "Unknown drive: " << Key( driveKey ))
                 }
             }
-            catch(...){ _LOG_WARN( "execption occured" ) }
+            catch ( ... )
+            {_LOG_WARN( "execption occured" )}
 
             return true;
-        }
-
-        else if ( query == "get-playlist-hash" ) // message from 'viewer'
+        } else if ( query == "get-playlist-hash" ) // message from 'viewer'
         {
             try
             {
                 //std::string message( query.begin(), query.end() );
-                auto str = message.dict_find_string_value("x");
-                std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
+                auto str = message.dict_find_string_value( "x" );
+                std::string packet((char*) str.data(), (char*) str.data() + str.size());
 
                 std::istringstream is( packet, std::ios::binary );
-                cereal::PortableBinaryInputArchive iarchive(is);
-                std::array<uint8_t,32> driveKey;
+                cereal::PortableBinaryInputArchive iarchive( is );
+                std::array<uint8_t, 32> driveKey;
                 iarchive( driveKey );
 
-                if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+                if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end())
                 {
-                    std::array<uint8_t,32> streamId;
+                    std::array<uint8_t, 32> streamId;
                     iarchive( streamId );
 
                     std::string result = driveIt->second->acceptGetPlaylistHashRequest( streamId );
-                    if ( ! result.empty() )
+                    if ( !result.empty())
                     {
-                        response["r"]["q"] = std::string(query);
+                        response["r"]["q"] = std::string( query );
                         response["r"]["ret"] = result;
                     }
                     return true;
-                }
-                else
+                } else
                 {
-                    _LOG_WARN( "Unknown drive: " << Key(driveKey) )
+                    _LOG_WARN( "Unknown drive: " << Key( driveKey ))
                 }
             }
-            catch(...){ _LOG_WARN( "execption occured" ) }
+            catch ( ... )
+            {_LOG_WARN( "execption occured" )}
 
             return true;
         }
 
         return false;
     }
-    
-    virtual void  dbgAsyncDownloadToSandbox( Key driveKey, InfoHash infoHash, std::function<void()> endNotifyer ) override
+
+    virtual void
+    dbgAsyncDownloadToSandbox( Key driveKey, InfoHash infoHash, std::function<void()> endNotifyer ) override
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
             DBG_MAIN_THREAD
 
-            if ( auto drive = getDrive(driveKey); drive )
+            if ( auto drive = getDrive( driveKey ); drive )
             {
                 drive->dbgAsyncDownloadToSandbox( infoHash, endNotifyer );
-            }
-            else
+            } else
             {
                 _LOG_ERR( "drive not found: " << driveKey );
                 return;
             }
-        });
+        } );
     }
 
     void handleDhtResponse( lt::bdecode_node response, boost::asio::ip::udp::endpoint /*endpoint*/ ) override
     {
         try
         {
-            auto rDict = response.dict_find_dict("r");
-            auto query = rDict.dict_find_string_value("q");
+            auto rDict = response.dict_find_dict( "r" );
+            auto query = rDict.dict_find_string_value( "q" );
             if ( query == "get_dn_rcpts" )
             {
-                lt::string_view response = rDict.dict_find_string_value("ret");
-                lt::string_view sign = rDict.dict_find_string_value("sign");
+                lt::string_view response = rDict.dict_find_string_value( "ret" );
+                lt::string_view sign = rDict.dict_find_string_value( "sign" );
                 onSyncRcptReceived( response, sign );
             }
         }
-        catch(...)
+        catch ( ... )
         {
         }
     }
 
-    
+
 private:
-    std::shared_ptr<sirius::drive::Session> session() {
+    std::shared_ptr<sirius::drive::Session> session()
+    {
         return m_session;
     }
 
@@ -2090,7 +2114,7 @@ private:
 
         {
             std::error_code ec;
-            if ( !std::filesystem::is_directory(rootFolderPath,ec) )
+            if ( !std::filesystem::is_directory( rootFolderPath, ec ))
             {
                 return;
             }
@@ -2098,57 +2122,296 @@ private:
 
         try
         {
-            for( const auto& entry : std::filesystem::directory_iterator(rootFolderPath) )
+            for ( const auto& entry : std::filesystem::directory_iterator( rootFolderPath ))
             {
-                if ( entry.is_directory() )
+                if ( entry.is_directory())
                 {
                     const auto entryName = entry.path().filename().string();
 
-                    auto driveKey = stringToByteArray<Key>(entryName);
+                    auto driveKey = stringToByteArray<Key>( entryName );
 
-                    if ( !m_driveMap.contains(driveKey) )
+                    if ( !m_driveMap.contains( driveKey ))
                     {
                         {
-                            toRemove.insert(entry.path());
+                            toRemove.insert( entry.path());
                         }
                     }
                 }
             }
         }
-        catch(...) {
+        catch ( ... )
+        {
             _LOG_WARN( "Invalid Attempt To Iterate " << rootFolderPath );
         }
 
-        for ( const auto& p: toRemove) {
+        for ( const auto& p: toRemove )
+        {
             std::error_code ec;
             fs::remove_all( p, ec );
         }
     }
+
+public:
+
+    void initiateManualModifications( const DriveKey& driveKey, const InitiateModificationsRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->initiateManualModifications( request );
+
+        } );
+    }
+
+    void initiateManualSandboxModifications( const DriveKey& driveKey,
+                                             const InitiateSandboxModificationsRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->initiateManualSandboxModifications( request );
+
+        } );
+    }
+
+    void openFile( const DriveKey& driveKey, const OpenFileRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->openFile( request );
+
+        } );
+    }
+
+    void writeFile( const DriveKey& driveKey, const WriteFileRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->writeFile( request );
+
+        } );
+    }
+
+    void readFile( const DriveKey& driveKey, const ReadFileRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->readFile( request );
+
+        } );
+    }
+
+    void flush( const DriveKey& driveKey, const FlushRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->flush( request );
+
+        } );
+    }
+
+    void closeFile( const DriveKey& driveKey, const CloseFileRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->closeFile( request );
+
+        } );
+    }
+
+    void applySandboxManualModifications( const DriveKey& driveKey,
+                                          const ApplySandboxModificationsRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->applySandboxManualModifications( request );
+
+        } );
+    }
+
+    void evaluateStorageHash( const DriveKey& driveKey, const EvaluateStorageHashRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->evaluateStorageHash( request );
+
+        } );
+    }
+
+    void applyStorageManualModifications( const DriveKey& driveKey,
+                                          const ApplyStorageModificationsRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->applyStorageManualModifications( request );
+
+        } );
+    }
+
+    void manualSynchronize( const DriveKey& driveKey, const SynchronizationRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->manualSynchronize( request );
+
+        } );
+    }
+
 };
 
 std::shared_ptr<Replicator> createDefaultReplicator(
-                                        const crypto::KeyPair& keyPair,
-                                        std::string&&       address,
-                                        std::string&&       port,
-                                        std::string&&       storageDirectory,
-                                        std::string&&       sandboxDirectory,
-                                        const std::vector<ReplicatorInfo>&  bootstraps,
-                                        bool                                useTcpSocket,
-                                        ReplicatorEventHandler&             handler,
-                                        DbgReplicatorEventHandler*          dbgEventHandler,
-                                        const std::string&                  dbgReplicatorName )
+        const crypto::KeyPair& keyPair,
+        std::string&& address,
+        std::string&& port,
+        std::string&& storageDirectory,
+        std::string&& sandboxDirectory,
+        const std::vector<ReplicatorInfo>& bootstraps,
+        bool useTcpSocket,
+        ReplicatorEventHandler& handler,
+        DbgReplicatorEventHandler* dbgEventHandler,
+        const std::string& dbgReplicatorName )
 {
     return std::make_shared<DefaultReplicator>(
-                                               keyPair,
-                                               std::move(address),
-                                               std::move(port),
-                                               std::move(storageDirectory),
-                                               std::move(sandboxDirectory),
-                                               useTcpSocket,
-                                               handler,
-                                               dbgEventHandler,
-                                               bootstraps,
-                                               dbgReplicatorName );
+            keyPair,
+            std::move( address ),
+            std::move( port ),
+            std::move( storageDirectory ),
+            std::move( sandboxDirectory ),
+            useTcpSocket,
+            handler,
+            dbgEventHandler,
+            bootstraps,
+            dbgReplicatorName );
 }
 
 }

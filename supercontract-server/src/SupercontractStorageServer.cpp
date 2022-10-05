@@ -4,7 +4,6 @@
 *** license that can be found in the LICENSE file.
 */
 #include "SupercontractStorageServer.h"
-#include <supercontract-server/ContextKeeper.h>
 
 namespace sirius::drive {
 
