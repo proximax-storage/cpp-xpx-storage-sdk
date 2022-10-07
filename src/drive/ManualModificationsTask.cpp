@@ -987,7 +987,7 @@ private:
         m_drive.m_fsTreeLtHandle = *m_sandboxFsTreeHandle;
         m_drive.m_lastApprovedModification = m_request->m_modificationIdentifier;
 
-        callback( ApplyStorageModificationsResponse{true} );
+        callback( ApplyStorageModificationsResponse{} );
 
         finishTask();
     }

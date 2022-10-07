@@ -7,7 +7,7 @@
 #pragma once
 
 #include <vector>
-
+#include "types.h"
 
 namespace sirius::drive
 {
@@ -99,8 +99,8 @@ struct CloseFileRequest
 struct ApplySandboxModificationsResponse
 {
     bool m_success;
-    int64_t sandbox_size_delta;
-    int64_t state_size_delta;
+    int64_t m_sandboxSizeDelta;
+    int64_t m_stateSizeDelta;
 };
 
 struct ApplySandboxModificationsRequest
@@ -124,7 +124,6 @@ struct EvaluateStorageHashRequest
 
 struct ApplyStorageModificationsResponse
 {
-    bool m_success;
 };
 
 struct ApplyStorageModificationsRequest

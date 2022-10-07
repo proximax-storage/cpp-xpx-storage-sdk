@@ -16,12 +16,12 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     target_link_libraries(modifyDriveFlat4
             ${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
             #${CMAKE_SOURCE_DIR}/libtorrent/cmake-build-debug/libtorrent-sirius.dylib
-            crypto
+            storage-crypto
             )
     #        /usr/local/opt/openssl/lib/libssl.dylib
     #        /usr/local/opt/openssl/lib/libcrypto.dylib
     #        "-framework CoreFoundation" "-framework SystemConfiguration"
     #        )
 else()
-    target_link_libraries(modifyDriveFlat4 drive crypto emulator xpx.rpc torrent-sirius Threads::Threads)
+    target_link_libraries(modifyDriveFlat4 drive storage-crypto emulator xpx.rpc torrent-sirius Threads::Threads)
 endif()

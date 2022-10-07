@@ -6,6 +6,9 @@
 
 #pragma once
 
+#include "types.h"
+#include "drive/ManualModificationsRequests.h"
+
 namespace sirius::drive::contract
 {
 

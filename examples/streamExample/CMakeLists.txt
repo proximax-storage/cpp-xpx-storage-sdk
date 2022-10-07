@@ -24,12 +24,12 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
             ${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
             #${CMAKE_SOURCE_DIR}/libtorrent/cmake-build-debug/libtorrent-sirius.dylib
 #            ${CMAKE_SOURCE_DIR}/rpclib/build/librpc.a
-            crypto
+            storage-crypto
             )
     #        /usr/local/opt/openssl/lib/libssl.dylib
     #        /usr/local/opt/openssl/lib/libcrypto.dylib
     #        "-framework CoreFoundation" "-framework SystemConfiguration"
     #        )
 else()
-    target_link_libraries(streamExample drive crypto torrent-sirius Threads::Threads)
+    target_link_libraries(streamExample drive storage-crypto torrent-sirius Threads::Threads)
 endif()

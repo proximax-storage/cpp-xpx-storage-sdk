@@ -6,10 +6,16 @@
 
 #pragma once
 
-#include <map>
-#include <types.h>
+namespace sirius::drive::contract {
 
-namespace sirius::drive {
+class RPCTag {
 
+public:
+
+    virtual ~RPCTag() = default;
+
+    virtual void process(bool ok) = 0;
+
+};
 
 }

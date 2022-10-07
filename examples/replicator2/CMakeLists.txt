@@ -26,7 +26,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 else()
     target_link_libraries(replicator2
             drive
-            crypto
+            storage-crypto
             emulator
             librpc.a
             Threads::Threads)

@@ -24,5 +24,5 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 #        "-framework CoreFoundation" "-framework SystemConfiguration"
 #        )
 else()
-    target_link_libraries(extensionEmulator sdk_external crypto emulator Threads::Threads)
+    target_link_libraries(extensionEmulator sdk_external storage-crypto emulator Threads::Threads)
 endif()

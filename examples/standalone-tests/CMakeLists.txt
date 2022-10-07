@@ -25,7 +25,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
             ${CMAKE_SOURCE_DIR}/libtorrent/cmake-build-debug/libtorrent-sirius.dylib
 
             drive
-            crypto
+            storage-crypto
             ${GTEST_LIBRARIES}
             /usr/local/lib/libgtest_main.a
             )
@@ -40,6 +40,6 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 else()
     enable_testing()
     add_test(standalone-tests "./standalone-tests")
-    target_link_libraries(standalone-tests drive crypto torrent-sirius Threads::Threads ${GTEST_LIBRARIES} gtest_main)
+    target_link_libraries(standalone-tests drive storage-crypto torrent-sirius Threads::Threads ${GTEST_LIBRARIES} gtest_main)
 endif()
 

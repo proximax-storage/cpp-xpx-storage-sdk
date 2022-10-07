@@ -373,6 +373,12 @@ public:
 
         _ASSERT( !m_task )
 
+        if ( m_deferredManualModificationRequest )
+        {
+            m_deferredManualModificationRequest->m_callback( {} );
+            m_deferredManualModificationRequest.reset();
+        }
+
         m_task = createManualSynchronizationTask( std::move( m_synchronizationRequest ), *this, m_opinionController );
 
         _ASSERT( m_task->getTaskType() == DriveTaskType::MANUAL_SYNCHRONIZATION )
@@ -424,6 +430,7 @@ public:
         if ( m_deferredManualModificationRequest )
         {
             m_deferredManualModificationRequest->m_callback( {} );
+            m_deferredManualModificationRequest.reset();
         }
 
         m_task = createCatchingUpTask( std::move( m_catchingUpRequest ), *this, m_opinionController );

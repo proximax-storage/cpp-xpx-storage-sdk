@@ -18,7 +18,7 @@ add_definitions(-DENABLE_VERIFICATIONS)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     add_definitions(-D_GNU_SOURCE)
-    target_link_libraries(modifyDriveFlat3 drive crypto torrent-sirius )
+    target_link_libraries(modifyDriveFlat3 drive storage-crypto torrent-sirius )
 
             #${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
 #            ${CMAKE_SOURCE_DIR}/libtorrent/cmake-build-debug/libtorrent-sirius.dylib
@@ -30,5 +30,5 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     #        "-framework CoreFoundation" "-framework SystemConfiguration"
     #        )
 else()
-    target_link_libraries(modifyDriveFlat3 drive crypto torrent-sirius Threads::Threads)
+    target_link_libraries(modifyDriveFlat3 drive storage-crypto torrent-sirius Threads::Threads)
 endif()

@@ -5,6 +5,7 @@ include(CMakeGlobalSettings.cmake)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
@@ -30,13 +31,25 @@ else()
 endif()
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 
-#set(gRPC_SSL_PROVIDER package)
-#include(FetchContent)
-#FetchContent_Declare(
-#        grpc
-#        GIT_REPOSITORY https://github.com/grpc/grpc.git
-#        GIT_TAG        v1.45.2)
-#FetchContent_MakeAvailable(grpc)
+set(gRPC_SSL_PROVIDER package)
+include(FetchContent)
+FetchContent_Declare(
+        grpc
+        GIT_REPOSITORY https://github.com/grpc/grpc.git
+        GIT_TAG        v1.49.1)
+FetchContent_MakeAvailable(grpc)
+
+# Since FetchContent uses add_subdirectory under the hood, we can use
+# the grpc targets directly from this build.
+set(_PROTOBUF_LIBPROTOBUF libprotobuf)
+set(_REFLECTION grpc++_reflection)
+set(_PROTOBUF_PROTOC $<TARGET_FILE:protoc>)
+set(_GRPC_GRPCPP grpc++)
+if(CMAKE_CROSSCOMPILING)
+    find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
+else()
+    set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:grpc_cpp_plugin>)
+endif()
 
 include_directories(cereal/include)
 add_subdirectory(libtorrent)
