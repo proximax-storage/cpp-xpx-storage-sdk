@@ -3,19 +3,19 @@
 *** Use of this source code is governed by the Apache 2.0
 *** license that can be found in the LICENSE file.
 */
-
 #pragma once
 
-namespace sirius::drive::contract
-{
+#include <boost/asio/io_context.hpp>
 
-class AbstractSupercontractServer {
+namespace sirius::drive {
+
+class ContextKeeper {
 
 public:
 
-    virtual ~AbstractSupercontractServer() = default;
+    virtual ~ContextKeeper() = default;
 
-    virtual void run( std::weak_ptr<ModificationsExecutor> executor ) = 0;
+    virtual boost::asio::io_context& getContext() = 0;
 
 };
 

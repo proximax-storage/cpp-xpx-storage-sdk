@@ -13,9 +13,16 @@ namespace sirius::drive::contract
 
 void AcceptRequestRPCTag::process( bool ok )
 {
+    auto c = m_ioContext.lock();
+
+    if ( !c )
+    {
+        return;
+    }
+
     if ( ok )
     {
-        boost::asio::post( m_ioContext, [requestContext = m_requestContext]
+        boost::asio::post( c->getContext(), [requestContext = m_requestContext]
         {
             requestContext->processRequest();
         } );
@@ -24,10 +31,10 @@ void AcceptRequestRPCTag::process( bool ok )
 
 AcceptRequestRPCTag::AcceptRequestRPCTag( std::shared_ptr<RequestContext> requestContext,
                                           std::function<void()> addNewAcceptRequestTag,
-                                          boost::asio::io_context& ioContext )
+                                          std::weak_ptr<ContextKeeper> ioContext )
         : m_requestContext( std::move( requestContext ))
-        , m_addNewAcceptRequestTag(std::move( addNewAcceptRequestTag ))
-        , m_ioContext( ioContext )
+        , m_addNewAcceptRequestTag( std::move( addNewAcceptRequestTag ))
+        , m_ioContext( std::move( ioContext ))
 {}
 
 }

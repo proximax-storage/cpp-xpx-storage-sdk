@@ -11,7 +11,7 @@
 #include <grpcpp/impl/codegen/async_unary_call.h>
 #include <drive/ManualModificationsRequests.h>
 #include "storageServer.pb.h"
-#include "StorageServer.h"
+#include <supercontract-server/StorageServer.h>
 #include "AcceptRequestRPCTag.h"
 #include "RequestContext.h"
 

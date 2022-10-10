@@ -32,8 +32,7 @@ namespace fs = std::filesystem;
 // DownloadLimiter - it manages all user files at replicator side
 //
 class DownloadLimiter : public ReplicatorInt,
-                        public lt::session_delegate,
-                        public std::enable_shared_from_this<DownloadLimiter>
+                        public lt::session_delegate
 {
 protected:
     std::shared_ptr<Session> m_session;

@@ -8,7 +8,7 @@
 #include <grpcpp/server_builder.h>
 
 #include <utility>
-#include "StorageServer.h"
+#include <supercontract-server/StorageServer.h>
 #include "RPCTag.h"
 #include "SynchronizeStorageRequestContext.h"
 #include "InitiateModificationsRequestContext.h"
@@ -25,14 +25,15 @@
 namespace sirius::drive::contract
 {
 
-StorageServer::StorageServer( std::string address,
-                              boost::asio::io_context& context )
+StorageServer::StorageServer( std::string address )
         : m_address( std::move( address ))
-        , m_context( context )
 {}
 
-void StorageServer::run( std::weak_ptr<ModificationsExecutor> executor )
+void StorageServer::run(
+        std::weak_ptr<ContextKeeper> contextKeeper,
+        std::weak_ptr<ModificationsExecutor> executor )
 {
+    m_context = std::move( contextKeeper );
     m_executor = std::move( executor );
     grpc::ServerBuilder builder;
     builder.AddListeningPort( m_address, grpc::InsecureServerCredentials());

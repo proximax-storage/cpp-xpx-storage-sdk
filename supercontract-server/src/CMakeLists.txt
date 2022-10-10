@@ -46,7 +46,7 @@ foreach(_service storageServer)
             ${_PROTOBUF_LIBPROTOBUF})
 endforeach()
 
-target_include_directories(supercontract-server PUBLIC ../include)
+target_include_directories(supercontract-server PUBLIC ../include ../../include)
 target_include_directories(supercontract-server PUBLIC SYSTEM ${Boost_INCLUDE_DIR})
 
 target_link_libraries(supercontract-server utils OpenSSL::SSL)

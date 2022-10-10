@@ -11,7 +11,7 @@
 #include <grpcpp/completion_queue.h>
 #include <boost/asio/io_context.hpp>
 #include <supercontract-server/ModificationsExecutor.h>
-#include "supercontract-server/AbstracSupercontractServer.h"
+#include <supercontract-server/AbstractSupercontractServer.h>
 
 namespace sirius::drive::contract
 {
@@ -26,16 +26,17 @@ private:
     std::unique_ptr<grpc::ServerCompletionQueue> m_cq;
     storage::StorageServer::AsyncService m_service;
     std::unique_ptr<grpc::Server> m_server;
-    boost::asio::io_context& m_context;
+    std::weak_ptr<ContextKeeper> m_context;
     std::thread m_thread;
     std::shared_ptr<bool> m_serviceIsActive;
     std::weak_ptr<ModificationsExecutor> m_executor;
 
 public:
 
-    StorageServer( std::string  address, boost::asio::io_context& context );
+    explicit StorageServer( std::string address );
 
-    void run( std::weak_ptr<ModificationsExecutor> executor ) override;
+    void run( std::weak_ptr<ContextKeeper> contextKeeper,
+              std::weak_ptr<ModificationsExecutor> executor ) override;
 
     ~StorageServer() override;
 

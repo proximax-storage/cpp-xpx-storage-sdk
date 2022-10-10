@@ -442,6 +442,11 @@ public:
     virtual uint64_t    getMinReplicatorsNumber() override { __ASSERT(0); return 0; }
     virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) override {}
 
+    void enableSupercontractServer( const std::string& address ) override
+    {
+        // TODO Enable Server
+    }
+
     virtual Hash256     dbgGetRootHash( const DriveKey& driveKey ) override
     {
         //__ASSERT(0); return m_unusedHash;

@@ -9,6 +9,7 @@
 #include "drive/ActionList.h"
 #include "drive/log.h"
 #include "Timer.h"
+#include "ContextKeeper.h"
 
 #include "crypto/Signer.h"
 
@@ -109,7 +110,6 @@ struct DownloadContext {
 class DhtMessageHandler
 {
 public:
-    virtual ~DhtMessageHandler() = default;
     
     virtual bool on_dht_request( lt::string_view                         query,
                                  boost::asio::ip::udp::endpoint const&   source,
@@ -122,7 +122,7 @@ public:
 //
 // It provides the ability to exchange files
 //
-class Session {
+class Session: public ContextKeeper {
 public:
 
     using lt_handle = lt::torrent_handle;

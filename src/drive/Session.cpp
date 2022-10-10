@@ -763,6 +763,11 @@ public:
         return { m_session.get_context(), milliseconds, std::move( func ) };
     }
 
+public:
+    boost::asio::io_context& getContext() override
+    {
+        return m_session.get_context();
+    }
 
 private:
 

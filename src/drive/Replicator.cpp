@@ -15,6 +15,9 @@
 #include "RcptSyncronizer.h"
 #include "BackgroundExecutor.h"
 
+#include <supercontract-server/AbstractSupercontractServer.h>
+#include <supercontract-server/StorageServer.h>
+
 #include <cereal/types/vector.hpp>
 #include <cereal/types/array.hpp>
 #include <cereal/types/map.hpp>
@@ -36,7 +39,7 @@ namespace sirius::drive
 // DefaultReplicator
 //
 class DefaultReplicator
-        : public DownloadLimiter, public contract::ModificationsExecutor // Replicator
+        : public DownloadLimiter, public contract::ModificationsExecutor, public std::enable_shared_from_this<DefaultReplicator>    // Replicator
 {
 private:
     boost::asio::io_context m_replicatorContext;
@@ -74,6 +77,8 @@ private:
     std::future<void> m_bootstrapFuture;
 
     BackgroundExecutor m_backgroundExecutor;
+
+    std::unique_ptr<contract::AbstractSupercontractServer> m_supercontractServer;
 
 public:
     DefaultReplicator(
@@ -218,6 +223,11 @@ public:
             DBG_MAIN_THREAD
 
             m_endpointsManager.start( m_session );
+
+            if ( m_supercontractServer )
+            {
+                m_supercontractServer->run( m_session, weak_from_this() );
+            }
         } );
 
         m_dnOpinionSyncronizer.start( m_session );
@@ -2385,6 +2395,11 @@ public:
             driveIt->second->manualSynchronize( request );
 
         } );
+    }
+
+    void enableSupercontractServer( const std::string& address ) override
+    {
+        m_supercontractServer = std::make_unique<contract::StorageServer>( address );
     }
 
 };
