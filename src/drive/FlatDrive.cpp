@@ -996,6 +996,34 @@ public:
         return os.str();
     }
 
+    void getAbsolutePath( mobj<AbsolutePathRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        auto* ptr = m_fsTree->getEntryPtr( request->m_relativePath );
+
+        std::string absolutePath;
+
+        if ( ptr != nullptr )
+        {
+            if ( isFile( *ptr ))
+            {
+                auto& file = getFile( *ptr );
+                absolutePath = (m_driveFolder / toString( file.hash())).string();
+            }
+        }
+
+        request->m_callback( AbsolutePathResponse{absolutePath} );
+    }
+
+    void getFilesystem( const FilesystemRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        FsTree fsTree( *m_fsTree );
+        request.m_callback( FilesystemResponse{std::move( fsTree )} );
+    }
+
     void dbgPrintDriveStatus() override
     {
         LOG( "Drive Status:" )

@@ -90,7 +90,7 @@ public:
 
         fs::path p( request.m_path );
 
-        auto pFolder = m_lowerSandboxFsTree->getFolderPtr( p.parent_path());
+        auto pFolder = m_upperSandboxFsTree->getFolderPtr( p.parent_path());
 
         if ( !pFolder )
         {
@@ -143,13 +143,18 @@ public:
                 if ( !m_callManagedHashes.contains( file.hash()))
                 {
                     // This file on the disk has not been created during this call so we can not modify it
-                    m_lowerSandboxFsTree->removeFlat( p, []( const auto& )
+                    m_upperSandboxFsTree->removeFlat( p, []( const auto& )
                     {} );
-                    m_lowerSandboxFsTree->addModifiableFile( p.parent_path(), p.filename());
+                    auto temporaryHash = m_upperSandboxFsTree->addModifiableFile( p.parent_path(), p.filename());
+                    _ASSERT(temporaryHash)
+                    m_callManagedHashes.insert(*temporaryHash);
                 }
             } else
             {
-                m_lowerSandboxFsTree->addModifiableFile( p.parent_path(), p.filename());
+                m_upperSandboxFsTree->addModifiableFile( p.parent_path(), p.filename());
+                auto temporaryHash = m_upperSandboxFsTree->addModifiableFile( p.parent_path(), p.filename());
+                _ASSERT(temporaryHash)
+                m_callManagedHashes.insert(*temporaryHash);
             }
 
             it = pFolder->childs().find( p.filename());
@@ -362,6 +367,8 @@ private:
     {
         DBG_BG_THREAD
 
+        _LOG( "In Stream" );
+
         auto stream = weakStream.lock();
 
         _ASSERT( stream );
@@ -383,6 +390,8 @@ private:
         _ASSERT( m_isExecutingQuery )
 
         m_isExecutingQuery = false;
+
+        _LOG( "On File Written" );
 
         if ( m_taskIsInterrupted )
         {
@@ -568,6 +577,7 @@ private:
         {
             m_openFilesWrite.erase( writeIt );
             callback( CloseFileResponse{success} );
+            return;
         }
 
         _LOG_ERR( "Close nonexisting stream" );
@@ -665,9 +675,9 @@ private:
         std::set<InfoHash> lowerUniqueFiles;
         m_lowerSandboxFsTree->getUniqueFiles( lowerUniqueFiles );
 
-        for ( const auto& file: upperUniqueFiles )
+        for ( const auto& file: lowerUniqueFiles )
         {
-            if ( !lowerUniqueFiles.contains( file ))
+            if ( !upperUniqueFiles.contains( file ) && !m_drive.m_torrentHandleMap.contains( file ))
             {
                 std::error_code ec;
                 fs::remove( m_drive.m_driveFolder / toString( file ), ec );
@@ -765,8 +775,8 @@ private:
                                                     } else
                                                     {
                                                         fs::rename( filePath, m_drive.m_driveFolder / toString( hash ));
-                                                        fs::rename( torrentPath, m_drive.m_torrentFolder /
-                                                                                 (toString( hash ) + ".torrent"));
+                                                        fs::rename( torrentPath,
+                                                                    m_drive.m_torrentFolder / toString( hash ));
                                                     }
                                                     file.setHash( hash );
                                                     file.setSize(
@@ -784,14 +794,14 @@ private:
 
         m_lowerSandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile.string());
 
-        auto sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile.string(),
-                                                  m_drive.m_driveKey,
-                                                  m_drive.m_sandboxRootPath.string(),
-                                                  m_drive.m_sandboxFsTreeTorrent.string());
+        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile.string(),
+                                               m_drive.m_driveKey,
+                                               m_drive.m_sandboxRootPath.string(),
+                                               m_drive.m_sandboxFsTreeTorrent.string());
 
         m_drive.executeOnSessionThread( [=, this]
                                         {
-                                            onStorageHashEvaluated( sandboxRootHash, callback );
+                                            onStorageHashEvaluated( *m_sandboxRootHash, callback );
                                         } );
     }
 
@@ -951,12 +961,12 @@ private:
             // Add FsTree torrent to session
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                auto sandboxFsTreeHandler = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent.string(),
-                                                                              m_drive.m_fsTreeTorrent.parent_path().string(),
-                                                                              lt::SiriusFlags::peer_is_replicator,
-                                                                              &m_drive.m_driveKey.array(),
-                                                                              nullptr,
-                                                                              nullptr );
+                m_sandboxFsTreeHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent.string(),
+                                                                          m_drive.m_fsTreeTorrent.parent_path().string(),
+                                                                          lt::SiriusFlags::peer_is_replicator,
+                                                                          &m_drive.m_driveKey.array(),
+                                                                          nullptr,
+                                                                          nullptr );
             }
 
             // remove unused data from 'torrentMap'

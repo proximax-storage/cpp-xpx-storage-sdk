@@ -4,7 +4,7 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "InitiateSandboxModificationsRequestContext.h"
+#include "AbsolutePathRequestContext.h"
 
 #include <utility>
 #include "drive/ManualModificationsRequests.h"
@@ -13,7 +13,7 @@
 namespace sirius::drive::contract
 {
 
-InitiateSandboxModificationsRequestContext::InitiateSandboxModificationsRequestContext(
+AbsolutePathRequestContext::AbsolutePathRequestContext(
         storageServer::StorageServer::AsyncService& service,
         grpc::ServerCompletionQueue& completionQueue,
         std::shared_ptr<bool> serviceIsActive,
@@ -25,7 +25,7 @@ InitiateSandboxModificationsRequestContext::InitiateSandboxModificationsRequestC
         , m_executor( std::move( executor ))
 {}
 
-void InitiateSandboxModificationsRequestContext::processRequest()
+void AbsolutePathRequestContext::processRequest()
 {
     if ( !*m_serviceIsActive )
     {
@@ -40,17 +40,18 @@ void InitiateSandboxModificationsRequestContext::processRequest()
         return;
     }
 
-    InitiateSandboxModificationsRequest request;
+    AbsolutePathRequest request;
     Key driveKey( *reinterpret_cast<const std::array<uint8_t, 32>*>(m_request.drive_key().data()));
+    request.m_relativePath = m_request.relative_path();
     request.m_callback = [pThis = shared_from_this()]( auto response )
     {
         pThis->onCallExecuted( response );
     };
-    executor->initiateManualSandboxModifications( driveKey, request );
+    executor->getAbsolutePath( driveKey, request );
 }
 
-void InitiateSandboxModificationsRequestContext::onCallExecuted(
-        const std::optional<InitiateSandboxModificationsResponse>& response )
+void AbsolutePathRequestContext::onCallExecuted(
+        const std::optional<AbsolutePathResponse>& response )
 {
     if ( !*m_serviceIsActive )
     {
@@ -64,14 +65,17 @@ void InitiateSandboxModificationsRequestContext::onCallExecuted(
 
     m_responseAlreadyGiven = true;
 
-    storageServer::InitSandboxResponse msg;
+    storageServer::AbsolutePathResponse msg;
     grpc::Status status;
+
     if ( response )
     {
+        msg.set_absolute_path(response->m_path);
     } else
     {
         status = grpc::Status::CANCELLED;
     }
+
     auto* tag = new FinishRequestRPCTag( shared_from_this());
     m_responder.Finish( msg, status, tag );
 }

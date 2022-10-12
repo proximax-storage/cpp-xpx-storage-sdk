@@ -26,28 +26,28 @@ private:
 
     bool m_responseAlreadyGiven = false;
 
-    storage::StorageServer::AsyncService& m_service;
+    storageServer::StorageServer::AsyncService& m_service;
     grpc::ServerCompletionQueue& m_completionQueue;
 
     std::shared_ptr<bool> m_serviceIsActive;
 
     grpc::ServerContext m_context;
 
-    storage::FlushRequest m_request;
-    grpc::ServerAsyncResponseWriter<storage::FlushResponse> m_responder;
+    storageServer::FlushFileRequest m_request;
+    grpc::ServerAsyncResponseWriter<storageServer::FlushFileResponse> m_responder;
 
     std::weak_ptr<ModificationsExecutor> m_executor;
 
 public:
 
-    FlushRequestContext( storage::StorageServer::AsyncService& service,
+    FlushRequestContext( storageServer::StorageServer::AsyncService& service,
                          grpc::ServerCompletionQueue& completionQueue,
                          std::shared_ptr<bool> serviceIsActive,
                          std::weak_ptr<ModificationsExecutor> executor );
 
     void run( AcceptRequestRPCTag* tag )
     {
-        m_service.RequestFlush( &m_context, &m_request, &m_responder, &m_completionQueue,
+        m_service.RequestFlushFile( &m_context, &m_request, &m_responder, &m_completionQueue,
                                 &m_completionQueue, tag );
     }
 

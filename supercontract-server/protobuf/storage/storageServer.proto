@@ -14,7 +14,7 @@
 
 syntax = "proto3";
 
-package storage;
+package storageServer;
 
 service StorageServer {
   rpc SynchronizeStorage(SynchronizeStorageRequest) returns (SynchronizeStorageResponse) {}
@@ -39,7 +39,9 @@ service StorageServer {
 
   rpc CloseFile(CloseFileRequest) returns (CloseFileResponse) {}
 
-  rpc Flush(FlushRequest) returns (FlushResponse) {}
+  rpc FlushFile(FlushFileRequest) returns (FlushFileResponse) {}
+
+  rpc GetFilesystem(FilesystemRequest) returns (FilesystemResponse) {}
 }
 
 message SynchronizeStorageRequest {
@@ -143,12 +145,12 @@ message WriteFileResponse {
   bool success = 1;
 }
 
-message FlushRequest {
+message FlushFileRequest {
   bytes drive_key = 1;
   uint64 file_id = 2;
 }
 
-message FlushResponse {
+message FlushFileResponse {
   bool success = 1;
 }
 
@@ -159,4 +161,28 @@ message CloseFileRequest {
 
 message CloseFileResponse {
   bool success = 1;
+}
+
+message Folder {
+  string name = 1;
+  repeated FileSystemEntry children = 2;
+}
+
+message File {
+  string name = 1;
+}
+
+message FileSystemEntry {
+  oneof child {
+    Folder folder = 1;
+    File file = 2;
+  }
+}
+
+message FilesystemResponse {
+  Folder filesystem = 1;
+}
+
+message FilesystemRequest {
+  bytes drive_key = 1;
 }

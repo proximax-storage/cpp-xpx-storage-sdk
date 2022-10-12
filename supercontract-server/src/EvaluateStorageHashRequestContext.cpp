@@ -8,12 +8,13 @@
 
 #include <utility>
 #include "drive/ManualModificationsRequests.h"
+#include "FinishRequestRPCTag.h"
 
 namespace sirius::drive::contract
 {
 
 EvaluateStorageHashRequestContext::EvaluateStorageHashRequestContext(
-        storage::StorageServer::AsyncService& service,
+        storageServer::StorageServer::AsyncService& service,
         grpc::ServerCompletionQueue& completionQueue,
         std::shared_ptr<bool> serviceIsActive,
         std::weak_ptr<ModificationsExecutor> executor )
@@ -62,19 +63,20 @@ void EvaluateStorageHashRequestContext::onCallExecuted( const std::optional<Eval
 
     m_responseAlreadyGiven = true;
 
-    storage::EvaluateStorageHashResponse msg;
+    storageServer::EvaluateStorageHashResponse msg;
     grpc::Status status;
     if ( response )
     {
-        msg.set_storage_hash(std::string(response->m_state.begin(), response->m_state.end()));
-        msg.set_used_drive_size(response->m_usedDriveSize);
-        msg.set_meta_files_size(response->m_metaFilesSize);
-        msg.set_file_structure_size(response->m_fileStructureSize);
+        msg.set_storage_hash( std::string( response->m_state.begin(), response->m_state.end()));
+        msg.set_used_drive_size( response->m_usedDriveSize );
+        msg.set_meta_files_size( response->m_metaFilesSize );
+        msg.set_file_structure_size( response->m_fileStructureSize );
     } else
     {
         status = grpc::Status::CANCELLED;
     }
-    m_responder.Finish( msg, status, nullptr );
+    auto* tag = new FinishRequestRPCTag( shared_from_this());
+    m_responder.Finish( msg, status, tag );
 }
 
 }

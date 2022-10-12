@@ -39,7 +39,9 @@ namespace sirius::drive
 // DefaultReplicator
 //
 class DefaultReplicator
-        : public DownloadLimiter, public contract::ModificationsExecutor, public std::enable_shared_from_this<DefaultReplicator>    // Replicator
+        : public DownloadLimiter,
+          public contract::ModificationsExecutor,
+          public std::enable_shared_from_this<DefaultReplicator>    // Replicator
 {
 private:
     boost::asio::io_context m_replicatorContext;
@@ -226,7 +228,7 @@ public:
 
             if ( m_supercontractServer )
             {
-                m_supercontractServer->run( m_session, weak_from_this() );
+                m_supercontractServer->run( m_session, weak_from_this());
             }
         } );
 
@@ -2393,6 +2395,48 @@ public:
             }
 
             driveIt->second->manualSynchronize( request );
+
+        } );
+    }
+
+    void getAbsolutePath( const DriveKey& driveKey, const AbsolutePathRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->getAbsolutePath( request );
+
+        } );
+    }
+
+    void getFilesystem( const DriveKey& driveKey, const FilesystemRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->getFilesystem( request );
 
         } );
     }

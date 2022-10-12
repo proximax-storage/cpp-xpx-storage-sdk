@@ -95,7 +95,8 @@ public:
                      bool useTcpSocket,
                      int modifyApprovalDelay,
                      int downloadApprovalDelay,
-                     int startReplicator = -1 )
+                     int startReplicator = -1,
+                     bool startSupercontractServer = false)
     {
         if ( startReplicator == -1 )
         {
@@ -140,6 +141,11 @@ public:
                         *this,
                         this,
                         dbgReplicatorName.c_str());
+
+                if ( startSupercontractServer )
+                {
+                    replicator->enableSupercontractServer( "127.0.0.1:" + std::to_string( port ));
+                }
 
                 replicator->setDownloadApprovalTransactionTimerDelay( modifyApprovalDelay );
                 replicator->setModifyApprovalTransactionTimerDelay( downloadApprovalDelay );
@@ -800,5 +806,7 @@ public:
         }
         return *it;
     }
+
+
 };
 }

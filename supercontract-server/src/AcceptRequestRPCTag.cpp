@@ -22,9 +22,11 @@ void AcceptRequestRPCTag::process( bool ok )
 
     if ( ok )
     {
-        boost::asio::post( c->getContext(), [requestContext = m_requestContext]
+        boost::asio::post( c->getContext(), [requestContext = m_requestContext,
+                addNewAcceptRequestTag = std::move( m_addNewAcceptRequestTag )]
         {
             requestContext->processRequest();
+            addNewAcceptRequestTag();
         } );
     }
 }

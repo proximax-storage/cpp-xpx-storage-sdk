@@ -45,6 +45,9 @@ public:
 
     virtual void manualSynchronize( const DriveKey& driveKey, const SynchronizationRequest& request ) = 0;
 
+    virtual void getAbsolutePath( const DriveKey& driveKey, const AbsolutePathRequest& request ) = 0;
+
+    virtual void getFilesystem( const DriveKey& driveKey, const FilesystemRequest& request ) = 0;
 };
 
 }

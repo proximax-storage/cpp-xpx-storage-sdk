@@ -24,7 +24,7 @@ private:
 
     std::string m_address;
     std::unique_ptr<grpc::ServerCompletionQueue> m_cq;
-    storage::StorageServer::AsyncService m_service;
+    storageServer::StorageServer::AsyncService m_service;
     std::unique_ptr<grpc::Server> m_server;
     std::weak_ptr<ContextKeeper> m_context;
     std::thread m_thread;
@@ -65,6 +65,10 @@ private:
     void registerCloseFile();
 
     void registerFlush();
+
+    void registerGetAbsolutePath();
+
+    void registerGetFilesystem();
 
 };
 

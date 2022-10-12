@@ -4,7 +4,7 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "InitiateSandboxModificationsRequestContext.h"
+#include "FilesystemRequestContext.h"
 
 #include <utility>
 #include "drive/ManualModificationsRequests.h"
@@ -13,7 +13,7 @@
 namespace sirius::drive::contract
 {
 
-InitiateSandboxModificationsRequestContext::InitiateSandboxModificationsRequestContext(
+FilesystemRequestContext::FilesystemRequestContext(
         storageServer::StorageServer::AsyncService& service,
         grpc::ServerCompletionQueue& completionQueue,
         std::shared_ptr<bool> serviceIsActive,
@@ -25,7 +25,7 @@ InitiateSandboxModificationsRequestContext::InitiateSandboxModificationsRequestC
         , m_executor( std::move( executor ))
 {}
 
-void InitiateSandboxModificationsRequestContext::processRequest()
+void FilesystemRequestContext::processRequest()
 {
     if ( !*m_serviceIsActive )
     {
@@ -40,17 +40,17 @@ void InitiateSandboxModificationsRequestContext::processRequest()
         return;
     }
 
-    InitiateSandboxModificationsRequest request;
+    FilesystemRequest request;
     Key driveKey( *reinterpret_cast<const std::array<uint8_t, 32>*>(m_request.drive_key().data()));
     request.m_callback = [pThis = shared_from_this()]( auto response )
     {
         pThis->onCallExecuted( response );
     };
-    executor->initiateManualSandboxModifications( driveKey, request );
+    executor->getFilesystem( driveKey, request );
 }
 
-void InitiateSandboxModificationsRequestContext::onCallExecuted(
-        const std::optional<InitiateSandboxModificationsResponse>& response )
+void FilesystemRequestContext::onCallExecuted(
+        const std::optional<FilesystemResponse>& response )
 {
     if ( !*m_serviceIsActive )
     {
@@ -64,16 +64,51 @@ void InitiateSandboxModificationsRequestContext::onCallExecuted(
 
     m_responseAlreadyGiven = true;
 
-    storageServer::InitSandboxResponse msg;
+    storageServer::FilesystemResponse msg;
     grpc::Status status;
+
     if ( response )
     {
+        msg.set_allocated_filesystem( processFolder( response->m_fsTree ));
     } else
     {
         status = grpc::Status::CANCELLED;
     }
+
     auto* tag = new FinishRequestRPCTag( shared_from_this());
     m_responder.Finish( msg, status, tag );
+}
+
+storageServer::Folder* FilesystemRequestContext::processFolder( const Folder& folder )
+{
+    auto* rpcFolder = new storageServer::Folder();
+    rpcFolder->set_name( folder.name());
+    for ( const auto&[name, entry]: folder.childs())
+    {
+        if ( isFile( entry ))
+        {
+            auto* child = processFile( getFile( entry ));
+            storageServer::FileSystemEntry rpcEntry;
+            rpcEntry.set_allocated_file( child );
+            auto* rpcChild = rpcFolder->add_children();
+            *rpcChild = rpcEntry;
+        } else
+        {
+            auto* child = processFolder( getFolder( entry ));
+            storageServer::FileSystemEntry rpcEntry;
+            rpcEntry.set_allocated_folder( child );
+            auto* rpcChild = rpcFolder->add_children();
+            *rpcChild = rpcEntry;
+        }
+    }
+    return rpcFolder;
+}
+
+storageServer::File* FilesystemRequestContext::processFile( const File& file )
+{
+    auto* rpcFile = new storageServer::File();
+    rpcFile->set_name( file.name());
+    return rpcFile;
 }
 
 }

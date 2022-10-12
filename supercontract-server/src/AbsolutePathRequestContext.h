@@ -18,8 +18,8 @@
 namespace sirius::drive::contract
 {
 
-class ReadFileRequestContext
-        : public RequestContext, public std::enable_shared_from_this<ReadFileRequestContext>
+class AbsolutePathRequestContext
+        : public RequestContext, public std::enable_shared_from_this<AbsolutePathRequestContext>
 {
 
 private:
@@ -33,29 +33,29 @@ private:
 
     grpc::ServerContext m_context;
 
-    storageServer::ReadFileRequest m_request;
-    grpc::ServerAsyncResponseWriter<storageServer::ReadFileResponse> m_responder;
+    storageServer::AbsolutePathRequest m_request;
+    grpc::ServerAsyncResponseWriter<storageServer::AbsolutePathResponse> m_responder;
 
     std::weak_ptr<ModificationsExecutor> m_executor;
 
 public:
 
-    ReadFileRequestContext( storageServer::StorageServer::AsyncService& service,
-                                      grpc::ServerCompletionQueue& completionQueue,
-                                      std::shared_ptr<bool> serviceIsActive,
-                                      std::weak_ptr<ModificationsExecutor> executor );
+    AbsolutePathRequestContext( storageServer::StorageServer::AsyncService& service,
+                                grpc::ServerCompletionQueue& completionQueue,
+                                std::shared_ptr<bool> serviceIsActive,
+                                std::weak_ptr<ModificationsExecutor> executor );
 
     void run( AcceptRequestRPCTag* tag )
     {
-        m_service.RequestReadFile( &m_context, &m_request, &m_responder, &m_completionQueue,
-                                             &m_completionQueue, tag );
+        m_service.RequestGetAbsolutePath( &m_context, &m_request, &m_responder, &m_completionQueue,
+                                          &m_completionQueue, tag );
     }
 
     void processRequest() override;
 
 private:
 
-    void onCallExecuted( const std::optional<ReadFileResponse>& response );
+    void onCallExecuted( const std::optional<AbsolutePathResponse>& response );
 };
 
 }

@@ -21,6 +21,8 @@
 #include "WriteFileRequestContext.h"
 #include "CloseFileRequestContext.h"
 #include "FlushRequestContext.h"
+#include "AbsolutePathRequestContext.h"
+#include "FilesystemRequestContext.h"
 
 namespace sirius::drive::contract
 {
@@ -53,6 +55,8 @@ void StorageServer::run(
     registerWriteFile();
     registerCloseFile();
     registerFlush();
+    registerGetAbsolutePath();
+    registerGetFilesystem();
 
     m_thread = std::thread( [this]
                             {
@@ -81,12 +85,9 @@ void StorageServer::waitForQueries()
     bool ok;
     while ( m_cq->Next( &pTag, &ok ))
     {
-        if ( pTag != nullptr )
-        {
-            auto* pQuery = static_cast<RPCTag*>(pTag);
-            pQuery->process( ok );
-            delete pQuery;
-        }
+        auto* pQuery = static_cast<RPCTag*>(pTag);
+        pQuery->process( ok );
+        delete pQuery;
     }
 }
 
@@ -97,9 +98,15 @@ void StorageServer::registerSynchronizeStorage()
         return;
     }
 
-    auto context = std::make_shared<SynchronizeStorageRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
-    auto* tag = new AcceptRequestRPCTag( context, [this]
+    auto context = std::make_shared<SynchronizeStorageRequestContext>( m_service, *m_cq, m_serviceIsActive,
+                                                                       m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive]
     {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
+
         registerSynchronizeStorage();
     }, m_context );
     context->run( tag );
@@ -112,11 +119,16 @@ void StorageServer::registerInitiateModifications()
         return;
     }
 
-    auto synchronizeContext = std::make_shared<InitiateModificationsRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
-    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this]
+    auto synchronizeContext = std::make_shared<InitiateModificationsRequestContext>( m_service, *m_cq,
+                                                                                     m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this, serviceIsActive = m_serviceIsActive]
     {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
         registerInitiateModifications();
-        }, m_context );
+    }, m_context );
     synchronizeContext->run( tag );
 }
 
@@ -127,11 +139,17 @@ void StorageServer::registerInitiateSandboxModifications()
         return;
     }
 
-    auto synchronizeContext = std::make_shared<InitiateSandboxModificationsRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
-    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this]
+    auto synchronizeContext = std::make_shared<InitiateSandboxModificationsRequestContext>( m_service, *m_cq,
+                                                                                            m_serviceIsActive,
+                                                                                            m_executor );
+    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this, serviceIsActive = m_serviceIsActive]
     {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
         registerInitiateSandboxModifications();
-        }, m_context );
+    }, m_context );
     synchronizeContext->run( tag );
 }
 
@@ -142,11 +160,17 @@ void StorageServer::registerApplySandboxStorageModifications()
         return;
     }
 
-    auto synchronizeContext = std::make_shared<ApplySandboxModificationsRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
-    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this]
+    auto synchronizeContext = std::make_shared<ApplySandboxModificationsRequestContext>( m_service, *m_cq,
+                                                                                         m_serviceIsActive,
+                                                                                         m_executor );
+    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this, serviceIsActive = m_serviceIsActive]
     {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
         registerApplySandboxStorageModifications();
-        }, m_context );
+    }, m_context );
     synchronizeContext->run( tag );
 }
 
@@ -157,11 +181,16 @@ void StorageServer::registerEvaluateStorageHash()
         return;
     }
 
-    auto synchronizeContext = std::make_shared<EvaluateStorageHashRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
-    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this]
+    auto synchronizeContext = std::make_shared<EvaluateStorageHashRequestContext>( m_service, *m_cq, m_serviceIsActive,
+                                                                                   m_executor );
+    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this, serviceIsActive = m_serviceIsActive]
     {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
         registerEvaluateStorageHash();
-        }, m_context );
+    }, m_context );
     synchronizeContext->run( tag );
 }
 
@@ -172,11 +201,17 @@ void StorageServer::registerApplyStorageModifications()
         return;
     }
 
-    auto synchronizeContext = std::make_shared<ApplyStorageModificationsRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
-    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this]
+    auto synchronizeContext = std::make_shared<ApplyStorageModificationsRequestContext>( m_service, *m_cq,
+                                                                                         m_serviceIsActive,
+                                                                                         m_executor );
+    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this, serviceIsActive = m_serviceIsActive]
     {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
         registerApplyStorageModifications();
-        }, m_context );
+    }, m_context );
     synchronizeContext->run( tag );
 }
 
@@ -187,11 +222,16 @@ void StorageServer::registerOpenFile()
         return;
     }
 
-    auto synchronizeContext = std::make_shared<OpenFileRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
-    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this]
+    auto synchronizeContext = std::make_shared<OpenFileRequestContext>( m_service, *m_cq, m_serviceIsActive,
+                                                                        m_executor );
+    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this, serviceIsActive = m_serviceIsActive]
     {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
         registerOpenFile();
-        }, m_context );
+    }, m_context );
     synchronizeContext->run( tag );
 }
 
@@ -202,11 +242,16 @@ void StorageServer::registerReadFile()
         return;
     }
 
-    auto synchronizeContext = std::make_shared<ReadFileRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
-    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this]
+    auto synchronizeContext = std::make_shared<ReadFileRequestContext>( m_service, *m_cq, m_serviceIsActive,
+                                                                        m_executor );
+    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this, serviceIsActive = m_serviceIsActive]
     {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
         registerReadFile();
-        }, m_context );
+    }, m_context );
     synchronizeContext->run( tag );
 }
 
@@ -217,11 +262,16 @@ void StorageServer::registerWriteFile()
         return;
     }
 
-    auto synchronizeContext = std::make_shared<WriteFileRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
-    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this]
+    auto synchronizeContext = std::make_shared<WriteFileRequestContext>( m_service, *m_cq, m_serviceIsActive,
+                                                                         m_executor );
+    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this, serviceIsActive = m_serviceIsActive]
     {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
         registerWriteFile();
-        }, m_context );
+    }, m_context );
     synchronizeContext->run( tag );
 }
 
@@ -232,11 +282,16 @@ void StorageServer::registerCloseFile()
         return;
     }
 
-    auto synchronizeContext = std::make_shared<CloseFileRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
-    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this]
+    auto synchronizeContext = std::make_shared<CloseFileRequestContext>( m_service, *m_cq, m_serviceIsActive,
+                                                                         m_executor );
+    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this, serviceIsActive = m_serviceIsActive]
     {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
         registerCloseFile();
-        }, m_context );
+    }, m_context );
     synchronizeContext->run( tag );
 }
 
@@ -248,11 +303,53 @@ void StorageServer::registerFlush()
     }
 
     auto synchronizeContext = std::make_shared<FlushRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
-    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this]
+    auto* tag = new AcceptRequestRPCTag( synchronizeContext, [this, serviceIsActive = m_serviceIsActive]
     {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
         registerFlush();
-        }, m_context );
+    }, m_context );
     synchronizeContext->run( tag );
+}
+
+void StorageServer::registerGetAbsolutePath()
+{
+    if ( !*m_serviceIsActive )
+    {
+        return;
+    }
+
+    auto context = std::make_shared<AbsolutePathRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive]
+    {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
+        registerGetAbsolutePath();
+    }, m_context );
+    context->run( tag );
+}
+
+void StorageServer::registerGetFilesystem()
+{
+    if ( !*m_serviceIsActive )
+    {
+        return;
+    }
+
+    auto context = std::make_shared<FilesystemRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive]
+    {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
+        registerGetFilesystem();
+    }, m_context );
+    context->run( tag );
 }
 
 }

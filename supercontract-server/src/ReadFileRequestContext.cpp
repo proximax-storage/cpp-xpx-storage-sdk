@@ -8,12 +8,13 @@
 
 #include <utility>
 #include "drive/ManualModificationsRequests.h"
+#include "FinishRequestRPCTag.h"
 
 namespace sirius::drive::contract
 {
 
 ReadFileRequestContext::ReadFileRequestContext(
-        storage::StorageServer::AsyncService& service,
+        storageServer::StorageServer::AsyncService& service,
         grpc::ServerCompletionQueue& completionQueue,
         std::shared_ptr<bool> serviceIsActive,
         std::weak_ptr<ModificationsExecutor> executor )
@@ -65,23 +66,24 @@ void ReadFileRequestContext::onCallExecuted( const std::optional<ReadFileRespons
 
     m_responseAlreadyGiven = true;
 
-    storage::ReadFileResponse msg;
+    storageServer::ReadFileResponse msg;
     grpc::Status status;
     if ( response )
     {
-        if (response->m_buffer)
+        if ( response->m_buffer )
         {
-            msg.set_success(true);
-            msg.set_buffer(std::string(response->m_buffer->begin(), response->m_buffer->end()));
-        }
-        else {
-            msg.set_success(false);
+            msg.set_success( true );
+            msg.set_buffer( std::string( response->m_buffer->begin(), response->m_buffer->end()));
+        } else
+        {
+            msg.set_success( false );
         }
     } else
     {
         status = grpc::Status::CANCELLED;
     }
-    m_responder.Finish( msg, status, nullptr );
+    auto* tag = new FinishRequestRPCTag( shared_from_this());
+    m_responder.Finish( msg, status, tag );
 }
 
 }

@@ -8,12 +8,13 @@
 
 #include <utility>
 #include "drive/ManualModificationsRequests.h"
+#include "FinishRequestRPCTag.h"
 
 namespace sirius::drive::contract
 {
 
 FlushRequestContext::FlushRequestContext(
-        storage::StorageServer::AsyncService& service,
+        storageServer::StorageServer::AsyncService& service,
         grpc::ServerCompletionQueue& completionQueue,
         std::shared_ptr<bool> serviceIsActive,
         std::weak_ptr<ModificationsExecutor> executor )
@@ -64,7 +65,7 @@ void FlushRequestContext::onCallExecuted( const std::optional<FlushResponse>& re
 
     m_responseAlreadyGiven = true;
 
-    storage::FlushResponse msg;
+    storageServer::FlushFileResponse msg;
     grpc::Status status;
     if ( response )
     {
@@ -73,7 +74,8 @@ void FlushRequestContext::onCallExecuted( const std::optional<FlushResponse>& re
     {
         status = grpc::Status::CANCELLED;
     }
-    m_responder.Finish( msg, status, nullptr );
+    auto* tag = new FinishRequestRPCTag( shared_from_this());
+    m_responder.Finish( msg, status, tag );
 }
 
 }

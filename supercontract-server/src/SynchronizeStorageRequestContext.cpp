@@ -8,12 +8,13 @@
 
 #include <utility>
 #include "drive/ManualModificationsRequests.h"
+#include "FinishRequestRPCTag.h"
 
 namespace sirius::drive::contract
 {
 
 SynchronizeStorageRequestContext::SynchronizeStorageRequestContext(
-        storage::StorageServer::AsyncService& service,
+        storageServer::StorageServer::AsyncService& service,
         grpc::ServerCompletionQueue& completionQueue,
         std::shared_ptr<bool> serviceIsActive,
         std::weak_ptr<ModificationsExecutor> executor )
@@ -66,7 +67,7 @@ void SynchronizeStorageRequestContext::onCallExecuted( const std::optional<Synch
 
     m_responseAlreadyGiven = true;
 
-    storage::SynchronizeStorageResponse msg;
+    storageServer::SynchronizeStorageResponse msg;
     grpc::Status status;
     if ( response )
     {
@@ -75,7 +76,8 @@ void SynchronizeStorageRequestContext::onCallExecuted( const std::optional<Synch
     {
         status = grpc::Status::CANCELLED;
     }
-    m_responder.Finish( msg, status, nullptr );
+    auto* tag = new FinishRequestRPCTag( shared_from_this());
+    m_responder.Finish( msg, status, tag );
 }
 
 }

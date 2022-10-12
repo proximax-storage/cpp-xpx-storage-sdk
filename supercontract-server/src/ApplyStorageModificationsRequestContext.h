@@ -26,21 +26,21 @@ private:
 
     bool m_responseAlreadyGiven = false;
 
-    storage::StorageServer::AsyncService& m_service;
+    storageServer::StorageServer::AsyncService& m_service;
     grpc::ServerCompletionQueue& m_completionQueue;
 
     std::shared_ptr<bool> m_serviceIsActive;
 
     grpc::ServerContext m_context;
 
-    storage::ApplyStorageModificationsRequest m_request;
-    grpc::ServerAsyncResponseWriter<storage::ApplyStorageModificationsResponse> m_responder;
+    storageServer::ApplyStorageModificationsRequest m_request;
+    grpc::ServerAsyncResponseWriter<storageServer::ApplyStorageModificationsResponse> m_responder;
 
     std::weak_ptr<ModificationsExecutor> m_executor;
 
 public:
 
-    ApplyStorageModificationsRequestContext( storage::StorageServer::AsyncService& service,
+    ApplyStorageModificationsRequestContext( storageServer::StorageServer::AsyncService& service,
                                              grpc::ServerCompletionQueue& completionQueue,
                                              std::shared_ptr<bool> serviceIsActive,
                                              std::weak_ptr<ModificationsExecutor> executor );

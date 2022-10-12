@@ -264,8 +264,8 @@ public:
                       const InfoHash&    infoHash,
                       size_t             size );
 
-    bool    addModifiableFile( const std::string& destinationPath,
-                               const std::string& filename );
+    std::optional<InfoHash> addModifiableFile( const std::string& destinationPath,
+                                               const std::string& filename );
 
     bool     addFolder( const std::string& folderPath );
 

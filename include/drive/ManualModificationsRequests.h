@@ -8,6 +8,7 @@
 
 #include <vector>
 #include "types.h"
+#include "FsTree.h"
 
 namespace sirius::drive
 {
@@ -142,6 +143,27 @@ struct SynchronizationRequest
     Hash256 m_modificationIdentifier;
     Hash256 m_rootHash;
     std::function<void( std::optional<SynchronizationResponse> )> m_callback;
+};
+
+struct AbsolutePathResponse
+{
+    std::string m_path;
+};
+
+struct AbsolutePathRequest
+{
+    std::string m_relativePath;
+    std::function<void( std::optional<AbsolutePathResponse> )> m_callback;
+};
+
+struct FilesystemResponse
+{
+    FsTree m_fsTree;
+};
+
+struct FilesystemRequest
+{
+    std::function<void( std::optional<FilesystemResponse> )> m_callback;
 };
 
 }

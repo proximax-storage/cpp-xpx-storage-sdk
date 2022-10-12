@@ -8,12 +8,13 @@
 
 #include <utility>
 #include "drive/ManualModificationsRequests.h"
+#include "FinishRequestRPCTag.h"
 
 namespace sirius::drive::contract
 {
 
 ApplySandboxModificationsRequestContext::ApplySandboxModificationsRequestContext(
-        storage::StorageServer::AsyncService& service,
+        storageServer::StorageServer::AsyncService& service,
         grpc::ServerCompletionQueue& completionQueue,
         std::shared_ptr<bool> serviceIsActive,
         std::weak_ptr<ModificationsExecutor> executor )
@@ -49,7 +50,8 @@ void ApplySandboxModificationsRequestContext::processRequest()
     executor->applySandboxManualModifications( driveKey, request );
 }
 
-void ApplySandboxModificationsRequestContext::onCallExecuted( const std::optional<ApplySandboxModificationsResponse>& response )
+void ApplySandboxModificationsRequestContext::onCallExecuted(
+        const std::optional<ApplySandboxModificationsResponse>& response )
 {
     if ( !*m_serviceIsActive )
     {
@@ -63,18 +65,19 @@ void ApplySandboxModificationsRequestContext::onCallExecuted( const std::optiona
 
     m_responseAlreadyGiven = true;
 
-    storage::ApplySandboxModificationsResponse msg;
+    storageServer::ApplySandboxModificationsResponse msg;
     grpc::Status status;
     if ( response )
     {
-        msg.set_success(response->m_success);
-        msg.set_sandbox_size_delta(response->m_sandboxSizeDelta);
-        msg.set_state_size_delta(response->m_stateSizeDelta);
+        msg.set_success( response->m_success );
+        msg.set_sandbox_size_delta( response->m_sandboxSizeDelta );
+        msg.set_state_size_delta( response->m_stateSizeDelta );
     } else
     {
         status = grpc::Status::CANCELLED;
     }
-    m_responder.Finish( msg, status, nullptr );
+    auto* tag = new FinishRequestRPCTag( shared_from_this());
+    m_responder.Finish( msg, status, tag );
 }
 
 }
