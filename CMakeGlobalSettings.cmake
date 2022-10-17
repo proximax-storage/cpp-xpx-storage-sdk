@@ -201,12 +201,7 @@ function(storage_sdk_shared_library TARGET_NAME)
         storage_sdk_find_all_target_files("shared lib" ${TARGET_NAME} ${ARGN})
 
         add_definitions(-DDLL_EXPORTS)
-
-        if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-           add_library(${TARGET_NAME} ${${TARGET_NAME}_FILES} ${VERSION_RESOURCES})
-        else()
-            add_library(${TARGET_NAME} SHARED ${${TARGET_NAME}_FILES} ${VERSION_RESOURCES})
-        endif()
+        add_library(${TARGET_NAME} SHARED ${${TARGET_NAME}_FILES} ${VERSION_RESOURCES})
 endfunction()
 
 # combines storage_sdk_shared_library and storage_sdk_target
