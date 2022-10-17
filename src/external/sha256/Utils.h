@@ -2,9 +2,9 @@
 #ifndef sodium_utils_H
 #define sodium_utils_H
 
-#include <stddef.h>
+#include <cstddef>
 
-#include "external/sha256/export.h"
+#include "plugins.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,7 +18,7 @@ extern "C" {
 # endif
 #endif
 
-SODIUM_EXPORT
+PLUGIN_API
 void sodium_memzero(void * const pnt, const size_t len) __attribute__ ((nonnull));
 
 #ifdef __cplusplus

@@ -10,8 +10,8 @@
 #include "endian.h"
 #include "compiler.h"
 #include <stdbool.h>
-#include <assert.h>
-#include <string.h>
+#include <cassert>
+#include <cstring>
 
 static void invalidate_ripemd160(struct ripemd160_ctx *ctx)
 {
@@ -270,7 +270,7 @@ static bool alignment_ok(const void *p UNUSED, size_t n UNUSED)
 
 static void add(struct ripemd160_ctx *ctx, const void *p, size_t len)
 {
-	const unsigned char *data = p;
+	const auto *data = static_cast<const unsigned char *>(p);
 	size_t bufsize = ctx->bytes % 64;
 
 	if (bufsize + len >= 64) {

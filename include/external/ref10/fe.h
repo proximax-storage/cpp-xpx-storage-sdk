@@ -1,6 +1,7 @@
 #ifndef FE_H
 #define FE_H
 
+#include "plugins.h"
 #include "crypto_int32.h"
 
 typedef crypto_int32 fe[10];
@@ -32,25 +33,25 @@ Bounds on each t[i] vary depending on context.
 #define fe_invert crypto_sign_ed25519_ref10_fe_invert
 #define fe_pow22523 crypto_sign_ed25519_ref10_fe_pow22523
 
-extern void fe_frombytes(fe,const unsigned char *);
-extern void fe_tobytes(unsigned char *,const fe);
+PLUGIN_API extern void fe_frombytes(fe,const unsigned char *);
+PLUGIN_API extern void fe_tobytes(unsigned char *,const fe);
 
-extern void fe_copy(fe,const fe);
-extern int fe_isnonzero(const fe);
-extern int fe_isnegative(const fe);
-extern void fe_0(fe);
-extern void fe_1(fe);
-extern void fe_cswap(fe,fe,unsigned int);
-extern void fe_cmov(fe,const fe,unsigned int);
+PLUGIN_API extern void fe_copy(fe,const fe);
+PLUGIN_API extern int fe_isnonzero(const fe);
+PLUGIN_API extern int fe_isnegative(const fe);
+PLUGIN_API extern void fe_0(fe);
+PLUGIN_API extern void fe_1(fe);
+PLUGIN_API extern void fe_cswap(fe,fe,unsigned int);
+PLUGIN_API extern void fe_cmov(fe,const fe,unsigned int);
 
-extern void fe_add(fe,const fe,const fe);
-extern void fe_sub(fe,const fe,const fe);
-extern void fe_neg(fe,const fe);
-extern void fe_mul(fe,const fe,const fe);
-extern void fe_sq(fe,const fe);
-extern void fe_sq2(fe,const fe);
-extern void fe_mul121666(fe,const fe);
-extern void fe_invert(fe,const fe);
-extern void fe_pow22523(fe,const fe);
+PLUGIN_API extern void fe_add(fe,const fe,const fe);
+PLUGIN_API extern void fe_sub(fe,const fe,const fe);
+PLUGIN_API extern void fe_neg(fe,const fe);
+PLUGIN_API extern void fe_mul(fe,const fe,const fe);
+PLUGIN_API extern void fe_sq(fe,const fe);
+PLUGIN_API extern void fe_sq2(fe,const fe);
+PLUGIN_API extern void fe_mul121666(fe,const fe);
+PLUGIN_API extern void fe_invert(fe,const fe);
+PLUGIN_API extern void fe_pow22523(fe,const fe);
 
 #endif
