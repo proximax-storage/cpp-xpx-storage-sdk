@@ -91,6 +91,9 @@ class DefaultSession: public Session, std::enable_shared_from_this<DefaultSessio
 
     // It will be called on socket listening error
     LibTorrentErrorHandler  m_alertHandler;
+    
+    using TorrentDeletedHandler = std::optional<std::function<void( lt::torrent_handle )>>;
+    TorrentDeletedHandler m_torrentDeletedHandler;
 
     std::weak_ptr<ReplicatorInt>        m_replicator;
     std::weak_ptr<lt::session_delegate> m_downloadLimiter;
@@ -175,9 +178,19 @@ public:
         return m_session;
     }
     
+    virtual void setTorrentDeletedHandler( std::function<void(lt::torrent_handle)> handler ) override
+    {
+        m_torrentDeletedHandler = handler;
+    }
+
     //
     virtual void onTorrentDeleted( lt::torrent_handle handle ) override
     {
+        if ( m_torrentDeletedHandler )
+        {
+            (*m_torrentDeletedHandler)( handle );
+        }
+
         if (m_stopping)
         {
             return;
@@ -207,36 +220,36 @@ public:
                 
                 auto& context = contextVector[i];
 
-                if ( ! context.m_saveAs.empty() && context.m_downloadType == DownloadContext::file_from_drive )
-                {
-                    //_LOG( "context.m_saveAs: " << context.m_saveAs )
-                    _ASSERT( ! m_ownerIsReplicator )
-                    
-                    fs::path destFilePath = context.m_saveAs;
-
-                    std::error_code err;
-                    if ( !fs::exists( destFilePath.parent_path(), err ) ) {
-                        fs::create_directories( destFilePath.parent_path(), err );
-                    }
-
-                    //???+++
-                    if ( fs::exists( destFilePath, err ) ) {
-                        fs::remove( destFilePath );
-                    }
-
-                    if ( i == contextVector.size()-1 )
-                    {
-                        fs::rename( srcFilePath, destFilePath, err );
-                        if (err)
-                        {
-                            _LOG_WARN( "rename err: " << err.message() )
-                        }
-                    }
-                    else
-                    {
-                        fs::copy( srcFilePath, destFilePath, err );
-                    }
-                }
+//                if ( ! context.m_saveAs.empty() && context.m_downloadType == DownloadContext::file_from_drive )
+//                {
+//                    //_LOG( "context.m_saveAs: " << context.m_saveAs )
+//                    _ASSERT( ! m_ownerIsReplicator )
+//
+//                    fs::path destFilePath = context.m_saveAs;
+//
+//                    std::error_code err;
+//                    if ( !fs::exists( destFilePath.parent_path(), err ) ) {
+//                        fs::create_directories( destFilePath.parent_path(), err );
+//                    }
+//
+//                    //???+++
+//                    if ( fs::exists( destFilePath, err ) ) {
+//                        fs::remove( destFilePath );
+//                    }
+//
+//                    if ( i == contextVector.size()-1 )
+//                    {
+//                        fs::rename( srcFilePath, destFilePath, err );
+//                        if (err)
+//                        {
+//                            _LOG_WARN( "rename err: " << err.message() )
+//                        }
+//                    }
+//                    else
+//                    {
+//                        fs::copy( srcFilePath, destFilePath, err );
+//                    }
+//                }
 
                 context.m_downloadNotification( download_status::code::download_complete,
                                                 context.m_infoHash,
@@ -551,12 +564,12 @@ public:
         if ( downloadContext.m_downloadType == DownloadContext::fs_tree ) {
             downloadContext.m_saveAs = fs::path(saveFolder) / FS_TREE_FILE_NAME;
         }
-        else if ( downloadContext.m_downloadType == DownloadContext::file_from_drive ) {
-            if (downloadContext.m_saveAs.empty())
-            {
-                _LOG_ERR( "download(file_from_drive): DownloadContext::m_saveAs' is empty" )
-            }
-        }
+//        else if ( downloadContext.m_downloadType == DownloadContext::file_from_drive ) {
+//            if (downloadContext.m_saveAs.empty())
+//            {
+//                _LOG_ERR( "download(file_from_drive): DownloadContext::m_saveAs' is empty" )
+//            }
+//        }
 
         __ASSERT( tHandle.userdata().get<LtClientData>() != nullptr )
         tHandle.userdata().get<LtClientData>()->m_dnContexts.push_back( downloadContext );

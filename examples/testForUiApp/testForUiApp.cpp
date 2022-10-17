@@ -21,6 +21,158 @@
 
 #include <sirius_drive/session_delegate.h>
 
+struct ModifyPacket
+{
+    std::array<uint8_t,32>  driveKey;
+    std::array<uint8_t,32>  clientPublicKey;
+    std::array<uint8_t,32>  clientDataInfoHash;
+    std::array<uint8_t,32>  transactionHash;
+    std::array<uint8_t,32>  maxDataSize;
+
+    template<class Archive>
+    void serialize( Archive &ar )
+    {
+        ar( driveKey, clientPublicKey, clientDataInfoHash, maxDataSize );
+    }
+};
+
+using ModifyFunction = std::function<void( const ModifyPacket& )>;
+
+class ModifyTcpService
+{
+protected:
+    
+    class Session;
+    
+    asio::io_context                        m_context;
+    std::optional<asio::ip::tcp::acceptor>  m_acceptor;
+    std::optional<asio::ip::tcp::socket>    m_socket;
+    std::shared_ptr<Session>                m_session;
+    
+    ModifyFunction                          m_modifyFunction;
+    
+public:
+    
+    ModifyTcpService( ModifyFunction modifyFunction ) : m_modifyFunction(modifyFunction)
+    {
+    }
+    
+    virtual ~ModifyTcpService()
+    {
+        closeSockets();
+        m_context.stop();
+    }
+    
+public:
+    
+    void run( std::string address, std::uint16_t port )
+    {
+        try
+        {
+            m_acceptor.emplace( m_context, asio::ip::tcp::endpoint( boost::asio::ip::make_address(address.c_str()), port ) );
+        
+            async_accept();
+        }
+        catch( const std::runtime_error& ex )
+        {
+            __LOG( "Couldn't Start RPC Server: " << ex.what() );
+            exit(1);
+        }
+        catch(...)
+        {
+            __LOG( "Unknown Error" );
+            exit(1);
+        }
+
+        m_context.run();
+    }
+    
+protected:
+    // Session -
+    class Session : public std::enable_shared_from_this<Session>
+    {
+        ModifyFunction          m_modifyFunction;
+
+        asio::ip::tcp::socket   socket;
+        asio::streambuf         streambuf;
+        std::vector<uint8_t>    in_buff;
+        
+        uint16_t                packetLen;
+        
+    public:
+        
+        Session( asio::ip::tcp::socket&& socket, ModifyFunction modifyFunction )
+        : m_modifyFunction(modifyFunction), socket( std::move(socket) )
+        {
+        }
+        
+        void start()
+        {
+            readNextCommand();
+        }
+        
+        void readNextCommand()
+        {
+            asio::async_read( socket, asio::buffer( &packetLen, sizeof(packetLen) ),
+                             asio::transfer_exactly( sizeof(packetLen) ),
+                             [this] ( boost::system::error_code error, std::size_t bytes_transferred )
+            {
+                streambuf.prepare( packetLen );
+
+                asio::async_read( socket, streambuf,
+                                 asio::transfer_exactly( packetLen ),
+                                 [this] ( boost::system::error_code error, std::size_t bytes_transferred )
+                {
+                    if ( ! error && bytes_transferred == packetLen )
+                    {
+
+                        //                                            __LOG( "packet_len: " << packetLen )
+                        //                                            __LOG( "streambuf.size: " << streambuf.size() )
+                        std::istream is( &streambuf );
+                        {
+                            cereal::PortableBinaryInputArchive iarchive(is);
+                            ModifyPacket modifyPacket;
+                            iarchive( modifyPacket );
+                            m_modifyFunction( modifyPacket );
+                        }
+                        streambuf.consume( bytes_transferred );
+                    }
+                });
+            });
+        }
+    };
+    
+private:
+    
+    void closeSockets()
+    {
+        __LOG( "Start Close Sockets" )
+        m_socket->close();
+        __LOG( "Finish Close Sockets" )
+    }
+    
+    void async_accept()
+    {
+        m_socket.emplace( m_context );
+        
+        m_acceptor->async_accept( *m_socket, [this] (boost::system::error_code ec)
+        {
+            if ( ec )
+            {
+                _LOG_ERR( "error in ModifyTcpService::async_accept : " << ec.message() )
+                return;
+            }
+            else
+            {
+                __LOG( "accepted:" << this)
+                    std::make_shared<Session>( std::move(*m_socket), m_modifyFunction )->start();
+                    async_accept();
+            }
+        });
+    }
+};
+
+
 //(???+) !!!
 const bool testLateReplicator = false;
 const bool gRestartReplicators = false;
@@ -34,7 +186,7 @@ const char* RPC_REPLICATOR_NAME = "no_replicator1";
 // This example shows interaction between 'client' and 'replicator'.
 //
 
-#define BIG_FILE_SIZE       1 * 1024*1024 //150//4
+#define BIG_FILE_SIZE       10 * 1024*1024 //150//4
 #define MODIFY_DATA_SIZE    (BIG_FILE_SIZE)-32000
 
 #define TRANSPORT_PROTOCOL false // true - TCP, false - uTP
@@ -551,12 +703,29 @@ int main(int,char**)
             actionList.push_back( Action::upload( clientFolder / "a.txt", "a.txt" ) );
             actionList.push_back( Action::upload( clientFolder / "c.txt", "c.txt" ) );
             actionList.push_back( Action::upload( clientFolder / "d.txt", "d.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "b.bin", "b.bin" ) );
+            actionList.push_back( Action::upload( clientFolder / "bb.bin", "bb.bin" ) );
+            
+            actionList.push_back( Action::upload( clientFolder / "a.txt", "f1/a1.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "c.txt", "f1/c1.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "d.txt", "f1/d1.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "b.bin", "f1/b1.bin" ) );
+            actionList.push_back( Action::upload( clientFolder / "bb.bin", "f1/bb1.bin" ) );
+
+            actionList.push_back( Action::upload( clientFolder / "a.txt", "f2/a2.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "c.txt", "f2/c2.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "d.txt", "f2/d2.txt" ) );
+            actionList.push_back( Action::upload( clientFolder / "b.bin", "f2/b2.bin" ) );
+            actionList.push_back( Action::upload( clientFolder / "bb.bin", "f2/bb2.bin" ) );
+
             actionList.push_back( Action::upload( clientFolder / "a.txt", "folder/aa.txt" ) );
             actionList.push_back( Action::upload( clientFolder / "a.txt", "folder/sub_folder/aaa.txt" ) );
             actionList.push_back( Action::upload( clientFolder / "c.txt", "folder/sub_folder/c.txt" ) );
             actionList.push_back( Action::upload( clientFolder / "d.txt", "folder/sub_folder/d.txt" ) );
-            actionList.push_back( Action::upload( clientFolder / "b.bin", "f1/b1.bin" ) );
-            actionList.push_back( Action::upload( clientFolder / "b.bin", "f2/b2.bin" ) );
+
+            actionList.push_back( Action::upload( clientFolder / "b.bin", "ff1/b.bin" ) );
+            actionList.push_back( Action::upload( clientFolder / "bb.bin", "ff1/bb.bin" ) );
+
             actionList.push_back( Action::upload( clientFolder / "b.bin", "f3/sub_folder/b2.bin" ) );
             actionList.push_back( Action::upload( clientFolder / "a.txt", "f3/sub_folder/a.txt" ) );
             actionList.push_back( Action::upload( clientFolder / "c.txt", "f3/sub_folder/c.txt" ) );
@@ -626,6 +795,12 @@ int main(int,char**)
         EXLOG( "\n# blocked" );
         sleep(10);
     }
+    
+    std::thread([]
+    {
+        
+    }).detach();
+    
     std::mutex block;
     block.lock();
     block.lock();
@@ -1012,13 +1187,13 @@ static void clientDownloadFilesR( std::shared_ptr<ClientSession> clientSession, 
 {
     for( const auto& child: folder.childs() )
     {
-        if ( isFolder(child) )
+        if ( isFolder(child.second) )
         {
-            clientDownloadFilesR( clientSession, getFolder(child), downloadChannelId );
+            clientDownloadFilesR( clientSession, getFolder(child.second), downloadChannelId );
         }
         else
         {
-            const File& file = getFile(child);
+            const File& file = getFile(child.second);
             std::string folderName = "root";
             if ( folder.name() != "/" )
                 folderName = folder.name();
@@ -1092,7 +1267,15 @@ static fs::path createClientFiles( size_t bigFileSize ) {
     }
     {
         fs::path b_bin = dataFolder / "b.bin";
-        fs::create_directories( b_bin.parent_path() );
+        std::vector<uint8_t> data(bigFileSize/10);
+        //std::generate( data.begin(), data.end(), std::rand );
+        uint8_t counter=0;
+        std::generate( data.begin(), data.end(), [&] { return counter++;} );
+        std::ofstream file( b_bin );
+        file.write( (char*) data.data(), data.size() );
+    }
+    {
+        fs::path b_bin = dataFolder / "bb.bin";
         std::vector<uint8_t> data(bigFileSize);
         //std::generate( data.begin(), data.end(), std::rand );
         uint8_t counter=0;

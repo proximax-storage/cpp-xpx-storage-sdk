@@ -44,6 +44,7 @@ public:
         arch( m_name );
         arch( cereal::binary_data( m_hash.data(), m_hash.size() ) );
         arch( m_size );
+        arch( m_modificationIndex );
     }
 
     const lt_handle& getLtHandle() const
@@ -65,6 +66,7 @@ private:
     std::string m_name;
     InfoHash    m_hash;
     size_t      m_size;
+    int64_t     m_modificationIndex = -1;
     bool        m_isModifiable = false;
 
 private:
@@ -127,6 +129,7 @@ public:
         {
             arch( cereal::binary_data( m_streamId.data(), m_streamId.size() ) );
         }
+        arch( m_modificationIndex );
     }
 
     // returns nullptr if child is absent
@@ -147,6 +150,7 @@ protected:
     std::map<std::string, Child>  m_childs;
     bool              m_isaStream = false;
     Hash256           m_streamId;
+    int64_t           m_modificationIndex = -1;
 };
 
 // variant utilities
