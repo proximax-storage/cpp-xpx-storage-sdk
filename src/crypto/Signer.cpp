@@ -25,12 +25,9 @@
 
 #include "exceptions.h"
 #include <cstring>
+#include "external/ref10/sc.h"
+#include "external/ref10/ge.h"
 #include "external/ref10/crypto_verify_32.h"
-
-extern "C" {
-#include <external/ref10/ge.h>
-#include <external/ref10/sc.h>
-}
 
 #ifdef _MSC_VER
 #define RESTRICT __restrict

@@ -27,14 +27,11 @@
 #pragma clang diagnostic ignored "-Wdocumentation-unknown-command"
 #endif
 
-extern "C" {
-#include "external/ripemd160/ripemd160.h"
-}
-
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
 
+#include "external/ripemd160/ripemd160.h"
 #include "external/sha256/crypto_hash_sha256.h"
 
 namespace sirius { namespace crypto {
