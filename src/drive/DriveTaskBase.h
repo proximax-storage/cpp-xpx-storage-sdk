@@ -190,6 +190,55 @@ public:
         return false;
     }
 
+    virtual bool remove( const RemoveRequest& request )
+    {
+        DBG_MAIN_THREAD
+
+        return false;
+    }
+
+    virtual bool createDirectories( const CreateDirectoriesRequest& request )
+    {
+        DBG_MAIN_THREAD
+
+        return false;
+    }
+
+    virtual bool folderIteratorCreate( const FolderIteratorCreateRequest& request )
+    {
+        DBG_MAIN_THREAD
+
+        return false;
+    }
+
+    virtual bool folderIteratorDestroy( const FolderIteratorDestroyRequest& request )
+    {
+        DBG_MAIN_THREAD
+
+        return false;
+    }
+
+    virtual bool folderIteratorHasNext( const FolderIteratorHasNextRequest& request )
+    {
+        DBG_MAIN_THREAD
+
+        return false;
+    }
+
+    virtual bool folderIteratorNext( const FolderIteratorNextRequest& request )
+    {
+        DBG_MAIN_THREAD
+
+        return false;
+    }
+
+    virtual bool move( const MoveRequest& )
+    {
+        DBG_MAIN_THREAD
+
+        return false;
+    }
+
     virtual bool applySandboxModifications( const ApplySandboxModificationsRequest& request )
     {
         DBG_MAIN_THREAD

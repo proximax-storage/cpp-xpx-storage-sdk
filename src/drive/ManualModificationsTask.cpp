@@ -8,9 +8,31 @@
 #include "drive/ManualModificationsRequests.h"
 #include "drive/log.h"
 #include "drive/Utils.h"
+#include <stack>
+#include "FolderIterator.h"
 
 namespace sirius::drive
 {
+
+struct OpenFile
+{
+
+    OpenFile( std::shared_ptr<std::fstream> stream,
+              std::shared_ptr<FileStatisticsNode> statisticsNode )
+            : m_stream( std::move( stream ))
+            , m_statisticsNode( std::move( statisticsNode ))
+    {
+        m_statisticsNode->addBlock();
+    }
+
+    ~OpenFile()
+    {
+        m_statisticsNode->removeBlock();
+    }
+
+    std::shared_ptr<std::fstream> m_stream;
+    std::shared_ptr<FileStatisticsNode> m_statisticsNode;
+};
 
 namespace fs = std::filesystem;
 
@@ -26,14 +48,14 @@ class ManualModificationsTask
     std::optional<Hash256> m_sandboxRootHash;
     std::optional<lt::torrent_handle> m_sandboxFsTreeHandle;
 
-    // In case of correct implementation we can avoid using shared pointer here
-    // But we use them for easier bugs detection
-    std::map<uint64_t, std::shared_ptr<std::fstream>> m_openFilesWrite;
-    std::map<uint64_t, std::shared_ptr<std::fstream>> m_openFilesRead;
+    std::map<uint64_t, OpenFile> m_openFilesWrite;
+    std::map<uint64_t, OpenFile> m_openFilesRead;
+    std::map<uint64_t, FolderIterator> m_folderIterators;
 
     std::set<InfoHash> m_callManagedHashes;
 
     uint64_t m_totalFilesOpened = 0;
+    uint64_t m_totalFolderIteratorsCreated;
 
     bool m_isExecutingQuery = false;
 
@@ -69,6 +91,7 @@ public:
         }
 
         m_upperSandboxFsTree = std::make_unique<FsTree>( *m_lowerSandboxFsTree );
+        m_upperSandboxFsTree->initializeStatistics();
         request.m_callback( InitiateSandboxModificationsResponse{} );
         return true;
     }
@@ -77,7 +100,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree );
+        _ASSERT( m_upperSandboxFsTree )
         _ASSERT( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
@@ -122,10 +145,11 @@ public:
             auto absolutePath = m_drive.m_driveFolder / name;
 
             m_isExecutingQuery = true;
-            m_drive.executeOnBackgroundThread( [=, this, mode = request.m_mode, callback = request.m_callback]() mutable
-                                               {
-                                                   createStream( std::move( absolutePath ), mode, fileId, callback );
-                                               } );
+            m_drive.executeOnBackgroundThread(
+                    [=, this, mode = request.m_mode, callback = request.m_callback, path = request.m_path]() mutable
+                    {
+                        createStream( std::move( absolutePath ), mode, fileId, path, callback );
+                    } );
         } else
         {
             auto it = pFolder->childs().find( p.filename());
@@ -146,15 +170,15 @@ public:
                     m_upperSandboxFsTree->removeFlat( p, []( const auto& )
                     {} );
                     auto temporaryHash = m_upperSandboxFsTree->addModifiableFile( p.parent_path(), p.filename());
-                    _ASSERT(temporaryHash)
-                    m_callManagedHashes.insert(*temporaryHash);
+                    _ASSERT( temporaryHash )
+                    m_callManagedHashes.insert( *temporaryHash );
                 }
             } else
             {
                 m_upperSandboxFsTree->addModifiableFile( p.parent_path(), p.filename());
                 auto temporaryHash = m_upperSandboxFsTree->addModifiableFile( p.parent_path(), p.filename());
-                _ASSERT(temporaryHash)
-                m_callManagedHashes.insert(*temporaryHash);
+                _ASSERT( temporaryHash )
+                m_callManagedHashes.insert( *temporaryHash );
             }
 
             it = pFolder->childs().find( p.filename());
@@ -166,10 +190,11 @@ public:
             auto absolutePath = m_drive.m_driveFolder / name;
 
             m_isExecutingQuery = true;
-            m_drive.executeOnBackgroundThread( [=, this, mode = request.m_mode, callback = request.m_callback]() mutable
-                                               {
-                                                   createStream( std::move( absolutePath ), mode, fileId, callback );
-                                               } );
+            m_drive.executeOnBackgroundThread(
+                    [=, this, mode = request.m_mode, callback = request.m_callback, path = request.m_path]() mutable
+                    {
+                        createStream( std::move( absolutePath ), mode, fileId, path, callback );
+                    } );
         }
 
         return true;
@@ -177,7 +202,10 @@ public:
 
 private:
 
-    void createStream( std::string&& path, OpenFileMode mode, uint64_t fileId,
+    void createStream( std::string&& path,
+                       OpenFileMode mode,
+                       uint64_t fileId,
+                       const std::string& fsPath,
                        const std::function<void( std::optional<OpenFileResponse> )>& callback )
     {
         DBG_BG_THREAD
@@ -201,16 +229,19 @@ private:
         }
         catch ( ... )
         {
-            _LOG( "Failed to open stream " << path );
+            _LOG( "Failed to open stream " << path )
         }
 
         m_drive.executeOnSessionThread( [=, this]() mutable
                                         {
-                                            onFileOpened( std::move( stream ), mode, fileId, callback );
+                                            onFileOpened( std::move( stream ), mode, fileId, fsPath, callback );
                                         } );
     }
 
-    void onFileOpened( std::shared_ptr<std::fstream>&& stream, OpenFileMode mode, uint64_t fileId,
+    void onFileOpened( std::shared_ptr<std::fstream>&& stream,
+                       OpenFileMode mode,
+                       uint64_t fileId,
+                       const std::string& fsPath,
                        const std::function<void( std::optional<OpenFileResponse> )>& callback )
     {
 
@@ -235,12 +266,21 @@ private:
             return;
         }
 
+        auto* child = m_upperSandboxFsTree->getEntryPtr( fsPath );
+
+        _ASSERT( child != nullptr )
+        _ASSERT( isFile( *child ))
+
+        auto statisticsNode = getFile( *child ).statisticsNode();
+
+        OpenFile file( stream, statisticsNode );
+
         if ( mode == OpenFileMode::READ )
         {
-            m_openFilesRead[fileId] = std::move( stream );
+            m_openFilesRead.insert( {fileId, file} );
         } else
         {
-            m_openFilesWrite[fileId] = std::move( stream );
+            m_openFilesWrite.insert( {fileId, file} );
         }
 
         callback( OpenFileResponse{fileId} );
@@ -264,16 +304,16 @@ public:
 
         if ( it == m_openFilesRead.end())
         {
-            request.m_callback( ReadFileResponse{std::make_optional<std::vector<uint8_t>>()} );
+            request.m_callback( ReadFileResponse{std::make_optional<std::vector<uint8_t >>()} );
             return true;
         }
 
         m_isExecutingQuery = true;
 
-        auto stream = it->second;
+        auto stream = it->second.m_stream;
 
         m_drive.executeOnBackgroundThread(
-                [stream, this, bytes = request.m_bytes, callback = std::move( request.m_callback )]
+                [stream, this, bytes = request.m_bytes, callback = request.m_callback]
                 {
                     readStream( stream, bytes, callback );
                 } );
@@ -290,14 +330,14 @@ private:
 
         auto stream = weakStream.lock();
 
-        _ASSERT( stream );
+        _ASSERT( stream )
 
         std::vector<uint8_t> buffer( bytes, 0 );
         stream->read( reinterpret_cast<char*>(buffer.data()), buffer.size());
         auto read = stream->gcount();
         buffer.resize( read );
 
-        _ASSERT( stream->good());
+        _ASSERT( stream->good())
 
         m_drive.executeOnSessionThread( [=, this]() mutable
                                         {
@@ -306,7 +346,8 @@ private:
     }
 
     void
-    onReadFile( std::vector<uint8_t>&& bytes, const std::function<void( std::optional<ReadFileResponse> )>& callback )
+    onReadFile( std::vector<uint8_t>&& bytes,
+                const std::function<void( std::optional<ReadFileResponse> )>& callback )
     {
 
         DBG_MAIN_THREAD
@@ -349,7 +390,7 @@ public:
 
         m_isExecutingQuery = true;
 
-        auto stream = it->second;
+        auto stream = it->second.m_stream;
 
         m_drive.executeOnBackgroundThread(
                 [stream, this, buffer = request.m_buffer, callback = request.m_callback]() mutable
@@ -367,11 +408,11 @@ private:
     {
         DBG_BG_THREAD
 
-        _LOG( "In Stream" );
+        _LOG( "In Stream" )
 
         auto stream = weakStream.lock();
 
-        _ASSERT( stream );
+        _ASSERT( stream )
 
         stream->write( reinterpret_cast<char*>(buffer.data()), buffer.size());
 
@@ -391,7 +432,7 @@ private:
 
         m_isExecutingQuery = false;
 
-        _LOG( "On File Written" );
+        _LOG( "On File Written" )
 
         if ( m_taskIsInterrupted )
         {
@@ -424,7 +465,7 @@ public:
             return true;
         }
 
-        auto stream = it->second;
+        auto stream = it->second.m_stream;
 
         m_isExecutingQuery = true;
         m_drive.executeOnSessionThread( [=, this, callback = request.m_callback]
@@ -446,7 +487,7 @@ private:
 
         auto stream = weakStream.lock();
 
-        _ASSERT( stream );
+        _ASSERT( stream )
 
         stream->flush();
 
@@ -493,7 +534,7 @@ public:
 
         if ( readIt != m_openFilesRead.end())
         {
-            auto stream = readIt->second;
+            auto stream = readIt->second.m_stream;
             m_isExecutingQuery = true;
             m_drive.executeOnBackgroundThread( [=, this, fileId = request.m_fileId, callback = request.m_callback]
                                                {
@@ -506,7 +547,7 @@ public:
 
         if ( writeIt != m_openFilesWrite.end())
         {
-            auto stream = writeIt->second;
+            auto stream = writeIt->second.m_stream;
             m_isExecutingQuery = true;
             m_drive.executeOnBackgroundThread( [=, this, fileId = request.m_fileId, callback = request.m_callback]
                                                {
@@ -516,6 +557,23 @@ public:
         }
 
         request.m_callback( CloseFileResponse{false} );
+        return true;
+    }
+
+    bool remove( const RemoveRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_upperSandboxFsTree )
+        _ASSERT( !m_isExecutingQuery )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
+
+        processRemoveRequest( request );
+
         return true;
     }
 
@@ -529,7 +587,7 @@ private:
 
         auto stream = weakStream.lock();
 
-        _ASSERT( stream );
+        _ASSERT( stream )
 
         try
         {
@@ -537,7 +595,7 @@ private:
         }
         catch ( ... )
         {
-            _LOG_WARN( "Failed to close stream" );
+            _LOG_WARN( "Failed to close stream" )
         }
 
         m_drive.executeOnSessionThread( [=, this]
@@ -580,7 +638,254 @@ private:
             return;
         }
 
-        _LOG_ERR( "Close nonexisting stream" );
+        _LOG_ERR( "Close nonexisting stream" )
+    }
+
+private:
+
+    void processRemoveRequest( const RemoveRequest& request )
+    {
+
+        DBG_MAIN_THREAD
+
+        if ( !checkUnlock( request.m_path ))
+        {
+            request.m_callback( RemoveResponse{false} );
+            return;
+        }
+
+        auto* child = m_upperSandboxFsTree->getEntryPtr( request.m_path );
+
+        std::set<InfoHash> possiblyRemovedFiles;
+
+        if ( isFile( *child ))
+        {
+            possiblyRemovedFiles = {getFile( *child ).hash()};
+        } else
+        {
+            getFolder( *child ).getUniqueFiles( possiblyRemovedFiles );
+        }
+
+        std::set<InfoHash> filesToRemove;
+
+        for ( const auto& hash: possiblyRemovedFiles )
+        {
+            if ( m_callManagedHashes.contains( hash ))
+            {
+                filesToRemove.insert( hash );
+            }
+        }
+
+        m_upperSandboxFsTree->removeFlat( request.m_path, []( const auto& )
+        {} );
+
+        m_isExecutingQuery = true;
+        m_drive.executeOnBackgroundThread(
+                [this, callback = request.m_callback, filesToRemove = std::move( filesToRemove )]
+                {
+                    removeUnusedFiles( filesToRemove, callback );
+                } );
+    }
+
+    void removeUnusedFiles( const std::set<InfoHash>& filesToRemove,
+                            const std::function<void( RemoveResponse )>& callback )
+    {
+        DBG_BG_THREAD
+
+        for ( const auto& file: filesToRemove )
+        {
+            try
+            {
+                fs::remove( m_drive.m_driveFolder / toString( file ));
+            }
+            catch ( const std::filesystem::filesystem_error& er )
+            {
+                _LOG_ERR( "Filesystem error has occurred " << er.what() << " "
+                                                           << er.path1() << " "
+                                                           << er.path2())
+            }
+        }
+
+        m_drive.executeOnSessionThread( [=, this]
+                                        {
+                                            onRemoved( callback );
+                                        } );
+    }
+
+    void onRemoved( const std::function<void( RemoveResponse )>& callback )
+    {
+
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_isExecutingQuery )
+
+        m_isExecutingQuery = false;
+
+        if ( m_taskIsInterrupted )
+        {
+            callback( {} );
+            finishTask();
+            return;
+        }
+
+        callback( RemoveResponse{true} );
+    }
+
+public:
+
+    bool createDirectories( const CreateDirectoriesRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_upperSandboxFsTree )
+        _ASSERT( !m_isExecutingQuery )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
+
+        bool success = m_upperSandboxFsTree->addFolder( request.m_path );
+
+        request.m_callback( CreateDirectoriesResponse{success} );
+
+        return true;
+    }
+
+public:
+
+    bool folderIteratorCreate( const FolderIteratorCreateRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_upperSandboxFsTree )
+        _ASSERT( !m_isExecutingQuery )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
+
+        if ( checkUnlock( request.m_path ))
+        {
+            auto* pFolder = m_upperSandboxFsTree->getFolderPtr( request.m_path );
+            if ( pFolder != nullptr )
+            {
+                auto iteratorId = m_totalFolderIteratorsCreated;
+                m_totalFolderIteratorsCreated++;
+                m_folderIterators.insert( {iteratorId, FolderIterator( *pFolder )} );
+                request.m_callback( FolderIteratorCreateResponse{iteratorId} );
+            } else
+            {
+                request.m_callback( FolderIteratorCreateResponse{} );
+            }
+        } else
+        {
+            request.m_callback( FolderIteratorCreateResponse{} );
+        }
+
+        return true;
+    }
+
+    bool folderIteratorDestroy( const FolderIteratorDestroyRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_upperSandboxFsTree )
+        _ASSERT( !m_isExecutingQuery )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
+
+        auto it = m_folderIterators.find( request.m_id );
+
+        if ( it != m_folderIterators.end())
+        {
+            m_folderIterators.erase( it );
+            request.m_callback( FolderIteratorDestroyResponse{true} );
+        } else
+        {
+            request.m_callback( FolderIteratorDestroyResponse{false} );
+        }
+
+        return true;
+    }
+
+    bool folderIteratorHasNext( const FolderIteratorHasNextRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_upperSandboxFsTree )
+        _ASSERT( !m_isExecutingQuery )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
+
+        auto it = m_folderIterators.find( request.m_id );
+
+        if ( it != m_folderIterators.end())
+        {
+            request.m_callback( FolderIteratorHasNextResponse{it->second.hasNext()} );
+        } else
+        {
+            request.m_callback( FolderIteratorHasNextResponse{false} );
+        }
+        return true;
+    }
+
+    bool folderIteratorNext( const FolderIteratorNextRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_upperSandboxFsTree )
+        _ASSERT( !m_isExecutingQuery )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
+
+        auto it = m_folderIterators.find( request.m_id );
+
+        if ( it != m_folderIterators.end())
+        {
+            request.m_callback( FolderIteratorNextResponse{it->second.next()} );
+        } else
+        {
+            request.m_callback( FolderIteratorNextResponse{} );
+        }
+
+        return true;
+    }
+
+public:
+
+    bool move( const MoveRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( !m_isExecutingQuery )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
+
+        if ( checkUnlock( request.m_src ))
+        {
+            m_upperSandboxFsTree->moveFlat( request.m_src, request.m_dst, []( const auto& )
+            {} );
+            request.m_callback( MoveResponse{true} );
+        } else
+        {
+            request.m_callback( MoveResponse{false} );
+        }
+
+        return true;
     }
 
 public:
@@ -597,6 +902,11 @@ public:
         }
 
         _ASSERT( m_upperSandboxFsTree )
+
+        m_openFilesRead.clear();
+        m_openFilesWrite.clear();
+
+        m_lowerSandboxFsTree->clearStatisticsNode();
 
         if ( request.m_success )
         {
@@ -637,7 +947,7 @@ private:
 
             if ( ec )
             {
-                _LOG_ERR( "Error during removing file: " << ec.message());
+                _LOG_ERR( "Error during removing file: " << ec.message())
             }
         }
 
@@ -684,7 +994,7 @@ private:
 
                 if ( ec )
                 {
-                    _LOG_ERR( "Error during removing file: " << ec.message());
+                    _LOG_ERR( "Error during removing file: " << ec.message())
                 }
             }
         }
@@ -787,7 +1097,7 @@ private:
                                                 {
                                                     _LOG_ERR( "Filesystem error has occurred " << er.what() << " "
                                                                                                << er.path1() << " "
-                                                                                               << er.path2());
+                                                                                               << er.path2())
                                                 }
                                             }
                                         } );
@@ -858,7 +1168,8 @@ public:
 private:
 
     void
-    addNewTorrentsToSession( const std::function<void( std::optional<ApplyStorageModificationsResponse> )>& callback )
+    addNewTorrentsToSession(
+            const std::function<void( std::optional<ApplyStorageModificationsResponse> )>& callback )
     {
         DBG_BG_THREAD
 
@@ -932,7 +1243,8 @@ private:
     }
 
     void
-    onUnusedTorrentsDeleted( const std::function<void( std::optional<ApplyStorageModificationsResponse> )>& callback )
+    onUnusedTorrentsDeleted(
+            const std::function<void( std::optional<ApplyStorageModificationsResponse> )>& callback )
     {
         DBG_BG_THREAD
 
@@ -980,7 +1292,7 @@ private:
         }
         catch ( const std::exception& ex )
         {
-            _LOG_ERR( "Exception during unused file delition: " << ex.what());
+            _LOG_ERR( "Exception during unused file delition: " << ex.what())
         }
     }
 
@@ -1044,6 +1356,46 @@ public:
         terminate();
 
         return true;
+    }
+
+private:
+
+    bool checkUnlock( const std::string& path )
+    {
+        bool noLocks = true;
+        bool iteratedFullBranch = m_upperSandboxFsTree->iterateBranch( path,
+                                                                       [&]( const Folder& folder ) -> bool
+                                                                       {
+                                                                           if ( folder.statisticsNode()->statistics().m_blocks >
+                                                                                0 )
+                                                                           {
+                                                                               noLocks = false;
+                                                                               return false;
+                                                                           }
+                                                                           return true;
+                                                                       }, [&]( const Folder::Child& child ) -> bool
+                                                                       {
+                                                                           uint64_t numLocks = 0;
+                                                                           if ( isFolder( child ))
+                                                                           {
+                                                                               numLocks = getFolder(
+                                                                                       child ).statisticsNode()->statistics().totalBlocks();
+                                                                           } else
+                                                                           {
+                                                                               numLocks = getFolder(
+                                                                                       child ).statisticsNode()->statistics().totalBlocks();
+                                                                           }
+
+                                                                           if ( numLocks > 0 )
+                                                                           {
+                                                                               noLocks = false;
+                                                                               return false;
+                                                                           }
+
+                                                                           return true;
+                                                                       } );
+
+        return iteratedFullBranch && noLocks;
     }
 
 };

@@ -97,6 +97,38 @@ struct CloseFileRequest
     std::function<void( std::optional<CloseFileResponse> )> m_callback;
 };
 
+struct RemoveResponse
+{
+    bool m_success;
+};
+
+struct RemoveRequest
+{
+    std::string m_path;
+    std::function<void( std::optional<RemoveResponse> )> m_callback;
+};
+
+struct CreateDirectoriesResponse {
+    bool m_success;
+};
+
+struct CreateDirectoriesRequest {
+    std::string m_path;
+    std::function<void( std::optional<CreateDirectoriesResponse>)> m_callback;
+};
+
+struct MoveResponse
+{
+    bool m_success;
+};
+
+struct MoveRequest
+{
+    std::string m_src;
+    std::string m_dst;
+    std::function<void( std::optional<MoveResponse> )> m_callback;
+};
+
 struct ApplySandboxModificationsResponse
 {
     bool m_success;
@@ -164,6 +196,42 @@ struct FilesystemResponse
 struct FilesystemRequest
 {
     std::function<void( std::optional<FilesystemResponse> )> m_callback;
+};
+
+struct FolderIteratorCreateResponse {
+    std::optional<uint64_t> m_id;
+};
+
+struct FolderIteratorCreateRequest {
+    std::string m_path;
+    std::function<void( std::optional<FolderIteratorCreateResponse> )> m_callback;
+};
+
+struct FolderIteratorHasNextResponse {
+    bool m_hasNext;
+};
+
+struct FolderIteratorHasNextRequest {
+    uint64_t m_id;
+    std::function<void( std::optional<FolderIteratorHasNextResponse> )> m_callback;
+};
+
+struct FolderIteratorNextResponse {
+    std::optional<std::string> m_name;
+};
+
+struct FolderIteratorNextRequest {
+    uint64_t m_id;
+    std::function<void( std::optional<FolderIteratorNextResponse> )> m_callback;
+};
+
+struct FolderIteratorDestroyResponse {
+    bool success;
+};
+
+struct FolderIteratorDestroyRequest {
+    uint64_t m_id;
+    std::function<void( std::optional<FolderIteratorDestroyResponse> )> m_callback;
 };
 
 }
