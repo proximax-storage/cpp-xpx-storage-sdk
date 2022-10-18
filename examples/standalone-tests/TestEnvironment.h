@@ -340,6 +340,250 @@ public:
         }
     }
 
+    virtual void
+    initiateManualModifications( const DriveKey& driveKey, const InitiateModificationsRequest& request )
+    {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->initiateManualModifications( driveKey, request);
+            }
+        }
+    }
+
+    virtual void initiateManualSandboxModifications( const DriveKey& driveKey,
+                                                     const InitiateSandboxModificationsRequest& request )
+    {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->initiateManualSandboxModifications( driveKey, request);
+            }
+        }
+    }
+
+    virtual void openFile( const DriveKey& driveKey, const OpenFileRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->openFile( driveKey, request);
+            }
+        }
+    }
+
+    virtual void writeFile( const DriveKey& driveKey, const WriteFileRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->writeFile( driveKey, request);
+            }
+        }
+    }
+
+    virtual void readFile( const DriveKey& driveKey, const ReadFileRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->readFile( driveKey, request);
+            }
+        }
+    }
+
+    virtual void flush( const DriveKey& driveKey, const FlushRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->flush( driveKey, request);
+            }
+        }
+    }
+
+    virtual void closeFile( const DriveKey& driveKey, const CloseFileRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->closeFile( driveKey, request);
+            }
+        }
+    }
+
+    virtual void removeFsTreeEntry( const DriveKey& driveKey, const RemoveRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->removeFsTreeEntry( driveKey, request);
+            }
+        }
+    }
+
+    virtual void createDirectories( const DriveKey& driveKey, const CreateDirectoriesRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->createDirectories( driveKey, request);
+            }
+        }
+    }
+
+    virtual void folderIteratorCreate( const DriveKey& driveKey, const FolderIteratorCreateRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->folderIteratorCreate( driveKey, request);
+            }
+        }
+    }
+
+    virtual void folderIteratorDestroy( const DriveKey& driveKey, const FolderIteratorDestroyRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->folderIteratorDestroy( driveKey, request);
+            }
+        }
+    }
+
+    virtual void folderIteratorHasNext( const DriveKey& driveKey, const FolderIteratorHasNextRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->folderIteratorHasNext( driveKey, request);
+            }
+        }
+    }
+
+    virtual void folderIteratorNext( const DriveKey& driveKey, const FolderIteratorNextRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->folderIteratorNext( driveKey, request);
+            }
+        }
+    }
+
+    virtual void moveFsTreeEntry( const DriveKey& driveKey, const MoveRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->moveFsTreeEntry( driveKey, request);
+            }
+        }
+    }
+
+    virtual void
+    applySandboxManualModifications( const DriveKey& driveKey, const ApplySandboxModificationsRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->applySandboxManualModifications( driveKey, request);
+            }
+        }
+    }
+
+    virtual void evaluateStorageHash( const DriveKey& driveKey, const EvaluateStorageHashRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->evaluateStorageHash( driveKey, request);
+            }
+        }
+    }
+
+    virtual void
+    applyStorageManualModifications( const DriveKey& driveKey, const ApplyStorageModificationsRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->applyStorageManualModifications( driveKey, request);
+            }
+        }
+    }
+
+    virtual void manualSynchronize( const DriveKey& driveKey, const SynchronizationRequest& request ) {        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->manualSynchronize( driveKey, request);
+            }
+        }}
+
+    virtual void getAbsolutePath( const DriveKey& driveKey, const AbsolutePathRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->getAbsolutePath( driveKey, request);
+            }
+        }
+    }
+
+    virtual void getFilesystem( const DriveKey& driveKey, const FilesystemRequest& request ) {
+        const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
+        for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
+        {
+            auto replicator = getReplicator( key );
+            if ( replicator )
+            {
+                replicator->getFilesystem( driveKey, request);
+            }
+        }
+    }
+
     virtual void downloadFromDrive( const Key& driveKey, const DownloadRequest& request )
     {
         for ( auto& replicator: m_replicators )

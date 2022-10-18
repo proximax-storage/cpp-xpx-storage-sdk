@@ -190,7 +190,7 @@ public:
         return false;
     }
 
-    virtual bool remove( const RemoveRequest& request )
+    virtual bool removeFsTreeEntry( const RemoveRequest& request )
     {
         DBG_MAIN_THREAD
 
@@ -232,7 +232,7 @@ public:
         return false;
     }
 
-    virtual bool move( const MoveRequest& )
+    virtual bool moveFsTreeEntry( const MoveRequest& )
     {
         DBG_MAIN_THREAD
 

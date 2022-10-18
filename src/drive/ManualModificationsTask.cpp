@@ -560,7 +560,7 @@ public:
         return true;
     }
 
-    bool remove( const RemoveRequest& request ) override
+    bool removeFsTreeEntry( const RemoveRequest& request ) override
     {
         DBG_MAIN_THREAD
 
@@ -864,7 +864,7 @@ public:
 
 public:
 
-    bool move( const MoveRequest& request ) override
+    bool moveFsTreeEntry( const MoveRequest& request ) override
     {
         DBG_MAIN_THREAD
 

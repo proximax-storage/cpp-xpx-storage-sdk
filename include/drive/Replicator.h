@@ -11,6 +11,7 @@
 #include "drive/FlatDrive.h"
 #include "drive/Timer.h"
 #include "drive/Streaming.h"
+#include "drive/ModificationsExecutor.h"
 #include "crypto/Signer.h"
 
 #include <boost/asio/high_resolution_timer.hpp>
@@ -321,7 +322,7 @@ struct EndpointInformation
 //
 // Replicator
 //
-class Replicator
+class Replicator: public ModificationsExecutor
 {
 public:
 

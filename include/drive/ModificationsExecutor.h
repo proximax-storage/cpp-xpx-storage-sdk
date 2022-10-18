@@ -9,7 +9,7 @@
 #include "types.h"
 #include "drive/ManualModificationsRequests.h"
 
-namespace sirius::drive::contract
+namespace sirius::drive
 {
 
 class ModificationsExecutor
@@ -34,6 +34,20 @@ public:
     virtual void flush( const DriveKey& driveKey, const FlushRequest& request ) = 0;
 
     virtual void closeFile( const DriveKey& driveKey, const CloseFileRequest& request ) = 0;
+
+    virtual void removeFsTreeEntry( const DriveKey& driveKey, const RemoveRequest& request ) = 0;
+
+    virtual void createDirectories( const DriveKey& driveKey, const CreateDirectoriesRequest& request ) = 0;
+
+    virtual void folderIteratorCreate( const DriveKey& driveKey, const FolderIteratorCreateRequest& request ) = 0;
+
+    virtual void folderIteratorDestroy( const DriveKey& driveKey, const FolderIteratorDestroyRequest& request ) = 0;
+
+    virtual void folderIteratorHasNext( const DriveKey& driveKey, const FolderIteratorHasNextRequest& request ) = 0;
+
+    virtual void folderIteratorNext( const DriveKey& driveKey, const FolderIteratorNextRequest& request ) = 0;
+
+    virtual void moveFsTreeEntry( const DriveKey& driveKey, const MoveRequest& request ) = 0;
 
     virtual void
     applySandboxManualModifications( const DriveKey& driveKey, const ApplySandboxModificationsRequest& request ) = 0;

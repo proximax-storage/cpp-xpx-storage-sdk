@@ -7,7 +7,7 @@
 #include "types.h"
 #include "drive/log.h"
 #include "drive/FlatDrive.h"
-#include "supercontract-server/ModificationsExecutor.h"
+#include "drive/ModificationsExecutor.h"
 #include "drive/Utils.h"
 #include "drive/Session.h"
 #include "DownloadLimiter.h"
@@ -40,7 +40,6 @@ namespace sirius::drive
 //
 class DefaultReplicator
         : public DownloadLimiter,
-          public contract::ModificationsExecutor,
           public std::enable_shared_from_this<DefaultReplicator>    // Replicator
 {
 private:
@@ -2309,6 +2308,153 @@ public:
             }
 
             driveIt->second->closeFile( request );
+
+        } );
+    }
+
+    void removeFsTreeEntry( const DriveKey& driveKey, const RemoveRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->removeFsTreeEntry( request );
+
+        } );
+    }
+
+    void createDirectories( const DriveKey& driveKey, const CreateDirectoriesRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->createDirectories( request );
+
+        } );
+    }
+
+    void folderIteratorCreate( const DriveKey& driveKey, const FolderIteratorCreateRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->folderIteratorCreate( request );
+
+        } );
+    }
+
+    void folderIteratorDestroy( const DriveKey& driveKey, const FolderIteratorDestroyRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->folderIteratorDestroy( request );
+
+        } );
+    }
+
+    void folderIteratorHasNext( const DriveKey& driveKey, const FolderIteratorHasNextRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->folderIteratorHasNext( request );
+
+        } );
+    }
+
+    void folderIteratorNext( const DriveKey& driveKey, const FolderIteratorNextRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->folderIteratorNext( request );
+
+        } );
+    }
+
+    void moveFsTreeEntry( const DriveKey& driveKey, const MoveRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->moveFsTreeEntry( request );
 
         } );
     }

@@ -442,6 +442,109 @@ public:
     virtual uint64_t    getMinReplicatorsNumber() override { __ASSERT(0); return 0; }
     virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) override {}
 
+    void initiateManualModifications( const DriveKey& driveKey, const InitiateModificationsRequest& request ) override
+    {
+
+    }
+
+    void initiateManualSandboxModifications( const DriveKey& driveKey,
+                                             const InitiateSandboxModificationsRequest& request ) override
+    {
+
+    }
+
+    void openFile( const DriveKey& driveKey, const OpenFileRequest& request ) override
+    {
+
+    }
+
+    void writeFile( const DriveKey& driveKey, const WriteFileRequest& request ) override
+    {
+
+    }
+
+    void readFile( const DriveKey& driveKey, const ReadFileRequest& request ) override
+    {
+
+    }
+
+    void flush( const DriveKey& driveKey, const FlushRequest& request ) override
+    {
+
+    }
+
+    void closeFile( const DriveKey& driveKey, const CloseFileRequest& request ) override
+    {
+
+    }
+
+    void removeFsTreeEntry( const DriveKey& driveKey, const RemoveRequest& request ) override
+    {
+
+    }
+
+    void createDirectories( const DriveKey& driveKey, const CreateDirectoriesRequest& request ) override
+    {
+
+    }
+
+    void folderIteratorCreate( const DriveKey& driveKey, const FolderIteratorCreateRequest& request ) override
+    {
+
+    }
+
+    void folderIteratorDestroy( const DriveKey& driveKey, const FolderIteratorDestroyRequest& request ) override
+    {
+
+    }
+
+    void folderIteratorHasNext( const DriveKey& driveKey, const FolderIteratorHasNextRequest& request ) override
+    {
+
+    }
+
+    void folderIteratorNext( const DriveKey& driveKey, const FolderIteratorNextRequest& request ) override
+    {
+
+    }
+
+    void moveFsTreeEntry( const DriveKey& driveKey, const MoveRequest& request ) override
+    {
+
+    }
+
+    void applySandboxManualModifications( const DriveKey& driveKey,
+                                          const ApplySandboxModificationsRequest& request ) override
+    {
+
+    }
+
+    void evaluateStorageHash( const DriveKey& driveKey, const EvaluateStorageHashRequest& request ) override
+    {
+
+    }
+
+    void applyStorageManualModifications( const DriveKey& driveKey,
+                                          const ApplyStorageModificationsRequest& request ) override
+    {
+
+    }
+
+    void manualSynchronize( const DriveKey& driveKey, const SynchronizationRequest& request ) override
+    {
+
+    }
+
+    void getAbsolutePath( const DriveKey& driveKey, const AbsolutePathRequest& request ) override
+    {
+
+    }
+
+    void getFilesystem( const DriveKey& driveKey, const FilesystemRequest& request ) override
+    {
+
+    }
+
     void enableSupercontractServer( const std::string& address ) override
     {
         // TODO Enable Server

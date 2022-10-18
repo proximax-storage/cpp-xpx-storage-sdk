@@ -735,6 +735,76 @@ public:
         }
     }
 
+    void removeFsTreeEntry( mobj<RemoveRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( !m_task || !m_task->removeFsTreeEntry( *request ))
+        {
+            request->m_callback( {} );
+        }
+    }
+
+    void createDirectories( mobj<CreateDirectoriesRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( !m_task || !m_task->createDirectories( *request ))
+        {
+            request->m_callback( {} );
+        }
+    }
+
+    void folderIteratorCreate( mobj<FolderIteratorCreateRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( !m_task || !m_task->folderIteratorCreate( *request ))
+        {
+            request->m_callback( {} );
+        }
+    }
+
+    void folderIteratorDestroy( mobj<FolderIteratorDestroyRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( !m_task || !m_task->folderIteratorDestroy( *request ))
+        {
+            request->m_callback( {} );
+        }
+    }
+
+    void folderIteratorHasNext( mobj<FolderIteratorHasNextRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( !m_task || !m_task->folderIteratorHasNext( *request ))
+        {
+            request->m_callback( {} );
+        }
+    }
+
+    void folderIteratorNext( mobj<FolderIteratorNextRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( !m_task || !m_task->folderIteratorNext( *request ))
+        {
+            request->m_callback( {} );
+        }
+    }
+
+    void moveFsTreeEntry( mobj<MoveRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( !m_task || !m_task->moveFsTreeEntry( *request ))
+        {
+            request->m_callback( {} );
+        }
+    }
+
     void applySandboxManualModifications( mobj<ApplySandboxModificationsRequest>&& request ) override
     {
         DBG_MAIN_THREAD
