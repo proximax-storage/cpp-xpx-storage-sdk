@@ -337,7 +337,7 @@ private:
         auto read = stream->gcount();
         buffer.resize( read );
 
-        _ASSERT( stream->good())
+        _ASSERT( stream->good()  || stream->eof() )
 
         m_drive.executeOnSessionThread( [=, this]() mutable
                                         {
@@ -468,7 +468,7 @@ public:
         auto stream = it->second.m_stream;
 
         m_isExecutingQuery = true;
-        m_drive.executeOnSessionThread( [=, this, callback = request.m_callback]
+        m_drive.executeOnBackgroundThread( [=, this, callback = request.m_callback]
                                         {
                                             flushStream( stream, callback );
                                         } );
