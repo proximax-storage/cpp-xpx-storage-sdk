@@ -62,39 +62,55 @@ private:
 
         markUsedFiles( *m_drive.m_fsTree );
 
-        std::set<InfoHash> filesToRemove;
+        std::set<lt::torrent_handle> toBeRemovedTorrents;
 
-        for ( auto it = torrentHandleMap.begin(); it != torrentHandleMap.end(); ) {
-            if ( ! it->second.m_isUsed )
+        for ( const auto& it : torrentHandleMap )
+        {
+            const UseTorrentInfo& info = it.second;
+            if ( !info.m_isUsed )
             {
-                filesToRemove.insert( it->first );
-                it = torrentHandleMap.erase( it );
-            }
-            else
-            {
-                it++;
+                if ( info.m_ltHandle.is_valid())
+                {
+                    toBeRemovedTorrents.insert( info.m_ltHandle );
+                }
             }
         }
 
-        m_drive.executeOnBackgroundThread( [ filesToRemove=std::move(filesToRemove), this ]
-                                           {
-                                               clearDrive( filesToRemove );
-                                           } );
+        if ( auto session = m_drive.m_session.lock(); session )
+        {
+            session->removeTorrentsFromSession( toBeRemovedTorrents, [this]
+            {
+                m_drive.executeOnBackgroundThread( [this]
+                {
+                    clearDrive();
+                });
+                }, false);
+        }
     }
 
-    void clearDrive( const std::set<InfoHash>& filesToRemove )
+    void clearDrive()
     {
         DBG_BG_THREAD
 
         try
         {
+            auto& torrentHandleMap = m_drive.m_torrentHandleMap;
             // remove unused files and torrent files from the drive
-            for( const auto& hash : filesToRemove )
+            for ( const auto& it : torrentHandleMap )
             {
-                std::string filename = hashToFileName( hash );
-                fs::remove( fs::path( m_drive.m_driveFolder ) / filename );
-                fs::remove( fs::path( m_drive.m_torrentFolder ) / filename );
+                const UseTorrentInfo& info = it.second;
+                if ( !info.m_isUsed )
+                {
+                    const auto& hash = it.first;
+                    std::string filename = hashToFileName( hash );
+                    fs::remove( fs::path( m_drive.m_driveFolder ) / filename );
+                    fs::remove( fs::path( m_drive.m_torrentFolder ) / filename );
+                }
             }
+
+            // remove unused data from 'fileMap'
+            std::erase_if( torrentHandleMap, []( const auto& it )
+            { return !it.second.m_isUsed; } );
         }
         catch ( const std::exception& ex )
         {

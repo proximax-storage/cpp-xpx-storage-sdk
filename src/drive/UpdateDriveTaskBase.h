@@ -31,6 +31,7 @@ protected:
     std::optional<lt_handle> m_sandboxFsTreeLtHandle;
 
     std::optional<lt_handle> m_downloadingLtHandle;
+    std::optional<lt_handle> m_fsTreeOrActionListHandle;
 
     bool m_sandboxCalculated = false;
 
@@ -123,7 +124,7 @@ protected:
         DBG_MAIN_THREAD
 
         m_taskIsInterrupted = true;
-        
+
         if ( m_downloadingLtHandle )
         {
             if ( auto session = m_drive.m_session.lock(); session )
@@ -309,6 +310,33 @@ private:
                                                                                } );
                                            } );
     }
+
+protected:
+
+    void finishTask() override
+    {
+        DBG_MAIN_THREAD
+
+        if ( m_fsTreeOrActionListHandle )
+        {
+            if ( auto session = m_drive.m_session.lock(); session )
+            {
+                lt_handle torrentHandle = *m_fsTreeOrActionListHandle;
+                m_fsTreeOrActionListHandle.reset();
+
+                session->removeTorrentsFromSession( {torrentHandle}, [this]
+                {
+                    DBG_MAIN_THREAD
+                    DriveTaskBase::finishTask();
+                }, false );
+            }
+        } else
+        {
+            DriveTaskBase::finishTask();
+        }
+    }
+
+private:
 
     virtual void continueSynchronizingDriveWithSandbox() = 0;
 
