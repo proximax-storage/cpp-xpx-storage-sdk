@@ -125,13 +125,23 @@ public:
         }} );
     }
 
-    void onFileWritten( std::optional<WriteFileResponse> res )
+    void onFileFlushed( std::optional<FlushResponse> res )
     {
         ASSERT_TRUE( res );
         ASSERT_TRUE( res->m_success );
         m_env.closeFile( m_driveKey, CloseFileRequest{m_fileId, [this]( auto res )
         {
             onFileClosed( res );
+        }} );
+    }
+
+    void onFileWritten( std::optional<WriteFileResponse> res )
+    {
+        ASSERT_TRUE( res );
+        ASSERT_TRUE( res->m_success );
+        m_env.flush( m_driveKey, FlushRequest{m_fileId, [this]( auto res )
+        {
+            onFileFlushed( res );
         }} );
     }
 
