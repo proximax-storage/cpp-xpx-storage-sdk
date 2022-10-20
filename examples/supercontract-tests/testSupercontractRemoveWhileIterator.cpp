@@ -56,8 +56,7 @@ public:
 public:
     void onAppliedStorageModifications(std::optional<ApplyStorageModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.getFilesystem(m_driveKey, FilesystemRequest{[this](auto res) {
-                            }});
+        p.set_value();
     }
 
     void onStorageHashEvaluated(std::optional<EvaluateStorageHashResponse> res) {
@@ -117,7 +116,7 @@ public:
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.createDirectories(m_driveKey, CreateDirectoriesRequest{"tests/", [this](auto res) { onDirCreated(res); }});
+        m_env.createDirectories(m_driveKey, CreateDirectoriesRequest{"tests", [this](auto res) { onDirCreated(res); }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
@@ -144,6 +143,7 @@ public:
 public:
     void onFileRemoved(std::optional<RemoveResponse> res) {
         ASSERT_FALSE(res);
+        p.set_value();
     }
 
     void onIterCreated(std::optional<FolderIteratorCreateResponse> res) {
@@ -153,7 +153,7 @@ public:
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.folderIteratorCreate(m_driveKey, FolderIteratorCreateRequest{"./", [this](auto res) { onIterCreated(res); }});
+        m_env.folderIteratorCreate(m_driveKey, FolderIteratorCreateRequest{"", [this](auto res) { onIterCreated(res); }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
