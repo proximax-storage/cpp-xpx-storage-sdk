@@ -71,9 +71,15 @@ public:
         auto &fsTree = res->m_fsTree;
         ASSERT_TRUE(fsTree.childs().size() == 1);
         const auto &child = fsTree.childs().begin()->second;
-        ASSERT_TRUE(isFile(child));
-        const auto &file = getFile(child);
-        ASSERT_TRUE(file.name() == "tests/test.txt");
+        ASSERT_TRUE(isFolder(child));
+        const auto &folder = getFolder(child);
+        ASSERT_TRUE(folder.name() == "tests");
+        const auto &files = folder.childs();
+        for (auto const &[key, val] : files) {
+            ASSERT_TRUE(isFile(val));
+            const auto &file = getFile(val);
+            ASSERT_TRUE(file.name() == "test.txt");
+        }
         m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"tests/test.txt", [this](auto res) {
                                                                   onReceivedAbsolutePath(res);
                                                               }});
@@ -138,12 +144,12 @@ public:
 
     void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
         ASSERT_TRUE(res);
-        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::WRITE, "test.txt", [this](auto res) { onFileOpened(res); }});
+        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::WRITE, "tests/test.txt", [this](auto res) { onFileOpened(res); }});
     }
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.createDirectories(m_driveKey, CreateDirectoriesRequest{"tests/", [this](auto res) { onDirCreated(res); }});
+        m_env.createDirectories(m_driveKey, CreateDirectoriesRequest{"tests", [this](auto res) { onDirCreated(res); }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
