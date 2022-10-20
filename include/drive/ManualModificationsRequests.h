@@ -204,6 +204,7 @@ struct FolderIteratorCreateResponse {
 
 struct FolderIteratorCreateRequest {
     std::string m_path;
+    bool m_recursive;
     std::function<void( std::optional<FolderIteratorCreateResponse> )> m_callback;
 };
 

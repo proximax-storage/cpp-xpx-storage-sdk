@@ -28,10 +28,11 @@ private:
 
     std::stack<StackEntry> m_stack;
     std::shared_ptr<FolderStatisticsNode> m_statisticsNode;
+    bool m_recursive;
 
 public:
 
-    explicit FolderIterator( const Folder& folder );
+    explicit FolderIterator( const Folder& folder, bool recursive );
 
     FolderIterator( const FolderIterator& ) = delete;
     FolderIterator( FolderIterator&& ) = default;

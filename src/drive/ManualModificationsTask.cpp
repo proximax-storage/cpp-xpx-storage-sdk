@@ -780,7 +780,7 @@ public:
             {
                 auto iteratorId = m_totalFolderIteratorsCreated;
                 m_totalFolderIteratorsCreated++;
-                m_folderIterators.emplace( iteratorId, *pFolder );
+                m_folderIterators.try_emplace( iteratorId, *pFolder, request.m_recursive );
                 request.m_callback( FolderIteratorCreateResponse{iteratorId} );
             } else
             {

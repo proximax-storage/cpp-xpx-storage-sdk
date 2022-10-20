@@ -9,8 +9,9 @@
 namespace sirius::drive
 {
 
-FolderIterator::FolderIterator( const Folder& folder )
+FolderIterator::FolderIterator( const Folder& folder, bool recursive )
         : m_statisticsNode( folder.statisticsNode())
+        , m_recursive( recursive )
 {
     if ( !folder.childs().empty())
     {
@@ -49,7 +50,7 @@ std::optional<std::string> FolderIterator::next()
     {
         auto& folder = getFolder( entry.m_it->second );
         name = folder.name();
-        if ( !folder.childs().empty())
+        if ( m_recursive && !folder.childs().empty() )
         {
             m_stack.push( StackEntry( folder.childs()));
         }
