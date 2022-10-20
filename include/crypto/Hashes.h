@@ -53,10 +53,10 @@ namespace sirius { namespace crypto {
 	// region sha3 / keccak builders
 
 	/// Use with KeccakBuilder to generate SHA3 hashes.
-	struct Sha3ModeTag {};
+	struct PLUGIN_API Sha3ModeTag {};
 
 	/// Use with KeccakBuilder to generate Keccak hashes.
-	struct KeccakModeTag {};
+	struct PLUGIN_API KeccakModeTag {};
 
 	/// Builder for building a hash.
 	template<typename TModeTag, typename THashTag>

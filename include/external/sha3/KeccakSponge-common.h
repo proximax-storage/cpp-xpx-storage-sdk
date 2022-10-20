@@ -14,7 +14,7 @@ http://creativecommons.org/publicdomain/zero/1.0/
 #ifndef _KeccakSpongeCommon_h_
 #define _KeccakSpongeCommon_h_
 
-#include <string.h>
+#include <cstring>
 #include "align.h"
 
 #define KCP_DeclareSpongeStructure(prefix, size, alignment) \

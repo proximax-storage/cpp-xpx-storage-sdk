@@ -2,8 +2,9 @@
 #define CCAN_CRYPTO_RIPEMD160_H
 /* BSD-MIT - see LICENSE file for details */
 #include "config.h"
-#include <stdint.h>
-#include <stdlib.h>
+#include "plugins.h"
+#include <cstdint>
+#include <cstdlib>
 
 /* Uncomment this to use openssl's RIPEMD160 routines (and link with -lcrypto) */
 /*#define CCAN_CRYPTO_RIPEMD160_USE_OPENSSL 1*/
@@ -37,7 +38,7 @@ struct ripemd160 {
  * The bytes pointed to by @p is RIPEMD160 hashed into @ripemd160.  This is
  * equivalent to ripemd160_init(), ripemd160_update() then ripemd160_done().
  */
-void ripemd160(struct ripemd160 *ripemd, const void *p, size_t size);
+PLUGIN_API void ripemd160(struct ripemd160 *ripemd, const void *p, size_t size);
 
 /**
  * struct ripemd160_ctx - structure to store running context for ripemd160
@@ -77,7 +78,7 @@ struct ripemd160_ctx {
  *	ripemd160_done(&ctx, hash);
  * }
  */
-void ripemd160_init(struct ripemd160_ctx *ctx);
+PLUGIN_API void ripemd160_init(struct ripemd160_ctx *ctx);
 
 /**
  * RIPEMD160_INIT - initializer for an RIPEMD160 context.
@@ -118,7 +119,7 @@ void ripemd160_init(struct ripemd160_ctx *ctx);
  * You can call this multiple times to hash more data, before calling
  * ripemd160_done().
  */
-void ripemd160_update(struct ripemd160_ctx *ctx, const void *p, size_t size);
+PLUGIN_API void ripemd160_update(struct ripemd160_ctx *ctx, const void *p, size_t size);
 
 /**
  * ripemd160_done - finish RIPEMD160 and return the hash
@@ -128,21 +129,21 @@ void ripemd160_update(struct ripemd160_ctx *ctx, const void *p, size_t size);
  * Note that @ctx is *destroyed* by this, and must be reinitialized.
  * To avoid that, pass a copy instead.
  */
-void ripemd160_done(struct ripemd160_ctx *ripemd160, struct ripemd160 *res);
+PLUGIN_API void ripemd160_done(struct ripemd160_ctx *ripemd160, struct ripemd160 *res);
 
 /* Add various types to an RIPEMD160 hash */
-void ripemd160_u8(struct ripemd160_ctx *ctx, uint8_t v);
-void ripemd160_u16(struct ripemd160_ctx *ctx, uint16_t v);
-void ripemd160_u32(struct ripemd160_ctx *ctx, uint32_t v);
-void ripemd160_u64(struct ripemd160_ctx *ctx, uint64_t v);
+PLUGIN_API void ripemd160_u8(struct ripemd160_ctx *ctx, uint8_t v);
+PLUGIN_API void ripemd160_u16(struct ripemd160_ctx *ctx, uint16_t v);
+PLUGIN_API void ripemd160_u32(struct ripemd160_ctx *ctx, uint32_t v);
+PLUGIN_API void ripemd160_u64(struct ripemd160_ctx *ctx, uint64_t v);
 
 /* Add as little-endian */
-void ripemd160_le16(struct ripemd160_ctx *ctx, uint16_t v);
-void ripemd160_le32(struct ripemd160_ctx *ctx, uint32_t v);
+PLUGIN_API void ripemd160_le16(struct ripemd160_ctx *ctx, uint16_t v);
+PLUGIN_API void ripemd160_le32(struct ripemd160_ctx *ctx, uint32_t v);
 void ripemd160_le64(struct ripemd160_ctx *ctx, uint64_t v);
 
 /* Add as big-endian */
-void ripemd160_be16(struct ripemd160_ctx *ctx, uint16_t v);
-void ripemd160_be32(struct ripemd160_ctx *ctx, uint32_t v);
-void ripemd160_be64(struct ripemd160_ctx *ctx, uint64_t v);
+PLUGIN_API void ripemd160_be16(struct ripemd160_ctx *ctx, uint16_t v);
+PLUGIN_API void ripemd160_be32(struct ripemd160_ctx *ctx, uint32_t v);
+PLUGIN_API void ripemd160_be64(struct ripemd160_ctx *ctx, uint64_t v);
 #endif /* CCAN_CRYPTO_RIPEMD160_H */

@@ -1,4 +1,4 @@
-#include "sc.h"
+#include "external/ref10/sc.h"
 #include "crypto_int64.h"
 #include "crypto_uint32.h"
 #include "crypto_uint64.h"
