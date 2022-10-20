@@ -55,40 +55,8 @@ public:
         : m_env(env) {}
 
 public:
-    void onAppliedStorageModifications(std::optional<ApplyStorageModificationsResponse> res) {
-        ASSERT_TRUE(res);
-        m_env.getFilesystem(m_driveKey, FilesystemRequest{[this](auto res) {
-                            }});
-    }
-
-    void onStorageHashEvaluated(std::optional<EvaluateStorageHashResponse> res) {
-        ASSERT_TRUE(res);
-        m_env.applyStorageManualModifications(m_driveKey, ApplyStorageModificationsRequest{true, [this](auto res) {
-                                                                                               onAppliedStorageModifications(res);
-                                                                                           }});
-    }
-
-    void onAppliedSandboxModifications(std::optional<ApplySandboxModificationsResponse> res) {
-        ASSERT_TRUE(res);
-        ASSERT_TRUE(res->m_success);
-        m_env.evaluateStorageHash(m_driveKey, EvaluateStorageHashRequest{[this](auto res) {
-                                      onStorageHashEvaluated(res);
-                                  }});
-    }
-
-    void onFileClosed(std::optional<CloseFileResponse> res) {
-        ASSERT_TRUE(res);
-        ASSERT_TRUE(res->m_success);
-        m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
-                                                                                               onAppliedSandboxModifications(res);
-                                                                                           }});
-    }
-
     void onFileRemoved(std::optional<RemoveResponse> res) {
-        ASSERT_TRUE(res);
-        m_env.closeFile(m_driveKey, CloseFileRequest{m_fileId, [this](auto res) {
-                                                         onFileClosed(res);
-                                                     }});
+        ASSERT_FALSE(res);
     }
 
     void onFileOpened(std::optional<OpenFileResponse> res) {
