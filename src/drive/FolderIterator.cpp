@@ -21,7 +21,10 @@ FolderIterator::FolderIterator( const Folder& folder )
 
 FolderIterator::~FolderIterator()
 {
-    m_statisticsNode->removeBlock();
+    if ( m_statisticsNode )
+    {
+        m_statisticsNode->removeBlock();
+    }
 }
 
 bool FolderIterator::hasNext()

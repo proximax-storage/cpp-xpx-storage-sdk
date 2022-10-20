@@ -615,9 +615,14 @@ bool FsTree::iterateBranch( const std::string& fullPath,
 {
     fs::path path( fullPath );
 
-    fs::path parentPath = path.parent_path();
-
     Folder* treeWalker = this;
+
+    if ( path.empty() ) {
+        lastCall(*treeWalker);
+        return true;
+    }
+
+    fs::path parentPath = path.parent_path();
 
     intermediateCall( *treeWalker );
 

@@ -33,6 +33,9 @@ public:
 
     explicit FolderIterator( const Folder& folder );
 
+    FolderIterator( const FolderIterator& ) = delete;
+    FolderIterator( FolderIterator&& ) = default;
+
     ~FolderIterator();
 
     bool hasNext();

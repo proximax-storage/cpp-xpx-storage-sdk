@@ -25,9 +25,15 @@ struct OpenFile
         m_statisticsNode->addBlock();
     }
 
+    OpenFile( const OpenFile& ) = delete;
+    OpenFile( OpenFile&& ) = default;
+
     ~OpenFile()
     {
-        m_statisticsNode->removeBlock();
+        if ( m_statisticsNode )
+        {
+            m_statisticsNode->removeBlock();
+        }
     }
 
     std::shared_ptr<std::fstream> m_stream;
@@ -277,10 +283,10 @@ private:
 
         if ( mode == OpenFileMode::READ )
         {
-            m_openFilesRead.insert( {fileId, file} );
+            m_openFilesRead.emplace( fileId, std::move(file) );
         } else
         {
-            m_openFilesWrite.insert( {fileId, file} );
+            m_openFilesWrite.emplace( fileId, std::move(file) );
         }
 
         callback( OpenFileResponse{fileId} );
@@ -773,7 +779,7 @@ public:
             {
                 auto iteratorId = m_totalFolderIteratorsCreated;
                 m_totalFolderIteratorsCreated++;
-                m_folderIterators.insert( {iteratorId, FolderIterator( *pFolder )} );
+                m_folderIterators.emplace( iteratorId, *pFolder );
                 request.m_callback( FolderIteratorCreateResponse{iteratorId} );
             } else
             {
@@ -1382,7 +1388,7 @@ private:
                                                                                        child ).statisticsNode()->statistics().totalBlocks();
                                                                            } else
                                                                            {
-                                                                               numLocks = getFolder(
+                                                                               numLocks = getFile(
                                                                                        child ).statisticsNode()->statistics().totalBlocks();
                                                                            }
 

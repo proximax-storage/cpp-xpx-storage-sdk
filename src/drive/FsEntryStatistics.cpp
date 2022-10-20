@@ -148,4 +148,9 @@ void FileStatisticsNode::removeBlock()
     parent->update( oldStatistics, m_statistics );
 }
 
+const FileStatistics& FileStatisticsNode::statistics() const
+{
+    return m_statistics;
+}
+
 }
