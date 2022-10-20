@@ -58,8 +58,7 @@ public:
 public:
     void onAppliedStorageModifications(std::optional<ApplyStorageModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.getFilesystem(m_driveKey, FilesystemRequest{[this](auto res) {
-                            }});
+        p.set_value();
     }
 
     void onStorageHashEvaluated(std::optional<EvaluateStorageHashResponse> res) {
@@ -115,8 +114,7 @@ public:
 public:
     void onAppliedStorageModifications(std::optional<ApplyStorageModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.getFilesystem(m_driveKey, FilesystemRequest{[this](auto res) {
-                            }});
+        p.set_value();
     }
 
     void onStorageHashEvaluated(std::optional<EvaluateStorageHashResponse> res) {
@@ -201,8 +199,7 @@ public:
 public:
     void onAppliedStorageModifications(std::optional<ApplyStorageModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.getFilesystem(m_driveKey, FilesystemRequest{[this](auto res) {
-                            }});
+        p.set_value();
     }
 
     void onStorageHashEvaluated(std::optional<EvaluateStorageHashResponse> res) {
@@ -261,7 +258,7 @@ public:
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.folderIteratorCreate(m_driveKey, FolderIteratorCreateRequest{"./", [this](auto res) { onIteratorCreated(res); }});
+        m_env.folderIteratorCreate(m_driveKey, FolderIteratorCreateRequest{"", [this](auto res) { onIteratorCreated(res); }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
@@ -284,7 +281,7 @@ TEST(SupercontractTest, TEST_NAME) {
     Key driveKey{{1}};
     env.addDrive(driveKey, Key(), 100 * 1024 * 1024);
 
-    std::string path[6] = {"test/", "drive/", "mod/", "sc/", "mod/gs/", "drive/unit/"};
+    std::string path[6] = {"test", "drive", "mod", "sc", "mod/gs", "drive/unit"};
     std::string file[11] = {"test/test.txt", "test/test2.txt", "drive/test.txt", "drive/test2.txt", "mod/test.txt", "mod/test2.txt", "mod/test3.txt", "sc/test.txt", "mod/gs/test.txt", "mod/gs/test2.txt", "drive/unit/test.txt"};
 
     for (int i = 0; i < 6; i++) {
