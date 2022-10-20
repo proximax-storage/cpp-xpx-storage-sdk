@@ -26,6 +26,7 @@ struct OpenFile
     }
 
     OpenFile( const OpenFile& ) = delete;
+
     OpenFile( OpenFile&& ) = default;
 
     ~OpenFile()
@@ -283,10 +284,10 @@ private:
 
         if ( mode == OpenFileMode::READ )
         {
-            m_openFilesRead.emplace( fileId, std::move(file) );
+            m_openFilesRead.emplace( fileId, std::move( file ));
         } else
         {
-            m_openFilesWrite.emplace( fileId, std::move(file) );
+            m_openFilesWrite.emplace( fileId, std::move( file ));
         }
 
         callback( OpenFileResponse{fileId} );
@@ -343,7 +344,7 @@ private:
         auto read = stream->gcount();
         buffer.resize( read );
 
-        _ASSERT( stream->good()  || stream->eof() )
+        _ASSERT( stream->good() || stream->eof())
 
         m_drive.executeOnSessionThread( [=, this]() mutable
                                         {
@@ -475,9 +476,9 @@ public:
 
         m_isExecutingQuery = true;
         m_drive.executeOnBackgroundThread( [=, this, callback = request.m_callback]
-                                        {
-                                            flushStream( stream, callback );
-                                        } );
+                                           {
+                                               flushStream( stream, callback );
+                                           } );
 
         return true;
     }
@@ -909,8 +910,32 @@ public:
 
         _ASSERT( m_upperSandboxFsTree )
 
-        m_openFilesRead.clear();
-        m_openFilesWrite.clear();
+        closeFiles( [=, this]
+                    {
+                        onSandboxModificationStreamsClosed( request );
+                    } );
+
+        return true;
+    }
+
+private:
+
+    void onSandboxModificationStreamsClosed( const ApplySandboxModificationsRequest& request )
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_isExecutingQuery )
+
+        m_isExecutingQuery = false;
+
+        if ( m_taskIsInterrupted )
+        {
+            request.m_callback( {} );
+            finishTask();
+            return;
+        }
+
+        m_folderIterators.clear();
 
         m_lowerSandboxFsTree->clearStatisticsNode();
 
@@ -935,11 +960,7 @@ public:
                                                    discardUpperSandboxModifications( callback );
                                                } );
         }
-
-        return true;
     }
-
-private:
 
     void discardUpperSandboxModifications(
             const std::function<void( std::optional<ApplySandboxModificationsResponse> )>& callback )
@@ -1402,6 +1423,60 @@ private:
                                                                        } );
 
         return iteratedFullBranch && noLocks;
+    }
+
+protected:
+    void finishTask() override
+    {
+        DBG_MAIN_THREAD
+
+        closeFiles( [this]
+                    {
+                        DriveTaskBase::finishTask();
+                    } );
+    }
+
+private:
+
+    void closeFiles( const std::function<void()>& callback )
+    {
+        DBG_MAIN_THREAD
+
+        std::vector<std::shared_ptr<std::fstream>> streams;
+
+        for ( auto& file: m_openFilesWrite )
+        {
+            streams.emplace_back( std::move( file.second.m_stream ));
+        }
+        m_openFilesWrite.clear();
+
+        for ( auto& file: m_openFilesRead )
+        {
+            streams.emplace_back( std::move( file.second.m_stream ));
+        }
+        m_openFilesRead.clear();
+
+        m_isExecutingQuery = true;
+        m_drive.executeOnBackgroundThread( [=, this]
+                                           {
+                                               closeStreams( streams, callback );
+                                           } );
+    }
+
+    void closeStreams( const std::vector<std::shared_ptr<std::fstream>>& streams,
+                       const std::function<void()>& callback )
+    {
+        DBG_BG_THREAD
+
+        for ( const auto& stream: streams )
+        {
+            stream->close();
+        }
+
+        m_drive.executeOnSessionThread( [=]
+                                        {
+                                            callback();
+                                        } );
     }
 
 };
