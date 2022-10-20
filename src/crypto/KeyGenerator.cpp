@@ -21,10 +21,7 @@
 #include "crypto/KeyGenerator.h"
 #include "CryptoUtils.h"
 #include "crypto/PrivateKey.h"
-
-extern "C" {
-#include <external/ref10/ge.h>
-}
+#include "external/ref10/ge.h"
 
 namespace sirius { namespace crypto {
 

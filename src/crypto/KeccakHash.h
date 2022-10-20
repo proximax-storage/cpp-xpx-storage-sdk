@@ -29,9 +29,7 @@
 #pragma warning(disable : 4324) /* keccak structs use __declspec(align()) */
 #endif
 
-extern "C" {
 #include "external/sha3/KeccakHash.h"
-}
 
 #ifdef __clang__
 #pragma clang diagnostic pop

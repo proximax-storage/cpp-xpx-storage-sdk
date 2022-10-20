@@ -282,14 +282,10 @@ public:
         std::memset(todoPubKey,'x', sizeof(todoPubKey));
         todoPubKey[5] = 0;
         settingsPack.set_str(  lt::settings_pack::user_agent, std::string(todoPubKey,32) );
-
-        if ( useTcpSocket )
-        {
-            settingsPack.set_bool( lt::settings_pack::enable_outgoing_utp, false );
-            settingsPack.set_bool( lt::settings_pack::enable_incoming_utp, false );
-            settingsPack.set_bool( lt::settings_pack::enable_outgoing_tcp, true );
-            settingsPack.set_bool( lt::settings_pack::enable_incoming_tcp, true );
-        }
+        settingsPack.set_bool( lt::settings_pack::enable_outgoing_utp, true );
+        settingsPack.set_bool( lt::settings_pack::enable_incoming_utp, true );
+        settingsPack.set_bool( lt::settings_pack::enable_outgoing_tcp, true );
+        settingsPack.set_bool( lt::settings_pack::enable_incoming_tcp, true );
 
         //todo 1. is it enough? 2. is it for single peer?
         settingsPack.set_int( lt::settings_pack::dht_upload_rate_limit, 8000000 );
@@ -857,7 +853,7 @@ private:
         // loop by alerts
         for (auto &alert : alerts) {
 
-            //_LOG( ">>>" << alert->what() << " (type="<< alert->type() <<"):  " << alert->message() );
+            _LOG( ">>>" << alert->what() << " (type="<< alert->type() <<"):  " << alert->message() );
 
 ////            if ( alert->type() == lt::dht_log_alert::alert_type || alert->type() == lt::dht_direct_response_alert::alert_type )
 //            {

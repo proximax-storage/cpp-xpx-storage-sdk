@@ -127,8 +127,11 @@ public:
                                                            //_ASSERT( !m_taskIsStopped );
                                                            // it could be stopped after asyncApprovalTransactionHasBeenPublished
                                                            // if 'actionList' have not been downloaded
+
                                                            if ( ! m_taskIsInterrupted )
                                                            {
+                                                               m_fsTreeOrActionListHandle = m_downloadingLtHandle;
+                                                               m_downloadingLtHandle.reset();
                                                                m_uploadedDataSize += downloadedSize;
                                                                m_actionListIsReceived = true;
 
@@ -142,10 +145,10 @@ public:
                                                    m_request->m_clientDataInfoHash,
                                                    m_request->m_transactionHash,
                                                    m_request->m_maxDataSize - m_uploadedDataSize,
-                                                   false,
+                                                   true,
                                                    "" ),
                                                m_drive.m_sandboxRootPath.string(),
-                                               "",
+                                               m_drive.m_sandboxRootPath / (toString(m_request->m_clientDataInfoHash) + ".torrent"),
                                                getUploaders(),
                                                &m_drive.m_driveKey.array(),
                                                nullptr,

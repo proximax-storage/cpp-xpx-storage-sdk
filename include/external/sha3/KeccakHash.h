@@ -16,8 +16,9 @@ http://creativecommons.org/publicdomain/zero/1.0/
 
 #ifndef KeccakP1600_excluded
 
+#include "plugins.h"
 #include "KeccakSpongeWidth1600.h"
-#include <string.h>
+#include <cstring>
 
 #ifndef _Keccak_BitTypes_
 #define _Keccak_BitTypes_
@@ -49,7 +50,7 @@ typedef struct {
   * @pre    One must have r+c=1600 and the rate a multiple of 8 bits in this implementation.
   * @return SUCCESS if successful, FAIL otherwise.
   */
-HashReturn Keccak_HashInitialize(Keccak_HashInstance *hashInstance, unsigned int rate, unsigned int capacity, unsigned int hashbitlen, unsigned char delimitedSuffix);
+PLUGIN_API HashReturn Keccak_HashInitialize(Keccak_HashInstance *hashInstance, unsigned int rate, unsigned int capacity, unsigned int hashbitlen, unsigned char delimitedSuffix);
 
 /** Macro to initialize a SHAKE128 instance as specified in the FIPS 202 standard.
   */
@@ -87,7 +88,7 @@ HashReturn Keccak_HashInitialize(Keccak_HashInstance *hashInstance, unsigned int
   * @pre    In the previous call to Keccak_HashUpdate(), databitlen was a multiple of 8.
   * @return SUCCESS if successful, FAIL otherwise.
   */
-HashReturn Keccak_HashUpdate(Keccak_HashInstance *hashInstance, const BitSequence *data, BitLength databitlen);
+PLUGIN_API HashReturn Keccak_HashUpdate(Keccak_HashInstance *hashInstance, const BitSequence *data, BitLength databitlen);
 
 /**
   * Function to call after all input blocks have been input and to get
@@ -100,7 +101,7 @@ HashReturn Keccak_HashUpdate(Keccak_HashInstance *hashInstance, const BitSequenc
   * @param  hashval     Pointer to the buffer where to store the output data.
   * @return SUCCESS if successful, FAIL otherwise.
   */
-HashReturn Keccak_HashFinal(Keccak_HashInstance *hashInstance, BitSequence *hashval);
+PLUGIN_API HashReturn Keccak_HashFinal(Keccak_HashInstance *hashInstance, BitSequence *hashval);
 
  /**
   * Function to squeeze output data.
@@ -111,7 +112,7 @@ HashReturn Keccak_HashFinal(Keccak_HashInstance *hashInstance, BitSequence *hash
   * @pre    @a databitlen is a multiple of 8.
   * @return SUCCESS if successful, FAIL otherwise.
   */
-HashReturn Keccak_HashSqueeze(Keccak_HashInstance *hashInstance, BitSequence *data, BitLength databitlen);
+PLUGIN_API HashReturn Keccak_HashSqueeze(Keccak_HashInstance *hashInstance, BitSequence *data, BitLength databitlen);
 
 #endif
 
