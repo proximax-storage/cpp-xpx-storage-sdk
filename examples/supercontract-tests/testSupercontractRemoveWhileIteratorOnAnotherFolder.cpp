@@ -10,7 +10,7 @@ using namespace sirius::drive::test;
 namespace sirius::drive::test {
 
 /// change this macro for your test
-#define TEST_NAME SupercontractRemoveWhileIterator
+#define TEST_NAME SupercontractRemoveWhileIteratorOnAnotherFolder
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -109,9 +109,14 @@ public:
                                                      }});
     }
 
-    void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
+    void onDirCreated2(std::optional<CreateDirectoriesResponse> res) {
         ASSERT_TRUE(res);
         m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::WRITE, "tests/test.txt", [this](auto res) { onFileOpened(res); }});
+    }
+
+    void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
+        ASSERT_TRUE(res);
+        m_env.createDirectories(m_driveKey, CreateDirectoriesRequest{"move", [this](auto res) { onDirCreated2(res); }});
     }
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
@@ -128,7 +133,7 @@ public:
     }
 };
 
-class RemoveWhileIterating {
+class RemoveWhileIteratingOnAnotherFolder {
 
 public:
     std::promise<void> p;
@@ -136,14 +141,14 @@ public:
     uint64_t m_fileId;
     ENVIRONMENT_CLASS &m_env;
 
-    RemoveWhileIterating(ENVIRONMENT_CLASS
-                             &env)
+    RemoveWhileIteratingOnAnotherFolder(ENVIRONMENT_CLASS
+                                            &env)
         : m_env(env) {}
 
 public:
     void onFileRemoved(std::optional<RemoveResponse> res) {
         ASSERT_TRUE(res);
-        ASSERT_FALSE(res->m_success);
+        ASSERT_TRUE(res->m_success);
         p.set_value();
     }
 
@@ -154,7 +159,7 @@ public:
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.folderIteratorCreate(m_driveKey, FolderIteratorCreateRequest{"", true, [this](auto res) { onIterCreated(res); }});
+        m_env.folderIteratorCreate(m_driveKey, FolderIteratorCreateRequest{"move", true, [this](auto res) { onIterCreated(res); }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
@@ -184,7 +189,7 @@ TEST(SupercontractTest, TEST_NAME) {
 
     handler.p.get_future().wait();
 
-    RemoveWhileIterating handler_r(env);
+    RemoveWhileIteratingOnAnotherFolder handler_r(env);
     handler_r.m_driveKey = driveKey;
     env.initiateManualModifications(driveKey,
                                     InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handler_r.onInitiatedModifications(res); }});

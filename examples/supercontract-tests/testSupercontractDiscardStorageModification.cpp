@@ -10,7 +10,7 @@ using namespace sirius::drive::test;
 namespace sirius::drive::test {
 
 /// change this macro for your test
-#define TEST_NAME SupercontractRemoveWhileIterator
+#define TEST_NAME SupercontractDiscardStorageModification
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -41,27 +41,37 @@ public:
               true) {}
 };
 
-class CreateFile {
+class DiscardStorage {
 
 public:
     std::promise<void> p;
     DriveKey m_driveKey;
     uint64_t m_fileId;
+    int m_counter = 0;
     ENVIRONMENT_CLASS &m_env;
 
-    CreateFile(ENVIRONMENT_CLASS
-                   &env)
+    DiscardStorage(ENVIRONMENT_CLASS
+                       &env)
         : m_env(env) {}
 
 public:
+    void onReceivedFsTree(std::optional<FilesystemResponse> res) {
+        ASSERT_TRUE(res);
+        auto &fsTree = res->m_fsTree;
+        ASSERT_TRUE(fsTree.childs().size() == 0);
+        p.set_value();
+    }
+
     void onAppliedStorageModifications(std::optional<ApplyStorageModificationsResponse> res) {
         ASSERT_TRUE(res);
-        p.set_value();
+        m_env.getFilesystem(m_driveKey, FilesystemRequest{[this](auto res) {
+                                onReceivedFsTree(res);
+                            }});
     }
 
     void onStorageHashEvaluated(std::optional<EvaluateStorageHashResponse> res) {
         ASSERT_TRUE(res);
-        m_env.applyStorageManualModifications(m_driveKey, ApplyStorageModificationsRequest{true, [this](auto res) {
+        m_env.applyStorageManualModifications(m_driveKey, ApplyStorageModificationsRequest{false, [this](auto res) {
                                                                                                onAppliedStorageModifications(res);
                                                                                            }});
     }
@@ -69,9 +79,17 @@ public:
     void onAppliedSandboxModifications(std::optional<ApplySandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->m_success);
-        m_env.evaluateStorageHash(m_driveKey, EvaluateStorageHashRequest{[this](auto res) {
-                                      onStorageHashEvaluated(res);
-                                  }});
+        if (m_counter == 6) {
+            m_env.evaluateStorageHash(m_driveKey, EvaluateStorageHashRequest{[this](auto res) {
+                                          onStorageHashEvaluated(res);
+                                      }});
+        } else {
+            m_env.initiateManualSandboxModifications(m_driveKey, InitiateSandboxModificationsRequest{[this](auto res) {
+                                                         onSandboxModificationsInitiated(
+                                                             res);
+                                                     }});
+            m_counter++;
+        }
     }
 
     void onFileClosed(std::optional<CloseFileResponse> res) {
@@ -109,52 +127,9 @@ public:
                                                      }});
     }
 
-    void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
-        ASSERT_TRUE(res);
-        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::WRITE, "tests/test.txt", [this](auto res) { onFileOpened(res); }});
-    }
-
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.createDirectories(m_driveKey, CreateDirectoriesRequest{"tests", [this](auto res) { onDirCreated(res); }});
-    }
-
-    void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
-        ASSERT_TRUE(res);
-        m_env.initiateManualSandboxModifications(m_driveKey, InitiateSandboxModificationsRequest{[this](auto res) {
-                                                     onSandboxModificationsInitiated(
-                                                         res);
-                                                 }});
-    }
-};
-
-class RemoveWhileIterating {
-
-public:
-    std::promise<void> p;
-    DriveKey m_driveKey;
-    uint64_t m_fileId;
-    ENVIRONMENT_CLASS &m_env;
-
-    RemoveWhileIterating(ENVIRONMENT_CLASS
-                             &env)
-        : m_env(env) {}
-
-public:
-    void onFileRemoved(std::optional<RemoveResponse> res) {
-        ASSERT_TRUE(res);
-        ASSERT_FALSE(res->m_success);
-        p.set_value();
-    }
-
-    void onIterCreated(std::optional<FolderIteratorCreateResponse> res) {
-        ASSERT_TRUE(res);
-        m_env.removeFsTreeEntry(m_driveKey, RemoveRequest{"tests/test.txt", [this](auto res) { onFileRemoved(res); }});
-    }
-
-    void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
-        ASSERT_TRUE(res);
-        m_env.folderIteratorCreate(m_driveKey, FolderIteratorCreateRequest{"", true, [this](auto res) { onIterCreated(res); }});
+        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::WRITE, "test.txt", [this](auto res) { onFileOpened(res); }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
@@ -177,19 +152,12 @@ TEST(SupercontractTest, TEST_NAME) {
     Key driveKey{{1}};
     env.addDrive(driveKey, Key(), 100 * 1024 * 1024);
 
-    CreateFile handler(env);
+    DiscardStorage handler(env);
     handler.m_driveKey = driveKey;
     env.initiateManualModifications(driveKey,
                                     InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handler.onInitiatedModifications(res); }});
 
     handler.p.get_future().wait();
-
-    RemoveWhileIterating handler_r(env);
-    handler_r.m_driveKey = driveKey;
-    env.initiateManualModifications(driveKey,
-                                    InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handler_r.onInitiatedModifications(res); }});
-
-    handler_r.p.get_future().wait();
 }
 
 #undef TEST_NAME
