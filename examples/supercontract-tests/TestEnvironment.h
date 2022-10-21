@@ -428,7 +428,7 @@ public:
         }
     }
 
-    virtual void removeFsTreeEntry( const DriveKey& driveKey, const RemoveRequest& request ) {
+    virtual void removeFsTreeEntry( const DriveKey& driveKey, const RemoveFilesystemEntryRequest& request ) {
         const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
         for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
         {
@@ -500,7 +500,7 @@ public:
         }
     }
 
-    virtual void moveFsTreeEntry( const DriveKey& driveKey, const MoveRequest& request ) {
+    virtual void moveFsTreeEntry( const DriveKey& driveKey, const MoveFilesystemEntryRequest& request ) {
         const std::unique_lock<std::mutex> lock( m_transactionInfoMutex );
         for ( auto& key: m_drives[driveKey].m_driveRequest.m_fullReplicatorList )
         {

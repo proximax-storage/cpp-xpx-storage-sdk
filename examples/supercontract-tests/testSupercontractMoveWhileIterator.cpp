@@ -194,7 +194,7 @@ public:
                                   }});
     }
 
-    void onFileMovedAgain(std::optional<MoveResponse> res) {
+    void onFileMovedAgain(std::optional<MoveFilesystemEntryResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->m_success);
         m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
@@ -205,10 +205,10 @@ public:
     void onIteratorDestroyed(std::optional<FolderIteratorDestroyResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->success);
-        m_env.moveFsTreeEntry(m_driveKey, MoveRequest{"tests/test.txt", "moved/test.txt", [this](auto res) { onFileMovedAgain(res); }});
+        m_env.moveFsTreeEntry( m_driveKey, MoveFilesystemEntryRequest{"tests/test.txt", "moved/test.txt", [this]( auto res) { onFileMovedAgain( res); }});
     }
 
-    void onFileMoved(std::optional<MoveResponse> res) {
+    void onFileMoved(std::optional<MoveFilesystemEntryResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_FALSE(res->m_success);
         m_env.folderIteratorDestroy(m_driveKey, FolderIteratorDestroyRequest{m_fileId, [this](auto res) {
@@ -219,7 +219,7 @@ public:
     void onIteratorCreated(std::optional<FolderIteratorCreateResponse> res) {
         ASSERT_TRUE(res);
         m_fileId = *res->m_id;
-        m_env.moveFsTreeEntry(m_driveKey, MoveRequest{"tests/test.txt", "moved/test.txt", [this](auto res) { onFileMoved(res); }});
+        m_env.moveFsTreeEntry( m_driveKey, MoveFilesystemEntryRequest{"tests/test.txt", "moved/test.txt", [this]( auto res) { onFileMoved( res); }});
     }
 
     void onDirCreated(std::optional<CreateDirectoriesResponse> res) {

@@ -70,6 +70,20 @@ private:
 
     void registerGetFilesystem();
 
+    void registerDirectoryIteratorCreate();
+
+    void registerDirectoryIteratorHasNext();
+
+    void registerDirectoryIteratorNext();
+
+    void registerDirectoryIteratorDestroy();
+
+    void registerRemoveFilesystemEntry();
+
+    void registerMoveFilesystemEntry();
+
+    void registerCreateDirectories();
+
 };
 
 }

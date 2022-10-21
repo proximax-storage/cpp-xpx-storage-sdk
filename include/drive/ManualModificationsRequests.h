@@ -97,15 +97,15 @@ struct CloseFileRequest
     std::function<void( std::optional<CloseFileResponse> )> m_callback;
 };
 
-struct RemoveResponse
+struct RemoveFilesystemEntryResponse
 {
     bool m_success;
 };
 
-struct RemoveRequest
+struct RemoveFilesystemEntryRequest
 {
     std::string m_path;
-    std::function<void( std::optional<RemoveResponse> )> m_callback;
+    std::function<void( std::optional<RemoveFilesystemEntryResponse> )> m_callback;
 };
 
 struct CreateDirectoriesResponse {
@@ -117,16 +117,16 @@ struct CreateDirectoriesRequest {
     std::function<void( std::optional<CreateDirectoriesResponse>)> m_callback;
 };
 
-struct MoveResponse
+struct MoveFilesystemEntryResponse
 {
     bool m_success;
 };
 
-struct MoveRequest
+struct MoveFilesystemEntryRequest
 {
     std::string m_src;
     std::string m_dst;
-    std::function<void( std::optional<MoveResponse> )> m_callback;
+    std::function<void( std::optional<MoveFilesystemEntryResponse> )> m_callback;
 };
 
 struct ApplySandboxModificationsResponse

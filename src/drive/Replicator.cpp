@@ -2312,7 +2312,7 @@ public:
         } );
     }
 
-    void removeFsTreeEntry( const DriveKey& driveKey, const RemoveRequest& request ) override
+    void removeFsTreeEntry( const DriveKey& driveKey, const RemoveFilesystemEntryRequest& request ) override
     {
         _FUNC_ENTRY()
 
@@ -2438,7 +2438,7 @@ public:
         } );
     }
 
-    void moveFsTreeEntry( const DriveKey& driveKey, const MoveRequest& request ) override
+    void moveFsTreeEntry( const DriveKey& driveKey, const MoveFilesystemEntryRequest& request ) override
     {
         _FUNC_ENTRY()
 

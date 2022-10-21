@@ -735,7 +735,7 @@ public:
         }
     }
 
-    void removeFsTreeEntry( mobj<RemoveRequest>&& request ) override
+    void removeFsTreeEntry( mobj<RemoveFilesystemEntryRequest>&& request ) override
     {
         DBG_MAIN_THREAD
 
@@ -795,7 +795,7 @@ public:
         }
     }
 
-    void moveFsTreeEntry( mobj<MoveRequest>&& request ) override
+    void moveFsTreeEntry( mobj<MoveFilesystemEntryRequest>&& request ) override
     {
         DBG_MAIN_THREAD
 

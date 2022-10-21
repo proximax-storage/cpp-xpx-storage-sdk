@@ -35,7 +35,7 @@ public:
 
     virtual void closeFile( const DriveKey& driveKey, const CloseFileRequest& request ) = 0;
 
-    virtual void removeFsTreeEntry( const DriveKey& driveKey, const RemoveRequest& request ) = 0;
+    virtual void removeFsTreeEntry( const DriveKey& driveKey, const RemoveFilesystemEntryRequest& request ) = 0;
 
     virtual void createDirectories( const DriveKey& driveKey, const CreateDirectoriesRequest& request ) = 0;
 
@@ -47,7 +47,7 @@ public:
 
     virtual void folderIteratorNext( const DriveKey& driveKey, const FolderIteratorNextRequest& request ) = 0;
 
-    virtual void moveFsTreeEntry( const DriveKey& driveKey, const MoveRequest& request ) = 0;
+    virtual void moveFsTreeEntry( const DriveKey& driveKey, const MoveFilesystemEntryRequest& request ) = 0;
 
     virtual void
     applySandboxManualModifications( const DriveKey& driveKey, const ApplySandboxModificationsRequest& request ) = 0;

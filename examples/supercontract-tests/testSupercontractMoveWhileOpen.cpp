@@ -194,7 +194,7 @@ public:
                                   }});
     }
 
-    void onFileMovedAgain(std::optional<MoveResponse> res) {
+    void onFileMovedAgain(std::optional<MoveFilesystemEntryResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->m_success);
         m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
@@ -205,10 +205,10 @@ public:
     void onFileClosed(std::optional<CloseFileResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->m_success);
-        m_env.moveFsTreeEntry(m_driveKey, MoveRequest{"tests/test.txt", "moved/test.txt", [this](auto res) { onFileMovedAgain(res); }});
+        m_env.moveFsTreeEntry( m_driveKey, MoveFilesystemEntryRequest{"tests/test.txt", "moved/test.txt", [this]( auto res) { onFileMovedAgain( res); }});
     }
 
-    void onFileMoved(std::optional<MoveResponse> res) {
+    void onFileMoved(std::optional<MoveFilesystemEntryResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_FALSE(res->m_success);
         m_env.closeFile(m_driveKey, CloseFileRequest{m_fileId, [this](auto res) {
@@ -219,7 +219,7 @@ public:
     void onFileOpened(std::optional<OpenFileResponse> res) {
         ASSERT_TRUE(res);
         m_fileId = *res->m_fileId;
-        m_env.moveFsTreeEntry(m_driveKey, MoveRequest{"tests/test.txt", "moved/test.txt", [this](auto res) { onFileMoved(res); }});
+        m_env.moveFsTreeEntry( m_driveKey, MoveFilesystemEntryRequest{"tests/test.txt", "moved/test.txt", [this]( auto res) { onFileMoved( res); }});
     }
 
     void onDirCreated(std::optional<CreateDirectoriesResponse> res) {

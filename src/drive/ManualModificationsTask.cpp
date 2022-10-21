@@ -567,7 +567,7 @@ public:
         return true;
     }
 
-    bool removeFsTreeEntry( const RemoveRequest& request ) override
+    bool removeFsTreeEntry( const RemoveFilesystemEntryRequest& request ) override
     {
         DBG_MAIN_THREAD
 
@@ -650,14 +650,14 @@ private:
 
 private:
 
-    void processRemoveRequest( const RemoveRequest& request )
+    void processRemoveRequest( const RemoveFilesystemEntryRequest& request )
     {
 
         DBG_MAIN_THREAD
 
         if ( !checkUnlock( request.m_path ))
         {
-            request.m_callback( RemoveResponse{false} );
+            request.m_callback( RemoveFilesystemEntryResponse{false} );
             return;
         }
 
@@ -695,7 +695,7 @@ private:
     }
 
     void removeUnusedFiles( const std::set<InfoHash>& filesToRemove,
-                            const std::function<void( RemoveResponse )>& callback )
+                            const std::function<void( RemoveFilesystemEntryResponse )>& callback )
     {
         DBG_BG_THREAD
 
@@ -719,7 +719,7 @@ private:
                                         } );
     }
 
-    void onRemoved( const std::function<void( RemoveResponse )>& callback )
+    void onRemoved( const std::function<void( RemoveFilesystemEntryResponse )>& callback )
     {
 
         DBG_MAIN_THREAD
@@ -735,7 +735,7 @@ private:
             return;
         }
 
-        callback( RemoveResponse{true} );
+        callback( RemoveFilesystemEntryResponse{true} );
     }
 
 public:
@@ -871,7 +871,7 @@ public:
 
 public:
 
-    bool moveFsTreeEntry( const MoveRequest& request ) override
+    bool moveFsTreeEntry( const MoveFilesystemEntryRequest& request ) override
     {
         DBG_MAIN_THREAD
 
@@ -886,10 +886,10 @@ public:
         {
             m_upperSandboxFsTree->moveFlat( request.m_src, request.m_dst, []( const auto& )
             {} );
-            request.m_callback( MoveResponse{true} );
+            request.m_callback( MoveFilesystemEntryResponse{true} );
         } else
         {
-            request.m_callback( MoveResponse{false} );
+            request.m_callback( MoveFilesystemEntryResponse{false} );
         }
 
         return true;
