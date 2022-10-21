@@ -142,7 +142,8 @@ public:
 
 public:
     void onFileRemoved(std::optional<RemoveResponse> res) {
-        ASSERT_FALSE(res);
+        ASSERT_TRUE(res);
+        ASSERT_FALSE(res->m_success);
         p.set_value();
     }
 

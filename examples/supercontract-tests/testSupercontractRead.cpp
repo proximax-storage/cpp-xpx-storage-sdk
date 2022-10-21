@@ -257,16 +257,12 @@ TEST(SupercontractTest, TEST_NAME) {
     Key driveKey{{1}};
     env.addDrive(driveKey, Key(), 100 * 1024 * 1024);
 
-    std::cout << std::endl;
-    std::cout << "Write" << std::endl;
     TestHandlerWrite handlerw(env);
     handlerw.m_driveKey = driveKey;
     env.initiateManualModifications(driveKey,
                                     InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handlerw.onInitiatedModifications(res); }});
 
     handlerw.p.get_future().wait();
-    std::cout << std::endl;
-    std::cout << "Read" << std::endl;
 
     TestHandlerRead handler(env);
     handler.m_driveKey = driveKey;

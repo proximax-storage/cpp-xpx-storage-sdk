@@ -205,9 +205,6 @@ public:
     void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
         ASSERT_TRUE(res);
         m_env.moveFsTreeEntry(m_driveKey, MoveRequest{"tests/test.txt", "moved/test.txt", [this](auto res) { onFileMoved(res); }});
-        // m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
-        //                                                                                        onAppliedSandboxModifications(res);
-        //                                                                                    }});
     }
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
@@ -328,9 +325,6 @@ public:
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
         m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::READ, "moved/test.txt", [this](auto res) { onFileOpened(res); }});
-        // m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
-        //                                                                                        onAppliedSandboxModifications(res);
-        //                                                                                    }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {

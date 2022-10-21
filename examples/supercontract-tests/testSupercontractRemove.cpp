@@ -88,9 +88,6 @@ public:
         m_env.removeFsTreeEntry(m_driveKey, RemoveRequest{"test.txt", [this](auto res) {
                                                               onFileRemoved(res);
                                                           }});
-        // m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
-        //                                                                                        onAppliedSandboxModifications(res);
-        //                                                                                    }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {

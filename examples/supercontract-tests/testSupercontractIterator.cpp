@@ -189,7 +189,26 @@ public:
     uint64_t m_fileId;
     ENVIRONMENT_CLASS &m_env;
 
-    const std::string EXPECTED[11] = {"test/test.txt", "test/test2.txt", "drive/test.txt", "drive/test2.txt", "mod/test.txt", "mod/test2.txt", "mod/test3.txt", "sc/test.txt", "mod/gs/test.txt", "mod/gs/test2.txt", "drive/unit/test.txt"};
+    /*
+    · drive
+        test.txt
+        test2.txt
+    · unit
+        test.txt
+    · mod
+        · gs
+            test.txt
+            test2.txt
+        test.txt
+        test2.txt
+        test3.txt
+    · sc
+        test.txt
+    · test
+        test.txt
+        test2.txt
+    */
+    const std::string EXPECTED[17] = {"drive", "test.txt", "test2.txt", "unit", "test.txt", "mod", "gs", "test.txt", "test2.txt", "test.txt", "test2.txt", "test3.txt", "sc", "test.txt", "test", "test.txt", "test2.txt"};
     int m_pointer = 0;
 
     Iterator(ENVIRONMENT_CLASS
@@ -226,7 +245,9 @@ public:
 
     void onNextRequested(std::optional<FolderIteratorNextResponse> res) {
         ASSERT_TRUE(res);
-        ASSERT_EQ(EXPECTED[m_pointer], res->m_name);
+        std::string actual(res->m_name->begin(), res->m_name->end());
+        // std::cout << actual << std::endl;
+        ASSERT_EQ(EXPECTED[m_pointer], actual);
         m_pointer++;
         m_env.folderIteratorHasNext(m_driveKey, FolderIteratorHasNextRequest{m_fileId, [this](auto res) {
                                                                                  onNextConfirmed(res);
