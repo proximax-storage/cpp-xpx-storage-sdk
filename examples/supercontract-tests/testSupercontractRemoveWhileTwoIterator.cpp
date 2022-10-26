@@ -19,10 +19,10 @@ class ENVIRONMENT_CLASS
 public:
     ENVIRONMENT_CLASS(
         int numberOfReplicators,
-        const std::string &ipAddr0,
+        const std::string& ipAddr0,
         int port0,
-        const std::string &rootFolder0,
-        const std::string &sandboxRootFolder0,
+        const std::string& rootFolder0,
+        const std::string& sandboxRootFolder0,
         bool useTcpSocket,
         int modifyApprovalDelay,
         int downloadApprovalDelay,
@@ -49,17 +49,21 @@ public:
     uint64_t m_fileId;
     uint64_t m_fileId2;
     uint64_t m_bytes;
-    ENVIRONMENT_CLASS &m_env;
+    ENVIRONMENT_CLASS& m_env;
 
-    TestHandlerRemoveWhileTwoIterator(ENVIRONMENT_CLASS
-                                          &env)
+    TestHandlerRemoveWhileTwoIterator(ENVIRONMENT_CLASS& env)
         : m_env(env) {}
 
 public:
     void onReceivedFsTree(std::optional<FilesystemResponse> res) {
         ASSERT_TRUE(res);
-        auto &fsTree = res->m_fsTree;
+        auto& fsTree = res->m_fsTree;
         ASSERT_TRUE(fsTree.childs().size() == 2);
+        for (const auto [key, val] : fsTree.childs()) {
+            auto folder = getFolder(val);
+            auto child = folder.childs();
+            ASSERT_EQ(child.size(), 0);
+        }
         p.set_value();
     }
 
@@ -153,10 +157,9 @@ public:
     std::promise<void> p;
     DriveKey m_driveKey;
     uint64_t m_fileId;
-    ENVIRONMENT_CLASS &m_env;
+    ENVIRONMENT_CLASS& m_env;
 
-    CreateFile3(ENVIRONMENT_CLASS
-                    &env)
+    CreateFile3(ENVIRONMENT_CLASS& env)
         : m_env(env) {}
 
 public:

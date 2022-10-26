@@ -103,30 +103,6 @@ public:
                                                                                            }});
     }
 
-    void onNextRequested(std::optional<FolderIteratorNextResponse> res) {
-        ASSERT_TRUE(res);
-        std::string actual(res->m_name->begin(), res->m_name->end());
-        // std::cout << actual << std::endl;
-        ASSERT_EQ(EXPECTED[m_pointer], actual);
-        m_pointer++;
-        m_env.folderIteratorHasNext(m_driveKey, FolderIteratorHasNextRequest{m_fileId, [this](auto res) {
-                                                                                 onNextConfirmed(res);
-                                                                             }});
-    }
-
-    void onNextConfirmed(std::optional<FolderIteratorHasNextResponse> res) {
-        ASSERT_TRUE(res);
-        if (res->m_hasNext) {
-            m_env.folderIteratorNext(m_driveKey, FolderIteratorNextRequest{m_fileId, [this](auto res) {
-                                                                               onNextRequested(res);
-                                                                           }});
-        } else {
-            m_env.folderIteratorDestroy(m_driveKey, FolderIteratorDestroyRequest{m_fileId, [this](auto res) {
-                                                                                     onIteratorDestryed(res);
-                                                                                 }});
-        }
-    }
-
     void onIteratorCreated(std::optional<FolderIteratorCreateResponse> res) {
         ASSERT_TRUE(res);
         auto response = *res;
