@@ -23,6 +23,13 @@
 #include "FlushRequestContext.h"
 #include "AbsolutePathRequestContext.h"
 #include "FilesystemRequestContext.h"
+#include "RemoveFilesystemEntryRequestContext.h"
+#include "MoveFilesystemEntryRequestContext.h"
+#include "CreateDirectoriesRequestContext.h"
+#include "DirectoryIteratorCreateRequestContext.h"
+#include "DirectoryIteratorHasNextRequestContext.h"
+#include "DirectoryIteratorNextRequestContext.h"
+#include "DirectoryIteratorDestroyRequestContext.h"
 
 namespace sirius::drive::contract
 {
@@ -57,6 +64,13 @@ void StorageServer::run(
     registerFlush();
     registerGetAbsolutePath();
     registerGetFilesystem();
+    registerDirectoryIteratorCreate();
+    registerDirectoryIteratorHasNext();
+    registerDirectoryIteratorNext();
+    registerDirectoryIteratorDestroy();
+    registerRemoveFilesystemEntry();
+    registerMoveFilesystemEntry();
+    registerCreateDirectories();
 
     m_thread = std::thread( [this]
                             {
@@ -349,6 +363,132 @@ void StorageServer::registerGetFilesystem()
         }
         registerGetFilesystem();
     }, m_context );
+    context->run( tag );
+}
+
+void StorageServer::registerDirectoryIteratorCreate() {
+    if ( !*m_serviceIsActive )
+    {
+        return;
+    }
+
+    auto context = std::make_shared<DirectoryIteratorCreateRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive]
+    {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
+        registerDirectoryIteratorCreate();
+        }, m_context );
+    context->run( tag );
+}
+
+void StorageServer::registerDirectoryIteratorHasNext() {
+    if ( !*m_serviceIsActive )
+    {
+        return;
+    }
+
+    auto context = std::make_shared<DirectoryIteratorHasNextRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive]
+    {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
+        registerDirectoryIteratorHasNext();
+        }, m_context );
+    context->run( tag );
+}
+
+void StorageServer::registerDirectoryIteratorNext() {
+    if ( !*m_serviceIsActive )
+    {
+        return;
+    }
+
+    auto context = std::make_shared<DirectoryIteratorNextRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive]
+    {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
+        registerDirectoryIteratorNext();
+        }, m_context );
+    context->run( tag );
+}
+
+void StorageServer::registerDirectoryIteratorDestroy() {
+    if ( !*m_serviceIsActive )
+    {
+        return;
+    }
+
+    auto context = std::make_shared<DirectoryIteratorDestroyRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive]
+    {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
+        registerDirectoryIteratorDestroy();
+        }, m_context );
+    context->run( tag );
+}
+
+void StorageServer::registerRemoveFilesystemEntry() {
+    if ( !*m_serviceIsActive )
+    {
+        return;
+    }
+
+    auto context = std::make_shared<RemoveFilesystemEntryRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive]
+    {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
+        registerRemoveFilesystemEntry();
+        }, m_context );
+    context->run( tag );
+}
+
+void StorageServer::registerMoveFilesystemEntry() {
+    if ( !*m_serviceIsActive )
+    {
+        return;
+    }
+
+    auto context = std::make_shared<MoveFilesystemEntryRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive]
+    {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
+        registerMoveFilesystemEntry();
+        }, m_context );
+    context->run( tag );
+}
+
+void StorageServer::registerCreateDirectories() {
+    if ( !*m_serviceIsActive )
+    {
+        return;
+    }
+
+    auto context = std::make_shared<CreateDirectoriesRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive]
+    {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
+        registerCreateDirectories();
+        }, m_context );
     context->run( tag );
 }
 

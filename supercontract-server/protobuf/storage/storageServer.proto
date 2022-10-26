@@ -42,6 +42,20 @@ service StorageServer {
   rpc FlushFile(FlushFileRequest) returns (FlushFileResponse) {}
 
   rpc GetFilesystem(FilesystemRequest) returns (FilesystemResponse) {}
+
+  rpc DirectoryIteratorCreate(DirectoryIteratorCreateRequest) returns (DirectoryIteratorCreateResponse) {}
+
+  rpc DirectoryIteratorHasNext(DirectoryIteratorHasNextRequest) returns (DirectoryIteratorHasNextResponse) {}
+
+  rpc DirectoryIteratorNext(DirectoryIteratorNextRequest) returns (DirectoryIteratorNextResponse) {}
+
+  rpc DirectoryIteratorDestroy(DirectoryIteratorDestroyRequest) returns (DirectoryIteratorDestroyResponse) {}
+
+  rpc MoveFilesystemEntry(MoveFilesystemEntryRequest) returns (MoveFilesystemEntryResponse) {}
+
+  rpc RemoveFilesystemEntry(RemoveFilesystemEntryRequest) returns (RemoveFilesystemEntryResponse) {}
+
+  rpc CreateDirectories(CreateDirectoriesRequest) returns (CreateDirectoriesResponse) {}
 }
 
 message SynchronizeStorageRequest {
@@ -185,4 +199,71 @@ message FilesystemResponse {
 
 message FilesystemRequest {
   bytes drive_key = 1;
+}
+
+message DirectoryIteratorCreateResponse {
+  bool success = 1;
+  uint64 id = 2;
+}
+
+message DirectoryIteratorCreateRequest {
+  bytes drive_key = 1;
+  string path = 2;
+  bool recursive = 3;
+}
+
+message DirectoryIteratorHasNextResponse {
+  bool has_next = 1;
+}
+
+message DirectoryIteratorHasNextRequest {
+  bytes drive_key = 1;
+  uint64 id = 2;
+}
+
+message DirectoryIteratorNextResponse {
+  bool success = 1;
+  string name = 2;
+}
+
+message DirectoryIteratorNextRequest {
+  bytes drive_key = 1;
+  uint64 id = 2;
+}
+
+message DirectoryIteratorDestroyResponse {
+  bool success = 1;
+}
+
+message DirectoryIteratorDestroyRequest {
+  bytes drive_key = 1;
+  uint64 id = 2;
+}
+
+message MoveFilesystemEntryRequest {
+  bytes drive_key = 1;
+  string src_path = 2;
+  string dst_path = 3;
+}
+
+message MoveFilesystemEntryResponse {
+  bool success = 1;
+}
+
+message RemoveFilesystemEntryRequest {
+  bytes drive_key = 1;
+  string path = 2;
+}
+
+message RemoveFilesystemEntryResponse {
+  bool success = 1;
+}
+
+message CreateDirectoriesRequest {
+  bytes drive_key = 1;
+  string path = 2;
+}
+
+message CreateDirectoriesResponse {
+  bool success = 1;
 }

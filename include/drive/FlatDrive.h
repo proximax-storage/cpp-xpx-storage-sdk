@@ -693,7 +693,7 @@ public:
 
     virtual void closeFile( mobj<CloseFileRequest>&& request ) = 0;
 
-    virtual void removeFsTreeEntry( mobj<RemoveRequest>&& request ) = 0;
+    virtual void removeFsTreeEntry( mobj<RemoveFilesystemEntryRequest>&& request ) = 0;
 
     virtual void createDirectories( mobj<CreateDirectoriesRequest>&& request ) = 0;
 
@@ -705,7 +705,7 @@ public:
 
     virtual void folderIteratorNext( mobj<FolderIteratorNextRequest>&& request ) = 0;
 
-    virtual void moveFsTreeEntry( mobj<MoveRequest>&& ) = 0;
+    virtual void moveFsTreeEntry( mobj<MoveFilesystemEntryRequest>&& ) = 0;
 
     virtual void applySandboxManualModifications( mobj<ApplySandboxModificationsRequest>&& request ) = 0;
 

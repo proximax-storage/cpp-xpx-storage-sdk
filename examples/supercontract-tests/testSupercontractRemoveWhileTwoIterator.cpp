@@ -89,7 +89,7 @@ public:
                                   }});
     }
 
-    void onFileRemovedAttempt2(std::optional<RemoveResponse> res) {
+    void onFileRemovedAttempt2(std::optional<RemoveFilesystemEntryResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->m_success);
         m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
@@ -100,7 +100,7 @@ public:
     void onIteratorDestroyed2(std::optional<FolderIteratorDestroyResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->success);
-        m_env.removeFsTreeEntry(m_driveKey, RemoveRequest{"tests/test.txt", [this](auto res) {
+        m_env.removeFsTreeEntry( m_driveKey, RemoveFilesystemEntryRequest{"tests/test.txt", [this]( auto res) {
                                                               onFileRemovedAttempt2(res);
                                                           }});
     }
@@ -113,7 +113,7 @@ public:
                                                                              }});
     }
 
-    void onFileRemoved(std::optional<RemoveResponse> res) {
+    void onFileRemoved(std::optional<RemoveFilesystemEntryResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_FALSE(res->m_success);
         m_env.folderIteratorDestroy(m_driveKey, FolderIteratorDestroyRequest{m_fileId, [this](auto res) {
@@ -125,7 +125,7 @@ public:
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->m_id);
         m_fileId2 = *res->m_id;
-        m_env.removeFsTreeEntry(m_driveKey, RemoveRequest{"tests/test.txt", [this](auto res) {
+        m_env.removeFsTreeEntry( m_driveKey, RemoveFilesystemEntryRequest{"tests/test.txt", [this]( auto res) {
                                                               onFileRemoved(res);
                                                           }});
     }

@@ -2172,6 +2172,11 @@ public:
         {
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             auto driveIt = m_driveMap.find( driveKey );
 
             if ( driveIt == m_driveMap.end())
@@ -2194,6 +2199,11 @@ public:
         {
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             auto driveIt = m_driveMap.find( driveKey );
 
             if ( driveIt == m_driveMap.end())
@@ -2214,6 +2224,11 @@ public:
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             auto driveIt = m_driveMap.find( driveKey );
 
@@ -2236,6 +2251,11 @@ public:
         {
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             auto driveIt = m_driveMap.find( driveKey );
 
             if ( driveIt == m_driveMap.end())
@@ -2256,6 +2276,11 @@ public:
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             auto driveIt = m_driveMap.find( driveKey );
 
@@ -2278,6 +2303,11 @@ public:
         {
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             auto driveIt = m_driveMap.find( driveKey );
 
             if ( driveIt == m_driveMap.end())
@@ -2299,6 +2329,11 @@ public:
         {
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             auto driveIt = m_driveMap.find( driveKey );
 
             if ( driveIt == m_driveMap.end())
@@ -2312,13 +2347,18 @@ public:
         } );
     }
 
-    void removeFsTreeEntry( const DriveKey& driveKey, const RemoveRequest& request ) override
+    void removeFsTreeEntry( const DriveKey& driveKey, const RemoveFilesystemEntryRequest& request ) override
     {
         _FUNC_ENTRY()
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             auto driveIt = m_driveMap.find( driveKey );
 
@@ -2341,6 +2381,11 @@ public:
         {
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             auto driveIt = m_driveMap.find( driveKey );
 
             if ( driveIt == m_driveMap.end())
@@ -2361,6 +2406,11 @@ public:
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             auto driveIt = m_driveMap.find( driveKey );
 
@@ -2383,6 +2433,11 @@ public:
         {
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             auto driveIt = m_driveMap.find( driveKey );
 
             if ( driveIt == m_driveMap.end())
@@ -2403,6 +2458,11 @@ public:
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             auto driveIt = m_driveMap.find( driveKey );
 
@@ -2425,6 +2485,11 @@ public:
         {
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             auto driveIt = m_driveMap.find( driveKey );
 
             if ( driveIt == m_driveMap.end())
@@ -2438,13 +2503,18 @@ public:
         } );
     }
 
-    void moveFsTreeEntry( const DriveKey& driveKey, const MoveRequest& request ) override
+    void moveFsTreeEntry( const DriveKey& driveKey, const MoveFilesystemEntryRequest& request ) override
     {
         _FUNC_ENTRY()
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             auto driveIt = m_driveMap.find( driveKey );
 
@@ -2468,6 +2538,11 @@ public:
         {
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             auto driveIt = m_driveMap.find( driveKey );
 
             if ( driveIt == m_driveMap.end())
@@ -2488,6 +2563,11 @@ public:
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             auto driveIt = m_driveMap.find( driveKey );
 
@@ -2511,6 +2591,11 @@ public:
         {
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             auto driveIt = m_driveMap.find( driveKey );
 
             if ( driveIt == m_driveMap.end())
@@ -2531,6 +2616,11 @@ public:
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             auto driveIt = m_driveMap.find( driveKey );
 
@@ -2553,6 +2643,11 @@ public:
         {
             DBG_MAIN_THREAD
 
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
             auto driveIt = m_driveMap.find( driveKey );
 
             if ( driveIt == m_driveMap.end())
@@ -2573,6 +2668,11 @@ public:
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
             DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
 
             auto driveIt = m_driveMap.find( driveKey );
 

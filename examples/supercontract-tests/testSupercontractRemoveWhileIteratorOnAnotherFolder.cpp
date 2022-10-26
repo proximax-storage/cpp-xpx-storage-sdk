@@ -146,7 +146,7 @@ public:
         : m_env(env) {}
 
 public:
-    void onFileRemoved(std::optional<RemoveResponse> res) {
+    void onFileRemoved(std::optional<RemoveFilesystemEntryResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->m_success);
         p.set_value();
@@ -154,7 +154,7 @@ public:
 
     void onIterCreated(std::optional<FolderIteratorCreateResponse> res) {
         ASSERT_TRUE(res);
-        m_env.removeFsTreeEntry(m_driveKey, RemoveRequest{"tests/test.txt", [this](auto res) { onFileRemoved(res); }});
+        m_env.removeFsTreeEntry( m_driveKey, RemoveFilesystemEntryRequest{"tests/test.txt", [this]( auto res) { onFileRemoved( res); }});
     }
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
