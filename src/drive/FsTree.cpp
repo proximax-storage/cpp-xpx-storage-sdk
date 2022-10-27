@@ -407,13 +407,13 @@ bool FsTree::moveFlat( const std::string& srcPathAndName,
 
    auto srcIt = srcParentFolder->findChildIt( srcFilename );
 
-   if ( isFile(srcIt->second) ) {
-       addInfoHashToFileMapFunc( getFile(srcIt->second).m_hash );
-   }
-
    // src must exists
    if ( srcIt == srcParentFolder->m_childs.end() )
        return false;
+
+   if ( isFile(srcIt->second) ) {
+       addInfoHashToFileMapFunc( getFile(srcIt->second).m_hash );
+   }
 
    if ( fs::path( destPathAndName ) == fs::path( srcPathAndName ) )
        return true;
@@ -421,6 +421,13 @@ bool FsTree::moveFlat( const std::string& srcPathAndName,
    fs::path destPath( destPathAndName );
    std::string destFilename = destPath.filename().string();
    Folder* destParentFolder = getFolderPtr( destPath.parent_path().string() );
+   // create destination parent folder if not exists
+   if ( destParentFolder == nullptr )
+   {
+       if ( !addFolder( destPath.parent_path().string() ) )
+           return false;
+       destParentFolder = getFolderPtr( destPath.parent_path().string(), true );
+   }
 
     Folder::Child destChild = srcIt->second;
     if ( isFolder(destChild) )
@@ -431,14 +438,6 @@ bool FsTree::moveFlat( const std::string& srcPathAndName,
     {
         getFile(destChild).m_name = destFilename;
     }
-
-   // create destination parent folder if not exists
-   if ( destParentFolder == nullptr )
-   {
-       if ( !addFolder( destPath.parent_path().string() ) )
-           return false;
-       destParentFolder = getFolderPtr( destPath.parent_path().string(), true );
-   }
 
    // remove dest entry if exists
    if ( auto destIt = destParentFolder->findChildIt( destFilename ); destIt != destParentFolder->m_childs.end() )
@@ -451,7 +450,7 @@ bool FsTree::moveFlat( const std::string& srcPathAndName,
        destParentFolder->m_childs.erase(destIt);
    }
 
-   destParentFolder->m_childs.emplace( destFilename, destChild );
+   destParentFolder->m_childs.emplace( destFilename, std::move(destChild) );
 
    // update srcIt and remove src
    srcParentFolder->m_childs.erase( srcIt );
