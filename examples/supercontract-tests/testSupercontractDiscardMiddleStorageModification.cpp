@@ -57,9 +57,9 @@ public:
     void onReceivedFsTree(std::optional<FilesystemResponse> res) {
         ASSERT_TRUE(res);
         auto& fsTree = res->m_fsTree;
-        ASSERT_TRUE(fsTree.childs().size() == 2);
+        ASSERT_EQ(fsTree.childs().size(), 2);
         std::vector<std::string> actual;
-        for (const auto [key, val] : fsTree.childs()) {
+        for (const auto& [key, val] : fsTree.childs()) {
             ASSERT_TRUE(isFile(val));
             auto file = getFile(val);
             actual.push_back(file.name());
@@ -78,7 +78,7 @@ public:
 
     void onStorageHashEvaluated3(std::optional<EvaluateStorageHashResponse> res) {
         ASSERT_TRUE(res);
-        m_env.applyStorageManualModifications(m_driveKey, ApplyStorageModificationsRequest{false, [this](auto res) {
+        m_env.applyStorageManualModifications(m_driveKey, ApplyStorageModificationsRequest{true, [this](auto res) {
                                                                                                onAppliedStorageModifications3(res);
                                                                                            }});
     }

@@ -1430,13 +1430,43 @@ protected:
     {
         DBG_MAIN_THREAD
 
-        closeFiles( [this]
-                    {
-                        DriveTaskBase::finishTask();
-                    } );
+        m_drive.executeOnBackgroundThread([this] {
+            clearTrash();
+        });
     }
 
 private:
+
+    void clearTrash()
+    {
+        DBG_BG_THREAD
+
+        std::set<InfoHash> sandboxFiles;
+        if (m_upperSandboxFsTree)
+        {
+            m_upperSandboxFsTree->getUniqueFiles(sandboxFiles);
+        }
+        if (m_lowerSandboxFsTree)
+        {
+            m_lowerSandboxFsTree->getUniqueFiles(sandboxFiles);
+        }
+
+        for (const auto& file: sandboxFiles) {
+            if (!m_drive.m_torrentHandleMap.contains(file))
+            {
+                std::error_code ec;
+                fs::remove(m_drive.m_driveFolder / toString(file), ec);
+                fs::remove(m_drive.m_torrentFolder / toString(file), ec);
+            }
+        }
+
+        m_drive.executeOnSessionThread([this] {
+            closeFiles( [this]
+            {
+                DriveTaskBase::finishTask();
+            } );
+        });
+    }
 
     void closeFiles( const std::function<void()>& callback )
     {
