@@ -19,10 +19,10 @@ class ENVIRONMENT_CLASS
 public:
     ENVIRONMENT_CLASS(
         int numberOfReplicators,
-        const std::string &ipAddr0,
+        const std::string& ipAddr0,
         int port0,
-        const std::string &rootFolder0,
-        const std::string &sandboxRootFolder0,
+        const std::string& rootFolder0,
+        const std::string& sandboxRootFolder0,
         bool useTcpSocket,
         int modifyApprovalDelay,
         int downloadApprovalDelay,
@@ -47,17 +47,16 @@ public:
     std::promise<void> p;
     DriveKey m_driveKey;
     uint64_t m_fileId;
-    ENVIRONMENT_CLASS &m_env;
+    ENVIRONMENT_CLASS& m_env;
 
-    TestHandlerCreate(ENVIRONMENT_CLASS
-                          &env)
+    TestHandlerCreate(ENVIRONMENT_CLASS& env)
         : m_env(env) {}
 
 public:
     void onReceivedAbsolutePath(std::optional<AbsolutePathResponse> res) {
         ASSERT_TRUE(res);
         std::ostringstream stream;
-        const auto &path = res->m_path;
+        const auto& path = res->m_path;
         ASSERT_TRUE(fs::exists(path));
         std::ifstream fileStream(path);
         stream << fileStream.rdbuf();
@@ -68,16 +67,16 @@ public:
 
     void onReceivedFsTree(std::optional<FilesystemResponse> res) {
         ASSERT_TRUE(res);
-        auto &fsTree = res->m_fsTree;
+        auto& fsTree = res->m_fsTree;
         ASSERT_TRUE(fsTree.childs().size() == 1);
-        const auto &child = fsTree.childs().begin()->second;
+        const auto& child = fsTree.childs().begin()->second;
         ASSERT_TRUE(isFolder(child));
-        const auto &folder = getFolder(child);
+        const auto& folder = getFolder(child);
         ASSERT_TRUE(folder.name() == "tests");
-        const auto &files = folder.childs();
-        for (auto const &[key, val] : files) {
+        const auto& files = folder.childs();
+        for (auto const& [key, val] : files) {
             ASSERT_TRUE(isFile(val));
-            const auto &file = getFile(val);
+            const auto& file = getFile(val);
             ASSERT_TRUE(file.name() == "test.txt");
         }
         m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"tests/test.txt", [this](auto res) {
@@ -167,10 +166,9 @@ public:
     DriveKey m_driveKey;
     uint64_t m_fileId;
     uint64_t m_bytes;
-    ENVIRONMENT_CLASS &m_env;
+    ENVIRONMENT_CLASS& m_env;
 
-    TestHandlerMove(ENVIRONMENT_CLASS
-                        &env)
+    TestHandlerMove(ENVIRONMENT_CLASS& env)
         : m_env(env) {}
 
 public:
@@ -204,7 +202,7 @@ public:
 
     void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
         ASSERT_TRUE(res);
-        m_env.moveFsTreeEntry( m_driveKey, MoveFilesystemEntryRequest{"tests/test.txt", "moved/test.txt", [this]( auto res) { onFileMoved( res); }});
+        m_env.moveFsTreeEntry(m_driveKey, MoveFilesystemEntryRequest{"tests/test.txt", "moved/test.txt", [this](auto res) { onFileMoved(res); }});
     }
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
@@ -228,17 +226,16 @@ public:
     DriveKey m_driveKey;
     uint64_t m_fileId;
     uint64_t m_bytes;
-    ENVIRONMENT_CLASS &m_env;
+    ENVIRONMENT_CLASS& m_env;
 
-    TestHandlerRead2(ENVIRONMENT_CLASS
-                         &env)
+    TestHandlerRead2(ENVIRONMENT_CLASS& env)
         : m_env(env) {}
 
 public:
     void onReceivedAbsolutePath(std::optional<AbsolutePathResponse> res) {
         ASSERT_TRUE(res);
         std::ostringstream stream;
-        const auto &path = res->m_path;
+        const auto& path = res->m_path;
         ASSERT_TRUE(fs::exists(path));
         std::ifstream fileStream(path);
         stream << fileStream.rdbuf();
@@ -249,20 +246,20 @@ public:
 
     void onReceivedFsTree(std::optional<FilesystemResponse> res) {
         ASSERT_TRUE(res);
-        auto &fsTree = res->m_fsTree;
+        auto& fsTree = res->m_fsTree;
         ASSERT_TRUE(fsTree.childs().size() == 2);
-        for (auto const &[key, val] : fsTree.childs()) {
-            const auto &child = fsTree.childs().begin()->second;
+        for (auto const& [key, val] : fsTree.childs()) {
+            const auto& child = fsTree.childs().begin()->second;
             ASSERT_TRUE(isFolder(child));
-            const auto &folder = getFolder(child);
+            const auto& folder = getFolder(child);
             if (folder.name() == "tests") {
-                continue;
+                ASSERT_TRUE(folder.childs().size() == 0);
             }
             ASSERT_TRUE(folder.name() == "moved");
-            const auto &files = folder.childs();
-            for (auto const &[key, val] : files) {
+            const auto& files = folder.childs();
+            for (auto const& [key, val] : files) {
                 ASSERT_TRUE(isFile(val));
-                const auto &file = getFile(val);
+                const auto& file = getFile(val);
                 ASSERT_TRUE(file.name() == "test.txt");
             }
         }

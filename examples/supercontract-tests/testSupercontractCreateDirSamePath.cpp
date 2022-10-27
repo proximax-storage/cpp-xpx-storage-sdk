@@ -19,10 +19,10 @@ class ENVIRONMENT_CLASS
 public:
     ENVIRONMENT_CLASS(
         int numberOfReplicators,
-        const std::string &ipAddr0,
+        const std::string& ipAddr0,
         int port0,
-        const std::string &rootFolder0,
-        const std::string &sandboxRootFolder0,
+        const std::string& rootFolder0,
+        const std::string& sandboxRootFolder0,
         bool useTcpSocket,
         int modifyApprovalDelay,
         int downloadApprovalDelay,
@@ -47,37 +47,37 @@ public:
     std::promise<void> p;
     DriveKey m_driveKey;
     uint64_t m_fileId;
-    ENVIRONMENT_CLASS &m_env;
+    std::string m_buffer;
+    ENVIRONMENT_CLASS& m_env;
 
-    TestHandlerCreateDirSamePath(ENVIRONMENT_CLASS
-                                     &env)
-        : m_env(env) {}
+    TestHandlerCreateDirSamePath(ENVIRONMENT_CLASS& env, std::string buffer)
+        : m_env(env), m_buffer(buffer) {}
 
 public:
     void onReceivedAbsolutePath(std::optional<AbsolutePathResponse> res) {
         ASSERT_TRUE(res);
         std::ostringstream stream;
-        const auto &path = res->m_path;
+        const auto& path = res->m_path;
         ASSERT_TRUE(fs::exists(path));
         std::ifstream fileStream(path);
         stream << fileStream.rdbuf();
         auto content = stream.str();
-        ASSERT_EQ(content, "data");
+        ASSERT_EQ(content, m_buffer);
         p.set_value();
     }
 
     void onReceivedFsTree(std::optional<FilesystemResponse> res) {
         ASSERT_TRUE(res);
-        auto &fsTree = res->m_fsTree;
+        auto& fsTree = res->m_fsTree;
         ASSERT_TRUE(fsTree.childs().size() == 1);
-        const auto &child = fsTree.childs().begin()->second;
+        const auto& child = fsTree.childs().begin()->second;
         ASSERT_TRUE(isFolder(child));
-        const auto &folder = getFolder(child);
+        const auto& folder = getFolder(child);
         ASSERT_TRUE(folder.name() == "tests");
-        const auto &files = folder.childs();
-        for (auto const &[key, val] : files) {
+        const auto& files = folder.childs();
+        for (auto const& [key, val] : files) {
             ASSERT_TRUE(isFile(val));
-            const auto &file = getFile(val);
+            const auto& file = getFile(val);
             ASSERT_TRUE(file.name() == "test.txt");
         }
         m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"tests/test.txt", [this](auto res) {
@@ -136,8 +136,7 @@ public:
         auto response = *res;
         ASSERT_TRUE(response.m_fileId);
         m_fileId = *response.m_fileId;
-        std::string buffer = "data";
-        m_env.writeFile(m_driveKey, WriteFileRequest{m_fileId, {buffer.begin(), buffer.end()}, [this](auto res) {
+        m_env.writeFile(m_driveKey, WriteFileRequest{m_fileId, {m_buffer.begin(), m_buffer.end()}, [this](auto res) {
                                                          onFileWritten(res);
                                                      }});
     }
@@ -172,14 +171,14 @@ TEST(SupercontractTest, TEST_NAME) {
     Key driveKey{{1}};
     env.addDrive(driveKey, Key(), 100 * 1024 * 1024);
 
-    TestHandlerCreateDirSamePath handler(env);
+    TestHandlerCreateDirSamePath handler(env, "data");
     handler.m_driveKey = driveKey;
     env.initiateManualModifications(driveKey,
                                     InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handler.onInitiatedModifications(res); }});
 
     handler.p.get_future().wait();
 
-    TestHandlerCreateDirSamePath handler2(env);
+    TestHandlerCreateDirSamePath handler2(env, "data data");
     handler2.m_driveKey = driveKey;
     env.initiateManualModifications(driveKey,
                                     InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handler2.onInitiatedModifications(res); }});
