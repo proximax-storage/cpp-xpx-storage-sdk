@@ -56,9 +56,9 @@ public:
     void onReceivedFsTree(std::optional<FilesystemResponse> res) {
         ASSERT_TRUE(res);
         auto& fsTree = res->m_fsTree;
-        ASSERT_TRUE(fsTree.childs().size() == 3);
+        ASSERT_TRUE(fsTree.childs().size() == 2);
         std::vector<std::string> actual;
-        for (const auto [key, val] : fsTree.childs()) {
+        for (const auto& [key, val] : fsTree.childs()) {
             ASSERT_TRUE(isFile(val));
             auto file = getFile(val);
             actual.push_back(file.name());

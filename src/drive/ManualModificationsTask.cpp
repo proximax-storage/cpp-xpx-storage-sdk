@@ -937,7 +937,7 @@ private:
 
         m_folderIterators.clear();
 
-        m_lowerSandboxFsTree->clearStatisticsNode();
+        m_upperSandboxFsTree->clearStatisticsNode();
 
         if ( request.m_success )
         {
@@ -1056,8 +1056,8 @@ private:
         } else
         {
             m_upperSandboxFsTree.reset();
-            m_callManagedHashes.clear();
         }
+        m_callManagedHashes.clear();
 
         callback( ApplySandboxModificationsResponse{success, 0, 0} );
     }
