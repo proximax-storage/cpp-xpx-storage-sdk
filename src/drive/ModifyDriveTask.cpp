@@ -46,12 +46,8 @@ private:
     uint64_t m_uploadedDataSize = 0;
 
     Timer    m_shareMyOpinionTimer;
-#ifndef __APPLE__
+
     const int m_shareMyOpinionTimerDelayMs = 1000 * 60;
-#else
-    //(???+++)
-    const int m_shareMyOpinionTimerDelayMs = 1000 * 1;
-#endif
 
     Timer m_modifyOpinionTimer;
 
@@ -674,14 +670,6 @@ private:
         {
             // Send my opinion to other replicators
             shareMyOpinion();
-            if ( auto session = m_drive.m_session.lock(); session )
-            {
-                m_shareMyOpinionTimer = session->startTimer( m_shareMyOpinionTimerDelayMs, [this]
-                {
-                    _LOG( "shareMyOpinion" )
-                    shareMyOpinion();
-                } );
-            }
 
             // validate already received opinions
             std::erase_if( m_receivedOpinions, [this]( const auto& item )
@@ -698,6 +686,8 @@ private:
     {
         DBG_MAIN_THREAD
 
+        _LOG( "shareMyOpinion" )
+
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
         archive( *m_myOpinion );
@@ -707,6 +697,14 @@ private:
 			if ( replicatorIt != m_drive.m_replicator.replicatorKey() ) {
 				m_drive.m_replicator.sendMessage( "opinion", replicatorIt.array(), os.str());
 			}
+        }
+
+        if ( auto session = m_drive.m_session.lock(); session )
+        {
+            m_shareMyOpinionTimer = session->startTimer( m_shareMyOpinionTimerDelayMs, [this]
+            {
+                shareMyOpinion();
+            } );
         }
     }
 
