@@ -429,7 +429,7 @@ bool FsTree::moveFlat( const std::string& srcPathAndName,
        destParentFolder = getFolderPtr( destPath.parent_path().string(), true );
    }
 
-    Folder::Child destChild = srcIt->second;
+    Folder::Child destChild = std::move(srcIt->second);
     if ( isFolder(destChild) )
     {
         getFolder(destChild).m_name = destFilename;
