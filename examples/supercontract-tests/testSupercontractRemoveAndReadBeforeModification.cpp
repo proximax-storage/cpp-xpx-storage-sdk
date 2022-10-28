@@ -14,6 +14,8 @@ namespace sirius::drive::test {
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
+namespace {
+
 class ENVIRONMENT_CLASS
     : public TestEnvironment {
 public:
@@ -83,19 +85,27 @@ public:
                                   }});
     }
 
-    void onFileRemoved(std::optional<RemoveFilesystemEntryResponse> res) {
+    void onFileOpened(std::optional<OpenFileResponse> res) {
         ASSERT_TRUE(res);
-        ASSERT_TRUE(res->m_success);
+        ASSERT_FALSE(res->m_fileId);
         m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
                                                                                                onAppliedSandboxModifications(res);
                                                                                            }});
     }
 
+    void onFileRemoved(std::optional<RemoveFilesystemEntryResponse> res) {
+        ASSERT_TRUE(res);
+        ASSERT_TRUE(res->m_success);
+        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::READ, "test.txt", [this](auto res) {
+                                                       onFileOpened(res);
+                                                   }});
+    }
+
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.removeFsTreeEntry( m_driveKey, RemoveFilesystemEntryRequest{"test.txt", [this]( auto res) {
-                                                              onFileRemoved(res);
-                                                          }});
+        m_env.removeFsTreeEntry(m_driveKey, RemoveFilesystemEntryRequest{"test.txt", [this](auto res) {
+                                                                             onFileRemoved(res);
+                                                                         }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
@@ -242,4 +252,5 @@ TEST(SupercontractTest, TEST_NAME) {
 }
 
 #undef TEST_NAME
+} // namespace
 } // namespace sirius::drive::test
