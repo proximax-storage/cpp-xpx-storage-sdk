@@ -14,15 +14,17 @@ namespace sirius::drive::test {
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
+namespace {
+
 class ENVIRONMENT_CLASS
     : public TestEnvironment {
 public:
     ENVIRONMENT_CLASS(
         int numberOfReplicators,
-        const std::string &ipAddr0,
+        const std::string& ipAddr0,
         int port0,
-        const std::string &rootFolder0,
-        const std::string &sandboxRootFolder0,
+        const std::string& rootFolder0,
+        const std::string& sandboxRootFolder0,
         bool useTcpSocket,
         int modifyApprovalDelay,
         int downloadApprovalDelay,
@@ -47,10 +49,9 @@ public:
     std::promise<void> p;
     DriveKey m_driveKey;
     uint64_t m_fileId;
-    ENVIRONMENT_CLASS &m_env;
+    ENVIRONMENT_CLASS& m_env;
 
-    CreateFile(ENVIRONMENT_CLASS
-                   &env)
+    CreateFile(ENVIRONMENT_CLASS& env)
         : m_env(env) {}
 
 public:
@@ -134,10 +135,9 @@ public:
     std::promise<void> p;
     DriveKey m_driveKey;
     uint64_t m_fileId;
-    ENVIRONMENT_CLASS &m_env;
+    ENVIRONMENT_CLASS& m_env;
 
-    RemoveWhileIterating(ENVIRONMENT_CLASS
-                             &env)
+    RemoveWhileIterating(ENVIRONMENT_CLASS& env)
         : m_env(env) {}
 
 public:
@@ -149,7 +149,7 @@ public:
 
     void onIterCreated(std::optional<FolderIteratorCreateResponse> res) {
         ASSERT_TRUE(res);
-        m_env.removeFsTreeEntry( m_driveKey, RemoveFilesystemEntryRequest{"tests/test.txt", [this]( auto res) { onFileRemoved( res); }});
+        m_env.removeFsTreeEntry(m_driveKey, RemoveFilesystemEntryRequest{"tests/test.txt", [this](auto res) { onFileRemoved(res); }});
     }
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
@@ -191,6 +191,7 @@ TEST(SupercontractTest, TEST_NAME) {
 
     handler_r.p.get_future().wait();
 }
+} // namespace
 
 #undef TEST_NAME
 } // namespace sirius::drive::test

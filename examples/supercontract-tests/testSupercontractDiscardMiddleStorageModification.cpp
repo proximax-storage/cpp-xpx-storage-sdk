@@ -14,6 +14,8 @@ namespace sirius::drive::test {
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
+namespace {
+
 class ENVIRONMENT_CLASS
     : public TestEnvironment {
 public:
@@ -120,7 +122,7 @@ public:
         auto response = *res;
         ASSERT_TRUE(response.m_fileId);
         m_fileId = *response.m_fileId;
-        std::string buffer = "data data";
+        std::string buffer = "data data data";
         m_env.writeFile(m_driveKey, WriteFileRequest{m_fileId, {buffer.begin(), buffer.end()}, [this](auto res) {
                                                          onFileWritten3(res);
                                                      }});
@@ -296,6 +298,7 @@ TEST(SupercontractTest, TEST_NAME) {
 
     handler.p.get_future().wait();
 }
+} // namespace
 
 #undef TEST_NAME
 } // namespace sirius::drive::test

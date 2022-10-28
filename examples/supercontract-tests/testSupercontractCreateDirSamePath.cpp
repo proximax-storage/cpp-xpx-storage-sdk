@@ -14,6 +14,8 @@ namespace sirius::drive::test {
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
+namespace {
+
 class ENVIRONMENT_CLASS
     : public TestEnvironment {
 public:
@@ -185,6 +187,7 @@ TEST(SupercontractTest, TEST_NAME) {
 
     handler2.p.get_future().wait();
 }
+} // namespace
 
 #undef TEST_NAME
 } // namespace sirius::drive::test

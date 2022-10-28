@@ -208,7 +208,7 @@ public:
 
     void onIteratorDestroyed(std::optional<FolderIteratorDestroyResponse> res) {
         ASSERT_TRUE(res);
-        m_env.moveFsTreeEntry(m_driveKey, MoveFilesystemEntryRequest{"tests/mod/test.txt", "moved/test.txt", [this](auto res) { onFileMovedAttempt2(res); }});
+        m_env.moveFsTreeEntry(m_driveKey, MoveFilesystemEntryRequest{"tests", "moved", [this](auto res) { onFileMovedAttempt2(res); }});
     }
 
     void onFileMoved(std::optional<MoveFilesystemEntryResponse> res) {
@@ -222,17 +222,17 @@ public:
     void onIteratorCreated(std::optional<FolderIteratorCreateResponse> res) {
         ASSERT_TRUE(res);
         m_fileId = *res->m_id;
-        m_env.moveFsTreeEntry(m_driveKey, MoveFilesystemEntryRequest{"tests/mod/test.txt", "moved/test.txt", [this](auto res) { onFileMoved(res); }});
+        m_env.moveFsTreeEntry(m_driveKey, MoveFilesystemEntryRequest{"tests", "moved", [this](auto res) { onFileMoved(res); }});
     }
 
-    void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
-        ASSERT_TRUE(res);
-        m_env.folderIteratorCreate(m_driveKey, FolderIteratorCreateRequest{"tests/mod", true, [this](auto res) { onIteratorCreated(res); }});
-    }
+    // void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
+    //     ASSERT_TRUE(res);
+    //     m_env.folderIteratorCreate(m_driveKey, FolderIteratorCreateRequest{"tests/mod", true, [this](auto res) { onIteratorCreated(res); }});
+    // }
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.createDirectories(m_driveKey, CreateDirectoriesRequest{"moved", [this](auto res) { onDirCreated(res); }});
+        m_env.folderIteratorCreate(m_driveKey, FolderIteratorCreateRequest{"tests/mod", true, [this](auto res) { onIteratorCreated(res); }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
@@ -272,25 +272,25 @@ public:
     void onReceivedFsTree(std::optional<FilesystemResponse> res) {
         ASSERT_TRUE(res);
         auto& fsTree = res->m_fsTree;
-        ASSERT_TRUE(fsTree.childs().size() == 2);
+        ASSERT_TRUE(fsTree.childs().size() == 1);
         for (auto const& [key, val] : fsTree.childs()) {
             const auto& child = fsTree.childs().begin()->second;
             ASSERT_TRUE(isFolder(child));
             const auto& folder = getFolder(child);
-            if (folder.name() == "tests") {
-                ASSERT_TRUE(folder.childs().size() == 0);
-            } else if (folder.name() == "mod") {
-                ASSERT_TRUE(folder.childs().size() == 0);
-            }
             ASSERT_TRUE(folder.name() == "moved");
             const auto& files = folder.childs();
             for (auto const& [key, val] : files) {
-                ASSERT_TRUE(isFile(val));
-                const auto& file = getFile(val);
-                ASSERT_TRUE(file.name() == "test.txt");
+                ASSERT_TRUE(isFolder(val));
+                const auto& folder = getFolder(val);
+                ASSERT_TRUE(folder.name() == "mod");
+                const auto& files = folder.childs();
+                for (auto const& [key, val] : files) {
+                    const auto& file = getFile(val);
+                    ASSERT_TRUE(file.name() == "test.txt");
+                }
             }
         }
-        m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"moved/test.txt", [this](auto res) {
+        m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"moved/mod/test.txt", [this](auto res) {
                                                                   onReceivedAbsolutePath(res);
                                                               }});
     }
@@ -348,7 +348,7 @@ public:
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::READ, "moved/test.txt", [this](auto res) { onFileOpened(res); }});
+        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::READ, "moved/mod/test.txt", [this](auto res) { onFileOpened(res); }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {

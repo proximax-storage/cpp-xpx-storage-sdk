@@ -14,15 +14,17 @@ namespace sirius::drive::test {
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
+namespace {
+
 class ENVIRONMENT_CLASS
     : public TestEnvironment {
 public:
     ENVIRONMENT_CLASS(
         int numberOfReplicators,
-        const std::string &ipAddr0,
+        const std::string& ipAddr0,
         int port0,
-        const std::string &rootFolder0,
-        const std::string &sandboxRootFolder0,
+        const std::string& rootFolder0,
+        const std::string& sandboxRootFolder0,
         bool useTcpSocket,
         int modifyApprovalDelay,
         int downloadApprovalDelay,
@@ -48,17 +50,16 @@ public:
     DriveKey m_driveKey;
     uint64_t m_fileId;
     std::string m_path;
-    ENVIRONMENT_CLASS &m_env;
+    ENVIRONMENT_CLASS& m_env;
 
-    WriteFileWithSameContent(ENVIRONMENT_CLASS
-                                 &env)
+    WriteFileWithSameContent(ENVIRONMENT_CLASS& env)
         : m_env(env) {}
 
 public:
     void onReceivedAbsolutePath2(std::optional<AbsolutePathResponse> res) {
         ASSERT_TRUE(res);
         std::ostringstream stream;
-        const auto &path = res->m_path;
+        const auto& path = res->m_path;
         ASSERT_EQ(path, m_path);
         ASSERT_TRUE(fs::exists(path));
         std::ifstream fileStream(path);
@@ -71,7 +72,7 @@ public:
     void onReceivedAbsolutePath(std::optional<AbsolutePathResponse> res) {
         ASSERT_TRUE(res);
         std::ostringstream stream;
-        const auto &path = res->m_path;
+        const auto& path = res->m_path;
         m_path = res->m_path;
         ASSERT_TRUE(fs::exists(path));
         std::ifstream fileStream(path);
@@ -85,11 +86,11 @@ public:
 
     void onReceivedFsTree(std::optional<FilesystemResponse> res) {
         ASSERT_TRUE(res);
-        auto &fsTree = res->m_fsTree;
+        auto& fsTree = res->m_fsTree;
         ASSERT_TRUE(fsTree.childs().size() == 2);
         for (const auto [key, child] : fsTree.childs()) {
             ASSERT_TRUE(isFile(child));
-            const auto &file = getFile(child);
+            const auto& file = getFile(child);
             ASSERT_TRUE(file.name() == "test.txt" || file.name() == "test2.txt");
         }
         m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"test.txt", [this](auto res) {
@@ -219,6 +220,7 @@ TEST(SupercontractTest, TEST_NAME) {
 
     handler.p.get_future().wait();
 }
+} // namespace
 
 #undef TEST_NAME
 } // namespace sirius::drive::test

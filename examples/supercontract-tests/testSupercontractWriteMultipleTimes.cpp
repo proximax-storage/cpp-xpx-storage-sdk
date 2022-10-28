@@ -186,7 +186,7 @@ TEST(SupercontractTest, TEST_NAME) {
 
     handler.p.get_future().wait();
 }
+} // namespace
 
 #undef TEST_NAME
-} // namespace
 } // namespace sirius::drive::test

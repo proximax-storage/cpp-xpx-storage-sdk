@@ -64,7 +64,7 @@ public:
         std::ifstream fileStream(path);
         stream << fileStream.rdbuf();
         auto content = stream.str();
-        ASSERT_EQ(content, "data");
+        ASSERT_EQ(content, "data data");
         p.set_value();
     }
 
@@ -132,7 +132,7 @@ public:
         auto response = *res;
         ASSERT_TRUE(response.m_fileId);
         m_fileId = *response.m_fileId;
-        std::string buffer = "data";
+        std::string buffer = "data data";
         m_env.writeFile(m_driveKey, WriteFileRequest{m_fileId, {buffer.begin(), buffer.end()}, [this](auto res) {
                                                          onFileWritten(res);
                                                      }});
@@ -295,7 +295,7 @@ TEST(SupercontractTest, TEST_NAME) {
 
     handler.p.get_future().wait();
 }
+} // namespace
 
 #undef TEST_NAME
-} // namespace
 } // namespace sirius::drive::test
