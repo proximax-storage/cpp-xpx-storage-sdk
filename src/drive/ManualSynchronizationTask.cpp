@@ -124,6 +124,7 @@ public:
                                 if ( code == download_status::download_complete )
                                 {
                                     m_sandboxRootHash = infoHash;
+                                    m_fsTreeOrActionListHandle = m_downloadingLtHandle;
                                     m_downloadingLtHandle.reset();
                                     m_drive.executeOnBackgroundThread( [this]
                                                                        {
@@ -158,7 +159,6 @@ public:
                     &m_drive.m_driveKey.array(),
                     nullptr,
                     &m_opinionController.opinionTrafficTx().value().array());
-            m_drive.m_torrentHandleMap[m_request->m_rootHash] = {*m_downloadingLtHandle, false};
         }
     }
 
@@ -205,6 +205,9 @@ public:
                 }
             }
         }
+
+        toBeRemovedTorrents.insert( *m_fsTreeOrActionListHandle );
+        m_fsTreeOrActionListHandle.reset();
 
         // Remove unused torrents
         if ( auto session = m_drive.m_session.lock(); session )
