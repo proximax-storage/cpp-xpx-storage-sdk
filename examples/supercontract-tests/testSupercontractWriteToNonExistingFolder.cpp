@@ -14,15 +14,17 @@ namespace sirius::drive::test {
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
+namespace {
+
 class ENVIRONMENT_CLASS
     : public TestEnvironment {
 public:
     ENVIRONMENT_CLASS(
         int numberOfReplicators,
-        const std::string &ipAddr0,
+        const std::string& ipAddr0,
         int port0,
-        const std::string &rootFolder0,
-        const std::string &sandboxRootFolder0,
+        const std::string& rootFolder0,
+        const std::string& sandboxRootFolder0,
         bool useTcpSocket,
         int modifyApprovalDelay,
         int downloadApprovalDelay,
@@ -47,16 +49,15 @@ public:
     std::promise<void> p;
     DriveKey m_driveKey;
     uint64_t m_fileId;
-    ENVIRONMENT_CLASS &m_env;
+    ENVIRONMENT_CLASS& m_env;
 
-    WriteNoneExisting(ENVIRONMENT_CLASS
-                          &env)
+    WriteNoneExisting(ENVIRONMENT_CLASS& env)
         : m_env(env) {}
 
 public:
     void onReceivedFsTree(std::optional<FilesystemResponse> res) {
         ASSERT_TRUE(res);
-        auto &fsTree = res->m_fsTree;
+        auto& fsTree = res->m_fsTree;
         ASSERT_TRUE(fsTree.childs().size() == 0);
         p.set_value();
     }
@@ -124,6 +125,7 @@ TEST(SupercontractTest, TEST_NAME) {
 
     handler.p.get_future().wait();
 }
+} // namespace
 
 #undef TEST_NAME
 } // namespace sirius::drive::test

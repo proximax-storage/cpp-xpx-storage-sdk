@@ -14,6 +14,8 @@ namespace sirius::drive::test {
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
+namespace {
+
 class ENVIRONMENT_CLASS
     : public TestEnvironment {
 public:
@@ -93,9 +95,9 @@ public:
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.removeFsTreeEntry( m_driveKey, RemoveFilesystemEntryRequest{"test.txt", [this]( auto res) {
-                                                              onFileRemoved(res);
-                                                          }});
+        m_env.removeFsTreeEntry(m_driveKey, RemoveFilesystemEntryRequest{"test.txt", [this](auto res) {
+                                                                             onFileRemoved(res);
+                                                                         }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
@@ -240,6 +242,7 @@ TEST(SupercontractTest, TEST_NAME) {
 
     handler.p.get_future().wait();
 }
+} // namespace
 
 #undef TEST_NAME
 } // namespace sirius::drive::test

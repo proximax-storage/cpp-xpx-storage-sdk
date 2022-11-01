@@ -14,6 +14,8 @@ namespace sirius::drive::test {
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
+namespace {
+
 class ENVIRONMENT_CLASS
     : public TestEnvironment {
 public:
@@ -100,9 +102,9 @@ public:
     void onIteratorDestroyed2(std::optional<FolderIteratorDestroyResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->success);
-        m_env.removeFsTreeEntry( m_driveKey, RemoveFilesystemEntryRequest{"tests/test.txt", [this]( auto res) {
-                                                              onFileRemovedAttempt2(res);
-                                                          }});
+        m_env.removeFsTreeEntry(m_driveKey, RemoveFilesystemEntryRequest{"tests/test.txt", [this](auto res) {
+                                                                             onFileRemovedAttempt2(res);
+                                                                         }});
     }
 
     void onIteratorDestroyed(std::optional<FolderIteratorDestroyResponse> res) {
@@ -125,9 +127,9 @@ public:
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->m_id);
         m_fileId2 = *res->m_id;
-        m_env.removeFsTreeEntry( m_driveKey, RemoveFilesystemEntryRequest{"tests/test.txt", [this]( auto res) {
-                                                              onFileRemoved(res);
-                                                          }});
+        m_env.removeFsTreeEntry(m_driveKey, RemoveFilesystemEntryRequest{"tests/test.txt", [this](auto res) {
+                                                                             onFileRemoved(res);
+                                                                         }});
     }
 
     void onIterCreated(std::optional<FolderIteratorCreateResponse> res) {
@@ -267,6 +269,7 @@ TEST(SupercontractTest, TEST_NAME) {
 
     handler_r.p.get_future().wait();
 }
+} // namespace
 
 #undef TEST_NAME
 } // namespace sirius::drive::test

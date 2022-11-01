@@ -14,6 +14,8 @@ namespace sirius::drive::test {
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
+namespace {
+
 class ENVIRONMENT_CLASS
     : public TestEnvironment {
 public:
@@ -75,11 +77,16 @@ public:
         ASSERT_TRUE(folder.name() == "tests");
         const auto& files = folder.childs();
         for (auto const& [key, val] : files) {
-            ASSERT_TRUE(isFile(val));
-            const auto& file = getFile(val);
-            ASSERT_TRUE(file.name() == "test.txt");
+            if (isFile(val)) {
+                const auto& file = getFile(val);
+                ASSERT_TRUE(file.name() == "test.txt");
+            } else {
+                const auto& folder = getFolder(val);
+                ASSERT_TRUE(folder.childs().size() == 1);
+                ASSERT_TRUE(folder.name() == "mod");
+            }
         }
-        m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"tests/test.txt", [this](auto res) {
+        m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"tests/mod/test.txt", [this](auto res) {
                                                                   onReceivedAbsolutePath(res);
                                                               }});
     }
@@ -143,12 +150,12 @@ public:
 
     void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
         ASSERT_TRUE(res);
-        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::WRITE, "tests/test.txt", [this](auto res) { onFileOpened(res); }});
+        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::WRITE, "tests/mod/test.txt", [this](auto res) { onFileOpened(res); }});
     }
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.createDirectories(m_driveKey, CreateDirectoriesRequest{"tests", [this](auto res) { onDirCreated(res); }});
+        m_env.createDirectories(m_driveKey, CreateDirectoriesRequest{"tests/mod", [this](auto res) { onDirCreated(res); }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
@@ -192,22 +199,40 @@ public:
                                   }});
     }
 
-    void onFileMoved(std::optional<MoveFilesystemEntryResponse> res) {
+    void onFileMovedAttempt2(std::optional<MoveFilesystemEntryResponse> res) {
         ASSERT_TRUE(res);
-        ASSERT_TRUE(res->m_success);
         m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
                                                                                                onAppliedSandboxModifications(res);
                                                                                            }});
     }
 
-    void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
+    void onIteratorDestroyed(std::optional<FolderIteratorDestroyResponse> res) {
         ASSERT_TRUE(res);
-        m_env.moveFsTreeEntry(m_driveKey, MoveFilesystemEntryRequest{"tests/test.txt", "moved/test.txt", [this](auto res) { onFileMoved(res); }});
+        m_env.moveFsTreeEntry(m_driveKey, MoveFilesystemEntryRequest{"tests", "moved", [this](auto res) { onFileMovedAttempt2(res); }});
     }
+
+    void onFileMoved(std::optional<MoveFilesystemEntryResponse> res) {
+        ASSERT_TRUE(res);
+        ASSERT_FALSE(res->m_success);
+        m_env.folderIteratorDestroy(m_driveKey, FolderIteratorDestroyRequest{m_fileId, [this](auto res) {
+                                                                                 onIteratorDestroyed(res);
+                                                                             }});
+    }
+
+    void onIteratorCreated(std::optional<FolderIteratorCreateResponse> res) {
+        ASSERT_TRUE(res);
+        m_fileId = *res->m_id;
+        m_env.moveFsTreeEntry(m_driveKey, MoveFilesystemEntryRequest{"tests", "moved", [this](auto res) { onFileMoved(res); }});
+    }
+
+    // void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
+    //     ASSERT_TRUE(res);
+    //     m_env.folderIteratorCreate(m_driveKey, FolderIteratorCreateRequest{"tests/mod", true, [this](auto res) { onIteratorCreated(res); }});
+    // }
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.createDirectories(m_driveKey, CreateDirectoriesRequest{"moved", [this](auto res) { onDirCreated(res); }});
+        m_env.folderIteratorCreate(m_driveKey, FolderIteratorCreateRequest{"tests/mod", true, [this](auto res) { onIteratorCreated(res); }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
@@ -247,23 +272,25 @@ public:
     void onReceivedFsTree(std::optional<FilesystemResponse> res) {
         ASSERT_TRUE(res);
         auto& fsTree = res->m_fsTree;
-        ASSERT_TRUE(fsTree.childs().size() == 2);
+        ASSERT_TRUE(fsTree.childs().size() == 1);
         for (auto const& [key, val] : fsTree.childs()) {
             const auto& child = fsTree.childs().begin()->second;
             ASSERT_TRUE(isFolder(child));
             const auto& folder = getFolder(child);
-            if (folder.name() == "tests") {
-                ASSERT_TRUE(folder.childs().size() == 0);
-            }
             ASSERT_TRUE(folder.name() == "moved");
             const auto& files = folder.childs();
             for (auto const& [key, val] : files) {
-                ASSERT_TRUE(isFile(val));
-                const auto& file = getFile(val);
-                ASSERT_TRUE(file.name() == "test.txt");
+                ASSERT_TRUE(isFolder(val));
+                const auto& folder = getFolder(val);
+                ASSERT_TRUE(folder.name() == "mod");
+                const auto& files = folder.childs();
+                for (auto const& [key, val] : files) {
+                    const auto& file = getFile(val);
+                    ASSERT_TRUE(file.name() == "test.txt");
+                }
             }
         }
-        m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"moved/test.txt", [this](auto res) {
+        m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"moved/mod/test.txt", [this](auto res) {
                                                                   onReceivedAbsolutePath(res);
                                                               }});
     }
@@ -321,7 +348,7 @@ public:
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::READ, "moved/test.txt", [this](auto res) { onFileOpened(res); }});
+        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::READ, "moved/mod/test.txt", [this](auto res) { onFileOpened(res); }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
@@ -365,6 +392,7 @@ TEST(SupercontractTest, TEST_NAME) {
 
     handlerr.p.get_future().wait();
 }
+} // namespace
 
 #undef TEST_NAME
 } // namespace sirius::drive::test

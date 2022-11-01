@@ -14,15 +14,17 @@ namespace sirius::drive::test {
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
+namespace {
+
 class ENVIRONMENT_CLASS
     : public TestEnvironment {
 public:
     ENVIRONMENT_CLASS(
         int numberOfReplicators,
-        const std::string &ipAddr0,
+        const std::string& ipAddr0,
         int port0,
-        const std::string &rootFolder0,
-        const std::string &sandboxRootFolder0,
+        const std::string& rootFolder0,
+        const std::string& sandboxRootFolder0,
         bool useTcpSocket,
         int modifyApprovalDelay,
         int downloadApprovalDelay,
@@ -47,10 +49,9 @@ public:
     DriveKey m_driveKey;
     uint64_t m_fileId;
     uint64_t m_bytes;
-    ENVIRONMENT_CLASS &m_env;
+    ENVIRONMENT_CLASS& m_env;
 
-    TestHandlerMoveNone(ENVIRONMENT_CLASS
-                            &env)
+    TestHandlerMoveNone(ENVIRONMENT_CLASS& env)
         : m_env(env) {}
 
 public:
@@ -84,7 +85,7 @@ public:
 
     void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
         ASSERT_TRUE(res);
-        m_env.moveFsTreeEntry( m_driveKey, MoveFilesystemEntryRequest{"tests/tests.txt", "moved/test.txt", [this]( auto res) { onFileMoved( res); }});
+        m_env.moveFsTreeEntry(m_driveKey, MoveFilesystemEntryRequest{"tests/tests.txt", "moved/test.txt", [this](auto res) { onFileMoved(res); }});
     }
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
@@ -119,6 +120,7 @@ TEST(SupercontractTest, TEST_NAME) {
 
     handlerm.p.get_future().wait();
 }
+} // namespace
 
 #undef TEST_NAME
 } // namespace sirius::drive::test

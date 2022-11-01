@@ -14,6 +14,8 @@ namespace sirius::drive::test {
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
+namespace {
+
 class ENVIRONMENT_CLASS
     : public TestEnvironment {
 public:
@@ -221,7 +223,7 @@ public:
         auto response = *res;
         ASSERT_TRUE(response.m_fileId);
         m_fileId = *response.m_fileId;
-        std::string buffer = "data";
+        std::string buffer = "data data";
         m_env.writeFile(m_driveKey, WriteFileRequest{m_fileId, {buffer.begin(), buffer.end()}, [this](auto res) {
                                                          onFileWritten(res);
                                                      }});
@@ -260,10 +262,11 @@ public:
     uint64_t m_fileId;
     uint64_t m_bytes;
     std::string m_filename;
+    std::string m_expected;
     ENVIRONMENT_CLASS& m_env;
 
-    TestHandlerReadMovedFileAssert(ENVIRONMENT_CLASS& env, std::string filename)
-        : m_env(env), m_filename(filename) {}
+    TestHandlerReadMovedFileAssert(ENVIRONMENT_CLASS& env, std::string filename, std::string expected)
+        : m_env(env), m_filename(filename), m_expected(expected) {}
 
 public:
     void onReceivedAbsolutePath(std::optional<AbsolutePathResponse> res) {
@@ -274,7 +277,7 @@ public:
         std::ifstream fileStream(path);
         stream << fileStream.rdbuf();
         auto content = stream.str();
-        ASSERT_EQ(content, "data");
+        ASSERT_EQ(content, m_expected);
         p.set_value();
     }
 
@@ -336,7 +339,7 @@ public:
         ASSERT_TRUE(res);
         auto buffer = res->m_buffer;
         std::string actual(buffer->begin(), buffer->end());
-        ASSERT_EQ(actual, "data");
+        ASSERT_EQ(actual, m_expected);
         m_env.closeFile(m_driveKey, CloseFileRequest{m_fileId, [this](auto res) {
                                                          onFileClosed(res);
                                                      }});
@@ -392,20 +395,21 @@ TEST(SupercontractTest, TEST_NAME) {
 
     handlerm.p.get_future().wait();
 
-    TestHandlerReadMovedFileAssert handlerr1(env, "moved/test.txt");
+    TestHandlerReadMovedFileAssert handlerr1(env, "moved/test.txt", "data");
     handlerr1.m_driveKey = driveKey;
     env.initiateManualModifications(driveKey,
                                     InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handlerr1.onInitiatedModifications(res); }});
 
     handlerr1.p.get_future().wait();
 
-    TestHandlerReadMovedFileAssert handlerr2(env, "tests/test.txt");
+    TestHandlerReadMovedFileAssert handlerr2(env, "tests/test.txt", "data data");
     handlerr2.m_driveKey = driveKey;
     env.initiateManualModifications(driveKey,
                                     InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handlerr2.onInitiatedModifications(res); }});
 
     handlerr2.p.get_future().wait();
 }
+} // namespace
 
 #undef TEST_NAME
 } // namespace sirius::drive::test

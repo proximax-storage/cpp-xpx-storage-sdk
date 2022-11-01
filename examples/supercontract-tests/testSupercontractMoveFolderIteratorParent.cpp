@@ -14,6 +14,8 @@ namespace sirius::drive::test {
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
+namespace {
+
 class ENVIRONMENT_CLASS
     : public TestEnvironment {
 public:
@@ -192,17 +194,35 @@ public:
                                   }});
     }
 
-    void onFileMoved(std::optional<MoveFilesystemEntryResponse> res) {
+    void onFileMovedAttempt2(std::optional<MoveFilesystemEntryResponse> res) {
         ASSERT_TRUE(res);
-        ASSERT_TRUE(res->m_success);
         m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
                                                                                                onAppliedSandboxModifications(res);
                                                                                            }});
     }
 
+    void onIteratorDestroyed(std::optional<FolderIteratorDestroyResponse> res) {
+        ASSERT_TRUE(res);
+        m_env.moveFsTreeEntry(m_driveKey, MoveFilesystemEntryRequest{"tests/test.txt", "moved/test.txt", [this](auto res) { onFileMovedAttempt2(res); }});
+    }
+
+    void onFileMoved(std::optional<MoveFilesystemEntryResponse> res) {
+        ASSERT_TRUE(res);
+        ASSERT_FALSE(res->m_success);
+        m_env.folderIteratorDestroy(m_driveKey, FolderIteratorDestroyRequest{m_fileId, [this](auto res) {
+                                                                                 onIteratorDestroyed(res);
+                                                                             }});
+    }
+
+    void onIteratorCreated(std::optional<FolderIteratorCreateResponse> res) {
+        ASSERT_TRUE(res);
+        m_fileId = *res->m_id;
+        m_env.moveFsTreeEntry(m_driveKey, MoveFilesystemEntryRequest{"tests/test.txt", "moved/test.txt", [this](auto res) { onFileMoved(res); }});
+    }
+
     void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
         ASSERT_TRUE(res);
-        m_env.moveFsTreeEntry(m_driveKey, MoveFilesystemEntryRequest{"tests/test.txt", "moved/test.txt", [this](auto res) { onFileMoved(res); }});
+        m_env.folderIteratorCreate(m_driveKey, FolderIteratorCreateRequest{"", true, [this](auto res) { onIteratorCreated(res); }});
     }
 
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
@@ -364,7 +384,7 @@ TEST(SupercontractTest, TEST_NAME) {
                                     InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handlerr.onInitiatedModifications(res); }});
 
     handlerr.p.get_future().wait();
-}
+}}
 
 #undef TEST_NAME
 } // namespace sirius::drive::test

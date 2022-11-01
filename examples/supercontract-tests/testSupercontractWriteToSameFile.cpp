@@ -14,6 +14,8 @@ namespace sirius::drive::test {
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
+namespace {
+
 class ENVIRONMENT_CLASS
     : public TestEnvironment {
 public:
@@ -182,6 +184,7 @@ TEST(SupercontractTest, TEST_NAME) {
 
     ASSERT_EQ(file1Path, file2Path);
 }
+} // namespace
 
 #undef TEST_NAME
 } // namespace sirius::drive::test
