@@ -300,6 +300,7 @@ public:
 
         DBG_MAIN_THREAD
 
+        _ASSERT( m_upperSandboxFsTree )
         _ASSERT( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
@@ -380,6 +381,7 @@ public:
 
         DBG_MAIN_THREAD
 
+        _ASSERT( m_upperSandboxFsTree )
         _ASSERT( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
@@ -457,6 +459,7 @@ public:
     {
         DBG_MAIN_THREAD
 
+        _ASSERT( m_upperSandboxFsTree )
         _ASSERT( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
@@ -530,6 +533,7 @@ public:
     {
         DBG_MAIN_THREAD
 
+        _ASSERT( m_upperSandboxFsTree )
         _ASSERT( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
@@ -875,6 +879,7 @@ public:
     {
         DBG_MAIN_THREAD
 
+        _ASSERT( m_upperSandboxFsTree )
         _ASSERT( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
