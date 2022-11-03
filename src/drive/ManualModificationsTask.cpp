@@ -312,7 +312,7 @@ public:
 
         if ( it == m_openFilesRead.end())
         {
-            request.m_callback( ReadFileResponse{std::make_optional<std::vector<uint8_t >>()} );
+            request.m_callback( ReadFileResponse{} );
             return true;
         }
 
