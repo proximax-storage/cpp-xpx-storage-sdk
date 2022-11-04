@@ -216,9 +216,9 @@ public:
             fileToDownload = *m_missedFileSet.begin();
             m_missedFileSet.erase( m_missedFileSet.begin());
 
-            if ( auto it = m_drive.m_torrentHandleMap.find( *fileToDownload ); it != m_drive.m_torrentHandleMap.end())
-            {
-                _ASSERT( it->second.m_ltHandle.is_valid() )
+            if ( auto it = m_drive.m_torrentHandleMap.find( *fileToDownload ); *fileToDownload != Hash256() &&
+                                                                               it != m_drive.m_torrentHandleMap.end()) {
+                _ASSERT( it->second.m_ltHandle.is_valid())
                 fileToDownload.reset();
             }
         }
@@ -227,6 +227,7 @@ public:
         {
             if ( auto session = m_drive.m_session.lock(); session )
             {
+                _ASSERT( *fileToDownload != Hash256() )
                 _ASSERT( m_opinionController.opinionTrafficTx())
                 _LOG( "+++ ex downloading: START: " << toString( *fileToDownload ));
                 m_downloadingLtHandle = session->download( DownloadContext(
@@ -442,7 +443,10 @@ public:
                     m_sandboxFsTree->removeFlat( action.m_param1, [&]( const InfoHash& fileHash )
                     {
                         // maybe it is file from client data, so we add it to map with empty torrent handle
-                        torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{} );
+                        if ( fileHash != Hash256())
+                        {
+                            torrentHandleMap.try_emplace( fileHash, UseTorrentInfo{} );
+                        }
                     } );
 
                     _LOG( "! ActionList: successful 'remove': " << action.m_param1 );
@@ -802,6 +806,7 @@ private:
                 if ( !info.m_isUsed )
                 {
                     const auto& hash = it.first;
+                    _ASSERT( hash != Hash256() )
                     std::string filename = hashToFileName( hash );
                     fs::remove( fs::path( m_drive.m_driveFolder ) / filename );
                     fs::remove( fs::path( m_drive.m_torrentFolder ) / filename );
@@ -823,6 +828,7 @@ private:
                 {
                     if ( auto session = m_drive.m_session.lock(); session )
                     {
+                        _ASSERT( it.first != Hash256() )
                         std::string fileName = hashToFileName( it.first );
                         it.second.m_ltHandle = session->addTorrentFileToSession(
                                 (m_drive.m_torrentFolder / fileName).string(),

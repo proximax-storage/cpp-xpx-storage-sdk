@@ -175,6 +175,8 @@ public:
     const fs::path  m_torrentFolder     = m_driveRootPath  / "torrent";
     const fs::path  m_fsTreeFile        = m_driveRootPath  / "fs_tree" / FS_TREE_FILE_NAME;
     const fs::path  m_fsTreeTorrent     = m_driveRootPath  / "fs_tree" / FS_TREE_FILE_NAME ".torrent";
+    const fs::path  m_emptyFile         = m_driveFolder / toString(Hash256());
+    const fs::path  m_emptyFileTorrent  = m_torrentFolder / toString(Hash256());
 
     // Sandbox paths
     const fs::path  m_sandboxRootPath       = m_replicatorSandboxRoot / arrayToString(m_driveKey.array());

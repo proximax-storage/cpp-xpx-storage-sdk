@@ -78,6 +78,7 @@ private:
             {
                 if ( info.m_ltHandle.is_valid())
                 {
+                    _ASSERT( it.first != Hash256() )
                     toBeRemovedTorrents.insert( info.m_ltHandle );
                 }
             }
@@ -105,6 +106,7 @@ private:
             // remove unused files and torrent files from the drive
             for ( const auto& it : torrentHandleMap )
             {
+                _ASSERT( it.first != Hash256() )
                 const UseTorrentInfo& info = it.second;
                 if ( !info.m_isUsed )
                 {

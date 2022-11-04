@@ -196,6 +196,7 @@ protected:
         // Add unused files into set<>
         for ( const auto& it : torrentHandleMap )
         {
+            _ASSERT( it.first != Hash256() )
             const UseTorrentInfo& info = it.second;
             if ( !info.m_isUsed )
             {

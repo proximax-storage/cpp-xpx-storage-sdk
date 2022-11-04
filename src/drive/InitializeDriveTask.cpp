@@ -10,6 +10,8 @@
 #include <cereal/types/vector.hpp>
 #include <cereal/types/optional.hpp>
 
+#include <fstream>
+
 namespace sirius::drive
 {
 class InitializeDriveTask : public DriveTaskBase
@@ -102,6 +104,14 @@ private:
             if ( !fs::exists( m_drive.m_restartRootPath ))
             {
                 fs::create_directories( m_drive.m_restartRootPath );
+            }
+
+            if ( !fs::exists( m_drive.m_emptyFile )) {
+                std::ofstream( m_drive.m_emptyFile.c_str());
+            }
+
+            if ( !fs::exists( m_drive.m_emptyFileTorrent )) {
+                std::ofstream( m_drive.m_emptyFileTorrent.c_str());
             }
 
             // Load FsTree
@@ -257,32 +267,36 @@ private:
             } else
             {
                 auto& hash = getFile( child ).hash();
-                std::string fileName = hashToFileName( hash );
-                std::error_code err;
 
-                if ( !fs::exists( m_drive.m_driveFolder / fileName, err ))
+                if (hash != Hash256())
                 {
-                    //TODO inform user?
-                    _LOG_ERR( "disk corrupted: drive file does not exist: "
-                                      << m_drive.m_driveFolder / fileName );
-                }
+                    std::string fileName = hashToFileName( hash );
+                    std::error_code err;
 
-                if ( !fs::exists( m_drive.m_torrentFolder / fileName, err ))
-                {
-                    //TODO try recovery
-                    _LOG_ERR( "disk corrupted: torrent file does not exist: "
-                                      << m_drive.m_torrentFolder / fileName )
-                }
+                    if ( !fs::exists( m_drive.m_driveFolder / fileName, err ))
+                    {
+                        //TODO inform user?
+                        _LOG_ERR( "disk corrupted: drive file does not exist: "
+                        << m_drive.m_driveFolder / fileName );
+                    }
 
-                if ( auto session = m_drive.m_session.lock(); session )
-                {
-                    auto ltHandle = session->addTorrentFileToSession( (m_drive.m_torrentFolder / fileName).string(),
-                                                                      m_drive.m_driveFolder.string(),
-                                                                      lt::SiriusFlags::peer_is_replicator,
-                                                                      &m_drive.m_driveKey.array(),
-                                                                      nullptr,
-                                                                      nullptr );
-                    m_drive.m_torrentHandleMap.try_emplace( hash, UseTorrentInfo{ltHandle, true} );
+                    if ( !fs::exists( m_drive.m_torrentFolder / fileName, err ))
+                    {
+                        //TODO try recovery
+                        _LOG_ERR( "disk corrupted: torrent file does not exist: "
+                        << m_drive.m_torrentFolder / fileName )
+                    }
+
+                    if ( auto session = m_drive.m_session.lock(); session )
+                    {
+                        auto ltHandle = session->addTorrentFileToSession( (m_drive.m_torrentFolder / fileName).string(),
+                                                                          m_drive.m_driveFolder.string(),
+                                                                          lt::SiriusFlags::peer_is_replicator,
+                                                                          &m_drive.m_driveKey.array(),
+                                                                          nullptr,
+                                                                          nullptr );
+                        m_drive.m_torrentHandleMap.try_emplace( hash, UseTorrentInfo{ltHandle, true} );
+                    }
                 }
             }
         }

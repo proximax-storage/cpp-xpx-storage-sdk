@@ -974,6 +974,7 @@ private:
 
         for ( const auto& hash: m_callManagedHashes )
         {
+            _ASSERT( hash != Hash256() )
             std::error_code ec;
             fs::remove( m_drive.m_driveFolder / toString( hash ), ec );
 
@@ -1019,7 +1020,9 @@ private:
 
         for ( const auto& file: lowerUniqueFiles )
         {
-            if ( !upperUniqueFiles.contains( file ) && !m_drive.m_torrentHandleMap.contains( file ))
+            if ( !upperUniqueFiles.contains( file ) &&
+                 !m_drive.m_torrentHandleMap.contains( file ) &&
+                 file != Hash256())
             {
                 std::error_code ec;
                 fs::remove( m_drive.m_driveFolder / toString( file ), ec );
@@ -1103,14 +1106,17 @@ private:
                                             {
                                                 auto filePath = m_drive.m_driveFolder / toString( file.hash());
                                                 auto torrentPath = m_drive.m_torrentFolder / toString( file.hash());
-                                                auto hash = createTorrentFile( filePath,
+
+                                                auto size = fs::file_size( filePath );
+
+                                                auto hash = size > 0 ? createTorrentFile( filePath,
                                                                                m_drive.m_driveKey,
                                                                                filePath.parent_path(),
-                                                                               torrentPath );
+                                                                               torrentPath ) : Hash256();
 
                                                 try
                                                 {
-                                                    if ( m_drive.m_torrentHandleMap.contains( hash ))
+                                                    if ( hash == Hash256() || m_drive.m_torrentHandleMap.contains( hash ) )
                                                     {
                                                         fs::remove( filePath );
                                                         fs::remove( torrentPath );
@@ -1121,8 +1127,7 @@ private:
                                                                     m_drive.m_torrentFolder / toString( hash ));
                                                     }
                                                     file.setHash( hash );
-                                                    file.setSize(
-                                                            fs::file_size( m_drive.m_driveFolder / toString( hash )));
+                                                    file.setSize( size );
                                                     file.setIsModifiable( false );
                                                 }
                                                 catch ( const std::filesystem::filesystem_error& er )
@@ -1209,9 +1214,8 @@ private:
         m_lowerSandboxFsTree->getUniqueFiles( uniqueFiles );
         for ( const auto& file: uniqueFiles )
         {
-            auto it = m_drive.m_torrentHandleMap.find( file );
-
-            if ( it == m_drive.m_torrentHandleMap.end())
+            if ( auto it = m_drive.m_torrentHandleMap.find( file ); file != Hash256() &&
+                                                                    it == m_drive.m_torrentHandleMap.end())
             {
                 auto session = m_drive.m_session.lock();
                 if ( session )
@@ -1247,6 +1251,7 @@ private:
         // Add unused files into set<>
         for ( const auto& it : m_drive.m_torrentHandleMap )
         {
+            _ASSERT( it.first != Hash256() )
             const UseTorrentInfo& info = it.second;
             if ( !info.m_isUsed )
             {
@@ -1296,6 +1301,7 @@ private:
                 if ( !info.m_isUsed )
                 {
                     const auto& hash = it.first;
+                    _ASSERT( hash != Hash256() )
                     std::string filename = hashToFileName( hash );
                     fs::remove( fs::path( m_drive.m_driveFolder ) / filename );
                     fs::remove( fs::path( m_drive.m_torrentFolder ) / filename );

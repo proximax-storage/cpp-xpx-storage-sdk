@@ -196,6 +196,7 @@ public:
         // Add unused files into set<>
         for ( const auto& it : torrentHandleMap )
         {
+            _ASSERT( it.first != Hash256() )
             const UseTorrentInfo& info = it.second;
             if ( !info.m_isUsed )
             {
@@ -243,6 +244,7 @@ public:
         // remove unused files and torrent files from the drive
         for ( const auto& hash : filesToRemove )
         {
+            _ASSERT( hash != Hash256() )
             std::string filename = hashToFileName( hash );
             std::error_code ec;
             fs::remove( fs::path( m_drive.m_driveFolder ) / filename, ec );
@@ -300,6 +302,7 @@ public:
 
                 if ( !fs::exists( m_drive.m_driveFolder / toString( hash ), err ))
                 {
+                    _ASSERT( hash != Hash256() )
                     m_catchingUpFileSet.emplace( hash );
                 }
             }
@@ -325,6 +328,9 @@ public:
         } else
         {
             auto missingFileHash = *m_catchingUpFileIt;
+
+            _ASSERT(missingFileHash != Hash256())
+
             m_catchingUpFileIt++;
 
             if ( auto session = m_drive.m_session.lock(); session )
@@ -429,6 +435,7 @@ public:
                 if ( !info.m_isUsed )
                 {
                     const auto& hash = it.first;
+                    _ASSERT( hash != Hash256() )
                     std::string filename = hashToFileName( hash );
                     fs::remove( fs::path( m_drive.m_driveFolder ) / filename );
                     fs::remove( fs::path( m_drive.m_torrentFolder ) / filename );
