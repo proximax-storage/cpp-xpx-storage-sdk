@@ -216,7 +216,7 @@ public:
             fileToDownload = *m_missedFileSet.begin();
             m_missedFileSet.erase( m_missedFileSet.begin());
 
-            if ( auto it = m_drive.m_torrentHandleMap.find( *fileToDownload ); *fileToDownload != Hash256() &&
+            if ( auto it = m_drive.m_torrentHandleMap.find( *fileToDownload ); *fileToDownload == Hash256() ||
                                                                                it != m_drive.m_torrentHandleMap.end()) {
                 _ASSERT( it->second.m_ltHandle.is_valid())
                 fileToDownload.reset();
