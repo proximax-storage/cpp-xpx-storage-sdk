@@ -848,7 +848,7 @@ private:
         // loop by alerts
         for (auto &alert : alerts) {
 
-            _LOG( ">>>" << alert->what() << " (type="<< alert->type() <<"):  " << alert->message() );
+            //_LOG( ">>>" << alert->what() << " (type="<< alert->type() <<"):  " << alert->message() );
 
 ////            if ( alert->type() == lt::dht_log_alert::alert_type || alert->type() == lt::dht_direct_response_alert::alert_type )
 //            {
