@@ -114,6 +114,7 @@ public:
 
     void onFileOpened(std::optional<OpenFileResponse> res) {
         ASSERT_TRUE(res);
+        m_fileId = *res->m_fileId;
         m_env.closeFile(m_driveKey, CloseFileRequest{m_fileId, [this](auto res) {
                                                          onFileClosed(res);
                                                      }});
@@ -155,7 +156,7 @@ public:
         std::ifstream fileStream(path);
         stream << fileStream.rdbuf();
         auto content = stream.str();
-        ASSERT_EQ(content, "");
+        ASSERT_EQ(content, "data");
         p.set_value();
     }
 
@@ -272,8 +273,6 @@ TEST(SupercontractTest, TEST_NAME) {
     handler2.p.get_future().wait_for(span);
 
     auto file2Path = handler2.m_absPath;
-
-    ASSERT_EQ(file1Path, file2Path);
 }
 } // namespace
 

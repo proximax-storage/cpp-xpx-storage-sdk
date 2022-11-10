@@ -10,7 +10,7 @@ using namespace sirius::drive::test;
 namespace sirius::drive::test {
 
 /// change this macro for your test
-#define TEST_NAME SupercontractReadEmptyFile
+#define TEST_NAME SupercontractReadEmptyFileInSingleStorageModification
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -43,7 +43,7 @@ public:
               true) {}
 };
 
-class TestHandlerRead {
+class TestHandler {
 
 public:
     std::promise<void> p;
@@ -52,7 +52,7 @@ public:
     uint64_t m_bytes;
     ENVIRONMENT_CLASS& m_env;
 
-    TestHandlerRead(ENVIRONMENT_CLASS& env)
+    TestHandler(ENVIRONMENT_CLASS& env)
         : m_env(env) {}
 
 public:
@@ -95,7 +95,7 @@ public:
                                                                                            }});
     }
 
-    void onAppliedSandboxModifications(std::optional<ApplySandboxModificationsResponse> res) {
+    void onAppliedSandboxModifications2(std::optional<ApplySandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->m_success);
         m_env.evaluateStorageHash(m_driveKey, EvaluateStorageHashRequest{[this](auto res) {
@@ -103,106 +103,47 @@ public:
                                   }});
     }
 
-    void onFileClosed(std::optional<CloseFileResponse> res) {
+    void onFileClosed2(std::optional<CloseFileResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->m_success);
         m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
-                                                                                               onAppliedSandboxModifications(res);
+                                                                                               onAppliedSandboxModifications2(res);
                                                                                            }});
     }
 
-    void onFileRead(std::optional<ReadFileResponse> res) {
+    void onFileRead2(std::optional<ReadFileResponse> res) {
         ASSERT_TRUE(res);
         auto buffer = res->m_buffer;
         std::string actual(buffer->begin(), buffer->end());
         ASSERT_EQ(actual, "");
         m_env.closeFile(m_driveKey, CloseFileRequest{m_fileId, [this](auto res) {
-                                                         onFileClosed(res);
+                                                         onFileClosed2(res);
                                                      }});
     }
 
-    void onFileOpened(std::optional<OpenFileResponse> res) {
+    void onFileOpened2(std::optional<OpenFileResponse> res) {
         ASSERT_TRUE(res);
         auto response = *res;
         ASSERT_TRUE(response.m_fileId);
         m_fileId = *response.m_fileId;
         m_bytes = 1024 * 1024;
         m_env.readFile(m_driveKey, ReadFileRequest{m_fileId, m_bytes, [this](auto res) {
-                                                       onFileRead(res);
+                                                       onFileRead2(res);
                                                    }});
     }
 
-    void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
+    void onSandboxModificationsInitiated2(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::READ, "test.txt", [this](auto res) { onFileOpened(res); }});
-    }
-
-    void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
-        ASSERT_TRUE(res);
-        m_env.initiateManualSandboxModifications(m_driveKey, InitiateSandboxModificationsRequest{[this](auto res) {
-                                                     onSandboxModificationsInitiated(
-                                                         res);
-                                                 }});
-    }
-};
-
-class TestHandlerWrite {
-
-public:
-    std::promise<void> p;
-    DriveKey m_driveKey;
-    uint64_t m_fileId;
-    ENVIRONMENT_CLASS& m_env;
-
-    TestHandlerWrite(ENVIRONMENT_CLASS& env)
-        : m_env(env) {}
-
-public:
-    void onReceivedAbsolutePath(std::optional<AbsolutePathResponse> res) {
-        ASSERT_TRUE(res);
-        std::ostringstream stream;
-        const auto& path = res->m_path;
-        ASSERT_TRUE(fs::exists(path));
-        std::ifstream fileStream(path);
-        stream << fileStream.rdbuf();
-        auto content = stream.str();
-        ASSERT_EQ(content, "");
-        p.set_value();
-    }
-
-    void onReceivedFsTree(std::optional<FilesystemResponse> res) {
-        ASSERT_TRUE(res);
-        auto& fsTree = res->m_fsTree;
-        ASSERT_TRUE(fsTree.childs().size() == 1);
-        const auto& child = fsTree.childs().begin()->second;
-        ASSERT_TRUE(isFile(child));
-        const auto& file = getFile(child);
-        ASSERT_TRUE(file.name() == "test.txt");
-        m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"test.txt", [this](auto res) {
-                                                                  onReceivedAbsolutePath(res);
-                                                              }});
-    }
-
-    void onAppliedStorageModifications(std::optional<ApplyStorageModificationsResponse> res) {
-        ASSERT_TRUE(res);
-        m_env.getFilesystem(m_driveKey, FilesystemRequest{[this](auto res) {
-                                onReceivedFsTree(res);
-                            }});
-    }
-
-    void onStorageHashEvaluated(std::optional<EvaluateStorageHashResponse> res) {
-        ASSERT_TRUE(res);
-        m_env.applyStorageManualModifications(m_driveKey, ApplyStorageModificationsRequest{true, [this](auto res) {
-                                                                                               onAppliedStorageModifications(res);
-                                                                                           }});
+        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::READ, "test.txt", [this](auto res) { onFileOpened2(res); }});
     }
 
     void onAppliedSandboxModifications(std::optional<ApplySandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->m_success);
-        m_env.evaluateStorageHash(m_driveKey, EvaluateStorageHashRequest{[this](auto res) {
-                                      onStorageHashEvaluated(res);
-                                  }});
+        m_env.initiateManualSandboxModifications(m_driveKey, InitiateSandboxModificationsRequest{[this](auto res) {
+                                                     onSandboxModificationsInitiated2(
+                                                         res);
+                                                 }});
     }
 
     void onFileClosed(std::optional<CloseFileResponse> res) {
@@ -247,19 +188,12 @@ TEST(SupercontractTest, TEST_NAME) {
     env.addDrive(driveKey, Key(), 100 * 1024 * 1024);
     std::chrono::milliseconds span(2000);
 
-    TestHandlerWrite handlerw(env);
+    TestHandler handlerw(env);
     handlerw.m_driveKey = driveKey;
     env.initiateManualModifications(driveKey,
                                     InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handlerw.onInitiatedModifications(res); }});
 
     handlerw.p.get_future().wait_for(span);
-
-    TestHandlerRead handler(env);
-    handler.m_driveKey = driveKey;
-    env.initiateManualModifications(driveKey,
-                                    InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handler.onInitiatedModifications(res); }});
-
-    handler.p.get_future().wait_for(span);
 }
 } // namespace
 

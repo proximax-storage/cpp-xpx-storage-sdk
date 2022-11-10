@@ -10,7 +10,7 @@ using namespace sirius::drive::test;
 namespace sirius::drive::test {
 
 /// change this macro for your test
-#define TEST_NAME SupercontractReadEmptyFile
+#define TEST_NAME SupercontractReadManyEmptyFiles
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -50,28 +50,66 @@ public:
     DriveKey m_driveKey;
     uint64_t m_fileId;
     uint64_t m_bytes;
+    std::string m_path1;
+    std::string m_path2;
+    std::string m_path3;
     ENVIRONMENT_CLASS& m_env;
 
     TestHandlerRead(ENVIRONMENT_CLASS& env)
         : m_env(env) {}
 
 public:
-    void onReceivedAbsolutePath(std::optional<AbsolutePathResponse> res) {
+    void onReceivedAbsolutePath3(std::optional<AbsolutePathResponse> res) {
         ASSERT_TRUE(res);
         std::ostringstream stream;
+        m_path3 = res->m_path;
         const auto& path = res->m_path;
         ASSERT_TRUE(fs::exists(path));
         std::ifstream fileStream(path);
         stream << fileStream.rdbuf();
         auto content = stream.str();
         ASSERT_EQ(content, "");
+        ASSERT_EQ(m_path1, m_path2);
+        ASSERT_EQ(m_path2, m_path3);
         p.set_value();
+    }
+
+    void onReceivedAbsolutePath2(std::optional<AbsolutePathResponse> res) {
+        ASSERT_TRUE(res);
+        std::ostringstream stream;
+        m_path2 = res->m_path;
+        const auto& path = res->m_path;
+        ASSERT_TRUE(fs::exists(path));
+        std::ifstream fileStream(path);
+        stream << fileStream.rdbuf();
+        auto content = stream.str();
+        ASSERT_EQ(content, "");
+        m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"test3.txt", [this](auto res) {
+                                                                  onReceivedAbsolutePath3(res);
+                                                              }});
+        // p.set_value();
+    }
+
+    void onReceivedAbsolutePath(std::optional<AbsolutePathResponse> res) {
+        ASSERT_TRUE(res);
+        std::ostringstream stream;
+        m_path1 = res->m_path;
+        const auto& path = res->m_path;
+        ASSERT_TRUE(fs::exists(path));
+        std::ifstream fileStream(path);
+        stream << fileStream.rdbuf();
+        auto content = stream.str();
+        ASSERT_EQ(content, "");
+        m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"test2.txt", [this](auto res) {
+                                                                  onReceivedAbsolutePath2(res);
+                                                              }});
+        // p.set_value();
     }
 
     void onReceivedFsTree(std::optional<FilesystemResponse> res) {
         ASSERT_TRUE(res);
         auto& fsTree = res->m_fsTree;
-        ASSERT_TRUE(fsTree.childs().size() == 1);
+        ASSERT_TRUE(fsTree.childs().size() == 3);
         const auto& child = fsTree.childs().begin()->second;
         ASSERT_TRUE(isFile(child));
         const auto& file = getFile(child);
@@ -103,12 +141,66 @@ public:
                                   }});
     }
 
-    void onFileClosed(std::optional<CloseFileResponse> res) {
+    void onFileClosed3(std::optional<CloseFileResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->m_success);
         m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
                                                                                                onAppliedSandboxModifications(res);
                                                                                            }});
+    }
+
+    void onFileRead3(std::optional<ReadFileResponse> res) {
+        ASSERT_TRUE(res);
+        auto buffer = res->m_buffer;
+        std::string actual(buffer->begin(), buffer->end());
+        ASSERT_EQ(actual, "");
+        m_env.closeFile(m_driveKey, CloseFileRequest{m_fileId, [this](auto res) {
+                                                         onFileClosed3(res);
+                                                     }});
+    }
+
+    void onFileOpened3(std::optional<OpenFileResponse> res) {
+        ASSERT_TRUE(res);
+        auto response = *res;
+        ASSERT_TRUE(response.m_fileId);
+        m_fileId = *response.m_fileId;
+        m_bytes = 1024 * 1024;
+        m_env.readFile(m_driveKey, ReadFileRequest{m_fileId, m_bytes, [this](auto res) {
+                                                       onFileRead3(res);
+                                                   }});
+    }
+
+    void onFileClosed2(std::optional<CloseFileResponse> res) {
+        ASSERT_TRUE(res);
+        ASSERT_TRUE(res->m_success);
+        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::READ, "test3.txt", [this](auto res) { onFileOpened3(res); }});
+    }
+
+    void onFileRead2(std::optional<ReadFileResponse> res) {
+        ASSERT_TRUE(res);
+        auto buffer = res->m_buffer;
+        std::string actual(buffer->begin(), buffer->end());
+        ASSERT_EQ(actual, "");
+        m_env.closeFile(m_driveKey, CloseFileRequest{m_fileId, [this](auto res) {
+                                                         onFileClosed2(res);
+                                                     }});
+    }
+
+    void onFileOpened2(std::optional<OpenFileResponse> res) {
+        ASSERT_TRUE(res);
+        auto response = *res;
+        ASSERT_TRUE(response.m_fileId);
+        m_fileId = *response.m_fileId;
+        m_bytes = 1024 * 1024;
+        m_env.readFile(m_driveKey, ReadFileRequest{m_fileId, m_bytes, [this](auto res) {
+                                                       onFileRead2(res);
+                                                   }});
+    }
+
+    void onFileClosed(std::optional<CloseFileResponse> res) {
+        ASSERT_TRUE(res);
+        ASSERT_TRUE(res->m_success);
+        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::READ, "test2.txt", [this](auto res) { onFileOpened2(res); }});
     }
 
     void onFileRead(std::optional<ReadFileResponse> res) {
@@ -173,7 +265,7 @@ public:
     void onReceivedFsTree(std::optional<FilesystemResponse> res) {
         ASSERT_TRUE(res);
         auto& fsTree = res->m_fsTree;
-        ASSERT_TRUE(fsTree.childs().size() == 1);
+        ASSERT_TRUE(fsTree.childs().size() == 3);
         const auto& child = fsTree.childs().begin()->second;
         ASSERT_TRUE(isFile(child));
         const auto& file = getFile(child);
@@ -205,12 +297,40 @@ public:
                                   }});
     }
 
-    void onFileClosed(std::optional<CloseFileResponse> res) {
+    void onFileClosed3(std::optional<CloseFileResponse> res) {
         ASSERT_TRUE(res);
         ASSERT_TRUE(res->m_success);
         m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
                                                                                                onAppliedSandboxModifications(res);
                                                                                            }});
+    }
+
+    void onFileOpened3(std::optional<OpenFileResponse> res) {
+        ASSERT_TRUE(res);
+        m_fileId = *res->m_fileId;
+        m_env.closeFile(m_driveKey, CloseFileRequest{m_fileId, [this](auto res) {
+                                                         onFileClosed3(res);
+                                                     }});
+    }
+
+    void onFileClosed2(std::optional<CloseFileResponse> res) {
+        ASSERT_TRUE(res);
+        ASSERT_TRUE(res->m_success);
+        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::WRITE, "test3.txt", [this](auto res) { onFileOpened3(res); }});
+    }
+
+    void onFileOpened2(std::optional<OpenFileResponse> res) {
+        ASSERT_TRUE(res);
+        m_fileId = *res->m_fileId;
+        m_env.closeFile(m_driveKey, CloseFileRequest{m_fileId, [this](auto res) {
+                                                         onFileClosed2(res);
+                                                     }});
+    }
+
+    void onFileClosed(std::optional<CloseFileResponse> res) {
+        ASSERT_TRUE(res);
+        ASSERT_TRUE(res->m_success);
+        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::WRITE, "test2.txt", [this](auto res) { onFileOpened2(res); }});
     }
 
     void onFileOpened(std::optional<OpenFileResponse> res) {
@@ -245,21 +365,20 @@ TEST(SupercontractTest, TEST_NAME) {
 
     Key driveKey{{1}};
     env.addDrive(driveKey, Key(), 100 * 1024 * 1024);
-    std::chrono::milliseconds span(2000);
 
     TestHandlerWrite handlerw(env);
     handlerw.m_driveKey = driveKey;
     env.initiateManualModifications(driveKey,
                                     InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handlerw.onInitiatedModifications(res); }});
 
-    handlerw.p.get_future().wait_for(span);
+    handlerw.p.get_future().wait();
 
     TestHandlerRead handler(env);
     handler.m_driveKey = driveKey;
     env.initiateManualModifications(driveKey,
                                     InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handler.onInitiatedModifications(res); }});
 
-    handler.p.get_future().wait_for(span);
+    handler.p.get_future().wait();
 }
 } // namespace
 
