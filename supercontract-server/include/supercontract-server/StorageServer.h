@@ -84,6 +84,10 @@ private:
 
     void registerCreateDirectories();
 
+    void registerPathExist();
+
+    void registerIsFile();
+
 };
 
 }

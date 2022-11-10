@@ -37,6 +37,10 @@ public:
 
     virtual void removeFsTreeEntry( const DriveKey& driveKey, const RemoveFilesystemEntryRequest& request ) = 0;
 
+    virtual void pathExist( const DriveKey& driveKey, const PathExistRequest& request ) = 0;
+
+    virtual void pathIsFile( const DriveKey& driveKey, const PathIsFileRequest& request ) = 0;
+
     virtual void createDirectories( const DriveKey& driveKey, const CreateDirectoriesRequest& request ) = 0;
 
     virtual void folderIteratorCreate( const DriveKey& driveKey, const FolderIteratorCreateRequest& request ) = 0;

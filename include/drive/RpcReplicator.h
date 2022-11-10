@@ -483,6 +483,16 @@ public:
 
     }
 
+    void pathExist( const DriveKey& driveKey, const PathExistRequest& request ) override
+    {
+
+    }
+
+    void pathIsFile( const DriveKey& driveKey, const PathIsFileRequest& request ) override
+    {
+
+    }
+
     void createDirectories( const DriveKey& driveKey, const CreateDirectoriesRequest& request ) override
     {
 

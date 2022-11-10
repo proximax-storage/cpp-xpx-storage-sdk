@@ -62,7 +62,7 @@ class ManualModificationsTask
     std::set<InfoHash> m_callManagedHashes;
 
     uint64_t m_totalFilesOpened = 0;
-    uint64_t m_totalFolderIteratorsCreated;
+    uint64_t m_totalFolderIteratorsCreated = 0;
 
     bool m_isExecutingQuery = false;
 
@@ -740,6 +740,56 @@ private:
         }
 
         callback( RemoveFilesystemEntryResponse{true} );
+    }
+
+public:
+
+    bool pathExist( const PathExistRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_upperSandboxFsTree )
+        _ASSERT( !m_isExecutingQuery )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
+
+        auto* entry = m_upperSandboxFsTree->getEntryPtr( request.m_path );
+
+        bool exists = entry == nullptr;
+
+        request.m_callback(PathExistResponse{exists});
+
+        return true;
+    }
+
+public:
+
+    bool pathIsFile( const PathIsFileRequest& request ) override {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_upperSandboxFsTree )
+        _ASSERT( !m_isExecutingQuery )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
+
+        auto* entry = m_upperSandboxFsTree->getEntryPtr( request.m_path );
+
+        if(entry == nullptr)
+        {
+            request.m_callback(PathIsFileResponse{false});
+        }
+        else
+        {
+            request.m_callback(PathIsFileResponse{isFile(*entry)});
+        }
+
+        return true;
     }
 
 public:

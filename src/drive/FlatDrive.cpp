@@ -740,6 +740,28 @@ public:
         DBG_MAIN_THREAD
 
         if ( !m_task || !m_task->removeFsTreeEntry( *request ))
+A        {
+            request->m_callback( {} );
+        }
+    }
+
+    void pathExist( mobj<PathExistRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        DBG_MAIN_THREAD
+
+        if ( !m_task || !m_task->pathExist( *request ))
+        {
+            request->m_callback( {} );
+        }
+    }
+
+    void pathIsFile( mobj<PathIsFileRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( !m_task || !m_task->pathIsFile( *request ))
         {
             request->m_callback( {} );
         }

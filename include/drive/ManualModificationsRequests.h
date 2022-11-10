@@ -235,4 +235,22 @@ struct FolderIteratorDestroyRequest {
     std::function<void( std::optional<FolderIteratorDestroyResponse> )> m_callback;
 };
 
+struct PathExistResponse {
+    bool m_exists;
+};
+
+struct PathExistRequest {
+    std::string m_path;
+    std::function<void ( std::optional<PathExistResponse> )> m_callback;
+};
+
+struct PathIsFileResponse {
+    bool m_isFile;
+};
+
+struct PathIsFileRequest {
+    std::string m_path;
+    std::function<void ( std::optional<PathIsFileResponse> )> m_callback;
+};
+
 }

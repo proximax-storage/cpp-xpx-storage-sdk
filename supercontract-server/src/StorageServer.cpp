@@ -30,6 +30,8 @@
 #include "DirectoryIteratorHasNextRequestContext.h"
 #include "DirectoryIteratorNextRequestContext.h"
 #include "DirectoryIteratorDestroyRequestContext.h"
+#include "PathExistRequestContext.h"
+#include "IsFileRequestContext.h"
 
 namespace sirius::drive::contract
 {
@@ -71,6 +73,8 @@ void StorageServer::run(
     registerRemoveFilesystemEntry();
     registerMoveFilesystemEntry();
     registerCreateDirectories();
+    registerPathExist();
+    registerIsFile();
 
     m_thread = std::thread( [this]
                             {
@@ -481,6 +485,42 @@ void StorageServer::registerCreateDirectories() {
     }
 
     auto context = std::make_shared<CreateDirectoriesRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive]
+    {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
+        registerCreateDirectories();
+        }, m_context );
+    context->run( tag );
+}
+
+void StorageServer::registerPathExist() {
+    if ( !*m_serviceIsActive )
+    {
+        return;
+    }
+
+    auto context = std::make_shared<PathExistRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive]
+    {
+        if ( !*serviceIsActive )
+        {
+            return;
+        }
+        registerCreateDirectories();
+        }, m_context );
+    context->run( tag );
+}
+
+void StorageServer::registerIsFile() {
+    if ( !*m_serviceIsActive )
+    {
+        return;
+    }
+
+    auto context = std::make_shared<IsFileRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
     auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive]
     {
         if ( !*serviceIsActive )

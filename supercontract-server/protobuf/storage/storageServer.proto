@@ -56,6 +56,28 @@ service StorageServer {
   rpc RemoveFilesystemEntry(RemoveFilesystemEntryRequest) returns (RemoveFilesystemEntryResponse) {}
 
   rpc CreateDirectories(CreateDirectoriesRequest) returns (CreateDirectoriesResponse) {}
+
+  rpc PathExist(PathExistRequest) returns (PathExistResponse) {}
+
+  rpc IsFile(IsFileRequest) returns (IsFileResponse) {}
+}
+
+message PathExistRequest {
+  bytes drive_key = 1;
+  string path = 2;
+}
+
+message PathExistResponse {
+  bool exist = 1;
+}
+
+message IsFileRequest {
+  bytes drive_key = 1;
+  string path = 2;
+}
+
+message IsFileResponse {
+  bool is_file = 1;
 }
 
 message SynchronizeStorageRequest {

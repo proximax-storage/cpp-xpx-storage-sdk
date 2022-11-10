@@ -2373,6 +2373,56 @@ public:
         } );
     }
 
+    void pathExist( const DriveKey& driveKey, const PathExistRequest& request ) override {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->pathExist( request );
+
+        } );
+    }
+
+    void pathIsFile( const DriveKey& driveKey, const PathIsFileRequest& request ) override {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->pathIsFile( request );
+
+        } );
+    }
+
     void createDirectories( const DriveKey& driveKey, const CreateDirectoriesRequest& request ) override
     {
         _FUNC_ENTRY()

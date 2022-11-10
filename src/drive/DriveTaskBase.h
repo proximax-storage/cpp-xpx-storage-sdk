@@ -197,6 +197,20 @@ public:
         return false;
     }
 
+    virtual bool pathExist( const PathExistRequest& request )
+    {
+        DBG_MAIN_THREAD
+
+        return false;
+    }
+
+    virtual bool pathIsFile( const PathIsFileRequest& request )
+    {
+        DBG_MAIN_THREAD
+
+        return false;
+    }
+
     virtual bool createDirectories( const CreateDirectoriesRequest& request )
     {
         DBG_MAIN_THREAD

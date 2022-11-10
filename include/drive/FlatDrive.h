@@ -695,6 +695,10 @@ public:
 
     virtual void removeFsTreeEntry( mobj<RemoveFilesystemEntryRequest>&& request ) = 0;
 
+    virtual void pathExist( mobj<PathExistRequest>&& request ) = 0;
+
+    virtual void pathIsFile( mobj<PathIsFileRequest>&& request ) = 0;
+
     virtual void createDirectories( mobj<CreateDirectoriesRequest>&& request ) = 0;
 
     virtual void folderIteratorCreate( mobj<FolderIteratorCreateRequest>&& request ) = 0;
