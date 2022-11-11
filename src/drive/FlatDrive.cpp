@@ -740,7 +740,7 @@ public:
         DBG_MAIN_THREAD
 
         if ( !m_task || !m_task->removeFsTreeEntry( *request ))
-A        {
+        {
             request->m_callback( {} );
         }
     }
