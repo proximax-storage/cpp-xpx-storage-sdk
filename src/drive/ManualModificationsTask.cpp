@@ -758,7 +758,7 @@ public:
 
         auto* entry = m_upperSandboxFsTree->getEntryPtr( request.m_path );
 
-        bool exists = entry == nullptr;
+        bool exists = entry != nullptr;
 
         request.m_callback(PathExistResponse{exists});
 
