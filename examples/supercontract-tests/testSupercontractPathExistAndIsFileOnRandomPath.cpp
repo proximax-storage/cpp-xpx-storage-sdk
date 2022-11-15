@@ -55,29 +55,11 @@ public:
         : m_env(env) {}
 
 public:
-    void onReceivedAbsolutePath(std::optional<AbsolutePathResponse> res) {
-        ASSERT_TRUE(res);
-        std::ostringstream stream;
-        const auto& path = res->m_path;
-        ASSERT_TRUE(fs::exists(path));
-        std::ifstream fileStream(path);
-        stream << fileStream.rdbuf();
-        auto content = stream.str();
-        ASSERT_EQ(content, "data");
-        p.set_value();
-    }
-
     void onReceivedFsTree(std::optional<FilesystemResponse> res) {
         ASSERT_TRUE(res);
         auto& fsTree = res->m_fsTree;
-        ASSERT_TRUE(fsTree.childs().size() == 1);
-        const auto& child = fsTree.childs().begin()->second;
-        ASSERT_TRUE(isFile(child));
-        const auto& file = getFile(child);
-        ASSERT_TRUE(file.name() == "test.txt");
-        m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"test.txt", [this](auto res) {
-                                                                  onReceivedAbsolutePath(res);
-                                                              }});
+        ASSERT_TRUE(fsTree.childs().size() == 0);
+        p.set_value();
     }
 
     void onAppliedStorageModifications(std::optional<ApplyStorageModificationsResponse> res) {
@@ -150,7 +132,7 @@ TEST(SupercontractTest, TEST_NAME) {
     env.initiateManualModifications(driveKey,
                                     InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handler.onInitiatedModifications(res); }});
 
-    handler.p.get_future().wait_for(std::chrono::milliseconds(2000));
+    handler.p.get_future().wait();
 }
 } // namespace
 #undef TEST_NAME
