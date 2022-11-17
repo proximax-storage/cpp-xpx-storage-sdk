@@ -306,7 +306,7 @@ public:
         settingsPack.set_str(  lt::settings_pack::dht_bootstrap_nodes, bootstrapList);
 
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
-        settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, false );
+        settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, true );
         settingsPack.set_bool( lt::settings_pack::enable_ip_notifier, false );
 
         settingsPack.set_int( lt::settings_pack::max_retry_port_bind, 0 );
@@ -546,6 +546,9 @@ public:
                 auto endpoint = limiter->getEndpoint( key.array() );
                 if ( endpoint )
                 {
+                    _LOG( "Add previously discovered endpoint of " << key << "at " << endpoint->address().to_string()
+                                                                   << ":" << endpoint->port() << "to "
+                                                                   << downloadContext.m_infoHash );
                     tHandle.connect_peer( *endpoint );
                 }
             }
