@@ -10,7 +10,7 @@ using namespace sirius::drive::test;
 namespace sirius::drive::test {
 
 /// change this macro for your test
-#define TEST_NAME SupercontractCreateDirInvalidName
+#define TEST_NAME SupercontractCreateDirWeirdName
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -58,7 +58,7 @@ public:
     void onReceivedFsTree(std::optional<FilesystemResponse> res) {
         ASSERT_TRUE(res);
         auto& fsTree = res->m_fsTree;
-        ASSERT_TRUE(fsTree.childs().size() == 0);
+        ASSERT_TRUE(fsTree.childs().size() == 1);
         p.set_value();
     }
 
@@ -86,7 +86,7 @@ public:
 
     void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
         ASSERT_TRUE(res);
-        ASSERT_FALSE(res->m_success);
+        ASSERT_TRUE(res->m_success);
         m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
                                                                                                onAppliedSandboxModifications(res);
                                                                                            }});
