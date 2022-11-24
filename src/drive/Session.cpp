@@ -306,7 +306,7 @@ public:
         settingsPack.set_str(  lt::settings_pack::dht_bootstrap_nodes, bootstrapList);
 
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
-        settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, false );
+        settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, true );
         settingsPack.set_bool( lt::settings_pack::enable_ip_notifier, false );
 
         settingsPack.set_int( lt::settings_pack::max_retry_port_bind, 0 );
@@ -506,9 +506,8 @@ public:
         userdata->m_saveTorrentFilename = saveTorrentFilePath;
         userdata->m_saveFolder          = saveFolder;
         params.userdata = userdata;
-//        params.flags &= ~lt::torrent_flags::paused;
-//        //params.flags &= ~lt::torrent_flags::auto_managed;
-//        params.flags |= lt::torrent_flags::auto_managed;
+        params.flags &= ~lt::torrent_flags::paused;
+        params.flags &= ~lt::torrent_flags::auto_managed;
 
         // where the file will be placed
         params.save_path = saveFolder;

@@ -1410,7 +1410,7 @@ public:
         if ( endpointTo )
         {
             m_session->sendMessage( query, { endpointTo->address(), endpointTo->port() }, message );
-            _LOG( "sendMessage '" << query << "' to " << int(replicatorKey[0]) );
+            _LOG( "sendMessage '" << query << "' to " << Key(replicatorKey) << " at " << endpointTo->address() << ":" << std::dec << endpointTo->port());
         }
         else
         {

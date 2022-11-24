@@ -125,7 +125,7 @@ public:
         DBG_MAIN_THREAD
 
 #ifndef __APPLE__
-        _LOG("Update Endpoint of " << int(key[0]) << " at " << endpoint->address() << " " << endpoint->port());
+        _LOG("Update Endpoint of " << int(key[0]) << " at " << endpoint->address() << " " << std::dec << endpoint->port());
 #endif
         
         auto it = m_endpointsMap.find(key);
@@ -193,7 +193,7 @@ public:
         auto externalEndpoint = *reinterpret_cast<const boost::asio::ip::tcp::endpoint*>(&response.m_endpoint);
         if (!m_externalEndpoint || m_externalEndpoint != externalEndpoint)
         {
-            _LOG("External Endpoint Discovered " << externalEndpoint.address() << " " << externalEndpoint.port())
+            _LOG("External Endpoint Discovered " << externalEndpoint.address() << " " << std::dec << externalEndpoint.port())
 
             // We expect that this operation does not take place too often
             // So the loop does not influence performance
@@ -277,7 +277,7 @@ private:
                                                  " at " <<
                                                  bootstrapToAsk.m_endpoint.address() <<
                                                  ":" <<
-                                                 bootstrapToAsk.m_endpoint.port())
+                                                 std::dec << bootstrapToAsk.m_endpoint.port())
 
         if (auto session = m_session.lock(); session)
         {
