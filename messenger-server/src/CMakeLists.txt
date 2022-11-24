@@ -2,12 +2,12 @@ cmake_minimum_required(VERSION 3.9)
 
 find_package(OpenSSL REQUIRED)
 
-storage_sdk_library_target(supercontract-server)
+storage_sdk_library_target(messenger-server)
 
-foreach(_service storageServer)
+foreach(_service messengerServer)
 
     # Proto file
-    get_filename_component(${_service}_proto "../protobuf/storage/${_service}.proto" ABSOLUTE)
+    get_filename_component(${_service}_proto "../protobuf/messenger/${_service}.proto" ABSOLUTE)
     get_filename_component(${_service}_proto_path "${${_service}_proto}" PATH)
 
     # Generated sources
@@ -26,7 +26,7 @@ foreach(_service storageServer)
             DEPENDS "${${_service}_proto}")
 
     # Include generated *.pb.h files
-    target_include_directories(supercontract-server PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+    target_include_directories(messenger-server PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
 
     # vm_client_grpc_proto
     add_library(${_service}_grpc_proto
@@ -39,14 +39,14 @@ foreach(_service storageServer)
             ${_GRPC_GRPCPP}
             ${_PROTOBUF_LIBPROTOBUF})
 
-    target_link_libraries(supercontract-server
+    target_link_libraries(messenger-server
             ${_service}_grpc_proto
             ${_REFLECTION}
             ${_GRPC_GRPCPP}
             ${_PROTOBUF_LIBPROTOBUF})
 endforeach()
 
-target_include_directories(supercontract-server PUBLIC ../include ../../include)
-target_include_directories(supercontract-server PUBLIC SYSTEM ${Boost_INCLUDE_DIR})
+target_include_directories(messenger-server PUBLIC ../include ../../include)
+target_include_directories(messenger-server PUBLIC SYSTEM ${Boost_INCLUDE_DIR})
 
-target_link_libraries(supercontract-server utils OpenSSL::SSL)
+target_link_libraries(messenger-server utils OpenSSL::SSL)

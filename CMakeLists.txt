@@ -83,6 +83,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 add_subdirectory(supercontract-server)
+add_subdirectory(messenger-server)
 add_subdirectory(src)
 add_subdirectory(replicator-service)
 
