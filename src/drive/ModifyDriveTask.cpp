@@ -716,10 +716,20 @@ private:
 #ifndef MINI_SIGNATURE
         auto replicatorNumber = (std::max((std::size_t)m_drive.m_replicator.getMinReplicatorsNumber(), m_drive.getAllReplicators().size() + 1) * 2) / 3;
 #else
-        auto replicatorNumber = (m_drive.getAllReplicators().size() * 2) / 3;
+        auto replicatorNumber = ((m_drive.getAllReplicators().size() + 1) * 2) / 3;
 #endif
 
 // check opinion number
+
+        if ( m_myOpinion &&
+             m_receivedOpinions.size() >=
+             m_drive.getAllReplicators().size() &&
+             !m_modifyApproveTransactionSent &&
+             !m_modifyApproveTxReceived ) {
+            m_modifyOpinionTimer.cancel();
+            opinionTimerExpired();
+            return;
+        }
 
         if ( m_myOpinion &&
              m_receivedOpinions.size() >= replicatorNumber&&

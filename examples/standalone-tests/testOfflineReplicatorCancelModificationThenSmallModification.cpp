@@ -244,7 +244,7 @@ namespace sirius::drive::test
 
         env.modifyDrive(DRIVE_PUB_KEY, {client.m_actionListHashes[1],
                                         client.m_modificationTransactionHashes[1],
-                                        BIG_FILE_SIZE + 1024,
+                                        BIG_FILE_SIZE + 1024 * 1024,
                                         env.m_addrList });
 
         EXLOG("Required modification " << toString(client.m_modificationTransactionHashes[1]));
