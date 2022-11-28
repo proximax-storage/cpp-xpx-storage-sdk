@@ -8,6 +8,7 @@
 #include "types.h"
 #include "log.h"
 #include "plugins.h"
+#include "ModificationStatus.h"
 #include "crypto/Signer.h"
 #include "drive/Streaming.h"
 #include <libtorrent/alert_types.hpp>
@@ -160,9 +161,10 @@ class Replicator;
                    const Key& driveKey,
                    const Hash256& modifyTransactionHash,
                    const InfoHash& rootHash,
-                   const uint64_t& fsTreeFileSize,
-                   const uint64_t& metaFilesSize,
-                   const uint64_t& driveSize)
+				   ModificationStatus status,
+                   uint64_t fsTreeFileSize,
+                   uint64_t metaFilesSize,
+                   uint64_t driveSize)
         {
 //            std::cerr <<  "Sign:" << keyPair.publicKey()[0] << "," << modifyTransactionHash[0] << "," << rootHash[0] << "," << m_replicatorUploadBytes[0] <<
 //            "," << m_clientUploadBytes << "\n\n";
@@ -171,6 +173,7 @@ class Replicator;
                             utils::RawBuffer{driveKey},
                             utils::RawBuffer{modifyTransactionHash},
                             utils::RawBuffer{rootHash},
+                            utils::RawBuffer{(const uint8_t*) &status, sizeof(status)},
                             utils::RawBuffer{(const uint8_t*) &fsTreeFileSize, sizeof(fsTreeFileSize)},
                             utils::RawBuffer{(const uint8_t*) &metaFilesSize, sizeof(metaFilesSize)},
                             utils::RawBuffer{(const uint8_t*) &driveSize, sizeof(driveSize)},
@@ -185,9 +188,10 @@ class Replicator;
 					   const Key& driveKey,
 					   const Hash256& modifyTransactionHash,
 					   const InfoHash& rootHash,
-					   const uint64_t& fsTreeFileSize,
-					   const uint64_t& metaFilesSize,
-					   const uint64_t& driveSize) const {
+					   ModificationStatus status,
+					   uint64_t fsTreeFileSize,
+					   uint64_t metaFilesSize,
+					   uint64_t driveSize) const {
 			//            std::cerr <<  "Verify:" << m_replicatorKey[0] << "," << modifyTransactionHash[0] << "," <<
 			//            rootHash[0] << "," << m_replicatorUploadBytes[0] <<
 			//            "," << m_clientUploadBytes << "\n\n";
@@ -196,6 +200,7 @@ class Replicator;
 					{ utils::RawBuffer { driveKey },
 					  utils::RawBuffer { modifyTransactionHash },
 					  utils::RawBuffer { rootHash },
+					  utils::RawBuffer { (const uint8_t*)&status, sizeof(status) },
 					  utils::RawBuffer { (const uint8_t*)&fsTreeFileSize, sizeof(fsTreeFileSize) },
 					  utils::RawBuffer { (const uint8_t*)&metaFilesSize, sizeof(metaFilesSize) },
 					  utils::RawBuffer { (const uint8_t*)&driveSize, sizeof(driveSize) },
@@ -276,7 +281,10 @@ class Replicator;
 
         // New root hash (hash of the File Structure)
         std::array<uint8_t,32>  m_rootHash;
-        
+
+		// Modification status
+		ModificationStatus 		m_status;
+
         // The size of the “File Structure” File
         uint64_t                m_fsTreeFileSize;
 
@@ -294,6 +302,7 @@ class Replicator;
             arch( m_driveKey );
             arch( m_modifyTransactionHash );
             arch( m_rootHash );
+			arch( m_status );
             arch( m_fsTreeFileSize );
             arch( m_metaFilesSize );
             arch( m_driveSize );

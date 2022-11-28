@@ -595,6 +595,7 @@ public:
         ApprovalTransactionInfo info = {m_drive.m_driveKey.array(),
                                         m_myOpinion->m_modifyTransactionHash,
                                         m_myOpinion->m_rootHash,
+										m_myOpinion->m_status,
                                         m_myOpinion->m_fsTreeFileSize,
                                         m_myOpinion->m_metaFilesSize,
                                         m_myOpinion->m_driveSize,

@@ -38,7 +38,6 @@ private:
 
     std::map<std::array<uint8_t,32>,ApprovalTransactionInfo> m_receivedOpinions;
 
-    bool m_modifyIsCompletedWithError = false;
     bool m_actionListIsReceived = false;
     bool m_modifyApproveTransactionSent = false;
     bool m_modifyApproveTxReceived = false;
@@ -116,7 +115,7 @@ public:
                                                        if ( code == download_status::dn_failed )
                                                        {
                                                            m_drive.m_torrentHandleMap.erase( infoHash );
-                                                           modifyIsCompletedWithError( errorText, 0 );
+                                                           modifyIsCompletedWithError( errorText, ModificationStatus::DOWNLOAD_FAILED );
                                                        }
                                                        else if ( code == download_status::download_complete )
                                                        {
@@ -165,7 +164,7 @@ public:
         if ( !fs::exists( actionListFilename, err ))
         {
             _LOG_WARN( "modifyDriveInSandbox: 'ActionList.bin' is absent: " << actionListFilename);
-            m_drive.executeOnSessionThread( [this] { modifyIsCompletedWithError( "modify drive: 'ActionList' is absent", -1 ); } );
+            m_drive.executeOnSessionThread( [this] { modifyIsCompletedWithError( "modify drive: 'ActionList' is absent", ModificationStatus::ACTION_LIST_IS_ABSENT ); } );
             return;
         }
 
@@ -176,7 +175,7 @@ public:
         } catch (...)
         {
             _LOG_WARN( "modifyDriveInSandbox: invalid 'ActionList'" << m_request->m_clientDataInfoHash );
-            m_drive.executeOnSessionThread( [this] { modifyIsCompletedWithError( "modify drive: invalid 'ActionList'", -1 ); } );
+            m_drive.executeOnSessionThread( [this] { modifyIsCompletedWithError( "modify drive: invalid 'ActionList'", ModificationStatus::INVALID_ACTION_LIST ); } );
         }
         
         // prepare 'm_missedFileSet'
@@ -250,7 +249,7 @@ public:
                                                                        } else if ( code == download_status::dn_failed )
                                                                        {
                                                                            m_drive.m_torrentHandleMap.erase( infoHash );
-                                                                           modifyIsCompletedWithError( errorText, 0 );
+                                                                           modifyIsCompletedWithError( errorText, ModificationStatus::DOWNLOAD_FAILED );
                                                                        }
                                                                    },
 
@@ -466,7 +465,7 @@ public:
         if ( m_metaFilesSize + m_sandboxDriveSize + m_fsTreeSize > m_drive.m_maxSize )
         {
             m_drive.executeOnSessionThread( [this] {
-                modifyIsCompletedWithError( "Drive is full", 0 );
+                modifyIsCompletedWithError( "Drive is full", ModificationStatus::NOT_ENOUGH_SPACE );
             });
             return;
         }
@@ -512,7 +511,7 @@ public:
         m_modifyApproveTxReceived = true;
 
         if ( m_request->m_transactionHash == transaction.m_modifyTransactionHash
-             && ( m_actionListIsReceived || m_modifyIsCompletedWithError ))
+             && ( m_actionListIsReceived || m_status != ModificationStatus::SUCCESS ))
         {
             if ( !m_sandboxCalculated )
             {
@@ -605,10 +604,13 @@ protected:
         UpdateDriveTaskBase::modifyIsCompleted();
     }
 
-    void modifyIsCompletedWithError( std::string errorText, int errorCode )
+    void modifyIsCompletedWithError( std::string errorText, ModificationStatus status )
     {
         DBG_MAIN_THREAD
-        _LOG( "modifyIsCompletedWithError " << errorText << " " << errorCode );
+
+        _ASSERT( status != ModificationStatus::SUCCESS )
+
+		_LOG( "modifyIsCompletedWithError " << errorText << " " << static_cast<uint8_t>(status) );
 
         if ( m_drive.m_dbgEventHandler )
         {
@@ -616,12 +618,12 @@ protected:
                                          m_drive.m_replicator,
                                          m_drive.m_driveKey,
                                          *m_request,
-                                         errorText, errorCode );
+                                         errorText, static_cast<uint8_t>(status) );
         }
 
         m_downloadingLtHandle.reset();
 
-        m_modifyIsCompletedWithError = true;
+        m_status = status;
 
         m_drive.executeOnBackgroundThread([this]
         {
@@ -760,6 +762,7 @@ private:
         ApprovalTransactionInfo info = {m_drive.m_driveKey.array(),
                                         m_myOpinion->m_modifyTransactionHash,
                                         m_myOpinion->m_rootHash,
+										m_myOpinion->m_status,
                                         m_myOpinion->m_fsTreeFileSize,
                                         m_myOpinion->m_metaFilesSize,
                                         m_myOpinion->m_driveSize,
@@ -874,6 +877,7 @@ private:
     bool validateOpinion( const ApprovalTransactionInfo& anOpinion )
     {
         bool equal = m_myOpinion->m_rootHash == anOpinion.m_rootHash &&
+					 m_myOpinion->m_status == anOpinion.m_status &&
                      m_myOpinion->m_fsTreeFileSize == anOpinion.m_fsTreeFileSize &&
                      m_myOpinion->m_metaFilesSize == anOpinion.m_metaFilesSize &&
                      m_myOpinion->m_driveSize == anOpinion.m_driveSize;
