@@ -7,21 +7,28 @@
 #pragma once
 
 #include <memory>
-#include "RPCContext.h"
-#include <messenger-server/MessageSender.h>
+#include "RPCContextKeeper.h"
+#include <messengerServer.pb.h>
 #include "ReadEventHandler.h"
+
+#include <messenger-server/Messenger.h>
+
+#include "MessageWriter.h"
 
 namespace sirius::drive::messenger {
 
 class MessageReader
         : public std::enable_shared_from_this<MessageReader>, public ReadEventHandler {
 
-    MessageSender& m_sender;
-    std::shared_ptr<RPCContext> m_context;
+    Messenger& m_messenger;
+    std::weak_ptr<RPCContextKeeper> m_context;
+    std::shared_ptr<MessageWriter> m_writer;
 
 public:
 
-    void onRead( const std::optional<OutputMessage>& message ) override;
+    MessageReader(Messenger& m_messenger, std::weak_ptr<RPCContextKeeper>);
+
+    void onRead( const std::optional<messengerServer::ClientMessage>& message ) override;
 
 private:
 

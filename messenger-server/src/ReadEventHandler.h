@@ -15,7 +15,7 @@ public:
 
     virtual ~ReadEventHandler() = default;
 
-    virtual void onRead(const std::optional<OutputMessage>& message) = 0;
+   virtual void onRead( const std::optional<messengerServer::ClientMessage>& message ) = 0;
 
 };
 

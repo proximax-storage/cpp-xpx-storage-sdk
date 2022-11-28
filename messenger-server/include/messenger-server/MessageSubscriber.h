@@ -15,7 +15,7 @@ namespace sirius::drive::messenger
 
 class MessageSubscriber {
 
-    virtual void onMessageReceived(const InputMessage& message) = 0;
+    virtual bool onMessageReceived(const InputMessage& message) = 0;
 
 };
 

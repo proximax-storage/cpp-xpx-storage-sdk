@@ -9,6 +9,7 @@
 #include <thread>
 #include <storageServer.grpc.pb.h>
 #include <grpcpp/completion_queue.h>
+#include <grpcpp/server_builder.h>
 #include <boost/asio/io_context.hpp>
 #include <drive/ModificationsExecutor.h>
 #include <supercontract-server/AbstractSupercontractServer.h>
@@ -22,7 +23,6 @@ class StorageServer
 
 private:
 
-    std::string m_address;
     std::unique_ptr<grpc::ServerCompletionQueue> m_cq;
     storageServer::StorageServer::AsyncService m_service;
     std::unique_ptr<grpc::Server> m_server;
@@ -33,9 +33,10 @@ private:
 
 public:
 
-    explicit StorageServer( std::string address );
+    explicit StorageServer();
 
-    void run( std::weak_ptr<ContextKeeper> contextKeeper,
+    void run( grpc::ServerBuilder& builder,
+              std::weak_ptr<ContextKeeper> contextKeeper,
               std::weak_ptr<ModificationsExecutor> executor ) override;
 
     ~StorageServer() override;

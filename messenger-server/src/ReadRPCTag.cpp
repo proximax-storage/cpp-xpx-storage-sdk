@@ -8,22 +8,20 @@
 
 #include "ReadRPCTag.h"
 
-#include <boost/asio.hpp>
-
 namespace sirius::drive::messenger {
 
 ReadRPCTag::ReadRPCTag( boost::asio::io_context& context, std::shared_ptr<ReadEventHandler> handler )
         : m_context( context ), m_eventHandler( std::move( handler )) {}
 
 void ReadRPCTag::process( bool ok ) {
-    if (ok) {
-
-    }
-    else {
-        OutputMessage message;
-        boost::asio::post(m_context, [handler=std::move(m_eventHandler)] {
-
-        });
+    if ( ok ) {
+        boost::asio::post( m_context, [message = std::move( m_message ), handler = std::move( m_eventHandler )] {
+            handler->onRead( message );
+        } );
+    } else {
+        boost::asio::post( m_context, [handler = std::move( m_eventHandler )] {
+            handler->onRead( {} );
+        } );
     }
 }
 

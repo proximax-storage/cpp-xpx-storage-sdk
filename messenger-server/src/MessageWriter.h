@@ -11,7 +11,7 @@
 
 #include <messenger-server/Message.h>
 #include <messenger-server/MessageSubscriber.h>
-#include "RPCContext.h"
+#include "RPCContextKeeper.h"
 #include "WriteEventHandler.h"
 
 namespace sirius::drive::messenger {
@@ -22,14 +22,14 @@ class MessageWriter
         , public WriteEventHandler {
 
     std::queue<InputMessage> m_messages;
-    std::shared_ptr<RPCContext> m_context;
+    std::weak_ptr<RPCContextKeeper> m_context;
     bool m_writeIsRunning = false;
 
 public:
 
-    MessageWriter(std::shared_ptr<RPCContext> context);
+    MessageWriter(std::weak_ptr<RPCContextKeeper> context);
 
-    void onMessageReceived( const std::string& tag, const std::string& message ) override;
+    bool onMessageReceived( const InputMessage& message ) override;
 
     void onWritten( bool ok ) override;
 

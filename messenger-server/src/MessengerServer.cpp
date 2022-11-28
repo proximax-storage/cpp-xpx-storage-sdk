@@ -6,11 +6,56 @@
 
 #pragma once
 
-#include <messenger-server/MessengerServer.h>
+#include "MessengerServer.h"
 
-namespace sirius::drive::messenger
+#include "StartRPCTag.h"
+#include "MessageReader.h"
+
+#include <grpcpp/server_builder.h>
+
+namespace sirius::drive::messenger {
+
+void MessengerServer::run( grpc::ServerBuilder& builder ) {
+    builder.RegisterService( &m_service );
+    m_completionQueue = builder.AddCompletionQueue();
+
+    m_completionQueueThread = std::thread([this] {
+        waitForQueries();
+    });
+
+    accept();
+}
+
+void MessengerServer::onConnectionBroken( uint64_t id ) {
+    m_connections.erase( id );
+}
+
+void MessengerServer::onConnectionEstablished( std::shared_ptr<RPCContext> context ) {
+    auto connectionId = m_connectionsCreated++;
+    auto contextKeeper = std::make_shared<RPCContextKeeper>( std::move( context ), connectionId, *this );
+    m_connections.emplace( connectionId, std::move( contextKeeper ));
+    auto messageReader = std::make_shared<MessageReader>();
+}
+
+void MessengerServer::accept() {
+    auto context = std::make_shared<RPCContext>( m_executor );
+
+    auto* tag = new StartRPCTag( weak_from_this(), context );
+
+    m_service.RequestCommunicate( &context->m_serverContext, &context->m_stream, m_completionQueue.get(),
+                                  m_completionQueue.get(), tag );
+}
+
+void MessengerServer::waitForQueries()
 {
-
-
+    void* pTag;
+    bool ok;
+    while ( m_completionQueue->Next( &pTag, &ok ))
+    {
+        auto* pQuery = static_cast<RPCTag*>(pTag);
+        pQuery->process( ok );
+        delete pQuery;
+    }
+}
 
 }

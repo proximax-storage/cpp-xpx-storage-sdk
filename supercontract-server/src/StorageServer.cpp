@@ -5,7 +5,6 @@
 */
 
 #include <grpcpp/security/server_credentials.h>
-#include <grpcpp/server_builder.h>
 
 #include <utility>
 #include <supercontract-server/StorageServer.h>
@@ -36,21 +35,17 @@
 namespace sirius::drive::contract
 {
 
-StorageServer::StorageServer( std::string address )
-        : m_address( std::move( address ))
-{}
+StorageServer::StorageServer() {}
 
 void StorageServer::run(
+        grpc::ServerBuilder& builder,
         std::weak_ptr<ContextKeeper> contextKeeper,
         std::weak_ptr<ModificationsExecutor> executor )
 {
     m_context = std::move( contextKeeper );
     m_executor = std::move( executor );
-    grpc::ServerBuilder builder;
-    builder.AddListeningPort( m_address, grpc::InsecureServerCredentials());
     builder.RegisterService( &m_service );
     m_cq = builder.AddCompletionQueue();
-    m_server = builder.BuildAndStart();
     m_serviceIsActive = std::make_shared<bool>( true );
 
     registerSynchronizeStorage();
@@ -84,10 +79,6 @@ void StorageServer::run(
 
 StorageServer::~StorageServer()
 {
-    if ( !*m_serviceIsActive )
-    {
-        return;
-    }
     *m_serviceIsActive = false;
     m_server->Shutdown();
     m_cq->Shutdown();

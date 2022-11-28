@@ -6,15 +6,22 @@
 
 #pragma once
 
+#include "Message.h"
+
 #include "MessageSubscriber.h"
 
 namespace sirius::drive::messenger
 {
 
-class MessengerServer: public MessageSubscriber
-{
+class Messenger {
 
+public:
 
+    virtual ~Messenger() = default;
+
+    virtual void sendMessage(const OutputMessage& message) = 0;
+
+    virtual void subscribe(const std::string& tag, std::shared_ptr<MessageSubscriber> subscriber) = 0;
 
 };
 

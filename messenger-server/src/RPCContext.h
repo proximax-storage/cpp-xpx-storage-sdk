@@ -14,17 +14,23 @@
 
 #include "messengerServer.pb.h"
 
+#include <memory>
+
 namespace sirius::drive::messenger
 {
 
-class RPCContext {
+class RPCContext: public std::enable_shared_from_this<RPCContext> {
 
 public:
+
+    RPCContext(boost::asio::io_context& io_context);
 
     grpc::ServerContext m_serverContext;
     std::shared_ptr<bool> m_serviceIsActive;
     boost::asio::io_context& m_ioContext;
     grpc::ServerAsyncReaderWriter<messengerServer::ServerMessage, messengerServer::ClientMessage> m_stream;
+
+    void finish();
 
 };
 
