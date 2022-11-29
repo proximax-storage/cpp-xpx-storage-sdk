@@ -6,17 +6,19 @@
 
 #pragma once
 
-
-#include "RPCContext.h"
-#include "FinishRPCTag.h"
+#include <drive/RPCService.h>
+#include "Messenger.h"
 
 namespace sirius::drive::messenger
 {
 
-void RPCContext::finish() {
-    m_serverContext.TryCancel();
-    auto* tag = new FinishRPCTag(shared_from_this());
-    m_stream.Finish(grpc::Status::CANCELLED, tag);
-}
+class MessengerServerBuilder
+{
+
+public:
+
+    std::shared_ptr<RPCService> build( std::weak_ptr<Messenger> );
+
+};
 
 }

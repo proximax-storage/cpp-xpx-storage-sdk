@@ -6,28 +6,27 @@
 
 #pragma once
 
-
-#include <grpcpp/impl/codegen/server_context.h>
-
 #include <boost/asio/io_context.hpp>
+#include "messengerServer.grpc.pb.h"
 #include <grpcpp/impl/codegen/async_stream.h>
-
-#include "messengerServer.pb.h"
+#include <grpcpp/impl/codegen/server_context.h>
+#include <drive/IOContextProvider.h>
 
 #include <memory>
 
 namespace sirius::drive::messenger
 {
 
-class RPCContext: public std::enable_shared_from_this<RPCContext> {
+class StreamContext
+        : public std::enable_shared_from_this<StreamContext>
+{
 
 public:
 
-    RPCContext(boost::asio::io_context& io_context);
+    StreamContext( std::weak_ptr<IOContextProvider> io_context );
 
     grpc::ServerContext m_serverContext;
-    std::shared_ptr<bool> m_serviceIsActive;
-    boost::asio::io_context& m_ioContext;
+    std::weak_ptr<IOContextProvider> m_ioContext;
     grpc::ServerAsyncReaderWriter<messengerServer::ServerMessage, messengerServer::ClientMessage> m_stream;
 
     void finish();

@@ -4,7 +4,7 @@ find_package(OpenSSL REQUIRED)
 
 storage_sdk_library_target(messenger-server)
 
-foreach(_service messengerServer)
+foreach (_service messengerServer)
 
     # Proto file
     get_filename_component(${_service}_proto "../protobuf/messenger/${_service}.proto" ABSOLUTE)
@@ -44,7 +44,7 @@ foreach(_service messengerServer)
             ${_REFLECTION}
             ${_GRPC_GRPCPP}
             ${_PROTOBUF_LIBPROTOBUF})
-endforeach()
+endforeach ()
 
 target_include_directories(messenger-server PUBLIC ../include ../../include)
 target_include_directories(messenger-server PUBLIC SYSTEM ${Boost_INCLUDE_DIR})

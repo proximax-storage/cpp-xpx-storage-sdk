@@ -10,21 +10,24 @@
 
 #include <boost/asio/io_context.hpp>
 
+#include <drive/IOContextProvider.h>
 #include "WriteEventHandler.h"
 
 namespace sirius::drive::messenger
 {
 
-class WriteRPCTag: public RPCTag {
+class WriteRPCTag
+        : public RPCTag
+{
 
 private:
 
-    boost::asio::io_context& m_context;
+    std::weak_ptr<IOContextProvider> m_context;
     std::shared_ptr<WriteEventHandler> m_handler;
 
 public:
 
-    WriteRPCTag(boost::asio::io_context& context, std::shared_ptr<WriteEventHandler> handler);
+    WriteRPCTag( std::weak_ptr<IOContextProvider> context, std::shared_ptr<WriteEventHandler> handler );
 
     void process( bool ok ) override;
 

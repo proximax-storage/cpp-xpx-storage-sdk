@@ -555,9 +555,16 @@ public:
 
     }
 
-    void enableSupercontractServer( const std::string& address ) override
-    {
-        // TODO Enable Server
+    void setServiceAddress( const std::string& address ) override {
+
+    }
+
+    void enableSupercontractServer() override {
+
+    }
+
+    void enableMessengerServer() override {
+
     }
 
     virtual Hash256     dbgGetRootHash( const DriveKey& driveKey ) override

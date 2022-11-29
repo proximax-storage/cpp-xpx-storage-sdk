@@ -415,7 +415,9 @@ public:
     // It will be called if transaction sent by the Replicator has failed because of invalid Replicators list
     virtual void        asyncVerifyApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 verificationId ) = 0;
 
-    virtual void        enableSupercontractServer( const std::string& address ) = 0;
+    virtual void        setServiceAddress( const std::string& address ) = 0;
+    virtual void        enableSupercontractServer() = 0;
+    virtual void        enableMessengerServer() = 0;
 
     // Max difference between requested data and signed receipt
     //

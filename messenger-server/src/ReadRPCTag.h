@@ -14,12 +14,16 @@
 
 #include <boost/asio/io_context.hpp>
 
+#include <drive/IOContextProvider.h>
+
 #include "messengerServer.pb.h"
 
 namespace sirius::drive::messenger
 {
 
-class ReadRPCTag: public RPCTag {
+class ReadRPCTag
+        : public RPCTag
+{
 
 public:
 
@@ -27,12 +31,12 @@ public:
 
 private:
 
-    boost::asio::io_context& m_context;
+    std::weak_ptr<IOContextProvider> m_context;
     std::shared_ptr<ReadEventHandler> m_eventHandler;
 
 public:
 
-    ReadRPCTag(boost::asio::io_context& context, std::shared_ptr<ReadEventHandler> handler);
+    ReadRPCTag( std::weak_ptr<IOContextProvider> context, std::shared_ptr<ReadEventHandler> handler );
 
     void process( bool ok ) override;
 

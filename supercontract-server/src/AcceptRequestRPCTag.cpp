@@ -33,7 +33,7 @@ void AcceptRequestRPCTag::process( bool ok )
 
 AcceptRequestRPCTag::AcceptRequestRPCTag( std::shared_ptr<RequestContext> requestContext,
                                           std::function<void()> addNewAcceptRequestTag,
-                                          std::weak_ptr<ContextKeeper> ioContext )
+                                          std::weak_ptr<IOContextProvider> ioContext )
         : m_requestContext( std::move( requestContext ))
         , m_addNewAcceptRequestTag( std::move( addNewAcceptRequestTag ))
         , m_ioContext( std::move( ioContext ))

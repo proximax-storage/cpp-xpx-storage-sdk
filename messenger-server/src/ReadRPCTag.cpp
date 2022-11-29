@@ -8,18 +8,34 @@
 
 #include "ReadRPCTag.h"
 
-namespace sirius::drive::messenger {
+namespace sirius::drive::messenger
+{
 
-ReadRPCTag::ReadRPCTag( boost::asio::io_context& context, std::shared_ptr<ReadEventHandler> handler )
-        : m_context( context ), m_eventHandler( std::move( handler )) {}
+ReadRPCTag::ReadRPCTag( std::weak_ptr<IOContextProvider> context, std::shared_ptr<ReadEventHandler> handler )
+        : m_context( std::move( context )), m_eventHandler( std::move( handler ))
+{}
 
-void ReadRPCTag::process( bool ok ) {
-    if ( ok ) {
-        boost::asio::post( m_context, [message = std::move( m_message ), handler = std::move( m_eventHandler )] {
-            handler->onRead( message );
-        } );
-    } else {
-        boost::asio::post( m_context, [handler = std::move( m_eventHandler )] {
+void ReadRPCTag::process( bool ok )
+{
+
+    auto contextKeeper = m_context.lock();
+
+    if ( !contextKeeper )
+    {
+        return;
+    }
+
+    if ( ok )
+    {
+        boost::asio::post( contextKeeper->getContext(),
+                           [message = std::move( m_message ), handler = std::move( m_eventHandler )]
+                           {
+                               handler->onRead( message );
+                           } );
+    } else
+    {
+        boost::asio::post( contextKeeper->getContext(), [handler = std::move( m_eventHandler )]
+        {
             handler->onRead( {} );
         } );
     }

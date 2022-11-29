@@ -14,9 +14,12 @@
 #include "EndpointsManager.h"
 #include "RcptSyncronizer.h"
 #include "BackgroundExecutor.h"
+#include <drive/RPCService.h>
 
-#include <supercontract-server/AbstractSupercontractServer.h>
 #include <supercontract-server/StorageServer.h>
+
+#include <messenger-server/Messenger.h>
+#include <messenger-server/MessengerServerBuilder.h>
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/array.hpp>
@@ -40,6 +43,7 @@ namespace sirius::drive
 //
 class DefaultReplicator
         : public DownloadLimiter,
+          public messenger::Messenger,
           public std::enable_shared_from_this<DefaultReplicator>    // Replicator
 {
 private:
@@ -79,7 +83,11 @@ private:
 
     BackgroundExecutor m_backgroundExecutor;
 
-    std::unique_ptr<contract::AbstractSupercontractServer> m_supercontractServer;
+    std::optional<std::string> m_serviceServerAddress;
+    std::vector<std::shared_ptr<RPCService>> m_services;
+    std::unique_ptr<grpc::Server> m_serviceServer;
+
+    std::map<std::string, std::shared_ptr<messenger::MessageSubscriber>> m_messageSubscribers;
 
 public:
     DefaultReplicator(
@@ -122,6 +130,9 @@ public:
         DBG_MAIN_THREAD
 
         m_replicatorIsDestructing = true;
+
+        m_serviceServer->Shutdown();
+        m_services.clear();
 
         m_session->endSession();
 
@@ -225,9 +236,18 @@ public:
 
             m_endpointsManager.start( m_session );
 
-            if ( m_supercontractServer )
+            if ( !m_services.empty() )
             {
-                m_supercontractServer->run( m_session, weak_from_this());
+                _ASSERT(m_serviceServerAddress)
+                grpc::ServerBuilder builder;
+                builder.AddListeningPort( *m_serviceServerAddress, grpc::InsecureServerCredentials());
+                for (const auto& service: m_services) {
+                    service->registerService(builder);
+                }
+                m_serviceServer = builder.BuildAndStart();
+                for (const auto& service: m_services) {
+                    service->run(m_session);
+                }
             }
         } );
 
@@ -1639,6 +1659,15 @@ public:
 
                 return;
             }
+            else if (m_messageSubscribers.contains(query)) {
+                auto it = m_messageSubscribers.find(query);
+
+                bool enqueued = it->second->onMessageReceived(messenger::InputMessage{query, message});
+
+                if (!enqueued) {
+                    m_messageSubscribers.erase(it);
+                }
+            }
 //        else if ( query == "finish-stream" )
 //        {
 //            try
@@ -2737,9 +2766,35 @@ public:
         } );
     }
 
-    void enableSupercontractServer( const std::string& address ) override
-    {
-        m_supercontractServer = std::make_unique<contract::StorageServer>( address );
+    void setServiceAddress( const std::string& address ) override {
+        m_serviceServerAddress = address;
+        _LOG( "Listen RPC Services On" << address )
+    }
+
+    void enableSupercontractServer() override {
+        auto service = std::make_shared<contract::StorageServer>( weak_from_this() );
+        m_services.emplace_back(std::move(service));
+    }
+
+    void enableMessengerServer() override {
+        auto service = messenger::MessengerServerBuilder().build(weak_from_this());
+        m_services.emplace_back(std::move(service));
+    }
+
+    void sendMessage( const messenger::OutputMessage& message ) override {
+
+        DBG_MAIN_THREAD
+
+        _LOG( "Message Sending Is Requested " << message.m_tag )
+
+        sendMessage(message.m_tag, message.m_receiver, message.m_data);
+    }
+
+    void subscribe( const std::string& tag, std::shared_ptr<messenger::MessageSubscriber> subscriber ) override {
+
+        DBG_MAIN_THREAD
+        m_messageSubscribers[tag] = std::move(subscriber);
+        _LOG( "Subscription To " << tag << " Is Requested" )
     }
 
 };

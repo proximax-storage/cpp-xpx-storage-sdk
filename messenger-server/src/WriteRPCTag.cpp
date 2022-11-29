@@ -8,11 +8,27 @@
 
 #include <boost/asio.hpp>
 
-void sirius::drive::messenger::WriteRPCTag::process( bool ok ) {
+sirius::drive::messenger::WriteRPCTag::WriteRPCTag( std::weak_ptr<IOContextProvider> context,
+                                                    std::shared_ptr<WriteEventHandler> handler )
+        : m_context( std::move( context ))
+        , m_handler( std::move( handler ))
+{
 
-    // context is always alive
-    boost::asio::post(m_context, [=, handler=std::move(m_handler)] {
-        handler->onWritten(ok);
-    });
+}
+
+void sirius::drive::messenger::WriteRPCTag::process( bool ok )
+{
+
+    auto contextKeeper = m_context.lock();
+
+    if ( !contextKeeper )
+    {
+        return;
+    }
+
+    boost::asio::post( contextKeeper->getContext(), [=, handler = std::move( m_handler )]
+    {
+        handler->onWritten( ok );
+    } );
 
 }

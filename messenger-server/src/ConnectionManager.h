@@ -8,11 +8,13 @@
 
 #include <memory>
 
-#include "RPCContext.h"
+#include "StreamContext.h"
 
-namespace sirius::drive::messenger {
+namespace sirius::drive::messenger
+{
 
-class ConnectionManager {
+class ConnectionManager
+{
 
 public:
 
@@ -20,7 +22,7 @@ public:
 
     virtual void onConnectionBroken( uint64_t id ) = 0;
 
-    virtual void onConnectionEstablished(std::shared_ptr<RPCContext> context) = 0;
+    virtual void onConnectionEstablished( std::shared_ptr<StreamContext> context ) = 0;
 
 };
 

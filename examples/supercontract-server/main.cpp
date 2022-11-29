@@ -62,7 +62,9 @@ int main() {
             "replicator" );
 
     replicator->start();
-    replicator->enableSupercontractServer( "127.0.0.1:5551" );
+    replicator->setServiceAddress("127.0.0.1:5551");
+    replicator->enableSupercontractServer();
+    replicator->enableMessengerServer();
 
     for ( unsigned char i = 0U; i < 100U; i++ ) {
         sirius::Key driveKey{{i}};

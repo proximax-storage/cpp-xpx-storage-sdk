@@ -9,13 +9,14 @@
 namespace sirius::drive::messenger
 {
 
-class RPCTag {
+class RPCTag
+{
 
 public:
 
     virtual ~RPCTag() = default;
 
-    virtual void process(bool ok) = 0;
+    virtual void process( bool ok ) = 0;
 
 };
 

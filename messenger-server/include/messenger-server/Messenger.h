@@ -13,15 +13,16 @@
 namespace sirius::drive::messenger
 {
 
-class Messenger {
+class Messenger
+{
 
 public:
 
     virtual ~Messenger() = default;
 
-    virtual void sendMessage(const OutputMessage& message) = 0;
+    virtual void sendMessage( const OutputMessage& message ) = 0;
 
-    virtual void subscribe(const std::string& tag, std::shared_ptr<MessageSubscriber> subscriber) = 0;
+    virtual void subscribe( const std::string& tag, std::shared_ptr<MessageSubscriber> subscriber ) = 0;
 
 };
 

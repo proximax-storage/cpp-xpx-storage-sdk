@@ -8,14 +8,17 @@
 
 #include <types.h>
 
-namespace sirius::drive::messenger {
+namespace sirius::drive::messenger
+{
 
-struct InputMessage {
+struct InputMessage
+{
     std::string m_tag;
     std::string m_data;
 };
 
-struct OutputMessage {
+struct OutputMessage
+{
     Key m_receiver;
     std::string m_tag;
     std::string m_data;

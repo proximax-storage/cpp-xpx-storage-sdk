@@ -87,7 +87,7 @@ public:
                     int modifyApprovalDelay,
                     int downloadApprovalDelay,
                     int startReplicator = -1,
-                    bool startSupercontractServer = false) {
+                    bool startRpcServices = false) {
         if (startReplicator == -1) {
             startReplicator = numberOfReplicators;
         }
@@ -128,8 +128,10 @@ public:
                     this,
                     dbgReplicatorName.c_str());
 
-                if (startSupercontractServer) {
-                    replicator->enableSupercontractServer("127.0.0.1:" + std::to_string(port));
+                if (startRpcServices) {
+                    replicator->setServiceAddress( "127.0.0.1:" + std::to_string( port ));
+                    replicator->enableSupercontractServer();
+                    replicator->enableMessengerServer();
                 }
 
                 replicator->setDownloadApprovalTransactionTimerDelay(modifyApprovalDelay);

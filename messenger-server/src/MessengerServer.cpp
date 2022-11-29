@@ -4,8 +4,6 @@
 *** license that can be found in the LICENSE file.
 */
 
-#pragma once
-
 #include "MessengerServer.h"
 
 #include "StartRPCTag.h"
@@ -13,32 +11,58 @@
 
 #include <grpcpp/server_builder.h>
 
-namespace sirius::drive::messenger {
+namespace sirius::drive::messenger
+{
 
-void MessengerServer::run( grpc::ServerBuilder& builder ) {
+MessengerServer::MessengerServer( std::weak_ptr<Messenger>&& messenger )
+        : m_messenger( std::move( messenger ))
+{}
+
+MessengerServer::~MessengerServer()
+{
+    m_completionQueue->Shutdown();
+    if ( m_completionQueueThread.joinable())
+    {
+        m_completionQueueThread.join();
+    }
+}
+
+void MessengerServer::registerService( grpc::ServerBuilder& builder )
+{
     builder.RegisterService( &m_service );
     m_completionQueue = builder.AddCompletionQueue();
+}
 
-    m_completionQueueThread = std::thread([this] {
-        waitForQueries();
-    });
+void MessengerServer::run( std::weak_ptr<IOContextProvider> contextKeeper )
+{
+    m_executor = std::move( contextKeeper );
+
+    m_completionQueueThread = std::thread( [this]
+                                           {
+                                               waitForQueries();
+                                           } );
 
     accept();
 }
 
-void MessengerServer::onConnectionBroken( uint64_t id ) {
+void MessengerServer::onConnectionBroken( uint64_t id )
+{
     m_connections.erase( id );
 }
 
-void MessengerServer::onConnectionEstablished( std::shared_ptr<RPCContext> context ) {
+void MessengerServer::onConnectionEstablished( std::shared_ptr<StreamContext> context )
+{
     auto connectionId = m_connectionsCreated++;
-    auto contextKeeper = std::make_shared<RPCContextKeeper>( std::move( context ), connectionId, *this );
-    m_connections.emplace( connectionId, std::move( contextKeeper ));
-    auto messageReader = std::make_shared<MessageReader>();
+    auto contextKeeper = std::make_shared<StreamContextKeeper>( std::move( context ), connectionId, *this );
+    m_connections.emplace( connectionId, contextKeeper );
+    auto messageReader = std::make_shared<MessageReader>( m_messenger, contextKeeper );
+    messageReader->read();
+    accept();
 }
 
-void MessengerServer::accept() {
-    auto context = std::make_shared<RPCContext>( m_executor );
+void MessengerServer::accept()
+{
+    auto context = std::make_shared<StreamContext>( m_executor );
 
     auto* tag = new StartRPCTag( weak_from_this(), context );
 

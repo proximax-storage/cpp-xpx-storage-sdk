@@ -6,13 +6,15 @@
 
 #include "FinishRPCTag.h"
 
-namespace sirius::drive::messenger {
+namespace sirius::drive::messenger
+{
 
-FinishRPCTag::FinishRPCTag( std::shared_ptr<RPCContext> context )
-        : m_context( std::move( context )) {}
+FinishRPCTag::FinishRPCTag( std::shared_ptr<StreamContext> context )
+        : m_context( std::move( context ))
+{}
 
-void FinishRPCTag::process( bool ok ) {
-
+void FinishRPCTag::process( bool ok )
+{
 }
 
 }

@@ -9,13 +9,14 @@
 namespace sirius::drive::messenger
 {
 
-class WriteEventHandler {
+class WriteEventHandler
+{
 
 public:
 
     virtual ~WriteEventHandler() = default;
 
-    virtual void onWritten(bool ok) = 0;
+    virtual void onWritten( bool ok ) = 0;
 
 };
 

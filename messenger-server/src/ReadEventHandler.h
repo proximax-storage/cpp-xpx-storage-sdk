@@ -6,16 +6,19 @@
 
 #pragma once
 
+#include "messengerServer.pb.h"
+
 namespace sirius::drive::messenger
 {
 
-class ReadEventHandler {
+class ReadEventHandler
+{
 
 public:
 
     virtual ~ReadEventHandler() = default;
 
-   virtual void onRead( const std::optional<messengerServer::ClientMessage>& message ) = 0;
+    virtual void onRead( const std::optional<messengerServer::ClientMessage>& message ) = 0;
 
 };
 

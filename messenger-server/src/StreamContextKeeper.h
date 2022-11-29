@@ -8,26 +8,30 @@
 
 #include <memory>
 
-#include "RPCContext.h"
+#include "StreamContext.h"
 #include "ConnectionManager.h"
 
-namespace sirius::drive::messenger {
+namespace sirius::drive::messenger
+{
 
-class RPCContextKeeper {
+class StreamContextKeeper
+{
 
 private:
 
     uint64_t m_id;
     ConnectionManager& m_connectionManager;
-    std::shared_ptr<RPCContext> m_context;
+    std::shared_ptr<StreamContext> m_context;
 
 public:
 
-    RPCContextKeeper( std::shared_ptr<RPCContext>&& context, uint64_t id, ConnectionManager& connectionManager );
+    StreamContextKeeper( std::shared_ptr<StreamContext>&& context, uint64_t id, ConnectionManager& connectionManager );
+
+    ~StreamContextKeeper();
 
     void onConnectionBrokenDetected();
 
-    RPCContext& context();
+    StreamContext& context();
 
 };
 

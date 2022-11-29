@@ -9,7 +9,7 @@
 #include "drive/ActionList.h"
 #include "drive/log.h"
 #include "Timer.h"
-#include "ContextKeeper.h"
+#include "IOContextProvider.h"
 
 #include "crypto/Signer.h"
 
@@ -122,7 +122,7 @@ public:
 //
 // It provides the ability to exchange files
 //
-class Session: public ContextKeeper {
+class Session: public IOContextProvider {
 public:
 
     using lt_handle = lt::torrent_handle;

@@ -5,21 +5,24 @@
 */
 
 #include "RPCTag.h"
-#include "RPCContext.h"
+#include "StreamContext.h"
 #include "ConnectionManager.h"
 
-namespace sirius::drive::messenger {
+namespace sirius::drive::messenger
+{
 
-class StartRPCTag: public RPCTag {
+class StartRPCTag
+        : public RPCTag
+{
 
 private:
 
     std::weak_ptr<ConnectionManager> m_connectionManager;
-    std::shared_ptr<RPCContext> m_context;
+    std::shared_ptr<StreamContext> m_context;
 
 public:
 
-    StartRPCTag(std::weak_ptr<ConnectionManager> connectionManager, std::shared_ptr<RPCContext> context);
+    StartRPCTag( std::weak_ptr<ConnectionManager> connectionManager, std::shared_ptr<StreamContext> context );
 
     void process( bool ok ) override;
 

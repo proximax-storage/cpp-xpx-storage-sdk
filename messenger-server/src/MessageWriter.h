@@ -11,23 +11,23 @@
 
 #include <messenger-server/Message.h>
 #include <messenger-server/MessageSubscriber.h>
-#include "RPCContextKeeper.h"
+#include "StreamContextKeeper.h"
 #include "WriteEventHandler.h"
 
-namespace sirius::drive::messenger {
+namespace sirius::drive::messenger
+{
 
 class MessageWriter
-        : public std::enable_shared_from_this<MessageWriter>
-        , public MessageSubscriber
-        , public WriteEventHandler {
+        : public std::enable_shared_from_this<MessageWriter>, public MessageSubscriber, public WriteEventHandler
+{
 
     std::queue<InputMessage> m_messages;
-    std::weak_ptr<RPCContextKeeper> m_context;
+    std::weak_ptr<StreamContextKeeper> m_context;
     bool m_writeIsRunning = false;
 
 public:
 
-    MessageWriter(std::weak_ptr<RPCContextKeeper> context);
+    MessageWriter( std::weak_ptr<StreamContextKeeper> context );
 
     bool onMessageReceived( const InputMessage& message ) override;
 

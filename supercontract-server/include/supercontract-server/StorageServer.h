@@ -12,32 +12,31 @@
 #include <grpcpp/server_builder.h>
 #include <boost/asio/io_context.hpp>
 #include <drive/ModificationsExecutor.h>
-#include <supercontract-server/AbstractSupercontractServer.h>
+#include <drive/RPCService.h>
 
 namespace sirius::drive::contract
 {
 
 class StorageServer
-        : public AbstractSupercontractServer
+        : public RPCService
 {
 
 private:
 
     std::unique_ptr<grpc::ServerCompletionQueue> m_cq;
     storageServer::StorageServer::AsyncService m_service;
-    std::unique_ptr<grpc::Server> m_server;
-    std::weak_ptr<ContextKeeper> m_context;
+    std::weak_ptr<IOContextProvider> m_context;
     std::thread m_thread;
     std::shared_ptr<bool> m_serviceIsActive;
     std::weak_ptr<ModificationsExecutor> m_executor;
 
 public:
 
-    explicit StorageServer();
+    explicit StorageServer(std::weak_ptr<ModificationsExecutor> executor);
 
-    void run( grpc::ServerBuilder& builder,
-              std::weak_ptr<ContextKeeper> contextKeeper,
-              std::weak_ptr<ModificationsExecutor> executor ) override;
+    void registerService( grpc::ServerBuilder& builder ) override;
+
+    void run( std::weak_ptr<IOContextProvider> contextKeeper) override;
 
     ~StorageServer() override;
 

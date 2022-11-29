@@ -10,7 +10,7 @@
 #include "RequestContext.h"
 #include <boost/asio/io_context.hpp>
 #include <memory>
-#include <ContextKeeper.h>
+#include <drive/IOContextProvider.h>
 
 namespace sirius::drive::contract
 {
@@ -23,13 +23,13 @@ private:
 
     std::shared_ptr<RequestContext> m_requestContext;
     std::function<void()> m_addNewAcceptRequestTag;
-    std::weak_ptr<ContextKeeper> m_ioContext;
+    std::weak_ptr<IOContextProvider> m_ioContext;
 
 public:
 
     AcceptRequestRPCTag( std::shared_ptr<RequestContext> requestContext,
                          std::function<void()> addNewAcceptRequestTag,
-                         std::weak_ptr<ContextKeeper> ioContext );
+                         std::weak_ptr<IOContextProvider> ioContext );
 
     void process( bool ok ) override;
 

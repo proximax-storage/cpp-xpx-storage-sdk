@@ -9,11 +9,11 @@
 
 namespace sirius::drive {
 
-class ContextKeeper {
+class IOContextProvider {
 
 public:
 
-    virtual ~ContextKeeper() = default;
+    virtual ~IOContextProvider() = default;
 
     virtual boost::asio::io_context& getContext() = 0;
 

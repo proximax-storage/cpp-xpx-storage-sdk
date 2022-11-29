@@ -5,19 +5,22 @@
 */
 
 #include "RPCTag.h"
-#include "RPCContext.h"
+#include "StreamContext.h"
 
-namespace sirius::drive::messenger {
+namespace sirius::drive::messenger
+{
 
-class FinishRPCTag: public RPCTag {
+class FinishRPCTag
+        : public RPCTag
+{
 
 private:
 
-    std::shared_ptr<RPCContext> m_context;
+    std::shared_ptr<StreamContext> m_context;
 
 public:
 
-    FinishRPCTag(std::shared_ptr<RPCContext> context);
+    FinishRPCTag( std::shared_ptr<StreamContext> context );
 
     void process( bool ok ) override;
 
