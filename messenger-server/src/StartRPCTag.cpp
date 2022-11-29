@@ -18,6 +18,10 @@ StartRPCTag::StartRPCTag( std::weak_ptr<ConnectionManager> connectionManager, st
 
 void StartRPCTag::process( bool ok )
 {
+    if ( !ok )
+    {
+        return;
+    }
 
     auto contextKeeper = m_context->m_ioContext.lock();
 
