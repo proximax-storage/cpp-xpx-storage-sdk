@@ -97,6 +97,11 @@ public:
         DBG_MAIN_THREAD
     }
 
+    virtual void onModificationInitiated( const InitiateModificationsRequest& request)
+    {
+        DBG_MAIN_THREAD
+    }
+
     virtual bool processedModifyOpinion( const ApprovalTransactionInfo& anOpinion )
     {
         DBG_MAIN_THREAD

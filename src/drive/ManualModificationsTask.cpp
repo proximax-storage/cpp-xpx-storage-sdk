@@ -1437,6 +1437,15 @@ public:
         terminate();
     }
 
+    void onModificationInitiated( const InitiateModificationsRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_request->m_modificationIdentifier == request.m_modificationIdentifier )
+
+        terminate();
+    }
+
     bool manualSynchronize( const SynchronizationRequest& request ) override
     {
         DBG_MAIN_THREAD

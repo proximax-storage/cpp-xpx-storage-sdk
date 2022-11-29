@@ -667,6 +667,11 @@ public:
 
         _ASSERT( !m_deferredManualModificationRequest )
 
+        if ( m_task )
+        {
+            m_task->onModificationInitiated( *request );
+        }
+
         m_deferredManualModificationRequest = std::move( request );
 
         if ( !m_task )
