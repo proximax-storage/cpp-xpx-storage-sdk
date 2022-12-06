@@ -178,6 +178,13 @@ public:
     {
         DBG_MAIN_THREAD
 
+        auto session = m_session.lock();
+
+        if (!session)
+        {
+            return;
+        }
+
         if (!m_externalEndpointRequest ||
             m_externalEndpointRequest->m_challenge != response.m_challenge ||
             m_externalEndpointRequest->m_requestTo != response.m_requestTo)
@@ -190,10 +197,14 @@ public:
             return;
         }
 
-        auto externalEndpoint = *reinterpret_cast<const boost::asio::ip::tcp::endpoint*>(&response.m_endpoint);
+        auto receivedEndpoint = *reinterpret_cast<const boost::asio::ip::tcp::endpoint*>(&response.m_endpoint);
+
+        _LOG("External Endpoint Discovered " << receivedEndpoint.address() << " " << std::dec << receivedEndpoint.port())
+
+        boost::asio::ip::tcp::endpoint externalEndpoint(receivedEndpoint.address(), session->lt_session().listen_port());
+
         if (!m_externalEndpoint || m_externalEndpoint != externalEndpoint)
         {
-            _LOG("External Endpoint Discovered " << externalEndpoint.address() << " " << std::dec << externalEndpoint.port())
 
             // We expect that this operation does not take place too often
             // So the loop does not influence performance
@@ -210,15 +221,12 @@ public:
 
         m_externalEndpoint = externalEndpoint;
         m_externalEndpointRequest.reset();
-        if (auto session = m_session.lock(); session)
-        {
-            session->announceExternalAddress(externalEndpoint);
+        session->announceExternalAddress(externalEndpoint);
 
-            m_externalPointUpdateTimer = session->startTimer(m_standardExternalEndpointDelayMs, [this]
-            {
-                onUpdateExternalEndpointTimerTick();
-            });
-        };
+        m_externalPointUpdateTimer = session->startTimer(m_standardExternalEndpointDelayMs, [this]
+        {
+            onUpdateExternalEndpointTimerTick();
+        });
     }
 
     const std::vector<ReplicatorInfo>& getBootstraps()

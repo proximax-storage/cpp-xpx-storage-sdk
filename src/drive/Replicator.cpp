@@ -823,9 +823,11 @@ public:
             return;
         }
 
-        _LOG ( "Received Handshake from " << int(info.m_fromPublicKey[0]) << " at " << endpoint.address().to_string() )
+        auto receivedEndpoint = *reinterpret_cast<const boost::asio::ip::tcp::endpoint*>(&info.m_endpoint);
 
-        onEndpointDiscovered(info.m_fromPublicKey, endpoint );
+        _LOG ( "Received Handshake from " << int(info.m_fromPublicKey[0]) << " at " << endpoint.address().to_string() << ": " << receivedEndpoint.address() << ":" << receivedEndpoint.port() );
+
+        onEndpointDiscovered(info.m_fromPublicKey, receivedEndpoint);
     }
 
     void processEndpointRequest( const ExternalEndpointRequest& request, const boost::asio::ip::tcp::endpoint& endpoint )
