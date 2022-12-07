@@ -530,12 +530,12 @@ private:
                 {
                     myOpinion.m_opinions[i] = (verifyInfoIt->second.m_code == m_verificationCodes[i]);
                     if (myOpinion.m_opinions[i] == 0) {
-                        _LOG_WARN( "Received incorrect verification code from " << Key(verifyInfoIt->second.m_replicatorKey) << " during " << m_request->m_tx );
+                        _LOG_WARN( "Received incorrect verification code from " << Key(key) << " during " << m_request->m_tx );
                     }
                 }
                 else
                 {
-                    _LOG_WARN( "Did not receive verification code from " << Key(verifyInfoIt->second.m_replicatorKey) << " during " << m_request->m_tx );
+                    _LOG_WARN( "Did not receive verification code from " << Key(key) << " during " << m_request->m_tx );
                     myOpinion.m_opinions[i] = 0;
                 }
             }
