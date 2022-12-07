@@ -203,9 +203,16 @@ public:
 
         boost::asio::ip::tcp::endpoint externalEndpoint(receivedEndpoint.address(), session->lt_session().listen_port());
 
+        bool ipChanged = false;
+
         if (!m_externalEndpoint || m_externalEndpoint != externalEndpoint)
         {
+            ipChanged = true;
+        }
 
+        m_externalEndpoint = externalEndpoint;
+
+        if (ipChanged) {
             // We expect that this operation does not take place too often
             // So the loop does not influence performance
             for (const auto&[key, point]: m_endpointsMap)
@@ -214,12 +221,6 @@ public:
             }
         }
 
-        if (m_externalEndpoint && m_externalEndpoint != externalEndpoint)
-        {
-            _LOG_WARN("Ip Changed")
-        }
-
-        m_externalEndpoint = externalEndpoint;
         m_externalEndpointRequest.reset();
         session->announceExternalAddress(externalEndpoint);
 
@@ -239,6 +240,8 @@ private:
     void sendHandshake(const Key& to)
     {
         DBG_MAIN_THREAD
+
+        _ASSERT(m_externalEndpoint)
 
         DhtHandshake handshake;
         handshake.m_fromPublicKey = m_replicator.replicatorKey().array();
