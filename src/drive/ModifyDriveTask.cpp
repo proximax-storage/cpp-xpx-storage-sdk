@@ -160,11 +160,16 @@ public:
 
         auto actionListFilename = m_drive.m_sandboxRootPath / hashToFileName( m_request->m_clientDataInfoHash );
 
-        // Check 'ActionList' is received
-        if ( !fs::exists( actionListFilename, err ))
+        bool actionListExists = fs::exists( actionListFilename, err );
+
+        if (err)
         {
-            _LOG_WARN( "modifyDriveInSandbox: 'ActionList.bin' is absent: " << actionListFilename);
-            m_drive.executeOnSessionThread( [this] { modifyIsCompletedWithError( "modify drive: 'ActionList' is absent", ModificationStatus::ACTION_LIST_IS_ABSENT ); } );
+            _LOG_ERR("prepareDownloadMissingFiles action list fs error: " << err.message());
+            return;
+        }
+        else if ( !actionListExists )
+        {
+            _LOG_ERR("prepareDownloadMissingFiles action list does not exist");
             return;
         }
 
