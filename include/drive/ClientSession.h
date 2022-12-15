@@ -119,7 +119,8 @@ public:
                        const Hash256&         downloadChannelId,
                        const std::string&     saveFolder,
                        const std::string&     saveTorrentFolder,
-                       const endpoint_list&   endpointsHints = {})
+                       const endpoint_list&   endpointsHints = {},
+                       const ReplicatorList&  replicatorList = {} )
     {
         // check that download channel was set
         if ( !m_downloadChannelMap.contains(downloadChannelId) )
@@ -156,11 +157,13 @@ public:
 
         auto downloadChannelIdAsArray = downloadChannelId.array();
 
+        const ReplicatorList& replicators = !replicatorList.empty() ? replicatorList : downloadChannel.m_downloadReplicatorList;
+
         // start downloading
         return m_session->download( std::move(downloadParameters),
                                     saveFolder,
                                     saveTorrentFolder,
-                                    downloadChannel.m_downloadReplicatorList,
+                                    replicators,
                                     nullptr,
                                     &downloadChannelIdAsArray,
                                     nullptr,
