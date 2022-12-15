@@ -10,7 +10,7 @@
 #include "drive/Utils.h"
 #include "drive/Session.h"
 #include "DownloadLimiter.h"
-#include "EndpointsManager.h"
+#include "drive/EndpointsManager.h"
 #include "RcptSyncronizer.h"
 #include "BackgroundExecutor.h"
 
@@ -92,9 +92,10 @@ public:
         m_useTcpSocket( useTcpSocket ),
         m_eventHandler( handler ),
         m_dbgEventHandler( dbgEventHandler ),
-        m_endpointsManager( *this, bootstraps, m_dbgOurPeerName ),
+        m_endpointsManager( m_keyPair, bootstraps, m_dbgOurPeerName ),
         m_dnOpinionSyncronizer( *this, m_dbgOurPeerName )
     {
+        _LOG("Replicator Public Key: " << m_keyPair.publicKey())
     }
 
     bool isStopped() override

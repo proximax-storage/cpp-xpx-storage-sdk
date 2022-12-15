@@ -9,7 +9,9 @@
 #include "drive/log.h"
 #include "drive/Utils.h"
 #include "crypto/Signer.h"
+#include "EndpointsManager.h"
 #include <sirius_drive/session_delegate.h>
+#include <boost/asio/ip/tcp.hpp>
 
 namespace sirius::drive {
 
@@ -38,7 +40,9 @@ protected:
 
     std::shared_ptr<Session>    m_session;
     const crypto::KeyPair&      m_keyPair;
-    
+
+    EndpointsManager            m_endpointsManager;
+
     TorrentMap                          m_modifyTorrentMap;
     std::map<Hash256, DownloadChannel>  m_downloadChannelMap;
 
@@ -48,6 +52,7 @@ public:
     ClientSession( const crypto::KeyPair& keyPair, const char* dbgOurPeerName )
     :
         m_keyPair(keyPair),
+        m_endpointsManager(keyPair, {}, dbgOurPeerName),
         m_dbgOurPeerName(dbgOurPeerName)
     {}
 
@@ -164,7 +169,7 @@ public:
 
     std::optional<boost::asio::ip::tcp::endpoint> getEndpoint(const std::array<uint8_t, 32> &key) override
     {
-            return {};
+        return m_endpointsManager.getEndpoint(key);
     }
 
     InfoHash addActionListToSession( const ActionList&      actionList,
@@ -606,6 +611,14 @@ protected:
     {
     }
 
+public:
+    void
+    onEndpointDiscovered( const std::array<uint8_t, 32>& key, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint ) override {
+        m_endpointsManager.updateEndpoint(key, endpoint);
+    }
+
+protected:
+
     const char* dbgOurPeerName() override
     {
         return m_dbgOurPeerName;
@@ -649,6 +662,9 @@ inline std::shared_ptr<ClientSession> createClientSession(  const crypto::KeyPai
     std::shared_ptr<ClientSession> clientSession = std::make_shared<ClientSession>( keyPair, dbgClientName );
     clientSession->m_session = createDefaultSession( address, errorHandler, clientSession, bootstraps, {} );
     clientSession->session()->lt_session().m_dbgOurPeerName = dbgClientName;
+    boost::asio::post(clientSession->session()->lt_session().get_context(), [clientSession] {
+        clientSession->m_endpointsManager.start(clientSession->session());
+    });
     clientSession->addDownloadChannel(Hash256());
     return clientSession;
 }
