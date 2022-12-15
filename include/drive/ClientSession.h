@@ -72,6 +72,11 @@ public:
         m_session->onTorrentDeleted( handle );
     }
 
+    void addReplicatorList( const sirius::drive::ReplicatorList& keys )
+    {
+        m_endpointsManager.addEndpointsEntries( keys );
+    }
+
     //
     // TODO Wrong
     void addDownloadChannel( Hash256 downloadChannelId )
