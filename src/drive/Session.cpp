@@ -105,6 +105,7 @@ class DefaultSession: public Session, public std::enable_shared_from_this<Defaul
     
     std::thread::id                     m_dbgThreadId;
 
+    LogMode                             m_logMode = LogMode::BRIEF;
 
 public:
     
@@ -772,6 +773,11 @@ public:
         return { m_session.get_context(), milliseconds, std::move( func ) };
     }
 
+    void setLogMode( LogMode mode ) override
+    {
+        _LOG( "Set Log Mode: " << static_cast<uint8_t>(mode) );
+        m_logMode = mode;
+    }
 
 private:
 
@@ -907,7 +913,10 @@ private:
         // loop by alerts
         for (auto &alert : alerts) {
 
-            //_LOG( ">>>" << alert->what() << " (type="<< alert->type() <<"):  " << alert->message() );
+            if (m_logMode == LogMode::FULL)
+            {
+                _LOG( ">>>" << alert->what() << " (type="<< alert->type() <<"):  " << alert->message() );
+            }
 
 ////            if ( alert->type() == lt::dht_log_alert::alert_type || alert->type() == lt::dht_direct_response_alert::alert_type )
 //            {
@@ -936,10 +945,13 @@ private:
 //                    break;
 //                }
 
-//                case lt::peer_log_alert::alert_type: {
-//                    _LOG(  ": peer_log_alert: " << alert->message())
-//                    break;
-//                }
+                case lt::peer_log_alert::alert_type: {
+                    if ( m_logMode == LogMode::PEER )
+                    {
+                        _LOG(  ": peer_log_alert: " << alert->message())
+                    }
+                    break;
+                }
 
                 case lt::listen_failed_alert::alert_type: {
                     this->m_alertHandler( alert );

@@ -72,6 +72,8 @@ protected:
 	}
     
     virtual void dbgEmulateSignal( int index ) = 0;
+
+    virtual void dbgSetLogMode( uint8_t index ) = 0;
     
     void rpcCall( RPC_CMD func, const std::string& parameters );
     
@@ -141,6 +143,15 @@ protected:
                         if ( auto server = self->m_server.lock(); server && gDbgRpcChildCrash )
                         {
                             server->dbgEmulateSignal( int(self->command) - 23088 ); // 0Z,1Z,2Z,3Z... ( 0Z==0, 1Z==1, 2Z==2 ... )
+                        }
+                        return;
+                    }
+                    if ( int(self->command) >= 19504 )
+                    {
+                        // 19504 = "0L"
+                        if ( auto server = self->m_server.lock(); server )
+                        {
+                            server->dbgSetLogMode( static_cast<uint8_t>(int(self->command) - 19504) );
                         }
                         return;
                     }

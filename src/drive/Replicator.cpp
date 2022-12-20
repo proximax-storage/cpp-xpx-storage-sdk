@@ -2074,7 +2074,23 @@ public:
         }
     }
 
-    
+    void dbgSetLogMode( uint8_t mode ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
+            m_session->setLogMode( static_cast<LogMode>(mode) );
+        });
+    }
+
 private:
     std::shared_ptr<sirius::drive::Session> session() {
         return m_session;

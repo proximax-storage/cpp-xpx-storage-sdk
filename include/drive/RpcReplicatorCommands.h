@@ -87,7 +87,8 @@ DECLARE_ENUM16 ( RPC_CMD,
     driveModificationIsCanceled,
     modifyTransactionEndedWithError,
                 
-    dbgCrash
+    dbgCrash,
+    dbgLogMode
 );
 
 #define CMD_STR(x) enum_to_string(RPC_CMD,x)

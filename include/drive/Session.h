@@ -118,6 +118,12 @@ public:
 
 };
 
+enum class LogMode: uint8_t {
+    BRIEF,
+    PEER,
+    FULL
+};
+
 //
 //
 // It provides the ability to exchange files
@@ -185,6 +191,8 @@ public:
 
     // for testing and debugging
     virtual void      dbgPrintActiveTorrents() = 0;
+
+    virtual void      setLogMode( LogMode mode ) = 0;
 };
 
 // createTorrentFile

@@ -453,7 +453,12 @@ public:
     virtual void        dbgPrintTrafficDistribution( std::array<uint8_t,32>  transactionHash ) override {}
     virtual std::string dbgReplicatorName() const override { return m_dbgReplicatorName; }
     virtual const Key&  dbgReplicatorKey() const override { return m_keyPair.publicKey(); }
-    
+
+    void dbgSetLogMode( uint8_t mode ) override
+    {
+        rpcCall( RPC_CMD::dbgLogMode, mode );
+    }
+
     virtual void        dbgAsyncDownloadToSandbox( Key driveKey, InfoHash, std::function<void()> endNotifyer ) override {}
     
     
