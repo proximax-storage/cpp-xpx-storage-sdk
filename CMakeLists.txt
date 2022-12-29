@@ -31,13 +31,19 @@ else()
 endif()
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 
-set(gRPC_SSL_PROVIDER package)
 include(FetchContent)
+
+set(gRPC_SSL_PROVIDER "package" CACHE STRING "Provider of ssl library")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_TMP ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../lib)
+option(BUILD_SHARED_LIBS "build shared libraries" ON)
 FetchContent_Declare(
         grpc
         GIT_REPOSITORY https://github.com/grpc/grpc.git
         GIT_TAG        v1.49.1)
 FetchContent_MakeAvailable(grpc)
+option(BUILD_SHARED_LIBS "build shared libraries" OFF)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY_TMP})
 
 # Since FetchContent uses add_subdirectory under the hood, we can use
 # the grpc targets directly from this build.
@@ -62,7 +68,7 @@ endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(CMAKE_VERBOSE_MAKEFILE ON)
-    
+
     # boost from brew has an issue linking to -licudata
     # https://stackoverflow.com/questions/65380307/os-x-library-not-found-for-licudata
     # this needs to be defined before add_library

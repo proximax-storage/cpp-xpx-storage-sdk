@@ -92,7 +92,7 @@ if (NOT WIN32)
 
                 # $origin - to load plugins when running the server
                 # $origin/boost - same, use our boost libs
-                set(CMAKE_INSTALL_RPATH "$ORIGIN:$ORIGIN/deps${CMAKE_INSTALL_RPATH}")
+                set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:$ORIGIN:$ORIGIN/../lib")
                 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
                 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
