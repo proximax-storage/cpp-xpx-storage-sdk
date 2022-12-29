@@ -363,6 +363,14 @@ public:
                 }
                 break;
             }
+            case RPC_CMD::dbgLogMode: {
+                uint8_t logMode;
+                iarchive( logMode );
+
+                RPC_LOG( "logMode: " << logMode )
+                m_replicator->dbgSetLogMode( logMode );
+                break;
+            }
 
             default:
             {

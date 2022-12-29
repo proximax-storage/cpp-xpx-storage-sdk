@@ -21,6 +21,7 @@ protected:
 
     std::optional<ApprovalTransactionInfo> m_myOpinion;
 
+    ModificationStatus m_status = ModificationStatus::SUCCESS;
     std::unique_ptr<FsTree> m_sandboxFsTree;
     std::optional<InfoHash> m_sandboxRootHash;
     uint64_t m_metaFilesSize = 0;
@@ -295,6 +296,7 @@ private:
                       m_drive.m_driveKey,
                       getModificationTransactionHash(),
                       *m_sandboxRootHash,
+					  m_status,
                       m_fsTreeSize,
                       m_metaFilesSize,
                       m_sandboxDriveSize );
@@ -302,6 +304,7 @@ private:
         m_myOpinion = std::optional<ApprovalTransactionInfo>{{m_drive.m_driveKey.array(),
                                                                      getModificationTransactionHash().array(),
                                                                      m_sandboxRootHash->array(),
+                                                                     m_status,
                                                                      m_fsTreeSize,
                                                                      m_metaFilesSize,
                                                                      m_sandboxDriveSize,

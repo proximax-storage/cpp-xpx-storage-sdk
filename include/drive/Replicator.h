@@ -225,100 +225,6 @@ struct ModifyTrafficInfo
 // The key is a transaction hash
 using ModifyDriveMap    = std::map<std::array<uint8_t,32>, ModifyTrafficInfo>;
 
-struct ExternalEndpointRequest {
-
-    std::array<uint8_t, 32> m_requestTo;
-    std::array<uint8_t, 32> m_challenge;
-
-    template<class Archive>
-    void serialize(Archive &arch)
-    {
-        arch(m_requestTo);
-        arch(m_challenge);
-    }
-};
-
-struct ExternalEndpointResponse {
-
-    std::array<uint8_t, 32> m_requestTo;
-    std::array<uint8_t, 32> m_challenge;
-    std::array<uint8_t, sizeof(boost::asio::ip::tcp::endpoint)> m_endpoint;
-    Signature m_signature;
-
-    void Sign( const crypto::KeyPair& keyPair )
-    {
-        crypto::Sign(keyPair,
-                     {
-            utils::RawBuffer{ m_challenge },
-            utils::RawBuffer{ m_endpoint }
-            },
-            m_signature);
-    }
-
-    bool Verify() const
-    {
-        return crypto::Verify(m_requestTo,
-                       {
-                               utils::RawBuffer{m_challenge},
-                               utils::RawBuffer{m_endpoint}
-                       },
-                       m_signature);
-    }
-
-    template<class Archive>
-    void serialize(Archive &arch)
-    {
-        arch(m_requestTo);
-        arch(m_challenge);
-        arch(m_endpoint);
-        arch(cereal::binary_data(m_signature.data(), m_signature.size()));
-    }
-};
-
-struct DhtHandshake
-{
-    std::array<uint8_t, 32> m_fromPublicKey;
-    std::array<uint8_t, 32> m_toPublicKey;
-    std::array<uint8_t, sizeof(boost::asio::ip::tcp::endpoint)> m_endpoint;
-    Signature m_signature;
-
-    void Sign( const crypto::KeyPair& keyPair )
-    {
-        crypto::Sign(keyPair,
-                     {
-                             utils::RawBuffer{ m_toPublicKey },
-                             utils::RawBuffer{ m_endpoint }
-                     },
-                     m_signature);
-    }
-
-    bool Verify() const
-    {
-        return crypto::Verify(m_fromPublicKey,
-                       {
-                               utils::RawBuffer{m_toPublicKey},
-                               utils::RawBuffer{m_endpoint}
-                       },
-                       m_signature);
-    }
-
-
-    template<class Archive>
-    void serialize(Archive &arch)
-    {
-        arch(m_fromPublicKey);
-        arch(m_toPublicKey);
-        arch(m_endpoint);
-        arch(cereal::binary_data(m_signature.data(), m_signature.size()));
-    }
-};
-
-struct EndpointInformation
-{
-    std::optional<boost::asio::ip::tcp::endpoint> m_endpoint;
-    Timer m_timer;
-};
-
 //
 // Replicator
 //
@@ -450,6 +356,7 @@ public:
     virtual std::string dbgReplicatorName() const = 0;
     //virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) = 0;
     virtual const Key&  dbgReplicatorKey() const = 0;
+    virtual void        dbgSetLogMode( uint8_t mode ) = 0;
     
     virtual void        dbgAsyncDownloadToSandbox( Key driveKey, InfoHash, std::function<void()> endNotifyer ) = 0;
 

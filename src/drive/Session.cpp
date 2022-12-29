@@ -75,12 +75,13 @@ struct LtClientData
     bool                            m_invalidMetadata     = false;
     
     bool                            m_isRemoved           = false;
+    Timer                           m_releaseFilesTimer;
 };
 
 //
 // DefaultSession
 //
-class DefaultSession: public Session, std::enable_shared_from_this<DefaultSession>
+class DefaultSession: public Session, public std::enable_shared_from_this<DefaultSession>
 {
 	const int64_t			m_maxTotalSize = 256LL * 1024LL * 1024LL * 1024LL; // 256GB
 
@@ -104,6 +105,7 @@ class DefaultSession: public Session, std::enable_shared_from_this<DefaultSessio
     
     std::thread::id                     m_dbgThreadId;
 
+    LogMode                             m_logMode = LogMode::BRIEF;
 
 public:
     
@@ -306,7 +308,7 @@ public:
         settingsPack.set_str(  lt::settings_pack::dht_bootstrap_nodes, bootstrapList);
 
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
-        settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, false );
+        settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, true );
         settingsPack.set_bool( lt::settings_pack::enable_ip_notifier, false );
 
         settingsPack.set_int( lt::settings_pack::max_retry_port_bind, 0 );
@@ -506,9 +508,8 @@ public:
         userdata->m_saveTorrentFilename = saveTorrentFilePath;
         userdata->m_saveFolder          = saveFolder;
         params.userdata = userdata;
-//        params.flags &= ~lt::torrent_flags::paused;
-//        //params.flags &= ~lt::torrent_flags::auto_managed;
-//        params.flags |= lt::torrent_flags::auto_managed;
+        params.flags &= ~lt::torrent_flags::paused;
+        params.flags &= ~lt::torrent_flags::auto_managed;
 
         // where the file will be placed
         params.save_path = saveFolder;
@@ -772,11 +773,17 @@ public:
         return { m_session.get_context(), milliseconds, std::move( func ) };
     }
 
-public:
-    boost::asio::io_context& getContext() override
+    void setLogMode( LogMode mode ) override
     {
-        return m_session.get_context();
+    	_LOG( "Set Log Mode: " << static_cast<uint8_t>(mode) );
+    	m_logMode = mode;
     }
+
+public:
+	boost::asio::io_context& getContext() override
+	{
+    	return m_session.get_context();
+	}
 
 private:
 
@@ -837,6 +844,65 @@ private:
         }
     }
 
+    void onTorrentFinished( const lt::torrent_handle& handle )
+    {
+        _LOG( "*** torrent_finished_alert: " << handle.info_hashes().v2 );
+        _LOG( "***                   file: " << handle.torrent_file()->files().file_path(0) );
+        _LOG( "***              save_path: " << handle.status(lt::torrent_handle::query_save_path).save_path );
+
+        auto userdata = handle.userdata().get<LtClientData>();
+
+        if ( userdata == nullptr )
+        {
+            return;
+        }
+
+        if ( userdata->m_isRemoved )
+        {
+            return;
+        }
+
+        if ( userdata->m_dnContexts.size() > 0 )
+        {
+            auto dnContext = userdata->m_dnContexts.front();
+            if ( dnContext.m_doNotDeleteTorrent )
+            {
+                if ( userdata->m_saveTorrentFilename.empty())
+                {
+                    //                                boost::asio::post( lt_session().get_context(), [=]
+                    //                                {
+                    dnContext.m_downloadNotification( download_status::code::download_complete,
+                                                      dnContext.m_infoHash,
+                                                      dnContext.m_saveAs,
+                                                      userdata->m_uploadedDataSize,
+                                                      0,
+                                                      "" );
+                    //                                });
+                } else
+                {
+                    auto ti = handle.torrent_file_with_hashes();
+
+                    // Save torrent file
+                    if ( auto replicator = m_replicator.lock(); replicator )
+                    {
+                        replicator->executeOnBackgroundThread( [ti = std::move( ti ), userdata, this]
+                                                               {
+                                                                   saveTorrentFile( std::move( ti ), userdata );
+                                                               } );
+                    } else
+                    {
+                        // Client could save torrent-file on main thread
+                        saveTorrentFile( std::move( ti ), userdata );
+                    }
+                }
+            } else
+            {
+                _LOG( "***                removed: " << handle.info_hashes().v2 );
+                m_session.remove_torrent( handle, lt::session::delete_partfile );
+            }
+        }
+    }
+
     void alertHandler()
     {
         //DBG_MAIN_THREAD
@@ -853,7 +919,10 @@ private:
         // loop by alerts
         for (auto &alert : alerts) {
 
-//            _LOG( ">>>" << alert->what() << " (type="<< alert->type() <<"):  " << alert->message() );
+            if (m_logMode == LogMode::FULL)
+            {
+                _LOG( ">>>" << alert->what() << " (type="<< alert->type() <<"):  " << alert->message() );
+            }
 
 ////            if ( alert->type() == lt::dht_log_alert::alert_type || alert->type() == lt::dht_direct_response_alert::alert_type )
 //            {
@@ -882,10 +951,13 @@ private:
 //                    break;
 //                }
 
-//                case lt::peer_log_alert::alert_type: {
-//                    _LOG(  ": peer_log_alert: " << alert->message())
-//                    break;
-//                }
+                case lt::peer_log_alert::alert_type: {
+                    if ( m_logMode == LogMode::PEER )
+                    {
+                        _LOG(  ": peer_log_alert: " << alert->message())
+                    }
+                    break;
+                }
 
                 case lt::listen_failed_alert::alert_type: {
                     this->m_alertHandler( alert );
@@ -1167,10 +1239,7 @@ private:
                 case lt::torrent_finished_alert::alert_type: {
                     //sleep(1);
                     auto *theAlert = dynamic_cast<lt::torrent_finished_alert*>(alert);
-                    _LOG( "*** torrent_finished_alert: " << theAlert->handle.info_hashes().v2 );
-                    _LOG( "***                   file: " << theAlert->handle.torrent_file()->files().file_path(0) );
-                    _LOG( "***              save_path: " << theAlert->handle.status(lt::torrent_handle::query_save_path).save_path );
-                    //_LOG( "*** finished theAlert->handle.id()=" << theAlert->handle.id() );
+                     //_LOG( "*** finished theAlert->handle.id()=" << theAlert->handle.id() );
                     //dbgPrintActiveTorrents();
 
                     //auto handle_id = theAlert->handle.id();
@@ -1182,54 +1251,18 @@ private:
                     
                     auto userdata = theAlert->handle.userdata().get<LtClientData>();
                     _ASSERT( userdata != nullptr )
-                    
-                    if ( userdata->m_isRemoved )
-                    {
-                        break;
-                    }
 
-                    if ( userdata->m_dnContexts.size()>0 )
-                    {
-                        auto dnContext = userdata->m_dnContexts.front();
-                        if ( dnContext.m_doNotDeleteTorrent )
-                        {
-                            if ( userdata->m_saveTorrentFilename.empty() )
-                            {
-//                                boost::asio::post( lt_session().get_context(), [=]
-//                                {
-                                    dnContext.m_downloadNotification( download_status::code::download_complete,
-                                                                    dnContext.m_infoHash,
-                                                                    dnContext.m_saveAs,
-                                                                    userdata->m_uploadedDataSize,
-                                                                    0,
-                                                                    "" );
-//                                });
-                            }
-                            else
-                            {
-                                auto ti = theAlert->handle.torrent_file_with_hashes();
+                    auto sWeak = weak_from_this();
+                    auto s = sWeak.lock();
 
-                                // Save torrent file
-                                if ( auto replicator = m_replicator.lock(); replicator )
-                                {
-                                    replicator->executeOnBackgroundThread( [ti=std::move(ti),userdata,this]
-                                    {
-                                        saveTorrentFile( std::move(ti), userdata );
-                                    });
-                                }
-                                else
-                                {
-                                    // Client could save torrent-file on main thread
-                                    saveTorrentFile( std::move(ti), userdata );
-                                }
-                            }
+                    userdata->m_releaseFilesTimer = Timer(m_session.get_context(), 2,[sessionWeak=weak_from_this(), handle=theAlert->handle] {
+
+                        auto session = sessionWeak.lock();
+                        if (session) {
+                            session->onTorrentFinished(handle);
                         }
-                        else
-                        {
-                            _LOG( "***                removed: " << theAlert->handle.info_hashes().v2 );
-                            m_session.remove_torrent( theAlert->handle, lt::session::delete_partfile );
-                        }
-                    }
+                    });
+//                    onTorrentFinished(theAlert->handle);
                     break;
                 }
                     

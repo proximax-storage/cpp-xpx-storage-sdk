@@ -11,7 +11,7 @@
 #include "drive/Utils.h"
 #include "drive/Session.h"
 #include "DownloadLimiter.h"
-#include "EndpointsManager.h"
+#include "drive/EndpointsManager.h"
 #include "RcptSyncronizer.h"
 #include "BackgroundExecutor.h"
 #include <drive/RPCService.h>
@@ -100,13 +100,19 @@ public:
             ReplicatorEventHandler& handler,
             DbgReplicatorEventHandler* dbgEventHandler,
             const std::vector<ReplicatorInfo>& bootstraps,
-            const std::string& dbgReplicatorName )
-            : DownloadLimiter( keyPair, dbgReplicatorName ), m_address( std::move( address )), m_port(
-            std::move( port )), m_storageDirectory( std::move( storageDirectory )), m_sandboxDirectory(
-            std::move( sandboxDirectory )), m_useTcpSocket( useTcpSocket ), m_eventHandler( handler )
-            , m_dbgEventHandler( dbgEventHandler ), m_endpointsManager( *this, bootstraps, m_dbgOurPeerName )
-            , m_dnOpinionSyncronizer( *this, m_dbgOurPeerName )
+               const std::string&   dbgReplicatorName ) : DownloadLimiter( keyPair, dbgReplicatorName ),
+
+        m_address( std::move(address) ),
+        m_port( std::move(port) ),
+        m_storageDirectory( std::move(storageDirectory) ),
+        m_sandboxDirectory( std::move(sandboxDirectory) ),
+        m_useTcpSocket( useTcpSocket ),
+        m_eventHandler( handler ),
+        m_dbgEventHandler( dbgEventHandler ),
+        m_endpointsManager( m_keyPair, bootstraps, m_dbgOurPeerName ),
+        m_dnOpinionSyncronizer( *this, m_dbgOurPeerName )
     {
+        _LOG("Replicator Public Key: " << m_keyPair.publicKey())
     }
 
     bool isStopped() override
@@ -866,9 +872,11 @@ public:
             return;
         }
 
-        _LOG ( "Received Handshake from " << int( info.m_fromPublicKey[0] ) << " at " << endpoint.address().to_string())
+        auto receivedEndpoint = *reinterpret_cast<const boost::asio::ip::tcp::endpoint*>(&info.m_endpoint);
 
-        onEndpointDiscovered( info.m_fromPublicKey, endpoint );
+        _LOG ( "Received Handshake from " << int(info.m_fromPublicKey[0]) << " at " << endpoint.address().to_string() << ": " << receivedEndpoint.address() << ":" << receivedEndpoint.port() );
+
+        onEndpointDiscovered(info.m_fromPublicKey, receivedEndpoint);
     }
 
     void
@@ -1465,8 +1473,9 @@ public:
         if ( endpointTo )
         {
             m_session->sendMessage( query, {endpointTo->address(), endpointTo->port()}, message );
-            _LOG( "sendMessage '" << query << "' to " << int( replicatorKey[0] ));
-        } else
+            _LOG( "sendMessage '" << query << "' to " << Key(replicatorKey) << " at " << endpointTo->address() << ":" << std::dec << endpointTo->port());
+        }
+        else
         {
             _LOG( "WARN!!! Failed to send '" << query << "' to " << int( replicatorKey[0] ));
         }
@@ -2134,6 +2143,22 @@ public:
         }
     }
 
+    void dbgSetLogMode( uint8_t mode ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
+            m_session->setLogMode( static_cast<LogMode>(mode) );
+        });
+    }
 
 private:
     std::shared_ptr<sirius::drive::Session> session()
