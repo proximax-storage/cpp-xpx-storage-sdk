@@ -5,6 +5,7 @@ include(CMakeGlobalSettings.cmake)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
+set(ABSL_PROPAGATE_CXX_STD ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -36,13 +37,14 @@ include(FetchContent)
 set(gRPC_SSL_PROVIDER "package" CACHE STRING "Provider of ssl library")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_TMP ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../lib)
-option(BUILD_SHARED_LIBS "build shared libraries" ON)
+set(BUILD_SHARED_LIBS_COPY ${BUILD_SHARED_LIBS})
+set(BUILD_SHARED_LIBS ON)
 FetchContent_Declare(
         grpc
         GIT_REPOSITORY https://github.com/grpc/grpc.git
         GIT_TAG        v1.49.1)
 FetchContent_MakeAvailable(grpc)
-option(BUILD_SHARED_LIBS "build shared libraries" OFF)
+set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_COPY})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY_TMP})
 
 # Since FetchContent uses add_subdirectory under the hood, we can use
