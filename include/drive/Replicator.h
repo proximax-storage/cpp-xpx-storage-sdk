@@ -12,6 +12,7 @@
 #include "drive/Timer.h"
 #include "drive/Streaming.h"
 #include "crypto/Signer.h"
+#include "drive/RcptMessage.h"
 
 #include <boost/asio/high_resolution_timer.hpp>
 //#include <libtorrent/torrent_handle.hpp>
@@ -20,15 +21,15 @@
 
 namespace sirius::drive {
 
-// It is used for calculation of total data size, downloaded by 'client'
-struct ReplicatorUploadInfo
+// It is used for calculation of total data size, requested by 'client'
+struct ReplicatorUploadRequestInfo
 {
 public:
     // It is the size uploaded (to client) by another replicator
     //
     std::map<ClientKey,uint64_t> m_clientMap;
 
-    uint64_t uploadedSize() const
+    uint64_t receiptSize() const
     {
         uint64_t uploadedSize = 0;
         for( auto& cell: m_clientMap )
@@ -38,17 +39,17 @@ public:
         return uploadedSize;
     }
     
-    uint64_t uploadedSize( const ClientKey& clientKey )
+    uint64_t receiptSize( const ClientKey& clientKey )
     {
         return m_clientMap[clientKey];
     }
     
-    void acceptReceipt( const ClientKey& clientKey, uint64_t uploadedSize )
+    void saveReceiptSize( const ClientKey& clientKey, uint64_t tobeUploadedSize )
     {
         auto it = m_clientMap.find( clientKey );
         __ASSERT( it != m_clientMap.end() )
-        __ASSERT( it->second < uploadedSize )
-        it->second = uploadedSize;
+        __ASSERT( it->second <= tobeUploadedSize )
+        it->second = tobeUploadedSize;
     }
     
     template <class Archive> void serialize( Archive & arch )
@@ -56,7 +57,6 @@ public:
         arch(m_clientMap);
     }
 };
-using ReplicatorUploadMap = std::map<ReplicatorKey,ReplicatorUploadInfo>;
 
 struct DownloadOpinionMapValue
 {
@@ -112,56 +112,17 @@ struct DownloadOpinionMapValue
 // DownloadOpinionMap (key is a blockHash value)
 using DownloadOpinionMap = std::map<std::array<uint8_t,32>, DownloadOpinionMapValue>;
 
-struct RcptMessage : public std::vector<uint8_t>
-{
-    using Sign = std::array<uint8_t,64>;
-    
-    RcptMessage() = default;
-    RcptMessage( const RcptMessage& ) = default;
-    RcptMessage& operator=( const RcptMessage& ) = default;
-    RcptMessage( RcptMessage&& ) = default;
-    RcptMessage& operator=( RcptMessage&& ) = default;
-    
-    RcptMessage( const char* data, size_t dataSize ) : std::vector<uint8_t>( (const uint8_t*)data, ((const uint8_t*)data)+dataSize ) {}
-
-    RcptMessage( const ChannelId&     dnChannelId,
-                 const ClientKey&     clientKey,
-                 const ReplicatorKey& replicatorKey,
-                 uint64_t             downloadedSize,
-                 const Sign&          signature )
-    {
-        reserve( 96+64 );
-        insert( end(), dnChannelId.begin(),         dnChannelId.end() );
-        insert( end(), clientKey.begin(),           clientKey.end() );
-        insert( end(), replicatorKey.begin(),       replicatorKey.end() );
-        insert( end(), (uint8_t*)&downloadedSize,   ((uint8_t*)&downloadedSize)+8 );
-        insert( end(), signature.begin(),           signature.end() );
-    }
-    
-    bool isValidSize() const { return size() == sizeof(ChannelId)+sizeof(ClientKey)+sizeof(ReplicatorKey)+8+sizeof(Sign); }
-
-    const ChannelId&      channelId()      const { return *reinterpret_cast<const ChannelId*>(     &this->at(0) );   }
-    const ClientKey&      clientKey()      const { return *reinterpret_cast<const ClientKey*>(     &this->at(32) );  }
-    const ReplicatorKey&  replicatorKey()  const { return *reinterpret_cast<const ReplicatorKey*>( &this->at(64) );  }
-    uint64_t              downloadedSize() const { return *reinterpret_cast<const uint64_t*>(      &this->at(96) );  }
-    const uint64_t*       downloadedSizePtr() const { return (const uint64_t*)(    &this->at(96) );  }
-
-    const Sign&           signature()      const { return *reinterpret_cast<const Sign*>(          &this->at(104) ); }
-};
-
 using ClientReceipts = std::map<ReplicatorKey,RcptMessage>;
 
 struct DownloadChannelInfo
 {
     struct ClientSizes
     {
-        uint64_t m_requestedSize = 0; // is it needed?
-        uint64_t m_uploadedSize = 0;
+        uint64_t m_sentSize = 0;
 
         template <class Archive> void serialize( Archive & arch )
         {
-            arch( m_requestedSize );
-            arch( m_uploadedSize );
+            arch( m_sentSize );
         }
     };
 
@@ -170,14 +131,19 @@ struct DownloadChannelInfo
     uint64_t m_prepaidDownloadSize;
     uint64_t m_totalReceiptsSize = 0;
 
-    std::map<ClientKey,ClientSizes> m_dnClientMap;
+    // realy sent sizes to clients
+    std::map<ClientKey,ClientSizes> m_sentClientMap;
+    
+    // requested (by client) sizes
+    using ReplicatorUploadRequestMap = std::map<ReplicatorKey,ReplicatorUploadRequestInfo>;
+    ReplicatorUploadRequestMap      m_replicatorUploadRequestMap;
 
     std::array<uint8_t,32>  m_driveKey;
     ReplicatorList          m_dnReplicatorShard;
-    ReplicatorUploadMap     m_replicatorUploadMap;
     
     DownloadOpinionMap      m_downloadOpinionMap;
     
+    // receipts from all replicators
     std::map<ClientKey,ClientReceipts> m_clientReceiptMap = {};
 
     // it is used when drive is closing
@@ -189,8 +155,8 @@ struct DownloadChannelInfo
         arch( m_prepaidDownloadSize );
         arch( m_driveKey );
         arch(m_totalReceiptsSize );
-        arch( m_replicatorUploadMap );
-        arch( m_dnClientMap );
+        arch( m_replicatorUploadRequestMap );
+        arch( m_sentClientMap );
         arch( m_downloadOpinionMap );
         arch( m_clientReceiptMap );
     }

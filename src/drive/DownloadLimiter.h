@@ -11,6 +11,7 @@
 #include <sirius_drive/session_delegate.h>
 #include "crypto/Signer.h"
 #include "types.h"
+#include "drive/Utils.h"
 
 #include <map>
 #include <shared_mutex>
@@ -73,9 +74,9 @@ public:
             _LOG( "printReport:" );
             if ( auto it = m_dnChannelMap.find( txHash ); it != m_dnChannelMap.end() )
             {
-                for( auto& [key,value] : it->second.m_dnClientMap )
+                for( auto& [key,value] : it->second.m_sentClientMap )
                 {
-                    _LOG( "client: " << int(key[0]) << " " << "requestedSize=" << value.m_requestedSize << "; uploadedSize=" << value.m_uploadedSize );
+                    _LOG( "client: " << int(key[0]) << "; uploadedSize=" << value.m_sentSize );
                 }
                 return;
             }
@@ -182,24 +183,24 @@ public:
             return false;
         }
 
-        uint64_t uploadedSize = 0;
-        auto clientIt = it->second.m_dnClientMap.find(peerKey);
+        uint64_t sentSize = 0;
+        auto clientIt = it->second.m_sentClientMap.find(peerKey);
 
-        if ( clientIt != it->second.m_dnClientMap.end() )
+        if ( clientIt != it->second.m_sentClientMap.end() )
         {
-            uploadedSize = clientIt->second.m_uploadedSize;
+            sentSize = clientIt->second.m_sentSize;
         }
 
-        uint64_t prepaidSize = 0;
+        uint64_t receiptSize = 0;
 
-        auto replicatorIt = it->second.m_replicatorUploadMap.find(publicKey());
+        auto replicatorIt = it->second.m_replicatorUploadRequestMap.find(publicKey());
 
-        if ( replicatorIt != it->second.m_replicatorUploadMap.end() )
+        if ( replicatorIt != it->second.m_replicatorUploadRequestMap.end() )
         {
-            prepaidSize = replicatorIt->second.uploadedSize(peerKey);
+            receiptSize = replicatorIt->second.receiptSize(peerKey);
         }
 
-        if ( uploadedSize > prepaidSize + m_receiptLimit )
+        if ( sentSize > receiptSize + m_receiptLimit )
         {
             _LOG ("Check Download Limit:  Receipts Size Exceeded");
             return false;
@@ -207,20 +208,20 @@ public:
         return true;
     }
 
-    uint8_t getUploadedSize( const std::array<uint8_t,32>& downloadChannelId ) override
-    {
-        DBG_MAIN_THREAD
-
-        uint64_t uploadedSize = 0;
-        if ( auto it = m_dnChannelMap.find( downloadChannelId ); it != m_dnChannelMap.end() )
-        {
-            for( auto& cell: it->second.m_dnClientMap )
-            {
-                uploadedSize += cell.second.m_uploadedSize;
-            }
-        }
-        return uploadedSize;
-    }
+//    uint8_t getUploadedSize( const std::array<uint8_t,32>& downloadChannelId ) override
+//    {
+//        DBG_MAIN_THREAD
+//
+//        uint64_t uploadedSize = 0;
+//        if ( auto it = m_dnChannelMap.find( downloadChannelId ); it != m_dnChannelMap.end() )
+//        {
+//            for( auto& cell: it->second.m_sentClientMap )
+//            {
+//                uploadedSize += cell.second.m_sentSize;
+//            }
+//        }
+//        return uploadedSize;
+//    }
 
     void addChannelInfo( const std::array<uint8_t,32>&  channelId,
                          uint64_t                       prepaidDownloadSize,
@@ -245,19 +246,19 @@ public:
 //            }
 
         DownloadChannelInfo dnChannelInfo {
-            willBeSyncronized, prepaidDownloadSize, 0, {}, driveKey.array(), replicatorsList, {}, {} };
+            willBeSyncronized, prepaidDownloadSize, 0, {}, {}, driveKey.array(), replicatorsList, {} };
         
         // Every client has its own cell
         for( auto& clientKey : clients )
         {
-            dnChannelInfo.m_dnClientMap.insert( { clientKey, {} } );
+            dnChannelInfo.m_sentClientMap.insert( { clientKey, {} } );
         }
         
-        // We prepare upload map that contains information about how much each Replicator has uploaded
+        // We prepare upload request map
         for( const auto& it : replicatorsList )
         {
             if ( it.array() != publicKey() )
-                dnChannelInfo.m_replicatorUploadMap.insert( { it, {}} );
+                dnChannelInfo.m_replicatorUploadRequestMap.insert( { it, {}} );
         }
         
         m_dnChannelMap.insert( { channelId, std::move(dnChannelInfo) } );
@@ -282,8 +283,8 @@ public:
             auto it = m_dnChannelMap.find(channelId);
 
             //(+++)??? restore backup info
-            it->second.m_dnClientMap          = backupIt->second.m_dnClientMap;
-            it->second.m_replicatorUploadMap  = backupIt->second.m_replicatorUploadMap;
+            it->second.m_sentClientMap          = backupIt->second.m_sentClientMap;
+            it->second.m_replicatorUploadRequestMap  = backupIt->second.m_replicatorUploadRequestMap;
             it->second.m_downloadOpinionMap   = backupIt->second.m_downloadOpinionMap;
 
             m_dnChannelMapBackup.erase(backupIt);
@@ -369,7 +370,7 @@ public:
 
         if ( auto it = m_dnChannelMap.find( channelId ); it != m_dnChannelMap.end() )
         {
-            const auto& clientMap = it->second.m_dnClientMap;
+            const auto& clientMap = it->second.m_sentClientMap;
             if ( clientMap.find(peerKey) == clientMap.end() ) {
                 return lt::connection_status::REJECTED;
             }
@@ -475,9 +476,9 @@ public:
         // Maybe this piece was sent to client (during data download)
         if ( auto it = m_dnChannelMap.find( txHash ); it != m_dnChannelMap.end() )
         {
-            if ( auto it2 = it->second.m_dnClientMap.find( receiverPublicKey ); it2 != it->second.m_dnClientMap.end() )
+            if ( auto it2 = it->second.m_sentClientMap.find( receiverPublicKey ); it2 != it->second.m_sentClientMap.end() )
             {
-                it2->second.m_uploadedSize += pieceSize;
+                it2->second.m_sentSize += pieceSize;
             }
             else
             {
@@ -537,7 +538,8 @@ public:
             return false;
         }
         
-        return acceptReceiptImpl( message, true );
+        bool unused;
+        return acceptReceiptImpl( message, true, unused );
     }
     
     void removeChannelInfo( const ChannelId& channelId )
@@ -619,42 +621,71 @@ public:
                 },
                 reinterpret_cast<Signature &>(sig) );
     }
+    
+    const std::vector<uint8_t>* getLastClientReceipt( const std::array<uint8_t,32>&  downloadChannelId,
+                                                      const std::array<uint8_t,32>&  clientPublicKey ) override
+    {
+        auto channelInfoIt = m_dnChannelMap.find( downloadChannelId );
+        if ( channelInfoIt == m_dnChannelMap.end() )
+        {
+            return nullptr;
+        }
+        
+        auto clientReceiptIt = channelInfoIt->second.m_clientReceiptMap.find( clientPublicKey );
+        if ( clientReceiptIt == channelInfoIt->second.m_clientReceiptMap.end() )
+        {
+            return nullptr;
+        }
 
-    bool acceptReceipt( const std::array<uint8_t, 32>& downloadChannelId,
+        auto replicatorIt = clientReceiptIt->second.find( this->m_keyPair.publicKey().array() ); //???
+        if ( replicatorIt == clientReceiptIt->second.end() )
+        {
+            return nullptr;
+        }
+        
+        return &replicatorIt->second;
+    }
+
+
+    void acceptReceipt( const std::array<uint8_t, 32>& downloadChannelId,
                         const std::array<uint8_t, 32>& clientPublicKey,
                         const std::array<uint8_t, 32>& replicatorKey,
                         uint64_t                       downloadedSize,
-                        const std::array<uint8_t, 64>& signature) override
+                        const std::array<uint8_t, 64>& signature,
+                        bool&                          shouldBeDisconnected ) override
     {
         if ( m_session->isEnding() )
         {
-            return false;
+            return;
         }
 
-        return acceptReceiptImpl(
-                    RcptMessage( ChannelId(downloadChannelId),
-                                 ClientKey(clientPublicKey),
-                                 ReplicatorKey(replicatorKey),
-                                 downloadedSize,
-                                 signature ), false );
+        acceptReceiptImpl(
+                RcptMessage( ChannelId(downloadChannelId),
+                             ClientKey(clientPublicKey),
+                             ReplicatorKey(replicatorKey),
+                             downloadedSize,
+                             signature ),
+                false, shouldBeDisconnected );
     }
     
-    bool acceptReceiptImpl( const RcptMessage& msg, bool fromAnotherReplicator )
+    bool acceptReceiptImpl( const RcptMessage& msg, bool fromAnotherReplicator, bool& shouldBeDisconnected )
     {
         // Get channel info
         auto channelInfoIt = m_dnChannelMap.find( msg.channelId() );
         if ( channelInfoIt == m_dnChannelMap.end() )
         {
             _LOG_WARN( dbgOurPeerName() << "unknown channelId (maybe we are late): " << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) );
+            shouldBeDisconnected = true;
             return false;
         }
 
         // Check client key
         //
-        const auto& clientMap = channelInfoIt->second.m_dnClientMap;
+        const auto& clientMap = channelInfoIt->second.m_sentClientMap;
         if ( clientMap.find( msg.clientKey() ) == clientMap.end() )
         {
             _LOG_WARN( "verifyReceipt: bad client key; it is ignored" );
+            shouldBeDisconnected = true;
             return false;
         }
 
@@ -677,12 +708,13 @@ public:
             _LOG( "msg.signature() " << int(msg.signature()[0]) )
 
             _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature: " << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) )
+            shouldBeDisconnected = true;
             return false;
         }
 
         auto& channelInfo = channelInfoIt->second;
 
-        bool isAccepted = acceptUploadSize( msg, channelInfo );
+        bool isAccepted = acceptUploadSize( msg, channelInfo, shouldBeDisconnected );
         
         if ( isAccepted )
         {
@@ -729,13 +761,13 @@ public:
         return isAccepted;
     }
     
-    bool acceptUploadSize( const RcptMessage& msg, DownloadChannelInfo& channelInfo )
+    bool acceptUploadSize( const RcptMessage& msg, DownloadChannelInfo& channelInfo, bool& shouldBeDisconnected )
     {
         DBG_MAIN_THREAD
 
-        auto replicatorInfoIt = channelInfo.m_replicatorUploadMap.find( msg.replicatorKey() );
+        auto replicatorInfoIt = channelInfo.m_replicatorUploadRequestMap.find( msg.replicatorKey() );
         
-        if ( replicatorInfoIt == channelInfo.m_replicatorUploadMap.end() )
+        if ( replicatorInfoIt == channelInfo.m_replicatorUploadRequestMap.end() )
         {
             // It is first receipt for this replicator
             // Check that it exists in our 'shard'
@@ -748,43 +780,41 @@ public:
 //                return false;
 //            }
             
-            replicatorInfoIt = channelInfo.m_replicatorUploadMap.insert( replicatorInfoIt, {msg.replicatorKey(),{}} );
+            replicatorInfoIt = channelInfo.m_replicatorUploadRequestMap.insert( replicatorInfoIt, {msg.replicatorKey(),{}} );
         }
         
-        auto lastAcceptedUploadSize = replicatorInfoIt->second.uploadedSize( msg.clientKey() );
+        auto lastAcceptedReceiptSize = replicatorInfoIt->second.receiptSize( msg.clientKey() );
         
         //_LOG("lastAcceptedUploadSize: " << int(msg.replicatorKey()[0]) << " " << lastAcceptedUploadSize << " " << msg.downloadedSize() );
-        if ( msg.downloadedSize() <= lastAcceptedUploadSize  )
+        if ( msg.downloadedSize() <= lastAcceptedReceiptSize  )
         {
-            //_LOG("old receipt; it is ignored: " << msg.downloadedSize() << " <= " << lastAcceptedUploadSize )
+            // receipt not saved, but we should upload "old piece"
+            shouldBeDisconnected = false;
             return false;
         }
         
-        if ( channelInfo.m_totalReceiptsSize - lastAcceptedUploadSize + msg.downloadedSize() > channelInfo.m_prepaidDownloadSize )
+        if ( channelInfo.m_totalReceiptsSize - lastAcceptedReceiptSize + msg.downloadedSize() > channelInfo.m_prepaidDownloadSize )
         {
-            _LOG("attempt to download more than prepaid; it is ignored ");
+            _LOG("attempt to download more than prepaid; do disconnect");
+            shouldBeDisconnected = true;
             return false;
         }
 
+        // only client receipts for me (for this replicator)
         if ( msg.replicatorKey() == m_keyPair.publicKey().array() )
         {
-            uint64_t uploadedSize = 0;
-            if ( auto clientSizesIt = channelInfo.m_dnClientMap.find( msg.clientKey() ); clientSizesIt != channelInfo.m_dnClientMap.end() )
-            {
-                uploadedSize = clientSizesIt->second.m_uploadedSize;
-            }
-
-            auto requestedSize = msg.downloadedSize() - uploadedSize;
-            if ( requestedSize >= m_advancePaymentLimit )
+            // ?????+
+            if ( msg.downloadedSize() > lastAcceptedReceiptSize + m_advancePaymentLimit )
             {
                 // The client is forbidden to prepay too much in order to avoid an attack
-                _LOG_WARN("attempt to hand over large receipt");
+                _LOG_WARN("attempt to hand over large receipt; do disconnect");
+                shouldBeDisconnected = true;
                 return false;
             }
         }
 
-        channelInfo.m_totalReceiptsSize += msg.downloadedSize() - lastAcceptedUploadSize;
-        replicatorInfoIt->second.acceptReceipt( msg.clientKey(), msg.downloadedSize() );
+        channelInfo.m_totalReceiptsSize += msg.downloadedSize() - lastAcceptedReceiptSize;
+        replicatorInfoIt->second.saveReceiptSize( msg.clientKey(), msg.downloadedSize() );
         
         auto clientReceiptIt = channelInfo.m_clientReceiptMap.find( msg.clientKey() );
         
@@ -795,14 +825,10 @@ public:
             clientReceiptIt = insertedIt;
         }
 
-        auto replicatorIt = clientReceiptIt->second.find( msg.clientKey() );
-        if ( replicatorIt == clientReceiptIt->second.end() )
-        {
-            auto [insertedIt, success] = clientReceiptIt->second.insert( { msg.replicatorKey(), RcptMessage() } );
-            replicatorIt = insertedIt;
-        }
-        replicatorIt->second = msg;
+        // Save receipt message
+        clientReceiptIt->second[msg.replicatorKey()] = msg;
         
+        shouldBeDisconnected = false;
         return true;
     }
 
@@ -837,10 +863,9 @@ public:
         return 0;
     }
 
-    uint64_t requestedSize( const std::array<uint8_t,32>&  transactionHash,
-                            const std::array<uint8_t,32>&  peerKey ) override
+    uint64_t requestedSize( const std::array<uint8_t,32>&,
+                            const std::array<uint8_t,32>& ) override
     {
-        DBG_MAIN_THREAD
         return 0;
     }
 

@@ -255,7 +255,7 @@ public:
         {
             return it->second.m_endpoint;
         }
-        _ASSERT(m_unknownEndpointsMap.find(key) == m_unknownEndpointsMap.end())
+        //_ASSERT(m_unknownEndpointsMap.find(key) == m_unknownEndpointsMap.end())
         return {};
     }
 

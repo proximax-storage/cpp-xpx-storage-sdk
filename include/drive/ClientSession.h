@@ -6,6 +6,7 @@
 #pragma once
 
 #include "drive/Session.h"
+#include "drive/RcptMessage.h"
 #include "drive/log.h"
 #include "drive/Utils.h"
 #include "crypto/Signer.h"
@@ -67,6 +68,40 @@ public:
         return m_keyPair.publicKey().array();
     }
 
+    void onLastMyReceipt( const std::vector<uint8_t> receipt ) override
+    {
+        const RcptMessage& msg = reinterpret_cast<const RcptMessage&>(receipt);
+        
+        if ( receipt.size() != 104+64 )
+        {
+            _LOG_WARN( "Bad last receipt size: " << receipt.size() );
+            return;
+        }
+        
+        // Check sign
+        if ( ! crypto::Verify( msg.clientKey(),
+                               {
+                                    utils::RawBuffer{msg.channelId()},
+                                    utils::RawBuffer{msg.clientKey()},
+                                    utils::RawBuffer{msg.replicatorKey()},
+                                    utils::RawBuffer{(const uint8_t*)msg.downloadedSizePtr(),8}
+                               },
+                               reinterpret_cast<const Signature&>(msg.signature()) ))
+        {
+            _LOG( "msg.channelId() " << msg.channelId() )
+            _LOG( "msg.clientKey() " << msg.clientKey() )
+            _LOG( "msg.replicatorKey() " << msg.replicatorKey() )
+            _LOG( "downloadedSize: " << *msg.downloadedSizePtr() )
+            _LOG( "msg.signature() " << int(msg.signature()[0]) )
+
+            _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature will be ignored: " << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) )
+            return;
+        }
+
+        m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] = *msg.downloadedSizePtr();
+        m_downloadChannelMap[ msg.channelId().array() ].m_receivedSize[ msg.replicatorKey().array() ] = 0;//*msg.downloadedSizePtr();
+    }
+
     virtual void onTorrentDeleted( lt::torrent_handle handle ) override
     {
         m_session->onTorrentDeleted( handle );
@@ -96,23 +131,23 @@ public:
         it->second.m_downloadReplicatorList = replicators;
     }
 
-    void setDownloadChannelRequestedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
-    {
-        auto it = m_downloadChannelMap.find(downloadChannelId);
-        if (it == m_downloadChannelMap.end()) {
-            return;
-        }
-        it->second.m_requestedSize = sizes;
-    }
-
-    void setDownloadChannelReceivedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
-    {
-        auto it = m_downloadChannelMap.find(downloadChannelId);
-        if (it == m_downloadChannelMap.end()) {
-            return;
-        }
-        it->second.m_requestedSize = sizes;
-    }
+//    void setDownloadChannelRequestedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
+//    {
+//        auto it = m_downloadChannelMap.find(downloadChannelId);
+//        if (it == m_downloadChannelMap.end()) {
+//            return;
+//        }
+//        it->second.m_requestedSize = sizes;
+//    }
+//
+//    void setDownloadChannelReceivedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
+//    {
+//        auto it = m_downloadChannelMap.find(downloadChannelId);
+//        if (it == m_downloadChannelMap.end()) {
+//            return;
+//        }
+//        it->second.m_requestedSize = sizes;
+//    }
 
     void onHandshake( uint64_t /*uploadedSize*/ ) override
     {
@@ -133,7 +168,7 @@ public:
 
         const auto& downloadChannel = m_downloadChannelMap[downloadChannelId];
 
-        downloadParameters.m_transactionHash = downloadChannelId;
+        downloadParameters.m_transactionHashX = downloadChannelId;
         
         if ( auto it = m_modifyTorrentMap.find( downloadParameters.m_infoHash ); it != m_modifyTorrentMap.end() )
         {
@@ -452,7 +487,7 @@ protected:
 //        _LOG( " - receivedSize:  " << m_receivedSize[peerPublicKey] );
     }
 
-    bool checkDownloadLimit( const std::array<uint8_t,32>& /*reciept*/,
+    bool checkDownloadLimit( const std::array<uint8_t,32>& /*clientKey*/,
                              const std::array<uint8_t,32>& /*downloadChannelId*/,
                              uint64_t                      /*downloadedSize*/ ) override
     {
@@ -594,21 +629,13 @@ protected:
     uint64_t requestedSize( const std::array<uint8_t,32>&  transactionHash,
                             const std::array<uint8_t,32>&  peerPublicKey ) override
     {
-        auto it = m_downloadChannelMap.find(transactionHash);
-        if (it == m_downloadChannelMap.end()) {
-            return 0;
-        }
-        return it->second.m_requestedSize[peerPublicKey];
+        return m_downloadChannelMap[transactionHash].m_requestedSize[peerPublicKey];
     }
 
     uint64_t receivedSize( const std::array<uint8_t,32>&  transactionHash,
                            const std::array<uint8_t,32>&  peerPublicKey ) override
     {
-        auto it = m_downloadChannelMap.find(transactionHash);
-        if (it == m_downloadChannelMap.end()) {
-            return 0;
-        }
-        return it->second.m_receivedSize[peerPublicKey];
+        return m_downloadChannelMap[transactionHash].m_receivedSize[peerPublicKey];
     }
     
 //    virtual void onMessageReceived( const std::string& query, const std::string& message, const boost::asio::ip::udp::endpoint& source ) override
@@ -626,6 +653,7 @@ public:
     }
 
 protected:
+public: //TODO
 
     const char* dbgOurPeerName() override
     {

@@ -126,6 +126,7 @@ public:
         , m_replicator(replicator)
         , m_downloadLimiter(downloadLimiter)
     {
+        _LOG( "DefaultSession: " << address << " : " << toString(m_downloadLimiter.lock()->publicKey()) );
         m_dbgOurPeerName = m_downloadLimiter.lock()->dbgOurPeerName();
         
         m_session.set_alert_notify( [this] { this->alertHandler(); } );
@@ -313,6 +314,8 @@ public:
 
         settingsPack.set_int( lt::settings_pack::max_retry_port_bind, 0 );
         settingsPack.set_bool( lt::settings_pack::listen_system_port_fallback, false );
+        
+        //settingsPack.set_int( lt::settings_pack::max_out_request_queue, 10 );
 
         return settingsPack;
     }

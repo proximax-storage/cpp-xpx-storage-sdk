@@ -892,18 +892,10 @@ public:
 
         for( const auto& replicatorIt : info.m_dnReplicatorShard )
         {
-            if ( auto downloadedIt = info.m_replicatorUploadMap.find( replicatorIt.array()); downloadedIt != info.m_replicatorUploadMap.end() )
+            if ( auto downloadedIt = info.m_replicatorUploadRequestMap.find( replicatorIt.array());
+                 downloadedIt != info.m_replicatorUploadRequestMap.end() )
             {
-                myOpinion.m_downloadLayout.push_back( {downloadedIt->first.array(), downloadedIt->second.uploadedSize() } );
-            }
-            else if ( replicatorIt == publicKey() )
-            {
-                uint64_t uploadedSize = 0;
-                for( auto& cell: info.m_dnClientMap )
-                {
-                    uploadedSize += cell.second.m_uploadedSize;
-                }
-                myOpinion.m_downloadLayout.push_back( { publicKey(), uploadedSize } );
+                myOpinion.m_downloadLayout.push_back( {downloadedIt->first.array(), downloadedIt->second.receiptSize() } );
             }
             else
             {
