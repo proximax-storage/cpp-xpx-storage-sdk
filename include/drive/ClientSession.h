@@ -72,7 +72,7 @@ public:
     {
         const RcptMessage& msg = reinterpret_cast<const RcptMessage&>(receipt);
         
-        if ( receipt.size() != 104+64 )
+        if ( msg.isValidSize() )
         {
             _LOG_WARN( "Bad last receipt size: " << receipt.size() );
             return;
@@ -98,7 +98,10 @@ public:
             return;
         }
 
-        m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] = *msg.downloadedSizePtr();
+        if ( m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] < *msg.downloadedSizePtr() )
+        {
+            m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] = *msg.downloadedSizePtr();
+        }
         m_downloadChannelMap[ msg.channelId().array() ].m_receivedSize[ msg.replicatorKey().array() ] = 0;//*msg.downloadedSizePtr();
     }
 
