@@ -895,7 +895,7 @@ public:
             if ( auto downloadedIt = info.m_replicatorUploadRequestMap.find( replicatorIt.array());
                  downloadedIt != info.m_replicatorUploadRequestMap.end() )
             {
-                myOpinion.m_downloadLayout.push_back( {downloadedIt->first.array(), downloadedIt->second.receiptSize() } );
+                myOpinion.m_downloadLayout.push_back( {downloadedIt->first.array(), downloadedIt->second.totalAcceptedReceiptSize() } );
             }
             else
             {

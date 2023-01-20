@@ -24,32 +24,96 @@ namespace sirius::drive {
 // It is used for calculation of total data size, requested by 'client'
 struct ReplicatorUploadRequestInfo
 {
-public:
-    // It is the size uploaded (to client) by another replicator
-    //
-    std::map<ClientKey,uint64_t> m_clientMap;
-
-    uint64_t receiptSize() const
+    struct ReceiptSizes
     {
-        uint64_t uploadedSize = 0;
-        for( auto& cell: m_clientMap )
+        uint64_t m_acceptedSize = 0;
+        uint64_t m_notAcceptedSize = 0;
+
+        template <class Archive> void serialize( Archive & arch )
         {
-            uploadedSize += cell.second;
+            arch(m_acceptedSize);
+            arch(m_notAcceptedSize);
         }
-        return uploadedSize;
+    };
+    
+    // It is the size that will be uploaded (to client) by my or another replicator
+    //
+    std::map<ClientKey,ReceiptSizes> m_clientMap;
+
+public:
+
+    uint64_t lastAcceptedReceiptSize( const ClientKey& clientKey )
+    {
+        return m_clientMap[clientKey].m_acceptedSize;
     }
     
-    uint64_t receiptSize( const ClientKey& clientKey )
+    uint64_t maxReceiptSize( const ClientKey& clientKey )
     {
-        return m_clientMap[clientKey];
+        if ( m_clientMap[clientKey].m_acceptedSize < m_clientMap[clientKey].m_notAcceptedSize )
+        {
+            return m_clientMap[clientKey].m_notAcceptedSize;
+        }
+        return m_clientMap[clientKey].m_acceptedSize;
+    }
+    
+    uint64_t totalAcceptedReceiptSize() const
+    {
+        uint64_t receiptSize = 0;
+        for( auto& cell: m_clientMap )
+        {
+            receiptSize += cell.second.m_acceptedSize;
+        }
+        return receiptSize;
     }
     
     void saveReceiptSize( const ClientKey& clientKey, uint64_t tobeUploadedSize )
     {
         auto it = m_clientMap.find( clientKey );
         __ASSERT( it != m_clientMap.end() )
-        __ASSERT( it->second <= tobeUploadedSize )
-        it->second = tobeUploadedSize;
+        __ASSERT( it->second.m_acceptedSize <= tobeUploadedSize )
+        it->second.m_acceptedSize = tobeUploadedSize;
+    }
+    
+    void saveNotAcceptedReceiptSize( const ClientKey& clientKey, uint64_t size )
+    {
+        auto it = m_clientMap.find( clientKey );
+        __ASSERT( it != m_clientMap.end() )
+        if ( it->second.m_notAcceptedSize < size )
+        {
+            it->second.m_notAcceptedSize = size;
+        }
+    }
+    
+    bool tryFixReceiptSize( uint64_t prepaidSize )
+    {
+        bool rc = false;
+        if ( prepaidSize >= totalReceiptSize() )
+        {
+            for( auto& cell: m_clientMap )
+            {
+                if ( cell.second.m_notAcceptedSize > cell.second.m_acceptedSize )
+                {
+                    cell.second.m_acceptedSize = cell.second.m_notAcceptedSize;
+                    cell.second.m_notAcceptedSize = 0;
+                    rc = true;
+                }
+            }
+        }
+        return rc;
+    }
+    
+    uint64_t totalReceiptSize() const
+    {
+        uint64_t receiptSize = 0;
+        for( auto& cell: m_clientMap )
+        {
+            if ( cell.second.m_notAcceptedSize > cell.second.m_acceptedSize )
+            {
+                receiptSize += cell.second.m_notAcceptedSize;
+            }
+            receiptSize += cell.second.m_acceptedSize;
+        }
+        return receiptSize;
     }
     
     template <class Archive> void serialize( Archive & arch )

@@ -197,7 +197,7 @@ public:
 
         if ( replicatorIt != it->second.m_replicatorUploadRequestMap.end() )
         {
-            receiptSize = replicatorIt->second.receiptSize(peerKey);
+            receiptSize = replicatorIt->second.lastAcceptedReceiptSize(peerKey);
         }
 
         if ( sentSize > receiptSize + m_receiptLimit )
@@ -781,7 +781,7 @@ public:
             replicatorInfoIt = channelInfo.m_replicatorUploadRequestMap.insert( replicatorInfoIt, {msg.replicatorKey(),{}} );
         }
         
-        auto lastAcceptedReceiptSize = replicatorInfoIt->second.receiptSize( msg.clientKey() );
+        auto lastAcceptedReceiptSize = replicatorInfoIt->second.lastAcceptedReceiptSize( msg.clientKey() );
         
         //_LOG("lastAcceptedUploadSize: " << int(msg.replicatorKey()[0]) << " " << lastAcceptedUploadSize << " " << msg.downloadedSize() );
         if ( msg.downloadedSize() <= lastAcceptedReceiptSize  )
