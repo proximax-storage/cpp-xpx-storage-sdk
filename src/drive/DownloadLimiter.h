@@ -529,17 +529,17 @@ public:
 
 
     // will be called when one replicator informs another about downloaded size by client
-    virtual bool acceptReceiptFromAnotherReplicator( const RcptMessage& message ) override
+    virtual void acceptReceiptFromAnotherReplicator( const RcptMessage& message ) override
     {
         DBG_MAIN_THREAD
         
         if ( m_session->isEnding() )
         {
-            return false;
+            return;
         }
         
         bool unused;
-        return acceptReceiptImpl( message, true, unused );
+        acceptReceiptImpl( message, true, unused );
     }
     
     void removeChannelInfo( const ChannelId& channelId )
@@ -668,7 +668,7 @@ public:
                 false, shouldBeDisconnected );
     }
     
-    bool acceptReceiptImpl( const RcptMessage& msg, bool fromAnotherReplicator, bool& shouldBeDisconnected )
+    void acceptReceiptImpl( const RcptMessage& msg, bool fromAnotherReplicator, bool& shouldBeDisconnected )
     {
         // Get channel info
         auto channelInfoIt = m_dnChannelMap.find( msg.channelId() );
@@ -676,7 +676,7 @@ public:
         {
             _LOG_WARN( dbgOurPeerName() << "unknown channelId (maybe we are late): " << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) );
             shouldBeDisconnected = true;
-            return false;
+            return;
         }
 
         // Check client key
@@ -686,7 +686,7 @@ public:
         {
             _LOG_WARN( "verifyReceipt: bad client key; it is ignored" );
             shouldBeDisconnected = true;
-            return false;
+            return;
         }
 
         //
@@ -709,7 +709,7 @@ public:
 
             _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature: " << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) )
             shouldBeDisconnected = true;
-            return false;
+            return;
         }
 
         auto& channelInfo = channelInfoIt->second;
@@ -757,8 +757,6 @@ public:
                 sendMessage( "rcpt", key, msg );
             }
         }
-        
-        return isAccepted;
     }
     
     bool acceptUploadSize( const RcptMessage& msg, DownloadChannelInfo& channelInfo, bool& shouldBeDisconnected )
