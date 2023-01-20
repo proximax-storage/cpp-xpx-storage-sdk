@@ -715,71 +715,71 @@ public:
 
         auto& channelInfo = channelInfoIt->second;
 
-        bool isAccepted = acceptUploadSize( msg, channelInfo, shouldBeDisconnected );
-        
-        if ( isAccepted )
+        if ( ! acceptUploadSize( msg, channelInfo, shouldBeDisconnected ) )
         {
-            bool shouldBeForwared = false;
-            
-            // Save receipt message
+            return;
+        }
+        
+        // Save receipt message
+        //
+        bool shouldBeForwared = false;
+        {
+            if ( auto clientReceiptIt = channelInfo.m_clientReceiptMap.find( msg.clientKey() );
+                 clientReceiptIt != channelInfo.m_clientReceiptMap.end() )
             {
-                if ( auto clientReceiptIt = channelInfo.m_clientReceiptMap.find( msg.clientKey() );
-                     clientReceiptIt != channelInfo.m_clientReceiptMap.end() )
+                if ( clientReceiptIt->second[msg.replicatorKey()].downloadedSize() < msg.downloadedSize() )
                 {
-                    if ( clientReceiptIt->second[msg.replicatorKey()].downloadedSize() < msg.downloadedSize() )
-                    {
-                        clientReceiptIt->second[msg.replicatorKey()] = msg;
-                        shouldBeForwared = true;
-                    }
-                }
-                else
-                {
-                    auto [insertedIt, success] = channelInfo.m_clientReceiptMap.insert( { msg.clientKey(), ClientReceipts() } );
-                    insertedIt->second[msg.replicatorKey()] = msg;
+                    clientReceiptIt->second[msg.replicatorKey()] = msg;
                     shouldBeForwared = true;
                 }
             }
-
-            if ( shouldBeForwared )
+            else
             {
-                //
-                // Select 4 replicators and forward them the receipt
-                //
+                auto [insertedIt, success] = channelInfo.m_clientReceiptMap.insert( { msg.clientKey(), ClientReceipts() } );
+                insertedIt->second[msg.replicatorKey()] = msg;
+                shouldBeForwared = true;
+            }
+        }
 
-                std::vector<ReplicatorKey> receivers;
-                if ( fromAnotherReplicator )
+        if ( shouldBeForwared )
+        {
+            //
+            // Select 4 replicators and forward them the receipt
+            //
+
+            std::vector<ReplicatorKey> receivers;
+            if ( fromAnotherReplicator )
+            {
+                std::vector<ReplicatorKey> candidates;
+                for( const auto& key: channelInfoIt->second.m_dnReplicatorShard )
                 {
-                    std::vector<ReplicatorKey> candidates;
-                    for( const auto& key: channelInfoIt->second.m_dnReplicatorShard )
+                    if ( key != m_keyPair.publicKey().array() )
                     {
-                        if ( key != m_keyPair.publicKey().array() )
-                        {
-                            receivers.emplace_back(key);
-                        }
-                    }
-
-                    while ( !candidates.empty() && receivers.size() < 4 )
-                    {
-                        auto randIndex = random() % candidates.size();
-                        std::swap( candidates[randIndex], candidates.back() );
-                        receivers.emplace_back(candidates.back());
-                        candidates.pop_back();
-                    }
-                }
-                else {
-                    for( const auto& key: channelInfoIt->second.m_dnReplicatorShard )
-                    {
-                        if ( key != m_keyPair.publicKey().array() )
-                        {
-                            receivers.emplace_back(key);
-                        }
+                        receivers.emplace_back(key);
                     }
                 }
 
-                for( const auto& key: receivers )
+                while ( !candidates.empty() && receivers.size() < 4 )
                 {
-                    sendMessage( "rcpt", key, msg );
+                    auto randIndex = random() % candidates.size();
+                    std::swap( candidates[randIndex], candidates.back() );
+                    receivers.emplace_back(candidates.back());
+                    candidates.pop_back();
                 }
+            }
+            else {
+                for( const auto& key: channelInfoIt->second.m_dnReplicatorShard )
+                {
+                    if ( key != m_keyPair.publicKey().array() )
+                    {
+                        receivers.emplace_back(key);
+                    }
+                }
+            }
+
+            for( const auto& key: receivers )
+            {
+                sendMessage( "rcpt", key, msg );
             }
         }
     }
@@ -787,6 +787,8 @@ public:
     bool acceptUploadSize( const RcptMessage& msg, DownloadChannelInfo& channelInfo, bool& shouldBeDisconnected )
     {
         DBG_MAIN_THREAD
+
+        shouldBeDisconnected = false;
 
         auto replicatorInfoIt = channelInfo.m_replicatorUploadRequestMap.find( msg.replicatorKey() );
         
@@ -806,40 +808,28 @@ public:
             replicatorInfoIt = channelInfo.m_replicatorUploadRequestMap.insert( replicatorInfoIt, {msg.replicatorKey(),{}} );
         }
         
-        auto lastAcceptedReceiptSize = replicatorInfoIt->second.lastAcceptedReceiptSize( msg.clientKey() );
-        
-        //_LOG("lastAcceptedUploadSize: " << int(msg.replicatorKey()[0]) << " " << lastAcceptedUploadSize << " " << msg.downloadedSize() );
-        if ( msg.downloadedSize() <= lastAcceptedReceiptSize  )
+        bool wasFixed = replicatorInfoIt->second.tryFixReceiptSize( channelInfo.m_totalReceiptsSize );
+
+        auto lastReceiptSize = replicatorInfoIt->second.lastAcceptedReceiptSize( msg.clientKey() );
+
+        // skip old receipts
+        if ( msg.downloadedSize() <= lastReceiptSize  )
         {
-            // receipt not saved, but we should upload "old piece"
-            shouldBeDisconnected = false;
-            return false;
+            return wasFixed;
         }
-        
-        if ( channelInfo.m_totalReceiptsSize - lastAcceptedReceiptSize + msg.downloadedSize() > channelInfo.m_prepaidDownloadSize )
+
+        // Update 'm_totalReceiptsSize'
+        channelInfo.m_totalReceiptsSize += msg.downloadedSize() - replicatorInfoIt->second.maxReceiptSize( msg.clientKey() );
+
+        // Check prepaid channel size
+        if ( channelInfo.m_totalReceiptsSize > channelInfo.m_prepaidDownloadSize )
         {
-            _LOG("attempt to download more than prepaid; do disconnect");
             shouldBeDisconnected = true;
-            return false;
+            replicatorInfoIt->second.saveNotAcceptedReceiptSize( msg.clientKey(), msg.downloadedSize() );
+            return true;
         }
 
-        // only client receipts for me (for this replicator)
-        if ( msg.replicatorKey() == m_keyPair.publicKey().array() )
-        {
-            // ?????+
-            if ( msg.downloadedSize() > lastAcceptedReceiptSize + m_advancePaymentLimit )
-            {
-                // The client is forbidden to prepay too much in order to avoid an attack
-                _LOG_WARN("attempt to hand over large receipt; do disconnect");
-                shouldBeDisconnected = true;
-                return false;
-            }
-        }
-
-        channelInfo.m_totalReceiptsSize += msg.downloadedSize() - lastAcceptedReceiptSize;
         replicatorInfoIt->second.saveReceiptSize( msg.clientKey(), msg.downloadedSize() );
-        
-        shouldBeDisconnected = false;
         return true;
     }
 
