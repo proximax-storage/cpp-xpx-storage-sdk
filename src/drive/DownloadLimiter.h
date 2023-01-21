@@ -743,43 +743,53 @@ public:
 
         if ( shouldBeForwared )
         {
-            //
-            // Select 4 replicators and forward them the receipt
-            //
-
-            std::vector<ReplicatorKey> receivers;
-            if ( fromAnotherReplicator )
+            if ( msg.replicatorKey() == m_keyPair.publicKey().array() )
             {
-                std::vector<ReplicatorKey> candidates;
-                for( const auto& key: channelInfoIt->second.m_dnReplicatorShard )
+                sendReceiptToOtherReplicators( msg.channelId().array(),
+                                               msg.clientKey().array(),
+                                               msg.downloadedSize(),
+                                               msg.signature() );
+            }
+            else
+            {
+                //
+                // Select 4 replicators and forward them the receipt
+                //
+
+                std::vector<ReplicatorKey> receivers;
+                if ( fromAnotherReplicator )
                 {
-                    if ( key != m_keyPair.publicKey().array() )
+                    std::vector<ReplicatorKey> candidates;
+                    for( const auto& key: channelInfoIt->second.m_dnReplicatorShard )
                     {
-                        receivers.emplace_back(key);
+                        if ( key != m_keyPair.publicKey().array() )
+                        {
+                            receivers.emplace_back(key);
+                        }
+                    }
+
+                    while ( !candidates.empty() && receivers.size() < 4 )
+                    {
+                        auto randIndex = random() % candidates.size();
+                        std::swap( candidates[randIndex], candidates.back() );
+                        receivers.emplace_back(candidates.back());
+                        candidates.pop_back();
+                    }
+                }
+                else {
+                    for( const auto& key: channelInfoIt->second.m_dnReplicatorShard )
+                    {
+                        if ( key != m_keyPair.publicKey().array() )
+                        {
+                            receivers.emplace_back(key);
+                        }
                     }
                 }
 
-                while ( !candidates.empty() && receivers.size() < 4 )
+                for( const auto& key: receivers )
                 {
-                    auto randIndex = random() % candidates.size();
-                    std::swap( candidates[randIndex], candidates.back() );
-                    receivers.emplace_back(candidates.back());
-                    candidates.pop_back();
+                    sendMessage( "rcpt", key, msg );
                 }
-            }
-            else {
-                for( const auto& key: channelInfoIt->second.m_dnReplicatorShard )
-                {
-                    if ( key != m_keyPair.publicKey().array() )
-                    {
-                        receivers.emplace_back(key);
-                    }
-                }
-            }
-
-            for( const auto& key: receivers )
-            {
-                sendMessage( "rcpt", key, msg );
             }
         }
     }
