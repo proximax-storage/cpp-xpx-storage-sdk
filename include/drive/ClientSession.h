@@ -200,7 +200,9 @@ public:
 
         auto downloadChannelIdAsArray = downloadChannelId.array();
 
-        const ReplicatorList& replicators = !replicatorList.empty() ? replicatorList : downloadChannel.m_downloadReplicatorList;
+//        const ReplicatorList& replicators = !replicatorList.empty() ? replicatorList : downloadChannel.m_downloadReplicatorList;
+        ReplicatorList replicators = downloadChannel.m_downloadReplicatorList;
+        replicators.insert( replicators.end(), replicatorList.begin(), replicatorList.end() );
 
         // start downloading
         return m_session->download( std::move(downloadParameters),
