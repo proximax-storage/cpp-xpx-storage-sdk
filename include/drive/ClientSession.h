@@ -68,18 +68,25 @@ public:
         return m_keyPair.publicKey().array();
     }
 
-    void onLastMyReceipt( const std::vector<uint8_t> receipt ) override
+    void onLastMyReceipt( const std::vector<uint8_t> receipt, const std::unique_ptr<std::array<uint8_t,32>>& channelId ) override
     {
         const RcptMessage& msg = reinterpret_cast<const RcptMessage&>(receipt);
         
-        if ( msg.isValidSize() )
+        if ( ! msg.isValidSize() )
         {
             _LOG_WARN( "Bad last receipt size: " << receipt.size() );
             return;
         }
         
+        assert(channelId);
+        if ( msg.channelId() != *channelId )
+        {
+            _LOG_WARN( "Bad channelId: " << toString(*channelId) );
+            return;
+        }
+        
         // Check sign
-        if ( ! crypto::Verify( msg.clientKey(),
+        if ( ! crypto::Verify( m_keyPair.publicKey(),// msg.clientKey(),
                                {
                                     utils::RawBuffer{msg.channelId()},
                                     utils::RawBuffer{msg.clientKey()},
