@@ -650,7 +650,6 @@ public:
 
     void acceptReceipt( const std::array<uint8_t, 32>& downloadChannelId,
                         const std::array<uint8_t, 32>& clientPublicKey,
-                        const std::array<uint8_t, 32>& replicatorKey,
                         uint64_t                       downloadedSize,
                         const std::array<uint8_t, 64>& signature,
                         bool&                          shouldBeDisconnected ) override
@@ -659,11 +658,11 @@ public:
         {
             return;
         }
-
+        
         acceptReceiptImpl(
                 RcptMessage( ChannelId(downloadChannelId),
                              ClientKey(clientPublicKey),
-                             ReplicatorKey(replicatorKey),
+                             m_keyPair.publicKey().array(),
                              downloadedSize,
                              signature ),
                 false, shouldBeDisconnected );
@@ -757,14 +756,13 @@ public:
                 //
 
                 std::vector<ReplicatorKey> receivers;
-                if ( fromAnotherReplicator )
                 {
                     std::vector<ReplicatorKey> candidates;
                     for( const auto& key: channelInfoIt->second.m_dnReplicatorShard )
                     {
                         if ( key != m_keyPair.publicKey().array() )
                         {
-                            receivers.emplace_back(key);
+                            candidates.emplace_back(key);
                         }
                     }
 
@@ -774,15 +772,6 @@ public:
                         std::swap( candidates[randIndex], candidates.back() );
                         receivers.emplace_back(candidates.back());
                         candidates.pop_back();
-                    }
-                }
-                else {
-                    for( const auto& key: channelInfoIt->second.m_dnReplicatorShard )
-                    {
-                        if ( key != m_keyPair.publicKey().array() )
-                        {
-                            receivers.emplace_back(key);
-                        }
                     }
                 }
 
@@ -818,7 +807,7 @@ public:
             replicatorInfoIt = channelInfo.m_replicatorUploadRequestMap.insert( replicatorInfoIt, {msg.replicatorKey(),{}} );
         }
         
-        bool wasFixed = replicatorInfoIt->second.tryFixReceiptSize( channelInfo.m_totalReceiptsSize );
+        bool wasFixed = replicatorInfoIt->second.tryFixReceiptSize( channelInfo.m_prepaidDownloadSize );
 
         auto lastReceiptSize = replicatorInfoIt->second.lastAcceptedReceiptSize( msg.clientKey() );
 

@@ -81,9 +81,15 @@ public:
         assert(channelId);
         if ( msg.channelId() != *channelId )
         {
-            _LOG_WARN( "Bad channelId: " << toString(*channelId) );
+            _LOG_WARN( "Bad channelId: " << toString(msg.channelId()) << " != " << toString(*channelId) );
             return;
         }
+        
+//        if ( msg.clientKey() != m_keyPair.publicKey().array() )
+//        {
+//            _LOG_WARN( "Bad clientKey: " << toString(msg.clientKey().array()) );
+//            return;
+//        }
         
         // Check sign
         if ( ! crypto::Verify( m_keyPair.publicKey(),// msg.clientKey(),

@@ -111,7 +111,10 @@ public:
             {
                 receiptSize += cell.second.m_notAcceptedSize;
             }
-            receiptSize += cell.second.m_acceptedSize;
+            else
+            {
+                receiptSize += cell.second.m_acceptedSize;
+            }
         }
         return receiptSize;
     }
