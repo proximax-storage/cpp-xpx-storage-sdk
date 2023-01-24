@@ -200,7 +200,6 @@ public:
             receiptSize = replicatorIt->second.lastAcceptedReceiptSize(peerKey);
         }
 
-        // is it possible???
         if ( sentSize > receiptSize + m_receiptLimit )
         {
             _LOG ("Check Download Limit:  Receipts Size Exceeded");
@@ -714,10 +713,7 @@ public:
 
         auto& channelInfo = channelInfoIt->second;
 
-        if ( ! acceptUploadSize( msg, channelInfo, shouldBeDisconnected ) )
-        {
-            return;
-        }
+        acceptUploadSize( msg, channelInfo, shouldBeDisconnected );
         
         // Save receipt message
         //
@@ -783,7 +779,7 @@ public:
         }
     }
     
-    bool acceptUploadSize( const RcptMessage& msg, DownloadChannelInfo& channelInfo, bool& shouldBeDisconnected )
+    void acceptUploadSize( const RcptMessage& msg, DownloadChannelInfo& channelInfo, bool& shouldBeDisconnected )
     {
         DBG_MAIN_THREAD
 
@@ -807,14 +803,15 @@ public:
             replicatorInfoIt = channelInfo.m_replicatorUploadRequestMap.insert( replicatorInfoIt, {msg.replicatorKey(),{}} );
         }
         
-        bool wasFixed = replicatorInfoIt->second.tryFixReceiptSize( channelInfo.m_prepaidDownloadSize );
+        replicatorInfoIt->second.tryFixReceiptSize( channelInfo.m_prepaidDownloadSize );
 
-        auto lastReceiptSize = replicatorInfoIt->second.lastAcceptedReceiptSize( msg.clientKey() );
+        auto lastReceiptSize = replicatorInfoIt->second.maxReceiptSize( msg.clientKey() );
+        _LOG( "*rcpt* lastReceiptSize: " << lastReceiptSize << " msg: " << msg.downloadedSize() )
 
         // skip old receipts
         if ( msg.downloadedSize() <= lastReceiptSize  )
         {
-            return wasFixed;
+            return;
         }
 
         // Update 'm_totalReceiptsSize'
@@ -825,11 +822,11 @@ public:
         {
             shouldBeDisconnected = true;
             replicatorInfoIt->second.saveNotAcceptedReceiptSize( msg.clientKey(), msg.downloadedSize() );
-            return true;
+            return;
         }
 
         replicatorInfoIt->second.saveReceiptSize( msg.clientKey(), msg.downloadedSize() );
-        return true;
+        return;
     }
 
     const std::array<uint8_t,32>& publicKey() override

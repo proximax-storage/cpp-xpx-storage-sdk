@@ -84,9 +84,8 @@ public:
         }
     }
     
-    bool tryFixReceiptSize( uint64_t prepaidSize )
+    void tryFixReceiptSize( uint64_t prepaidSize )
     {
-        bool rc = false;
         if ( prepaidSize >= totalReceiptSize() )
         {
             for( auto& cell: m_clientMap )
@@ -95,11 +94,9 @@ public:
                 {
                     cell.second.m_acceptedSize = cell.second.m_notAcceptedSize;
                     cell.second.m_notAcceptedSize = 0;
-                    rc = true;
                 }
             }
         }
-        return rc;
     }
     
     uint64_t totalReceiptSize() const
