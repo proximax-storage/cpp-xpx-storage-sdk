@@ -160,10 +160,13 @@ public:
 
     bool checkDownloadLimit( const std::array<uint8_t,32>& peerKey,
                              const std::array<uint8_t,32>& downloadChannelId,
-                             uint64_t downloadedSize) override
+                             uint64_t                      downloadedSize,
+                             lt::errors::error_code_enum&  outErrorCode ) override
     {
         DBG_MAIN_THREAD
         
+        outErrorCode = lt::errors::no_error;
+
         if ( m_session->isEnding() )
         {
             return false;
@@ -174,12 +177,15 @@ public:
         if ( it == m_dnChannelMap.end() )
         {
             _LOG ("Check Download Limit:  No Such a Download Channel");
+            outErrorCode = lt::errors::sirius_no_channel;
             return false;
         }
 
         if ( it->second.m_isSynchronizing )
         {
             _LOG ("Check Download Limit: channel is syncronizing");
+            //???
+            outErrorCode = lt::errors::sirius_no_channel;
             return false;
         }
 
@@ -203,6 +209,7 @@ public:
         if ( sentSize > receiptSize + m_receiptLimit )
         {
             _LOG ("Check Download Limit:  Receipts Size Exceeded");
+            outErrorCode = lt::errors::sirius_receipt_size_too_small;
             return false;
         }
         return true;
@@ -351,9 +358,12 @@ public:
     lt::connection_status acceptClientConnection( const std::array<uint8_t,32>&  channelId,
                                                   const std::array<uint8_t,32>&  peerKey,
                                                   const std::array<uint8_t,32>&  driveKey,
-                                                  const std::array<uint8_t,32>&  fileHash) override
+                                                  const std::array<uint8_t,32>&  fileHash,
+                                                  lt::errors::error_code_enum&   outErrorCode ) override
     {
         DBG_MAIN_THREAD
+
+        outErrorCode = lt::errors::no_error;
 
         if ( m_session->isEnding() )
         {
@@ -371,7 +381,9 @@ public:
         if ( auto it = m_dnChannelMap.find( channelId ); it != m_dnChannelMap.end() )
         {
             const auto& clientMap = it->second.m_sentClientMap;
-            if ( clientMap.find(peerKey) == clientMap.end() ) {
+            if ( clientMap.find(peerKey) == clientMap.end() )
+            {
+                outErrorCode = lt::errors::sirius_no_client_in_channel;
                 return lt::connection_status::REJECTED;
             }
             if ( it->second.m_totalReceiptsSize < it->second.m_prepaidDownloadSize )
@@ -382,11 +394,13 @@ public:
             {
                 _LOG_WARN( "Failed: it->second.m_totalReceiptsSize < it->second.m_prepaidDownloadSize: "
                           << it->second.m_totalReceiptsSize << "  " << it->second.m_prepaidDownloadSize )
+                outErrorCode = lt::errors::sirius_channel_ran_out;
                 return lt::connection_status::REJECTED;
             }
         }
         
         _LOG_WARN( "Unknown channelId: " << Key(channelId) << " from_peer:" << Key(peerKey) )
+        outErrorCode = lt::errors::sirius_no_channel;
         return lt::connection_status::REJECTED;
     }
 
@@ -539,7 +553,8 @@ public:
         }
         
         bool unused;
-        acceptReceiptImpl( message, true, unused );
+        lt::errors::error_code_enum unused2;
+        acceptReceiptImpl( message, true, unused, unused2 );
     }
     
     void removeChannelInfo( const ChannelId& channelId )
@@ -651,10 +666,12 @@ public:
                         const std::array<uint8_t, 32>& clientPublicKey,
                         uint64_t                       downloadedSize,
                         const std::array<uint8_t, 64>& signature,
-                        bool&                          shouldBeDisconnected ) override
+                        bool&                          shouldBeDisconnected,
+                        lt::errors::error_code_enum&   outErrorCode ) override
     {
         if ( m_session->isEnding() )
         {
+            outErrorCode = lt::errors::no_error;
             return;
         }
         
@@ -664,17 +681,23 @@ public:
                              m_keyPair.publicKey().array(),
                              downloadedSize,
                              signature ),
-                false, shouldBeDisconnected );
+                false, shouldBeDisconnected, outErrorCode );
     }
     
-    void acceptReceiptImpl( const RcptMessage& msg, bool fromAnotherReplicator, bool& shouldBeDisconnected )
+    void acceptReceiptImpl( const                           RcptMessage& msg,
+                            bool                            fromAnotherReplicator,
+                            bool&                           shouldBeDisconnected,
+                            lt::errors::error_code_enum&    outErrorCode )
     {
+        outErrorCode = lt::errors::no_error;
+
         // Get channel info
         auto channelInfoIt = m_dnChannelMap.find( msg.channelId() );
         if ( channelInfoIt == m_dnChannelMap.end() )
         {
             _LOG_WARN( dbgOurPeerName() << "unknown channelId (maybe we are late): " << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) );
             shouldBeDisconnected = true;
+            outErrorCode = lt::errors::sirius_no_channel;
             return;
         }
 
@@ -685,6 +708,7 @@ public:
         {
             _LOG_WARN( "verifyReceipt: bad client key; it is ignored" );
             shouldBeDisconnected = true;
+            outErrorCode = lt::errors::sirius_no_client_in_channel;
             return;
         }
 
@@ -708,12 +732,13 @@ public:
 
             _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature: " << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) )
             shouldBeDisconnected = true;
+            outErrorCode = lt::errors::sirius_bad_signature;
             return;
         }
 
         auto& channelInfo = channelInfoIt->second;
 
-        acceptUploadSize( msg, channelInfo, shouldBeDisconnected );
+        acceptUploadSize( msg, channelInfo, shouldBeDisconnected, outErrorCode );
         
         // Save receipt message
         //
@@ -779,7 +804,10 @@ public:
         }
     }
     
-    void acceptUploadSize( const RcptMessage& msg, DownloadChannelInfo& channelInfo, bool& shouldBeDisconnected )
+    void acceptUploadSize( const RcptMessage&           msg,
+                           DownloadChannelInfo&         channelInfo,
+                           bool&                        shouldBeDisconnected,
+                           lt::errors::error_code_enum& outErrorCode )
     {
         DBG_MAIN_THREAD
 
@@ -806,7 +834,7 @@ public:
         replicatorInfoIt->second.tryFixReceiptSize( channelInfo.m_prepaidDownloadSize );
 
         auto lastReceiptSize = replicatorInfoIt->second.maxReceiptSize( msg.clientKey() );
-        _LOG( "*rcpt* lastReceiptSize: " << lastReceiptSize << " msg: " << msg.downloadedSize() )
+        //_LOG( "*rcpt* lastReceiptSize: " << lastReceiptSize << " msg: " << msg.downloadedSize() )
 
         // skip old receipts
         if ( msg.downloadedSize() <= lastReceiptSize  )
@@ -820,6 +848,7 @@ public:
         // Check prepaid channel size
         if ( channelInfo.m_totalReceiptsSize > channelInfo.m_prepaidDownloadSize )
         {
+            outErrorCode = lt::errors::sirius_channel_ran_out;
             shouldBeDisconnected = true;
             replicatorInfoIt->second.saveNotAcceptedReceiptSize( msg.clientKey(), msg.downloadedSize() );
             return;

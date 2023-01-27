@@ -190,7 +190,7 @@ struct DownloadChannelInfo
         }
     };
 
-    bool     m_isSynchronizing;
+    bool     m_isSynchronizing = false;
 
     uint64_t m_prepaidDownloadSize;
     uint64_t m_totalReceiptsSize = 0;

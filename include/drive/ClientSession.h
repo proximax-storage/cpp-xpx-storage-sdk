@@ -27,6 +27,11 @@ protected:
     using ModifyTransactionHash = std::optional<std::array<uint8_t,32>>;
     using ReplicatorTraficMap   = std::map<std::array<uint8_t,32>,uint64_t>;
 
+    using ErrorHandler          =  std::function<void( lt::close_reason_t            errorCode,
+                                                       const std::array<uint8_t,32>& replicatorKey,
+                                                       const std::array<uint8_t,32>& channelHash,
+                                                       const std::array<uint8_t,32>& infoHash )>;
+
     struct ModifyTorrentInfo {
         Session::lt_handle  m_ltHandle = {};
         bool                m_isUsed = true;
@@ -46,6 +51,8 @@ protected:
 
     TorrentMap                          m_modifyTorrentMap;
     std::map<Hash256, DownloadChannel>  m_downloadChannelMap;
+    
+    std::optional<ErrorHandler>         m_errorHandler;
 
     const char*                 m_dbgOurPeerName;
 
@@ -66,6 +73,22 @@ public:
     const std::array<uint8_t,32>& publicKey() override
     {
         return m_keyPair.publicKey().array();
+    }
+
+    void setErrorHandler( ErrorHandler errorHandler )
+    {
+        m_errorHandler = errorHandler;
+    }
+
+    void onError( lt::close_reason_t            errorCode,
+                  const std::array<uint8_t,32>& replicatorKey,
+                  const std::array<uint8_t,32>& channelHash,
+                  const std::array<uint8_t,32>& infoHash ) override
+    {
+        if ( m_errorHandler )
+        {
+            (*m_errorHandler)( errorCode, replicatorKey, channelHash, infoHash );
+        }
     }
 
     void onLastMyReceipt( const std::vector<uint8_t> receipt, const std::unique_ptr<std::array<uint8_t,32>>& channelId ) override
@@ -111,10 +134,10 @@ public:
             return;
         }
 
-        if ( m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] < *msg.downloadedSizePtr() )
-        {
-            m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] = *msg.downloadedSizePtr();
-        }
+//        if ( m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] < *msg.downloadedSizePtr() )
+//        {
+            m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] = 0;//*msg.downloadedSizePtr();
+//        }
         m_downloadChannelMap[ msg.channelId().array() ].m_receivedSize[ msg.replicatorKey().array() ] = 0;//*msg.downloadedSizePtr();
     }
 
@@ -485,8 +508,10 @@ protected:
     lt::connection_status acceptClientConnection( const std::array<uint8_t,32>&  /*channelId*/,
                                                   const std::array<uint8_t,32>&  /*peerKey*/,
                                                   const std::array<uint8_t,32>&  /*driveKey*/,
-                                                  const std::array<uint8_t,32>&  /*fileHash*/ ) override
+                                                  const std::array<uint8_t,32>&  /*fileHash*/,
+                                                  lt::errors::error_code_enum&   outErrorCode ) override
     {
+        outErrorCode = lt::errors::no_error;
         return lt::connection_status::UNLIMITED;
     }
 
@@ -507,7 +532,8 @@ protected:
 
     bool checkDownloadLimit( const std::array<uint8_t,32>& /*clientKey*/,
                              const std::array<uint8_t,32>& /*downloadChannelId*/,
-                             uint64_t                      /*downloadedSize*/ ) override
+                             uint64_t                      /*downloadedSize*/,
+                             lt::errors::error_code_enum&   outErrorCode ) override
     {
         // client does not check download limit
         return true;
