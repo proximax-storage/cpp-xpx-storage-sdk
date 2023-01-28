@@ -40,15 +40,26 @@ struct RcptMessage : public std::vector<uint8_t>
     
     bool isValidSize() const { return size() == sizeof(ChannelId)+sizeof(ClientKey)+sizeof(ReplicatorKey)+8+sizeof(Sign); }
 
-    const ChannelId&      channelId()      const { return *reinterpret_cast<const ChannelId*>(     &this->at(0) );   }
-    const ClientKey&      clientKey()      const { return *reinterpret_cast<const ClientKey*>(     &this->at(32) );  }
-    const ReplicatorKey&  replicatorKey()  const { return *reinterpret_cast<const ReplicatorKey*>( &this->at(64) );  }
+    const ChannelId&      channelId()      const { assert(!empty()); return *reinterpret_cast<const ChannelId*>(     &this->at(0) );   }
+    const ClientKey&      clientKey()      const { assert(!empty()); return *reinterpret_cast<const ClientKey*>(     &this->at(32) );  }
+    const ReplicatorKey&  replicatorKey()  const { assert(!empty()); return *reinterpret_cast<const ReplicatorKey*>( &this->at(64) );  }
     
     // to be downloaded size
-    uint64_t              downloadedSize() const { return *reinterpret_cast<const uint64_t*>(      &this->at(96) );  }
-    const uint64_t*       downloadedSizePtr() const { return (const uint64_t*)(    &this->at(96) );  }
+    uint64_t              downloadedSize() const
+    {
+        if ( empty() )
+        {
+            return 0;
+        }
+        else
+        {
+            return *reinterpret_cast<const uint64_t*>( &this->at(96) );
+        }
+    }
+    
+    const uint64_t*       downloadedSizePtr() const { assert(!empty()); return (const uint64_t*)(    &this->at(96) );  }
 
-    const Sign&           signature()      const { return *reinterpret_cast<const Sign*>(          &this->at(104) ); }
+    const Sign&           signature()      const { assert(!empty()); return *reinterpret_cast<const Sign*>(          &this->at(104) ); }
 };
 
 } //namespace sirius::drive

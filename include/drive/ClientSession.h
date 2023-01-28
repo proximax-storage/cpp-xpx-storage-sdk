@@ -134,10 +134,10 @@ public:
             return;
         }
 
-//        if ( m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] < *msg.downloadedSizePtr() )
-//        {
-            m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] = 0;//*msg.downloadedSizePtr();
-//        }
+        if ( m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] < *msg.downloadedSizePtr() )
+        {
+            m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] = *msg.downloadedSizePtr();
+        }
         m_downloadChannelMap[ msg.channelId().array() ].m_receivedSize[ msg.replicatorKey().array() ] = 0;//*msg.downloadedSizePtr();
     }
 
