@@ -86,6 +86,9 @@ DECLARE_ENUM16 ( RPC_CMD,
     driveIsRemoved,
     driveModificationIsCanceled,
     modifyTransactionEndedWithError,
+    setServiceAddress,
+    enableSupercontractServer,
+    enableMessengerServer,
                 
     dbgCrash,
     dbgLogMode

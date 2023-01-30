@@ -312,6 +312,21 @@ public:
                 m_replicator->asyncDownloadApprovalTransactionHasFailedInvalidOpinions( eventHash, channelId );
                 break;
             }
+			case RPC_CMD::setServiceAddress:
+			{
+				std::string address;
+				iarchive( address );
+				m_replicator->setServiceAddress( address );
+				break;
+			}
+			case RPC_CMD::enableMessengerServer: {
+				m_replicator->enableMessengerServer();
+				break;
+			}
+			case RPC_CMD::enableSupercontractServer: {
+				m_replicator->enableSupercontractServer();
+				break;
+			}
 
 
             case RPC_CMD::dbgGetRootHash:

@@ -556,15 +556,15 @@ public:
     }
 
     void setServiceAddress( const std::string& address ) override {
-
+    	rpcCall( RPC_CMD::setServiceAddress, address );
     }
 
     void enableSupercontractServer() override {
-
+    	rpcCall( RPC_CMD::enableSupercontractServer );
     }
 
     void enableMessengerServer() override {
-
+    	rpcCall( RPC_CMD::enableMessengerServer );
     }
 
     virtual Hash256     dbgGetRootHash( const DriveKey& driveKey ) override
