@@ -79,182 +79,9 @@ public:
     {
         m_errorHandler = errorHandler;
     }
-
-    void onError( lt::close_reason_t            errorCode,
-                  const std::array<uint8_t,32>& replicatorKey,
-                  const std::array<uint8_t,32>& channelHash,
-                  const std::array<uint8_t,32>& infoHash ) override
-    {
-        if ( m_errorHandler )
-        {
-            (*m_errorHandler)( errorCode, replicatorKey, channelHash, infoHash );
-        }
-    }
-
-    void onLastMyReceipt( const std::vector<uint8_t> receipt, const std::unique_ptr<std::array<uint8_t,32>>& channelId ) override
-    {
-        const RcptMessage& msg = reinterpret_cast<const RcptMessage&>(receipt);
-        
-        if ( ! msg.isValidSize() )
-        {
-            _LOG_WARN( "Bad last receipt size: " << receipt.size() );
-            return;
-        }
-        
-        assert(channelId);
-        if ( msg.channelId() != *channelId )
-        {
-            _LOG_WARN( "Bad channelId: " << toString(msg.channelId()) << " != " << toString(*channelId) );
-            return;
-        }
-        
-//        if ( msg.clientKey() != m_keyPair.publicKey().array() )
-//        {
-//            _LOG_WARN( "Bad clientKey: " << toString(msg.clientKey().array()) );
-//            return;
-//        }
-        
-        // Check sign
-        if ( ! crypto::Verify( m_keyPair.publicKey(),// msg.clientKey(),
-                               {
-                                    utils::RawBuffer{msg.channelId()},
-                                    utils::RawBuffer{msg.clientKey()},
-                                    utils::RawBuffer{msg.replicatorKey()},
-                                    utils::RawBuffer{(const uint8_t*)msg.downloadedSizePtr(),8}
-                               },
-                               reinterpret_cast<const Signature&>(msg.signature()) ))
-        {
-            _LOG( "msg.channelId() " << msg.channelId() )
-            _LOG( "msg.clientKey() " << msg.clientKey() )
-            _LOG( "msg.replicatorKey() " << msg.replicatorKey() )
-            _LOG( "downloadedSize: " << *msg.downloadedSizePtr() )
-            _LOG( "msg.signature() " << int(msg.signature()[0]) )
-
-            _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature will be ignored: " << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) )
-            return;
-        }
-
-        if ( m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] < *msg.downloadedSizePtr() )
-        {
-            m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] = *msg.downloadedSizePtr();
-        }
-        m_downloadChannelMap[ msg.channelId().array() ].m_receivedSize[ msg.replicatorKey().array() ] = 0;//*msg.downloadedSizePtr();
-    }
-
-    virtual void onTorrentDeleted( lt::torrent_handle handle ) override
-    {
-        m_session->onTorrentDeleted( handle );
-    }
-
-    void addReplicatorList( const sirius::drive::ReplicatorList& keys )
-    {
-        m_endpointsManager.addEndpointsEntries( keys );
-    }
-
-    //
-    // TODO Wrong
-    void addDownloadChannel( Hash256 downloadChannelId )
-    {
-        if ( !m_downloadChannelMap.contains(downloadChannelId) )
-        {
-            m_downloadChannelMap[downloadChannelId] = {};
-        }
-    }
-
-    void setDownloadChannelReplicators( const Hash256& downloadChannelId, const ReplicatorList& replicators )
-    {
-        auto it = m_downloadChannelMap.find(downloadChannelId);
-        if (it == m_downloadChannelMap.end()) {
-            return;
-        }
-        it->second.m_downloadReplicatorList = replicators;
-    }
-
-//    void setDownloadChannelRequestedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
-//    {
-//        auto it = m_downloadChannelMap.find(downloadChannelId);
-//        if (it == m_downloadChannelMap.end()) {
-//            return;
-//        }
-//        it->second.m_requestedSize = sizes;
-//    }
-//
-//    void setDownloadChannelReceivedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
-//    {
-//        auto it = m_downloadChannelMap.find(downloadChannelId);
-//        if (it == m_downloadChannelMap.end()) {
-//            return;
-//        }
-//        it->second.m_requestedSize = sizes;
-//    }
-
-    void onHandshake( uint64_t /*uploadedSize*/ ) override
-    {
-        //todo here could be call back-call of test UI app
-    }
-
-    // Initiate file downloading (identified by downloadParameters.m_infoHash)
-    lt_handle download( DownloadContext&&     downloadParameters,
-                       const Hash256&         downloadChannelId,
-                       const std::string&     saveFolder,
-                       const std::string&     saveTorrentFolder,
-                       const endpoint_list&   endpointsHints = {},
-                       const ReplicatorList&  replicatorList = {} )
-    {
-        // check that download channel was set
-        if ( !m_downloadChannelMap.contains(downloadChannelId) )
-            throw std::runtime_error("downloadChannel does not exist");
-
-        const auto& downloadChannel = m_downloadChannelMap[downloadChannelId];
-
-        downloadParameters.m_transactionHashX = downloadChannelId;
-        
-        if ( auto it = m_modifyTorrentMap.find( downloadParameters.m_infoHash ); it != m_modifyTorrentMap.end() )
-        {
-            auto tHandle = it->second.m_ltHandle;
-            auto status = tHandle.status( lt::torrent_handle::query_save_path | lt::torrent_handle::query_name );
-            auto filePath = fs::path( status.save_path ) / status.name;
-            if ( fs::exists(filePath) && ! fs::is_directory(filePath) )
-            {
-                try {
-                    __LOG( "download: copy '" << filePath << "'" << " to '" << downloadParameters.m_saveAs << "'" )
-                    fs::copy( filePath, downloadParameters.m_saveAs );
-                    downloadParameters.m_downloadNotification( download_status::download_complete,
-                                                              downloadParameters.m_infoHash,
-                                                              downloadParameters.m_saveAs,
-                                                              0,
-                                                              0,
-                                                              "" );
-                    return tHandle;
-                } catch(...) {}
-            }
-            else
-            {
-                _LOG_WARN( "Invalid modify torrent? ");
-            }
-        }
-
-        auto downloadChannelIdAsArray = downloadChannelId.array();
-
-//        const ReplicatorList& replicators = !replicatorList.empty() ? replicatorList : downloadChannel.m_downloadReplicatorList;
-        ReplicatorList replicators = downloadChannel.m_downloadReplicatorList;
-        replicators.insert( replicators.end(), replicatorList.begin(), replicatorList.end() );
-
-        // start downloading
-        return m_session->download( std::move(downloadParameters),
-                                    saveFolder,
-                                    saveTorrentFolder,
-                                    replicators,
-                                    nullptr,
-                                    &downloadChannelIdAsArray,
-                                    nullptr,
-                                    endpointsHints );
-    }
-
-    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint(const std::array<uint8_t, 32> &key) override
-    {
-        return m_endpointsManager.getEndpoint(key);
-    }
+    
+//    void setReplicatorStatusResponseHandler() {}
+//    void sendStatusRequestToReplicator() {}
 
     InfoHash addActionListToSession( const ActionList&      actionList,
                                      const Key&             drivePublicKey,
@@ -416,15 +243,79 @@ public:
         return infoHash0;
     }
 
-    std::vector<std::array<uint8_t,32>> getTorrentHandleHashes() {
-        std::vector<std::array<uint8_t,32>> hashes;
-        hashes.reserve(m_modifyTorrentMap.size());
-        for( auto& [key,value]: m_modifyTorrentMap )
+    void addDownloadChannel( Hash256 downloadChannelId )
+    {
+        if ( !m_downloadChannelMap.contains(downloadChannelId) )
         {
-            hashes.push_back(key.array());
+            m_downloadChannelMap[downloadChannelId] = {};
+        }
+    }
+
+    void setDownloadChannelReplicators( const Hash256& downloadChannelId, const ReplicatorList& replicators )
+    {
+        auto it = m_downloadChannelMap.find(downloadChannelId);
+        if (it == m_downloadChannelMap.end()) {
+            return;
+        }
+        it->second.m_downloadReplicatorList = replicators;
+    }
+
+    // Initiate file downloading (identified by downloadParameters.m_infoHash)
+    lt_handle download( DownloadContext&&     downloadParameters,
+                       const Hash256&         downloadChannelId,
+                       const std::string&     saveFolder,
+                       const std::string&     saveTorrentFolder,
+                       const endpoint_list&   endpointsHints = {},
+                       const ReplicatorList&  replicatorList = {} )
+    {
+        // check that download channel was set
+        if ( !m_downloadChannelMap.contains(downloadChannelId) )
+            throw std::runtime_error("downloadChannel does not exist");
+
+        const auto& downloadChannel = m_downloadChannelMap[downloadChannelId];
+
+        downloadParameters.m_transactionHashX = downloadChannelId;
+        
+        if ( auto it = m_modifyTorrentMap.find( downloadParameters.m_infoHash ); it != m_modifyTorrentMap.end() )
+        {
+            auto tHandle = it->second.m_ltHandle;
+            auto status = tHandle.status( lt::torrent_handle::query_save_path | lt::torrent_handle::query_name );
+            auto filePath = fs::path( status.save_path ) / status.name;
+            if ( fs::exists(filePath) && ! fs::is_directory(filePath) )
+            {
+                try {
+                    __LOG( "download: copy '" << filePath << "'" << " to '" << downloadParameters.m_saveAs << "'" )
+                    fs::copy( filePath, downloadParameters.m_saveAs );
+                    downloadParameters.m_downloadNotification( download_status::download_complete,
+                                                              downloadParameters.m_infoHash,
+                                                              downloadParameters.m_saveAs,
+                                                              0,
+                                                              0,
+                                                              "" );
+                    return tHandle;
+                } catch(...) {}
+            }
+            else
+            {
+                _LOG_WARN( "Invalid modify torrent? ");
+            }
         }
 
-        return hashes;
+        auto downloadChannelIdAsArray = downloadChannelId.array();
+
+//        const ReplicatorList& replicators = !replicatorList.empty() ? replicatorList : downloadChannel.m_downloadReplicatorList;
+        ReplicatorList replicators = downloadChannel.m_downloadReplicatorList;
+        replicators.insert( replicators.end(), replicatorList.begin(), replicatorList.end() );
+
+        // start downloading
+        return m_session->download( std::move(downloadParameters),
+                                    saveFolder,
+                                    saveTorrentFolder,
+                                    replicators,
+                                    nullptr,
+                                    &downloadChannelIdAsArray,
+                                    nullptr,
+                                    endpointsHints );
     }
 
     void removeTorrents()
@@ -474,6 +365,117 @@ public:
         });
 
         barrier.get_future().wait();
+    }
+
+protected:
+    void onError( lt::close_reason_t            errorCode,
+                  const std::array<uint8_t,32>& replicatorKey,
+                  const std::array<uint8_t,32>& channelHash,
+                  const std::array<uint8_t,32>& infoHash ) override
+    {
+        if ( m_errorHandler )
+        {
+            (*m_errorHandler)( errorCode, replicatorKey, channelHash, infoHash );
+        }
+    }
+
+    void onLastMyReceipt( const std::vector<uint8_t> receipt, const std::unique_ptr<std::array<uint8_t,32>>& channelId ) override
+    {
+        const RcptMessage& msg = reinterpret_cast<const RcptMessage&>(receipt);
+        
+        if ( ! msg.isValidSize() )
+        {
+            _LOG_WARN( "Bad last receipt size: " << receipt.size() );
+            return;
+        }
+        
+        assert(channelId);
+        if ( msg.channelId() != *channelId )
+        {
+            _LOG_WARN( "Bad channelId: " << toString(msg.channelId()) << " != " << toString(*channelId) );
+            return;
+        }
+        
+//        if ( msg.clientKey() != m_keyPair.publicKey().array() )
+//        {
+//            _LOG_WARN( "Bad clientKey: " << toString(msg.clientKey().array()) );
+//            return;
+//        }
+        
+        // Check sign
+        if ( ! crypto::Verify( m_keyPair.publicKey(),// msg.clientKey(),
+                               {
+                                    utils::RawBuffer{msg.channelId()},
+                                    utils::RawBuffer{msg.clientKey()},
+                                    utils::RawBuffer{msg.replicatorKey()},
+                                    utils::RawBuffer{(const uint8_t*)msg.downloadedSizePtr(),8}
+                               },
+                               reinterpret_cast<const Signature&>(msg.signature()) ))
+        {
+            _LOG( "msg.channelId() " << msg.channelId() )
+            _LOG( "msg.clientKey() " << msg.clientKey() )
+            _LOG( "msg.replicatorKey() " << msg.replicatorKey() )
+            _LOG( "downloadedSize: " << *msg.downloadedSizePtr() )
+            _LOG( "msg.signature() " << int(msg.signature()[0]) )
+
+            _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature will be ignored: " << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) )
+            return;
+        }
+
+        if ( m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] < *msg.downloadedSizePtr() )
+        {
+            m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] = *msg.downloadedSizePtr();
+        }
+        m_downloadChannelMap[ msg.channelId().array() ].m_receivedSize[ msg.replicatorKey().array() ] = 0;//*msg.downloadedSizePtr();
+    }
+
+    virtual void onTorrentDeleted( lt::torrent_handle handle ) override
+    {
+        m_session->onTorrentDeleted( handle );
+    }
+
+    void addReplicatorList( const sirius::drive::ReplicatorList& keys )
+    {
+        m_endpointsManager.addEndpointsEntries( keys );
+    }
+
+//    void setDownloadChannelRequestedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
+//    {
+//        auto it = m_downloadChannelMap.find(downloadChannelId);
+//        if (it == m_downloadChannelMap.end()) {
+//            return;
+//        }
+//        it->second.m_requestedSize = sizes;
+//    }
+//
+//    void setDownloadChannelReceivedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
+//    {
+//        auto it = m_downloadChannelMap.find(downloadChannelId);
+//        if (it == m_downloadChannelMap.end()) {
+//            return;
+//        }
+//        it->second.m_requestedSize = sizes;
+//    }
+
+    void onHandshake( uint64_t /*uploadedSize*/ ) override
+    {
+        //todo here could be call back-call of test UI app
+    }
+
+    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint(const std::array<uint8_t, 32> &key) override
+    {
+        return m_endpointsManager.getEndpoint(key);
+    }
+
+    std::vector<std::array<uint8_t,32>> getTorrentHandleHashes() {
+        std::vector<std::array<uint8_t,32>> hashes;
+        hashes.reserve(m_modifyTorrentMap.size());
+        for( auto& [key,value]: m_modifyTorrentMap )
+        {
+            hashes.push_back(key.array());
+        }
+
+        return hashes;
     }
 
     void setSessionSettings(const lt::settings_pack& settings, bool localNodes)
