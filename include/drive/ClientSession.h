@@ -790,12 +790,6 @@ protected:
                         iarchive( replicatorKey );
                         iarchive( channelId );
 
-                        if ( response == "drive not found")
-                        {
-                            (*m_channelStatusResponseHandler)( replicatorKey, channelId, {}, "drive not found" );
-                            return;
-                        }
-
                         // Verify sign
                         //
                         Signature signature;
@@ -811,6 +805,12 @@ protected:
                         {
                             (*m_channelStatusResponseHandler)( replicatorKey, channelId, {}, "invalid sign" );
                             _LOG_WARN( "invalid sign" )
+                            return;
+                        }
+
+                        if ( rDict.dict_find_string_value("not_found") == "yes" )
+                        {
+                            (*m_channelStatusResponseHandler)( replicatorKey, channelId, {}, "channel not found" );
                             return;
                         }
 
@@ -853,12 +853,6 @@ protected:
                         iarchive( replicatorKey );
                         iarchive( modificationHash );
 
-                        if ( response == "modification not found")
-                        {
-                            (*m_modificationStatusResponseHandler)( replicatorKey, modificationHash, {}, "", false, false, "drive not found" );
-                            return;
-                        }
-
                         // Verify sign
                         //
                         Signature signature;
@@ -874,6 +868,12 @@ protected:
                         {
                             (*m_modificationStatusResponseHandler)( replicatorKey, modificationHash, {}, "", false, false, "invalid sign" );
                             _LOG_WARN( "invalid sign" )
+                            return;
+                        }
+
+                        if ( rDict.dict_find_string_value("not_found") == "yes" )
+                        {
+                            (*m_modificationStatusResponseHandler)( replicatorKey, modificationHash, {}, "", false, false, "not found" );
                             return;
                         }
 
