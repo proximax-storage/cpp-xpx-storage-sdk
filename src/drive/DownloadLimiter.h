@@ -45,6 +45,9 @@ protected:
     ChannelMap          m_dnChannelMap; // will be saved only if not crashed
     ChannelMap          m_dnChannelMapBackup;
     ModifyDriveMap      m_modifyDriveMap;
+    
+    using OldModifications = std::deque< std::pair< std::array<uint8_t,32>, ModifyTrafficInfo >>;
+    OldModifications    m_oldModifications;
 
     uint64_t            m_receiptLimit = 1024 * 1024;
     uint64_t            m_advancePaymentLimit = 50 * 1024 * 1024;
@@ -352,7 +355,15 @@ public:
 
         _LOG( "remove modify drive info " << Hash256{modifyTransactionHash});
 
-        m_modifyDriveMap.erase(modifyTransactionHash);
+        if ( auto it = m_modifyDriveMap.find(modifyTransactionHash); it != m_modifyDriveMap.end() )
+        {
+            if ( m_oldModifications.size() >= 100 )
+            {
+                m_oldModifications.pop_front();
+            }
+            m_oldModifications.push_back( { modifyTransactionHash, it->second } );
+            m_modifyDriveMap.erase(modifyTransactionHash);
+        }
     }
 
     lt::connection_status acceptClientConnection( const std::array<uint8_t,32>&  channelId,

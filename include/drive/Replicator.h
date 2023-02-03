@@ -238,6 +238,12 @@ struct ModifyTraffic
     
     // It is the size sent to another replicator
     uint64_t m_requestedSize = 0;
+
+    template <class Archive> void serialize( Archive & arch )
+    {
+        arch( m_receivedSize );
+        arch( m_requestedSize );
+    }
 };
 
 // The key is a transaction hash
@@ -249,6 +255,14 @@ struct ModifyTrafficInfo
     uint64_t                m_maxDataSize;
     ModifyTrafficMap        m_modifyTrafficMap;
     uint64_t                m_totalReceivedSize = 0;
+    
+    template <class Archive> void serialize( Archive & arch )
+    {
+        arch( m_driveKey );
+        arch( m_maxDataSize );
+        arch( m_modifyTrafficMap );
+        arch( m_totalReceivedSize );
+    }
 };
 
 // The key is a transaction hash

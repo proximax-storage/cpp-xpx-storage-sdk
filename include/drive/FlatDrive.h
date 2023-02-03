@@ -23,6 +23,32 @@ namespace sirius::drive {
 class FlatDrive;
 class Replicator;
 
+    enum class DriveTaskType
+    {
+        DRIVE_INITIALIZATION,
+        DRIVE_CLOSURE,
+        MODIFICATION_CANCEL,
+        CATCHING_UP,
+        MODIFICATION_REQUEST,
+        STREAM_REQUEST,
+        DRIVE_VERIFICATION
+    };
+
+    inline std::string driveTaskTypeToString( DriveTaskType t )
+    {
+        switch(t)
+        {
+            case DriveTaskType::DRIVE_INITIALIZATION:   return "initialization";
+            case DriveTaskType::DRIVE_CLOSURE:          return "drive_closure";
+            case DriveTaskType::MODIFICATION_CANCEL:    return "modification_cancel";
+            case DriveTaskType::CATCHING_UP:            return "catching_up";
+            case DriveTaskType::MODIFICATION_REQUEST:   return "modification";
+            case DriveTaskType::STREAM_REQUEST:         return "stream";
+            case DriveTaskType::DRIVE_VERIFICATION:     return "verification";
+        };
+        return "unknown";
+    }
+
     namespace modify_status {
         enum code {
             failed = 0,
@@ -705,6 +731,8 @@ class Replicator;
                                                         const boost::asio::ip::udp::endpoint&  viewer ) = 0;
 
         virtual std::string acceptGetPlaylistHashRequest( const std::array<uint8_t,32>& streamId ) = 0;
+        
+        virtual std::optional<DriveTaskType> getDriveStatus( const std::array<uint8_t,32>& interectedTaskTx, bool& outIsTaskQueued ) = 0;
     };
 
     class Session;

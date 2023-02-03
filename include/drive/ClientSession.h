@@ -6,6 +6,7 @@
 #pragma once
 
 #include "drive/Session.h"
+#include "drive/Replicator.h"
 #include "drive/RcptMessage.h"
 #include "drive/log.h"
 #include "drive/Utils.h"
@@ -32,6 +33,19 @@ protected:
                                                        const std::array<uint8_t,32>& channelHash,
                                                        const std::array<uint8_t,32>& infoHash )>;
 
+    using ChannelStatusResponseHandler      = std::function<void( const ReplicatorKey&          replicatorKey,
+                                                                  const ChannelId&              channelId,
+                                                                  const DownloadChannelInfo&    msg,
+                                                                  const std::string&            error )>;
+
+    using ModificationStatusResponseHandler = std::function<void( const ReplicatorKey&      replicatorKey,
+                                                                  const Hash256&            modificationHash,
+                                                                  const ModifyTrafficInfo&  msg,
+                                                                  lt::string_view           currentTask,
+                                                                  bool                      isModificationQueued,
+                                                                  bool                      isModificationFinished,
+                                                                  const std::string&        error )>;
+
     struct ModifyTorrentInfo {
         Session::lt_handle  m_ltHandle = {};
         bool                m_isUsed = true;
@@ -53,6 +67,9 @@ protected:
     std::map<Hash256, DownloadChannel>  m_downloadChannelMap;
     
     std::optional<ErrorHandler>         m_errorHandler;
+    
+    std::optional<ChannelStatusResponseHandler>         m_channelStatusResponseHandler      = defaultChannelStatusResponseHandler;
+    std::optional<ModificationStatusResponseHandler>    m_modificationStatusResponseHandler = defaultModificationStatusResponseHandler;
 
     const char*                 m_dbgOurPeerName;
 
@@ -80,8 +97,69 @@ public:
         m_errorHandler = errorHandler;
     }
     
-//    void setReplicatorStatusResponseHandler() {}
-//    void sendStatusRequestToReplicator() {}
+    void setChannelStatusResponseHandler( ChannelStatusResponseHandler handler )
+    {
+        m_channelStatusResponseHandler = handler;
+    }
+    
+    bool sendChannelStatusRequestToReplicator( const Key&     replicatorKey,
+                                               const Key&     driveKey,
+                                               const Hash256& downloadChannelId,
+                                               std::optional<boost::asio::ip::tcp::endpoint> replicatorEndpoint = {} )
+    {
+        if ( ! replicatorEndpoint )
+        {
+            replicatorEndpoint = m_endpointsManager.getEndpoint( replicatorKey );
+        }
+        if ( ! replicatorEndpoint )
+        {
+            return false;
+        }
+
+        std::vector<uint8_t> message;
+        message.insert( message.end(), m_keyPair.publicKey().begin(), m_keyPair.publicKey().end() );
+        message.insert( message.end(), driveKey.begin(), driveKey.end() );
+        message.insert( message.end(), downloadChannelId.begin(), downloadChannelId.end() );
+
+        Signature signature;
+        crypto::Sign( m_keyPair, { utils::RawBuffer{ message } }, signature);
+
+        m_session->sendMessage( "get_channel_status", { replicatorEndpoint->address(), replicatorEndpoint->port() }, message, &signature );
+        
+        return true;
+    }
+
+    void setModificationStatusResponseHandler( ModificationStatusResponseHandler handler )
+    {
+        m_modificationStatusResponseHandler = handler;
+    }
+    
+    bool sendModificationStatusRequestToReplicator( const Key&     replicatorKey,
+                                                    const Key&     driveKey,
+                                                    const Hash256& modificationHash,
+                                                    std::optional<boost::asio::ip::tcp::endpoint> replicatorEndpoint = {} )
+    {
+        if ( ! replicatorEndpoint )
+        {
+            replicatorEndpoint = m_endpointsManager.getEndpoint( replicatorKey );
+        }
+        if ( ! replicatorEndpoint )
+        {
+            return false;
+        }
+
+        std::vector<uint8_t> message;
+        message.insert( message.end(), m_keyPair.publicKey().begin(), m_keyPair.publicKey().end() );
+        message.insert( message.end(), driveKey.begin(), driveKey.end() );
+        message.insert( message.end(), modificationHash.begin(), modificationHash.end() );
+
+        Signature signature;
+        crypto::Sign( m_keyPair, { utils::RawBuffer{ message } }, signature);
+
+        m_session->sendMessage( "get_modification_status", { replicatorEndpoint->address(), replicatorEndpoint->port() }, message, &signature );
+        
+        return true;
+    }
 
     InfoHash addActionListToSession( const ActionList&      actionList,
                                      const Key&             drivePublicKey,
@@ -243,7 +321,7 @@ public:
         return infoHash0;
     }
 
-    void addDownloadChannel( Hash256 downloadChannelId )
+    void addDownloadChannel( const Hash256& downloadChannelId )
     {
         if ( !m_downloadChannelMap.contains(downloadChannelId) )
         {
@@ -690,7 +768,213 @@ protected:
     
     void handleDhtResponse( lt::bdecode_node response, boost::asio::ip::udp::endpoint endpoint ) override
     {
+        try
+        {
+            auto rDict = response.dict_find_dict("r");
+            auto query = rDict.dict_find_string_value("q");
+            
+            if ( query == "get_channel_status" )
+            {
+                if ( m_channelStatusResponseHandler )
+                {
+                    try
+                    {
+                        lt::string_view response = rDict.dict_find_string_value("ret");
+                        lt::string_view sign = rDict.dict_find_string_value("sign");
+                        
+                        std::istringstream is( std::string( response.begin(), response.end() ), std::ios::binary );
+                        cereal::PortableBinaryInputArchive iarchive(is);
+
+                        ReplicatorKey replicatorKey;
+                        ChannelId channelId;
+                        iarchive( replicatorKey );
+                        iarchive( channelId );
+
+                        if ( response == "drive not found")
+                        {
+                            (*m_channelStatusResponseHandler)( replicatorKey, channelId, {}, "drive not found" );
+                            return;
+                        }
+
+                        // Verify sign
+                        //
+                        Signature signature;
+                        if ( sign.size() != signature.size() )
+                        {
+                            (*m_channelStatusResponseHandler)( replicatorKey, channelId, {}, "invalid sign size" );
+                            __LOG_WARN( "invalid sign size" )
+                            return;
+                        }
+                        memcpy( signature.data(), sign.data(), signature.size() );
+
+                        if ( ! crypto::Verify( replicatorKey, {utils::RawBuffer{ (const uint8_t*)response.begin(), response.size() }}, signature) )
+                        {
+                            (*m_channelStatusResponseHandler)( replicatorKey, channelId, {}, "invalid sign" );
+                            _LOG_WARN( "invalid sign" )
+                            return;
+                        }
+
+                        // parse and accept receipts
+                        //
+                        for(;;)
+                        {
+                            DownloadChannelInfo msg;
+                            try {
+                                iarchive( msg );
+                            } catch (...) {
+                                return;
+                            }
+
+                            (*m_channelStatusResponseHandler)( replicatorKey, channelId, msg, "" );
+                        }
+                    }
+                    catch(...)
+                    {
+                        (*m_channelStatusResponseHandler)( {}, {}, {}, "bad 'get_channel_status' response" );
+                        return;
+                    }
+                }
+            }
+
+            if ( query == "get_modification_status" )
+            {
+                if ( m_modificationStatusResponseHandler )
+                {
+                    try
+                    {
+                        lt::string_view response = rDict.dict_find_string_value("ret");
+                        lt::string_view sign = rDict.dict_find_string_value("sign");
+                        
+                        std::istringstream is( std::string( response.begin(), response.end() ), std::ios::binary );
+                        cereal::PortableBinaryInputArchive iarchive(is);
+
+                        ReplicatorKey replicatorKey;
+                        Hash256       modificationHash;
+                        iarchive( replicatorKey );
+                        iarchive( modificationHash );
+
+                        if ( response == "modification not found")
+                        {
+                            (*m_modificationStatusResponseHandler)( replicatorKey, modificationHash, {}, "", false, false, "drive not found" );
+                            return;
+                        }
+
+                        // Verify sign
+                        //
+                        Signature signature;
+                        if ( sign.size() != signature.size() )
+                        {
+                            (*m_modificationStatusResponseHandler)( replicatorKey, modificationHash, {}, "", false, false, "invalid sign size" );
+                            __LOG_WARN( "invalid sign size" )
+                            return;
+                        }
+                        memcpy( signature.data(), sign.data(), signature.size() );
+
+                        if ( ! crypto::Verify( replicatorKey, {utils::RawBuffer{ (const uint8_t*)response.begin(), response.size() }}, signature) )
+                        {
+                            (*m_modificationStatusResponseHandler)( replicatorKey, modificationHash, {}, "", false, false, "invalid sign" );
+                            _LOG_WARN( "invalid sign" )
+                            return;
+                        }
+
+                        // parse and accept receipts
+                        //
+                        ModifyTrafficInfo msg;
+                        try {
+                            iarchive( msg );
+                        } catch (...) {
+                            (*m_modificationStatusResponseHandler)( {}, {}, {}, "", false, false, "bad 'get_modification_status' response" );
+                            return;
+                        }
+                        auto currentTask = rDict.dict_find_string_value("currentTask");
+                        bool isQueued = rDict.dict_find_string_value("taskIsQueued") == "yes";
+                        bool isFinished = rDict.dict_find_string_value("taskIsFinished") == "yes";
+                        (*m_modificationStatusResponseHandler)( replicatorKey, modificationHash, msg, currentTask, isQueued, isFinished, "" );
+                    }
+                    catch(...)
+                    {
+                        (*m_modificationStatusResponseHandler)( {}, {}, {}, "", false, false, "bad 'get_modification_status' response" );
+                        return;
+                    }
+                }
+            }
+        }
+        catch(...)
+        {
+            __LOG_WARN("Bad DHT response");
+        }
     }
+    
+    static void defaultModificationStatusResponseHandler( const ReplicatorKey& replicatorKey,
+                                                   const sirius::Hash256&      modificationHash,
+                                                   const ModifyTrafficInfo&    msg,
+                                                   lt::string_view             currentTask,
+                                                   bool                        isModificationQueued,
+                                                   bool                        isModificationFinished,
+                                                   const std::string&          error    )
+    {
+        __LOG( "@@@ -------------------------------------------------------------------" );
+        __LOG( "@@@ Modification Status: " << modificationHash );
+        __LOG( "@@@  replicatorKey:     " << replicatorKey );
+        if ( ! error.empty() )
+        {
+            __LOG( "@@@  error:          " << error );
+        }
+        else
+        {
+            __LOG( "@@@  driveKey:          " << toString(msg.m_driveKey) );
+            if ( !currentTask.empty() )
+            {
+                __LOG( "@@@  currentTask:       " << currentTask );
+            }
+            if ( isModificationQueued )
+            {
+                __LOG( "@@@  modification is queued" );
+            }
+            if ( isModificationFinished )
+            {
+                __LOG( "@@@  modification is finished" );
+            }
+            __LOG( "@@@  maxDataSize:       " << msg.m_maxDataSize );
+            __LOG( "@@@  totalReceivedSize: " << msg.m_totalReceivedSize );
+            for( auto [hash,sizes]: msg.m_modifyTrafficMap )
+            {
+                __LOG( "@@@   received:  " << sizes.m_receivedSize << " from: " << toString(hash) );
+                __LOG( "@@@    uploaded: " << sizes.m_requestedSize << " to: " << toString(hash) );
+            }
+        }
+        __LOG( "@@@ -------------------------------------------------------------------" );
+    }
+    
+    static void defaultChannelStatusResponseHandler( const ReplicatorKey&         replicatorKey,
+                                                     const ChannelId&             channelId,
+                                                     const DownloadChannelInfo&   msg,
+                                                     const std::string&           error )
+    {
+        __LOG( "@@@ -------------------------------------------------------------------" );
+        __LOG( "@@@ Download Channel Status: " << channelId << " from: " << replicatorKey );
+        __LOG( "@@@  driveKey:            " << toString(msg.m_driveKey) );
+        __LOG( "@@@  prepaidDownloadSize: " << msg.m_prepaidDownloadSize );
+        __LOG( "@@@  totalReceiptsSize:   " << msg.m_totalReceiptsSize );
+        
+        for( const auto& [clientKey,sizes]: msg.m_sentClientMap )
+        {
+            __LOG( "@@@   sentSize: " << sizes.m_sentSize << " to client:   " << clientKey );
+        }
+        for( const auto& [replicatorKey2,uploadInfo]: msg.m_replicatorUploadRequestMap )
+        {
+            if ( replicatorKey2 == replicatorKey )
+            {
+                for( const auto& [clientKey,sizes]: uploadInfo.m_clientMap )
+                {
+                    __LOG( "@@@   acceptedSize/notAccepted: " << sizes.m_acceptedSize << "/" << sizes.m_notAcceptedSize << " replicatorKey:   " << replicatorKey );
+                }
+            }
+        }
+        __LOG( "@@@ -------------------------------------------------------------------" );
+    }
+
+
 
 public:
     void
