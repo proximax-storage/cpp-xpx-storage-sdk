@@ -163,12 +163,27 @@ public:
 
     InfoHash addActionListToSession( const ActionList&      actionList,
                                      const Key&             drivePublicKey,
-                                     const ReplicatorList&  unused,
+                                     const ReplicatorList&  replicatorKeys,
                                      const std::string&     sandboxFolder, // it is the folder where all ActionLists and file-links will be placed
                                      uint64_t&              outTotalModifySize,
-                                     const endpoint_list&   endpointList = {}
+                                     endpoint_list          endpointList = {}
                                    )
     {
+        for( const auto& key: replicatorKeys )
+        {
+            auto endpoint = m_endpointsManager.getEndpoint( key );
+            if ( endpoint )
+            {
+                auto it = std::find_if( endpointList.begin(), endpointList.end(), [&endpoint] (const auto& item) {
+                    return item == endpoint;
+                });
+                if ( it == endpointList.end() )
+                {
+                    endpointList.push_back( *endpoint );
+                }
+            }
+        }
+        
         fs::path workFolder = sandboxFolder;
         std::error_code ec;
         fs::create_directories( workFolder, ec );
@@ -381,8 +396,17 @@ public:
 
         auto downloadChannelIdAsArray = downloadChannelId.array();
 
-//        const ReplicatorList& replicators = !replicatorList.empty() ? replicatorList : downloadChannel.m_downloadReplicatorList;
         ReplicatorList replicators = downloadChannel.m_downloadReplicatorList;
+        for( const auto& key: replicatorList )
+        {
+            auto it = std::find_if( replicators.begin(), replicators.end(), [&key] (const auto& item) {
+                return item == key;
+            });
+            if ( it == replicators.end() )
+            {
+                replicators.push_back( key );
+            }
+        }
         replicators.insert( replicators.end(), replicatorList.begin(), replicatorList.end() );
 
         // start downloading

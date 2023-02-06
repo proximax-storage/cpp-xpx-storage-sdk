@@ -220,6 +220,10 @@ public:
         {
             if (endpoint)
             {
+//TODO???         if ( it->second.m_endpoint != endpoint && m_endpointHandler )
+//                {
+//                    (*m_endpointHandler)( key, endpoint);
+//                }
                 it->second.m_endpoint = endpoint;
 #ifdef UPDATE_ENDPOINTS_PERIODICALLY
                 if ( auto session = m_session.lock(); session )
