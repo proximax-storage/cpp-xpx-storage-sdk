@@ -853,15 +853,15 @@ public:
     {
         DBG_MAIN_THREAD
         
-        if ( m_task )
-        {
-            return m_task->getTaskType();
-        }
-        
         auto it = std::find_if( m_deferredModificationRequests.begin(), m_deferredModificationRequests.end(), [&interectedTaskTx]( const auto& item){
             return  item.m_modificationRequest && item.m_modificationRequest->m_transactionHash == interectedTaskTx;
         });
         outIsTaskQueued = it != m_deferredModificationRequests.end();
+        
+        if ( m_task )
+        {
+            return m_task->getTaskType();
+        }
         
         return {};
     }

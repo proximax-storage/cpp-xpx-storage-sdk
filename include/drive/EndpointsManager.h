@@ -129,6 +129,9 @@ private:
 
     const int m_standardExternalEndpointDelayMs = 1000 * 60 * 60;
     const int m_noResponseExternalEndpointDelayMs = 1000 * 5;
+    
+    using EndpointHandler = std::function<void(const Key&,const std::optional<boost::asio::ip::tcp::endpoint>&)>;
+    std::optional<EndpointHandler> m_endpointHandler;
 
     std::thread::id m_dbgThreadId;
     std::string m_dbgOurPeerName = "noname";
@@ -147,6 +150,11 @@ public:
         {
             m_endpointsMap[key] = {endpoint, {}};
         }
+    }
+    
+    void setEndpointHandler( EndpointHandler endpointHandler )
+    {
+        m_endpointHandler = endpointHandler;
     }
 
     void start(std::weak_ptr<Session> session)
@@ -220,10 +228,10 @@ public:
         {
             if (endpoint)
             {
-//TODO???         if ( it->second.m_endpoint != endpoint && m_endpointHandler )
-//                {
-//                    (*m_endpointHandler)( key, endpoint);
-//                }
+                if ( m_endpointHandler && it->second.m_endpoint != endpoint )
+                {
+                    (*m_endpointHandler)( key, endpoint);
+                }
                 it->second.m_endpoint = endpoint;
 #ifdef UPDATE_ENDPOINTS_PERIODICALLY
                 if ( auto session = m_session.lock(); session )
