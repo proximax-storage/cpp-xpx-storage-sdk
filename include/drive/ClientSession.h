@@ -97,6 +97,18 @@ public:
         m_errorHandler = errorHandler;
     }
     
+    void setEndpointHandler()
+    {
+        m_endpointsManager.setEndpointHandler( [self=weak_from_this()] (const Key& key, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint) {
+            assert( endpoint );
+            if ( auto ptr = self.lock(); ptr )
+            {
+                __LOG( "connect to: " << *endpoint << " " << key )
+                ptr->m_session->connectTorentsToEndpoint( *endpoint );
+            }
+        });
+    }
+    
     void setChannelStatusResponseHandler( ChannelStatusResponseHandler handler )
     {
         m_channelStatusResponseHandler = handler;
@@ -1055,6 +1067,7 @@ inline std::shared_ptr<ClientSession> createClientSession(  const crypto::KeyPai
     clientSession->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     boost::asio::post(clientSession->session()->lt_session().get_context(), [clientSession] {
         clientSession->m_endpointsManager.start(clientSession->session());
+        clientSession->setEndpointHandler();
     });
     clientSession->addDownloadChannel(Hash256());
     return clientSession;

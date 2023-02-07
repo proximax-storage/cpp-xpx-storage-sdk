@@ -546,10 +546,10 @@ public:
         if ( auto limiter = m_downloadLimiter.lock(); limiter )
         {
             for( const auto& key : keysHints ) {
-                //LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
                 auto endpoint = limiter->getEndpoint( key.array() );
                 if ( endpoint )
                 {
+                    _LOG( "connect_peer: " << *endpoint << " " << key );
                     tHandle.connect_peer( *endpoint );
                 }
             }
@@ -589,10 +589,23 @@ public:
 
         //TODO check if not set m_lastTorrentFileHandle
         for( const auto& endpoint : list ) {
+            _LOG( "connectPeers: " << endpoint )
             tHandle.connect_peer(endpoint);
         }
     }
 
+    void connectTorentsToEndpoint( const boost::asio::ip::tcp::endpoint& endpoint ) override
+    {
+        std::vector<lt::torrent_handle> torrents = m_session.get_torrents();
+        for( const lt::torrent_handle& tHandle : torrents )
+        {
+            //if ( tHandle.in_session() )
+            if ( tHandle.is_valid() )
+            {
+                tHandle.connect_peer(endpoint);
+            }
+        }
+    }
     void      dbgPrintActiveTorrents() override
     {
         _LOG( "Active torrents:" );

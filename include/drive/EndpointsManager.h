@@ -162,10 +162,6 @@ public:
         m_session = std::move(session);
         m_dbgThreadId = std::this_thread::get_id();
 
-        //(???++++) !!!!!!
-//#ifdef __APPLE__
-//        return;
-//#endif
         onUpdateExternalEndpointTimerTick();
     }
 

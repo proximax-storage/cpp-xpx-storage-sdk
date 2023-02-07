@@ -188,6 +188,7 @@ public:
 
     virtual Timer     startTimer( int milliseconds, std::function<void()> func ) = 0;
 
+    virtual void      connectTorentsToEndpoint( const boost::asio::ip::tcp::endpoint& endpoint ) = 0;
 
     // for testing and debugging
     virtual void      dbgPrintActiveTorrents() = 0;
