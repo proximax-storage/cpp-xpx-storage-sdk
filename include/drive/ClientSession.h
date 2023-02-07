@@ -580,6 +580,7 @@ protected:
         return hashes;
     }
 
+public:
     void setSessionSettings(const lt::settings_pack& settings, bool localNodes)
     {
         m_session->lt_session().apply_settings(settings);
