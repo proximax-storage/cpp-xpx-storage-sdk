@@ -892,18 +892,10 @@ public:
 
         for( const auto& replicatorIt : info.m_dnReplicatorShard )
         {
-            if ( auto downloadedIt = info.m_replicatorUploadMap.find( replicatorIt.array()); downloadedIt != info.m_replicatorUploadMap.end() )
+            if ( auto downloadedIt = info.m_replicatorUploadRequestMap.find( replicatorIt.array());
+                 downloadedIt != info.m_replicatorUploadRequestMap.end() )
             {
-                myOpinion.m_downloadLayout.push_back( {downloadedIt->first.array(), downloadedIt->second.uploadedSize() } );
-            }
-            else if ( replicatorIt == publicKey() )
-            {
-                uint64_t uploadedSize = 0;
-                for( auto& cell: info.m_dnClientMap )
-                {
-                    uploadedSize += cell.second.m_uploadedSize;
-                }
-                myOpinion.m_downloadLayout.push_back( { publicKey(), uploadedSize } );
+                myOpinion.m_downloadLayout.push_back( {downloadedIt->first.array(), downloadedIt->second.totalAcceptedReceiptSize() } );
             }
             else
             {
@@ -948,7 +940,82 @@ public:
         }
 
         _LOG_WARN( "drive not found" );
+        cereal::PortableBinaryOutputArchive archive( outOs );
+        ReplicatorKey replicatorKey = m_keyPair.publicKey();
+        archive( replicatorKey );
+        archive( channelId );
         return false;
+    }
+
+    bool createChannelStatus( const DriveKey&       driveKey,
+                              const ChannelId&      channelId,
+                              std::ostringstream&   outOs,
+                              Signature&            outSignature )
+    {
+        DBG_MAIN_THREAD
+
+        if ( auto channelInfoIt = m_dnChannelMap.find(channelId); channelInfoIt != m_dnChannelMap.end() )
+        {
+            cereal::PortableBinaryOutputArchive archive( outOs );
+            ReplicatorKey replicatorKey = m_keyPair.publicKey();
+            archive( replicatorKey );
+            archive( channelId );
+            archive( channelInfoIt->second );
+
+            auto str = outOs.str();
+            crypto::Sign( m_keyPair, { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature);
+            return true;
+        }
+
+        _LOG_WARN( "channel not found" );
+        cereal::PortableBinaryOutputArchive archive( outOs );
+        ReplicatorKey replicatorKey = m_keyPair.publicKey();
+        archive( replicatorKey );
+        archive( channelId );
+        return false;
+    }
+
+    bool createModificationStatus( const DriveKey&       driveKey,
+                                   const Hash256&        modificationHash,
+                                   std::ostringstream&   outOs,
+                                   Signature&            outSignature,
+                                   bool&                 outIsModificationFinished )
+    {
+        DBG_MAIN_THREAD
+
+        cereal::PortableBinaryOutputArchive archive( outOs );
+        ReplicatorKey replicatorKey = m_keyPair.publicKey();
+        archive( replicatorKey );
+        archive( modificationHash );
+
+        auto oldIt = std::find_if( m_oldModifications.begin(), m_oldModifications.end(), [&modificationHash] ( const auto& m ){
+            return m.first == modificationHash.array();
+        } );
+
+        if ( oldIt != m_oldModifications.end() )
+        {
+            outIsModificationFinished = true;
+            archive( oldIt->second );
+        }
+        else
+        {
+            outIsModificationFinished = false;
+            if ( auto it = m_modifyDriveMap.find(modificationHash.array()); it != m_modifyDriveMap.end() )
+            {
+                archive( it->second );
+            }
+            else
+            {
+                // modification not found
+                auto str = outOs.str();
+                crypto::Sign( m_keyPair, { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature);
+                return false;
+            }
+        }
+
+        auto str = outOs.str();
+        crypto::Sign( m_keyPair, { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature);
+        return true;
     }
 
     void addOpinion( mobj<DownloadApprovalTransactionInfo>&& opinion )
@@ -1662,14 +1729,14 @@ public:
             Signature signature;
             if ( sign.size() != signature.size() )
             {
-                __LOG_WARN( "invalid sin size of 'get_dn_rcpts' response" )
+                __LOG_WARN( "invalid sign size" )
                 return;
             }
             memcpy( signature.data(), sign.data(), signature.size() );
 
             if ( ! crypto::Verify( otherReplicatorKey, {utils::RawBuffer{ (const uint8_t*)response.begin(), response.size() }}, signature) )
             {
-                _LOG_WARN( "invalid sign of 'get_dn_rcpts' response" )
+                _LOG_WARN( "invalid sign" )
                 return;
             }
 
@@ -1900,7 +1967,7 @@ public:
             Signature signature;
             if ( sign.size() != signature.size() )
             {
-                __LOG_WARN( "invalid query 'get_dn_rcpts'" )
+                __LOG_WARN( "invalid sign size" )
                 return true;
             }
             memcpy( signature.data(), sign.data(), signature.size() );
@@ -1914,6 +1981,12 @@ public:
             DriveKey      driveKey;
             ChannelId     channelId;
 
+            if ( str.size() != senderKey.size() + driveKey.size() + channelId.size() )
+            {
+                __LOG_WARN( "invalid respose size" )
+                return true;
+            }
+
             uint8_t* ptr = (uint8_t*)str.data();
             memcpy( senderKey.data(), ptr, senderKey.size() );
             ptr += senderKey.size();
@@ -1923,7 +1996,7 @@ public:
 
             if ( ! crypto::Verify( senderKey, { utils::RawBuffer{(const uint8_t*) str.data(), str.size()} }, signature ) )
             {
-                __LOG_WARN( "invalid signature of 'get_dn_rcpts'" )
+                __LOG_WARN( "invalid respose size" )
                 return true;
             }
 
@@ -2030,6 +2103,133 @@ public:
             }
             catch(...){ _LOG_WARN( "execption occured" ) }
 
+            return true;
+        }
+
+        else if ( query == "get_channel_status" )
+        {
+            // extract signature
+            auto sign = message.dict_find_string_value("sign");
+            Signature signature;
+            if ( sign.size() != signature.size() )
+            {
+                __LOG_WARN( "invalid sign size" )
+                return true;
+            }
+            memcpy( signature.data(), sign.data(), signature.size() );
+
+            // extract message
+            auto str = message.dict_find_string_value("x");
+
+            // extract request fields
+            //
+            ClientKey senderKey;
+            DriveKey  driveKey;
+            ChannelId channelId;
+
+            if ( str.size() != senderKey.size() + driveKey.size() + channelId.size() )
+            {
+                __LOG_WARN( "invalid respose size" )
+                return true;
+            }
+
+            uint8_t* ptr = (uint8_t*)str.data();
+            memcpy( senderKey.data(), ptr, senderKey.size() );
+            ptr += senderKey.size();
+            memcpy( driveKey.data(), ptr, driveKey.size() );
+            ptr += driveKey.size();
+            memcpy( channelId.data(), ptr, channelId.size() );
+
+            if ( ! crypto::Verify( senderKey, { utils::RawBuffer{(const uint8_t*) str.data(), str.size()} }, signature ) )
+            {
+                __LOG_WARN( "invalid signature" )
+                return true;
+            }
+
+            std::ostringstream os( std::ios::binary );
+            Signature responseSignature;
+            if ( ! createChannelStatus( driveKey, channelId, os, responseSignature ) )
+            {
+                response["r"]["not_found"] = "yes";
+            }
+            response["r"]["q"] = std::string(query);
+            response["r"]["ret"] = os.str();
+            response["r"]["sign"] = std::string( responseSignature.begin(), responseSignature.end() );
+
+            return true;
+        }
+
+        else if ( query == "get_modification_status" )
+        {
+            // extract signature
+            auto sign = message.dict_find_string_value("sign");
+            Signature signature;
+            if ( sign.size() != signature.size() )
+            {
+                __LOG_WARN( "invalid sign size" )
+                return true;
+            }
+            memcpy( signature.data(), sign.data(), signature.size() );
+
+            // extract message
+            auto str = message.dict_find_string_value("x");
+
+            // extract request fields
+            //
+            ClientKey senderKey;
+            DriveKey  driveKey;
+            Hash256   modifyTx;
+
+            if ( str.size() != senderKey.size() + driveKey.size() + modifyTx.size() )
+            {
+                __LOG_WARN( "invalid respose size" )
+                return true;
+            }
+
+            uint8_t* ptr = (uint8_t*)str.data();
+            memcpy( senderKey.data(), ptr, senderKey.size() );
+            ptr += senderKey.size();
+            memcpy( driveKey.data(), ptr, driveKey.size() );
+            ptr += driveKey.size();
+            memcpy( modifyTx.data(), ptr, modifyTx.size() );
+
+            if ( ! crypto::Verify( senderKey, { utils::RawBuffer{(const uint8_t*) str.data(), str.size()} }, signature ) )
+            {
+                __LOG_WARN( "invalid signature" )
+                return true;
+            }
+            
+            auto drive = getDrive( driveKey );
+            if ( drive )
+            {
+                bool isModificationQueued = false;
+                auto currentTask = drive->getDriveStatus( modifyTx.array(), isModificationQueued );
+                if ( currentTask )
+                {
+                    response["r"]["currentTask"] = driveTaskTypeToString(*currentTask);
+                }
+                if ( isModificationQueued )
+                {
+                    response["r"]["taskIsQueued"] = "yes";
+                }
+            }
+            
+            std::ostringstream os( std::ios::binary );
+            Signature responseSignature;
+            bool isModificationFinished = false;
+            if ( ! createModificationStatus( driveKey, modifyTx, os, responseSignature, isModificationFinished ) )
+            {
+                response["r"]["not_found"] = "yes";
+            }
+            
+            response["r"]["q"] = std::string(query);
+            response["r"]["ret"] = os.str();
+            response["r"]["sign"] = std::string( responseSignature.begin(), responseSignature.end() );
+            
+            if ( isModificationFinished )
+            {
+                response["r"]["taskIsFinished"] = "yes";
+            }
             return true;
         }
 

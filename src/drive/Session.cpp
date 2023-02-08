@@ -126,6 +126,7 @@ public:
         , m_replicator(replicator)
         , m_downloadLimiter(downloadLimiter)
     {
+        _LOG( "DefaultSession: " << address << " : " << toString(m_downloadLimiter.lock()->publicKey()) );
         m_dbgOurPeerName = m_downloadLimiter.lock()->dbgOurPeerName();
         
         m_session.set_alert_notify( [this] { this->alertHandler(); } );
@@ -313,6 +314,8 @@ public:
 
         settingsPack.set_int( lt::settings_pack::max_retry_port_bind, 0 );
         settingsPack.set_bool( lt::settings_pack::listen_system_port_fallback, false );
+        
+        //settingsPack.set_int( lt::settings_pack::max_out_request_queue, 10 );
 
         return settingsPack;
     }
@@ -543,10 +546,10 @@ public:
         if ( auto limiter = m_downloadLimiter.lock(); limiter )
         {
             for( const auto& key : keysHints ) {
-                //LOG( "connect_peer: " << endpoint.address() << ":" << endpoint.port() );
                 auto endpoint = limiter->getEndpoint( key.array() );
                 if ( endpoint )
                 {
+                    _LOG( "connect_peer: " << *endpoint << " " << key );
                     tHandle.connect_peer( *endpoint );
                 }
             }
@@ -586,10 +589,23 @@ public:
 
         //TODO check if not set m_lastTorrentFileHandle
         for( const auto& endpoint : list ) {
+            _LOG( "connectPeers: " << endpoint )
             tHandle.connect_peer(endpoint);
         }
     }
 
+    void connectTorentsToEndpoint( const boost::asio::ip::tcp::endpoint& endpoint ) override
+    {
+        std::vector<lt::torrent_handle> torrents = m_session.get_torrents();
+        for( const lt::torrent_handle& tHandle : torrents )
+        {
+            //if ( tHandle.in_session() )
+            if ( tHandle.is_valid() )
+            {
+                tHandle.connect_peer(endpoint);
+            }
+        }
+    }
     void      dbgPrintActiveTorrents() override
     {
         _LOG( "Active torrents:" );
@@ -1101,7 +1117,8 @@ private:
 //                                 _LOG( "" );
 //                             }
                              //_LOG( "dht_query: " << query )
-                             if ( query == "get_dn_rcpts" || query == "get-chunks-info" || query == "get-playlist-hash" )
+                             if ( query == "get_dn_rcpts" || query == "get-chunks-info" || query == "get-playlist-hash" ||
+                                 query == "get_channel_status" || query == "get_modification_status" )
                              {
                                  handleDhtResponse( response, theAlert->endpoint );
                              }

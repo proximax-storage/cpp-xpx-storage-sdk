@@ -6,6 +6,8 @@
 #pragma once
 
 #include "drive/Session.h"
+#include "drive/Replicator.h"
+#include "drive/RcptMessage.h"
 #include "drive/log.h"
 #include "drive/Utils.h"
 #include "crypto/Signer.h"
@@ -26,6 +28,24 @@ protected:
     using ModifyTransactionHash = std::optional<std::array<uint8_t,32>>;
     using ReplicatorTraficMap   = std::map<std::array<uint8_t,32>,uint64_t>;
 
+    using ErrorHandler          =  std::function<void( lt::close_reason_t            errorCode,
+                                                       const std::array<uint8_t,32>& replicatorKey,
+                                                       const std::array<uint8_t,32>& channelHash,
+                                                       const std::array<uint8_t,32>& infoHash )>;
+
+    using ChannelStatusResponseHandler      = std::function<void( const ReplicatorKey&          replicatorKey,
+                                                                  const ChannelId&              channelId,
+                                                                  const DownloadChannelInfo&    msg,
+                                                                  const std::string&            error )>;
+
+    using ModificationStatusResponseHandler = std::function<void( const ReplicatorKey&      replicatorKey,
+                                                                  const Hash256&            modificationHash,
+                                                                  const ModifyTrafficInfo&  msg,
+                                                                  lt::string_view           currentTask,
+                                                                  bool                      isModificationQueued,
+                                                                  bool                      isModificationFinished,
+                                                                  const std::string&        error )>;
+
     struct ModifyTorrentInfo {
         Session::lt_handle  m_ltHandle = {};
         bool                m_isUsed = true;
@@ -45,6 +65,11 @@ protected:
 
     TorrentMap                          m_modifyTorrentMap;
     std::map<Hash256, DownloadChannel>  m_downloadChannelMap;
+    
+    std::optional<ErrorHandler>         m_errorHandler;
+    
+    std::optional<ChannelStatusResponseHandler>         m_channelStatusResponseHandler      = defaultChannelStatusResponseHandler;
+    std::optional<ModificationStatusResponseHandler>    m_modificationStatusResponseHandler = defaultModificationStatusResponseHandler;
 
     const char*                 m_dbgOurPeerName;
 
@@ -67,127 +92,110 @@ public:
         return m_keyPair.publicKey().array();
     }
 
-    virtual void onTorrentDeleted( lt::torrent_handle handle ) override
+    void setErrorHandler( ErrorHandler errorHandler )
     {
-        m_session->onTorrentDeleted( handle );
+        m_errorHandler = errorHandler;
     }
-
-    void addReplicatorList( const sirius::drive::ReplicatorList& keys )
+    
+    void setEndpointHandler()
     {
-        m_endpointsManager.addEndpointsEntries( keys );
+        m_endpointsManager.setEndpointHandler( [self=weak_from_this()] (const Key& key, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint) {
+            assert( endpoint );
+            if ( auto ptr = self.lock(); ptr )
+            {
+                __LOG( "connect to: " << *endpoint << " " << key )
+                ptr->m_session->connectTorentsToEndpoint( *endpoint );
+            }
+        });
     }
-
-    //
-    // TODO Wrong
-    void addDownloadChannel( Hash256 downloadChannelId )
+    
+    void setChannelStatusResponseHandler( ChannelStatusResponseHandler handler )
     {
-        if ( !m_downloadChannelMap.contains(downloadChannelId) )
+        m_channelStatusResponseHandler = handler;
+    }
+    
+    bool sendChannelStatusRequestToReplicator( const Key&     replicatorKey,
+                                               const Key&     driveKey,
+                                               const Hash256& downloadChannelId,
+                                               std::optional<boost::asio::ip::tcp::endpoint> replicatorEndpoint = {} )
+    {
+        if ( ! replicatorEndpoint )
         {
-            m_downloadChannelMap[downloadChannelId] = {};
+            replicatorEndpoint = m_endpointsManager.getEndpoint( replicatorKey );
         }
-    }
-
-    void setDownloadChannelReplicators( const Hash256& downloadChannelId, const ReplicatorList& replicators )
-    {
-        auto it = m_downloadChannelMap.find(downloadChannelId);
-        if (it == m_downloadChannelMap.end()) {
-            return;
+        if ( ! replicatorEndpoint )
+        {
+            return false;
         }
-        it->second.m_downloadReplicatorList = replicators;
-    }
 
-    void setDownloadChannelRequestedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
-    {
-        auto it = m_downloadChannelMap.find(downloadChannelId);
-        if (it == m_downloadChannelMap.end()) {
-            return;
-        }
-        it->second.m_requestedSize = sizes;
-    }
+        std::vector<uint8_t> message;
+        message.insert( message.end(), m_keyPair.publicKey().begin(), m_keyPair.publicKey().end() );
+        message.insert( message.end(), driveKey.begin(), driveKey.end() );
+        message.insert( message.end(), downloadChannelId.begin(), downloadChannelId.end() );
 
-    void setDownloadChannelReceivedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
-    {
-        auto it = m_downloadChannelMap.find(downloadChannelId);
-        if (it == m_downloadChannelMap.end()) {
-            return;
-        }
-        it->second.m_requestedSize = sizes;
-    }
+        Signature signature;
+        crypto::Sign( m_keyPair, { utils::RawBuffer{ message } }, signature);
 
-    void onHandshake( uint64_t /*uploadedSize*/ ) override
-    {
-        //todo here could be call back-call of test UI app
-    }
-
-    // Initiate file downloading (identified by downloadParameters.m_infoHash)
-    lt_handle download( DownloadContext&&     downloadParameters,
-                       const Hash256&         downloadChannelId,
-                       const std::string&     saveFolder,
-                       const std::string&     saveTorrentFolder,
-                       const endpoint_list&   endpointsHints = {},
-                       const ReplicatorList&  replicatorList = {} )
-    {
-        // check that download channel was set
-        if ( !m_downloadChannelMap.contains(downloadChannelId) )
-            throw std::runtime_error("downloadChannel does not exist");
-
-        const auto& downloadChannel = m_downloadChannelMap[downloadChannelId];
-
-        downloadParameters.m_transactionHash = downloadChannelId;
+        m_session->sendMessage( "get_channel_status", { replicatorEndpoint->address(), replicatorEndpoint->port() }, message, &signature );
         
-        if ( auto it = m_modifyTorrentMap.find( downloadParameters.m_infoHash ); it != m_modifyTorrentMap.end() )
-        {
-            auto tHandle = it->second.m_ltHandle;
-            auto status = tHandle.status( lt::torrent_handle::query_save_path | lt::torrent_handle::query_name );
-            auto filePath = fs::path( status.save_path ) / status.name;
-            if ( fs::exists(filePath) && ! fs::is_directory(filePath) )
-            {
-                try {
-                    __LOG( "download: copy '" << filePath << "'" << " to '" << downloadParameters.m_saveAs << "'" )
-                    fs::copy( filePath, downloadParameters.m_saveAs );
-                    downloadParameters.m_downloadNotification( download_status::download_complete,
-                                                              downloadParameters.m_infoHash,
-                                                              downloadParameters.m_saveAs,
-                                                              0,
-                                                              0,
-                                                              "" );
-                    return tHandle;
-                } catch(...) {}
-            }
-            else
-            {
-                _LOG_WARN( "Invalid modify torrent? ");
-            }
-        }
-
-        auto downloadChannelIdAsArray = downloadChannelId.array();
-
-        const ReplicatorList& replicators = !replicatorList.empty() ? replicatorList : downloadChannel.m_downloadReplicatorList;
-
-        // start downloading
-        return m_session->download( std::move(downloadParameters),
-                                    saveFolder,
-                                    saveTorrentFolder,
-                                    replicators,
-                                    nullptr,
-                                    &downloadChannelIdAsArray,
-                                    nullptr,
-                                    endpointsHints );
+        return true;
     }
 
-    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint(const std::array<uint8_t, 32> &key) override
+    void setModificationStatusResponseHandler( ModificationStatusResponseHandler handler )
     {
-        return m_endpointsManager.getEndpoint(key);
+        m_modificationStatusResponseHandler = handler;
+    }
+    
+    bool sendModificationStatusRequestToReplicator( const Key&     replicatorKey,
+                                                    const Key&     driveKey,
+                                                    const Hash256& modificationHash,
+                                                    std::optional<boost::asio::ip::tcp::endpoint> replicatorEndpoint = {} )
+    {
+        if ( ! replicatorEndpoint )
+        {
+            replicatorEndpoint = m_endpointsManager.getEndpoint( replicatorKey );
+        }
+        if ( ! replicatorEndpoint )
+        {
+            return false;
+        }
+
+        std::vector<uint8_t> message;
+        message.insert( message.end(), m_keyPair.publicKey().begin(), m_keyPair.publicKey().end() );
+        message.insert( message.end(), driveKey.begin(), driveKey.end() );
+        message.insert( message.end(), modificationHash.begin(), modificationHash.end() );
+
+        Signature signature;
+        crypto::Sign( m_keyPair, { utils::RawBuffer{ message } }, signature);
+
+        m_session->sendMessage( "get_modification_status", { replicatorEndpoint->address(), replicatorEndpoint->port() }, message, &signature );
+        
+        return true;
     }
 
     InfoHash addActionListToSession( const ActionList&      actionList,
                                      const Key&             drivePublicKey,
-                                     const ReplicatorList&  unused,
+                                     const ReplicatorList&  replicatorKeys,
                                      const std::string&     sandboxFolder, // it is the folder where all ActionLists and file-links will be placed
                                      uint64_t&              outTotalModifySize,
-                                     const endpoint_list&   endpointList = {}
+                                     endpoint_list          endpointList = {}
                                    )
     {
+        for( const auto& key: replicatorKeys )
+        {
+            auto endpoint = m_endpointsManager.getEndpoint( key );
+            if ( endpoint )
+            {
+                auto it = std::find_if( endpointList.begin(), endpointList.end(), [&endpoint] (const auto& item) {
+                    return item == endpoint;
+                });
+                if ( it == endpointList.end() )
+                {
+                    endpointList.push_back( *endpoint );
+                }
+            }
+        }
+        
         fs::path workFolder = sandboxFolder;
         std::error_code ec;
         fs::create_directories( workFolder, ec );
@@ -340,15 +348,88 @@ public:
         return infoHash0;
     }
 
-    std::vector<std::array<uint8_t,32>> getTorrentHandleHashes() {
-        std::vector<std::array<uint8_t,32>> hashes;
-        hashes.reserve(m_modifyTorrentMap.size());
-        for( auto& [key,value]: m_modifyTorrentMap )
+    void addDownloadChannel( const Hash256& downloadChannelId )
+    {
+        if ( !m_downloadChannelMap.contains(downloadChannelId) )
         {
-            hashes.push_back(key.array());
+            m_downloadChannelMap[downloadChannelId] = {};
+        }
+    }
+
+    void setDownloadChannelReplicators( const Hash256& downloadChannelId, const ReplicatorList& replicators )
+    {
+        auto it = m_downloadChannelMap.find(downloadChannelId);
+        if (it == m_downloadChannelMap.end()) {
+            return;
+        }
+        it->second.m_downloadReplicatorList = replicators;
+    }
+
+    // Initiate file downloading (identified by downloadParameters.m_infoHash)
+    lt_handle download( DownloadContext&&     downloadParameters,
+                       const Hash256&         downloadChannelId,
+                       const std::string&     saveFolder,
+                       const std::string&     saveTorrentFolder,
+                       const endpoint_list&   endpointsHints = {},
+                       const ReplicatorList&  replicatorList = {} )
+    {
+        // check that download channel was set
+        if ( !m_downloadChannelMap.contains(downloadChannelId) )
+            throw std::runtime_error("downloadChannel does not exist");
+
+        const auto& downloadChannel = m_downloadChannelMap[downloadChannelId];
+
+        downloadParameters.m_transactionHashX = downloadChannelId;
+        
+        if ( auto it = m_modifyTorrentMap.find( downloadParameters.m_infoHash ); it != m_modifyTorrentMap.end() )
+        {
+            auto tHandle = it->second.m_ltHandle;
+            auto status = tHandle.status( lt::torrent_handle::query_save_path | lt::torrent_handle::query_name );
+            auto filePath = fs::path( status.save_path ) / status.name;
+            if ( fs::exists(filePath) && ! fs::is_directory(filePath) )
+            {
+                try {
+                    __LOG( "download: copy '" << filePath << "'" << " to '" << downloadParameters.m_saveAs << "'" )
+                    fs::copy( filePath, downloadParameters.m_saveAs );
+                    downloadParameters.m_downloadNotification( download_status::download_complete,
+                                                              downloadParameters.m_infoHash,
+                                                              downloadParameters.m_saveAs,
+                                                              0,
+                                                              0,
+                                                              "" );
+                    return tHandle;
+                } catch(...) {}
+            }
+            else
+            {
+                _LOG_WARN( "Invalid modify torrent? ");
+            }
         }
 
-        return hashes;
+        auto downloadChannelIdAsArray = downloadChannelId.array();
+
+        ReplicatorList replicators = downloadChannel.m_downloadReplicatorList;
+        for( const auto& key: replicatorList )
+        {
+            auto it = std::find_if( replicators.begin(), replicators.end(), [&key] (const auto& item) {
+                return item == key;
+            });
+            if ( it == replicators.end() )
+            {
+                replicators.push_back( key );
+            }
+        }
+        replicators.insert( replicators.end(), replicatorList.begin(), replicatorList.end() );
+
+        // start downloading
+        return m_session->download( std::move(downloadParameters),
+                                    saveFolder,
+                                    saveTorrentFolder,
+                                    replicators,
+                                    nullptr,
+                                    &downloadChannelIdAsArray,
+                                    nullptr,
+                                    endpointsHints );
     }
 
     void removeTorrents()
@@ -400,6 +481,118 @@ public:
         barrier.get_future().wait();
     }
 
+protected:
+    void onError( lt::close_reason_t            errorCode,
+                  const std::array<uint8_t,32>& replicatorKey,
+                  const std::array<uint8_t,32>& channelHash,
+                  const std::array<uint8_t,32>& infoHash ) override
+    {
+        if ( m_errorHandler )
+        {
+            (*m_errorHandler)( errorCode, replicatorKey, channelHash, infoHash );
+        }
+    }
+
+    void onLastMyReceipt( const std::vector<uint8_t> receipt, const std::unique_ptr<std::array<uint8_t,32>>& channelId ) override
+    {
+        const RcptMessage& msg = reinterpret_cast<const RcptMessage&>(receipt);
+        
+        if ( ! msg.isValidSize() )
+        {
+            _LOG_WARN( "Bad last receipt size: " << receipt.size() );
+            return;
+        }
+        
+        assert(channelId);
+        if ( msg.channelId() != *channelId )
+        {
+            _LOG_WARN( "Bad channelId: " << toString(msg.channelId()) << " != " << toString(*channelId) );
+            return;
+        }
+        
+//        if ( msg.clientKey() != m_keyPair.publicKey().array() )
+//        {
+//            _LOG_WARN( "Bad clientKey: " << toString(msg.clientKey().array()) );
+//            return;
+//        }
+        
+        // Check sign
+        if ( ! crypto::Verify( m_keyPair.publicKey(),// msg.clientKey(),
+                               {
+                                    utils::RawBuffer{msg.channelId()},
+                                    utils::RawBuffer{msg.clientKey()},
+                                    utils::RawBuffer{msg.replicatorKey()},
+                                    utils::RawBuffer{(const uint8_t*)msg.downloadedSizePtr(),8}
+                               },
+                               reinterpret_cast<const Signature&>(msg.signature()) ))
+        {
+            _LOG( "msg.channelId() " << msg.channelId() )
+            _LOG( "msg.clientKey() " << msg.clientKey() )
+            _LOG( "msg.replicatorKey() " << msg.replicatorKey() )
+            _LOG( "downloadedSize: " << *msg.downloadedSizePtr() )
+            _LOG( "msg.signature() " << int(msg.signature()[0]) )
+
+            _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature will be ignored: " << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) )
+            return;
+        }
+
+        if ( m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] < *msg.downloadedSizePtr() )
+        {
+            m_downloadChannelMap[ msg.channelId().array() ].m_requestedSize[ msg.replicatorKey().array() ] = *msg.downloadedSizePtr();
+        }
+        m_downloadChannelMap[ msg.channelId().array() ].m_receivedSize[ msg.replicatorKey().array() ] = 0;//*msg.downloadedSizePtr();
+    }
+
+    virtual void onTorrentDeleted( lt::torrent_handle handle ) override
+    {
+        m_session->onTorrentDeleted( handle );
+    }
+
+    void addReplicatorList( const sirius::drive::ReplicatorList& keys )
+    {
+        m_endpointsManager.addEndpointsEntries( keys );
+    }
+
+//    void setDownloadChannelRequestedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
+//    {
+//        auto it = m_downloadChannelMap.find(downloadChannelId);
+//        if (it == m_downloadChannelMap.end()) {
+//            return;
+//        }
+//        it->second.m_requestedSize = sizes;
+//    }
+//
+//    void setDownloadChannelReceivedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
+//    {
+//        auto it = m_downloadChannelMap.find(downloadChannelId);
+//        if (it == m_downloadChannelMap.end()) {
+//            return;
+//        }
+//        it->second.m_requestedSize = sizes;
+//    }
+
+    void onHandshake( uint64_t /*uploadedSize*/ ) override
+    {
+        //todo here could be call back-call of test UI app
+    }
+
+    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint(const std::array<uint8_t, 32> &key) override
+    {
+        return m_endpointsManager.getEndpoint(key);
+    }
+
+    std::vector<std::array<uint8_t,32>> getTorrentHandleHashes() {
+        std::vector<std::array<uint8_t,32>> hashes;
+        hashes.reserve(m_modifyTorrentMap.size());
+        for( auto& [key,value]: m_modifyTorrentMap )
+        {
+            hashes.push_back(key.array());
+        }
+
+        return hashes;
+    }
+
+public:
     void setSessionSettings(const lt::settings_pack& settings, bool localNodes)
     {
         m_session->lt_session().apply_settings(settings);
@@ -432,8 +625,10 @@ protected:
     lt::connection_status acceptClientConnection( const std::array<uint8_t,32>&  /*channelId*/,
                                                   const std::array<uint8_t,32>&  /*peerKey*/,
                                                   const std::array<uint8_t,32>&  /*driveKey*/,
-                                                  const std::array<uint8_t,32>&  /*fileHash*/ ) override
+                                                  const std::array<uint8_t,32>&  /*fileHash*/,
+                                                  lt::errors::error_code_enum&   outErrorCode ) override
     {
+        outErrorCode = lt::errors::no_error;
         return lt::connection_status::UNLIMITED;
     }
 
@@ -452,9 +647,10 @@ protected:
 //        _LOG( " - receivedSize:  " << m_receivedSize[peerPublicKey] );
     }
 
-    bool checkDownloadLimit( const std::array<uint8_t,32>& /*reciept*/,
+    bool checkDownloadLimit( const std::array<uint8_t,32>& /*clientKey*/,
                              const std::array<uint8_t,32>& /*downloadChannelId*/,
-                             uint64_t                      /*downloadedSize*/ ) override
+                             uint64_t                      /*downloadedSize*/,
+                             lt::errors::error_code_enum&   outErrorCode ) override
     {
         // client does not check download limit
         return true;
@@ -594,21 +790,13 @@ protected:
     uint64_t requestedSize( const std::array<uint8_t,32>&  transactionHash,
                             const std::array<uint8_t,32>&  peerPublicKey ) override
     {
-        auto it = m_downloadChannelMap.find(transactionHash);
-        if (it == m_downloadChannelMap.end()) {
-            return 0;
-        }
-        return it->second.m_requestedSize[peerPublicKey];
+        return m_downloadChannelMap[transactionHash].m_requestedSize[peerPublicKey];
     }
 
     uint64_t receivedSize( const std::array<uint8_t,32>&  transactionHash,
                            const std::array<uint8_t,32>&  peerPublicKey ) override
     {
-        auto it = m_downloadChannelMap.find(transactionHash);
-        if (it == m_downloadChannelMap.end()) {
-            return 0;
-        }
-        return it->second.m_receivedSize[peerPublicKey];
+        return m_downloadChannelMap[transactionHash].m_receivedSize[peerPublicKey];
     }
     
 //    virtual void onMessageReceived( const std::string& query, const std::string& message, const boost::asio::ip::udp::endpoint& source ) override
@@ -617,7 +805,213 @@ protected:
     
     void handleDhtResponse( lt::bdecode_node response, boost::asio::ip::udp::endpoint endpoint ) override
     {
+        try
+        {
+            auto rDict = response.dict_find_dict("r");
+            auto query = rDict.dict_find_string_value("q");
+            
+            if ( query == "get_channel_status" )
+            {
+                if ( m_channelStatusResponseHandler )
+                {
+                    try
+                    {
+                        lt::string_view response = rDict.dict_find_string_value("ret");
+                        lt::string_view sign = rDict.dict_find_string_value("sign");
+                        
+                        std::istringstream is( std::string( response.begin(), response.end() ), std::ios::binary );
+                        cereal::PortableBinaryInputArchive iarchive(is);
+
+                        ReplicatorKey replicatorKey;
+                        ChannelId channelId;
+                        iarchive( replicatorKey );
+                        iarchive( channelId );
+
+                        // Verify sign
+                        //
+                        Signature signature;
+                        if ( sign.size() != signature.size() )
+                        {
+                            (*m_channelStatusResponseHandler)( replicatorKey, channelId, {}, "invalid sign size" );
+                            __LOG_WARN( "invalid sign size" )
+                            return;
+                        }
+                        memcpy( signature.data(), sign.data(), signature.size() );
+
+                        if ( ! crypto::Verify( replicatorKey, {utils::RawBuffer{ (const uint8_t*)response.begin(), response.size() }}, signature) )
+                        {
+                            (*m_channelStatusResponseHandler)( replicatorKey, channelId, {}, "invalid sign" );
+                            _LOG_WARN( "invalid sign" )
+                            return;
+                        }
+
+                        if ( rDict.dict_find_string_value("not_found") == "yes" )
+                        {
+                            (*m_channelStatusResponseHandler)( replicatorKey, channelId, {}, "channel not found" );
+                            return;
+                        }
+
+                        // parse and accept receipts
+                        //
+                        for(;;)
+                        {
+                            DownloadChannelInfo msg;
+                            try {
+                                iarchive( msg );
+                            } catch (...) {
+                                return;
+                            }
+
+                            (*m_channelStatusResponseHandler)( replicatorKey, channelId, msg, "" );
+                        }
+                    }
+                    catch(...)
+                    {
+                        (*m_channelStatusResponseHandler)( {}, {}, {}, "bad 'get_channel_status' response" );
+                        return;
+                    }
+                }
+            }
+
+            if ( query == "get_modification_status" )
+            {
+                if ( m_modificationStatusResponseHandler )
+                {
+                    try
+                    {
+                        lt::string_view response = rDict.dict_find_string_value("ret");
+                        lt::string_view sign = rDict.dict_find_string_value("sign");
+                        
+                        std::istringstream is( std::string( response.begin(), response.end() ), std::ios::binary );
+                        cereal::PortableBinaryInputArchive iarchive(is);
+
+                        ReplicatorKey replicatorKey;
+                        Hash256       modificationHash;
+                        iarchive( replicatorKey );
+                        iarchive( modificationHash );
+
+                        // Verify sign
+                        //
+                        Signature signature;
+                        if ( sign.size() != signature.size() )
+                        {
+                            (*m_modificationStatusResponseHandler)( replicatorKey, modificationHash, {}, "", false, false, "invalid sign size" );
+                            __LOG_WARN( "invalid sign size" )
+                            return;
+                        }
+                        memcpy( signature.data(), sign.data(), signature.size() );
+
+                        if ( ! crypto::Verify( replicatorKey, {utils::RawBuffer{ (const uint8_t*)response.begin(), response.size() }}, signature) )
+                        {
+                            (*m_modificationStatusResponseHandler)( replicatorKey, modificationHash, {}, "", false, false, "invalid sign" );
+                            _LOG_WARN( "invalid sign" )
+                            return;
+                        }
+
+                        if ( rDict.dict_find_string_value("not_found") == "yes" )
+                        {
+                            (*m_modificationStatusResponseHandler)( replicatorKey, modificationHash, {}, "", false, false, "not found" );
+                            return;
+                        }
+
+                        // parse and accept receipts
+                        //
+                        ModifyTrafficInfo msg;
+                        try {
+                            iarchive( msg );
+                        } catch (...) {
+                            (*m_modificationStatusResponseHandler)( {}, {}, {}, "", false, false, "bad 'get_modification_status' response" );
+                            return;
+                        }
+                        auto currentTask = rDict.dict_find_string_value("currentTask");
+                        bool isQueued = rDict.dict_find_string_value("taskIsQueued") == "yes";
+                        bool isFinished = rDict.dict_find_string_value("taskIsFinished") == "yes";
+                        (*m_modificationStatusResponseHandler)( replicatorKey, modificationHash, msg, currentTask, isQueued, isFinished, "" );
+                    }
+                    catch(...)
+                    {
+                        (*m_modificationStatusResponseHandler)( {}, {}, {}, "", false, false, "bad 'get_modification_status' response" );
+                        return;
+                    }
+                }
+            }
+        }
+        catch(...)
+        {
+            __LOG_WARN("Bad DHT response");
+        }
     }
+    
+    static void defaultModificationStatusResponseHandler( const ReplicatorKey& replicatorKey,
+                                                   const sirius::Hash256&      modificationHash,
+                                                   const ModifyTrafficInfo&    msg,
+                                                   lt::string_view             currentTask,
+                                                   bool                        isModificationQueued,
+                                                   bool                        isModificationFinished,
+                                                   const std::string&          error    )
+    {
+        __LOG( "@@@ -------------------------------------------------------------------" );
+        __LOG( "@@@ Modification Status: " << modificationHash );
+        __LOG( "@@@  replicatorKey:     " << replicatorKey );
+        if ( ! error.empty() )
+        {
+            __LOG( "@@@  error:          " << error );
+        }
+        else
+        {
+            __LOG( "@@@  driveKey:          " << toString(msg.m_driveKey) );
+            if ( !currentTask.empty() )
+            {
+                __LOG( "@@@  currentTask:       " << currentTask );
+            }
+            if ( isModificationQueued )
+            {
+                __LOG( "@@@  modification is queued" );
+            }
+            if ( isModificationFinished )
+            {
+                __LOG( "@@@  modification is finished" );
+            }
+            __LOG( "@@@  maxDataSize:       " << msg.m_maxDataSize );
+            __LOG( "@@@  totalReceivedSize: " << msg.m_totalReceivedSize );
+            for( auto [hash,sizes]: msg.m_modifyTrafficMap )
+            {
+                __LOG( "@@@   received:  " << sizes.m_receivedSize << " from: " << toString(hash) );
+                __LOG( "@@@    uploaded: " << sizes.m_requestedSize << " to: " << toString(hash) );
+            }
+        }
+        __LOG( "@@@ -------------------------------------------------------------------" );
+    }
+    
+    static void defaultChannelStatusResponseHandler( const ReplicatorKey&         replicatorKey,
+                                                     const ChannelId&             channelId,
+                                                     const DownloadChannelInfo&   msg,
+                                                     const std::string&           error )
+    {
+        __LOG( "@@@ -------------------------------------------------------------------" );
+        __LOG( "@@@ Download Channel Status: " << channelId << " from: " << replicatorKey );
+        __LOG( "@@@  driveKey:            " << toString(msg.m_driveKey) );
+        __LOG( "@@@  prepaidDownloadSize: " << msg.m_prepaidDownloadSize );
+        __LOG( "@@@  totalReceiptsSize:   " << msg.m_totalReceiptsSize );
+        
+        for( const auto& [clientKey,sizes]: msg.m_sentClientMap )
+        {
+            __LOG( "@@@   sentSize: " << sizes.m_sentSize << " to client:   " << clientKey );
+        }
+        for( const auto& [replicatorKey2,uploadInfo]: msg.m_replicatorUploadRequestMap )
+        {
+            if ( replicatorKey2 == replicatorKey )
+            {
+                for( const auto& [clientKey,sizes]: uploadInfo.m_clientMap )
+                {
+                    __LOG( "@@@   acceptedSize/notAccepted: " << sizes.m_acceptedSize << "/" << sizes.m_notAcceptedSize << " replicatorKey:   " << replicatorKey );
+                }
+            }
+        }
+        __LOG( "@@@ -------------------------------------------------------------------" );
+    }
+
+
 
 public:
     void
@@ -626,6 +1020,7 @@ public:
     }
 
 protected:
+public: //TODO
 
     const char* dbgOurPeerName() override
     {
@@ -672,6 +1067,7 @@ inline std::shared_ptr<ClientSession> createClientSession(  const crypto::KeyPai
     clientSession->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     boost::asio::post(clientSession->session()->lt_session().get_context(), [clientSession] {
         clientSession->m_endpointsManager.start(clientSession->session());
+        clientSession->setEndpointHandler();
     });
     clientSession->addDownloadChannel(Hash256());
     return clientSession;

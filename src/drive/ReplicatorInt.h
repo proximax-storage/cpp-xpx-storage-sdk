@@ -77,7 +77,7 @@ public:
     // will be called from Sesion
     // when it receives message from another replicator
     // (must be implemented by DownloadLimiter)
-    virtual bool acceptReceiptFromAnotherReplicator( const RcptMessage& message ) = 0;
+    virtual void acceptReceiptFromAnotherReplicator( const RcptMessage& message ) = 0;
 
     virtual ModifyTrafficInfo getMyDownloadOpinion( const Hash256& transactionHash ) const = 0;
 
