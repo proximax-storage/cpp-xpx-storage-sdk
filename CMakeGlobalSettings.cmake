@@ -224,3 +224,38 @@ function(storage_sdk_executable TARGET_NAME)
                 target_link_libraries(${TARGET_NAME} wsock32 ws2_32)
         endif()
 endfunction()
+
+function(storage_sdk_proto SERVICE DEPENDENCIES)
+        # Proto file
+        get_filename_component(${SERVICE}_proto "../protobuf/${SERVICE}.proto" ABSOLUTE)
+        get_filename_component(${SERVICE}_proto_path "${${SERVICE}_proto}" PATH)
+        list(APPEND DEPENDENCIES ${${SERVICE}_proto})
+
+        # Generated sources
+        set(${SERVICE}_proto_srcs "${CMAKE_CURRENT_BINARY_DIR}/${SERVICE}.pb.cc")
+        set(${SERVICE}_proto_hdrs "${CMAKE_CURRENT_BINARY_DIR}/${SERVICE}.pb.h")
+        set(${SERVICE}_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/${SERVICE}.grpc.pb.cc")
+        set(${SERVICE}_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/${SERVICE}.grpc.pb.h")
+        add_custom_command(
+                OUTPUT "${${SERVICE}_proto_srcs}" "${${SERVICE}_proto_hdrs}" "${${SERVICE}_grpc_srcs}" "${${SERVICE}_grpc_hdrs}"
+                COMMAND ${_PROTOBUF_PROTOC}
+                ARGS --grpc_out "${CMAKE_CURRENT_BINARY_DIR}"
+                --cpp_out "${CMAKE_CURRENT_BINARY_DIR}"
+                -I "${${SERVICE}_proto_path}"
+                --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
+                "${${SERVICE}_proto}"
+                DEPENDS ${DEPENDENCIES})
+
+        # vm_client_grpc_proto
+        add_library(${SERVICE}_storage_grpc_proto
+                ${${SERVICE}_grpc_srcs}
+                ${${SERVICE}_grpc_hdrs}
+                ${${SERVICE}_proto_srcs}
+                ${${SERVICE}_proto_hdrs})
+        # Include generated *.pb.h files
+        target_include_directories(${SERVICE}_storage_grpc_proto PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+        target_link_libraries(${SERVICE}_storage_grpc_proto
+                ${_REFLECTION}
+                ${_GRPC_GRPCPP}
+                ${_PROTOBUF_LIBPROTOBUF})
+endfunction()
