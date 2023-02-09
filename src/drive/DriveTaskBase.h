@@ -20,19 +20,6 @@
 namespace sirius::drive
 {
 
-enum class DriveTaskType
-{
-    DRIVE_INITIALIZATION,
-    DRIVE_CLOSURE,
-    MODIFICATION_CANCEL,
-    CATCHING_UP,
-    MODIFICATION_REQUEST,
-    STREAM_REQUEST,
-    DRIVE_VERIFICATION,
-    MANUAL_MODIFICATION,
-    MANUAL_SYNCHRONIZATION
-};
-
 class DriveTaskBase
 {
 

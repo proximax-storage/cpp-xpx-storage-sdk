@@ -3,12 +3,10 @@ project(modifyDriveFlat3)
 
 set(CMAKE_CXX_STANDARD 20)
 
-file(GLOB SOURCES ../../src/drive/*.cpp)
-
 find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
 
-add_executable(modifyDriveFlat3 modifyDriveFlat3.cpp ${SOURCES})
+add_executable(modifyDriveFlat3 modifyDriveFlat3.cpp)
 
 #target_precompile_headers(modifyDriveFlat PRIVATE pch.h)
 

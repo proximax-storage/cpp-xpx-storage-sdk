@@ -125,7 +125,6 @@ protected:
         m_drive.m_lastApprovedModification = getModificationTransactionHash();
 
         m_drive.updateStreamMap();
-//        m_isSynchronizing = false;
 
         finishTask();
     }

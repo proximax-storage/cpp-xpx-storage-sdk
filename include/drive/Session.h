@@ -74,7 +74,7 @@ struct DownloadContext {
           m_downloadType(downloadType),
           m_downloadNotification(notification),
           m_infoHash(infoHash),
-          m_transactionHash(transactionHash),
+          m_transactionHashX(transactionHash),
           m_downloadLimit(downloadLimit),
           m_saveAs(saveAs),
           m_doNotDeleteTorrent(doNotDeleteTorrent)
@@ -100,7 +100,7 @@ struct DownloadContext {
 
     Notification          m_downloadNotification;
     InfoHash              m_infoHash;
-    Hash256               m_transactionHash;
+    Hash256               m_transactionHashX;
     uint64_t              m_downloadLimit; // for modify drive - all data size
     std::filesystem::path m_saveAs;
     bool                  m_doNotDeleteTorrent = false;
@@ -188,6 +188,7 @@ public:
 
     virtual Timer     startTimer( int milliseconds, std::function<void()> func ) = 0;
 
+    virtual void      connectTorentsToEndpoint( const boost::asio::ip::tcp::endpoint& endpoint ) = 0;
 
     // for testing and debugging
     virtual void      dbgPrintActiveTorrents() = 0;

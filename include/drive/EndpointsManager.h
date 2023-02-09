@@ -129,6 +129,9 @@ private:
 
     const int m_standardExternalEndpointDelayMs = 1000 * 60 * 60;
     const int m_noResponseExternalEndpointDelayMs = 1000 * 5;
+    
+    using EndpointHandler = std::function<void(const Key&,const std::optional<boost::asio::ip::tcp::endpoint>&)>;
+    std::optional<EndpointHandler> m_endpointHandler;
 
     std::thread::id m_dbgThreadId;
     std::string m_dbgOurPeerName = "noname";
@@ -148,16 +151,17 @@ public:
             m_endpointsMap[key] = {endpoint, {}};
         }
     }
+    
+    void setEndpointHandler( EndpointHandler endpointHandler )
+    {
+        m_endpointHandler = endpointHandler;
+    }
 
     void start(std::weak_ptr<Session> session)
     {
         m_session = std::move(session);
         m_dbgThreadId = std::this_thread::get_id();
 
-        //(???++++) !!!!!!
-//#ifdef __APPLE__
-//        return;
-//#endif
         onUpdateExternalEndpointTimerTick();
     }
 
@@ -220,6 +224,10 @@ public:
         {
             if (endpoint)
             {
+                if ( m_endpointHandler && it->second.m_endpoint != endpoint )
+                {
+                    (*m_endpointHandler)( key, endpoint);
+                }
                 it->second.m_endpoint = endpoint;
 #ifdef UPDATE_ENDPOINTS_PERIODICALLY
                 if ( auto session = m_session.lock(); session )
@@ -255,7 +263,7 @@ public:
         {
             return it->second.m_endpoint;
         }
-        _ASSERT(m_unknownEndpointsMap.find(key) == m_unknownEndpointsMap.end())
+        //_ASSERT(m_unknownEndpointsMap.find(key) == m_unknownEndpointsMap.end())
         return {};
     }
 

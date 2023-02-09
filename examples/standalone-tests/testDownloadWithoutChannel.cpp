@@ -94,13 +94,19 @@ namespace sirius::drive::test
 
         auto downloadChannel = randomByteArray<Key>();
 
-        client.downloadFromDrive(env.m_rootHashes[env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_modifyTransactionHash],
+        client.downloadFromDrive(env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash, downloadChannel, env.m_addrList);
+
+
+        client.waitForDownloadComplete(env.m_drives[DRIVE_PUB_KEY].m_lastApprovedModification->m_rootHash);
+
+        auto files = client.getFsTreeFiles();
+        auto downloadHash = *files.begin();
+
+        client.downloadFromDrive(downloadHash,
                                  downloadChannel, env.m_addrList);
 
         std::this_thread::sleep_for(std::chrono::seconds(60));
-
-        auto driveKey = DRIVE_PUB_KEY;
-        ASSERT_EQ(client.m_downloadCompleted[env.m_rootHashes[env.m_drives[driveKey].m_lastApprovedModification->m_modifyTransactionHash]],
+        ASSERT_EQ(client.m_downloadCompleted[downloadHash],
                   false);
     }
 
