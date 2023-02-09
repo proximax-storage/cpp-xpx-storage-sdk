@@ -8,6 +8,7 @@
 #include "drive/Replicator.h"
 #include "drive/Session.h"
 #include "DriveTaskBase.h"
+#include "UpdateDriveTaskBase.h"
 #include "DriveParams.h"
 #include "ModifyOpinionController.h"
 #include "drive/Utils.h"
@@ -163,7 +164,7 @@ public:
             , m_modifyDonatorShard(modifyDonatorShard)
             , m_modifyRecipientShard(modifyRecipientShard)
             //(???+)
-            , m_opinionController(m_driveKey, m_driveOwner, m_replicator, m_serializer, *this, expectedCumulativeDownload, replicator.dbgReplicatorName() )
+            , m_opinionController(*this, m_driveOwner, m_replicator, m_serializer, *this, expectedCumulativeDownload, replicator.dbgReplicatorName() )
 
     {
         runDriveInitializationTask( std::move( completedModifications ) );
@@ -189,6 +190,69 @@ public:
             m_verificationTask.reset();
         }
     }
+
+#ifndef COMMON_MODIFY_MAP//+
+    virtual std::optional<ModifyTrafficInfo>& currentModifyInfo() override
+    {
+        return m_modifyInfo;
+    }
+    
+    virtual const std::optional<Hash256> currentModifyTx() override
+    {
+        if ( m_task )
+        {
+            if ( auto* modifyTask = dynamic_cast<UpdateDriveTaskBase*>(&(*m_task)); modifyTask != nullptr )
+            {
+                return modifyTask->getModificationTransactionHash();
+            }
+        }
+        return {};
+    }
+    
+    virtual void resetCurrentModifyInfo() override
+    {
+        _ASSERT( m_modifyInfo )
+
+        if ( auto tx = currentModifyTx(); tx )
+        {
+            if ( m_oldModifications.size() >= 100 )
+            {
+                m_oldModifications.pop_front();
+            }
+            m_oldModifications.push_back( { tx->array(), *m_modifyInfo } );
+        }
+        m_modifyInfo.reset();
+    }
+    
+    void setupModifyInfo( uint64_t maxDataSize )
+    {
+        _ASSERT( ! m_modifyInfo )
+        m_modifyInfo = ModifyTrafficInfo{ m_driveKey.array(), maxDataSize, {}, 0 };
+    }
+    
+    virtual const ModifyTrafficInfo* findModifyInfo( const Hash256& tx, bool& outIsFinished ) override
+    {
+        outIsFinished = false;
+        
+        const auto it = std::find_if( m_oldModifications.begin(), m_oldModifications.end(), [&tx] ( const auto& m ){
+            return m.first == tx.array();
+        } );
+
+        if ( it != m_oldModifications.end() )
+        {
+            outIsFinished = true;
+            return &it->second;
+        }
+        
+        if ( auto currentTx = currentModifyTx(); currentTx && *currentTx == tx )
+        {
+            if ( m_modifyInfo )
+            return &(*m_modifyInfo);
+        }
+        
+        return nullptr;
+    }
+#endif
 
     uint64_t maxSize() const override {
         return m_maxSize;
@@ -297,11 +361,32 @@ public:
         
         if ( request.m_modificationRequest )
         {
+#ifndef COMMON_MODIFY_MAP//+
+            if ( currentModifyInfo() )
+            {
+                currentModifyInfo()->m_maxDataSize += request.m_modificationRequest->m_maxDataSize;
+            }
+            else
+            {
+                setupModifyInfo( request.m_modificationRequest->m_maxDataSize );
+            }
+#endif
             runModificationTask( std::move( request.m_modificationRequest ) );
         }
         else
         {
             __ASSERT( request.m_streamRequest )
+
+#ifndef COMMON_MODIFY_MAP//+
+            if ( currentModifyInfo() )
+            {
+                currentModifyInfo()->m_maxDataSize += request.m_streamRequest->m_maxSizeBytes;
+            }
+            else
+            {
+                setupModifyInfo( request.m_streamRequest->m_maxSizeBytes );
+            }
+#endif
             runStreamTask( std::move( request.m_streamRequest ) );
         }
     }
@@ -358,7 +443,9 @@ public:
                 if ( !opinionTrafficIdentifier
                 || *opinionTrafficIdentifier != m_deferredModificationRequests.front().transactionHash().array() )
                 {
+#ifdef COMMON_MODIFY_MAP//-
                     m_replicator.removeModifyDriveInfo( m_deferredModificationRequests.front().transactionHash().array() );
+#endif
                 }
                 m_opinionController.increaseApprovedExpectedCumulativeDownload( m_deferredModificationRequests.front().maxDataSize() );
                 m_deferredModificationRequests.pop_front();
@@ -369,7 +456,9 @@ public:
             if ( opinionTrafficIdentifier &&
             *opinionTrafficIdentifier != m_deferredModificationRequests.front().transactionHash().array() )
             {
+#ifdef COMMON_MODIFY_MAP//-
                 m_replicator.removeModifyDriveInfo(m_deferredModificationRequests.front().transactionHash().array());
+#endif
             }
             m_opinionController.increaseApprovedExpectedCumulativeDownload( m_deferredModificationRequests.front().maxDataSize() );
             m_deferredModificationRequests.pop_front();
@@ -516,10 +605,12 @@ public:
                 runNextTask();
             }
         }
+#ifdef COMMON_MODIFY_MAP//-
         else
         {
             m_replicator.removeModifyDriveInfo( transaction.m_modifyTransactionHash );
         }
+#endif
     }
 
     void onApprovalTransactionHasFailedInvalidOpinions( const Hash256& transactionHash ) override

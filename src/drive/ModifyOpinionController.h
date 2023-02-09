@@ -41,7 +41,7 @@ class ModifyOpinionController
 
 private:
 
-    Key                                         m_driveKey;
+    FlatDrive&                                  m_drive;
 
     Key                                         m_clientKey;
 
@@ -62,7 +62,7 @@ private:
 public:
 
     ModifyOpinionController(
-            const Key& driveKey,
+            FlatDrive& drive,
             const Key& client,
             ReplicatorInt& replicator,
             const RestartValueSerializer& serializer,
@@ -70,7 +70,7 @@ public:
             uint64_t expectedCumulativeDownload,
             const std::string& dbgOurPeerName )
         :
-              m_driveKey( driveKey )
+              m_drive( drive )
             , m_clientKey( client )
             , m_replicator( replicator )
             , m_serializer( serializer )
@@ -120,9 +120,13 @@ public:
 
         _ASSERT( m_opinionTrafficTx )
 
+#ifdef COMMON_MODIFY_MAP//-+
         const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(*m_opinionTrafficTx)
                 .m_modifyTrafficMap;
-
+#else
+        const auto &modifyTrafficMap = m_drive.currentModifyInfo()->m_modifyTrafficMap;
+#endif
+        
         std::map<std::array<uint8_t,32>, uint64_t> currentUploads;
         for (const auto &replicatorIt : replicators)
         {
@@ -162,7 +166,11 @@ public:
 
         uint64_t targetSize = expectedCumulativeDownload - accountedCumulativeDownload;
         normalizeUploads(currentUploads, targetSize);
+#ifdef COMMON_MODIFY_MAP//-+
         m_replicator.removeModifyDriveInfo( *m_opinionTrafficTx );
+#else
+        m_drive.resetCurrentModifyInfo();
+#endif
         m_opinionTrafficTx.reset();
 
         for (const auto&[uploaderKey, bytes]: currentUploads)
@@ -233,7 +241,9 @@ public:
         auto trafficIdentifierHasValue = m_opinionTrafficTx.has_value();
         if ( trafficIdentifierHasValue )
         {
+#ifdef COMMON_MODIFY_MAP//-
             m_replicator.removeModifyDriveInfo( *m_opinionTrafficTx );
+#endif
             m_opinionTrafficTx.reset();
         }
 

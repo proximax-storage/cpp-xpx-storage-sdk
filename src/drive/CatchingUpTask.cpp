@@ -71,7 +71,7 @@ public:
 
             _LOG ("catching up opinion identifier: " << m_request->m_modifyTransactionHash );
         }
-
+        
         if ( m_request->m_rootHash == m_drive.m_rootHash )
         {
             _LOG( "No need to catch up to " << m_request->m_rootHash )

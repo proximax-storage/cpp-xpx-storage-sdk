@@ -229,6 +229,7 @@ struct DownloadChannelInfo
 // key is a channel hash
 using ChannelMap         = std::map<ChannelId, DownloadChannelInfo>;
 
+#ifdef COMMON_MODIFY_MAP//-
 // It is used for mutual calculation of the replicators, when they download 'modify data'
 // (Note. Replicators could receive 'modify data' from client and from replicators, that already receives some piece)
 struct ModifyTraffic
@@ -246,7 +247,8 @@ struct ModifyTraffic
     }
 };
 
-// The key is a transaction hash
+
+// The key is replicator key
 using ModifyTrafficMap = std::map<std::array<uint8_t,32>,ModifyTraffic>;
 
 struct ModifyTrafficInfo
@@ -267,6 +269,7 @@ struct ModifyTrafficInfo
 
 // The key is a transaction hash
 using ModifyDriveMap    = std::map<std::array<uint8_t,32>, ModifyTrafficInfo>;
+#endif // #ifdef COMMON_MODIFY_MAP
 
 //
 // Replicator

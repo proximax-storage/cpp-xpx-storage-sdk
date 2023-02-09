@@ -492,6 +492,7 @@ public:
                 }
             }
 
+#ifdef COMMON_MODIFY_MAP//-
             // Add ModifyTrafficInfo to DownloadLimiter
             bool added = addModifyTrafficInfo( modifyRequest->m_transactionHash.array(),
                                 driveKey,
@@ -503,7 +504,8 @@ public:
             {
                _LOG_ERR( "Internal Error: Modification Received after Approval or twice" )
             }
-           
+#endif
+
             for( auto it = modifyRequest->m_replicatorList.begin();  it != modifyRequest->m_replicatorList.end(); it++ )
             {
                 if ( *it == publicKey() )
@@ -614,6 +616,7 @@ public:
                 }
             }
 
+#ifdef COMMON_MODIFY_MAP//-
             // Add ModifyTrafficInfo to DownloadLimiter
             bool added = addModifyTrafficInfo( request->m_streamId.array(),
                                                driveKey,
@@ -625,7 +628,8 @@ public:
             {
                 _LOG_ERR( "Internal Error: added twice?" )
             }
-           
+#endif
+            
 //            for( auto it = modifyRequest->m_replicatorList.begin();  it != modifyRequest->m_replicatorList.end(); it++ )
 //            {
 //                if ( *it == publicKey() )
@@ -988,6 +992,7 @@ public:
         archive( replicatorKey );
         archive( modificationHash );
 
+#ifdef COMMON_MODIFY_MAP//-+
         auto oldIt = std::find_if( m_oldModifications.begin(), m_oldModifications.end(), [&modificationHash] ( const auto& m ){
             return m.first == modificationHash.array();
         } );
@@ -1016,6 +1021,24 @@ public:
         auto str = outOs.str();
         crypto::Sign( m_keyPair, { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature);
         return true;
+#else
+        bool isFound = false;
+        outIsModificationFinished = false;
+        
+        if ( auto driveIt = m_driveMap.find(driveKey.array()); driveIt != m_driveMap.end() )
+        {
+            auto* info = driveIt->second->findModifyInfo( modificationHash, outIsModificationFinished );
+            if ( info != nullptr )
+            {
+                isFound = true;
+                archive( *info );
+            }
+        }
+
+        auto str = outOs.str();
+        crypto::Sign( m_keyPair, { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature);
+        return isFound;
+#endif
     }
 
     void addOpinion( mobj<DownloadApprovalTransactionInfo>&& opinion )
@@ -1309,9 +1332,11 @@ public:
     {
         DBG_MAIN_THREAD
 
+#ifdef COMMON_MODIFY_MAP//-
         std::erase_if( m_modifyDriveMap, [&driveKey] (const auto& item) {
             return item.second.m_driveKey == driveKey;
         });
+#endif
     }
 
     void finishDriveClosure ( const Key& driveKey ) override
@@ -1374,13 +1399,14 @@ public:
 
             if ( auto drive = getDrive( transaction->m_driveKey ); drive )
             {
+#ifdef COMMON_MODIFY_MAP//-
                 //(???) remove replicator list from arguments
                 addModifyTrafficInfo( transaction->m_modifyTransactionHash,
                                     transaction->m_driveKey,
                                     LONG_LONG_MAX,
                                     drive->driveOwner(),
                                     drive->getAllReplicators());
-
+#endif
                 drive->onApprovalTransactionHasBeenPublished( *transaction );
             }
             else

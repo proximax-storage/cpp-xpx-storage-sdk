@@ -8,6 +8,7 @@
 
 #include "drive/Replicator.h"
 #include "ReplicatorInt.h"
+#include "drive/FlatDrive.h"
 #include <sirius_drive/session_delegate.h>
 #include "crypto/Signer.h"
 #include "types.h"
@@ -44,10 +45,12 @@ protected:
 
     ChannelMap          m_dnChannelMap; // will be saved only if not crashed
     ChannelMap          m_dnChannelMapBackup;
+#ifdef COMMON_MODIFY_MAP//-
     ModifyDriveMap      m_modifyDriveMap;
     
     using OldModifications = std::deque< std::pair< std::array<uint8_t,32>, ModifyTrafficInfo >>;
     OldModifications    m_oldModifications;
+#endif
 
     uint64_t            m_receiptLimit = 1024 * 1024;
     uint64_t            m_advancePaymentLimit = 50 * 1024 * 1024;
@@ -105,6 +108,7 @@ public:
         else
         {
             _LOG( "onDisconnected: " << dbgOurPeerName() << " from peer: " << (int)peerKey[0] );
+#ifdef COMMON_MODIFY_MAP//?
             for( const auto& i : m_modifyDriveMap ) {
                 _LOG( "m_modifyDriveMap: " << (int)i.first[0] << " " << (int)txHash[0]);
             }
@@ -117,6 +121,7 @@ public:
                 }
                 _LOG( " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ " );
             }
+#endif
         }
     }
 
@@ -125,6 +130,7 @@ public:
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             DBG_MAIN_THREAD
               
+#ifdef COMMON_MODIFY_MAP//?
             if ( const auto& it = m_modifyDriveMap.find( txHash ); it == m_modifyDriveMap.end() )
             {
                 _LOG( "\nTrafficDistribution NOT FOUND: " << dbgOurPeerName() << " (" << (int)publicKey()[0] << ")" );
@@ -144,9 +150,11 @@ public:
                     }
                 }
             }
+#endif //#ifdef COMMON_MODIFY_MAP
       });
     }
     
+#ifdef COMMON_MODIFY_MAP//-
     virtual ModifyTrafficInfo getMyDownloadOpinion( const Hash256& txHash ) const override
     {
         DBG_MAIN_THREAD
@@ -155,10 +163,12 @@ public:
         {
             return it->second;
         }
+
         _LOG_ERR( "getMyDownloadOpinion: unknown modify transaction hash: " << txHash );
         
         return {};
     }
+#endif
 
 
     bool checkDownloadLimit( const std::array<uint8_t,32>& peerKey,
@@ -314,6 +324,7 @@ public:
 		it->second.m_prepaidDownloadSize += prepaidDownloadSize;
 	}
 
+#ifdef COMMON_MODIFY_MAP//-
     bool addModifyTrafficInfo( const Key&                 modifyTransactionHash,
                                const Key&                 driveKey,
                                uint64_t                   dataSize,
@@ -365,6 +376,7 @@ public:
             m_modifyDriveMap.erase(modifyTransactionHash);
         }
     }
+#endif //#ifdef COMMON_MODIFY_MAP
 
     lt::connection_status acceptClientConnection( const std::array<uint8_t,32>&  channelId,
                                                   const std::array<uint8_t,32>&  peerKey,
@@ -455,6 +467,7 @@ public:
 //        }
     }
     
+#ifdef COMMON_MODIFY_MAP//-+
     bool onPieceRequestReceivedFromReplicator( const std::array<uint8_t,32>&  modifyTx,
                                                const std::array<uint8_t,32>&  receiverPublicKey,
                                                uint64_t                       pieceSize ) override
@@ -476,7 +489,29 @@ public:
         }
         return true;
     }
-    
+#else //#ifdef COMMON_MODIFY_MAP
+    bool onPieceRequestReceivedFromReplicator( const std::array<uint8_t,32>&  driveKey,
+                                               const std::array<uint8_t,32>&  receiverPublicKey,
+                                               uint64_t                       pieceSize ) override
+    {
+        DBG_MAIN_THREAD
+        
+        if ( m_session->isEnding() )
+        {
+            return false;
+        }
+
+        if ( auto it = m_driveMap.find( driveKey ); it != m_driveMap.end() )
+        {
+            if ( auto modifyInfo = it->second->currentModifyInfo(); modifyInfo )
+            {
+                modifyInfo->m_modifyTrafficMap[receiverPublicKey].m_requestedSize  += pieceSize;
+            }
+        }
+        return true;
+    }
+#endif //#ifdef COMMON_MODIFY_MAP
+
     bool onPieceRequestReceivedFromClient( const std::array<uint8_t,32>&      transactionHash,
                                            const std::array<uint8_t,32>&      receiverPublicKey,
                                            uint64_t                           pieceSize ) override
@@ -515,6 +550,7 @@ public:
         _LOG_WARN( "unknown txHash: " << (int)txHash[0] );
     }
     
+#ifdef COMMON_MODIFY_MAP//-+
     void onPieceReceived( const std::array<uint8_t,32>&  modifyTx,
                           const std::array<uint8_t,32>&  senderPublicKey,
                           uint64_t                       pieceSize ) override
@@ -551,7 +587,33 @@ public:
         _LOG( "unknown txHash: " << Key(modifyTx) );
         _LOG_WARN( "ERROR(3): unknown txHash: " << Key(modifyTx) );
     }
+#else //#ifdef COMMON_MODIFY_MAP
+    void onPieceReceived( const std::array<uint8_t,32>&  driveKey,
+                          const std::array<uint8_t,32>&  senderPublicKey,
+                          uint64_t                       pieceSize ) override
+    {
+        DBG_MAIN_THREAD
+        
+        if ( m_session->isEnding() )
+        {
+            return;
+        }
 
+        if ( auto it = m_driveMap.find( driveKey ); it != m_driveMap.end() )
+        {
+            if ( auto modifyInfo = it->second->currentModifyInfo(); modifyInfo )
+            {
+                modifyInfo->m_modifyTrafficMap[senderPublicKey].m_receivedSize  += pieceSize;
+                modifyInfo->m_totalReceivedSize += pieceSize;
+                return;
+            }
+            _LOG( "absent modifyInfo: " << Key(driveKey) );
+            return;
+        }
+
+        _LOG_WARN( "unknown driveKey: " << Key(driveKey) );
+    }
+#endif //#ifdef COMMON_MODIFY_MAP
 
     // will be called when one replicator informs another about downloaded size by client
     virtual void acceptReceiptFromAnotherReplicator( const RcptMessage& message ) override
