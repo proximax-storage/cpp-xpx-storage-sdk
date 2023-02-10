@@ -639,7 +639,10 @@ public:
         if ( !m_task )
         {
             runNextTask();
+            return;
         }
+
+        m_task->onModificationInitiated(*modifyRequest);
     }
 
     void cancelModifyDrive( mobj<ModificationCancelRequest>&& request ) override
@@ -671,17 +674,14 @@ public:
 
         _ASSERT( !m_deferredManualModificationRequest )
 
-        if ( m_task )
-        {
-            m_task->onModificationInitiated( *request );
-        }
-
         m_deferredManualModificationRequest = std::move( request );
 
         if ( !m_task )
         {
             runNextTask();
         }
+
+        m_task->onManualModificationInitiated( *request );
     }
 
     void initiateManualSandboxModifications( mobj<InitiateSandboxModificationsRequest>&& request ) override

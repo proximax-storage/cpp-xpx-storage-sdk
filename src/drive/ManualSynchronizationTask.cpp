@@ -400,6 +400,13 @@ public:
         return false;
     }
 
+    void onModificationInitiated( const ModificationRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        // TODO seems it should never be the case
+        _ASSERT( 0 );
+    }
 
     const Hash256& getModificationTransactionHash() override
     {

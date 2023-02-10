@@ -84,7 +84,11 @@ public:
         DBG_MAIN_THREAD
     }
 
-    virtual void onModificationInitiated( const InitiateModificationsRequest& request)
+    virtual void onModificationInitiated( const ModificationRequest& request ) {
+        DBG_MAIN_THREAD
+    }
+
+    virtual void onManualModificationInitiated( const InitiateModificationsRequest& request)
     {
         DBG_MAIN_THREAD
     }

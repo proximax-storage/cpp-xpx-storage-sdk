@@ -1437,11 +1437,20 @@ public:
         terminate();
     }
 
-    void onModificationInitiated( const InitiateModificationsRequest& request ) override
+    void onModificationInitiated( const ModificationRequest& request ) override
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_request->m_modificationIdentifier == request.m_modificationIdentifier )
+        // It is possible if the contract has been destroyed because of unsuccessful deployment
+
+        terminate();
+    }
+
+    void onManualModificationInitiated( const InitiateModificationsRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+//        _ASSERT( m_request->m_modificationIdentifier == request.m_modificationIdentifier )
 
         terminate();
     }
