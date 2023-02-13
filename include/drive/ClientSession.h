@@ -972,8 +972,6 @@ protected:
             {
                 __LOG( "@@@  modification is finished" );
             }
-            __LOG( "@@@  maxDataSize:       " << msg.m_maxDataSize );
-            __LOG( "@@@  totalReceivedSize: " << msg.m_totalReceivedSize );
             for( auto [hash,sizes]: msg.m_modifyTrafficMap )
             {
                 __LOG( "@@@   received:  " << sizes.m_receivedSize << " from: " << toString(hash) );

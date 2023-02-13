@@ -192,7 +192,7 @@ public:
     }
 
 #ifndef COMMON_MODIFY_MAP//+
-    virtual std::optional<ModifyTrafficInfo>& currentModifyInfo() override
+    virtual ModifyTrafficInfo& currentModifyInfo() override
     {
         return m_modifyInfo;
     }
@@ -211,23 +211,15 @@ public:
     
     virtual void resetCurrentModifyInfo() override
     {
-        _ASSERT( m_modifyInfo )
-
         if ( auto tx = currentModifyTx(); tx )
         {
             if ( m_oldModifications.size() >= 100 )
             {
                 m_oldModifications.pop_front();
             }
-            m_oldModifications.push_back( { tx->array(), *m_modifyInfo } );
+            m_oldModifications.push_back( { tx->array(), m_modifyInfo } );
         }
-        m_modifyInfo.reset();
-    }
-    
-    void setupModifyInfo( uint64_t maxDataSize )
-    {
-        _ASSERT( ! m_modifyInfo )
-        m_modifyInfo = ModifyTrafficInfo{ m_driveKey.array(), maxDataSize, {}, 0 };
+        m_modifyInfo.m_modifyTrafficMap.clear();
     }
     
     virtual const ModifyTrafficInfo* findModifyInfo( const Hash256& tx, bool& outIsFinished ) override
@@ -246,8 +238,7 @@ public:
         
         if ( auto currentTx = currentModifyTx(); currentTx && *currentTx == tx )
         {
-            if ( m_modifyInfo )
-            return &(*m_modifyInfo);
+            return &m_modifyInfo;
         }
         
         return nullptr;
@@ -361,32 +352,11 @@ public:
         
         if ( request.m_modificationRequest )
         {
-#ifndef COMMON_MODIFY_MAP//+
-            if ( currentModifyInfo() )
-            {
-                currentModifyInfo()->m_maxDataSize += request.m_modificationRequest->m_maxDataSize;
-            }
-            else
-            {
-                setupModifyInfo( request.m_modificationRequest->m_maxDataSize );
-            }
-#endif
             runModificationTask( std::move( request.m_modificationRequest ) );
         }
         else
         {
             __ASSERT( request.m_streamRequest )
-
-#ifndef COMMON_MODIFY_MAP//+
-            if ( currentModifyInfo() )
-            {
-                currentModifyInfo()->m_maxDataSize += request.m_streamRequest->m_maxSizeBytes;
-            }
-            else
-            {
-                setupModifyInfo( request.m_streamRequest->m_maxSizeBytes );
-            }
-#endif
             runStreamTask( std::move( request.m_streamRequest ) );
         }
     }

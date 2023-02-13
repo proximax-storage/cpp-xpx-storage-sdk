@@ -503,10 +503,8 @@ public:
 
         if ( auto it = m_driveMap.find( driveKey ); it != m_driveMap.end() )
         {
-            if ( auto modifyInfo = it->second->currentModifyInfo(); modifyInfo )
-            {
-                modifyInfo->m_modifyTrafficMap[receiverPublicKey].m_requestedSize  += pieceSize;
-            }
+            auto& modifyInfo = it->second->currentModifyInfo();
+            modifyInfo.m_modifyTrafficMap[receiverPublicKey].m_requestedSize  += pieceSize;
         }
         return true;
     }
@@ -567,7 +565,6 @@ public:
             if ( auto peerIt = it->second.m_modifyTrafficMap.find(senderPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
             {
                 peerIt->second.m_receivedSize  += pieceSize;
-                it->second.m_totalReceivedSize += pieceSize;
                 return;
             }
             
@@ -601,13 +598,8 @@ public:
 
         if ( auto it = m_driveMap.find( driveKey ); it != m_driveMap.end() )
         {
-            if ( auto modifyInfo = it->second->currentModifyInfo(); modifyInfo )
-            {
-                modifyInfo->m_modifyTrafficMap[senderPublicKey].m_receivedSize  += pieceSize;
-                modifyInfo->m_totalReceivedSize += pieceSize;
-                return;
-            }
-            _LOG( "absent modifyInfo: " << Key(driveKey) );
+            auto& modifyInfo = it->second->currentModifyInfo();
+            modifyInfo.m_modifyTrafficMap[senderPublicKey].m_receivedSize  += pieceSize;
             return;
         }
 

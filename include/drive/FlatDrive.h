@@ -679,16 +679,12 @@ using ModifyTrafficMap = std::map<std::array<uint8_t,32>,ModifyTraffic>;
 struct ModifyTrafficInfo
 {
     std::array<uint8_t,32>  m_driveKey;
-    uint64_t                m_maxDataSize;
     ModifyTrafficMap        m_modifyTrafficMap;
-    uint64_t                m_totalReceivedSize = 0;
     
     template <class Archive> void serialize( Archive & arch )
     {
         arch( m_driveKey );
-        arch( m_maxDataSize );
         arch( m_modifyTrafficMap );
-        arch( m_totalReceivedSize );
     }
 };
 #endif // #ifdef COMMON_MODIFY_MAP
@@ -721,7 +717,7 @@ struct ModifyTrafficInfo
 
 #ifndef COMMON_MODIFY_MAP//+
         // current modification info
-        virtual std::optional<ModifyTrafficInfo>& currentModifyInfo() = 0;
+        virtual ModifyTrafficInfo&                currentModifyInfo() = 0;
         virtual const std::optional<Hash256>      currentModifyTx() = 0;
         virtual void                              resetCurrentModifyInfo() = 0;
 

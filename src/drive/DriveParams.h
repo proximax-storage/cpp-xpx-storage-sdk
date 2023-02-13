@@ -245,7 +245,7 @@ public:
     lt_handle m_fsTreeLtHandle; // used for removing FsTree torrent from session
     
 #ifndef COMMON_MODIFY_MAP//+
-    std::optional<ModifyTrafficInfo>    m_modifyInfo;
+    ModifyTrafficInfo    m_modifyInfo;
 
     using OldModifications = std::deque< std::pair< std::array<uint8_t,32>, ModifyTrafficInfo >>;
     OldModifications    m_oldModifications;
@@ -284,7 +284,9 @@ protected:
         , m_fsTree( std::make_unique<FsTree>() )
         , m_dbgOurPeerName( dbgOurPeerName )
         , m_dbgThreadId( std::this_thread::get_id())
-    {}
+    {
+        m_modifyInfo.m_driveKey = drivePubKey.array();
+    }
 
     virtual ~DriveParams() = default;
 

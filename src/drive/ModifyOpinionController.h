@@ -124,7 +124,7 @@ public:
         const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(*m_opinionTrafficTx)
                 .m_modifyTrafficMap;
 #else
-        const auto &modifyTrafficMap = m_drive.currentModifyInfo()->m_modifyTrafficMap;
+        const auto &modifyTrafficMap = m_drive.currentModifyInfo().m_modifyTrafficMap;
 #endif
         
         std::map<std::array<uint8_t,32>, uint64_t> currentUploads;
