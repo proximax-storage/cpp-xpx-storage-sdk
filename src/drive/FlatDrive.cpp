@@ -1117,6 +1117,13 @@ public:
         request->m_callback( AbsolutePathResponse{absolutePath} );
     }
 
+    void getActualModificationId( mobj<ActualModificationIdRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        request->m_callback(ActualModificationIdResponse{m_lastApprovedModification});
+    }
+
     void getFilesystem( const FilesystemRequest& request ) override
     {
         DBG_MAIN_THREAD

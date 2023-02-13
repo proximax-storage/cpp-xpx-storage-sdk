@@ -31,6 +31,8 @@ service StorageServer {
 
   rpc GetAbsolutePath(AbsolutePathRequest) returns (AbsolutePathResponse) {}
 
+  rpc GetActualModificationId(ActualModificationIdRequest) returns (ActualModificationIdResponse) {}
+
   rpc OpenFile(OpenFileRequest) returns (OpenFileResponse) {}
 
   rpc ReadFile(ReadFileRequest) returns (ReadFileResponse) {}
@@ -142,6 +144,14 @@ message AbsolutePathRequest {
 
 message AbsolutePathResponse {
   string absolute_path = 1;
+}
+
+message ActualModificationIdRequest {
+  bytes drive_key = 1;
+}
+
+message ActualModificationIdResponse {
+  bytes modification_id = 1;
 }
 
 enum OpenFileMode {

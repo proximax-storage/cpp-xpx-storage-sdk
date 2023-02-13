@@ -550,6 +550,11 @@ public:
 
     }
 
+    void getActualModificationId( const DriveKey& driveKey, const ActualModificationIdRequest& request ) override
+    {
+
+    }
+
     void getFilesystem( const DriveKey& driveKey, const FilesystemRequest& request ) override
     {
 

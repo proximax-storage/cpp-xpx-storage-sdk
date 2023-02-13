@@ -757,6 +757,8 @@ public:
 
     virtual void getAbsolutePath( mobj<AbsolutePathRequest>&& request ) = 0;
 
+    virtual void getActualModificationId( mobj<ActualModificationIdRequest>&& request ) = 0;
+
     virtual void getFilesystem( const FilesystemRequest& request ) = 0;
 
     virtual void startDriveClosing( mobj<DriveClosureRequest>&& request ) = 0;

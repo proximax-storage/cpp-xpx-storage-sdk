@@ -66,6 +66,8 @@ public:
     virtual void getAbsolutePath( const DriveKey& driveKey, const AbsolutePathRequest& request ) = 0;
 
     virtual void getFilesystem( const DriveKey& driveKey, const FilesystemRequest& request ) = 0;
+
+    virtual void getActualModificationId( const DriveKey& driveKey, const ActualModificationIdRequest& request ) = 0;
 };
 
 }

@@ -188,6 +188,14 @@ struct AbsolutePathRequest
     std::function<void( std::optional<AbsolutePathResponse> )> m_callback;
 };
 
+struct ActualModificationIdResponse {
+    Hash256 m_modificationId;
+};
+
+struct ActualModificationIdRequest {
+    std::function<void( std::optional<ActualModificationIdResponse> )> m_callback;
+};
+
 struct FilesystemResponse
 {
     FsTree m_fsTree;
