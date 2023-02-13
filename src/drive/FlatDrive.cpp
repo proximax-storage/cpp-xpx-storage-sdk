@@ -1101,6 +1101,12 @@ public:
     {
         DBG_MAIN_THREAD
 
+        if ( m_task && m_task->getTaskType() == DriveTaskType::DRIVE_INITIALIZATION )
+        {
+            request->m_callback({});
+            return;
+        }
+
         auto* ptr = m_fsTree->getEntryPtr( request->m_relativePath );
 
         std::string absolutePath;
@@ -1121,12 +1127,24 @@ public:
     {
         DBG_MAIN_THREAD
 
+        if ( m_task && m_task->getTaskType() == DriveTaskType::DRIVE_INITIALIZATION )
+        {
+            request->m_callback({});
+            return;
+        }
+
         request->m_callback(ActualModificationIdResponse{m_lastApprovedModification});
     }
 
     void getFilesystem( const FilesystemRequest& request ) override
     {
         DBG_MAIN_THREAD
+
+        if ( m_task && m_task->getTaskType() == DriveTaskType::DRIVE_INITIALIZATION )
+        {
+            request.m_callback({});
+            return;
+        }
 
         FsTree fsTree( *m_fsTree );
         request.m_callback( FilesystemResponse{std::move( fsTree )} );
