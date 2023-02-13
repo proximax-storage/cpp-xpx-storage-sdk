@@ -674,14 +674,16 @@ public:
 
         _ASSERT( !m_deferredManualModificationRequest )
 
+        if (m_task) {
+            m_task->onManualModificationInitiated( *request );
+        }
+
         m_deferredManualModificationRequest = std::move( request );
 
         if ( !m_task )
         {
             runNextTask();
         }
-
-        m_task->onManualModificationInitiated( *request );
     }
 
     void initiateManualSandboxModifications( mobj<InitiateSandboxModificationsRequest>&& request ) override

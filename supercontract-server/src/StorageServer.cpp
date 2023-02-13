@@ -31,6 +31,7 @@
 #include "DirectoryIteratorDestroyRequestContext.h"
 #include "PathExistRequestContext.h"
 #include "IsFileRequestContext.h"
+#include "ActualModificationIdRequestContext.h"
 
 namespace sirius::drive::contract {
 
@@ -58,6 +59,7 @@ void StorageServer::run( std::weak_ptr<IOContextProvider> contextKeeper ) {
     registerCloseFile();
     registerFlush();
     registerGetAbsolutePath();
+    registerGetActualModificationId();
     registerGetFilesystem();
     registerDirectoryIteratorCreate();
     registerDirectoryIteratorHasNext();
@@ -87,7 +89,6 @@ void StorageServer::waitForQueries() {
     void* pTag;
     bool ok;
     while ( m_cq->Next( &pTag, &ok )) {
-        std::cout << "In the queue" << std::endl;
         auto* pQuery = static_cast<RPCTag*>(pTag);
         pQuery->process( ok );
         delete pQuery;
@@ -285,6 +286,22 @@ void StorageServer::registerGetAbsolutePath() {
         }
         registerGetAbsolutePath();
     }, m_context );
+    context->run( tag );
+}
+
+void StorageServer::registerGetActualModificationId()
+{
+    if ( !*m_serviceIsActive ) {
+        return;
+    }
+
+    auto context = std::make_shared<ActualModificationIdRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive] {
+        if ( !*serviceIsActive ) {
+            return;
+        }
+        registerGetActualModificationId();
+        }, m_context );
     context->run( tag );
 }
 

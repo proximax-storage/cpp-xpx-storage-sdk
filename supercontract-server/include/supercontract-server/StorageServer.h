@@ -68,6 +68,8 @@ private:
 
     void registerGetAbsolutePath();
 
+    void registerGetActualModificationId();
+
     void registerGetFilesystem();
 
     void registerDirectoryIteratorCreate();
