@@ -609,8 +609,8 @@ Folder* FsTree::getFolderPtr( const std::string& fullPath, bool createIfNotExist
 }
 
 bool FsTree::iterateBranch( const std::string& fullPath,
-                            std::function<bool( const Folder& )> intermediateCall,
-                            std::function<bool( const Child& )> lastCall )
+                            const std::function<bool( const Folder& )>& intermediateCall,
+                            const std::function<bool( const Child& )>& lastCall )
 {
     fs::path path( fullPath );
 

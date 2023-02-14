@@ -373,8 +373,8 @@ public:
                      std::function<void( const InfoHash& )> addInfoHashToFileMapFunc );
 
     bool iterateBranch( const std::string& path,
-                        std::function<bool( const Folder& )> intermediateCall,
-                        std::function<bool( const Child& )> lastCall );
+                        const std::function<bool( const Folder& )>& intermediateCall,
+                        const std::function<bool( const Child& )>& lastCall );
 
     Child* getEntryPtr( const std::string& path );
 };

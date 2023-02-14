@@ -633,7 +633,10 @@ public:
 
         _LOG ( "started modification " << Hash256{modifyRequest->m_transactionHash} )
 
-        // ModificationIsCanceling check is redundant now
+        if ( m_task ) {
+            m_task->onModificationInitiated(*modifyRequest);
+        }
+
         m_deferredModificationRequests.push_back( DeferredRequest{std::move( modifyRequest ), {}} );
 
         if ( !m_task )
@@ -641,8 +644,6 @@ public:
             runNextTask();
             return;
         }
-
-        m_task->onModificationInitiated(*modifyRequest);
     }
 
     void cancelModifyDrive( mobj<ModificationCancelRequest>&& request ) override
@@ -674,7 +675,7 @@ public:
 
         _ASSERT( !m_deferredManualModificationRequest )
 
-        if (m_task) {
+        if ( m_task ) {
             m_task->onManualModificationInitiated( *request );
         }
 

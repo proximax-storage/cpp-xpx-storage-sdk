@@ -67,6 +67,7 @@ class ManualModificationsTask
     bool m_isExecutingQuery = false;
 
     bool m_taskIsInterrupted = false;
+    bool m_taskIsFinished = false;
 
 public:
 
@@ -667,6 +668,11 @@ private:
 
         auto* child = m_upperSandboxFsTree->getEntryPtr( request.m_path );
 
+        if ( !child ) {
+            request.m_callback( RemoveFilesystemEntryResponse{false} );
+            return;
+        }
+
         std::set<InfoHash> possiblyRemovedFiles;
 
         if ( isFile( *child ))
@@ -937,11 +943,11 @@ public:
             return false;
         }
 
-        if ( checkUnlock( request.m_src ))
+        if ( checkUnlock( request.m_src ) && checkUnlock( request.m_dst ) )
         {
-            m_upperSandboxFsTree->moveFlat( request.m_src, request.m_dst, []( const auto& )
+            auto success = m_upperSandboxFsTree->moveFlat( request.m_src, request.m_dst, []( const auto& )
             {} );
-            request.m_callback( MoveFilesystemEntryResponse{true} );
+            request.m_callback( MoveFilesystemEntryResponse{success} );
         } else
         {
             request.m_callback( MoveFilesystemEntryResponse{false} );
@@ -1469,45 +1475,51 @@ private:
     bool checkUnlock( const std::string& path )
     {
         bool noLocks = true;
-        bool iteratedFullBranch = m_upperSandboxFsTree->iterateBranch( path,
-                                                                       [&]( const Folder& folder ) -> bool
-                                                                       {
-                                                                           if ( folder.statisticsNode()->statistics().m_blocks >
-                                                                                0 )
-                                                                           {
-                                                                               noLocks = false;
-                                                                               return false;
-                                                                           }
-                                                                           return true;
-                                                                       }, [&]( const Folder::Child& child ) -> bool
-                                                                       {
-                                                                           uint64_t numLocks = 0;
-                                                                           if ( isFolder( child ))
-                                                                           {
-                                                                               numLocks = getFolder(
-                                                                                       child ).statisticsNode()->statistics().totalBlocks();
-                                                                           } else
-                                                                           {
-                                                                               numLocks = getFile(
-                                                                                       child ).statisticsNode()->statistics().totalBlocks();
-                                                                           }
+        m_upperSandboxFsTree->iterateBranch( path,
+                                             [&]( const Folder& folder ) -> bool
+                                             {
+                                                 if ( folder.statisticsNode()->statistics().m_blocks >
+                                                      0 )
+                                                 {
+                                                     noLocks = false;
+                                                     return false;
+                                                 }
+                                                 return true;
+                                             }, [&]( const Folder::Child& child ) -> bool
+                                             {
+                                                 uint64_t numLocks = 0;
+                                                 if ( isFolder( child ))
+                                                 {
+                                                     numLocks = getFolder(
+                                                             child ).statisticsNode()->statistics().totalBlocks();
+                                                 } else
+                                                 {
+                                                     numLocks = getFile(
+                                                             child ).statisticsNode()->statistics().totalBlocks();
+                                                 }
 
-                                                                           if ( numLocks > 0 )
-                                                                           {
-                                                                               noLocks = false;
-                                                                               return false;
-                                                                           }
+                                                 if ( numLocks > 0 )
+                                                 {
+                                                     noLocks = false;
+                                                     return false;
+                                                 }
 
-                                                                           return true;
-                                                                       } );
+                                                 return true;
+                                             } );
 
-        return iteratedFullBranch && noLocks;
+        return noLocks;
     }
 
 protected:
     void finishTask() override
     {
         DBG_MAIN_THREAD
+
+        if (m_taskIsFinished) {
+            return;
+        }
+
+        m_taskIsFinished = true;
 
         m_drive.executeOnBackgroundThread([this] {
             clearTrash();
