@@ -2262,26 +2262,6 @@ public:
         return false;
     }
     
-    virtual void  dbgAsyncDownloadToSandbox( Key driveKey, InfoHash infoHash, std::function<void()> endNotifyer ) override
-    {
-        _FUNC_ENTRY()
-
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
-        {
-            DBG_MAIN_THREAD
-
-            if ( auto drive = getDrive(driveKey); drive )
-            {
-                drive->dbgAsyncDownloadToSandbox( infoHash, endNotifyer );
-            }
-            else
-            {
-                _LOG_ERR( "drive not found: " << driveKey );
-                return;
-            }
-        });
-    }
-
     void handleDhtResponse( lt::bdecode_node response, boost::asio::ip::udp::endpoint /*endpoint*/ ) override
     {
         try

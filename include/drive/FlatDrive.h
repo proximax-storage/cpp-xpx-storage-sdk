@@ -762,7 +762,6 @@ struct ModifyTrafficInfo
 
         // for testing and debugging
         virtual void dbgPrintDriveStatus() = 0;
-        virtual void dbgAsyncDownloadToSandbox( InfoHash infoHash, std::function<void()> endNotifyer ) = 0;
 
 
         static std::string  driveIsClosingPath( const std::string& driveRootPath );

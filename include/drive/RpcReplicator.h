@@ -459,9 +459,6 @@ public:
         rpcCall( RPC_CMD::dbgLogMode, mode );
     }
 
-    virtual void        dbgAsyncDownloadToSandbox( Key driveKey, InfoHash, std::function<void()> endNotifyer ) override {}
-    
-    
     virtual void dbgEmulateSignal( int index ) override
     {
         rpcCall( RPC_CMD::dbgCrash, index );

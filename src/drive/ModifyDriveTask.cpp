@@ -80,10 +80,6 @@ public:
 
         m_uploadedDataSize = 0;
 
-        _ASSERT( !m_opinionController.opinionTrafficTx() );
-
-        m_opinionController.setOpinionTrafficTx( m_request->m_transactionHash.array() );
-
         //_LOG( "?????????: " << m_request->m_clientDataInfoHash  << "   " << m_drive.m_torrentHandleMap.size() )
         if ( auto it = m_drive.m_torrentHandleMap.find( m_request->m_clientDataInfoHash ); it != m_drive.m_torrentHandleMap.end() )
         {
@@ -231,7 +227,6 @@ public:
         {
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                _ASSERT( m_opinionController.opinionTrafficTx())
                 _LOG( "+++ ex downloading: START: " << toString( *fileToDownload ));
                 m_downloadingLtHandle = session->download( DownloadContext(
 

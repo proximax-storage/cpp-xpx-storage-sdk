@@ -400,8 +400,6 @@ public:
     virtual const Key&  dbgReplicatorKey() const = 0;
     virtual void        dbgSetLogMode( uint8_t mode ) = 0;
     
-    virtual void        dbgAsyncDownloadToSandbox( Key driveKey, InfoHash, std::function<void()> endNotifyer ) = 0;
-
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(

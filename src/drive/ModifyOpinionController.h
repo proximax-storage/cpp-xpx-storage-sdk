@@ -50,7 +50,6 @@ private:
     ThreadManager&                              m_threadManager;
 
     // It is needed for right calculation of my 'modify' opinion
-    std::optional<std::array<uint8_t, 32>>      m_opinionTrafficTx; // (***)
     uint64_t                                    m_approvedExpectedCumulativeDownload;
 //    uint64_t                                    m_accountedCumulativeDownload; // (***)
     CumulativeUploads  m_approvedCumulativeUploads; // (***)
@@ -97,28 +96,12 @@ public:
         m_approvedExpectedCumulativeDownload += add;
     }
 
-    std::optional<Hash256> opinionTrafficTx()
-    {
-        DBG_MAIN_THREAD
-
-        return m_opinionTrafficTx;
-    }
-
-    void setOpinionTrafficTx(const Hash256& identifier)
-    {
-        DBG_MAIN_THREAD
-
-        m_opinionTrafficTx = identifier.array();
-    }
-
     void updateCumulativeUploads( const Hash256&                modificationId,
                                   const ReplicatorList&         replicators,
                                   uint64_t                      addCumulativeDownload,
                                   const std::function<void()>&  callback )
     {
         DBG_MAIN_THREAD
-
-        _ASSERT( m_opinionTrafficTx )
 
 #ifdef COMMON_MODIFY_MAP//-+
         const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(*m_opinionTrafficTx)
@@ -171,7 +154,6 @@ public:
 #else
         m_drive.resetCurrentModifyInfo();
 #endif
-        m_opinionTrafficTx.reset();
 
         for (const auto&[uploaderKey, bytes]: currentUploads)
         {
@@ -238,15 +220,6 @@ public:
 
         // We have already taken into account information
         // about uploads of the modification to be canceled;
-        auto trafficIdentifierHasValue = m_opinionTrafficTx.has_value();
-        if ( trafficIdentifierHasValue )
-        {
-#ifdef COMMON_MODIFY_MAP//-
-            m_replicator.removeModifyDriveInfo( *m_opinionTrafficTx );
-#endif
-            m_opinionTrafficTx.reset();
-        }
-
         m_notApprovedCumulativeUploads = m_approvedCumulativeUploads;
 
         m_threadManager.executeOnBackgroundThread( [=, this]

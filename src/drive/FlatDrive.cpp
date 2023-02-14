@@ -405,33 +405,14 @@ public:
                 return item.transactionHash() == m_catchingUpRequest->m_modifyTransactionHash;
             } );
         
-        if (it != m_deferredModificationRequests.end() )
+        if (it != m_deferredModificationRequests.end() ) // it is possible, when replicator added to drive and some modifications were ommited
         {
-            const auto& opinionTrafficIdentifier = m_opinionController.opinionTrafficTx();
-            while (!m_deferredModificationRequests.empty() and it != m_deferredModificationRequests.begin() )
+            it++;
+            while ( it != m_deferredModificationRequests.begin() )
             {
-                if ( !opinionTrafficIdentifier
-                || *opinionTrafficIdentifier != m_deferredModificationRequests.front().transactionHash().array() )
-                {
-#ifdef COMMON_MODIFY_MAP//-
-                    m_replicator.removeModifyDriveInfo( m_deferredModificationRequests.front().transactionHash().array() );
-#endif
-                }
                 m_opinionController.increaseApprovedExpectedCumulativeDownload( m_deferredModificationRequests.front().maxDataSize() );
                 m_deferredModificationRequests.pop_front();
             }
-
-            _ASSERT( !m_deferredModificationRequests.empty() )
-
-            if ( opinionTrafficIdentifier &&
-            *opinionTrafficIdentifier != m_deferredModificationRequests.front().transactionHash().array() )
-            {
-#ifdef COMMON_MODIFY_MAP//-
-                m_replicator.removeModifyDriveInfo(m_deferredModificationRequests.front().transactionHash().array());
-#endif
-            }
-            m_opinionController.increaseApprovedExpectedCumulativeDownload( m_deferredModificationRequests.front().maxDataSize() );
-            m_deferredModificationRequests.pop_front();
         }
 
         m_task = createCatchingUpTask( std::move(m_catchingUpRequest), *this, m_opinionController );
@@ -864,49 +845,6 @@ public:
         if ( auto session = m_session.lock(); session )
         {
             session->dbgPrintActiveTorrents();
-        }
-    }
-    
-    virtual void dbgAsyncDownloadToSandbox( InfoHash infoHash, std::function<void()> endNotifyer ) override
-    {
-        if ( auto session = m_session.lock(); session )
-        {
-            static std::array<uint8_t,32> streamTx  = std::array<uint8_t,32>{0xee,0xee,0xee,0xee};
-
-            session->download(
-                   DownloadContext(
-                           DownloadContext::missing_files,
-                           [=,this]( download_status::code code,
-                                   const InfoHash& infoHash,
-                                   const std::filesystem::path saveAs,
-                                   size_t /*downloaded*/,
-                                   size_t /*fileSize*/,
-                                   const std::string& errorText )
-                           {
-                               DBG_MAIN_THREAD
-
-                               if ( code == download_status::dn_failed )
-                               {
-                                   //todo is it possible?
-                                   _ASSERT( 0 );
-                                   return;
-                               }
-
-                               if ( code == download_status::download_complete )
-                               {
-                                   endNotifyer();
-                               }
-                           },
-                           infoHash,
-                           *m_opinionController.opinionTrafficTx(),
-                           0, true, ""
-                   ),
-                   m_sandboxRootPath.string(),
-                   (m_sandboxRootPath / toString(infoHash)).string(),
-                   {},
-                   &m_driveKey.array(),
-                   nullptr,
-                   &streamTx );
         }
     }
     
