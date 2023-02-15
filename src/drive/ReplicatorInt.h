@@ -47,11 +47,6 @@ public:
     
     virtual void        finishDriveClosure( const Key& driveKey ) = 0;
 
-#ifdef COMMON_MODIFY_MAP//-
-    // It will be used while drive closing
-    virtual void        removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash ) = 0;
-#endif
-    
     // TODO:
     // They will be called after 'cancel modify transaction' has been published
 //    virtual void        onTransactionCanceled( ApprovalTransactionInfo&& transaction ) = 0;
@@ -80,10 +75,6 @@ public:
     // (must be implemented by DownloadLimiter)
     virtual void acceptReceiptFromAnotherReplicator( const RcptMessage& message ) = 0;
 
-#ifdef COMMON_MODIFY_MAP//-
-    virtual ModifyTrafficInfo getMyDownloadOpinion( const Hash256& transactionHash ) const = 0;
-#endif
-    
     virtual DownloadChannelInfo* getDownloadChannelInfo( const std::array<uint8_t,32>& driveKey, const std::array<uint8_t,32>& downloadChannelHash ) = 0;
 
     //virtual std::string loadTorrent( const Key& driveKey, const InfoHash& infoHash ) = 0;

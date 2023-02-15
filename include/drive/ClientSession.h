@@ -503,7 +503,7 @@ protected:
             return;
         }
         
-        assert(channelId);
+        _ASSERT(channelId);
         if ( msg.channelId() != *channelId )
         {
             _LOG_WARN( "Bad channelId: " << toString(msg.channelId()) << " != " << toString(*channelId) );

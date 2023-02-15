@@ -244,12 +244,10 @@ public:
     std::unique_ptr<FsTree> m_fsTree;
     lt_handle m_fsTreeLtHandle; // used for removing FsTree torrent from session
     
-#ifndef COMMON_MODIFY_MAP//+
     ModifyTrafficInfo    m_modifyInfo;
 
     using OldModifications = std::deque< std::pair< std::array<uint8_t,32>, ModifyTrafficInfo >>;
     OldModifications    m_oldModifications;
-#endif
     
     // key - streamTx, value - playlist-InfoHash
     using StreamMap = std::map<Hash256,InfoHash>;

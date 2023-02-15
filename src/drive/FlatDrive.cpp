@@ -191,7 +191,6 @@ public:
         }
     }
 
-#ifndef COMMON_MODIFY_MAP//+
     virtual ModifyTrafficInfo& currentModifyInfo() override
     {
         return m_modifyInfo;
@@ -243,7 +242,6 @@ public:
         
         return nullptr;
     }
-#endif
 
     uint64_t maxSize() const override {
         return m_maxSize;
@@ -556,12 +554,6 @@ public:
                 runNextTask();
             }
         }
-#ifdef COMMON_MODIFY_MAP//-
-        else
-        {
-            m_replicator.removeModifyDriveInfo( transaction.m_modifyTransactionHash );
-        }
-#endif
     }
 
     void onApprovalTransactionHasFailedInvalidOpinions( const Hash256& transactionHash ) override

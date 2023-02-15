@@ -103,12 +103,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-#ifdef COMMON_MODIFY_MAP//-+
-        const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(*m_opinionTrafficTx)
-                .m_modifyTrafficMap;
-#else
         const auto &modifyTrafficMap = m_drive.currentModifyInfo().m_modifyTrafficMap;
-#endif
         
         std::map<std::array<uint8_t,32>, uint64_t> currentUploads;
         for (const auto &replicatorIt : replicators)
@@ -149,11 +144,7 @@ public:
 
         uint64_t targetSize = expectedCumulativeDownload - accountedCumulativeDownload;
         normalizeUploads(currentUploads, targetSize);
-#ifdef COMMON_MODIFY_MAP//-+
-        m_replicator.removeModifyDriveInfo( *m_opinionTrafficTx );
-#else
         m_drive.resetCurrentModifyInfo();
-#endif
 
         for (const auto&[uploaderKey, bytes]: currentUploads)
         {
@@ -220,6 +211,7 @@ public:
 
         // We have already taken into account information
         // about uploads of the modification to be canceled;
+        m_drive.resetCurrentModifyInfo();
         m_notApprovedCumulativeUploads = m_approvedCumulativeUploads;
 
         m_threadManager.executeOnBackgroundThread( [=, this]
