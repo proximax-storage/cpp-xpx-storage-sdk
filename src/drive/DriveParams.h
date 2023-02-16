@@ -244,6 +244,11 @@ public:
     std::unique_ptr<FsTree> m_fsTree;
     lt_handle m_fsTreeLtHandle; // used for removing FsTree torrent from session
     
+    ModifyTrafficInfo    m_modifyInfo;
+
+    using OldModifications = std::deque< std::pair< std::array<uint8_t,32>, ModifyTrafficInfo >>;
+    OldModifications    m_oldModifications;
+    
     // key - streamTx, value - playlist-InfoHash
     using StreamMap = std::map<Hash256,InfoHash>;
     StreamMap m_streamMap;
@@ -277,7 +282,9 @@ protected:
         , m_fsTree( std::make_unique<FsTree>() )
         , m_dbgOurPeerName( dbgOurPeerName )
         , m_dbgThreadId( std::this_thread::get_id())
-    {}
+    {
+        m_modifyInfo.m_driveKey = drivePubKey.array();
+    }
 
     virtual ~DriveParams() = default;
 
@@ -311,30 +318,5 @@ public:
         });
     }
 };
-
-//class ModifyOpinionController
-//{
-//public:
-//
-//    virtual ~ModifyOpinionController() = default;
-//
-//    virtual void initialize() = 0;
-//
-//    virtual std::optional<Hash256> opinionTrafficTx() = 0;
-//
-//    virtual void setOpinionTrafficTx( const Hash256& ) = 0;
-//
-//    virtual void approveCumulativeUploads( const std::function<void()>& callback ) = 0;
-//
-//    virtual void disapproveCumulativeUploads( const std::function<void()>& callback ) = 0;
-//
-//    virtual void
-//    updateCumulativeUploads( const ReplicatorList& replicators, uint64_t addCumulativeDownload, const std::function<void()>& callback ) = 0;
-//
-//    virtual void fillOpinion( std::vector<KeyAndBytes>& replicatorsUploads,
-//                              uint64_t& clientUploads ) = 0;
-//
-//    virtual void increaseApprovedExpectedCumulativeDownload( uint64_t ) = 0;
-//};
 
 }

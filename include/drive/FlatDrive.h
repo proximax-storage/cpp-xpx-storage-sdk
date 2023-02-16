@@ -654,6 +654,39 @@ class Replicator;
                                                      int                        errorCode ) = 0;
     };
 
+// It is used for mutual calculation of the replicators, when they download 'modify data'
+// (Note. Replicators could receive 'modify data' from client and from replicators, that already receives some piece)
+struct ModifyTraffic
+{
+    // It is the size received from another replicator or client
+    uint64_t m_receivedSize = 0;
+    
+    // It is the size sent to another replicator
+    uint64_t m_requestedSize = 0;
+
+    template <class Archive> void serialize( Archive & arch )
+    {
+        arch( m_receivedSize );
+        arch( m_requestedSize );
+    }
+};
+
+
+// The key is replicator key
+using ModifyTrafficMap = std::map<std::array<uint8_t,32>,ModifyTraffic>;
+
+struct ModifyTrafficInfo
+{
+    std::array<uint8_t,32>  m_driveKey;
+    ModifyTrafficMap        m_modifyTrafficMap;
+    
+    template <class Archive> void serialize( Archive & arch )
+    {
+        arch( m_driveKey );
+        arch( m_modifyTrafficMap );
+    }
+};
+
     //
     // Drive
     //
@@ -679,6 +712,13 @@ class Replicator;
 
         virtual void     startModifyDrive( mobj<ModificationRequest>&& modifyRequest ) = 0;
         virtual void     cancelModifyDrive( mobj<ModificationCancelRequest>&& request ) = 0;
+
+        // current modification info
+        virtual ModifyTrafficInfo&                currentModifyInfo() = 0;
+        virtual const std::optional<Hash256>      currentModifyTx() = 0;
+        virtual void                              resetCurrentModifyInfo() = 0;
+
+        virtual const ModifyTrafficInfo*          findModifyInfo( const Hash256& tx, bool& outIsFinished ) = 0;
 
         virtual void     startDriveClosing( mobj<DriveClosureRequest>&& request ) = 0;
 
@@ -718,7 +758,6 @@ class Replicator;
 
         // for testing and debugging
         virtual void dbgPrintDriveStatus() = 0;
-        virtual void dbgAsyncDownloadToSandbox( InfoHash infoHash, std::function<void()> endNotifyer ) = 0;
 
 
         static std::string  driveIsClosingPath( const std::string& driveRootPath );

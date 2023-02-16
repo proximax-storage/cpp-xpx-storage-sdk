@@ -8,6 +8,7 @@
 
 #include "drive/Replicator.h"
 #include "ReplicatorInt.h"
+#include "drive/FlatDrive.h"
 #include <sirius_drive/session_delegate.h>
 #include "crypto/Signer.h"
 #include "types.h"
@@ -44,10 +45,6 @@ protected:
 
     ChannelMap          m_dnChannelMap; // will be saved only if not crashed
     ChannelMap          m_dnChannelMapBackup;
-    ModifyDriveMap      m_modifyDriveMap;
-    
-    using OldModifications = std::deque< std::pair< std::array<uint8_t,32>, ModifyTrafficInfo >>;
-    OldModifications    m_oldModifications;
 
     uint64_t            m_receiptLimit = 1024 * 1024;
     uint64_t            m_advancePaymentLimit = 50 * 1024 * 1024;
@@ -105,18 +102,6 @@ public:
         else
         {
             _LOG( "onDisconnected: " << dbgOurPeerName() << " from peer: " << (int)peerKey[0] );
-            for( const auto& i : m_modifyDriveMap ) {
-                _LOG( "m_modifyDriveMap: " << (int)i.first[0] << " " << (int)txHash[0]);
-            }
-
-            if ( const auto& it = m_modifyDriveMap.find( txHash ); it != m_modifyDriveMap.end() )
-            {
-                for( const auto& replicatorIt : it->second.m_modifyTrafficMap )
-                {
-                    _LOG( " m_receivedSize: " <<  replicatorIt.second.m_receivedSize << " from " << (int)replicatorIt.first[0] );
-                }
-                _LOG( " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ " );
-            }
         }
     }
 
@@ -124,43 +109,32 @@ public:
     {
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             DBG_MAIN_THREAD
-              
-            if ( const auto& it = m_modifyDriveMap.find( txHash ); it == m_modifyDriveMap.end() )
+
+            for( auto& [key,drive] : m_driveMap )
             {
-                _LOG( "\nTrafficDistribution NOT FOUND: " << dbgOurPeerName() << " (" << (int)publicKey()[0] << ")" );
-            }
-            else
-            {
-                _LOG( "\nTrafficDistribution: " << dbgOurPeerName() << " (" << (int)publicKey()[0] << ")" );
-                for( const auto& replicatorIt : it->second.m_modifyTrafficMap )
+                bool isFinished;
+                if ( const auto& it = drive->findModifyInfo( Hash256(txHash), isFinished ); it != nullptr )
                 {
-                    if ( replicatorIt.second.m_receivedSize )
+                    _LOG( "\nTrafficDistribution: " << dbgOurPeerName() << " (isFinished:" << isFinished << ")" );
+                    for( const auto& replicatorIt : it->m_modifyTrafficMap )
                     {
-                        _LOG( " receivedSize: " <<  replicatorIt.second.m_receivedSize << " from " << (int)replicatorIt.first[0] );
+                        if ( replicatorIt.second.m_receivedSize )
+                        {
+                            _LOG( " receivedSize: " <<  replicatorIt.second.m_receivedSize << " from " << (int)replicatorIt.first[0] );
+                        }
+                        if ( replicatorIt.second.m_requestedSize )
+                        {
+                            _LOG( " requestedSize: "     <<  replicatorIt.second.m_requestedSize << " by " << (int)replicatorIt.first[0] );
+                        }
                     }
-                    if ( replicatorIt.second.m_requestedSize )
-                    {
-                        _LOG( " requestedSize: "     <<  replicatorIt.second.m_requestedSize << " by " << (int)replicatorIt.first[0] );
-                    }
+                    return;
                 }
             }
+            
+            _LOG( "\nTrafficDistribution NOT FOUND: " << dbgOurPeerName() << " (" << (int)publicKey()[0] << ")" );
       });
     }
     
-    virtual ModifyTrafficInfo getMyDownloadOpinion( const Hash256& txHash ) const override
-    {
-        DBG_MAIN_THREAD
-
-        if ( const auto it = m_modifyDriveMap.find( txHash.array() ); it != m_modifyDriveMap.end() )
-        {
-            return it->second;
-        }
-        _LOG_ERR( "getMyDownloadOpinion: unknown modify transaction hash: " << txHash );
-        
-        return {};
-    }
-
-
     bool checkDownloadLimit( const std::array<uint8_t,32>& peerKey,
                              const std::array<uint8_t,32>& downloadChannelId,
                              uint64_t                      downloadedSize,
@@ -314,58 +288,6 @@ public:
 		it->second.m_prepaidDownloadSize += prepaidDownloadSize;
 	}
 
-    bool addModifyTrafficInfo( const Key&                 modifyTransactionHash,
-                               const Key&                 driveKey,
-                               uint64_t                   dataSize,
-                               const Key&                 clientPublicKey,
-                               const std::vector<Key>&    replicatorsList )
-    {
-        DBG_MAIN_THREAD
-
-        _LOG( "add modify drive info " << modifyTransactionHash);
-
-        auto driveMapIt = m_modifyDriveMap.lower_bound(modifyTransactionHash.array());
-
-        if (driveMapIt != m_modifyDriveMap.end() && driveMapIt->first == modifyTransactionHash.array())
-        {
-            // already exists
-            return false;
-        }
-
-        ModifyTrafficMap trafficMap;
-        trafficMap.insert( { clientPublicKey.array(), {0,0}} );
-        
-        for( const auto& it : replicatorsList )
-        {
-            if ( it.array() != publicKey() )
-            {
-                //_LOG( dbgOurPeerName() << " pubKey: " << (int)it.m_publicKey.array()[0] );
-                trafficMap.insert( { it.array(), {0,0}} );
-            }
-        }
-        
-        m_modifyDriveMap.insert(driveMapIt, {modifyTransactionHash.array(), ModifyTrafficInfo{ driveKey.array(), dataSize, trafficMap, 0 }});
-
-        return true;
-    }
-    
-    void removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash ) override
-    {
-        DBG_MAIN_THREAD
-
-        _LOG( "remove modify drive info " << Hash256{modifyTransactionHash});
-
-        if ( auto it = m_modifyDriveMap.find(modifyTransactionHash); it != m_modifyDriveMap.end() )
-        {
-            if ( m_oldModifications.size() >= 100 )
-            {
-                m_oldModifications.pop_front();
-            }
-            m_oldModifications.push_back( { modifyTransactionHash, it->second } );
-            m_modifyDriveMap.erase(modifyTransactionHash);
-        }
-    }
-
     lt::connection_status acceptClientConnection( const std::array<uint8_t,32>&  channelId,
                                                   const std::array<uint8_t,32>&  peerKey,
                                                   const std::array<uint8_t,32>&  driveKey,
@@ -455,7 +377,7 @@ public:
 //        }
     }
     
-    bool onPieceRequestReceivedFromReplicator( const std::array<uint8_t,32>&  modifyTx,
+    bool onPieceRequestReceivedFromReplicator( const std::array<uint8_t,32>&  driveKey,
                                                const std::array<uint8_t,32>&  receiverPublicKey,
                                                uint64_t                       pieceSize ) override
     {
@@ -466,17 +388,14 @@ public:
             return false;
         }
 
-
-        if ( auto it = m_modifyDriveMap.find( modifyTx ); it != m_modifyDriveMap.end() )
+        if ( auto it = m_driveMap.find( driveKey ); it != m_driveMap.end() )
         {
-            if ( auto peerIt = it->second.m_modifyTrafficMap.find(receiverPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
-            {
-                peerIt->second.m_requestedSize += pieceSize;
-            }
+            auto& modifyInfo = it->second->currentModifyInfo();
+            modifyInfo.m_modifyTrafficMap[receiverPublicKey].m_requestedSize  += pieceSize;
         }
         return true;
     }
-    
+
     bool onPieceRequestReceivedFromClient( const std::array<uint8_t,32>&      transactionHash,
                                            const std::array<uint8_t,32>&      receiverPublicKey,
                                            uint64_t                           pieceSize ) override
@@ -515,7 +434,7 @@ public:
         _LOG_WARN( "unknown txHash: " << (int)txHash[0] );
     }
     
-    void onPieceReceived( const std::array<uint8_t,32>&  modifyTx,
+    void onPieceReceived( const std::array<uint8_t,32>&  driveKey,
                           const std::array<uint8_t,32>&  senderPublicKey,
                           uint64_t                       pieceSize ) override
     {
@@ -526,32 +445,15 @@ public:
             return;
         }
 
-        if ( auto it = m_modifyDriveMap.find( modifyTx ); it != m_modifyDriveMap.end() )
+        if ( auto it = m_driveMap.find( driveKey ); it != m_driveMap.end() )
         {
-            if ( auto peerIt = it->second.m_modifyTrafficMap.find(senderPublicKey);  peerIt != it->second.m_modifyTrafficMap.end() )
-            {
-                peerIt->second.m_receivedSize  += pieceSize;
-                it->second.m_totalReceivedSize += pieceSize;
-                return;
-            }
-            
-            if ( m_dnChannelMap.find( modifyTx ) != m_dnChannelMap.end() )
-            {
-                _LOG( "received piece from viewer/client: " << Key(modifyTx) );
-            }
-            else
-            {
-                //(???)
-                _LOG( "received piece from viewer/client: " << Key(modifyTx) );
-                //todo+++++ _LOG_WARN( "ERROR: unknown peer: " << (int)senderPublicKey[0] );
-            }
+            auto& modifyInfo = it->second->currentModifyInfo();
+            modifyInfo.m_modifyTrafficMap[senderPublicKey].m_receivedSize  += pieceSize;
             return;
         }
 
-        _LOG( "unknown txHash: " << Key(modifyTx) );
-        _LOG_WARN( "ERROR(3): unknown txHash: " << Key(modifyTx) );
+        _LOG_WARN( "unknown driveKey: " << Key(driveKey) );
     }
-
 
     // will be called when one replicator informs another about downloaded size by client
     virtual void acceptReceiptFromAnotherReplicator( const RcptMessage& message ) override

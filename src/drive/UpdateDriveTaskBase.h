@@ -50,9 +50,9 @@ public:
         breakTorrentDownloadAndRunNextTask();
     }
 
-protected:
-
     virtual const Hash256& getModificationTransactionHash() = 0;
+
+protected:
 
     UpdateDriveTaskBase(
             const DriveTaskType& type,
