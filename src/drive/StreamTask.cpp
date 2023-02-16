@@ -16,7 +16,7 @@ namespace sirius::drive
 
 namespace fs = std::filesystem;
 
-class StreamTask : public UpdateDriveTaskBase
+class StreamTask : public UpdateDriveTaskBase // ModifyApprovalTaskBase
 {
     std::mutex  m_mutex;
     
@@ -463,20 +463,6 @@ public:
             _LOG_WARN( "exception during continueSynchronizingDriveWithSandbox: " << ex.what());
             finishTask();
         }
-    }
-
-    void modifyIsCompleted() override
-    {
-        DBG_MAIN_THREAD
-
-        _LOG( "modifyIsCompleted" );
-
-        if ( m_drive.m_dbgEventHandler ) {
-            m_drive.m_dbgEventHandler->driveModificationIsCompleted(
-                    m_drive.m_replicator, m_drive.m_driveKey, m_request->m_streamId, *m_sandboxRootHash);
-        }
-
-        UpdateDriveTaskBase::modifyIsCompleted();
     }
 
     uint64_t getToBeApprovedDownloadSize() override

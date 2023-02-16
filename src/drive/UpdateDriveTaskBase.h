@@ -106,7 +106,14 @@ protected:
     {
         DBG_MAIN_THREAD
 
+        _LOG( "diveUpdateIsCompleted: " << getModificationTransactionHash() );
+
         _ASSERT( m_sandboxRootHash )
+
+        if ( m_drive.m_dbgEventHandler ) {
+            m_drive.m_dbgEventHandler->driveModificationIsCompleted(
+                    m_drive.m_replicator, m_drive.m_driveKey, getModificationTransactionHash(), *m_sandboxRootHash);
+        }
 
         m_drive.m_fsTree = std::move(m_sandboxFsTree);
         m_drive.m_rootHash = *m_sandboxRootHash;

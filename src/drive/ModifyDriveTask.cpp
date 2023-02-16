@@ -590,20 +590,6 @@ public:
 
 protected:
 
-    void modifyIsCompleted() override
-    {
-        DBG_MAIN_THREAD
-        
-        _LOG( "modifyIsCompleted" );
-
-        if ( m_drive.m_dbgEventHandler ) {
-            m_drive.m_dbgEventHandler->driveModificationIsCompleted(
-                    m_drive.m_replicator, m_drive.m_driveKey, m_request->m_transactionHash, *m_sandboxRootHash);
-        }
-
-        UpdateDriveTaskBase::modifyIsCompleted();
-    }
-
     void modifyIsCompletedWithError( std::string errorText, ModificationStatus status )
     {
         DBG_MAIN_THREAD
