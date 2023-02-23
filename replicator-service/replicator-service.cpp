@@ -110,7 +110,7 @@ int main( int argc, char* argv[] )
 
 std::filesystem::path gLogFileName = "tmp/replicator_log"; // must be set
 
-inline std::string openLogFile(int& mainFD, int& copyFD)
+inline std::string openLogFile()
 {
     log( false, " openLogFile: " + std::string(gLogFileName) );
 
@@ -119,15 +119,13 @@ inline std::string openLogFile(int& mainFD, int& copyFD)
     //
     const int flags = O_WRONLY | O_CREAT | O_APPEND;
     const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-	mainFD = open( std::string(gLogFileName).c_str(), flags, mode);
-    if ( mainFD < 0 )
+    if ( open( std::string(gLogFileName).c_str(), flags, mode) == 1 )
     {
-        return "Unable to open output log file";
+        return "Unable to open output log file('stdout')";
     }
     
     // Also send standard error to the same log file.
-	copyFD = dup(mainFD);
-    if (copyFD < 0)
+    if (dup(1) == 2)
     {
         return "Unable to dup output descriptor (into 'stderr')";
     }
@@ -135,7 +133,7 @@ inline std::string openLogFile(int& mainFD, int& copyFD)
     return {};
 }
 
-inline void createLogBackup(int& mainFD, int& copyFD)
+inline void createLogBackup()
 {
     auto bakLogFile = gLogFileName;
 	bakLogFile.replace_extension("bak");
@@ -144,12 +142,12 @@ inline void createLogBackup(int& mainFD, int& copyFD)
         std::filesystem::remove(bakLogFile);
     }
 
-    close(mainFD);
-    close(copyFD);
+    close(1);
+    close(2);
     
     std::filesystem::rename( gLogFileName, bakLogFile );
 
-    auto error = openLogFile(mainFD, copyFD);
+    auto error = openLogFile();
     if ( !error.empty() )
     {
         log( true, " openLogFile error: " + error );
@@ -247,23 +245,14 @@ int runServiceInBackground( fs::path logFolder, const std::string& port )
         
         
         gLogFileName = logFolder / ("replicator_service_" + port + ".log");
-
-		static int mainFD;
-		static int copyFD;
-        auto error = openLogFile(mainFD, copyFD);
+        
+        auto error = openLogFile();
         if ( !error.empty() )
         {
             log( true, " openLogFile error: " + error );
         }
 
-        gCreateLogBackup = []() {
-			auto pos = lseek( mainFD, 0, SEEK_END );
-			if ( ( pos > 100 * 1024 * 1024 ) && gCreateLogBackup )
-			{
-				createLogBackup(mainFD, copyFD);
-			}
-		};
-
+        gCreateLogBackup = createLogBackup;
         gIsRemoteRpcClient = true;
         
         log( false, " Daemon started" );

@@ -73,8 +73,11 @@ inline void checkLogFileSize()
     if ( !gIsRemoteRpcClient )
         return;
 
-	if ( gCreateLogBackup )
-		(*gCreateLogBackup)();
+    auto pos = lseek( 1, 0, SEEK_END );
+    if ( ( pos > 100 * 1024 * 1024 ) && gCreateLogBackup )
+    {
+        (*gCreateLogBackup)();
+    }
 }
 
 // LOG
