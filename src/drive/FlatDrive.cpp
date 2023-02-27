@@ -8,6 +8,7 @@
 #include "drive/Replicator.h"
 #include "drive/Session.h"
 #include "DriveTaskBase.h"
+#include "UpdateDriveTaskBase.h"
 #include "DriveParams.h"
 #include "ModifyOpinionController.h"
 #include "drive/Utils.h"
@@ -168,8 +169,8 @@ public:
             , m_modifyDonatorShard( modifyDonatorShard )
             , m_modifyRecipientShard( modifyRecipientShard )
             //(???+)
-            , m_opinionController( m_driveKey, m_driveOwner, m_replicator, m_serializer, *this,
-                                   expectedCumulativeDownload, replicator.dbgReplicatorName())
+            , m_opinionController(*this, m_driveOwner, m_replicator, m_serializer, *this, expectedCumulativeDownload, replicator.dbgReplicatorName() )
+
     {
         runDriveInitializationTask( std::move( completedModifications ));
     }
@@ -205,8 +206,59 @@ public:
         }
     }
 
-    uint64_t maxSize() const override
+    virtual ModifyTrafficInfo& currentModifyInfo() override
     {
+        return m_modifyInfo;
+    }
+
+    virtual const std::optional<Hash256> currentModifyTx() override
+    {
+        if ( m_task )
+        {
+            if ( auto* modifyTask = dynamic_cast<UpdateDriveTaskBase*>(&(*m_task)); modifyTask != nullptr )
+            {
+                return modifyTask->getModificationTransactionHash();
+            }
+        }
+        return {};
+    }
+
+    virtual void resetCurrentModifyInfo() override
+    {
+        if ( auto tx = currentModifyTx(); tx )
+        {
+            if ( m_oldModifications.size() >= 100 )
+            {
+                m_oldModifications.pop_front();
+            }
+            m_oldModifications.push_back( { tx->array(), m_modifyInfo } );
+        }
+        m_modifyInfo.m_modifyTrafficMap.clear();
+    }
+
+    virtual const ModifyTrafficInfo* findModifyInfo( const Hash256& tx, bool& outIsFinished ) override
+    {
+        outIsFinished = false;
+
+        const auto it = std::find_if( m_oldModifications.begin(), m_oldModifications.end(), [&tx] ( const auto& m ){
+            return m.first == tx.array();
+        } );
+
+        if ( it != m_oldModifications.end() )
+        {
+            outIsFinished = true;
+            return &it->second;
+        }
+
+        if ( auto currentTx = currentModifyTx(); currentTx && *currentTx == tx )
+        {
+            return &m_modifyInfo;
+        }
+
+        return nullptr;
+    }
+
+    uint64_t maxSize() const override {
         return m_maxSize;
     }
 
@@ -399,32 +451,14 @@ public:
                                     return item.transactionHash() == m_catchingUpRequest->m_modifyTransactionHash;
                                 } );
 
-        if ( it != m_deferredModificationRequests.end())
+        if (it != m_deferredModificationRequests.end() ) // it is possible, when replicator added to drive and some modifications were ommited
         {
-            const auto& opinionTrafficIdentifier = m_opinionController.opinionTrafficTx();
-            while ( !m_deferredModificationRequests.empty() and it != m_deferredModificationRequests.begin())
+            it++;
+            while ( it != m_deferredModificationRequests.begin() )
             {
-                if ( !opinionTrafficIdentifier
-                     || *opinionTrafficIdentifier != m_deferredModificationRequests.front().transactionHash().array())
-                {
-                    m_replicator.removeModifyDriveInfo(
-                            m_deferredModificationRequests.front().transactionHash().array());
-                }
-                m_opinionController.increaseApprovedExpectedCumulativeDownload(
-                        m_deferredModificationRequests.front().maxDataSize());
+                m_opinionController.increaseApprovedExpectedCumulativeDownload( m_deferredModificationRequests.front().maxDataSize() );
                 m_deferredModificationRequests.pop_front();
             }
-
-            _ASSERT( !m_deferredModificationRequests.empty())
-
-            if ( opinionTrafficIdentifier &&
-                 *opinionTrafficIdentifier != m_deferredModificationRequests.front().transactionHash().array())
-            {
-                m_replicator.removeModifyDriveInfo( m_deferredModificationRequests.front().transactionHash().array());
-            }
-            m_opinionController.increaseApprovedExpectedCumulativeDownload(
-                    m_deferredModificationRequests.front().maxDataSize());
-            m_deferredModificationRequests.pop_front();
         }
 
         if ( m_deferredManualModificationRequest )
@@ -589,10 +623,6 @@ public:
             {
                 runNextTask();
             }
-        }
-        else
-        {
-            m_replicator.removeModifyDriveInfo( transaction.m_modifyTransactionHash );
         }
     }
 
@@ -1160,49 +1190,6 @@ public:
         if ( auto session = m_session.lock(); session )
         {
             session->dbgPrintActiveTorrents();
-        }
-    }
-
-    virtual void dbgAsyncDownloadToSandbox( InfoHash infoHash, std::function<void()> endNotifyer ) override
-    {
-        if ( auto session = m_session.lock(); session )
-        {
-            static std::array<uint8_t, 32> streamTx = std::array<uint8_t, 32>{0xee, 0xee, 0xee, 0xee};
-
-            session->download(
-                    DownloadContext(
-                            DownloadContext::missing_files,
-                            [=, this]( download_status::code code,
-                                       const InfoHash& infoHash,
-                                       const std::filesystem::path saveAs,
-                                       size_t /*downloaded*/,
-                                       size_t /*fileSize*/,
-                                       const std::string& errorText )
-                            {
-                                DBG_MAIN_THREAD
-
-                                if ( code == download_status::dn_failed )
-                                {
-                                    //todo is it possible?
-                                    _ASSERT( 0 );
-                                    return;
-                                }
-
-                                if ( code == download_status::download_complete )
-                                {
-                                    endNotifyer();
-                                }
-                            },
-                            infoHash,
-                            *m_opinionController.opinionTrafficTx(),
-                            0, true, ""
-                    ),
-                    m_sandboxRootPath.string(),
-                    (m_sandboxRootPath / toString( infoHash )).string(),
-                    {},
-                    &m_driveKey.array(),
-                    nullptr,
-                    &streamTx );
         }
     }
 

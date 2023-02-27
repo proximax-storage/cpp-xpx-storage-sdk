@@ -112,9 +112,6 @@ public:
 
     void run() override
     {
-        _ASSERT( ! m_opinionController.opinionTrafficTx() );
-
-        m_opinionController.setOpinionTrafficTx( m_request->m_streamId.array() );
     }
 
     const Hash256& getModificationTransactionHash() override
@@ -365,7 +362,7 @@ public:
                                    }
                                },
                                chunkInfoHash,
-                               *m_opinionController.opinionTrafficTx(),
+                               getModificationTransactionHash(),
                                0, true, ""
                        ),
                        m_drive.m_driveFolder.string(),
@@ -736,7 +733,7 @@ public:
                                }
                            },
                            *m_finishInfoHash,
-                           *m_opinionController.opinionTrafficTx(),
+                           getModificationTransactionHash(),
                            0, true, ""
                    ),
                    m_drive.m_sandboxStreamFolder,

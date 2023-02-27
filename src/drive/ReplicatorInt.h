@@ -47,10 +47,6 @@ public:
     
     virtual void        finishDriveClosure( const Key& driveKey ) = 0;
 
-    // It will be used while drive closing
-    virtual void        removeModifyDriveInfo( const std::array<uint8_t,32>& modifyTransactionHash ) = 0;
-
-    
     // TODO:
     // They will be called after 'cancel modify transaction' has been published
 //    virtual void        onTransactionCanceled( ApprovalTransactionInfo&& transaction ) = 0;
@@ -78,8 +74,6 @@ public:
     // when it receives message from another replicator
     // (must be implemented by DownloadLimiter)
     virtual void acceptReceiptFromAnotherReplicator( const RcptMessage& message ) = 0;
-
-    virtual ModifyTrafficInfo getMyDownloadOpinion( const Hash256& transactionHash ) const = 0;
 
     virtual DownloadChannelInfo* getDownloadChannelInfo( const std::array<uint8_t,32>& driveKey, const std::array<uint8_t,32>& downloadChannelHash ) = 0;
 

@@ -230,45 +230,6 @@ struct DownloadChannelInfo
 // key is a channel hash
 using ChannelMap         = std::map<ChannelId, DownloadChannelInfo>;
 
-// It is used for mutual calculation of the replicators, when they download 'modify data'
-// (Note. Replicators could receive 'modify data' from client and from replicators, that already receives some piece)
-struct ModifyTraffic
-{
-    // It is the size received from another replicator or client
-    uint64_t m_receivedSize = 0;
-    
-    // It is the size sent to another replicator
-    uint64_t m_requestedSize = 0;
-
-    template <class Archive> void serialize( Archive & arch )
-    {
-        arch( m_receivedSize );
-        arch( m_requestedSize );
-    }
-};
-
-// The key is a transaction hash
-using ModifyTrafficMap = std::map<std::array<uint8_t,32>,ModifyTraffic>;
-
-struct ModifyTrafficInfo
-{
-    std::array<uint8_t,32>  m_driveKey;
-    uint64_t                m_maxDataSize;
-    ModifyTrafficMap        m_modifyTrafficMap;
-    uint64_t                m_totalReceivedSize = 0;
-    
-    template <class Archive> void serialize( Archive & arch )
-    {
-        arch( m_driveKey );
-        arch( m_maxDataSize );
-        arch( m_modifyTrafficMap );
-        arch( m_totalReceivedSize );
-    }
-};
-
-// The key is a transaction hash
-using ModifyDriveMap    = std::map<std::array<uint8_t,32>, ModifyTrafficInfo>;
-
 //
 // Replicator
 //
@@ -402,8 +363,6 @@ public:
     virtual const Key&  dbgReplicatorKey() const = 0;
     virtual void        dbgSetLogMode( uint8_t mode ) = 0;
     
-    virtual void        dbgAsyncDownloadToSandbox( Key driveKey, InfoHash, std::function<void()> endNotifyer ) = 0;
-
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(

@@ -119,13 +119,13 @@ inline std::string openLogFile()
     //
     const int flags = O_WRONLY | O_CREAT | O_APPEND;
     const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-    if ( open( std::string(gLogFileName).c_str(), flags, mode) < 0 )
+    if ( open( std::string(gLogFileName).c_str(), flags, mode) == 1 )
     {
-        return "Unable to open output log file";
+        return "Unable to open output log file('stdout')";
     }
     
     // Also send standard error to the same log file.
-    if (dup(1) < 0)
+    if (dup(1) == 2)
     {
         return "Unable to dup output descriptor (into 'stderr')";
     }
@@ -135,14 +135,15 @@ inline std::string openLogFile()
 
 inline void createLogBackup()
 {
-    auto bakLogFile = gLogFileName.replace_extension("bak");
+    auto bakLogFile = gLogFileName;
+	bakLogFile.replace_extension("bak");
     if ( std::filesystem::exists(bakLogFile) )
     {
         std::filesystem::remove(bakLogFile);
     }
 
-    close(0);
     close(1);
+    close(2);
     
     std::filesystem::rename( gLogFileName, bakLogFile );
 
@@ -254,7 +255,7 @@ int runServiceInBackground( fs::path logFolder, const std::string& port )
         gCreateLogBackup = createLogBackup;
         gIsRemoteRpcClient = true;
         
-        log( false, " Daemon  started" );
+        log( false, " Daemon started" );
         log( false, " ---------------------------" );
         
         RPC_LOG( "Daemon started");

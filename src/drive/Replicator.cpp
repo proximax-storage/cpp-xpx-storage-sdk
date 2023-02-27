@@ -530,18 +530,6 @@ public:
                 }
             }
 
-            // Add ModifyTrafficInfo to DownloadLimiter
-            bool added = addModifyTrafficInfo( modifyRequest->m_transactionHash.array(),
-                                               driveKey,
-                                               modifyRequest->m_maxDataSize,
-                                               pDrive->driveOwner(),
-                                               modifyRequest->m_replicatorList );
-
-            if ( !added )
-            {
-                _LOG_ERR( "Internal Error: Modification Received after Approval or twice" )
-            }
-
             for ( auto it = modifyRequest->m_replicatorList.begin(); it != modifyRequest->m_replicatorList.end(); it++ )
             {
                 if ( *it == publicKey())
@@ -654,18 +642,6 @@ public:
                     _LOG( "asyncModify(): drive not found: " << driveKey );
                     return;
                 }
-            }
-
-            // Add ModifyTrafficInfo to DownloadLimiter
-            bool added = addModifyTrafficInfo( request->m_streamId.array(),
-                                               driveKey,
-                                               request->m_maxSizeBytes,
-                                               request->m_streamerKey,
-                                               request->m_replicatorList );
-
-            if ( !added )
-            {
-                _LOG_ERR( "Internal Error: added twice?" )
             }
 
 //            for( auto it = modifyRequest->m_replicatorList.begin();  it != modifyRequest->m_replicatorList.end(); it++ )
@@ -1038,34 +1014,22 @@ public:
         archive( replicatorKey );
         archive( modificationHash );
 
-        auto oldIt = std::find_if( m_oldModifications.begin(), m_oldModifications.end(), [&modificationHash] ( const auto& m ){
-            return m.first == modificationHash.array();
-        } );
+        bool isFound = false;
+        outIsModificationFinished = false;
 
-        if ( oldIt != m_oldModifications.end() )
+        if ( auto driveIt = m_driveMap.find(driveKey.array()); driveIt != m_driveMap.end() )
         {
-            outIsModificationFinished = true;
-            archive( oldIt->second );
-        }
-        else
-        {
-            outIsModificationFinished = false;
-            if ( auto it = m_modifyDriveMap.find(modificationHash.array()); it != m_modifyDriveMap.end() )
+            auto* info = driveIt->second->findModifyInfo( modificationHash, outIsModificationFinished );
+            if ( info != nullptr )
             {
-                archive( it->second );
-            }
-            else
-            {
-                // modification not found
-                auto str = outOs.str();
-                crypto::Sign( m_keyPair, { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature);
-                return false;
+                isFound = true;
+                archive( *info );
             }
         }
 
         auto str = outOs.str();
         crypto::Sign( m_keyPair, { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature);
-        return true;
+        return isFound;
     }
 
     void addOpinion( mobj<DownloadApprovalTransactionInfo>&& opinion )
@@ -1264,8 +1228,6 @@ public:
                 doInitiateDownloadApprovalTransactionInfo( *blockHash, channelId );
             }
         }
-
-        deleteDrive( driveKey.array());
     }
 
     void asyncDownloadApprovalTransactionHasFailedInvalidOpinions( Hash256 eventHash, Hash256 channelId ) override
@@ -1361,16 +1323,6 @@ public:
         } );//post
     }
 
-    void deleteDrive( const std::array<uint8_t, 32>& driveKey )
-    {
-        DBG_MAIN_THREAD
-
-        std::erase_if( m_modifyDriveMap, [&driveKey]( const auto& item )
-        {
-            return item.second.m_driveKey == driveKey;
-        } );
-    }
-
     void finishDriveClosure( const Key& driveKey ) override
     {
         DBG_MAIN_THREAD
@@ -1433,13 +1385,6 @@ public:
 
             if ( auto drive = getDrive( transaction->m_driveKey ); drive )
             {
-                //(???) remove replicator list from arguments
-                addModifyTrafficInfo( transaction->m_modifyTransactionHash,
-                                      transaction->m_driveKey,
-                                      LONG_LONG_MAX,
-                                      drive->driveOwner(),
-                                      drive->getAllReplicators());
-
                 drive->onApprovalTransactionHasBeenPublished( *transaction );
             } else
             {
@@ -2303,26 +2248,6 @@ public:
         }
 
         return false;
-    }
-
-    virtual void
-    dbgAsyncDownloadToSandbox( Key driveKey, InfoHash infoHash, std::function<void()> endNotifyer ) override
-    {
-        _FUNC_ENTRY()
-
-        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
-        {
-            DBG_MAIN_THREAD
-
-            if ( auto drive = getDrive( driveKey ); drive )
-            {
-                drive->dbgAsyncDownloadToSandbox( infoHash, endNotifyer );
-            } else
-            {
-                _LOG_ERR( "drive not found: " << driveKey );
-                return;
-            }
-        } );
     }
 
     void handleDhtResponse( lt::bdecode_node response, boost::asio::ip::udp::endpoint /*endpoint*/ ) override

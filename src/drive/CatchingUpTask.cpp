@@ -65,13 +65,6 @@ public:
             return;
         }
 
-        if ( ! m_opinionController.opinionTrafficTx() )
-        {
-            m_opinionController.setOpinionTrafficTx( m_request->m_modifyTransactionHash.array() );
-
-            _LOG ("catching up opinion identifier: " << m_request->m_modifyTransactionHash );
-        }
-
         if ( m_request->m_rootHash == m_drive.m_rootHash )
         {
             _LOG( "No need to catch up to " << m_request->m_rootHash )
@@ -99,7 +92,6 @@ public:
         //
         if ( auto session = m_drive.m_session.lock(); session )
         {
-            _ASSERT( m_opinionController.opinionTrafficTx())
             m_downloadingLtHandle = session->download(
                    DownloadContext(
                            DownloadContext::missing_files,
@@ -146,7 +138,7 @@ public:
                                }
                            },
                            m_request->m_rootHash,
-                           *m_opinionController.opinionTrafficTx(),
+                           getModificationTransactionHash(),
                            0, true, m_drive.m_sandboxFsTreeFile
                    ),
                    m_drive.m_sandboxRootPath.string(),
@@ -154,7 +146,7 @@ public:
                    getUploaders(),
                    &m_drive.m_driveKey.array(),
                    nullptr,
-                   &m_opinionController.opinionTrafficTx().value().array() );
+                   &getModificationTransactionHash().array() );
         }
     }
 
@@ -341,7 +333,6 @@ public:
 
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                _ASSERT( m_opinionController.opinionTrafficTx())
                 m_downloadingLtHandle = session->download(
                                                            DownloadContext(
                                                                DownloadContext::missing_files,
@@ -365,7 +356,7 @@ public:
                                                                },
 
                                                                missingFileHash,
-                                                               *m_opinionController.opinionTrafficTx(),
+                                                               getModificationTransactionHash(),
                                                                0, true, ""
                                                            ),
                                                            m_drive.m_driveFolder.string(),
@@ -373,7 +364,7 @@ public:
                                                            getUploaders(),
                                                            &m_drive.m_driveKey.array(),
                                                            nullptr,
-                                                           &m_opinionController.opinionTrafficTx().value().array()
+                                                           &getModificationTransactionHash().array()
                                                           );
                 // save reference into 'torrentHandleMap'
                 m_drive.m_torrentHandleMap[missingFileHash] = UseTorrentInfo{*m_downloadingLtHandle, false};

@@ -41,7 +41,7 @@ class ModifyOpinionController
 
 private:
 
-    Key                                         m_driveKey;
+    FlatDrive&                                  m_drive;
 
     Key                                         m_clientKey;
 
@@ -50,7 +50,6 @@ private:
     ThreadManager&                              m_threadManager;
 
     // It is needed for right calculation of my 'modify' opinion
-    std::optional<std::array<uint8_t, 32>>      m_opinionTrafficTx; // (***)
     uint64_t                                    m_approvedExpectedCumulativeDownload;
 //    uint64_t                                    m_accountedCumulativeDownload; // (***)
     CumulativeUploads  m_approvedCumulativeUploads; // (***)
@@ -62,7 +61,7 @@ private:
 public:
 
     ModifyOpinionController(
-            const Key& driveKey,
+            FlatDrive& drive,
             const Key& client,
             ReplicatorInt& replicator,
             const RestartValueSerializer& serializer,
@@ -70,7 +69,7 @@ public:
             uint64_t expectedCumulativeDownload,
             const std::string& dbgOurPeerName )
         :
-              m_driveKey( driveKey )
+              m_drive( drive )
             , m_clientKey( client )
             , m_replicator( replicator )
             , m_serializer( serializer )
@@ -97,20 +96,6 @@ public:
         m_approvedExpectedCumulativeDownload += add;
     }
 
-    std::optional<Hash256> opinionTrafficTx()
-    {
-        DBG_MAIN_THREAD
-
-        return m_opinionTrafficTx;
-    }
-
-    void setOpinionTrafficTx(const Hash256& identifier)
-    {
-        DBG_MAIN_THREAD
-
-        m_opinionTrafficTx = identifier.array();
-    }
-
     void updateCumulativeUploads( const Hash256&                modificationId,
                                   const ReplicatorList&         replicators,
                                   uint64_t                      addCumulativeDownload,
@@ -118,11 +103,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_opinionTrafficTx )
-
-        const auto &modifyTrafficMap = m_replicator.getMyDownloadOpinion(*m_opinionTrafficTx)
-                .m_modifyTrafficMap;
-
+        const auto &modifyTrafficMap = m_drive.currentModifyInfo().m_modifyTrafficMap;
+        
         std::map<std::array<uint8_t,32>, uint64_t> currentUploads;
         for (const auto &replicatorIt : replicators)
         {
@@ -162,8 +144,7 @@ public:
 
         uint64_t targetSize = expectedCumulativeDownload - accountedCumulativeDownload;
         normalizeUploads(currentUploads, targetSize);
-        m_replicator.removeModifyDriveInfo( *m_opinionTrafficTx );
-        m_opinionTrafficTx.reset();
+        m_drive.resetCurrentModifyInfo();
 
         for (const auto&[uploaderKey, bytes]: currentUploads)
         {
@@ -230,13 +211,7 @@ public:
 
         // We have already taken into account information
         // about uploads of the modification to be canceled;
-        auto trafficIdentifierHasValue = m_opinionTrafficTx.has_value();
-        if ( trafficIdentifierHasValue )
-        {
-            m_replicator.removeModifyDriveInfo( *m_opinionTrafficTx );
-            m_opinionTrafficTx.reset();
-        }
-
+        m_drive.resetCurrentModifyInfo();
         m_notApprovedCumulativeUploads = m_approvedCumulativeUploads;
 
         m_threadManager.executeOnBackgroundThread( [=, this]
