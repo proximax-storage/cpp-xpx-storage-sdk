@@ -137,7 +137,9 @@ public:
 
         m_replicatorIsDestructing = true;
 
-        m_serviceServer->Shutdown();
+        if (m_serviceServer) {
+            m_serviceServer->Shutdown();
+        }
         m_services.clear();
 
         m_session->endSession();
