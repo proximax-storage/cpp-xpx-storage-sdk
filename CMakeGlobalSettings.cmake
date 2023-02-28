@@ -49,39 +49,39 @@ elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
         add_definitions(-D_STDC_WANT_LIB_EXT1_=1)
         add_definitions(-D__STDC_WANT_LIB_EXT1__=1)
 elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-        # - Wno-c++98-compat*: catapult is not compatible with C++98
-        # - Wno-disabled-macro-expansion: expansion of recursive macro is required for boost logging macros
-        # - Wno-padded: allow compiler to automatically pad data types for alignment
-        # - Wno-switch-enum: do not require enum switch statements to list every value (this setting is also incompatible with GCC warnings)
-        # - Wno-weak-vtables: vtables are emitted in all translsation units for virtual classes with no out-of-line virtual method definitions
-#	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
-#		-Werror \
-#		-fbracket-depth=1024 \
-#		-Wno-c++98-compat \
-#		-Wno-c++98-compat-pedantic \
-#		-Wno-disabled-macro-expansion \
-#		-Wno-padded \
-#		-Wno-switch-enum \
-#                -Wno-weak-vtables")
-
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
-                -Wall\
-                -Wextra\
-                -Werror\
-                -Wstrict-aliasing=1\
-                -Wnon-virtual-dtor\
-                -Wno-unused-const-variable\
-                -Wno-unused-private-field\
-                -Wno-unused-parameter\
-                -Wno-poison-system-directories\
-                ")
-#            -Wno-error=uninitialized\
-#            -Werror-deprecated\
-
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden")
-
-        set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -g1")
+#        # - Wno-c++98-compat*: catapult is not compatible with C++98
+#        # - Wno-disabled-macro-expansion: expansion of recursive macro is required for boost logging macros
+#        # - Wno-padded: allow compiler to automatically pad data types for alignment
+#        # - Wno-switch-enum: do not require enum switch statements to list every value (this setting is also incompatible with GCC warnings)
+#        # - Wno-weak-vtables: vtables are emitted in all translsation units for virtual classes with no out-of-line virtual method definitions
+##	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
+##		-Werror \
+##		-fbracket-depth=1024 \
+##		-Wno-c++98-compat \
+##		-Wno-c++98-compat-pedantic \
+##		-Wno-disabled-macro-expansion \
+##		-Wno-padded \
+##		-Wno-switch-enum \
+##                -Wno-weak-vtables")
+#
+#        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
+#                -Wall\
+#                -Wextra\
+#                -Werror\
+#                -Wstrict-aliasing=1\
+#                -Wnon-virtual-dtor\
+#                -Wno-unused-const-variable\
+#                -Wno-unused-private-field\
+#                -Wno-unused-parameter\
+#                -Wno-poison-system-directories\
+#                ")
+##            -Wno-error=uninitialized\
+##            -Werror-deprecated\
+#
+#        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
+#        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden")
+#
+#        set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -g1")
 endif()
 
 # set runpath for built binaries on linux

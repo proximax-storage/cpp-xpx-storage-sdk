@@ -7,12 +7,7 @@ find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
 find_package(GTest REQUIRED) # Find the google testing framework on your system
 
-if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/testCancelRootHashCalculated.cpp")
-#    file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/test*.cpp")
-else()
-    file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/test*.cpp")
-endif()
+file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/test*.cpp")
 
 add_executable(supercontract-tests utils.h utils.cpp TestEnvironment.h ${TEST_FILES})
 
@@ -20,26 +15,9 @@ target_include_directories(supercontract-tests PUBLIC ${GTEST_INCLUDE_DIRS})
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     add_definitions(-D_GNU_SOURCE)
-    target_link_libraries(standalone-tests
-            #${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
-            ${CMAKE_SOURCE_DIR}/libtorrent/cmake-build-debug/libtorrent-sirius.dylib
-
-            drive
-            storage-crypto
-            ${GTEST_LIBRARIES}
-            /usr/local/lib/libgtest_main.a
-            )
-    #        /usr/local/opt/openssl/lib/libssl.dylib
-    #        /usr/local/opt/openssl/lib/libcrypto.dylib
-    #        "-framework CoreFoundation" "-framework SystemConfiguration"
-    #        )
-
-    enable_testing()
-    add_test(standalone-tests "./standalone-tests")
-
-else()
-    enable_testing()
-    add_test(supercontract-tests "./supercontract-tests")
-    target_link_libraries(supercontract-tests drive storage-crypto torrent-sirius Threads::Threads ${GTEST_LIBRARIES} gtest_main)
 endif()
+
+enable_testing()
+add_test(supercontract-tests "./supercontract-tests")
+target_link_libraries(supercontract-tests drive storage-crypto torrent-sirius Threads::Threads ${GTEST_LIBRARIES} gtest_main)
 
