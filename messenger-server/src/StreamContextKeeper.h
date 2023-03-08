@@ -19,9 +19,9 @@ class StreamContextKeeper
 
 private:
 
+    std::shared_ptr<StreamContext> m_context;
     uint64_t m_id;
     ConnectionManager& m_connectionManager;
-    std::shared_ptr<StreamContext> m_context;
 
 public:
 

@@ -270,8 +270,7 @@ public:
         ASSERT_TRUE(res);
         auto& fsTree = res->m_fsTree;
         ASSERT_TRUE(fsTree.childs().size() == 2);
-        for (auto const& [key, val] : fsTree.childs()) {
-            const auto& child = fsTree.childs().begin()->second;
+        for (auto const& [_, child] : fsTree.childs()) {
             ASSERT_TRUE(isFolder(child));
             const auto& folder = getFolder(child);
             if (folder.name() == "tests") {

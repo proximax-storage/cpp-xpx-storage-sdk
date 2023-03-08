@@ -46,11 +46,11 @@ public:
 class TestHandlerCreateDirSamePath {
 
 public:
+    ENVIRONMENT_CLASS& m_env;
     std::promise<void> p;
     DriveKey m_driveKey;
     uint64_t m_fileId;
     std::string m_buffer;
-    ENVIRONMENT_CLASS& m_env;
 
     TestHandlerCreateDirSamePath(ENVIRONMENT_CLASS& env, std::string buffer)
         : m_env(env), m_buffer(buffer) {}

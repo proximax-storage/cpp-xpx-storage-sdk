@@ -8,9 +8,11 @@
 #include <cinttypes>
 #include <memory>
 
-namespace sirius::drive {
+namespace sirius::drive
+{
 
-class FsEntryStatistics {
+class FsEntryStatistics
+{
 
 public:
 
@@ -18,10 +20,17 @@ public:
 
 public:
 
-    virtual uint64_t totalBlocks() const = 0;
+    virtual ~FsEntryStatistics() = default;
+
+    virtual uint64_t totalBlocks() const
+    {
+        return m_blocks;
+    }
 };
 
-class FolderStatistics: public FsEntryStatistics {
+class FolderStatistics
+        : public FsEntryStatistics
+{
 
 public:
 
@@ -29,23 +38,52 @@ public:
 
 public:
 
-    uint64_t totalBlocks() const override;
+    uint64_t totalBlocks() const override
+    {
+        return m_blocks + m_childrenBlocks;
+    }
 
-    FolderStatistics operator -(const FsEntryStatistics& entryStatistics) const;
-    FolderStatistics operator +(const FsEntryStatistics& entryStatistics) const;
-    FolderStatistics operator -=(const FsEntryStatistics& entryStatistics);
-    FolderStatistics operator +=(const FsEntryStatistics& entryStatistics);
+    FolderStatistics operator-( const FsEntryStatistics& entryStatistics ) const
+    {
+        FolderStatistics folderStatistics = *this;
+        folderStatistics.m_childrenBlocks -= entryStatistics.totalBlocks();
+        return folderStatistics;
+    }
+
+    FolderStatistics operator+( const FsEntryStatistics& entryStatistics ) const
+    {
+        FolderStatistics folderStatistics = *this;
+        folderStatistics.m_childrenBlocks += entryStatistics.totalBlocks();
+        return folderStatistics;
+    }
+
+    FolderStatistics& operator-=( const FsEntryStatistics& entryStatistics )
+    {
+        m_childrenBlocks -= entryStatistics.totalBlocks();
+        return *this;
+    }
+
+    FolderStatistics& operator+=( const FsEntryStatistics& entryStatistics )
+    {
+        m_childrenBlocks += entryStatistics.totalBlocks();
+        return *this;
+    }
 };
 
-class FileStatistics: public FsEntryStatistics {
+class FileStatistics
+        : public FsEntryStatistics
+{
 
 public:
 
-    uint64_t totalBlocks() const override;
+    uint64_t totalBlocks() const override {
+        return m_blocks;
+    }
 
 };
 
-class FolderStatisticsNode {
+class FolderStatisticsNode
+{
 
 private:
 
@@ -54,19 +92,71 @@ private:
 
 public:
 
-    void update(const FsEntryStatistics& oldChild, const FsEntryStatistics& newChild);
+    void update( const FsEntryStatistics& oldChild, const FsEntryStatistics& newChild )
+    {
+        FolderStatistics oldStatistics = m_statistics;
+        m_statistics -= oldChild;
+        m_statistics += newChild;
+        auto parent = m_parent.lock();
+        if ( !parent )
+        {
+            return;
+        }
+        parent->update( oldStatistics, m_statistics );
+    }
 
-    void setParent( std::weak_ptr<FolderStatisticsNode> );
+    void setParent( std::weak_ptr<FolderStatisticsNode> parent )
+    {
+        FolderStatistics zeroStatistics;
+        auto oldParent = m_parent.lock();
+        if ( oldParent )
+        {
+            oldParent->update( m_statistics, zeroStatistics );
+        }
 
-    void addBlock();
+        m_parent = std::move( parent );
 
-    void removeBlock();
+        auto newParent = m_parent.lock();
 
-    const FolderStatistics& statistics() const;
+        if ( newParent )
+        {
+            newParent->update( zeroStatistics, m_statistics );
+        }
+    }
+
+    void addBlock()
+    {
+        FolderStatistics oldStatistics = m_statistics;
+        m_statistics.m_blocks += 1;
+        auto parent = m_parent.lock();
+        if ( !parent )
+        {
+            return;
+        }
+        parent->update( oldStatistics, m_statistics );
+    }
+
+    void removeBlock()
+    {
+        FolderStatistics oldStatistics = m_statistics;
+        m_statistics.m_blocks -= 1;
+        auto parent = m_parent.lock();
+        if ( !parent )
+        {
+            return;
+        }
+        parent->update( oldStatistics, m_statistics );
+    }
+
+    const FolderStatistics& statistics() const
+    {
+        return m_statistics;
+    }
 
 };
 
-class FileStatisticsNode {
+class FileStatisticsNode
+{
 
 private:
 
@@ -75,13 +165,53 @@ private:
 
 public:
 
-    void setParent( std::weak_ptr<FolderStatisticsNode> );
+    void setParent( std::weak_ptr<FolderStatisticsNode> parent )
+    {
+        FileStatistics zeroStatistics;
+        auto oldParent = m_parent.lock();
+        if ( oldParent )
+        {
+            oldParent->update( m_statistics, zeroStatistics );
+        }
 
-    void addBlock();
+        m_parent = std::move( parent );
 
-    void removeBlock();
+        auto newParent = m_parent.lock();
 
-    const FileStatistics& statistics() const;
+        if ( newParent )
+        {
+            newParent->update( zeroStatistics, m_statistics );
+        }
+    }
+
+    void addBlock()
+    {
+        FileStatistics oldStatistics = m_statistics;
+        m_statistics.m_blocks += 1;
+        auto parent = m_parent.lock();
+        if ( !parent )
+        {
+            return;
+        }
+        parent->update( oldStatistics, m_statistics );
+    }
+
+    void removeBlock()
+    {
+        FileStatistics oldStatistics = m_statistics;
+        m_statistics.m_blocks -= 1;
+        auto parent = m_parent.lock();
+        if ( !parent )
+        {
+            return;
+        }
+        parent->update( oldStatistics, m_statistics );
+    }
+
+    const FileStatistics& statistics() const
+    {
+        return m_statistics;
+    }
 
 };
 

@@ -245,17 +245,15 @@ public:
         ASSERT_TRUE(res);
         auto& fsTree = res->m_fsTree;
         ASSERT_TRUE(fsTree.childs().size() == 1);
-        for (auto const& [key, val] : fsTree.childs()) {
-            const auto& child = fsTree.childs().begin()->second;
-            ASSERT_TRUE(isFolder(child));
-            const auto& folder = getFolder(child);
-            ASSERT_TRUE(folder.name() == "moved");
-            const auto& files = folder.childs();
-            for (auto const& [key, val] : files) {
-                ASSERT_TRUE(isFile(val));
-                const auto& file = getFile(val);
-                ASSERT_TRUE(file.name() == "test.txt");
-            }
+        const auto& child = fsTree.childs().begin()->second;
+        ASSERT_TRUE(isFolder(child));
+        const auto& folder = getFolder(child);
+        ASSERT_TRUE(folder.name() == "moved");
+        const auto& files = folder.childs();
+        for (auto const& [key, val] : files) {
+            ASSERT_TRUE(isFile(val));
+            const auto& file = getFile(val);
+            ASSERT_TRUE(file.name() == "test.txt");
         }
         m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"moved/test.txt", [this](auto res) {
             onReceivedAbsolutePath(res);

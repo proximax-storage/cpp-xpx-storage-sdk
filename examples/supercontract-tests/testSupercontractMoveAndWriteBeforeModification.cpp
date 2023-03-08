@@ -257,13 +257,13 @@ public:
 class TestHandlerReadMovedFileAssert {
 
 public:
+    ENVIRONMENT_CLASS& m_env;
     std::promise<void> p;
     DriveKey m_driveKey;
     uint64_t m_fileId;
     uint64_t m_bytes;
     std::string m_filename;
     std::string m_expected;
-    ENVIRONMENT_CLASS& m_env;
 
     TestHandlerReadMovedFileAssert(ENVIRONMENT_CLASS& env, std::string filename, std::string expected)
         : m_env(env), m_filename(filename), m_expected(expected) {}
@@ -285,20 +285,21 @@ public:
         ASSERT_TRUE(res);
         auto& fsTree = res->m_fsTree;
         ASSERT_TRUE(fsTree.childs().size() == 2);
-        for (auto const& [key, val] : fsTree.childs()) {
-            const auto& child = fsTree.childs().begin()->second;
+        for (auto const& [_, child] : fsTree.childs()) {
             ASSERT_TRUE(isFolder(child));
             const auto& folder = getFolder(child);
-            // if (folder.name() == "tests") {
-            //     ASSERT_TRUE(folder.childs().size() == 1);
-            // }
-            // ASSERT_TRUE(folder.name() == "moved");
-            const auto& files = folder.childs();
-            for (auto const& [key, val] : files) {
-                ASSERT_TRUE(isFile(val));
-                const auto& file = getFile(val);
-                ASSERT_TRUE(file.name() == "test.txt");
-            }
+             if (folder.name() == "tests") {
+                 ASSERT_TRUE(folder.childs().size() == 1);
+             }
+             else {
+                 ASSERT_TRUE(folder.name() == "moved");
+                 const auto& files = folder.childs();
+                 for (auto const& [key, val] : files) {
+                     ASSERT_TRUE(isFile(val));
+                     const auto& file = getFile(val);
+                     ASSERT_TRUE(file.name() == "test.txt");
+                 }
+             }
         }
         m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{m_filename, [this](auto res) {
                                                                   onReceivedAbsolutePath(res);
