@@ -25,6 +25,7 @@
 #include "RemoveFilesystemEntryRequestContext.h"
 #include "MoveFilesystemEntryRequestContext.h"
 #include "CreateDirectoriesRequestContext.h"
+#include "RemoveDirectoriesRequestContext.h"
 #include "DirectoryIteratorCreateRequestContext.h"
 #include "DirectoryIteratorHasNextRequestContext.h"
 #include "DirectoryIteratorNextRequestContext.h"
@@ -68,6 +69,7 @@ void StorageServer::run( std::weak_ptr<IOContextProvider> contextKeeper ) {
     registerRemoveFilesystemEntry();
     registerMoveFilesystemEntry();
     registerCreateDirectories();
+    registerRemoveDirectories();
     registerPathExist();
     registerIsFile();
 
@@ -428,6 +430,21 @@ void StorageServer::registerCreateDirectories() {
         }
         registerCreateDirectories();
     }, m_context );
+    context->run( tag );
+}
+
+void StorageServer::registerRemoveDirectories() {
+    if ( !*m_serviceIsActive ) {
+        return;
+    }
+
+    auto context = std::make_shared<RemoveDirectoriesRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive] {
+        if ( !*serviceIsActive ) {
+            return;
+        }
+        registerRemoveDirectories();
+        }, m_context );
     context->run( tag );
 }
 

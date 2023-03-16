@@ -86,6 +86,8 @@ private:
 
     void registerCreateDirectories();
 
+    void registerRemoveDirectories();
+
     void registerPathExist();
 
     void registerIsFile();

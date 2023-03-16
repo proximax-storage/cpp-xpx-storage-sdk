@@ -117,6 +117,15 @@ struct CreateDirectoriesRequest {
     std::function<void( std::optional<CreateDirectoriesResponse>)> m_callback;
 };
 
+struct RemoveDirectoriesResponse{
+    bool m_success;
+};
+
+struct RemoveDirectoriesRequest{
+    std::string m_path;
+    std::function<void( std::optional<RemoveDirectoriesResponse>)> m_callback;
+};
+
 struct MoveFilesystemEntryResponse
 {
     bool m_success;

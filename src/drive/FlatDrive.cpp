@@ -787,6 +787,7 @@ public:
         }
     }
 
+
     void pathExist( mobj<PathExistRequest>&& request ) override
     {
         DBG_MAIN_THREAD
@@ -814,6 +815,16 @@ public:
         DBG_MAIN_THREAD
 
         if ( !m_task || !m_task->createDirectories( *request ))
+        {
+            request->m_callback( {} );
+        }
+    }
+
+    void removeDirectories( mobj<RemoveDirectoriesRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( !m_task || !m_task->removeDirectories( *request ))
         {
             request->m_callback( {} );
         }
