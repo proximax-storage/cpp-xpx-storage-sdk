@@ -4,7 +4,7 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "AbsolutePathRequestContext.h"
+#include "FileInfoRequestContext.h"
 
 #include <utility>
 #include "drive/ManualModificationsRequests.h"
@@ -13,7 +13,7 @@
 namespace sirius::drive::contract
 {
 
-AbsolutePathRequestContext::AbsolutePathRequestContext(
+FileInfoRequestContext::FileInfoRequestContext(
         storageServer::StorageServer::AsyncService& service,
         grpc::ServerCompletionQueue& completionQueue,
         std::shared_ptr<bool> serviceIsActive,
@@ -25,7 +25,7 @@ AbsolutePathRequestContext::AbsolutePathRequestContext(
         , m_executor( std::move( executor ))
 {}
 
-void AbsolutePathRequestContext::processRequest()
+void FileInfoRequestContext::processRequest()
 {
     if ( !*m_serviceIsActive )
     {
@@ -40,18 +40,18 @@ void AbsolutePathRequestContext::processRequest()
         return;
     }
 
-    AbsolutePathRequest request;
+    FileInfoRequest request;
     Key driveKey( *reinterpret_cast<const std::array<uint8_t, 32>*>(m_request.drive_key().data()));
     request.m_relativePath = m_request.relative_path();
     request.m_callback = [pThis = shared_from_this()]( auto response )
     {
         pThis->onCallExecuted( response );
     };
-    executor->getAbsolutePath( driveKey, request );
+    executor->getFileInfo( driveKey, request );
 }
 
-void AbsolutePathRequestContext::onCallExecuted(
-        const std::optional<AbsolutePathResponse>& response )
+void FileInfoRequestContext::onCallExecuted(
+        const std::optional<FileInfoResponse>& response )
 {
     if ( !*m_serviceIsActive )
     {
@@ -65,12 +65,19 @@ void AbsolutePathRequestContext::onCallExecuted(
 
     m_responseAlreadyGiven = true;
 
-    storageServer::AbsolutePathResponse msg;
+    storageServer::FileInfoResponse msg;
     grpc::Status status;
 
     if ( response )
     {
-        msg.set_absolute_path(response->m_path);
+        if (response->m_exists) {
+            msg.set_exists(true);
+            msg.set_absolute_path(response->m_path);
+            msg.set_size(response->m_size);
+        }
+        else {
+            msg.set_exists(false);
+        }
     } else
     {
         status = grpc::Status::CANCELLED;

@@ -1130,7 +1130,7 @@ public:
         return os.str();
     }
 
-    void getAbsolutePath( mobj<AbsolutePathRequest>&& request ) override
+    void getFileInfo( mobj<FileInfoRequest>&& request ) override
     {
         DBG_MAIN_THREAD
 
@@ -1142,18 +1142,22 @@ public:
 
         auto* ptr = m_fsTree->getEntryPtr( request->m_relativePath );
 
-        std::string absolutePath;
+        FileInfoResponse response;
 
         if ( ptr != nullptr )
         {
             if ( isFile( *ptr ))
             {
                 auto& file = getFile( *ptr );
-                absolutePath = (m_driveFolder / toString( file.hash())).string();
+                std::string absolutePath = (m_driveFolder / toString( file.hash())).string();
+
+                response.m_exists = true;
+                response.m_path = absolutePath;
+                response.m_size = file.size();
             }
         }
 
-        request->m_callback( AbsolutePathResponse{absolutePath} );
+        request->m_callback( response );
     }
 
     void getActualModificationId( mobj<ActualModificationIdRequest>&& request ) override

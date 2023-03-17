@@ -66,7 +66,7 @@ private:
 
     void registerFlush();
 
-    void registerGetAbsolutePath();
+    void registerGetFileInfo();
 
     void registerGetActualModificationId();
 

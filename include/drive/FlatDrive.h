@@ -795,7 +795,7 @@ public:
 
     virtual void manualSynchronize( mobj<SynchronizationRequest>&& request ) = 0;
 
-    virtual void getAbsolutePath( mobj<AbsolutePathRequest>&& request ) = 0;
+    virtual void getFileInfo( mobj<FileInfoRequest>&& request ) = 0;
 
     virtual void getActualModificationId( mobj<ActualModificationIdRequest>&& request ) = 0;
 

@@ -545,7 +545,7 @@ public:
 
     }
 
-    void getAbsolutePath( const DriveKey& driveKey, const AbsolutePathRequest& request ) override
+    void getFileInfo( const DriveKey& driveKey, const FileInfoRequest& request ) override
     {
 
     }

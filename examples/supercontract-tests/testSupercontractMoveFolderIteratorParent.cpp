@@ -55,7 +55,7 @@ public:
         : m_env(env) {}
 
 public:
-    void onReceivedAbsolutePath(std::optional<AbsolutePathResponse> res) {
+    void onReceivedAbsolutePath(std::optional<FileInfoResponse> res) {
         ASSERT_TRUE(res);
         std::ostringstream stream;
         const auto& path = res->m_path;
@@ -81,7 +81,7 @@ public:
             const auto& file = getFile(val);
             ASSERT_TRUE(file.name() == "test.txt");
         }
-        m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"tests/test.txt", [this](auto res) {
+        m_env.getAbsolutePath( m_driveKey, FileInfoRequest{"tests/test.txt", [this]( auto res) {
                                                                   onReceivedAbsolutePath(res);
                                                               }});
     }
@@ -252,7 +252,7 @@ public:
         : m_env(env) {}
 
 public:
-    void onReceivedAbsolutePath(std::optional<AbsolutePathResponse> res) {
+    void onReceivedAbsolutePath(std::optional<FileInfoResponse> res) {
         ASSERT_TRUE(res);
         std::ostringstream stream;
         const auto& path = res->m_path;
@@ -284,7 +284,7 @@ public:
                 }
             }
         }
-        m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"moved/test.txt", [this](auto res) {
+        m_env.getAbsolutePath( m_driveKey, FileInfoRequest{"moved/test.txt", [this]( auto res) {
                                                                   onReceivedAbsolutePath(res);
                                                               }});
     }

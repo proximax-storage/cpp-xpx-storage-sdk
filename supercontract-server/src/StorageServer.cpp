@@ -20,7 +20,7 @@
 #include "WriteFileRequestContext.h"
 #include "CloseFileRequestContext.h"
 #include "FlushRequestContext.h"
-#include "AbsolutePathRequestContext.h"
+#include "FileInfoRequestContext.h"
 #include "FilesystemRequestContext.h"
 #include "RemoveFilesystemEntryRequestContext.h"
 #include "MoveFilesystemEntryRequestContext.h"
@@ -58,7 +58,7 @@ void StorageServer::run( std::weak_ptr<IOContextProvider> contextKeeper ) {
     registerWriteFile();
     registerCloseFile();
     registerFlush();
-    registerGetAbsolutePath();
+    registerGetFileInfo();
     registerGetActualModificationId();
     registerGetFilesystem();
     registerDirectoryIteratorCreate();
@@ -274,17 +274,17 @@ void StorageServer::registerFlush() {
     synchronizeContext->run( tag );
 }
 
-void StorageServer::registerGetAbsolutePath() {
+void StorageServer::registerGetFileInfo() {
     if ( !*m_serviceIsActive ) {
         return;
     }
 
-    auto context = std::make_shared<AbsolutePathRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto context = std::make_shared<FileInfoRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
     auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive] {
         if ( !*serviceIsActive ) {
             return;
         }
-        registerGetAbsolutePath();
+        registerGetFileInfo();
     }, m_context );
     context->run( tag );
 }

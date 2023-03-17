@@ -177,15 +177,17 @@ struct SynchronizationRequest
     std::function<void( std::optional<SynchronizationResponse> )> m_callback;
 };
 
-struct AbsolutePathResponse
+struct FileInfoResponse
 {
+    bool m_exists = false;
     std::string m_path;
+    uint64_t m_size;
 };
 
-struct AbsolutePathRequest
+struct FileInfoRequest
 {
     std::string m_relativePath;
-    std::function<void( std::optional<AbsolutePathResponse> )> m_callback;
+    std::function<void( std::optional<FileInfoResponse> )> m_callback;
 };
 
 struct ActualModificationIdResponse {
