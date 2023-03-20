@@ -8,6 +8,11 @@
 #include <stack>
 #include "drive/FsTree.h"
 
+struct IteratorValue {
+    std::string m_name;
+    uint32_t m_depth;
+};
+
 namespace sirius::drive
 {
 struct FolderIterator
@@ -41,7 +46,7 @@ public:
 
     bool hasNext();
 
-    std::optional<std::string> next();
+    std::optional<IteratorValue> next();
 
 private:
 

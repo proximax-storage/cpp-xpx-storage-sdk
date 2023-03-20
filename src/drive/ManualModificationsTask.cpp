@@ -859,6 +859,91 @@ public:
 
 public:
 
+    bool fileSize( const FileSizeRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_upperSandboxFsTree )
+        _ASSERT( !m_isExecutingQuery )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
+
+        processFileSizeRequest(request);
+        return true;
+    }
+
+    void processFileSizeRequest(const FileSizeRequest& request) {
+        DBG_MAIN_THREAD
+
+        auto* entry = m_upperSandboxFsTree->getEntryPtr( request.m_path );
+
+        if (!entry) {
+            request.m_callback(FileSizeResponse{});
+            return;
+        }
+
+        if (!isFile(*entry)) {
+            request.m_callback(FileSizeResponse{});
+            return;
+        }
+
+        // Note: field "size" of file is not updated for files created during the manual modification
+        const auto& file = getFile( *entry );
+        auto name = toString( file.hash());
+
+        auto absolutePath = m_drive.m_driveFolder / name;
+
+        m_isExecutingQuery = true;
+        m_drive.executeOnBackgroundThread(
+                [this, callback = request.m_callback, path = absolutePath]
+                {
+                    obtainFileSize( path, callback );
+                } );
+    }
+
+private:
+
+    void obtainFileSize(const std::string& path,
+                        const std::function<void( std::optional<FileSizeResponse> )>& callback ) {
+        DBG_BG_THREAD
+
+        std::error_code ec;
+        auto size = fs::file_size(path, ec);
+
+        if ( ec )
+        {
+            _LOG_ERR( "Error during obtaining file size: " << ec.message())
+        }
+
+        m_drive.executeOnSessionThread( [=, this]
+        {
+            onFileSizeObtained( size, callback );
+        } );
+    }
+
+    void onFileSizeObtained(uint64_t size,
+                            const std::function<void( std::optional<FileSizeResponse> )>& callback) {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_isExecutingQuery )
+
+        m_isExecutingQuery = false;
+
+        if ( m_taskIsInterrupted )
+        {
+            callback( {} );
+            finishTask();
+            return;
+        }
+
+        callback(FileSizeResponse{true, size});
+    }
+
+public:
+
     bool createDirectories( const CreateDirectoriesRequest& request ) override
     {
         DBG_MAIN_THREAD
@@ -977,13 +1062,22 @@ public:
 
         auto it = m_folderIterators.find( request.m_id );
 
-        if ( it != m_folderIterators.end())
-        {
-            request.m_callback( FolderIteratorNextResponse{it->second.next()} );
-        } else
+        if ( it == m_folderIterators.end())
         {
             request.m_callback( FolderIteratorNextResponse{} );
+            return true;
         }
+
+        auto iteratorValue = it->second.next();
+
+        if (!iteratorValue) {
+            request.m_callback( FolderIteratorNextResponse{} );
+            return true;
+        }
+
+        request.m_callback( FolderIteratorNextResponse{true,
+                                                       iteratorValue->m_name,
+                                                       iteratorValue->m_depth} );
 
         return true;
     }

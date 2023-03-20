@@ -88,6 +88,8 @@ private:
 
     void registerPathExist();
 
+    void registerFileSize();
+
     void registerIsFile();
 
 };

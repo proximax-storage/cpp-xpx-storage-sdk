@@ -4,7 +4,7 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "DirectoryIteratorNextRequestContext.h"
+#include "FileSizeRequestContext.h"
 
 #include <utility>
 #include "drive/ManualModificationsRequests.h"
@@ -13,7 +13,7 @@
 namespace sirius::drive::contract
 {
 
-DirectoryIteratorNextRequestContext::DirectoryIteratorNextRequestContext(
+FileSizeRequestContext::FileSizeRequestContext(
         storageServer::StorageServer::AsyncService& service,
         grpc::ServerCompletionQueue& completionQueue,
         std::shared_ptr<bool> serviceIsActive,
@@ -25,7 +25,7 @@ DirectoryIteratorNextRequestContext::DirectoryIteratorNextRequestContext(
         , m_executor( std::move( executor ))
 {}
 
-void DirectoryIteratorNextRequestContext::processRequest()
+void FileSizeRequestContext::processRequest()
 {
     if ( !*m_serviceIsActive )
     {
@@ -40,18 +40,18 @@ void DirectoryIteratorNextRequestContext::processRequest()
         return;
     }
 
-    FolderIteratorNextRequest request;
+    FileSizeRequest request;
     Key driveKey( *reinterpret_cast<const std::array<uint8_t, 32>*>(m_request.drive_key().data()));
-    request.m_id = m_request.id();
+    request.m_path = m_request.path();
     request.m_callback = [pThis = shared_from_this()]( auto response )
     {
         pThis->onCallExecuted( response );
     };
 
-    executor->folderIteratorNext( driveKey, request );
+    executor->fileSize( driveKey, request );
 }
 
-void DirectoryIteratorNextRequestContext::onCallExecuted( const std::optional<FolderIteratorNextResponse>& response )
+void FileSizeRequestContext::onCallExecuted( const std::optional<FileSizeResponse>& response )
 {
     if ( !*m_serviceIsActive )
     {
@@ -65,19 +65,11 @@ void DirectoryIteratorNextRequestContext::onCallExecuted( const std::optional<Fo
 
     m_responseAlreadyGiven = true;
 
-    storageServer::DirectoryIteratorNextResponse msg;
+    storageServer::FileSizeResponse msg;
     grpc::Status status;
     if ( response )
     {
-        if ( response->m_valid )
-        {
-            msg.set_success( true );
-            msg.set_name( response->m_name );
-            msg.set_depth( response->m_depth );
-        } else
-        {
-            msg.set_success( false );
-        }
+        msg.set_size( response->m_size );
     } else
     {
         status = grpc::Status::CANCELLED;

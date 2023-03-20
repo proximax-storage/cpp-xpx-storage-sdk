@@ -493,6 +493,11 @@ public:
 
     }
 
+    void fileSize( const DriveKey& driveKey, const FileSizeRequest& request ) override
+    {
+
+    }
+
     void createDirectories( const DriveKey& driveKey, const CreateDirectoriesRequest& request ) override
     {
 

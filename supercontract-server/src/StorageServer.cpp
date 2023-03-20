@@ -32,6 +32,7 @@
 #include "PathExistRequestContext.h"
 #include "IsFileRequestContext.h"
 #include "ActualModificationIdRequestContext.h"
+#include "FileSizeRequestContext.h"
 
 namespace sirius::drive::contract {
 
@@ -69,6 +70,7 @@ void StorageServer::run( std::weak_ptr<IOContextProvider> contextKeeper ) {
     registerMoveFilesystemEntry();
     registerCreateDirectories();
     registerPathExist();
+    registerFileSize();
     registerIsFile();
 
     m_thread = std::thread( [this] {
@@ -441,8 +443,23 @@ void StorageServer::registerPathExist() {
         if ( !*serviceIsActive ) {
             return;
         }
-        registerCreateDirectories();
+        registerPathExist();
     }, m_context );
+    context->run( tag );
+}
+
+void StorageServer::registerFileSize() {
+    if ( !*m_serviceIsActive ) {
+        return;
+    }
+
+    auto context = std::make_shared<FileSizeRequestContext>( m_service, *m_cq, m_serviceIsActive, m_executor );
+    auto* tag = new AcceptRequestRPCTag( context, [this, serviceIsActive = m_serviceIsActive] {
+        if ( !*serviceIsActive ) {
+            return;
+        }
+        registerFileSize();
+        }, m_context );
     context->run( tag );
 }
 
@@ -456,7 +473,7 @@ void StorageServer::registerIsFile() {
         if ( !*serviceIsActive ) {
             return;
         }
-        registerCreateDirectories();
+        registerIsFile();
     }, m_context );
     context->run( tag );
 }

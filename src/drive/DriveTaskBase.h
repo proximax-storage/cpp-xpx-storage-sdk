@@ -207,6 +207,13 @@ public:
         return false;
     }
 
+    virtual bool fileSize( const FileSizeRequest& request )
+    {
+        DBG_MAIN_THREAD
+
+        return false;
+    }
+
     virtual bool createDirectories( const CreateDirectoriesRequest& request )
     {
         DBG_MAIN_THREAD

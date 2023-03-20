@@ -809,6 +809,16 @@ public:
         }
     }
 
+    void fileSize( mobj<FileSizeRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( !m_task || !m_task->fileSize( *request ))
+        {
+            request->m_callback( {} );
+        }
+    }
+
     void createDirectories( mobj<CreateDirectoriesRequest>&& request ) override
     {
         DBG_MAIN_THREAD

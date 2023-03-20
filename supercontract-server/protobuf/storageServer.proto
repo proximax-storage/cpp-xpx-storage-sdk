@@ -61,6 +61,8 @@ service StorageServer {
 
   rpc PathExist(PathExistRequest) returns (PathExistResponse) {}
 
+  rpc FileSize(FileSizeRequest) returns (FileSizeResponse) {}
+
   rpc IsFile(IsFileRequest) returns (IsFileResponse) {}
 }
 
@@ -258,6 +260,7 @@ message DirectoryIteratorHasNextRequest {
 message DirectoryIteratorNextResponse {
   bool success = 1;
   string name = 2;
+  uint32 depth = 3;
 }
 
 message DirectoryIteratorNextRequest {
@@ -300,4 +303,14 @@ message CreateDirectoriesRequest {
 
 message CreateDirectoriesResponse {
   bool success = 1;
+}
+
+message FileSizeRequest {
+  bytes drive_key = 1;
+  string path = 2;
+}
+
+message FileSizeResponse {
+  bool success = 1;
+  uint64 size = 2;
 }

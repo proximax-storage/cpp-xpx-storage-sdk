@@ -41,6 +41,8 @@ public:
 
     virtual void pathIsFile( const DriveKey& driveKey, const PathIsFileRequest& request ) = 0;
 
+    virtual void fileSize( const DriveKey& driveKey, const FileSizeRequest& request ) = 0;
+
     virtual void createDirectories( const DriveKey& driveKey, const CreateDirectoriesRequest& request ) = 0;
 
     virtual void folderIteratorCreate( const DriveKey& driveKey, const FolderIteratorCreateRequest& request ) = 0;

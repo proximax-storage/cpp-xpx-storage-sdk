@@ -775,6 +775,8 @@ public:
 
     virtual void pathIsFile( mobj<PathIsFileRequest>&& request ) = 0;
 
+    virtual void fileSize( mobj<FileSizeRequest>&& response ) = 0;
+
     virtual void createDirectories( mobj<CreateDirectoriesRequest>&& request ) = 0;
 
     virtual void folderIteratorCreate( mobj<FolderIteratorCreateRequest>&& request ) = 0;
