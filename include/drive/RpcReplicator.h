@@ -498,10 +498,6 @@ public:
 
     }
 
-    void removeDirectories( const DriveKey& driveKey, const RemoveDirectoriesRequest& request ) override
-    {
-
-    }
 
     void folderIteratorCreate( const DriveKey& driveKey, const FolderIteratorCreateRequest& request ) override
     {

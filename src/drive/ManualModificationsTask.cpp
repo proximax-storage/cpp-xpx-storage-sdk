@@ -589,23 +589,6 @@ public:
         return true;
     }
 
-public:
-    bool removeDirectories( const RemoveDirectoriesRequest& request ) override
-    {
-        DBG_MAIN_THREAD
-
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
-
-        if ( m_taskIsInterrupted )
-        {
-            return false;
-        }
-
-        processRemoveDirRequest( request );
-
-        return true;
-    }
 
 private:
 
@@ -766,101 +749,6 @@ private:
         callback( RemoveFilesystemEntryResponse{true} );
     }
 
-private:
-
-    void processRemoveDirRequest( const RemoveDirectoriesRequest& request )
-    {
-
-        DBG_MAIN_THREAD
-
-        if ( !checkUnlock( request.m_path ))
-        {
-            request.m_callback( RemoveDirectoriesResponse{false} );
-            return;
-        }
-
-        auto* child = m_upperSandboxFsTree->getEntryPtr( request.m_path );
-
-        if ( !child ) {
-            request.m_callback( RemoveDirectoriesResponse{false} );
-            return;
-        }
-
-        std::set<InfoHash> possiblyRemovedFiles;
-
-        if ( isFile( *child ))
-        {
-            possiblyRemovedFiles = {getFile( *child ).hash()};
-        } else
-        {
-            getFolder( *child ).getUniqueFiles( possiblyRemovedFiles );
-        }
-
-        std::set<InfoHash> filesToRemove;
-
-        for ( const auto& hash: possiblyRemovedFiles )
-        {
-            if ( m_callManagedHashes.contains( hash ))
-            {
-                filesToRemove.insert( hash );
-            }
-        }
-
-        m_upperSandboxFsTree->removeFlat( request.m_path, []( const auto& )
-        {} );
-
-        m_isExecutingQuery = true;
-        m_drive.executeOnBackgroundThread(
-                [this, callback = request.m_callback, filesToRemove = std::move( filesToRemove )]
-                {
-                    removeUnusedDir( filesToRemove, callback );
-                } );
-    }
-
-    void removeUnusedDir( const std::set<InfoHash>& filesToRemove,
-                            const std::function<void( RemoveDirectoriesResponse )>& callback )
-    {
-        DBG_BG_THREAD
-
-        for ( const auto& file: filesToRemove )
-        {
-            try
-            {
-                fs::remove( m_drive.m_driveFolder / toString( file ));
-            }
-            catch ( const std::filesystem::filesystem_error& er )
-            {
-                _LOG_ERR( "Filesystem error has occurred " << er.what() << " "
-                                                           << er.path1() << " "
-                                                           << er.path2())
-            }
-        }
-
-        m_drive.executeOnSessionThread( [=, this]
-                                        {
-                                            onDirRemoved( callback );
-                                        } );
-    }
-
-    void onDirRemoved( const std::function<void( RemoveDirectoriesResponse )>& callback )
-    {
-
-        DBG_MAIN_THREAD
-
-        _ASSERT( m_isExecutingQuery )
-
-        m_isExecutingQuery = false;
-
-        if ( m_taskIsInterrupted )
-        {
-            callback( {} );
-            finishTask();
-            return;
-        }
-
-        callback( RemoveDirectoriesResponse{true} );
-    }
-
 
 public:
 
@@ -932,6 +820,7 @@ public:
 
         return true;
     }
+
 
 public:
 

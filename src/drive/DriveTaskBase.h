@@ -215,13 +215,6 @@ public:
         return false;
     }
 
-    virtual bool removeDirectories( const RemoveDirectoriesRequest& request )
-    {
-        DBG_MAIN_THREAD
-
-        return false;
-    }
-
 
     virtual bool folderIteratorCreate( const FolderIteratorCreateRequest& request )
     {
