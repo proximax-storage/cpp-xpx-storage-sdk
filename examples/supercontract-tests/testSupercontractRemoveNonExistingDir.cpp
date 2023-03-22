@@ -10,7 +10,7 @@ using namespace sirius::drive::test;
 namespace sirius::drive::test {
 
 /// change this macro for your test
-#define TEST_NAME SupercontractRemoveNonExistingDir
+#define TEST_NAME SupercontractRemoveNonDir
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -43,7 +43,7 @@ namespace sirius::drive::test {
                     true) {}
         };
 
-        class TestHandlerRemoveNonExistingDir {
+        class TestHandlerRemoveNonDir {
 
         public:
             std::promise<void> p;
@@ -52,12 +52,10 @@ namespace sirius::drive::test {
             uint64_t m_bytes;
             ENVIRONMENT_CLASS& m_env;
 
-            TestHandlerRemoveNonExistingDir(ENVIRONMENT_CLASS& env)
+            TestHandlerRemoveNonDir(ENVIRONMENT_CLASS& env)
                     : m_env(env) {}
 
         public:
-
-
             void onAppliedStorageModifications(std::optional<ApplyStorageModificationsResponse> res) {
                 ASSERT_TRUE(res);
                 p.set_value();
@@ -78,7 +76,7 @@ namespace sirius::drive::test {
                 }});
             }
 
-            void onDirRemoved(std::optional<RemoveDirectoriesResponse> res) {
+            void onDirRemoved(std::optional<RemoveFilesystemEntryResponse> res) {
                 ASSERT_TRUE(res);
                 ASSERT_FALSE(res->m_success);
                 m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
@@ -88,7 +86,7 @@ namespace sirius::drive::test {
 
             void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
                 ASSERT_TRUE(res);
-                m_env.removeDirectories(m_driveKey, RemoveDirectoriesRequest{"fdfwef/fewfwe.txt", [this](auto res) {
+                m_env.removeFsTreeEntry(m_driveKey, RemoveFilesystemEntryRequest{"test/test.txt", [this](auto res) {
                     onDirRemoved(res);
                 }});
             }
@@ -113,7 +111,7 @@ namespace sirius::drive::test {
             Key driveKey{{1}};
             env.addDrive(driveKey, Key(), 100 * 1024 * 1024);
 
-            TestHandlerRemoveNonExistingDir handler(env);
+            TestHandlerRemoveNonDir handler(env);
             handler.m_driveKey = driveKey;
             env.initiateManualModifications(driveKey,
                                             InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handler.onInitiatedModifications(res); }});
