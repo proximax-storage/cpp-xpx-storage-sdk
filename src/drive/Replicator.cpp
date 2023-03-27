@@ -89,6 +89,8 @@ private:
 
     std::map<std::string, std::shared_ptr<messenger::MessageSubscriber>> m_messageSubscribers;
 
+    bool m_dbgAllowCreateNonExistingDrives = false;
+
 public:
     DefaultReplicator(
             const crypto::KeyPair& keyPair,
@@ -2285,6 +2287,11 @@ public:
 
             m_session->setLogMode( static_cast<LogMode>(mode) );
         });
+    }
+
+    void dbgAllowCreateNonExistingDrives() override
+    {
+        m_dbgAllowCreateNonExistingDrives = true;
     }
 
 private:

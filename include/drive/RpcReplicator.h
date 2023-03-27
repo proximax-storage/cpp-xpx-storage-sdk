@@ -599,6 +599,11 @@ public:
         rpcCall( RPC_CMD::dbgCrash, index );
     }
 
+    void dbgAllowCreateNonExistingDrives() override
+    {
+
+    }
+
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createRpcReplicator(
