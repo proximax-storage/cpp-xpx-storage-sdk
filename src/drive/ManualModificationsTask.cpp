@@ -1663,6 +1663,15 @@ public:
         terminate();
     }
 
+    void onStreamStarted( const StreamRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        // It is possible if the contract has been destroyed because of unsuccessful deployment
+
+        terminate();
+    }
+
     void onManualModificationInitiated( const InitiateModificationsRequest& request ) override
     {
         DBG_MAIN_THREAD

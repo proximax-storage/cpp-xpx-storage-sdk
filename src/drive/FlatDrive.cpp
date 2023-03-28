@@ -972,6 +972,11 @@ public:
 
         _LOG ( "start streaming: " << Hash256{streamRequest->m_streamId} )
 
+        if ( m_task )
+        {
+            m_task->onStreamStarted( *streamRequest );
+        }
+
         m_deferredModificationRequests.push_back( DeferredRequest{{}, std::move( streamRequest )} );
 
         if ( !m_task )
