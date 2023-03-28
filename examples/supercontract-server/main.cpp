@@ -61,16 +61,11 @@ int main() {
             nullptr,
             "replicator" );
 
-    replicator->start();
-    replicator->setServiceAddress("127.0.0.1:5551");
+    replicator->dbgAllowCreateNonExistingDrives();
+    replicator->setServiceAddress("127.0.0.1:5051");
     replicator->enableSupercontractServer();
     replicator->enableMessengerServer();
-
-    for ( unsigned char i = 0U; i < 100U; i++ ) {
-        sirius::Key driveKey{{i}};
-        AddDriveRequest request{1024ULL * 1024ULL * 1024ULL, 0, {}, {keyPair.publicKey()}, sirius::Key(), {}, {}};
-        replicator->asyncAddDrive( driveKey, request );
-    }
+    replicator->start();
 
     std::cout << "Press Enter To Stop" << std::endl;
     std::cin.get();

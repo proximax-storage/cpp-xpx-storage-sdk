@@ -32,6 +32,8 @@
 #include <mutex>
 #include <future>
 
+#include <drive/Utils.h>
+
 #undef DBG_MAIN_THREAD
 #define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
 
@@ -2294,6 +2296,54 @@ public:
         m_dbgAllowCreateNonExistingDrives = true;
     }
 
+    void asyncDbgAddVirtualDrive( Key driveKey )
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+
+            DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+            if ( m_driveMap.find( driveKey ) != m_driveMap.end())
+            {
+                return;
+            }
+
+            AddDriveRequest driveRequest;
+            driveRequest.m_client = randomByteArray<Key>();
+            driveRequest.m_driveSize = 10ULL * 1024ULL * 1024ULL * 1024ULL;
+            driveRequest.m_expectedCumulativeDownloadSize = 0;
+
+            auto drive = sirius::drive::createDefaultFlatDrive(
+                    session(),
+                    m_storageDirectory,
+                    m_sandboxDirectory,
+                    driveKey,
+                    driveRequest.m_client,
+                    driveRequest.m_driveSize,
+                    driveRequest.m_expectedCumulativeDownloadSize,
+                    std::move( driveRequest.m_completedModifications ),
+                    m_eventHandler,
+                    *this,
+                    driveRequest.m_fullReplicatorList,
+                    driveRequest.m_modifyDonatorShard,
+                    driveRequest.m_modifyRecipientShard,
+                    m_dbgEventHandler );
+
+            m_driveMap[driveKey] = drive;
+
+            m_endpointsManager.addEndpointsEntries( driveRequest.m_fullReplicatorList );
+            m_endpointsManager.addEndpointEntry( driveRequest.m_client, false );
+
+            std::cout << "added virtualDrive " << driveKey;
+        } );//post
+    }
+
 private:
     std::shared_ptr<sirius::drive::Session> session()
     {
@@ -2355,6 +2405,10 @@ public:
     void initiateManualModifications( const DriveKey& driveKey, const InitiateModificationsRequest& request ) override
     {
         _FUNC_ENTRY()
+
+        if (m_dbgAllowCreateNonExistingDrives) {
+            asyncDbgAddVirtualDrive(driveKey);
+        }
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
