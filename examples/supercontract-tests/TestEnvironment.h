@@ -380,6 +380,7 @@ public:
         }
     }
 
+
     virtual void createDirectories(const DriveKey& driveKey, const CreateDirectoriesRequest& request) {
         const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
         for (auto& key : m_drives[driveKey].m_driveRequest.m_fullReplicatorList) {
@@ -389,6 +390,8 @@ public:
             }
         }
     }
+
+
 
     virtual void folderIteratorCreate(const DriveKey& driveKey, const FolderIteratorCreateRequest& request) {
         const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
