@@ -10,7 +10,7 @@ using namespace sirius::drive::test;
 namespace sirius::drive::test {
 
 /// change this macro for your test
-#define TEST_NAME SupercontractCreateDirSamePath
+#define TEST_NAME SupercontractCreateFileSameName
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
