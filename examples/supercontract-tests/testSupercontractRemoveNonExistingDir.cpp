@@ -10,7 +10,7 @@ using namespace sirius::drive::test;
 namespace sirius::drive::test {
 
 /// change this macro for your test
-#define TEST_NAME SupercontractRemoveNonDir
+#define TEST_NAME SupercontractRemoveNonExistingDir
 
 #define ENVIRONMENT_CLASS JOIN(TEST_NAME, TestEnvironment)
 
@@ -43,7 +43,7 @@ namespace sirius::drive::test {
                     true) {}
         };
 
-        class TestHandlerRemoveNonDir {
+        class TestHandlerRemove {
 
         public:
             std::promise<void> p;
@@ -52,7 +52,7 @@ namespace sirius::drive::test {
             uint64_t m_bytes;
             ENVIRONMENT_CLASS& m_env;
 
-            TestHandlerRemoveNonDir(ENVIRONMENT_CLASS& env)
+            TestHandlerRemove(ENVIRONMENT_CLASS& env)
                     : m_env(env) {}
 
         public:
@@ -111,7 +111,7 @@ namespace sirius::drive::test {
             Key driveKey{{1}};
             env.addDrive(driveKey, Key(), 100 * 1024 * 1024);
 
-            TestHandlerRemoveNonDir handler(env);
+            TestHandlerRemove handler(env);
             handler.m_driveKey = driveKey;
             env.initiateManualModifications(driveKey,
                                             InitiateModificationsRequest{randomByteArray<Hash256>(), [&](auto res) { handler.onInitiatedModifications(res); }});
