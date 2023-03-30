@@ -61,7 +61,7 @@ public:
         ASSERT_TRUE(res);
         auto& fsTree = res->m_fsTree;
         ASSERT_TRUE(fsTree.childs().size() == 2);
-        for (const auto [key, val] : fsTree.childs()) {
+        for (const auto& [key, val] : fsTree.childs()) {
             auto folder = getFolder(val);
             auto child = folder.childs();
             ASSERT_EQ(child.size(), 0);

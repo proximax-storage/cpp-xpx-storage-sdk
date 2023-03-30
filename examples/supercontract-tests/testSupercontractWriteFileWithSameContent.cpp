@@ -88,7 +88,7 @@ public:
         ASSERT_TRUE(res);
         auto& fsTree = res->m_fsTree;
         ASSERT_TRUE(fsTree.childs().size() == 2);
-        for (const auto [key, child] : fsTree.childs()) {
+        for (const auto& [key, child] : fsTree.childs()) {
             ASSERT_TRUE(isFile(child));
             const auto& file = getFile(child);
             ASSERT_TRUE(file.name() == "test.txt" || file.name() == "test2.txt");
