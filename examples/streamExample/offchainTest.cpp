@@ -112,7 +112,7 @@ using namespace sirius::drive;
 inline std::mutex gExLogMutex;
 
 #define EXLOG(expr) { \
-        __LOG( "+++ exlog: " << << expr << std::endl << std::flush); \
+        __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
     }
 
 #define _EXLOG(expr) { \
@@ -490,7 +490,7 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->setVerifyApprovalTransactionTimerDelay(1);
     replicator->start();
 //    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100,         0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
-    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100*1024*1024, 0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
+    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100*1024*1024, 0, {}, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
 
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash1.array(), 1024*1024*1024, replicatorList, { viewerKeyPair.publicKey() }} );
 
@@ -555,20 +555,6 @@ int main(int,char**)
 
     auto startTime = std::clock();
 
-    std::ostringstream os( std::ios::binary );
-    cereal::PortableBinaryOutputArchive archive( os );
-    sirius::Key k;
-    for(int i=0; i<10; i++ ) k[i]=i;
-    archive( k );
-    
-    std::istringstream is( os.str(), std::ios::binary );
-    cereal::PortableBinaryInputArchive iarchive(is);
-    sirius::Key k2;
-    iarchive( k2 );
-    assert( k==k2 );
-
-    
-    
     ///
     /// Make the list of replicator addresses
     ///
@@ -591,6 +577,8 @@ int main(int,char**)
     printf( "replicator3 key[0] : 0x%x %i\n", replicatorList[2][0], replicatorList[2][0] );
     printf( "streamer    key[0] : 0x%x %i\n", clientKeyPair.publicKey()[0], clientKeyPair.publicKey()[0] );
     printf( "viewer      key[0] : 0x%x %i\n", viewerKeyPair.publicKey()[0], viewerKeyPair.publicKey()[0] );
+    EXLOG( "@@@ streamer: " << clientKeyPair.publicKey() )
+    EXLOG( "@@@ viewer:   " << viewerKeyPair.publicKey() )
 
 
     ///
@@ -674,7 +662,7 @@ int main(int,char**)
     };
 #endif
 
-    gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
+//    gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
 //    gViewerSession->startWatchingLiveStream( streamTx,
 //                                            gStreamerSession->publicKey(),
 //                                            DRIVE_PUB_KEY, CLIENT_WORK_FOLDER / "streamFolder",
@@ -699,7 +687,10 @@ int main(int,char**)
 
     gViewerSession->startWatchingLiveStream( streamTx,
                                             gStreamerSession->publicKey(),
-                                            DRIVE_PUB_KEY, CLIENT_WORK_FOLDER / "streamFolder",
+                                            DRIVE_PUB_KEY,
+                                            downloadChannelHash1,
+                                            replicatorList,
+                                            CLIENT_WORK_FOLDER / "streamFolder",
                                             endpointList,
                                             startPlayer,
                                             {"localhost","5151"},
@@ -726,7 +717,7 @@ int main(int,char**)
 
     EXLOG( "@ Client started FsTree download !!!!! " );
     //sleep(2);
-    gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
+    //gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
     //clientDownloadFsTree( gViewerSession );
 
     {

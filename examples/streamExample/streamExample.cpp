@@ -112,7 +112,7 @@ using namespace sirius::drive;
 inline std::mutex gExLogMutex;
 
 #define EXLOG(expr) { \
-        __LOG( "+++ exlog: " << << expr << std::endl << std::flush); \
+        __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
     }
 
 #define _EXLOG(expr) { \

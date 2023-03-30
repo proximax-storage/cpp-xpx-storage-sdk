@@ -135,7 +135,8 @@ inline std::string openLogFile()
 
 inline void createLogBackup()
 {
-    auto bakLogFile = gLogFileName.replace_extension("bak");
+    auto bakLogFile = gLogFileName;
+    bakLogFile.replace_extension("bak");
     if ( std::filesystem::exists(bakLogFile) )
     {
         std::filesystem::remove(bakLogFile);
