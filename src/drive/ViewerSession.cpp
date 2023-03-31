@@ -372,6 +372,7 @@ public:
                     }
                 }
             }
+            return;
         }
         catch( std::exception& ex )
         {
@@ -381,6 +382,8 @@ public:
         {
             _LOG_WARN("exception!")
         }
+        
+        ClientSession::handleDhtResponse( response, endpoint );
     }
 
     void requestPlaylistInfoHash()
