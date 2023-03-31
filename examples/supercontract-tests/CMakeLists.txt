@@ -9,7 +9,7 @@ find_package(GTest REQUIRED) # Find the google testing framework on your system
 
 file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/test*.cpp")
 
-add_executable(supercontract-tests utils.h utils.cpp TestEnvironment.h ${TEST_FILES})
+add_executable(supercontract-tests utils.h utils.cpp TestEnvironment.h ${TEST_FILES} testSupercontractCreateFileSameName.cpp testSupercontractRemoveNonExistingDir.cpp)
 
 target_include_directories(supercontract-tests PUBLIC ${GTEST_INCLUDE_DIRS})
 
