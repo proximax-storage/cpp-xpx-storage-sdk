@@ -11,6 +11,7 @@
 #include "DriveParams.h"
 #include "ModifyOpinionController.h"
 #include "drive/ManualModificationsRequests.h"
+#include "drive/Streaming.h"
 
 #undef DBG_MAIN_THREAD
 //#define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
@@ -85,6 +86,10 @@ public:
     }
 
     virtual void onModificationInitiated( const ModificationRequest& request ) {
+        DBG_MAIN_THREAD
+    }
+
+    virtual void onStreamStarted( const StreamRequest& request ) {
         DBG_MAIN_THREAD
     }
 
@@ -201,6 +206,13 @@ public:
     }
 
     virtual bool pathIsFile( const PathIsFileRequest& request )
+    {
+        DBG_MAIN_THREAD
+
+        return false;
+    }
+
+    virtual bool fileSize( const FileSizeRequest& request )
     {
         DBG_MAIN_THREAD
 

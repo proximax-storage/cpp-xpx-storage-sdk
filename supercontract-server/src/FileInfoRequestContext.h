@@ -18,8 +18,8 @@
 namespace sirius::drive::contract
 {
 
-class AbsolutePathRequestContext
-        : public RequestContext, public std::enable_shared_from_this<AbsolutePathRequestContext>
+class FileInfoRequestContext
+        : public RequestContext, public std::enable_shared_from_this<FileInfoRequestContext>
 {
 
 private:
@@ -33,21 +33,21 @@ private:
 
     grpc::ServerContext m_context;
 
-    storageServer::AbsolutePathRequest m_request;
-    grpc::ServerAsyncResponseWriter<storageServer::AbsolutePathResponse> m_responder;
+    storageServer::FileInfoRequest m_request;
+    grpc::ServerAsyncResponseWriter<storageServer::FileInfoResponse> m_responder;
 
     std::weak_ptr<ModificationsExecutor> m_executor;
 
 public:
 
-    AbsolutePathRequestContext( storageServer::StorageServer::AsyncService& service,
+    FileInfoRequestContext( storageServer::StorageServer::AsyncService& service,
                                 grpc::ServerCompletionQueue& completionQueue,
                                 std::shared_ptr<bool> serviceIsActive,
                                 std::weak_ptr<ModificationsExecutor> executor );
 
     void run( AcceptRequestRPCTag* tag )
     {
-        m_service.RequestGetAbsolutePath( &m_context, &m_request, &m_responder, &m_completionQueue,
+        m_service.RequestGetFileInfo( &m_context, &m_request, &m_responder, &m_completionQueue,
                                           &m_completionQueue, tag );
     }
 
@@ -55,7 +55,7 @@ public:
 
 private:
 
-    void onCallExecuted( const std::optional<AbsolutePathResponse>& response );
+    void onCallExecuted( const std::optional<FileInfoResponse>& response );
 };
 
 }

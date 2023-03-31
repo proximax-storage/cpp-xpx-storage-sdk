@@ -32,6 +32,8 @@
 #include <mutex>
 #include <future>
 
+#include <drive/Utils.h>
+
 #undef DBG_MAIN_THREAD
 #define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
 
@@ -88,6 +90,8 @@ private:
     std::unique_ptr<grpc::Server> m_serviceServer;
 
     std::map<std::string, std::shared_ptr<messenger::MessageSubscriber>> m_messageSubscribers;
+
+    bool m_dbgAllowCreateNonExistingDrives = false;
 
 public:
     DefaultReplicator(
@@ -2287,6 +2291,59 @@ public:
         });
     }
 
+    void dbgAllowCreateNonExistingDrives() override
+    {
+        m_dbgAllowCreateNonExistingDrives = true;
+    }
+
+    void asyncDbgAddVirtualDrive( Key driveKey )
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+
+            DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+            if ( m_driveMap.find( driveKey ) != m_driveMap.end())
+            {
+                return;
+            }
+
+            AddDriveRequest driveRequest;
+            driveRequest.m_client = randomByteArray<Key>();
+            driveRequest.m_driveSize = 10ULL * 1024ULL * 1024ULL * 1024ULL;
+            driveRequest.m_expectedCumulativeDownloadSize = 0;
+
+            auto drive = sirius::drive::createDefaultFlatDrive(
+                    session(),
+                    m_storageDirectory,
+                    m_sandboxDirectory,
+                    driveKey,
+                    driveRequest.m_client,
+                    driveRequest.m_driveSize,
+                    driveRequest.m_expectedCumulativeDownloadSize,
+                    std::move( driveRequest.m_completedModifications ),
+                    m_eventHandler,
+                    *this,
+                    driveRequest.m_fullReplicatorList,
+                    driveRequest.m_modifyDonatorShard,
+                    driveRequest.m_modifyRecipientShard,
+                    m_dbgEventHandler );
+
+            m_driveMap[driveKey] = drive;
+
+            m_endpointsManager.addEndpointsEntries( driveRequest.m_fullReplicatorList );
+            m_endpointsManager.addEndpointEntry( driveRequest.m_client, false );
+
+            std::cout << "added virtualDrive " << driveKey;
+        } );//post
+    }
+
 private:
     std::shared_ptr<sirius::drive::Session> session()
     {
@@ -2348,6 +2405,10 @@ public:
     void initiateManualModifications( const DriveKey& driveKey, const InitiateModificationsRequest& request ) override
     {
         _FUNC_ENTRY()
+
+        if (m_dbgAllowCreateNonExistingDrives) {
+            asyncDbgAddVirtualDrive(driveKey);
+        }
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2600,6 +2661,32 @@ public:
             }
 
             driveIt->second->pathIsFile( request );
+
+        } );
+    }
+
+    void fileSize( const DriveKey& driveKey, const FileSizeRequest& request ) override
+    {
+        _FUNC_ENTRY()
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( m_replicatorIsDestructing )
+            {
+                return;
+            }
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                request.m_callback( {} );
+                return;
+            }
+
+            driveIt->second->fileSize( request );
 
         } );
     }
@@ -2866,7 +2953,7 @@ public:
         } );
     }
 
-    void getAbsolutePath( const DriveKey& driveKey, const AbsolutePathRequest& request ) override
+    void getFileInfo( const DriveKey& driveKey, const FileInfoRequest& request ) override
     {
         _FUNC_ENTRY()
 
@@ -2887,7 +2974,7 @@ public:
                 return;
             }
 
-            driveIt->second->getAbsolutePath( request );
+            driveIt->second->getFileInfo( request );
 
         } );
     }

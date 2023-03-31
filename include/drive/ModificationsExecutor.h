@@ -41,6 +41,8 @@ public:
 
     virtual void pathIsFile( const DriveKey& driveKey, const PathIsFileRequest& request ) = 0;
 
+    virtual void fileSize( const DriveKey& driveKey, const FileSizeRequest& request ) = 0;
+
     virtual void createDirectories( const DriveKey& driveKey, const CreateDirectoriesRequest& request ) = 0;
 
     virtual void folderIteratorCreate( const DriveKey& driveKey, const FolderIteratorCreateRequest& request ) = 0;
@@ -63,7 +65,7 @@ public:
 
     virtual void manualSynchronize( const DriveKey& driveKey, const SynchronizationRequest& request ) = 0;
 
-    virtual void getAbsolutePath( const DriveKey& driveKey, const AbsolutePathRequest& request ) = 0;
+    virtual void getFileInfo( const DriveKey& driveKey, const FileInfoRequest& request ) = 0;
 
     virtual void getFilesystem( const DriveKey& driveKey, const FilesystemRequest& request ) = 0;
 

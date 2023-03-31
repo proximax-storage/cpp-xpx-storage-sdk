@@ -809,6 +809,16 @@ public:
         }
     }
 
+    void fileSize( mobj<FileSizeRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( !m_task || !m_task->fileSize( *request ))
+        {
+            request->m_callback( {} );
+        }
+    }
+
     void createDirectories( mobj<CreateDirectoriesRequest>&& request ) override
     {
         DBG_MAIN_THREAD
@@ -961,6 +971,11 @@ public:
         DBG_MAIN_THREAD
 
         _LOG ( "start streaming: " << Hash256{streamRequest->m_streamId} )
+
+        if ( m_task )
+        {
+            m_task->onStreamStarted( *streamRequest );
+        }
 
         m_deferredModificationRequests.push_back( DeferredRequest{{}, std::move( streamRequest )} );
 
@@ -1130,7 +1145,7 @@ public:
         return os.str();
     }
 
-    void getAbsolutePath( mobj<AbsolutePathRequest>&& request ) override
+    void getFileInfo( mobj<FileInfoRequest>&& request ) override
     {
         DBG_MAIN_THREAD
 
@@ -1142,18 +1157,22 @@ public:
 
         auto* ptr = m_fsTree->getEntryPtr( request->m_relativePath );
 
-        std::string absolutePath;
+        FileInfoResponse response;
 
         if ( ptr != nullptr )
         {
             if ( isFile( *ptr ))
             {
                 auto& file = getFile( *ptr );
-                absolutePath = (m_driveFolder / toString( file.hash())).string();
+                std::string absolutePath = (m_driveFolder / toString( file.hash())).string();
+
+                response.m_exists = true;
+                response.m_path = absolutePath;
+                response.m_size = file.size();
             }
         }
 
-        request->m_callback( AbsolutePathResponse{absolutePath} );
+        request->m_callback( response );
     }
 
     void getActualModificationId( mobj<ActualModificationIdRequest>&& request ) override

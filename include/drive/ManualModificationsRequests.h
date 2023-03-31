@@ -108,13 +108,15 @@ struct RemoveFilesystemEntryRequest
     std::function<void( std::optional<RemoveFilesystemEntryResponse> )> m_callback;
 };
 
-struct CreateDirectoriesResponse {
+struct CreateDirectoriesResponse
+{
     bool m_success;
 };
 
-struct CreateDirectoriesRequest {
+struct CreateDirectoriesRequest
+{
     std::string m_path;
-    std::function<void( std::optional<CreateDirectoriesResponse>)> m_callback;
+    std::function<void( std::optional<CreateDirectoriesResponse> )> m_callback;
 };
 
 struct MoveFilesystemEntryResponse
@@ -177,22 +179,26 @@ struct SynchronizationRequest
     std::function<void( std::optional<SynchronizationResponse> )> m_callback;
 };
 
-struct AbsolutePathResponse
+struct FileInfoResponse
 {
+    bool m_exists = false;
     std::string m_path;
+    uint64_t m_size;
 };
 
-struct AbsolutePathRequest
+struct FileInfoRequest
 {
     std::string m_relativePath;
-    std::function<void( std::optional<AbsolutePathResponse> )> m_callback;
+    std::function<void( std::optional<FileInfoResponse> )> m_callback;
 };
 
-struct ActualModificationIdResponse {
+struct ActualModificationIdResponse
+{
     Hash256 m_modificationId;
 };
 
-struct ActualModificationIdRequest {
+struct ActualModificationIdRequest
+{
     std::function<void( std::optional<ActualModificationIdResponse> )> m_callback;
 };
 
@@ -206,59 +212,85 @@ struct FilesystemRequest
     std::function<void( std::optional<FilesystemResponse> )> m_callback;
 };
 
-struct FolderIteratorCreateResponse {
+struct FolderIteratorCreateResponse
+{
     std::optional<uint64_t> m_id;
 };
 
-struct FolderIteratorCreateRequest {
+struct FolderIteratorCreateRequest
+{
     std::string m_path;
     bool m_recursive;
     std::function<void( std::optional<FolderIteratorCreateResponse> )> m_callback;
 };
 
-struct FolderIteratorHasNextResponse {
+struct FolderIteratorHasNextResponse
+{
     bool m_hasNext;
 };
 
-struct FolderIteratorHasNextRequest {
+struct FolderIteratorHasNextRequest
+{
     uint64_t m_id;
     std::function<void( std::optional<FolderIteratorHasNextResponse> )> m_callback;
 };
 
-struct FolderIteratorNextResponse {
-    std::optional<std::string> m_name;
+struct FolderIteratorNextResponse
+{
+    bool m_valid = false;
+    std::string m_name;
+    uint32_t m_depth;
 };
 
-struct FolderIteratorNextRequest {
+struct FolderIteratorNextRequest
+{
     uint64_t m_id;
     std::function<void( std::optional<FolderIteratorNextResponse> )> m_callback;
 };
 
-struct FolderIteratorDestroyResponse {
+struct FolderIteratorDestroyResponse
+{
     bool success;
 };
 
-struct FolderIteratorDestroyRequest {
+struct FolderIteratorDestroyRequest
+{
     uint64_t m_id;
     std::function<void( std::optional<FolderIteratorDestroyResponse> )> m_callback;
 };
 
-struct PathExistResponse {
+struct PathExistResponse
+{
     bool m_exists;
 };
 
-struct PathExistRequest {
+struct PathExistRequest
+{
     std::string m_path;
-    std::function<void ( std::optional<PathExistResponse> )> m_callback;
+    std::function<void( std::optional<PathExistResponse> )> m_callback;
 };
 
-struct PathIsFileResponse {
+struct PathIsFileResponse
+{
     bool m_isFile;
 };
 
-struct PathIsFileRequest {
+struct PathIsFileRequest
+{
     std::string m_path;
-    std::function<void ( std::optional<PathIsFileResponse> )> m_callback;
+    std::function<void( std::optional<PathIsFileResponse> )> m_callback;
+};
+
+struct FileSizeResponse
+{
+    bool m_success = false;
+    uint64_t m_size = 0;
+};
+
+struct FileSizeRequest
+{
+    std::string m_path;
+    std::function<void( std::optional<FileSizeResponse> )> m_callback;
 };
 
 }

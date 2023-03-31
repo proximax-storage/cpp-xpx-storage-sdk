@@ -362,7 +362,7 @@ public:
     //virtual std::shared_ptr<sirius::drive::FlatDrive> dbgGetDrive( const std::array<uint8_t,32>& driveKey ) = 0;
     virtual const Key&  dbgReplicatorKey() const = 0;
     virtual void        dbgSetLogMode( uint8_t mode ) = 0;
-    
+    virtual void        dbgAllowCreateNonExistingDrives() = 0;
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(

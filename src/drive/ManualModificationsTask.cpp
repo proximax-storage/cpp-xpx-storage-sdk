@@ -49,6 +49,9 @@ class ManualModificationsTask
 
     mobj<InitiateModificationsRequest> m_request;
 
+    uint64_t m_upperSandboxFilesSize = 0;
+    uint64_t m_lowerSandboxFilesSize = 0;
+
     std::unique_ptr<FsTree> m_lowerSandboxFsTree;
     std::unique_ptr<FsTree> m_upperSandboxFsTree;
 
@@ -68,6 +71,8 @@ class ManualModificationsTask
 
     bool m_taskIsInterrupted = false;
     bool m_taskIsFinished = false;
+
+    uint64_t m_maxOpenedStreams = 5;
 
 public:
 
@@ -100,6 +105,8 @@ public:
 
         m_upperSandboxFsTree = std::make_unique<FsTree>( *m_lowerSandboxFsTree );
         m_upperSandboxFsTree->initializeStatistics();
+        m_upperSandboxFilesSize = m_lowerSandboxFilesSize;
+
         request.m_callback( InitiateSandboxModificationsResponse{} );
         return true;
     }
@@ -116,6 +123,11 @@ public:
             return false;
         }
 
+        if ( m_openFilesRead.size() + m_openFilesWrite.size() >= m_maxOpenedStreams )
+        {
+            request.m_callback( OpenFileResponse{} );
+        }
+
         uint64_t fileId = m_totalFilesOpened;
         m_totalFilesOpened++;
 
@@ -124,6 +136,12 @@ public:
         auto pFolder = m_upperSandboxFsTree->getFolderPtr( p.parent_path());
 
         if ( !pFolder )
+        {
+            request.m_callback( OpenFileResponse{} );
+            return true;
+        }
+
+        if ( !checkUnlock( request.m_path ))
         {
             request.m_callback( OpenFileResponse{} );
             return true;
@@ -228,7 +246,15 @@ private:
             m |= std::ios_base::out;
         }
 
-        // TODO We use shared pointer here because can not pass move-only objects below
+        uint64_t clearedFileSize = 0;
+        if ( mode == OpenFileMode::WRITE && fs::exists( path ))
+        {
+            // In the case when such a file exists,
+            // it will be overwritten (= old content is removed)
+            std::error_code ec;
+            clearedFileSize += fs::file_size( path, ec );
+        }
+
         auto stream = std::make_shared<std::fstream>();
 
         try
@@ -242,7 +268,8 @@ private:
 
         m_drive.executeOnSessionThread( [=, this]() mutable
                                         {
-                                            onFileOpened( std::move( stream ), mode, fileId, fsPath, callback );
+                                            onFileOpened( std::move( stream ), mode, fileId, fsPath, clearedFileSize,
+                                                          callback );
                                         } );
     }
 
@@ -250,6 +277,7 @@ private:
                        OpenFileMode mode,
                        uint64_t fileId,
                        const std::string& fsPath,
+                       uint64_t clearedFileSize,
                        const std::function<void( std::optional<OpenFileResponse> )>& callback )
     {
 
@@ -267,6 +295,9 @@ private:
             finishTask();
             return;
         }
+
+        _ASSERT( clearedFileSize <= m_upperSandboxFilesSize )
+        m_upperSandboxFilesSize -= clearedFileSize;
 
         if ( !stream->is_open())
         {
@@ -397,6 +428,14 @@ public:
             request.m_callback( WriteFileResponse{false} );
             return true;
         }
+
+        if ( m_upperSandboxFilesSize + request.m_buffer.size() > m_drive.m_maxSize )
+        {
+            request.m_callback( WriteFileResponse{false} );
+            return true;
+        }
+
+        m_upperSandboxFilesSize += request.m_buffer.size();
 
         m_isExecutingQuery = true;
 
@@ -673,25 +712,7 @@ private:
             return;
         }
 
-        std::set<InfoHash> possiblyRemovedFiles;
-
-        if ( isFile( *child ))
-        {
-            possiblyRemovedFiles = {getFile( *child ).hash()};
-        } else
-        {
-            getFolder( *child ).getUniqueFiles( possiblyRemovedFiles );
-        }
-
-        std::set<InfoHash> filesToRemove;
-
-        for ( const auto& hash: possiblyRemovedFiles )
-        {
-            if ( m_callManagedHashes.contains( hash ))
-            {
-                filesToRemove.insert( hash );
-            }
-        }
+        auto filesToRemove = obtainUnusedFiles(*child);
 
         m_upperSandboxFsTree->removeFlat( request.m_path, []( const auto& )
         {} );
@@ -700,20 +721,26 @@ private:
         m_drive.executeOnBackgroundThread(
                 [this, callback = request.m_callback, filesToRemove = std::move( filesToRemove )]
                 {
-                    removeUnusedFiles( filesToRemove, callback );
+                    removeUnusedFiles( filesToRemove, [=, this] (uint64_t removedFilesSize) {
+                        onRemoved(removedFilesSize, callback);
+                    } );
                 } );
     }
 
     void removeUnusedFiles( const std::set<InfoHash>& filesToRemove,
-                            const std::function<void( RemoveFilesystemEntryResponse )>& callback )
+                            const std::function<void( uint64_t )>& callback )
     {
         DBG_BG_THREAD
+
+        uint64_t removedFilesSize = 0;
 
         for ( const auto& file: filesToRemove )
         {
             try
             {
-                fs::remove( m_drive.m_driveFolder / toString( file ));
+                auto filePath = m_drive.m_driveFolder / toString( file );
+                removedFilesSize += fs::file_size(filePath);
+                fs::remove(filePath);
             }
             catch ( const std::filesystem::filesystem_error& er )
             {
@@ -723,13 +750,14 @@ private:
             }
         }
 
-        m_drive.executeOnSessionThread( [=, this]
+        m_drive.executeOnSessionThread( [=]
                                         {
-                                            onRemoved( callback );
+                                            callback(removedFilesSize);
                                         } );
     }
 
-    void onRemoved( const std::function<void( RemoveFilesystemEntryResponse )>& callback )
+    void onRemoved( uint64_t removedFilesSize,
+                    const std::function<void( RemoveFilesystemEntryResponse )>& callback )
     {
 
         DBG_MAIN_THREAD
@@ -745,7 +773,38 @@ private:
             return;
         }
 
+        _ASSERT( removedFilesSize <= m_upperSandboxFilesSize )
+        m_upperSandboxFilesSize -= removedFilesSize;
+
         callback( RemoveFilesystemEntryResponse{true} );
+    }
+
+private:
+
+    std::set<InfoHash> obtainUnusedFiles(const Folder::Child& child) {
+        std::set<InfoHash> possiblyRemovedFiles;
+
+        if ( isFile( child ))
+        {
+            possiblyRemovedFiles = {getFile( child ).hash()};
+        } else
+        {
+            getFolder( child ).getUniqueFiles( possiblyRemovedFiles );
+        }
+
+        std::set<InfoHash> filesToRemove;
+
+        for ( const auto& hash: possiblyRemovedFiles )
+        {
+            auto it = m_callManagedHashes.find( hash );
+            if ( it != m_callManagedHashes.end())
+            {
+                filesToRemove.insert( hash );
+                m_callManagedHashes.erase( it );
+            }
+        }
+
+        return filesToRemove;
     }
 
 public:
@@ -796,6 +855,91 @@ public:
         }
 
         return true;
+    }
+
+public:
+
+    bool fileSize( const FileSizeRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_upperSandboxFsTree )
+        _ASSERT( !m_isExecutingQuery )
+
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
+
+        processFileSizeRequest(request);
+        return true;
+    }
+
+    void processFileSizeRequest(const FileSizeRequest& request) {
+        DBG_MAIN_THREAD
+
+        auto* entry = m_upperSandboxFsTree->getEntryPtr( request.m_path );
+
+        if (!entry) {
+            request.m_callback(FileSizeResponse{});
+            return;
+        }
+
+        if (!isFile(*entry)) {
+            request.m_callback(FileSizeResponse{});
+            return;
+        }
+
+        // Note: field "size" of file is not updated for files created during the manual modification
+        const auto& file = getFile( *entry );
+        auto name = toString( file.hash());
+
+        auto absolutePath = m_drive.m_driveFolder / name;
+
+        m_isExecutingQuery = true;
+        m_drive.executeOnBackgroundThread(
+                [this, callback = request.m_callback, path = absolutePath]
+                {
+                    obtainFileSize( path, callback );
+                } );
+    }
+
+private:
+
+    void obtainFileSize(const std::string& path,
+                        const std::function<void( std::optional<FileSizeResponse> )>& callback ) {
+        DBG_BG_THREAD
+
+        std::error_code ec;
+        auto size = fs::file_size(path, ec);
+
+        if ( ec )
+        {
+            _LOG_ERR( "Error during obtaining file size: " << ec.message())
+        }
+
+        m_drive.executeOnSessionThread( [=, this]
+        {
+            onFileSizeObtained( size, callback );
+        } );
+    }
+
+    void onFileSizeObtained(uint64_t size,
+                            const std::function<void( std::optional<FileSizeResponse> )>& callback) {
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_isExecutingQuery )
+
+        m_isExecutingQuery = false;
+
+        if ( m_taskIsInterrupted )
+        {
+            callback( {} );
+            finishTask();
+            return;
+        }
+
+        callback(FileSizeResponse{true, size});
     }
 
 public:
@@ -918,13 +1062,22 @@ public:
 
         auto it = m_folderIterators.find( request.m_id );
 
-        if ( it != m_folderIterators.end())
-        {
-            request.m_callback( FolderIteratorNextResponse{it->second.next()} );
-        } else
+        if ( it == m_folderIterators.end())
         {
             request.m_callback( FolderIteratorNextResponse{} );
+            return true;
         }
+
+        auto iteratorValue = it->second.next();
+
+        if (!iteratorValue) {
+            request.m_callback( FolderIteratorNextResponse{} );
+            return true;
+        }
+
+        request.m_callback( FolderIteratorNextResponse{true,
+                                                       iteratorValue->m_name,
+                                                       iteratorValue->m_depth} );
 
         return true;
     }
@@ -943,17 +1096,60 @@ public:
             return false;
         }
 
-        if ( checkUnlock( request.m_src ) && checkUnlock( request.m_dst ) )
-        {
-            auto success = m_upperSandboxFsTree->moveFlat( request.m_src, request.m_dst, []( const auto& )
-            {} );
-            request.m_callback( MoveFilesystemEntryResponse{success} );
-        } else
-        {
+        if ( !checkUnlock( request.m_src ) || !checkUnlock( request.m_dst ) ) {
             request.m_callback( MoveFilesystemEntryResponse{false} );
+            return true;
         }
 
+        auto* dstChild = m_upperSandboxFsTree->getEntryPtr( request.m_dst );
+
+        std::set<InfoHash> filesToRemove;
+        if (dstChild) {
+            filesToRemove = obtainUnusedFiles(*dstChild);
+        }
+
+        if ( !m_upperSandboxFsTree->moveFlat( request.m_src, request.m_dst, []( const auto& )
+        {} ))
+        {
+            request.m_callback( MoveFilesystemEntryResponse{false} );
+            return true;
+        }
+
+        m_isExecutingQuery = true;
+        m_drive.executeOnBackgroundThread(
+                [this, callback = request.m_callback, filesToRemove = std::move( filesToRemove )]
+                {
+                    removeUnusedFiles( filesToRemove, [=, this] (uint64_t removedFilesSize) {
+                        onMoved(removedFilesSize, callback);
+                    } );
+                } );
+
         return true;
+    }
+
+private:
+
+    void onMoved( uint64_t removedFilesSize,
+                  const std::function<void( MoveFilesystemEntryResponse )>& callback )
+    {
+
+        DBG_MAIN_THREAD
+
+        _ASSERT( m_isExecutingQuery )
+
+        m_isExecutingQuery = false;
+
+        if ( m_taskIsInterrupted )
+        {
+            callback( {} );
+            finishTask();
+            return;
+        }
+
+        _ASSERT( removedFilesSize <= m_upperSandboxFilesSize )
+        m_upperSandboxFilesSize -= removedFilesSize;
+
+        callback( MoveFilesystemEntryResponse{true} );
     }
 
 public:
@@ -1028,11 +1224,15 @@ private:
     {
         DBG_BG_THREAD
 
+        uint64_t removedFilesSize = 0;
+
         for ( const auto& hash: m_callManagedHashes )
         {
             _ASSERT( hash != Hash256() )
             std::error_code ec;
-            fs::remove( m_drive.m_driveFolder / toString( hash ), ec );
+            auto filePath = m_drive.m_driveFolder / toString( hash );
+            removedFilesSize += fs::file_size( filePath, ec );
+            fs::remove( filePath, ec );
 
             if ( ec )
             {
@@ -1042,7 +1242,7 @@ private:
 
         m_drive.executeOnSessionThread( [=, this]
                                         {
-                                            onAppliedSandboxModifications( false, callback );
+                                            onAppliedSandboxModifications( false, removedFilesSize, callback );
                                         } );
     }
 
@@ -1074,6 +1274,8 @@ private:
         std::set<InfoHash> lowerUniqueFiles;
         m_lowerSandboxFsTree->getUniqueFiles( lowerUniqueFiles );
 
+        uint64_t removedFilesSize = 0;
+
         for ( const auto& file: lowerUniqueFiles )
         {
             if ( !upperUniqueFiles.contains( file ) &&
@@ -1081,7 +1283,9 @@ private:
                  file != Hash256())
             {
                 std::error_code ec;
-                fs::remove( m_drive.m_driveFolder / toString( file ), ec );
+                auto filePath = m_drive.m_driveFolder / toString( file );
+                removedFilesSize += fs::file_size( filePath, ec );
+                fs::remove( filePath, ec );
 
                 if ( ec )
                 {
@@ -1092,11 +1296,12 @@ private:
 
         m_drive.executeOnSessionThread( [=, this]
                                         {
-                                            onAppliedSandboxModifications( true, callback );
+                                            onAppliedSandboxModifications( true, removedFilesSize, callback );
                                         } );
     }
 
     void onAppliedSandboxModifications( bool success,
+                                        uint64_t removedFilesSize,
                                         const std::function<void(
                                                 std::optional<ApplySandboxModificationsResponse> )>& callback )
     {
@@ -1114,12 +1319,18 @@ private:
             return;
         }
 
+        _ASSERT(removedFilesSize <= m_upperSandboxFilesSize)
+        m_upperSandboxFilesSize -= removedFilesSize;
+
         if ( success )
         {
             m_lowerSandboxFsTree = std::move( m_upperSandboxFsTree );
+            m_lowerSandboxFilesSize = m_upperSandboxFilesSize;
         } else
         {
             m_upperSandboxFsTree.reset();
+            _ASSERT(m_lowerSandboxFilesSize == m_upperSandboxFilesSize)
+            m_upperSandboxFilesSize = 0;
         }
         m_callManagedHashes.clear();
 
@@ -1452,6 +1663,15 @@ public:
         terminate();
     }
 
+    void onStreamStarted( const StreamRequest& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        // It is possible if the contract has been destroyed because of unsuccessful deployment
+
+        terminate();
+    }
+
     void onManualModificationInitiated( const InitiateModificationsRequest& request ) override
     {
         DBG_MAIN_THREAD
@@ -1599,7 +1819,6 @@ private:
                                             callback();
                                         } );
     }
-
 };
 
 std::unique_ptr<DriveTaskBase> createManualModificationsTask( mobj<InitiateModificationsRequest>&& request,

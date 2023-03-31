@@ -110,7 +110,9 @@ struct DownloadContext {
 class DhtMessageHandler
 {
 public:
-    
+
+    virtual ~DhtMessageHandler() = default;
+
     virtual bool on_dht_request( lt::string_view                         query,
                                  boost::asio::ip::udp::endpoint const&   source,
                                  lt::bdecode_node const&                 message,

@@ -66,7 +66,7 @@ private:
 
     void registerFlush();
 
-    void registerGetAbsolutePath();
+    void registerGetFileInfo();
 
     void registerGetActualModificationId();
 
@@ -87,6 +87,8 @@ private:
     void registerCreateDirectories();
 
     void registerPathExist();
+
+    void registerFileSize();
 
     void registerIsFile();
 

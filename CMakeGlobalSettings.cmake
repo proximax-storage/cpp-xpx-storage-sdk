@@ -35,53 +35,53 @@ if(MSVC)
         # boost asio associated_allocator
         add_definitions(-D_SILENCE_CXX17_ALLOCATOR_VOID_DEPRECATION_WARNING)
 elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
-#        # -Wstrict-aliasing=1 perform most paranoid strict aliasing checks
-#        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-error=attributes -Wno-error=cpp -Wstrict-aliasing=1 -Wnon-virtual-dtor -Wno-error=uninitialized -Wno-error=unknown-pragmas -Wno-unused-parameter -Wno-error=redundant-move -DBOOST_LOG_DYN_LINK")
-#
-#        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
-#        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden")
-#
-#        # - Wno-maybe-uninitialized: false positives where gcc isn't sure if an uninitialized variable is used or not
-#        set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -Wno-maybe-uninitialized -g1 -fno-omit-frame-pointer")
-#        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wno-maybe-uninitialized")
+        # -Wstrict-aliasing=1 perform most paranoid strict aliasing checks
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-error=attributes -Wno-error=cpp -Wstrict-aliasing=1 -Wnon-virtual-dtor -Wno-error=uninitialized -Wno-error=unknown-pragmas -Wno-unused-parameter -Wno-error=redundant-move -DBOOST_LOG_DYN_LINK")
+
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden")
+
+        # - Wno-maybe-uninitialized: false positives where gcc isn't sure if an uninitialized variable is used or not
+        set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -Wno-maybe-uninitialized -g1 -fno-omit-frame-pointer")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wno-maybe-uninitialized")
 
         # add memset_s
         add_definitions(-D_STDC_WANT_LIB_EXT1_=1)
         add_definitions(-D__STDC_WANT_LIB_EXT1__=1)
 elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-#        # - Wno-c++98-compat*: catapult is not compatible with C++98
-#        # - Wno-disabled-macro-expansion: expansion of recursive macro is required for boost logging macros
-#        # - Wno-padded: allow compiler to automatically pad data types for alignment
-#        # - Wno-switch-enum: do not require enum switch statements to list every value (this setting is also incompatible with GCC warnings)
-#        # - Wno-weak-vtables: vtables are emitted in all translsation units for virtual classes with no out-of-line virtual method definitions
-##	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
-##		-Werror \
-##		-fbracket-depth=1024 \
-##		-Wno-c++98-compat \
-##		-Wno-c++98-compat-pedantic \
-##		-Wno-disabled-macro-expansion \
-##		-Wno-padded \
-##		-Wno-switch-enum \
-##                -Wno-weak-vtables")
-#
-#        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
-#                -Wall\
-#                -Wextra\
-#                -Werror\
-#                -Wstrict-aliasing=1\
-#                -Wnon-virtual-dtor\
-#                -Wno-unused-const-variable\
-#                -Wno-unused-private-field\
-#                -Wno-unused-parameter\
-#                -Wno-poison-system-directories\
-#                ")
-##            -Wno-error=uninitialized\
-##            -Werror-deprecated\
-#
-#        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
-#        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden")
-#
-#        set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -g1")
+        # - Wno-c++98-compat*: catapult is not compatible with C++98
+        # - Wno-disabled-macro-expansion: expansion of recursive macro is required for boost logging macros
+        # - Wno-padded: allow compiler to automatically pad data types for alignment
+        # - Wno-switch-enum: do not require enum switch statements to list every value (this setting is also incompatible with GCC warnings)
+        # - Wno-weak-vtables: vtables are emitted in all translsation units for virtual classes with no out-of-line virtual method definitions
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
+		-Werror \
+		-fbracket-depth=1024 \
+		-Wno-c++98-compat \
+		-Wno-c++98-compat-pedantic \
+		-Wno-disabled-macro-expansion \
+		-Wno-padded \
+		-Wno-switch-enum \
+                -Wno-weak-vtables")
+
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
+                -Wall\
+                -Wextra\
+                -Werror\
+                -Wstrict-aliasing=1\
+                -Wnon-virtual-dtor\
+                -Wno-unused-const-variable\
+                -Wno-unused-private-field\
+                -Wno-unused-parameter\
+                -Wno-poison-system-directories\
+                ")
+        #            -Wno-error=uninitialized\
+        #            -Werror-deprecated\
+
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden")
+
+        set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -g1")
 endif()
 
 # set runpath for built binaries on linux
@@ -258,4 +258,12 @@ function(storage_sdk_proto SERVICE DEPENDENCIES)
                 ${_REFLECTION}
                 ${_GRPC_GRPCPP}
                 ${_PROTOBUF_LIBPROTOBUF})
+endfunction()
+
+function(storage_sdk_third_party_lib config)
+        if("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+                set(CMAKE_CXX_FLAGS "")
+                set(CMAKE_C_FLAGS "")
+        endif()
+        include(${config})
 endfunction()

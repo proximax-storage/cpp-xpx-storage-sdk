@@ -502,12 +502,12 @@ public:
         }
     }
 
-    virtual void getAbsolutePath(const DriveKey& driveKey, const AbsolutePathRequest& request) {
+    virtual void getAbsolutePath(const DriveKey& driveKey, const FileInfoRequest& request) {
         const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
         for (auto& key : m_drives[driveKey].m_driveRequest.m_fullReplicatorList) {
             auto replicator = getReplicator(key);
             if (replicator) {
-                replicator->getAbsolutePath(driveKey, request);
+                replicator->getFileInfo( driveKey, request );
             }
         }
     }

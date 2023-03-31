@@ -775,6 +775,8 @@ public:
 
     virtual void pathIsFile( mobj<PathIsFileRequest>&& request ) = 0;
 
+    virtual void fileSize( mobj<FileSizeRequest>&& response ) = 0;
+
     virtual void createDirectories( mobj<CreateDirectoriesRequest>&& request ) = 0;
 
     virtual void folderIteratorCreate( mobj<FolderIteratorCreateRequest>&& request ) = 0;
@@ -795,7 +797,7 @@ public:
 
     virtual void manualSynchronize( mobj<SynchronizationRequest>&& request ) = 0;
 
-    virtual void getAbsolutePath( mobj<AbsolutePathRequest>&& request ) = 0;
+    virtual void getFileInfo( mobj<FileInfoRequest>&& request ) = 0;
 
     virtual void getActualModificationId( mobj<ActualModificationIdRequest>&& request ) = 0;
 

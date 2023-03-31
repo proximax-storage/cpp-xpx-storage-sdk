@@ -33,23 +33,24 @@ bool FolderIterator::hasNext()
     return !m_stack.empty();
 }
 
-std::optional<std::string> FolderIterator::next()
+std::optional<IteratorValue> FolderIterator::next()
 {
     if ( !hasNext())
     {
         return {};
     }
 
-    std::string name;
+    IteratorValue iteratorValue;
+    iteratorValue.m_depth = m_stack.size() - 1;
 
     auto& entry = m_stack.top();
     if ( isFile( entry.m_it->second ))
     {
-        name = getFile( entry.m_it->second ).name();
+        iteratorValue.m_name = getFile( entry.m_it->second ).name();
     } else
     {
         auto& folder = getFolder( entry.m_it->second );
-        name = folder.name();
+        iteratorValue.m_name = folder.name();
         if ( m_recursive && !folder.childs().empty() )
         {
             m_stack.push( StackEntry( folder.childs()));
@@ -57,7 +58,7 @@ std::optional<std::string> FolderIterator::next()
     }
     entry.m_it++;
     clearStack();
-    return name;
+    return iteratorValue;
 }
 
 void FolderIterator::clearStack()

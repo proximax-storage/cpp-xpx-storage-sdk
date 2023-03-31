@@ -55,7 +55,7 @@ public:
         : m_env(env) {}
 
 public:
-    void onReceivedAbsolutePath(std::optional<AbsolutePathResponse> res) {
+    void onReceivedAbsolutePath(std::optional<FileInfoResponse> res) {
         ASSERT_TRUE(res);
         std::ostringstream stream;
         const auto& path = res->m_path;
@@ -81,7 +81,7 @@ public:
             const auto& file = getFile(val);
             ASSERT_TRUE(file.name() == "test.txt");
         }
-        m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"tests/test.txt", [this](auto res) {
+        m_env.getAbsolutePath( m_driveKey, FileInfoRequest{"tests/test.txt", [this]( auto res) {
                                                                   onReceivedAbsolutePath(res);
                                                               }});
     }
@@ -234,7 +234,7 @@ public:
         : m_env(env) {}
 
 public:
-    void onReceivedAbsolutePath(std::optional<AbsolutePathResponse> res) {
+    void onReceivedAbsolutePath(std::optional<FileInfoResponse> res) {
         ASSERT_TRUE(res);
         std::ostringstream stream;
         const auto& path = res->m_path;
@@ -250,22 +250,23 @@ public:
         ASSERT_TRUE(res);
         auto& fsTree = res->m_fsTree;
         ASSERT_TRUE(fsTree.childs().size() == 2);
-        for (auto const& [key, val] : fsTree.childs()) {
-            const auto& child = fsTree.childs().begin()->second;
+        for (auto const& [_, child] : fsTree.childs()) {
             ASSERT_TRUE(isFolder(child));
             const auto& folder = getFolder(child);
             if (folder.name() == "tests") {
                 ASSERT_TRUE(folder.childs().size() == 0);
             }
-            ASSERT_TRUE(folder.name() == "moved");
-            const auto& files = folder.childs();
-            for (auto const& [key, val] : files) {
-                ASSERT_TRUE(isFile(val));
-                const auto& file = getFile(val);
-                ASSERT_TRUE(file.name() == "test.txt");
+            else {
+                ASSERT_TRUE(folder.name() == "moved");
+                const auto& files = folder.childs();
+                for (auto const& [key, val] : files) {
+                    ASSERT_TRUE(isFile(val));
+                    const auto& file = getFile(val);
+                    ASSERT_TRUE(file.name() == "test.txt");
+                }
             }
         }
-        m_env.getAbsolutePath(m_driveKey, AbsolutePathRequest{"moved/test.txt", [this](auto res) {
+        m_env.getAbsolutePath( m_driveKey, FileInfoRequest{"moved/test.txt", [this]( auto res) {
                                                                   onReceivedAbsolutePath(res);
                                                               }});
     }

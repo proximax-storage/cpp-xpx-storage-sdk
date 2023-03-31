@@ -4,7 +4,7 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "AbsolutePathRequestContext.h"
+#include "FileSizeRequestContext.h"
 
 #include <utility>
 #include "drive/ManualModificationsRequests.h"
@@ -13,7 +13,7 @@
 namespace sirius::drive::contract
 {
 
-AbsolutePathRequestContext::AbsolutePathRequestContext(
+FileSizeRequestContext::FileSizeRequestContext(
         storageServer::StorageServer::AsyncService& service,
         grpc::ServerCompletionQueue& completionQueue,
         std::shared_ptr<bool> serviceIsActive,
@@ -25,7 +25,7 @@ AbsolutePathRequestContext::AbsolutePathRequestContext(
         , m_executor( std::move( executor ))
 {}
 
-void AbsolutePathRequestContext::processRequest()
+void FileSizeRequestContext::processRequest()
 {
     if ( !*m_serviceIsActive )
     {
@@ -40,18 +40,18 @@ void AbsolutePathRequestContext::processRequest()
         return;
     }
 
-    AbsolutePathRequest request;
+    FileSizeRequest request;
     Key driveKey( *reinterpret_cast<const std::array<uint8_t, 32>*>(m_request.drive_key().data()));
-    request.m_relativePath = m_request.relative_path();
+    request.m_path = m_request.path();
     request.m_callback = [pThis = shared_from_this()]( auto response )
     {
         pThis->onCallExecuted( response );
     };
-    executor->getAbsolutePath( driveKey, request );
+
+    executor->fileSize( driveKey, request );
 }
 
-void AbsolutePathRequestContext::onCallExecuted(
-        const std::optional<AbsolutePathResponse>& response )
+void FileSizeRequestContext::onCallExecuted( const std::optional<FileSizeResponse>& response )
 {
     if ( !*m_serviceIsActive )
     {
@@ -65,17 +65,15 @@ void AbsolutePathRequestContext::onCallExecuted(
 
     m_responseAlreadyGiven = true;
 
-    storageServer::AbsolutePathResponse msg;
+    storageServer::FileSizeResponse msg;
     grpc::Status status;
-
     if ( response )
     {
-        msg.set_absolute_path(response->m_path);
+        msg.set_size( response->m_size );
     } else
     {
         status = grpc::Status::CANCELLED;
     }
-
     auto* tag = new FinishRequestRPCTag( shared_from_this());
     m_responder.Finish( msg, status, tag );
 }

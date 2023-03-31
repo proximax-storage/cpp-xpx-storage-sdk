@@ -19,5 +19,5 @@ endif()
 
 enable_testing()
 add_test(supercontract-tests "./supercontract-tests")
-target_link_libraries(supercontract-tests drive storage-crypto torrent-sirius Threads::Threads ${GTEST_LIBRARIES} gtest_main)
+target_link_libraries(supercontract-tests drive storage-crypto torrent-sirius Threads::Threads ${GTEST_LIBRARIES} GTest::gtest_main)
 

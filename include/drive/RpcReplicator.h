@@ -493,6 +493,11 @@ public:
 
     }
 
+    void fileSize( const DriveKey& driveKey, const FileSizeRequest& request ) override
+    {
+
+    }
+
     void createDirectories( const DriveKey& driveKey, const CreateDirectoriesRequest& request ) override
     {
 
@@ -545,7 +550,7 @@ public:
 
     }
 
-    void getAbsolutePath( const DriveKey& driveKey, const AbsolutePathRequest& request ) override
+    void getFileInfo( const DriveKey& driveKey, const FileInfoRequest& request ) override
     {
 
     }
@@ -592,6 +597,11 @@ public:
     virtual void dbgEmulateSignal( int index ) override
     {
         rpcCall( RPC_CMD::dbgCrash, index );
+    }
+
+    void dbgAllowCreateNonExistingDrives() override
+    {
+
     }
 
 };

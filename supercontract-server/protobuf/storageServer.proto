@@ -29,7 +29,7 @@ service StorageServer {
 
   rpc ApplyStorageModifications(ApplyStorageModificationsRequest) returns (ApplyStorageModificationsResponse) {}
 
-  rpc GetAbsolutePath(AbsolutePathRequest) returns (AbsolutePathResponse) {}
+  rpc GetFileInfo(FileInfoRequest) returns (FileInfoResponse) {}
 
   rpc GetActualModificationId(ActualModificationIdRequest) returns (ActualModificationIdResponse) {}
 
@@ -60,6 +60,8 @@ service StorageServer {
   rpc CreateDirectories(CreateDirectoriesRequest) returns (CreateDirectoriesResponse) {}
 
   rpc PathExist(PathExistRequest) returns (PathExistResponse) {}
+
+  rpc FileSize(FileSizeRequest) returns (FileSizeResponse) {}
 
   rpc IsFile(IsFileRequest) returns (IsFileResponse) {}
 }
@@ -137,13 +139,15 @@ message ApplyStorageModificationsRequest {
 message ApplyStorageModificationsResponse {
 }
 
-message AbsolutePathRequest {
+message FileInfoRequest {
   bytes drive_key = 1;
   string relative_path = 2;
 }
 
-message AbsolutePathResponse {
-  string absolute_path = 1;
+message FileInfoResponse {
+  bool exists = 1;
+  string absolute_path = 2;
+  uint64 size = 3;
 }
 
 message ActualModificationIdRequest {
@@ -256,6 +260,7 @@ message DirectoryIteratorHasNextRequest {
 message DirectoryIteratorNextResponse {
   bool success = 1;
   string name = 2;
+  uint32 depth = 3;
 }
 
 message DirectoryIteratorNextRequest {
@@ -298,4 +303,14 @@ message CreateDirectoriesRequest {
 
 message CreateDirectoriesResponse {
   bool success = 1;
+}
+
+message FileSizeRequest {
+  bytes drive_key = 1;
+  string path = 2;
+}
+
+message FileSizeResponse {
+  bool success = 1;
+  uint64 size = 2;
 }

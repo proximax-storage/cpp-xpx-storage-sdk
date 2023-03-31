@@ -244,7 +244,7 @@ public:
 
     void onNextRequested(std::optional<FolderIteratorNextResponse> res) {
         ASSERT_TRUE(res);
-        std::string actual(res->m_name->begin(), res->m_name->end());
+        std::string actual(res->m_name.begin(), res->m_name.end());
         // std::cout << actual << std::endl;
         ASSERT_EQ(EXPECTED[m_pointer], actual);
         m_pointer++;

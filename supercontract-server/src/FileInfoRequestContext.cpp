@@ -4,7 +4,7 @@
 *** license that can be found in the LICENSE file.
 */
 
-#include "DirectoryIteratorNextRequestContext.h"
+#include "FileInfoRequestContext.h"
 
 #include <utility>
 #include "drive/ManualModificationsRequests.h"
@@ -13,7 +13,7 @@
 namespace sirius::drive::contract
 {
 
-DirectoryIteratorNextRequestContext::DirectoryIteratorNextRequestContext(
+FileInfoRequestContext::FileInfoRequestContext(
         storageServer::StorageServer::AsyncService& service,
         grpc::ServerCompletionQueue& completionQueue,
         std::shared_ptr<bool> serviceIsActive,
@@ -25,7 +25,7 @@ DirectoryIteratorNextRequestContext::DirectoryIteratorNextRequestContext(
         , m_executor( std::move( executor ))
 {}
 
-void DirectoryIteratorNextRequestContext::processRequest()
+void FileInfoRequestContext::processRequest()
 {
     if ( !*m_serviceIsActive )
     {
@@ -40,18 +40,18 @@ void DirectoryIteratorNextRequestContext::processRequest()
         return;
     }
 
-    FolderIteratorNextRequest request;
+    FileInfoRequest request;
     Key driveKey( *reinterpret_cast<const std::array<uint8_t, 32>*>(m_request.drive_key().data()));
-    request.m_id = m_request.id();
+    request.m_relativePath = m_request.relative_path();
     request.m_callback = [pThis = shared_from_this()]( auto response )
     {
         pThis->onCallExecuted( response );
     };
-
-    executor->folderIteratorNext( driveKey, request );
+    executor->getFileInfo( driveKey, request );
 }
 
-void DirectoryIteratorNextRequestContext::onCallExecuted( const std::optional<FolderIteratorNextResponse>& response )
+void FileInfoRequestContext::onCallExecuted(
+        const std::optional<FileInfoResponse>& response )
 {
     if ( !*m_serviceIsActive )
     {
@@ -65,23 +65,24 @@ void DirectoryIteratorNextRequestContext::onCallExecuted( const std::optional<Fo
 
     m_responseAlreadyGiven = true;
 
-    storageServer::DirectoryIteratorNextResponse msg;
+    storageServer::FileInfoResponse msg;
     grpc::Status status;
+
     if ( response )
     {
-        if ( response->m_valid )
-        {
-            msg.set_success( true );
-            msg.set_name( response->m_name );
-            msg.set_depth( response->m_depth );
-        } else
-        {
-            msg.set_success( false );
+        if (response->m_exists) {
+            msg.set_exists(true);
+            msg.set_absolute_path(response->m_path);
+            msg.set_size(response->m_size);
+        }
+        else {
+            msg.set_exists(false);
         }
     } else
     {
         status = grpc::Status::CANCELLED;
     }
+
     auto* tag = new FinishRequestRPCTag( shared_from_this());
     m_responder.Finish( msg, status, tag );
 }
