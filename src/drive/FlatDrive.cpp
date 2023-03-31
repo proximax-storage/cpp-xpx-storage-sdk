@@ -820,6 +820,16 @@ public:
         }
     }
 
+    void removeDirectories( mobj<RemoveDirectoriesRequest>&& request ) override
+    {
+        DBG_MAIN_THREAD
+
+        if ( !m_task || !m_task->removeDirectories( *request ))
+        {
+            request->m_callback( {} );
+        }
+    }
+
     void folderIteratorCreate( mobj<FolderIteratorCreateRequest>&& request ) override
     {
         DBG_MAIN_THREAD
