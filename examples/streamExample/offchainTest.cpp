@@ -164,7 +164,7 @@ fs::path gClientFolder;
 // Libtorrent sessions
 //std::shared_ptr<ClientSession>      gClientSession;
 //std::shared_ptr<ClientSession>      gClientSession1;
-std::shared_ptr<StreamerSession>    gStreamerSession;
+std::shared_ptr<ViewerSession>      gStreamerSession;
 std::shared_ptr<ViewerSession>      gViewerSession;
 
 
@@ -606,7 +606,7 @@ int main(int,char**)
     ///
     gClientFolder  = createClientFiles(BIG_FILE_SIZE);
 
-    gStreamerSession = createStreamerSession( clientKeyPair,
+    gStreamerSession = createViewerSession( clientKeyPair,
                                               CLIENT_IP_ADDR CLIENT_PORT,
                                               clientSessionErrorHandler,
                                               bootstrapEndpoints,

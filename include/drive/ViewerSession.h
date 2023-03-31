@@ -8,6 +8,7 @@
 #include "drive/Session.h"
 #include "drive/Streaming.h"
 #include "drive/ClientSession.h"
+#include "drive/StreamerSession.h"
 #include "drive/log.h"
 #include "drive/Utils.h"
 #include "crypto/Signer.h"
@@ -31,9 +32,13 @@ struct HttpServerParams
     std::string m_port;
 };
 
-class ViewerSession
+class ViewerSession : public StreamerSession
 {
 public:
+    ViewerSession( const crypto::KeyPair& keyPair, const char* dbgOurPeerName ) : StreamerSession( keyPair, dbgOurPeerName )
+    {
+    }
+
     virtual ~ViewerSession() = default;
 
     virtual void startWatchingLiveStream( const Hash256&          streamId,

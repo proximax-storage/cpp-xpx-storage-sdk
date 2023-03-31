@@ -8,6 +8,7 @@
 #include "drive/Streaming.h"
 #include "http_server.hpp"
 #include "drive/ViewerSession.h"
+#include "drive/StreamerSession.h"
 #include "drive/log.h"
 #include "drive/Utils.h"
 #include "crypto/Signer.h"
@@ -21,7 +22,7 @@
 
 namespace sirius::drive {
 
-class DefaultViewerSession : public ViewerSession, public ClientSession, public DhtMessageHandler, public lt::plugin
+class DefaultViewerSession : public ViewerSession
 {
     struct ViewerChunkInfo : public ChunkInfo
     {
@@ -31,9 +32,14 @@ class DefaultViewerSession : public ViewerSession, public ClientSession, public 
         ViewerChunkInfo( const ChunkInfo& info, uint32_t  offsetMs ) : ChunkInfo(info), m_offsetMs(offsetMs) {}
     };
 
-    std::optional<Hash256>  m_streamId;     // tx hash
+    // it is defined in StreamerSession:
+    //std::optional<Hash256>  m_streamId;     // tx hash
+    
     Key                     m_streamerKey;  // streamer public key
-    Key                     m_driveKey;
+
+    // it is defined in StreamerSession:
+    //Key                     m_driveKey;
+
     std::array<uint8_t,32>  m_downloadChannelId;
     bool                    m_streamFinished = false;
 
@@ -44,8 +50,9 @@ class DefaultViewerSession : public ViewerSession, public ClientSession, public 
 
     std::set<std::array<uint8_t,32>> m_replicatorSet;
 
-    fs::path                m_chunkFolder;
-    fs::path                m_torrentFolder;
+    // they are defined in StreamerSession:
+//    fs::path                m_chunkFolder;
+//    fs::path                m_torrentFolder;
 
     using ChunkInfoList = std::deque<ViewerChunkInfo>;
     ChunkInfoList           m_chunkInfoList;
@@ -75,7 +82,7 @@ class DefaultViewerSession : public ViewerSession, public ClientSession, public 
 public:
     DefaultViewerSession( const crypto::KeyPair& keyPair, const char* dbgOurPeerName )
         :
-            ClientSession( keyPair, dbgOurPeerName ),
+            ViewerSession( keyPair, dbgOurPeerName ),
             m_dbgOurPeerName(dbgOurPeerName)
     {
     }
@@ -86,7 +93,7 @@ public:
 
     feature_flags_t implemented_features() override
     {
-        return plugin::tick_feature | plugin::dht_request_feature;
+        return plugin::tick_feature;
     }
 
     void on_tick() override
@@ -472,15 +479,6 @@ public:
                         );
     }
 
-    virtual bool on_dht_request( lt::string_view                         query,
-                                 boost::asio::ip::udp::endpoint const&   source,
-                                 lt::bdecode_node const&                 message,
-                                 lt::entry&                              response ) override
-    {
-        // unused
-        return false;
-    }
-
     bool onPieceRequestReceivedFromReplicator( const std::array<uint8_t,32>&  transactionHash,
                                                const std::array<uint8_t,32>&  receiverPublicKey,
                                                uint64_t                       pieceSize ) override
@@ -491,13 +489,6 @@ public:
             // do not resend chunks to replicators
             return false;
         }
-        return true;
-    }
-
-    bool onPieceRequestReceivedFromClient( const std::array<uint8_t,32>&  transactionHash,
-                                           const std::array<uint8_t,32>&  receiverPublicKey,
-                                           uint64_t                       pieceSize ) override
-    {
         return true;
     }
 
