@@ -1118,7 +1118,7 @@ private:
 //                             }
                              //_LOG( "dht_query: " << query )
                              if ( query == "get_dn_rcpts" || query == "get-chunks-info" || query == "get-playlist-hash" ||
-                                 query == "get_channel_status" || query == "get_modification_status" )
+                                 query == "get_channel_status" || query == "get_modification_status" || query == "get_stream_status" )
                              {
                                  handleDhtResponse( response, theAlert->endpoint );
                              }

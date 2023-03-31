@@ -239,6 +239,15 @@ public:
         tryDownloadNextChunk();
     }
     
+    virtual std::optional<std::array<uint8_t,32>> getStreamId() override
+    {
+        if ( m_request )
+        {
+            return m_request->m_streamId.array();
+        }
+        return {};
+    }
+    
     void requestMissingChunkInfo( uint32_t chunkIndex, const boost::asio::ip::udp::endpoint& sender )
     {
         DBG_MAIN_THREAD

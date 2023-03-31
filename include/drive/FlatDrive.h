@@ -772,6 +772,8 @@ struct ModifyTrafficInfo
         virtual std::string acceptGetPlaylistHashRequest( const std::array<uint8_t,32>& streamId ) = 0;
         
         virtual std::optional<DriveTaskType> getDriveStatus( const std::array<uint8_t,32>& interectedTaskTx, bool& outIsTaskQueued ) = 0;
+
+        virtual std::string getStreamStatus() = 0;
     };
 
     class Session;

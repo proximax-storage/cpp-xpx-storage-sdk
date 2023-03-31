@@ -2179,6 +2179,31 @@ public:
             return true;
         }
 
+        else if ( query == "get_stream_status" )
+        {
+            //std::string message( query.begin(), query.end() );
+            auto str = message.dict_find_string_value("x");
+            std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
+
+            std::istringstream is( packet, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            std::array<uint8_t,32> driveKey;
+            iarchive( driveKey );
+
+            if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+            {
+                std::string status = driveIt->second->getStreamStatus();
+                response["r"]["q"] = std::string(query);
+                response["r"]["ret"] = status;
+                return true;
+            }
+            else
+            {
+                _LOG_WARN( "Unknown drive: " << Key(driveKey) )
+            }
+            return true;
+        }
+
         return false;
     }
     

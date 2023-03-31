@@ -22,6 +22,10 @@
 
 namespace sirius::drive {
 
+using StreamStatusResponseHandler = std::function<void( const DriveKey&                 driveKey,
+                                                        bool                            isStreaming,
+                                                        const std::array<uint8_t,32>&   streamId )>;
+
 class DefaultViewerSession : public ViewerSession
 {
     struct ViewerChunkInfo : public ChunkInfo
@@ -76,6 +80,8 @@ class DefaultViewerSession : public ViewerSession
     int                                     m_downloadStreamChunkIndex;
 
     std::unique_ptr<http::server::server>   m_httpServer;
+    
+    std::optional<StreamStatusResponseHandler>  m_streamStatusResponseHandler;
 
     const std::string           m_dbgOurPeerName;
 
@@ -193,6 +199,21 @@ public:
         for( auto& endpoint : m_udpReplicatorEndpointList )
         {
             m_session->sendMessage( "get-chunks-info", endpoint, os.str() );
+        }
+    }
+
+    void requestStreamStatus( uint32_t chunkIndex )
+    {
+        _ASSERT( m_streamId )
+
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+
+        archive( m_driveKey.array() );
+
+        for( auto& endpoint : m_udpReplicatorEndpointList )
+        {
+            m_session->sendMessage( "get_stream_status", endpoint, os.str() );
         }
     }
 
@@ -317,6 +338,7 @@ public:
                 }
 
                 tryLoadNextChunk();
+                return;
             }
 
             if ( query == "get-playlist-hash" )
@@ -371,8 +393,33 @@ public:
                         }
                     }
                 }
+                return;
             }
-            return;
+
+            if ( query == "get_stream_status" )
+            {
+                if ( ! m_streamStatusResponseHandler )
+                {
+                    return;
+                }
+
+                lt::string_view ret = rDict.dict_find_string_value("ret");
+                std::string result( ret.begin(), ret.end() );
+
+                std::istringstream is( result, std::ios::binary );
+                cereal::PortableBinaryInputArchive iarchive(is);
+
+                std::array<uint8_t,32> driveKey;
+                iarchive( driveKey );
+
+                bool isStreaming;
+                iarchive( isStreaming );
+
+                std::array<uint8_t,32> streamId;
+                iarchive( streamId );
+                
+                (*m_streamStatusResponseHandler) ( driveKey, isStreaming, streamId );
+            }
         }
         catch( std::exception& ex )
         {
