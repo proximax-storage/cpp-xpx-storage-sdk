@@ -9,7 +9,7 @@ find_package(GTest REQUIRED) # Find the google testing framework on your system
 
 file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/test*.cpp")
 
-add_executable(supercontract-tests utils.h utils.cpp TestEnvironment.h ${TEST_FILES} testSupercontractRemoveNonExistingDir.cpp)
+add_executable(supercontract-tests utils.h utils.cpp TestEnvironment.h ${TEST_FILES})
 
 target_include_directories(supercontract-tests PUBLIC ${GTEST_INCLUDE_DIRS})
 
@@ -19,5 +19,5 @@ endif()
 
 enable_testing()
 add_test(supercontract-tests "./supercontract-tests")
-target_link_libraries(supercontract-tests drive storage-crypto torrent-sirius Threads::Threads ${GTEST_LIBRARIES} GTest::gtest_main)
+target_link_libraries(supercontract-tests drive storage-crypto torrent-sirius Threads::Threads ${GTEST_LIBRARIES} gtest_main)
 

@@ -777,8 +777,6 @@ public:
 
     virtual void createDirectories( mobj<CreateDirectoriesRequest>&& request ) = 0;
 
-    virtual void removeDirectories( mobj<RemoveDirectoriesRequest>&& request ) = 0;
-
     virtual void folderIteratorCreate( mobj<FolderIteratorCreateRequest>&& request ) = 0;
 
     virtual void folderIteratorDestroy( mobj<FolderIteratorDestroyRequest>&& request )= 0;

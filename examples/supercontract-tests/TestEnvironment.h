@@ -380,7 +380,6 @@ public:
         }
     }
 
-
     virtual void createDirectories(const DriveKey& driveKey, const CreateDirectoriesRequest& request) {
         const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
         for (auto& key : m_drives[driveKey].m_driveRequest.m_fullReplicatorList) {
@@ -390,18 +389,6 @@ public:
             }
         }
     }
-
-    virtual void removeDirectories(const DriveKey& driveKey, const RemoveDirectoriesRequest& request) {
-        const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
-        for (auto& key : m_drives[driveKey].m_driveRequest.m_fullReplicatorList) {
-            auto replicator = getReplicator(key);
-            if (replicator) {
-                replicator->removeDirectories(driveKey, request);
-            }
-        }
-    }
-
-
 
     virtual void folderIteratorCreate(const DriveKey& driveKey, const FolderIteratorCreateRequest& request) {
         const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
