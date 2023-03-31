@@ -4,7 +4,6 @@
 *** license that can be found in the LICENSE file.
 */
 #pragma once
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 #include <iostream>
 #include <mutex>
