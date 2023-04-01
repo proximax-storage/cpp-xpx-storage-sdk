@@ -53,7 +53,7 @@ public:
                                           DownloadStreamProgress  downloadStreamProgress ) = 0;
 };
 
-std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&        keyPair,
+PLUGIN_API std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&        keyPair,
                                                     const std::string&            address,
                                                     const LibTorrentErrorHandler& errorHandler,
                                                     const endpoint_list&          bootstraps,
