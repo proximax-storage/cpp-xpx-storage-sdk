@@ -32,6 +32,10 @@ struct HttpServerParams
     std::string m_port;
 };
 
+using StreamStatusResponseHandler = std::function<void( const DriveKey&                 driveKey,
+                                                        bool                            isStreaming,
+                                                        const std::array<uint8_t,32>&   streamId )>;
+
 class ViewerSession : public StreamerSession
 {
 public:
@@ -51,9 +55,12 @@ public:
                                           StartPlayerMethod       startPlayerMethod,
                                           HttpServerParams        httpServerParams,
                                           DownloadStreamProgress  downloadStreamProgress ) = 0;
+    
+    virtual void requestStreamStatus( const std::array<uint8_t,32>& driveKey, StreamStatusResponseHandler streamStatusResponseHandler ) = 0;
+
 };
 
-PLUGIN_API std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&        keyPair,
+PLUGIN_API  std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&        keyPair,
                                                     const std::string&            address,
                                                     const LibTorrentErrorHandler& errorHandler,
                                                     const endpoint_list&          bootstraps,

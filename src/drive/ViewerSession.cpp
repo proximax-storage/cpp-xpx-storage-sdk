@@ -20,11 +20,18 @@
 #include <iostream>
 #include <fstream>
 
-namespace sirius::drive {
+// Streamer every second do 'parseM3u8Playlist()'
+// If playlist changed, Streamer sends message 'chunk-info' to all Replicators
 
-using StreamStatusResponseHandler = std::function<void( const DriveKey&                 driveKey,
-                                                        bool                            isStreaming,
-                                                        const std::array<uint8_t,32>&   streamId )>;
+// Viewer every second send message "get-chunks-info" to all Replicators - requestChunkInfo()
+// When array of newest ChunkInfo received:
+//  1) generates playlist - updatePlaylist()
+//  2) starts chunk downloading
+
+// ??? Must be removed???
+// Sometimes Replicators send message "get-chunk-info" to Streamer (to speed up downloading of missed chunks?)
+
+namespace sirius::drive {
 
 class DefaultViewerSession : public ViewerSession
 {
@@ -202,14 +209,16 @@ public:
         }
     }
 
-    void requestStreamStatus( uint32_t chunkIndex )
+    void requestStreamStatus( const std::array<uint8_t,32>& driveKey, StreamStatusResponseHandler streamStatusResponseHandler ) override
     {
-        _ASSERT( m_streamId )
+//        m_session->
 
+        m_streamStatusResponseHandler = streamStatusResponseHandler;
+        
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
 
-        archive( m_driveKey.array() );
+        archive( driveKey );
 
         for( auto& endpoint : m_udpReplicatorEndpointList )
         {
