@@ -74,6 +74,7 @@ elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
                 -Wno-unused-private-field\
                 -Wno-unused-parameter\
                 -Wno-poison-system-directories\
+                -Wno-deprecated-declarations\
                 ")
         #            -Wno-error=uninitialized\
         #            -Werror-deprecated\
