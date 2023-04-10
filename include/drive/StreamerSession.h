@@ -453,7 +453,14 @@ public:
 
         return "";
     }
-
+    
+    virtual void dbgAddReplicatorList( const std::vector<ReplicatorInfo>& replicators )
+    {
+        for( auto& replicatorInfo : replicators )
+        {
+            m_endpointsManager.updateEndpoint( replicatorInfo.m_publicKey, replicatorInfo.m_endpoint );
+        }
+    }
 };
 
 inline std::shared_ptr<StreamerSession> createStreamerSession( const crypto::KeyPair&        keyPair,

@@ -54,10 +54,7 @@ class DefaultViewerSession : public ViewerSession
     std::array<uint8_t,32>  m_downloadChannelId;
     bool                    m_streamFinished = false;
 
-    endpoint_list           m_replicatorEndpointList;
-
-    using udp_endpoint_list = std::set<boost::asio::ip::udp::endpoint>;
-    udp_endpoint_list       m_udpReplicatorEndpointList;
+    ReplicatorList          m_replicatorList;
 
     std::set<std::array<uint8_t,32>> m_replicatorSet;
 
@@ -136,13 +133,11 @@ public:
                                   const Hash256&          channelId,
                                   const ReplicatorList&   replicators,
                                   const fs::path&         workFolder,
-                                  const endpoint_list&    replicatorEndpointList,
                                   StartPlayerMethod       startPlayerMethod,
                                   HttpServerParams        httpServerParams,
                                   DownloadStreamProgress  downloadStreamProgress ) override
     {
         _ASSERT( ! m_streamId )
-        _ASSERT( replicatorEndpointList.size() > 0 )
 
         m_streamId               = streamId;
         m_streamerKey            = streamerKey;
@@ -151,21 +146,15 @@ public:
         m_downloadStreamProgress = downloadStreamProgress;
         m_startPlayerMethod      = startPlayerMethod;
         m_httpServerParams       = httpServerParams;
-        m_replicatorEndpointList = replicatorEndpointList;
+        m_replicatorList         = replicators;
         
         for( const auto& replicatorKey : replicators )
         {
             m_replicatorSet.insert( replicatorKey.array() );
         }
-
+        
         addDownloadChannel(channelId);
         setDownloadChannelReplicators(channelId, replicators);
-
-//        m_httpServer = std::make_unique<http::server::server>( "localhost", "5151", "/Users/alex/111-stream" );
-        for( const auto& endpoint : replicatorEndpointList )
-        {
-            m_udpReplicatorEndpointList.emplace( endpoint.address(), endpoint.port() );
-        }
 
         fs::remove_all( workFolder );
         m_chunkFolder = workFolder / "chunks";
@@ -203,16 +192,21 @@ public:
         archive( m_streamId->array() );
         archive( chunkIndex );
 
-        for( auto& endpoint : m_udpReplicatorEndpointList )
+        for( auto& replicatorKey : m_replicatorSet )
         {
-            m_session->sendMessage( "get-chunks-info", endpoint, os.str() );
+            auto endpoint = m_endpointsManager.getEndpoint( replicatorKey );
+            if ( endpoint )
+            {
+                boost::asio::ip::udp::endpoint udpEndpoint( endpoint.value().address(), endpoint.value().port() );
+                m_session->sendMessage( "get-chunks-info", udpEndpoint, os.str() );
+            }
         }
     }
 
-    void requestStreamStatus( const std::array<uint8_t,32>& driveKey, StreamStatusResponseHandler streamStatusResponseHandler ) override
+    void requestStreamStatus( const std::array<uint8_t,32>& driveKey,
+                              const sirius::drive::ReplicatorList& replicatorKeys,
+                              StreamStatusResponseHandler streamStatusResponseHandler ) override
     {
-//        m_session->
-
         m_streamStatusResponseHandler = streamStatusResponseHandler;
         
         std::ostringstream os( std::ios::binary );
@@ -220,9 +214,16 @@ public:
 
         archive( driveKey );
 
-        for( auto& endpoint : m_udpReplicatorEndpointList )
+        for( auto& replicatorKey : replicatorKeys )
         {
-            m_session->sendMessage( "get_stream_status", endpoint, os.str() );
+            auto endpoint = m_endpointsManager.getEndpoint( replicatorKey );
+            if ( endpoint )
+            {
+                boost::asio::ip::udp::endpoint udpEndpoint( endpoint.value().address(), endpoint.value().port() );
+                
+                //_LOG( "sendMessage: get_stream_status: " << udpEndpoint );
+                m_session->sendMessage( "get_stream_status", udpEndpoint, os.str() );
+            }
         }
     }
 
@@ -375,17 +376,11 @@ public:
                     return;
                 }
 
-                if ( m_udpReplicatorEndpointList.find(endpoint) == m_udpReplicatorEndpointList.end() )
-                {
-                    _LOG_WARN( "m_udpReplicatorEndpointList.find(endpoint) == m_udpReplicatorEndpointList.end()" )
-                    return;
-                }
-
                 std::array<uint8_t,32> playlistInfoHash;
                 iarchive( playlistInfoHash );
                 m_playlistInfoHashMap[endpoint] = InfoHash(playlistInfoHash);
 
-                if ( m_playlistInfoHashMap.size() > (m_udpReplicatorEndpointList.size()*2)/3 + 1 )
+                if ( m_playlistInfoHashMap.size() > (m_replicatorSet.size()*2)/3 + 1 )
                 {
                     struct VoteCounter { int counter = 0; };
                     std::map<InfoHash,VoteCounter> votingMap;
@@ -394,7 +389,7 @@ public:
                     {
                         size_t voteNumber = votingMap[pair.second].counter++;
                         _LOG( "@@@ voteNumber: " << voteNumber )
-                        if ( voteNumber >= (m_udpReplicatorEndpointList.size()*2)/3 + 1 )
+                        if ( voteNumber >= (m_replicatorSet.size()*2)/3 + 1 )
                         {
                             m_playlistInfoHashReceived = true;
                             startDownloadFinishedStream( pair.second, m_chunkFolder );
@@ -450,10 +445,14 @@ public:
         archive( m_driveKey.array() );
         archive( m_streamId->array() );
 
-        for( auto& endpoint : m_udpReplicatorEndpointList )
+        for( auto& replicatorKey : m_replicatorSet )
         {
-            //todo filter end-of-stream-peers
-            m_session->sendMessage( "get-playlist-hash", endpoint, os.str() );
+            auto endpoint = m_endpointsManager.getEndpoint( replicatorKey );
+            if ( endpoint )
+            {
+                boost::asio::ip::udp::endpoint udpEndpoint( endpoint.value().address(), endpoint.value().port() );
+                m_session->sendMessage( "get-playlist-hash", udpEndpoint, os.str() );
+            }
         }
     }
 
@@ -530,11 +529,10 @@ public:
 
                            m_chunkFolder,
                            m_torrentFolder / (toString(InfoHash(chunkInfo.m_chunkInfoHash))),
-                           {}, //getUploaders(),
+                           m_replicatorList,
                            &m_driveKey.array(),
                            &(m_downloadChannelId),
-                           &m_streamId->array(),
-                           m_replicatorEndpointList
+                           &m_streamId->array()
                         );
     }
 
@@ -611,11 +609,10 @@ public:
 
                            m_downloadStreamDestFolder,
                            {},
-                           {},
+                           m_replicatorList,
                            &m_driveKey.array(),
                            &(m_downloadChannelId),
-                           &m_streamId->array(),
-                           m_replicatorEndpointList
+                           &m_streamId->array()
                         );
     }
 
@@ -786,14 +783,12 @@ download_next_chunk:
 
                            m_chunkFolder,
                            {},
-                           {}, //getUploaders(),
+                           m_replicatorList,
                            &m_driveKey.array(),
                            &(m_downloadChannelId),
-                           &m_streamId->array(),
-                           m_replicatorEndpointList
+                           &m_streamId->array()
                         );
     }
-
 };
 
 std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&        keyPair,
@@ -807,6 +802,7 @@ std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&      
     session->m_session = createDefaultSession( address, errorHandler, session, bootstraps, session );
     session->m_session->lt_session().add_extension( std::dynamic_pointer_cast<lt::plugin>( session ) );
     session->session()->lt_session().m_dbgOurPeerName = dbgClientName;
+    
     return session;
 }
 

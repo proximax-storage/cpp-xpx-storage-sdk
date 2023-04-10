@@ -1887,8 +1887,7 @@ public:
             return false;
         }
 
-//            _LOG( "message: " << message );
-//            _LOG( "response: " << response );
+        //_LOG( "query: " << query );
 
         const std::set<lt::string_view> supportedQueries =
                 { "opinion", "dn_opinion", "code_verify", "verify_opinion", "handshake", "endpoint_request", "endpoint_response",

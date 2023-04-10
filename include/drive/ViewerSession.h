@@ -51,13 +51,13 @@ public:
                                           const Hash256&          channelId,
                                           const ReplicatorList&   replicatorSet,
                                           const fs::path&         workFolder,
-                                          const endpoint_list&    replicatorEndpointList,
                                           StartPlayerMethod       startPlayerMethod,
                                           HttpServerParams        httpServerParams,
                                           DownloadStreamProgress  downloadStreamProgress ) = 0;
     
-    virtual void requestStreamStatus( const std::array<uint8_t,32>& driveKey, StreamStatusResponseHandler streamStatusResponseHandler ) = 0;
-
+    virtual void requestStreamStatus( const std::array<uint8_t,32>& driveKey,
+                                      const sirius::drive::ReplicatorList& replicatorKeys,
+                                      StreamStatusResponseHandler streamStatusResponseHandler ) = 0;
 };
 
 PLUGIN_API  std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&        keyPair,

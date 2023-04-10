@@ -585,8 +585,14 @@ int main(int,char**)
     /// Create bootstrapEndpoints
     ///
 
-    std::vector<ReplicatorInfo> bootstraps = { { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 },
-                                                 replicatorKeyPair_2.publicKey() } };
+//    std::vector<ReplicatorInfo> bootstraps = { { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 },
+//                                                 replicatorKeyPair_2.publicKey() } };
+    std::vector<ReplicatorInfo> bootstraps = {
+        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR), REPLICATOR_PORT }, replicatorKeyPair.publicKey() },
+        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 }, replicatorKeyPair_2.publicKey() },
+        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_3), REPLICATOR_PORT_3 }, replicatorKeyPair_3.publicKey() },
+        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_4), REPLICATOR_PORT_4 }, replicatorKeyPair_4.publicKey() }
+    };
     for ( const auto& bootstrap: bootstraps )
     {
         bootstrapEndpoints.push_back( bootstrap.m_endpoint );
@@ -612,6 +618,8 @@ int main(int,char**)
                                               bootstrapEndpoints,
                                               TRANSPORT_PROTOCOL,
                                               "streamer" );
+    
+    gStreamerSession->dbgAddReplicatorList( bootstraps );
 
     gViewerSession = createViewerSession( viewerKeyPair,
                                           CLIENT_IP_ADDR1 CLIENT_PORT1,
@@ -620,6 +628,7 @@ int main(int,char**)
                                           TRANSPORT_PROTOCOL,
                                           "viewer" );
 
+    gViewerSession->dbgAddReplicatorList( bootstraps );
     _EXLOG("");
 
     //
@@ -679,7 +688,18 @@ int main(int,char**)
         replicator->asyncStartStream( DRIVE_PUB_KEY, streamRequest );
     }
 
-    for( int i=0; i<60; i++ )
+    sleep(10);
+    gViewerSession->addReplicatorList( replicatorList );
+    gViewerSession->requestStreamStatus( DRIVE_PUB_KEY, replicatorList,
+                                                         [] ( const DriveKey&                 driveKey,
+                                                              bool                            isStreaming,
+                                                              const std::array<uint8_t,32>&   streamId )
+    {
+        std::cout << "@@@ " << sirius::drive::toString(streamId) << std::endl;
+        exit(0);
+    });
+
+    for( int i=0; i<50; i++ )
     {
         std::cout << "@@@ " << i << " sec" << std::endl;
         sleep(1);
