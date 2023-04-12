@@ -202,15 +202,9 @@ namespace sirius::drive::test {
                 }});
             }
 
-            void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
-                ASSERT_TRUE(res);
-                ASSERT_TRUE(res->m_success);
-                m_env.moveFsTreeEntry(m_driveKey, MoveFilesystemEntryRequest{"tests/test.txt", "moved/test.txt", [this](auto res) { onFileMoved(res); }});
-            }
-
             void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
                 ASSERT_TRUE(res);
-                m_env.createDirectories(m_driveKey, CreateDirectoriesRequest{"moved", [this](auto res) { onDirCreated(res); }});
+                m_env.moveFsTreeEntry(m_driveKey, MoveFilesystemEntryRequest{"tests/test.txt", "moved/test.txt", [this](auto res) { onFileMoved(res); }});
             }
 
             void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
