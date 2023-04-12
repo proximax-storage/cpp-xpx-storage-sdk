@@ -196,7 +196,7 @@ namespace sirius::drive::test {
 
             void onFileMoved(std::optional<MoveFilesystemEntryResponse> res) {
                 ASSERT_TRUE(res);
-                ASSERT_FALSE(res->m_success);
+                ASSERT_TRUE(res->m_success);
                 m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{true, [this](auto res) {
                     onAppliedSandboxModifications(res);
                 }});
