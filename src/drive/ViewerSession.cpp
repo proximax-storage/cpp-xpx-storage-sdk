@@ -118,12 +118,6 @@ public:
             return;
         }
 
-        if ( m_chunkInfoList.empty() )
-        {
-            requestChunkInfo(0);
-            return;
-        }
-
         requestChunkInfo( m_chunkInfoList.size() );
     }
 
@@ -139,7 +133,6 @@ public:
     {
         _ASSERT( ! m_streamId )
 
-        m_streamId               = streamId;
         m_streamerKey            = streamerKey;
         m_driveKey               = driveKey;
         m_downloadChannelId      = channelId.array();
@@ -147,7 +140,7 @@ public:
         m_startPlayerMethod      = startPlayerMethod;
         m_httpServerParams       = httpServerParams;
         m_replicatorList         = replicators;
-        
+
         for( const auto& replicatorKey : replicators )
         {
             m_replicatorSet.insert( replicatorKey.array() );
@@ -173,6 +166,8 @@ public:
             _LOG_WARN( "httpServer error: " << err.what() );
             (*m_downloadStreamProgress)( m_chunkFolder / PLAYLIST_FILE_NAME, 0, 1, err.what() );
         }
+
+        m_streamId = streamId;
     }
 
     void endWatching()
