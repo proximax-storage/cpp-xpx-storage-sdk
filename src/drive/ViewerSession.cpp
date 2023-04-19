@@ -20,6 +20,10 @@
 #include <iostream>
 #include <fstream>
 
+// 'ViewSession' extends 'StreamerSession' and 'ClientSession'
+// It is created because 'libtorrent session' must be uninque
+// So we use such approach instead of sharing 'libtorrent session' (std::shared_ptr<>)
+
 // Streamer every second do 'parseM3u8Playlist()'
 // If playlist changed, Streamer sends message 'chunk-info' to all Replicators
 

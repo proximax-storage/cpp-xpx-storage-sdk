@@ -695,13 +695,12 @@ int main(int,char**)
                                                               bool                            isStreaming,
                                                               const std::array<uint8_t,32>&   streamId )
     {
-        std::cout << "@@@ " << sirius::drive::toString(streamId) << std::endl;
-        exit(0);
+        std::cout << "@@@ streamId: " << sirius::drive::toString(streamId) << std::endl;
     });
 
     for( int i=0; i<50; i++ )
     {
-        std::cout << "@@@ " << i << " sec" << std::endl;
+        std::cout << "@@@ i: " << i << " sec" << std::endl;
         sleep(1);
     }
 
@@ -711,7 +710,6 @@ int main(int,char**)
                                             downloadChannelHash1,
                                             replicatorList,
                                             CLIENT_WORK_FOLDER / "streamFolder",
-                                            endpointList,
                                             startPlayer,
                                             {"localhost","5151"},
                                             progress );
