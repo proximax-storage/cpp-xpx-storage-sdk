@@ -65,6 +65,7 @@ class DefaultViewerSession : public ViewerSession
     // they are defined in StreamerSession:
 //    fs::path                m_chunkFolder;
 //    fs::path                m_torrentFolder;
+    fs::path                m_relativeChunkFolder;
 
     using ChunkInfoList = std::deque<ViewerChunkInfo>;
     ChunkInfoList           m_chunkInfoList;
@@ -79,7 +80,8 @@ class DefaultViewerSession : public ViewerSession
 
     // Downloading saved/finished stream
     std::optional< InfoHash >               m_downloadStreamPlaylistInfoHash;
-    fs::path                                m_downloadStreamDestFolder;
+    fs::path                                m_streamRootFolder;                 // it is root folder of http/hls server
+    fs::path                                m_finishedStreamDestFolder;
     std::optional< DownloadStreamProgress > m_downloadStreamProgress;
     std::optional< StartPlayerMethod >      m_startPlayerMethod;
     HttpServerParams                        m_httpServerParams;
@@ -130,6 +132,7 @@ public:
                                   const Key&              driveKey,
                                   const Hash256&          channelId,
                                   const ReplicatorList&   replicators,
+                                  const fs::path&         streamRootFolder,
                                   const fs::path&         workFolder,
                                   StartPlayerMethod       startPlayerMethod,
                                   HttpServerParams        httpServerParams,
@@ -140,6 +143,10 @@ public:
         m_streamerKey            = streamerKey;
         m_driveKey               = driveKey;
         m_downloadChannelId      = channelId.array();
+        if ( ! m_httpServer )
+        {
+            m_streamRootFolder   = streamRootFolder;
+        }
         m_downloadStreamProgress = downloadStreamProgress;
         m_startPlayerMethod      = startPlayerMethod;
         m_httpServerParams       = httpServerParams;
@@ -154,23 +161,27 @@ public:
         setDownloadChannelReplicators(channelId, replicators);
 
         fs::remove_all( workFolder );
-        m_chunkFolder = workFolder / "chunks";
-        m_torrentFolder = workFolder / "torrents";
+        m_relativeChunkFolder   = workFolder / "chunks";
+        m_chunkFolder           = m_streamRootFolder / m_relativeChunkFolder;
+        m_torrentFolder         = m_streamRootFolder / workFolder / "torrents";
 
         fs::create_directories( m_chunkFolder );
         fs::create_directories( m_torrentFolder );
 
-        try
+        if ( ! m_httpServer )
         {
-            m_httpServer = std::make_unique<http::server::server>( m_httpServerParams.m_address, m_httpServerParams.m_port, m_chunkFolder );
-            std::thread( [this] { m_httpServer->run(); } ).detach();
+            try
+            {
+                m_httpServer = std::make_unique<http::server::server>( m_httpServerParams.m_address, m_httpServerParams.m_port, m_streamRootFolder );
+                std::thread( [this] { m_httpServer->run(); } ).detach();
+            }
+            catch( const std::runtime_error& err )
+            {
+                _LOG_WARN( "httpServer error: " << err.what() );
+                (*m_downloadStreamProgress)( m_chunkFolder / PLAYLIST_FILE_NAME, 0, 1, err.what() );
+            }
         }
-        catch( const std::runtime_error& err )
-        {
-            _LOG_WARN( "httpServer error: " << err.what() );
-            (*m_downloadStreamProgress)( m_chunkFolder / PLAYLIST_FILE_NAME, 0, 1, err.what() );
-        }
-
+        
         m_streamId = streamId;
     }
 
@@ -289,7 +300,7 @@ public:
     {
         if ( m_startPlayerMethod )
         {
-            std::string address = "http://" + m_httpServerParams.m_address + ":" + m_httpServerParams.m_port + "/" + PLAYLIST_FILE_NAME;
+            std::string address = "http://" + m_httpServerParams.m_address + ":" + m_httpServerParams.m_port + "/" + std::string( m_relativeChunkFolder / PLAYLIST_FILE_NAME);
 
             (*m_startPlayerMethod)( address );
             m_startPlayerMethod.reset();
@@ -552,7 +563,7 @@ public:
                                       std::filesystem::path destFolder )
     {
         m_downloadStreamPlaylistInfoHash = playlistInfoHash;
-        m_downloadStreamDestFolder       = destFolder;
+        m_finishedStreamDestFolder       = destFolder;
 
         boost::asio::post( m_session->lt_session().get_context(), [this]() //mutable
         {
@@ -581,13 +592,13 @@ public:
                                    {
                                        if ( code == download_status::download_complete )
                                        {
-                                           auto playlistFilePath = m_downloadStreamDestFolder / PLAYLIST_FILE_NAME;
+                                           auto playlistFilePath = m_finishedStreamDestFolder / PLAYLIST_FILE_NAME;
                                            std::error_code err;
                                            if ( fs::exists( playlistFilePath, err ) )
                                            {
                                                fs::remove( playlistFilePath, err );
                                            }
-                                           fs::rename( m_downloadStreamDestFolder / toString(*m_downloadStreamPlaylistInfoHash),
+                                           fs::rename( m_finishedStreamDestFolder / toString(*m_downloadStreamPlaylistInfoHash),
                                                        playlistFilePath,
                                                        err );
 
@@ -606,7 +617,7 @@ public:
                                    false, {}
                            ),
 
-                           m_downloadStreamDestFolder,
+                           m_finishedStreamDestFolder,
                            {},
                            m_replicatorList,
                            &m_driveKey.array(),
@@ -621,7 +632,7 @@ public:
         {
         m_downloadStreamChunks.clear();
 
-        std::ifstream fin( m_downloadStreamDestFolder / PLAYLIST_FILE_NAME );
+        std::ifstream fin( m_finishedStreamDestFolder / PLAYLIST_FILE_NAME );
         std::stringstream fPlaylist;
         fPlaylist << fin.rdbuf();
 
@@ -733,21 +744,13 @@ download_next_chunk:
 
         if ( m_downloadStreamChunksIt == m_downloadStreamChunks.end() )
         {
-            (*m_downloadStreamProgress)( m_downloadStreamDestFolder / PLAYLIST_FILE_NAME, m_downloadStreamChunkIndex, int(m_downloadStreamChunks.size()), {} );
+            (*m_downloadStreamProgress)( m_finishedStreamDestFolder / PLAYLIST_FILE_NAME, m_downloadStreamChunkIndex, int(m_downloadStreamChunks.size()), {} );
             return;
         }
 
         auto it = std::find_if( m_chunkInfoList.begin(), m_chunkInfoList.end(), [this](const auto& chunkInfo) { return chunkInfo.m_chunkInfoHash == m_downloadStreamChunksIt->array(); } );
         if (  it != m_chunkInfoList.end() && it->m_isDownloaded )
         {
-//            if ( m_chunkFolder != m_downloadStreamDestFolder )
-//            {
-//                std::error_code err;
-//                fs::copy( m_chunkFolder / toString( *m_downloadStreamChunksIt ), m_downloadStreamDestFolder / toString( *m_downloadStreamChunksIt ), err );
-//            }
-
-//            (*m_downloadStreamProgress)( m_downloadStreamDestFolder / PLAYLIST_FILE_NAME, m_downloadStreamChunkIndex, int(m_downloadStreamChunks.size()), {} );
-
             goto download_next_chunk;
         }
 
@@ -765,7 +768,7 @@ download_next_chunk:
                                        if ( code == download_status::download_complete )
                                        {
                                            m_downloadingLtHandle.reset();
-                                           (*m_downloadStreamProgress)( m_downloadStreamDestFolder / PLAYLIST_FILE_NAME, m_downloadStreamChunkIndex, int(m_downloadStreamChunks.size()), {} );
+                                           (*m_downloadStreamProgress)( m_finishedStreamDestFolder / PLAYLIST_FILE_NAME, m_downloadStreamChunkIndex, int(m_downloadStreamChunks.size()), {} );
                                            startPlayer();
                                            continueDownloadChunks();
                                        }

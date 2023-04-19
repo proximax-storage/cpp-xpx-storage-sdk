@@ -72,6 +72,7 @@ bool gBreak_On_Warning = true;
 #define REPLICATOR_SANDBOX_ROOT_FOLDER_4  fs::path(getenv("HOME")) / "111" / "sandbox_root_4"
 
 #define CLIENT_WORK_FOLDER                fs::path(getenv("HOME")) / "111" / "client_work_folder"
+#define VIEWER_STREAM_ROOT_FOLDER         fs::path(getenv("HOME")) / "111" / "stream_root_folder"
 #define STREAMER_WORK_FOLDER              fs::path(getenv("HOME")) / "111" / "streamer_folder"
 
 auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
@@ -709,7 +710,8 @@ int main(int,char**)
                                             DRIVE_PUB_KEY,
                                             downloadChannelHash1,
                                             replicatorList,
-                                            CLIENT_WORK_FOLDER / "streamFolder",
+                                            VIEWER_STREAM_ROOT_FOLDER,
+                                            "testStreamFolder",
                                             startPlayer,
                                             {"localhost","5151"},
                                             progress );
