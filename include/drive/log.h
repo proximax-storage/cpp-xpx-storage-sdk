@@ -9,6 +9,7 @@
 #include <mutex>
 #include <filesystem>
 #include <functions.h>
+#include <optional>
 
 #include "boost/date_time/posix_time/posix_time.hpp"
 
@@ -54,8 +55,8 @@ inline std::string current_time()
     //
     //
     char buf[40];
-    sprintf(buf, "%04ld.%02ld.%02ld %02ld:%02ld:%02ld.%03ld",
-            year, month, day, hours, minutes, seconds, milliseconds);
+    std::snprintf(buf, sizeof(buf), "%04ld.%02ld.%02ld %02ld:%02ld:%02ld.%03ld",
+                  year, month, day, hours, minutes, seconds, milliseconds);
 
     return buf;
 }
@@ -73,8 +74,7 @@ inline void checkLogFileSize()
         return;
 
     auto pos = lseek( 1, 0, SEEK_END );
-    if ( ( pos > 250*1024 ) && gCreateLogBackup )
-//    if ( ( pos > 1024*1024*1024 ) && gCreateLogBackup )
+    if ( ( pos > 100 * 1024 * 1024 ) && gCreateLogBackup )
     {
         (*gCreateLogBackup)();
     }

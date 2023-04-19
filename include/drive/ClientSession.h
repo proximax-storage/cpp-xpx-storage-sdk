@@ -356,6 +356,11 @@ public:
         }
     }
 
+    void addReplicatorList( const sirius::drive::ReplicatorList& keys )
+    {
+        m_endpointsManager.addEndpointsEntries( keys );
+    }
+
     void setDownloadChannelReplicators( const Hash256& downloadChannelId, const ReplicatorList& replicators )
     {
         auto it = m_downloadChannelMap.find(downloadChannelId);
@@ -547,14 +552,6 @@ protected:
     {
         m_session->onTorrentDeleted( handle );
     }
-
-public:
-    void addReplicatorList( const sirius::drive::ReplicatorList& keys )
-    {
-        m_endpointsManager.addEndpointsEntries( keys );
-    }
-
-protected:
 
 //    void setDownloadChannelRequestedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
 //    {
