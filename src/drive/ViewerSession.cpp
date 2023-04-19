@@ -47,16 +47,15 @@ class DefaultViewerSession : public ViewerSession
         ViewerChunkInfo( const ChunkInfo& info, uint32_t  offsetMs ) : ChunkInfo(info), m_offsetMs(offsetMs) {}
     };
 
-    // it is defined in StreamerSession:
-    //std::optional<Hash256>  m_streamId;     // tx hash
-    
-    Key                     m_streamerKey;  // streamer public key
+    std::optional<Hash256>  m_liveStreamId;
+    bool                    m_liveStreamFinished = false;
+
+    Key                     m_streamerKey;  // live-streamer public key
 
     // it is defined in StreamerSession:
     //Key                     m_driveKey;
 
     std::array<uint8_t,32>  m_downloadChannelId;
-    bool                    m_streamFinished = false;
 
     ReplicatorList          m_replicatorList;
 
@@ -114,12 +113,12 @@ public:
 
     void on_tick() override
     {
-        if ( ! m_streamId )
+        if ( ! m_liveStreamId )
         {
             return;
         }
 
-        if ( m_streamFinished )
+        if ( m_liveStreamFinished )
         {
             return;
         }
@@ -138,7 +137,7 @@ public:
                                   HttpServerParams        httpServerParams,
                                   DownloadStreamProgress  downloadStreamProgress ) override
     {
-        _ASSERT( ! m_streamId )
+        _ASSERT( ! m_liveStreamId )
 
         m_streamerKey            = streamerKey;
         m_driveKey               = driveKey;
@@ -182,24 +181,24 @@ public:
             }
         }
         
-        m_streamId = streamId;
+        m_liveStreamId = streamId;
     }
 
     void endWatching()
     {
-        m_streamId.reset();
+        m_liveStreamId.reset();
         //TODO
     }
 
     void requestChunkInfo( uint32_t chunkIndex )
     {
-        _ASSERT( m_streamId )
+        _ASSERT( m_liveStreamId )
 
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
 
         archive( m_driveKey.array() );
-        archive( m_streamId->array() );
+        archive( m_liveStreamId->array() );
         archive( chunkIndex );
 
         for( auto& replicatorKey : m_replicatorSet )
@@ -377,12 +376,12 @@ public:
                 std::array<uint8_t,32> streamId;
                 iarchive( streamId );
 
-                _ASSERT( m_streamId )
+                _ASSERT( m_liveStreamId )
 
-                if ( streamId != m_streamId->array() )
+                if ( streamId != m_liveStreamId->array() )
                 {
                     // ignore bad reply
-                    _LOG_WARN( "streamId != m_streamId" )
+                    _LOG_WARN( "streamId != m_liveStreamId" )
                     return;
                 }
 
@@ -453,7 +452,7 @@ public:
         cereal::PortableBinaryOutputArchive archive( os );
 
         archive( m_driveKey.array() );
-        archive( m_streamId->array() );
+        archive( m_liveStreamId->array() );
 
         for( auto& replicatorKey : m_replicatorSet )
         {
@@ -532,7 +531,7 @@ public:
                                    },
 
                                    InfoHash(chunkInfo.m_chunkInfoHash),
-                                   *m_streamId,
+                                   *m_liveStreamId,
                                    0,
                                    true, {}
                            ),
@@ -542,7 +541,7 @@ public:
                            m_replicatorList,
                            &m_driveKey.array(),
                            &(m_downloadChannelId),
-                           &m_streamId->array()
+                           &m_liveStreamId->array()
                         );
     }
 
@@ -612,7 +611,7 @@ public:
                                    },
 
                                    *m_downloadStreamPlaylistInfoHash,
-                                   *m_streamId,
+                                   *m_liveStreamId,
                                    0,
                                    false, {}
                            ),
@@ -622,7 +621,7 @@ public:
                            m_replicatorList,
                            &m_driveKey.array(),
                            &(m_downloadChannelId),
-                           &m_streamId->array()
+                           &m_liveStreamId->array()
                         );
     }
 
@@ -778,7 +777,7 @@ download_next_chunk:
                                    },
 
                                    *m_downloadStreamChunksIt,
-                                   *m_streamId,
+                                   *m_liveStreamId,
                                    0,
                                    false, {}
                            ),
@@ -788,7 +787,7 @@ download_next_chunk:
                            m_replicatorList,
                            &m_driveKey.array(),
                            &(m_downloadChannelId),
-                           &m_streamId->array()
+                           &m_liveStreamId->array()
                         );
     }
 };
