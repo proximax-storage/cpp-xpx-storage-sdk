@@ -119,17 +119,22 @@ public:
                                                      }});
     }
 
+    void onDirCreated(std::optional<CreateDirectoriesResponse> res) {
+        ASSERT_TRUE(res);
+        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::WRITE, "tests/test.txt", [this](auto res) { onFileOpened(res); }});
+    }
+
     void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> res) {
         ASSERT_TRUE(res);
-        m_env.openFile(m_driveKey, OpenFileRequest{OpenFileMode::WRITE, "test.txt", [this](auto res) { onFileOpened(res); }});
+        m_env.createDirectories(m_driveKey, CreateDirectoriesRequest{"tests", [this](auto res) { onDirCreated(res); }});
     }
 
     void onInitiatedModifications(std::optional<InitiateModificationsResponse> res) {
         ASSERT_TRUE(res);
         m_env.initiateManualSandboxModifications(m_driveKey, InitiateSandboxModificationsRequest{[this](auto res) {
-                                                     onSandboxModificationsInitiated(
-                                                         res);
-                                                 }});
+            onSandboxModificationsInitiated(
+                    res);
+        }});
     }
 };
 
