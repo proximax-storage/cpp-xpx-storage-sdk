@@ -430,8 +430,8 @@ public:
                     {
                         std::string fileName = hashToFileName( it.first );
                         it.second.m_ltHandle = session->addTorrentFileToSession(
-                                m_drive.m_torrentFolder / toPath(fileName),
-                                m_drive.m_driveFolder,
+                                (m_drive.m_torrentFolder / toPath(fileName)).string(),
+                                m_drive.m_driveFolder.string(),
                                 lt::SiriusFlags::peer_is_replicator,
                                 &m_drive.m_driveKey.array(),
                                 nullptr,
@@ -934,7 +934,7 @@ public:
             InfoHash finishPlaylistHash2 = createTorrentFile( finishPlaylistFilename.string(),
                                                               m_drive.m_driveKey,
                                                               m_drive.m_driveFolder.string(),
-                                                              torrentFilename );
+                                                              torrentFilename.string() );
             _ASSERT( finishPlaylistHash2 == finishPlaylistHash )
         }
 
