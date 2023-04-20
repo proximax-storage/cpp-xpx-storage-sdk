@@ -430,7 +430,7 @@ public:
                     {
                         std::string fileName = hashToFileName( it.first );
                         it.second.m_ltHandle = session->addTorrentFileToSession(
-                                m_drive.m_torrentFolder / fileName,
+                                m_drive.m_torrentFolder / toPath(fileName),
                                 m_drive.m_driveFolder,
                                 lt::SiriusFlags::peer_is_replicator,
                                 &m_drive.m_driveKey.array(),
@@ -445,8 +445,8 @@ public:
             // Add FsTree torrent to session
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
-                                                                            m_drive.m_fsTreeTorrent.parent_path(),
+                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent.string(),
+                                                                            m_drive.m_fsTreeTorrent.parent_path().string(),
                                                                             lt::SiriusFlags::peer_is_replicator,
                                                                             &m_drive.m_driveKey.array(),
                                                                             nullptr,
@@ -736,8 +736,8 @@ public:
                            getModificationTransactionHash(),
                            0, true, ""
                    ),
-                   m_drive.m_sandboxStreamFolder,
-                   m_drive.m_sandboxStreamTFolder / toString(*m_finishInfoHash),
+                   m_drive.m_sandboxStreamFolder.string(),
+                   (m_drive.m_sandboxStreamTFolder / toPath(toString(*m_finishInfoHash))).string(),
                    getUploaders(),
                    &m_drive.m_driveKey.array(),
                    nullptr,
@@ -931,9 +931,9 @@ public:
         }
         if ( ! fs::exists(torrentFilename) )
         {
-            InfoHash finishPlaylistHash2 = createTorrentFile( finishPlaylistFilename,
+            InfoHash finishPlaylistHash2 = createTorrentFile( finishPlaylistFilename.string(),
                                                               m_drive.m_driveKey,
-                                                              m_drive.m_driveFolder,
+                                                              m_drive.m_driveFolder.string(),
                                                               torrentFilename );
             _ASSERT( finishPlaylistHash2 == finishPlaylistHash )
         }
@@ -964,8 +964,8 @@ public:
         {
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                session->addTorrentFileToSession( torrentFilename,
-                                                  m_drive.m_driveFolder,
+                session->addTorrentFileToSession( torrentFilename.string(),
+                                                  m_drive.m_driveFolder.string(),
                                                   lt::SiriusFlags::peer_is_replicator,
                                                   &m_drive.m_driveKey.array(),
                                                   nullptr,
