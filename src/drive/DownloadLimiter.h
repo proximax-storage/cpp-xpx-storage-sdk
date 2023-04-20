@@ -702,7 +702,7 @@ public:
 
                     while ( !candidates.empty() && receivers.size() < 4 )
                     {
-                        auto randIndex = random() % candidates.size();
+                        auto randIndex = rand() % candidates.size();
                         std::swap( candidates[randIndex], candidates.back() );
                         receivers.emplace_back(candidates.back());
                         candidates.pop_back();
