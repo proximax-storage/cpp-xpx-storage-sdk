@@ -40,7 +40,7 @@ std::string magnetLink( const InfoHash& key ) {
     return std::string("magnet:?xt=urn:btmh:1220") + hashStr;
 }
 
-PLUGIN_API std::string toPath( const std::string& s ) {
+PLUGIN_API fs::path toPath( const std::string& s ) {
     return fs::path(s.begin(), s.end());
 }
 
