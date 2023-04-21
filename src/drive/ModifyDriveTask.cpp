@@ -126,7 +126,7 @@ public:
                                                    true,
                                                    "" ),
                                                m_drive.m_sandboxRootPath.string(),
-                                               m_drive.m_sandboxRootPath / (toString(m_request->m_clientDataInfoHash) + ".torrent"),
+                                               m_drive.m_sandboxRootPath / toPath((toString(m_request->m_clientDataInfoHash)) + ".torrent"),
                                                getUploaders(),
                                                &m_drive.m_driveKey.array(),
                                                nullptr,

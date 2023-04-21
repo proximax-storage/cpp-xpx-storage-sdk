@@ -17,6 +17,8 @@ namespace fs = std::filesystem;
 // magnetLink
 PLUGIN_API std::string magnetLink( const InfoHash& key );
 
+PLUGIN_API fs::path toPath( const std::string& s );
+
 // toString
 PLUGIN_API std::string toString( const InfoHash& key );
 PLUGIN_API std::string arrayToString( const Key& key );
