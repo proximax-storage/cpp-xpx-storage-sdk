@@ -72,6 +72,7 @@ bool gBreak_On_Warning = true;
 #define REPLICATOR_SANDBOX_ROOT_FOLDER_4  fs::path(getenv("HOME")) / "111" / "sandbox_root_4"
 
 #define CLIENT_WORK_FOLDER                fs::path(getenv("HOME")) / "111" / "client_work_folder"
+#define VIEWER_STREAM_ROOT_FOLDER         fs::path(getenv("HOME")) / "111" / "stream_root_folder"
 #define STREAMER_WORK_FOLDER              fs::path(getenv("HOME")) / "111" / "streamer_folder"
 
 auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
@@ -112,7 +113,7 @@ using namespace sirius::drive;
 inline std::mutex gExLogMutex;
 
 #define EXLOG(expr) { \
-        __LOG( "+++ exlog: " << << expr << std::endl << std::flush); \
+        __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
     }
 
 #define _EXLOG(expr) { \
@@ -164,7 +165,7 @@ fs::path gClientFolder;
 // Libtorrent sessions
 //std::shared_ptr<ClientSession>      gClientSession;
 //std::shared_ptr<ClientSession>      gClientSession1;
-std::shared_ptr<StreamerSession>    gStreamerSession;
+std::shared_ptr<ViewerSession>      gStreamerSession;
 std::shared_ptr<ViewerSession>      gViewerSession;
 
 
@@ -490,7 +491,7 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->setVerifyApprovalTransactionTimerDelay(1);
     replicator->start();
 //    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100,         0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
-    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100*1024*1024, 0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
+    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100*1024*1024, 0, {}, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
 
     replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash1.array(), 1024*1024*1024, replicatorList, { viewerKeyPair.publicKey() }} );
 
@@ -555,20 +556,6 @@ int main(int,char**)
 
     auto startTime = std::clock();
 
-    std::ostringstream os( std::ios::binary );
-    cereal::PortableBinaryOutputArchive archive( os );
-    sirius::Key k;
-    for(int i=0; i<10; i++ ) k[i]=i;
-    archive( k );
-    
-    std::istringstream is( os.str(), std::ios::binary );
-    cereal::PortableBinaryInputArchive iarchive(is);
-    sirius::Key k2;
-    iarchive( k2 );
-    assert( k==k2 );
-
-    
-    
     ///
     /// Make the list of replicator addresses
     ///
@@ -591,14 +578,22 @@ int main(int,char**)
     printf( "replicator3 key[0] : 0x%x %i\n", replicatorList[2][0], replicatorList[2][0] );
     printf( "streamer    key[0] : 0x%x %i\n", clientKeyPair.publicKey()[0], clientKeyPair.publicKey()[0] );
     printf( "viewer      key[0] : 0x%x %i\n", viewerKeyPair.publicKey()[0], viewerKeyPair.publicKey()[0] );
+    EXLOG( "@@@ streamer: " << clientKeyPair.publicKey() )
+    EXLOG( "@@@ viewer:   " << viewerKeyPair.publicKey() )
 
 
     ///
     /// Create bootstrapEndpoints
     ///
 
-    std::vector<ReplicatorInfo> bootstraps = { { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 },
-                                                 replicatorKeyPair_2.publicKey() } };
+//    std::vector<ReplicatorInfo> bootstraps = { { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 },
+//                                                 replicatorKeyPair_2.publicKey() } };
+    std::vector<ReplicatorInfo> bootstraps = {
+        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR), REPLICATOR_PORT }, replicatorKeyPair.publicKey() },
+        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 }, replicatorKeyPair_2.publicKey() },
+        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_3), REPLICATOR_PORT_3 }, replicatorKeyPair_3.publicKey() },
+        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_4), REPLICATOR_PORT_4 }, replicatorKeyPair_4.publicKey() }
+    };
     for ( const auto& bootstrap: bootstraps )
     {
         bootstrapEndpoints.push_back( bootstrap.m_endpoint );
@@ -618,12 +613,14 @@ int main(int,char**)
     ///
     gClientFolder  = createClientFiles(BIG_FILE_SIZE);
 
-    gStreamerSession = createStreamerSession( clientKeyPair,
+    gStreamerSession = createViewerSession( clientKeyPair,
                                               CLIENT_IP_ADDR CLIENT_PORT,
                                               clientSessionErrorHandler,
                                               bootstrapEndpoints,
                                               TRANSPORT_PROTOCOL,
                                               "streamer" );
+    
+    gStreamerSession->dbgAddReplicatorList( bootstraps );
 
     gViewerSession = createViewerSession( viewerKeyPair,
                                           CLIENT_IP_ADDR1 CLIENT_PORT1,
@@ -632,6 +629,7 @@ int main(int,char**)
                                           TRANSPORT_PROTOCOL,
                                           "viewer" );
 
+    gViewerSession->dbgAddReplicatorList( bootstraps );
     _EXLOG("");
 
     //
@@ -674,7 +672,7 @@ int main(int,char**)
     };
 #endif
 
-    gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
+//    gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
 //    gViewerSession->startWatchingLiveStream( streamTx,
 //                                            gStreamerSession->publicKey(),
 //                                            DRIVE_PUB_KEY, CLIENT_WORK_FOLDER / "streamFolder",
@@ -691,16 +689,29 @@ int main(int,char**)
         replicator->asyncStartStream( DRIVE_PUB_KEY, streamRequest );
     }
 
-    for( int i=0; i<60; i++ )
+    sleep(10);
+    gViewerSession->addReplicatorList( replicatorList );
+    gViewerSession->requestStreamStatus( DRIVE_PUB_KEY, replicatorList,
+                                                         [] ( const DriveKey&                 driveKey,
+                                                              bool                            isStreaming,
+                                                              const std::array<uint8_t,32>&   streamId )
     {
-        std::cout << "@@@ " << i << " sec" << std::endl;
+        std::cout << "@@@ streamId: " << sirius::drive::toString(streamId) << std::endl;
+    });
+
+    for( int i=0; i<50; i++ )
+    {
+        std::cout << "@@@ i: " << i << " sec" << std::endl;
         sleep(1);
     }
 
     gViewerSession->startWatchingLiveStream( streamTx,
                                             gStreamerSession->publicKey(),
-                                            DRIVE_PUB_KEY, CLIENT_WORK_FOLDER / "streamFolder",
-                                            endpointList,
+                                            DRIVE_PUB_KEY,
+                                            downloadChannelHash1,
+                                            replicatorList,
+                                            VIEWER_STREAM_ROOT_FOLDER,
+                                            "testStreamFolder",
                                             startPlayer,
                                             {"localhost","5151"},
                                             progress );
@@ -726,7 +737,7 @@ int main(int,char**)
 
     EXLOG( "@ Client started FsTree download !!!!! " );
     //sleep(2);
-    gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
+    //gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
     //clientDownloadFsTree( gViewerSession );
 
     {

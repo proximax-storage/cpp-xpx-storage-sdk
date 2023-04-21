@@ -35,8 +35,8 @@ const char* RPC_REPLICATOR_NAME = "";//replicator1";
 // This example shows interaction between 'client' and 'replicator'.
 //
 
-#define BIG_FILE_SIZE       10 * 1024*1024 //150//4
-#define MODIFY_DATA_SIZE    (4*BIG_FILE_SIZE)-32000
+#define BIG_FILE_SIZE       uint64_t(10 * 1024*1024) //150//4
+#define MODIFY_DATA_SIZE    (4*BIG_FILE_SIZE)-32000L
 
 #define TRANSPORT_PROTOCOL false // true - TCP, false - uTP
 
@@ -302,7 +302,7 @@ public:
                     modifyDrive( gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash,
                                 transactionInfo.m_modifyTransactionHash,
                                 replicatorList,
-                                MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
+                                uint64_t(MODIFY_DATA_SIZE)+uint64_t(MODIFY_DATA_SIZE) );
                     gReplicator3->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) );
 //                } );
             }

@@ -9,14 +9,14 @@
 #include "drive/FsTree.h"
 #include "drive/FlatDrive.h"
 #include "DriveParams.h"
-#include "UpdateDriveTaskBase.h"
+#include "ModifyApprovalTaskBase.h"
 
 namespace sirius::drive
 {
 
 namespace fs = std::filesystem;
 
-class StreamTask : public UpdateDriveTaskBase
+class StreamTask : public ModifyApprovalTaskBase
 {
     std::mutex  m_mutex;
     
@@ -76,7 +76,7 @@ public:
                  DriveParams&                drive,
                  ModifyOpinionController&    opinionTaskController )
             :
-              UpdateDriveTaskBase( DriveTaskType::STREAM_REQUEST, drive, opinionTaskController )
+    ModifyApprovalTaskBase( DriveTaskType::STREAM_REQUEST, drive, {}, opinionTaskController )
             , m_request( std::move(request) )
     {
         _ASSERT( m_request )
@@ -239,6 +239,15 @@ public:
         tryDownloadNextChunk();
     }
     
+    virtual std::optional<std::array<uint8_t,32>> getStreamId() override
+    {
+        if ( m_request )
+        {
+            return m_request->m_streamId.array();
+        }
+        return {};
+    }
+
     void requestMissingChunkInfo( uint32_t chunkIndex, const boost::asio::ip::udp::endpoint& sender )
     {
         DBG_MAIN_THREAD
@@ -484,133 +493,6 @@ public:
         return m_request->m_maxSizeBytes;
     }
 
-    void shareMyOpinion()
-    {
-        DBG_MAIN_THREAD
-
-        std::ostringstream os( std::ios::binary );
-        cereal::PortableBinaryOutputArchive archive( os );
-        archive( *m_myOpinion );
-
-        for ( const auto& replicatorIt : m_drive.getAllReplicators())
-        {
-            m_drive.m_replicator.sendMessage( "opinion", replicatorIt.array(), os.str());
-        }
-    }
-
-    void myOpinionIsCreated() override
-    {
-        DBG_MAIN_THREAD
-
-        _ASSERT( m_myOpinion )
-
-        if ( m_taskIsInterrupted )
-        {
-            finishTask();
-            return;
-        }
-
-        m_sandboxCalculated = true;
-
-        if ( m_modifyApproveTxReceived )
-        {
-            sendSingleApprovalTransaction( *m_myOpinion );
-            startSynchronizingDriveWithSandbox();
-        }
-        else
-        {
-            // Send my opinion to other replicators
-            shareMyOpinion();
-            if ( auto session = m_drive.m_session.lock(); session )
-            {
-                m_shareMyOpinionTimer = session->startTimer( m_shareMyOpinionTimerDelayMs, [this]
-                {
-                    _LOG( "shareMyOpinion" )
-                    shareMyOpinion();
-                } );
-            }
-
-            // validate already received opinions
-            std::erase_if( m_receivedOpinions, [this]( const auto& item )
-            {
-                return !validateOpinion( item.second );
-            } );
-
-            // Maybe send approval transaction
-            checkOpinionNumberAndStartTimer();
-        }
-    }
-    
-    bool validateOpinion( const ApprovalTransactionInfo& anOpinion )
-    {
-        bool equal = m_myOpinion->m_rootHash == anOpinion.m_rootHash &&
-                     m_myOpinion->m_fsTreeFileSize == anOpinion.m_fsTreeFileSize &&
-                     m_myOpinion->m_metaFilesSize == anOpinion.m_metaFilesSize &&
-                     m_myOpinion->m_driveSize == anOpinion.m_driveSize;
-        return equal;
-    }
-
-    void checkOpinionNumberAndStartTimer()
-    {
-        DBG_MAIN_THREAD
-
-        // m_drive.getReplicator()List is the list of other replicators (it does not contain our replicator)
-#ifndef MINI_SIGNATURE
-        auto replicatorNumber = m_drive.getAllReplicators().size() + 1;
-#else
-        auto replicatorNumber = m_drive.getAllReplicators().size();//todo++++ +1;
-#endif
-
-// check opinion number
-        if ( m_myOpinion &&
-                m_receivedOpinions.size() >=
-             ((replicatorNumber) * 2) / 3 &&
-             !m_modifyApproveTransactionSent &&
-             !m_modifyApproveTxReceived )
-        {
-            // start timer if it is not started
-            if ( !m_modifyOpinionTimer )
-            {
-                if ( auto session = m_drive.m_session.lock(); session )
-                {
-                    m_modifyOpinionTimer = session->startTimer(
-                            m_drive.m_replicator.getModifyApprovalTransactionTimerDelay(),
-                            [this]()
-                            { opinionTimerExpired(); } );
-                }
-            }
-        }
-    }
-
-    void opinionTimerExpired()
-    {
-        DBG_MAIN_THREAD
-
-        if ( m_modifyApproveTransactionSent || m_modifyApproveTxReceived )
-            return;
-
-        ApprovalTransactionInfo info = {m_drive.m_driveKey.array(),
-                                        m_myOpinion->m_modifyTransactionHash,
-                                        m_myOpinion->m_rootHash,
-										m_myOpinion->m_status,
-                                        m_myOpinion->m_fsTreeFileSize,
-                                        m_myOpinion->m_metaFilesSize,
-                                        m_myOpinion->m_driveSize,
-                                        {}};
-
-        info.m_opinions.reserve( m_receivedOpinions.size() + 1 );
-        info.m_opinions.emplace_back( m_myOpinion->m_opinions[0] );
-        for ( const auto& otherOpinion : m_receivedOpinions )
-        {
-            info.m_opinions.emplace_back( otherOpinion.second.m_opinions[0] );
-        }
-
-        // notify event handler
-        m_drive.m_eventHandler.modifyApprovalTransactionIsReady( m_drive.m_replicator, info );
-
-        m_modifyApproveTransactionSent = true;
-    }
-    
     bool processedModifyOpinion( const ApprovalTransactionInfo& anOpinion ) override
     {
         _LOG( "processedModifyOpinion" )

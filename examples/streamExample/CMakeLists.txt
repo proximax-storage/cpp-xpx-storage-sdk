@@ -20,12 +20,7 @@ add_definitions(-DENABLE_VERIFICATIONS)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     add_definitions(-D_GNU_SOURCE)
-    target_link_libraries(streamExample
-            ${CMAKE_SOURCE_DIR}/libtorrent/_build/Debug/libtorrent-sirius.dylib
-            #${CMAKE_SOURCE_DIR}/libtorrent/cmake-build-debug/libtorrent-sirius.dylib
-#            ${CMAKE_SOURCE_DIR}/rpclib/build/librpc.a
-            crypto
-            )
+    target_link_libraries(streamExample drive crypto torrent-sirius )
     #        /usr/local/opt/openssl/lib/libssl.dylib
     #        /usr/local/opt/openssl/lib/libcrypto.dylib
     #        "-framework CoreFoundation" "-framework SystemConfiguration"
