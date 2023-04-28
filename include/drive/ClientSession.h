@@ -581,7 +581,9 @@ protected:
         return m_endpointsManager.getEndpoint(key);
     }
 
-    std::vector<std::array<uint8_t,32>> getTorrentHandleHashes() {
+public:
+    std::vector<std::array<uint8_t,32>> getTorrentHandleHashes()
+    {
         std::vector<std::array<uint8_t,32>> hashes;
         hashes.reserve(m_modifyTorrentMap.size());
         for( auto& [key,value]: m_modifyTorrentMap )
@@ -592,7 +594,6 @@ protected:
         return hashes;
     }
 
-public:
     void setSessionSettings(const lt::settings_pack& settings, bool localNodes)
     {
         m_session->lt_session().apply_settings(settings);
