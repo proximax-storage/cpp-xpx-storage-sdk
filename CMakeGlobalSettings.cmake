@@ -227,10 +227,7 @@ function(storage_sdk_executable TARGET_NAME)
 endfunction()
 
 function(storage_sdk_proto SERVICE DEPENDENCIES)
-        if (NOT SIRIUS_${SERVICE}_BUILT)
-                message(ERROR "hi hi" SIRIUS_${SERVICE}_BUILT)
-                set(SIRIUS_${SERVICE}_BUILT ON CACHE BOOL SIRIUS_${SERVICE}_BUILT)
-                # Proto file
+        if (NOT NOT_BUILD_SIRIUS_${SERVICE})
                 get_filename_component(${SERVICE}_proto "../protobuf/${SERVICE}.proto" ABSOLUTE)
                 get_filename_component(${SERVICE}_proto_path "${${SERVICE}_proto}" PATH)
                 list(APPEND DEPENDENCIES ${${SERVICE}_proto})
