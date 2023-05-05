@@ -70,6 +70,40 @@ public:
                 m_dbgEventHandler(dbgEventHandler),
                 m_dbgReplicatorName(dbgReplicatorName)
     {
+    	std::ostringstream os( std::ios::binary );
+    	cereal::PortableBinaryOutputArchive archive( os );
+
+    	class MyKeyPair {
+    	public:
+    		Key m_privateKey;
+    		Key m_publicKey;
+    	};
+
+    	const Key& pKey = reinterpret_cast<const MyKeyPair&>(m_keyPair).m_privateKey;
+    	archive( pKey.array() );
+
+    	archive( m_address );
+    	archive( m_port );
+    	archive( m_storageDirectory );
+    	archive( m_sandboxDirectory );
+    	int bootstrapNumber = (int) m_bootstraps.size();
+    	archive( bootstrapNumber );
+    	for( int i=0; i<bootstrapNumber; i++ )
+    	{
+    		const Key&  pubKey  = m_bootstraps[i].m_publicKey;
+    		std::string address = m_bootstraps[i].m_endpoint.address().to_string();
+    		uint16_t    port    = m_bootstraps[i].m_endpoint.port();
+    		archive( pubKey );
+    		archive( address );
+    		archive( port );
+    	}
+    	bool  dbgEventHandlerIsSet = (m_dbgEventHandler != nullptr);
+    	archive( dbgEventHandlerIsSet );
+    	archive( m_dbgReplicatorName );
+
+    	__LOG( "os.str().size(): " << os.str().size() );
+    	__LOG( "os.str(): " << int(os.str()[0]) << " "<< int(os.str()[1]) << " "<< int(os.str()[2]) << " "<< int(os.str()[3]) << " " );
+    	rpcCallArchStr( RPC_CMD::createReplicator, os.str() );
     }
     
     void startTcpServer( std::string address, std::uint16_t port )
@@ -262,41 +296,6 @@ public:
 
     virtual void start() override
     {
-        std::ostringstream os( std::ios::binary );
-        cereal::PortableBinaryOutputArchive archive( os );
-
-        class MyKeyPair {
-        public:
-            Key m_privateKey;
-            Key m_publicKey;
-        };
-
-        const Key& pKey = reinterpret_cast<const MyKeyPair&>(m_keyPair).m_privateKey;
-        archive( pKey.array() );
-        
-        archive( m_address );
-        archive( m_port );
-        archive( m_storageDirectory );
-        archive( m_sandboxDirectory );
-        int bootstrapNumber = (int) m_bootstraps.size();
-        archive( bootstrapNumber );
-        for( int i=0; i<bootstrapNumber; i++ )
-        {
-            const Key&  pubKey  = m_bootstraps[i].m_publicKey;
-            std::string address = m_bootstraps[i].m_endpoint.address().to_string();
-            uint16_t    port    = m_bootstraps[i].m_endpoint.port();
-            archive( pubKey );
-            archive( address );
-            archive( port );
-        }
-        bool  dbgEventHandlerIsSet = (m_dbgEventHandler != nullptr);
-        archive( dbgEventHandlerIsSet );
-        archive( m_dbgReplicatorName );
-
-        __LOG( "os.str().size(): " << os.str().size() );
-        __LOG( "os.str(): " << int(os.str()[0]) << " "<< int(os.str()[1]) << " "<< int(os.str()[2]) << " "<< int(os.str()[3]) << " " );
-        rpcCallArchStr( RPC_CMD::createReplicator, os.str() );
-
         rpcCall( RPC_CMD::start );
     }
 
