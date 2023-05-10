@@ -70,6 +70,33 @@ public:
                 m_dbgEventHandler(dbgEventHandler),
                 m_dbgReplicatorName(dbgReplicatorName)
     {
+    }
+    
+    void startTcpServer( std::string address, std::uint16_t port )
+    {
+        m_rpcPort = port;
+
+        RpcTcpServer::startTcpServer( address, port );
+
+#ifndef DEBUG_NO_DAEMON_REPLICATOR_SERVICE
+        startRemoteReplicator();
+#endif
+
+        __LOG("Waiting Remote Replicator Service connection...")
+        for( int i=0; i<6000; i++) // wait 60 secs
+        {
+            if ( m_isRemoteServiceConnected )
+            {
+                __LOG("...Remote Replicator Service connected")
+                return;
+            }
+            usleep(10000);
+        }
+        
+        _LOG_ERR("Remote Replicator Service not connected!")
+    }
+
+	void sendCreateReplicator() {
     	std::ostringstream os( std::ios::binary );
     	cereal::PortableBinaryOutputArchive archive( os );
 
@@ -104,31 +131,7 @@ public:
     	__LOG( "os.str().size(): " << os.str().size() );
     	__LOG( "os.str(): " << int(os.str()[0]) << " "<< int(os.str()[1]) << " "<< int(os.str()[2]) << " "<< int(os.str()[3]) << " " );
     	rpcCallArchStr( RPC_CMD::createReplicator, os.str() );
-    }
-    
-    void startTcpServer( std::string address, std::uint16_t port )
-    {
-        m_rpcPort = port;
-
-        RpcTcpServer::startTcpServer( address, port );
-
-#ifndef DEBUG_NO_DAEMON_REPLICATOR_SERVICE
-        startRemoteReplicator();
-#endif
-
-        __LOG("Waiting Remote Replicator Service connection...")
-        for( int i=0; i<6000; i++) // wait 60 secs
-        {
-            if ( m_isRemoteServiceConnected )
-            {
-                __LOG("...Remote Replicator Service connected")
-                return;
-            }
-            usleep(10000);
-        }
-        
-        _LOG_ERR("Remote Replicator Service not connected!")
-    }
+	}
 
     ~RpcReplicator() override
     {
@@ -645,6 +648,8 @@ PLUGIN_API std::shared_ptr<Replicator> createRpcReplicator(
                         dbgReplicatorName );
 
     replicator->startTcpServer( rpcAddress, rpcPort );
+
+	replicator->sendCreateReplicator();
 
     return replicator;
 }
