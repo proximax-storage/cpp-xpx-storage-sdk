@@ -553,6 +553,13 @@ protected:
         m_session->onTorrentDeleted( handle );
     }
 
+    void onCacheFlushed( lt::torrent_handle handle ) override
+    {
+        m_session->onCacheFlushed( handle );
+    }
+
+protected:
+
 //    void setDownloadChannelRequestedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
 //    {
 //        auto it = m_downloadChannelMap.find(downloadChannelId);

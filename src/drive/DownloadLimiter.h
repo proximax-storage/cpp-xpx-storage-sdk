@@ -66,6 +66,10 @@ public:
         m_session->onTorrentDeleted( handle );
     }
 
+    void onCacheFlushed( lt::torrent_handle handle ) override
+    {
+        m_session->onCacheFlushed( handle );
+    }
     
     void printReport( std::array<uint8_t,32> txHash )
     {

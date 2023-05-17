@@ -63,6 +63,12 @@ struct LtClientData
         ~RemoveNotifyer() { m_notifyer(); }
         std::function<void()> m_notifyer = {};
     };
+
+    enum class FinishStatus {
+        TORRENT_ADDED,
+        TORRENT_FINISHED,
+        TORRENT_FLUSHED
+    };
     
     std::shared_ptr<RemoveNotifyer> m_removeNotifyer;
 
@@ -76,6 +82,8 @@ struct LtClientData
     
     bool                            m_isRemoved           = false;
     Timer                           m_releaseFilesTimer;
+
+    FinishStatus                    m_finishStatus = FinishStatus::TORRENT_ADDED;
 };
 
 //
@@ -273,6 +281,10 @@ public:
         }
     }
 
+    void onCacheFlushed( lt::torrent_handle handle ) override
+    {
+        onTorrentFinished(handle);
+    }
 
     lt::settings_pack generateSessionSettings(bool useTcpSocket, const endpoint_list& bootstraps)
     {
@@ -872,6 +884,9 @@ private:
             return;
         }
 
+        _ASSERT(userdata->m_finishStatus == LtClientData::FinishStatus::TORRENT_FINISHED);
+        userdata->m_finishStatus = LtClientData::FinishStatus::TORRENT_FLUSHED;
+
         if ( userdata->m_dnContexts.size() > 0 )
         {
             auto dnContext = userdata->m_dnContexts.front();
@@ -1263,17 +1278,10 @@ private:
                     auto userdata = theAlert->handle.userdata().get<LtClientData>();
                     _ASSERT( userdata != nullptr )
 
-                    auto sWeak = weak_from_this();
-                    auto s = sWeak.lock();
+                    _ASSERT( userdata->m_finishStatus ==
+                             LtClientData::FinishStatus::TORRENT_ADDED );
 
-                    userdata->m_releaseFilesTimer = Timer(m_session.get_context(), 2,[sessionWeak=weak_from_this(), handle=theAlert->handle] {
-
-                        auto session = sessionWeak.lock();
-                        if (session) {
-                            session->onTorrentFinished(handle);
-                        }
-                    });
-//                    onTorrentFinished(theAlert->handle);
+                    userdata->m_finishStatus = LtClientData::FinishStatus::TORRENT_FINISHED;
                     break;
                 }
                     
