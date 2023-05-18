@@ -18,7 +18,7 @@ namespace sirius { namespace drive {
 
 void ActionList::serialize( std::string fileName ) const
 {
-    std::ofstream os( fileName, std::ios::binary );
+    std::ofstream os( fileName, std::ios::binary | std::ios::trunc );
     cereal::PortableBinaryOutputArchive archive( os );
     archive( *this );
 }

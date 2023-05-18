@@ -267,7 +267,10 @@ public:
             }
         }
 
+
         newActionList.serialize( (workFolder/"actionList.bin").string() );
+        _ASSERT(fs::exists(workFolder/"actionList.bin"))
+        _ASSERT(fs::file_size(workFolder/"actionList.bin") > 0)
 
         InfoHash infoHash0 = createTorrentFile( (workFolder/"actionList.bin").string(), drivePublicKey, workFolder.string(), {} );
 
