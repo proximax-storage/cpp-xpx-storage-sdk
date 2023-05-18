@@ -442,6 +442,10 @@ private:
 
         _ASSERT( m_myVerifyCodesCalculated )
 
+        if (m_myOpinion) {
+            return;
+        }
+
         auto replicatorNumber = m_request->m_replicators.size();
 
         // check code number
@@ -487,8 +491,6 @@ private:
         _ASSERT( !m_verificationMustBeInterrupted )
 
         m_verifyApproveTxSent = true;
-        m_verifyCodeTimer.cancel();
-        m_verifyOpinionTimer.cancel();
 
         m_drive.m_eventHandler.verificationTransactionIsReady( m_drive.m_replicator, *m_myVerificationApprovalTxInfo );
     }
