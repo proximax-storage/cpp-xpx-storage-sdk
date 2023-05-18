@@ -451,7 +451,7 @@ public:
         params.flags |= lt::torrent_flags::seed_mode;
         params.flags |= lt::torrent_flags::upload_mode;
         params.flags |= lt::torrent_flags::no_verify_files;
-        
+
         // set super seeding mode for clients
 //        if ( !(siriusFlags & lt::sf_is_replicator) )
 //        {
@@ -468,6 +468,8 @@ public:
             params.m_channelId = *channelId;
         if ( modifyTx )
             params.m_modifyTx = *modifyTx;
+
+        auto hash = params.ti->info_hashes().get_best();
 
         //dbg///////////////////////////////////////////////////
 //        auto tInfo = lt::torrent_info(buffer, lt::from_span);
@@ -491,6 +493,7 @@ public:
         if ( outTotalSize != nullptr )
         {
             *outTotalSize = tHandle.torrent_file()->total_size();
+            _LOG("Out total size " << hash << " " << *outTotalSize)
         }
 
         return tHandle;
