@@ -107,6 +107,10 @@ public:
         m_upperSandboxFsTree->initializeStatistics();
         m_upperSandboxFilesSize = m_lowerSandboxFilesSize;
 
+        for (const auto& serviceFolder: request.m_serviceFolders) {
+            m_upperSandboxFsTree->addFolder(serviceFolder);
+        }
+
         request.m_callback( InitiateSandboxModificationsResponse{} );
         return true;
     }

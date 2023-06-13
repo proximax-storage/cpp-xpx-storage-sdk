@@ -104,6 +104,7 @@ message InitModificationsResponse {
 
 message InitSandboxRequest {
   bytes drive_key = 1;
+  repeated string service_folders = 2;
 }
 
 message InitSandboxResponse {

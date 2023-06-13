@@ -40,12 +40,15 @@ void InitiateSandboxModificationsRequestContext::processRequest()
         return;
     }
 
-    InitiateSandboxModificationsRequest request;
     Key driveKey( *reinterpret_cast<const std::array<uint8_t, 32>*>(m_request.drive_key().data()));
-    request.m_callback = [pThis = shared_from_this()]( auto response )
-    {
+    std::vector<std::string> serviceFolders;
+    for (int i = 0; i < m_request.service_folders_size(); i++) {
+        serviceFolders.emplace_back(m_request.service_folders(i).begin(),
+                                  m_request.service_folders(i).end());
+    }
+    InitiateSandboxModificationsRequest request( serviceFolders, [pThis = shared_from_this()]( auto response ) {
         pThis->onCallExecuted( response );
-    };
+    } );
     executor->initiateManualSandboxModifications( driveKey, request );
 }
 

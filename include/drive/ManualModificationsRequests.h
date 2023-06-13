@@ -31,7 +31,18 @@ struct InitiateSandboxModificationsResponse
 
 struct InitiateSandboxModificationsRequest
 {
+    std::vector<std::string> m_serviceFolders;
     std::function<void( std::optional<InitiateSandboxModificationsResponse> )> m_callback;
+
+    InitiateSandboxModificationsRequest(
+            std::function<void( std::optional<InitiateSandboxModificationsResponse> )>&& callback )
+            : m_callback( std::move( callback )) {}
+
+    InitiateSandboxModificationsRequest(
+            const std::vector<std::string>& serviceFolders,
+            std::function<void( std::optional<InitiateSandboxModificationsResponse> )>&& callback )
+            : m_serviceFolders( serviceFolders )
+            , m_callback( std::move( callback )) {}
 };
 
 enum class OpenFileMode
