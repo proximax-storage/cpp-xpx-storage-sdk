@@ -96,6 +96,39 @@ public:
     {
         m_errorHandler = errorHandler;
     }
+
+    void addTorrentFileToSession(const std::string &torrentFilename,
+                                 const std::string &folderWhereFileIsLocated,
+                                 const std::array<uint8_t, 32>& driveKey,
+                                 const std::array<uint8_t, 32> &modifyTx,
+                                 const ReplicatorList& replicatorKeys) {
+        auto infoHash = stringToByteArray<Hash256>( torrentFilename );
+        fs::path filenameInSandbox = folderWhereFileIsLocated + "/" + torrentFilename;
+        fs::path torrentFilenameInSandbox = filenameInSandbox;
+        torrentFilenameInSandbox.replace_extension(".torrent");
+
+        endpoint_list endpoints;
+        for( const auto& key: replicatorKeys )
+        {
+            auto endpoint = m_endpointsManager.getEndpoint( key );
+            if ( endpoint )
+            {
+                endpoints.push_back( *endpoint );
+            }
+        }
+
+        uint64_t totalSize = 0;
+        lt_handle torrentHandle = m_session->addTorrentFileToSession(torrentFilenameInSandbox.string(),
+                                                                     folderWhereFileIsLocated,
+                                                                     lt::SiriusFlags::client_has_modify_data,
+                                                                     &driveKey,
+                                                                     nullptr,
+                                                                     &modifyTx,
+                                                                     endpoints,
+                                                                     &totalSize);
+
+        m_modifyTorrentMap[infoHash] = {torrentHandle, false};
+    }
     
     void setEndpointHandler()
     {
