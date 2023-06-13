@@ -46,6 +46,8 @@ void sirius::drive::messenger::MessageWriter::write()
     auto message = std::move( m_messages.front());
     m_messages.pop();
 
+	std::cout << "write message " << message.m_tag;
+
     auto* inputMessage = new messengerServer::InputMessage();
     inputMessage->set_tag( message.m_tag );
     inputMessage->set_content( message.m_data );

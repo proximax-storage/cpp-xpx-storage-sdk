@@ -27,7 +27,7 @@ message Subscribe {
 message OutputMessage {
   bytes receiver = 1;
   string tag = 2;
-  string content = 3;
+  bytes content = 3;
 }
 
 message ClientMessage {
@@ -39,7 +39,7 @@ message ClientMessage {
 
 message InputMessage {
   string tag = 2;
-  string content = 3;
+  bytes content = 3;
 }
 
 message ServerMessage {

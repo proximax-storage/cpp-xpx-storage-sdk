@@ -1694,6 +1694,8 @@ public:
                 if (!enqueued) {
                     m_messageSubscribers.erase(it);
                 }
+
+				return;
             }
 //        else if ( query == "finish-stream" )
 //        {
@@ -1976,7 +1978,8 @@ public:
                  "endpoint_response",
                  "chunk-info" //, "finish-stream"
                 };
-        if ( supportedQueries.contains( query ))
+        if ( supportedQueries.contains( query ) ||
+			m_messageSubscribers.contains(std::string(query.begin(), query.end())))
         {
             auto str = message.dict_find_string_value( "x" );
             std::string packet((char*) str.data(), (char*) str.data() + str.size());
