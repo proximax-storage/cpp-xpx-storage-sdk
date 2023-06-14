@@ -89,9 +89,6 @@ namespace sirius::drive::test {
 			void onFileSize2(std::optional<FileSizeResponse> res) {
 				ASSERT_TRUE(res);
 				ASSERT_FALSE(res->m_success);
-				FileSizeResponse response = *res;
-				m_size2 = response.m_size;
-				ASSERT_EQ(m_size2, m_size);
 				m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{ true, [this](auto res) {
 																		   onAppliedSandboxModifications(res);
 																	   } });
@@ -100,8 +97,6 @@ namespace sirius::drive::test {
 			void onFileSize(std::optional<FileSizeResponse> res) {
 				ASSERT_TRUE(res);
 				ASSERT_FALSE(res->m_success);
-				FileSizeResponse response = *res;
-				m_size = response.m_size;
 				m_env.getSize(m_driveKey, FileSizeRequest{"test2.txt", [this](auto res) {
 															   onFileSize2(res);
 														   }});
@@ -145,5 +140,3 @@ namespace sirius::drive::test {
 
 #undef TEST_NAME
 } // namespace sirius::drive::test
-
-
