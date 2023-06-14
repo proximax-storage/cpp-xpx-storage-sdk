@@ -161,7 +161,7 @@ namespace sirius::drive::test {
                                                                  onFileWritten2(res);
                                                              } });
             }
-			
+
             void onFileClosed(std::optional<CloseFileResponse> res) {
                 ASSERT_TRUE(res);
                 ASSERT_TRUE(res->m_success);
@@ -299,12 +299,10 @@ namespace sirius::drive::test {
                                               onStorageHashEvaluated(res);
                                           } });
             }
-			
+
 			void onFileSize(std::optional<FileSizeResponse> res) {
 				ASSERT_TRUE(res);
                 ASSERT_FALSE(res->m_success);
-				FileSizeResponse response = *res;
-				m_size = response.m_size;
 				m_env.applySandboxManualModifications(m_driveKey, ApplySandboxModificationsRequest{ true, [this](auto res) {
 																		   onAppliedSandboxModifications(res);
 																	   } });
