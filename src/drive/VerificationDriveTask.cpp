@@ -59,7 +59,7 @@ public:
             std::vector<VerificationCodeInfo>&& receivedCodes,
             DriveParams& drive)
             : DriveTaskBase(DriveTaskType::DRIVE_VERIFICATION, drive)
-            , m_request(request)
+            , m_request( std::move(request) )
             , m_myVerifyCodesCalculated(false)
 			, m_codeTimerRun(false)
             , m_verifyApproveTxSent(false)

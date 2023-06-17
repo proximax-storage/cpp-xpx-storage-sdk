@@ -24,7 +24,7 @@ public:
     CloseDriveDriveTask( mobj<DriveClosureRequest>&& request,
                          DriveParams& drive ) :
             DriveTaskBase(DriveTaskType::DRIVE_CLOSURE, drive),
-            m_request(request)
+            m_request( std::move(request) )
     {
         _ASSERT( m_request )
     }
@@ -54,7 +54,7 @@ public:
             {
                 if ( m_request->m_removeDriveTx )
                 {
-                    m_drive.m_replicator.closeDriveChannels(*m_request->m_removeDriveTx, m_drive.m_driveKey);
+                    m_drive.m_replicator.closeDriveChannels( std::make_unique<Hash256>(*m_request->m_removeDriveTx), m_drive.m_driveKey);
                 }
                 m_drive.executeOnBackgroundThread( [this]
                                                    {
