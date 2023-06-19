@@ -122,17 +122,22 @@ class Replicator;
 
     struct CatchingUpRequest
     {
+        CatchingUpRequest( const InfoHash& rootHash, const Hash256& modifyTransactionHash ) : m_rootHash(rootHash), m_modifyTransactionHash(modifyTransactionHash) {}
+
         InfoHash m_rootHash;
         Hash256 m_modifyTransactionHash;
     };
 
     struct ModificationCancelRequest
     {
+        ModificationCancelRequest( const Hash256& modifyTransactionHash ) : m_modifyTransactionHash(modifyTransactionHash) {}
         Hash256 m_modifyTransactionHash;
     };
 
     struct DriveClosureRequest
     {
+        DriveClosureRequest() = default;
+        DriveClosureRequest( const Hash256& removeDriveTx ) : m_removeDriveTx(removeDriveTx) {}
         std::optional<Hash256> m_removeDriveTx;
     };
 
@@ -402,6 +407,16 @@ class Replicator;
 
     struct DownloadApprovalTransactionInfo
     {
+        DownloadApprovalTransactionInfo() = default;
+        DownloadApprovalTransactionInfo( const std::array<uint8_t,32>&        blockHash,
+                                         const std::array<uint8_t,32>&        downloadChannelId,
+                                         const std::vector<DownloadOpinion>&  opinions )
+        :
+            m_blockHash(blockHash),
+            m_downloadChannelId(downloadChannelId),
+            m_opinions(opinions)
+        {}
+        
         // Its id
         std::array<uint8_t,32>  m_blockHash;
         

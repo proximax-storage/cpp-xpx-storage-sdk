@@ -272,7 +272,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        boost::asio::post(m_session->lt_session().get_context(), [=,driveRequest=std::move(driveRequest),this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -343,7 +343,7 @@ public:
 
             if ( auto drive = getDrive(driveKey); drive )
             {
-                drive->startDriveClosing(  DriveClosureRequest() );
+                drive->startDriveClosing(  std::make_unique<DriveClosureRequest>() );
             }
             else
             {
@@ -357,7 +357,7 @@ public:
     {
     	_FUNC_ENTRY()
 
-    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+    	boost::asio::post(m_session->lt_session().get_context(), [=,replicatorKeys=std::move(replicatorKeys),this]() mutable
     	{
     		DBG_MAIN_THREAD
 
@@ -387,7 +387,7 @@ public:
 	{
     	_FUNC_ENTRY()
 
-    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+    	boost::asio::post(m_session->lt_session().get_context(), [=,replicatorKeys=std::move(replicatorKeys),this]() mutable
     	{
     		DBG_MAIN_THREAD
 
@@ -407,7 +407,7 @@ public:
 	{
     	_FUNC_ENTRY()
 
-    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+    	boost::asio::post(m_session->lt_session().get_context(), [=,replicatorKeys=std::move(replicatorKeys),this]() mutable
     	{
     		DBG_MAIN_THREAD
 
@@ -424,7 +424,7 @@ public:
 	}
 
 	virtual void asyncSetChanelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys ) override {
-    	boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
+    	boost::asio::post(m_session->lt_session().get_context(), [channelId=std::move(channelId),replicatorKeys=std::move(replicatorKeys),this]() mutable
     	{
     		DBG_MAIN_THREAD
 
@@ -455,7 +455,7 @@ public:
 
             if ( auto drive = getDrive(driveKey); drive )
             {
-                drive->startDriveClosing( { transactionHash } );
+                drive->startDriveClosing( std::make_unique<DriveClosureRequest>(transactionHash) );
             }
             else
             {
@@ -471,7 +471,7 @@ public:
 
         _LOG( "+++ ex startModifyDrive: " << modifyRequest->m_clientDataInfoHash )
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        boost::asio::post(m_session->lt_session().get_context(), [=,modifyRequest=std::move(modifyRequest),this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -520,7 +520,7 @@ public:
 
             if ( const auto drive = getDrive(driveKey); drive )
             {
-                drive->cancelModifyDrive( transactionHash );
+                drive->cancelModifyDrive( std::make_unique<ModificationCancelRequest>(transactionHash) );
                 return;
             }
 
@@ -532,7 +532,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        boost::asio::post(m_session->lt_session().get_context(), [=,request=std::move(request),this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -581,7 +581,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        boost::asio::post(m_session->lt_session().get_context(), [=,request=std::move(request),this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -648,7 +648,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        boost::asio::post(m_session->lt_session().get_context(), [=,finishInfo=std::move(finishInfo),this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -673,7 +673,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        boost::asio::post(m_session->lt_session().get_context(), [=,request=std::move(request),this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -834,7 +834,7 @@ public:
     {
         _FUNC_ENTRY()
         
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        boost::asio::post(m_session->lt_session().get_context(), [=,anOpinion=std::move(anOpinion),this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -1110,9 +1110,9 @@ public:
             
             myOpinion.Sign( keyPair(), blockHash.array(), channelId.array() );
             
-            DownloadApprovalTransactionInfo transactionInfo{  blockHash.array(),
-                                                            channelId.array(),
-                                                            { myOpinion }};
+            auto transactionInfo = std::make_unique<DownloadApprovalTransactionInfo>( blockHash.array(),
+                                                                                      channelId.array(),
+                                                                                     std::vector<DownloadOpinion>{ myOpinion } );
             
             addOpinion( std::move(transactionInfo) );
             shareDownloadOpinion( channelId, blockHash );
@@ -1293,7 +1293,7 @@ public:
 
             if ( auto drive = getDrive( anOpinion.m_driveKey ); drive )
             {
-                drive->onOpinionReceived( anOpinion );
+                drive->onOpinionReceived( std::make_unique<ApprovalTransactionInfo>(anOpinion) );
             }
             else
             {
@@ -1316,7 +1316,7 @@ public:
         
         _LOG( "asyncApprovalTransactionHasBeenPublished, m_rootHash:" << Key(transaction->m_rootHash) )
         
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        boost::asio::post(m_session->lt_session().get_context(), [transaction=std::move(transaction),this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -1364,7 +1364,7 @@ public:
     {
         _FUNC_ENTRY()
        
-        boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
+        boost::asio::post(m_session->lt_session().get_context(), [transaction=std::move(transaction),this]() mutable {
         
             DBG_MAIN_THREAD
 
@@ -1528,7 +1528,7 @@ public:
                 std::istringstream is( message, std::ios::binary );
                 cereal::PortableBinaryInputArchive iarchive(is);
 
-                mobj<VerificationCodeInfo> info{VerificationCodeInfo{}};
+                auto info = std::make_unique<VerificationCodeInfo>();
                 iarchive( *info );
                 processVerificationCode( std::move(info) );
             }
@@ -1544,7 +1544,7 @@ public:
                 std::istringstream is( message, std::ios::binary );
                 cereal::PortableBinaryInputArchive iarchive(is);
                 
-                mobj<VerifyApprovalTxInfo> info{VerifyApprovalTxInfo{}};
+                auto info = std::make_unique<VerifyApprovalTxInfo>();
                 iarchive( *info );
                 processVerificationOpinion( std::move(info) );
             }
@@ -1606,7 +1606,7 @@ public:
                 
                 if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
                 {
-                    mobj<ChunkInfo> chunkInfo{ChunkInfo{}};
+                    auto chunkInfo = std::make_unique<ChunkInfo>();
                     iarchive( *chunkInfo );
                     _ASSERT( chunkInfo )
                     

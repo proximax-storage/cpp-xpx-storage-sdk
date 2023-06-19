@@ -128,37 +128,40 @@ namespace sirius {
         using Message        = std::vector<uint8_t>;
     }
 
+    template<class T>
+    using mobj = std::unique_ptr<T>;
+
     // movable/nullable object with Args... constructor
-    template< class T >
-    class PLUGIN_API mobj : public std::unique_ptr<T>
-    {
-    public:
-
-        mobj() = default;
-        mobj(mobj &&obj) = default;
-        mobj &operator=(mobj &&obj) = default;
-
-        template<typename... Args>
-        mobj(Args&&... args) : std::unique_ptr<T>(new T{std::forward<Args>(args)...})
-        {
-        }
-
+//    template< class T >
+//    class PLUGIN_API mobj : public std::unique_ptr<T>
+//    {
+//    public:
+//
+//        mobj() = default;
+//        mobj(mobj &&obj) = default;
+//        mobj &operator=(mobj &&obj) = default;
+//
 //        template<typename... Args>
-//        mobj &operator=(Args... args)
+//        mobj(Args&&... args) : std::unique_ptr<T>(new T{std::forward<Args>(args)...})
 //        {
-//            *this = std::move(std::unique_ptr<T>(new T{args...}));
+//        }
+//
+////        template<typename... Args>
+////        mobj &operator=(Args... args)
+////        {
+////            *this = std::move(std::unique_ptr<T>(new T{args...}));
+////            return *this;
+////        }
+//
+//        mobj(mobj &obj) : mobj<T>(std::move(obj))
+//        {}
+//
+//        mobj &operator=(mobj &obj)
+//        {
+//            *this = std::move(obj);
 //            return *this;
 //        }
-
-        mobj(mobj &obj) : mobj<T>(std::move(obj))
-        {}
-
-        mobj &operator=(mobj &obj)
-        {
-            *this = std::move(obj);
-            return *this;
-        }
-    };
+//    };
 
 
 }

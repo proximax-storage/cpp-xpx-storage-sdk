@@ -203,7 +203,7 @@ private:
                 _ASSERT( !foundAppropriateCancel )
                 foundAppropriateCancel = true;
                 _LOG( "Modification Has Been Cancelled During Initialization" );
-                m_drive.cancelModifyDrive( cancelRequest );
+                m_drive.cancelModifyDrive( std::make_unique<ModificationCancelRequest>(cancelRequest) );
             }
         }
 
@@ -216,7 +216,7 @@ private:
             _ASSERT( !foundAppropriateCancel )
             foundAppropriateCancel = true;
             _LOG( "Modification Has Been Cancelled During Offline" );
-            m_drive.cancelModifyDrive( ModificationCancelRequest{ it->m_modificationId } );
+            m_drive.cancelModifyDrive( std::make_unique<ModificationCancelRequest>( it->m_modificationId ) );
         }
 
         if ( m_opinionController.approvedModificationId() != m_drive.m_lastApprovedModification )
