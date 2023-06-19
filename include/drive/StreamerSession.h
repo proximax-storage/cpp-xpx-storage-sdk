@@ -179,10 +179,10 @@ public:
         }
 
         fs::path torrentFilename = m_torrentFolder / "finishStreamInfo";
-        InfoHash infoHash = createTorrentFile( finishStreamFilename, m_keyPair.publicKey(), m_chunkFolder, torrentFilename );
+        InfoHash infoHash = createTorrentFile( finishStreamFilename.string(), m_keyPair.publicKey(), m_chunkFolder.string(), torrentFilename.string() );
 
-        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename,
-                                                                      m_chunkFolder,
+        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename.string(),
+                                                                      m_chunkFolder.string(),
                                                                       lt::SiriusFlags::client_has_modify_data,
                                                                       &m_keyPair.publicKey().array(),
                                                                       nullptr,
@@ -234,7 +234,7 @@ public:
         
         uint64_t chunkSize = fs::file_size( tmp );
         
-        InfoHash chunkHash = createTorrentFile( tmp, m_keyPair.publicKey(), m_mediaFolder, {} );
+        InfoHash chunkHash = createTorrentFile( tmp.string(), m_keyPair.publicKey(), m_mediaFolder.string(), {} );
         fs::path chunkFilename = m_chunkFolder / toString( chunkHash );
 
         if ( dbgInfoHash != nullptr )
@@ -253,11 +253,11 @@ public:
             fs::create_symlink( tmp, chunkFilename );
 
             fs::path torrentFilename = m_torrentFolder / toString( chunkHash );
-            InfoHash chunkHash2 = createTorrentFile( chunkFilename, m_keyPair.publicKey(), m_chunkFolder, torrentFilename );
+            InfoHash chunkHash2 = createTorrentFile( chunkFilename.string(), m_keyPair.publicKey(), m_chunkFolder.string(), torrentFilename.string() );
             _ASSERT( chunkHash2 == chunkHash )
 
-            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename,
-                                                                          m_chunkFolder,
+            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename.string(),
+                                                                          m_chunkFolder.string(),
                                                                           lt::SiriusFlags::client_has_modify_data,
                                                                           &m_keyPair.publicKey().array(),
                                                                           nullptr,

@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.9)
 project(sdk_external)
 
+if(WIN32)
+	set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+	set(BUILD_SHARED_LIBS TRUE)
+endif()
+
 file(GLOB external_ref10_SRC
 	"ref10/*.cpp"
 	"ref10/*.h")
