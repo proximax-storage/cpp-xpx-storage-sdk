@@ -1380,23 +1380,22 @@ private:
 
                                                 auto size = fs::file_size( filePath );
 
-                                                auto hash = size > 0 ? createTorrentFile( filePath,
-                                                                               m_drive.m_driveKey,
-                                                                               filePath.parent_path(),
-                                                                               torrentPath ) : Hash256();
+                                                auto hash = size > 0 ?
+                                                		calculateInfoHash(filePath, m_drive.m_driveKey) : Hash256();
 
                                                 try
                                                 {
-                                                    if ( hash == Hash256() || m_drive.m_torrentHandleMap.contains( hash ) )
-                                                    {
-                                                        fs::remove( filePath );
-                                                        fs::remove( torrentPath );
-                                                    } else
-                                                    {
-                                                        fs::rename( filePath, m_drive.m_driveFolder / toString( hash ));
-                                                        fs::rename( torrentPath,
-                                                                    m_drive.m_torrentFolder / toString( hash ));
-                                                    }
+                                                	if ( hash == Hash256() || m_drive.m_torrentHandleMap.contains( hash ) )
+                                                	{
+                                                		fs::remove( filePath );
+                                                	} else
+                                                	{
+                                                		fs::rename( filePath, m_drive.m_driveFolder / toString( hash ));
+                                                		createTorrentFile( m_drive.m_driveFolder / toString( hash ),
+																		   m_drive.m_driveKey,
+																		   m_drive.m_driveFolder,
+																		   m_drive.m_torrentFolder / toString( hash ) );
+                                                	}
                                                     file.setHash( hash );
                                                     file.setSize( size );
                                                     file.setIsModifiable( false );

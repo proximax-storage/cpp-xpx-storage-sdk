@@ -1164,7 +1164,7 @@ public:
             if ( isFile( *ptr ))
             {
                 auto& file = getFile( *ptr );
-                std::string absolutePath = (m_driveFolder / toString( file.hash())).string();
+                std::string absolutePath = fs::absolute(m_driveFolder / toString( file.hash())).string();
 
                 response.m_exists = true;
                 response.m_path = absolutePath;
