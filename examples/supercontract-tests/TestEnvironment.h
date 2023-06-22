@@ -450,6 +450,16 @@ public:
         }
     }
 
+    virtual void getSize(const DriveKey& driveKey, const FileSizeRequest& request) {
+        const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
+        for (auto& key : m_drives[driveKey].m_driveRequest.m_fullReplicatorList) {
+            auto replicator = getReplicator(key);
+            if (replicator) {
+                replicator->fileSize(driveKey, request);
+            }
+        }
+    }
+
     virtual void pathExist(const DriveKey& driveKey, const PathExistRequest& request) {
         const std::unique_lock<std::mutex> lock(m_transactionInfoMutex);
         for (auto& key : m_drives[driveKey].m_driveRequest.m_fullReplicatorList) {
