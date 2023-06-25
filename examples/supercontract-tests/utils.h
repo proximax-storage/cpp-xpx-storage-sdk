@@ -1,11 +1,13 @@
 #pragma once
 
 #include <condition_variable>
+#include <utility>
 #include <drive/FsTree.h>
 #include "types.h"
 #include "drive/ClientSession.h"
 #include "drive/Utils.h"
 #include "crypto/Signer.h"
+#include "gtest/gtest.h"
 
 namespace sirius::drive::test
 {
@@ -181,6 +183,215 @@ __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
                 return m_downloadCompleted[infoHash];
             });
         }
+    };
+
+
+    /// Handler that creates directories and files in \a environment with specified \a driveKey.
+    template<typename TEnvironment>
+    class TestHandlerPrepareFsTree {
+    public:
+        TestHandlerPrepareFsTree(
+                TEnvironment& environment,
+                DriveKey driveKey)
+                : m_environment(environment)
+                , m_driveKey(std::move(driveKey)) {}
+
+    public:
+        /// Gets promise.
+        std::promise<void>& promise() {
+            return m_promise;
+        }
+
+        /// Initiates a series of modifications that will create requested directories and files.
+        /// \a requestedFsTree maps requested directories to files that should be created in those directories.
+        /// Inner map of \a requestedFsTree maps names of requested files to their sizes (in bytes).
+        void initiateManualModifications(
+                const std::map<std::string, std::map<std::string, size_t>>& requestedFsTree,
+                const bool applyStorageModifications = false) {
+            for (const auto& [directoryAbsolutePath, filesMap] : requestedFsTree) {
+                m_requestedDirectories.insert(directoryAbsolutePath);
+                for (const auto& [fileName, fileSize] : filesMap) {
+                    const bool isAtRoot = directoryAbsolutePath == "";
+                    const auto fileAbsolutePath = isAtRoot ? fileName : (directoryAbsolutePath + "/" + fileName);
+                    m_requestedFiles.emplace(fileAbsolutePath, fileSize);
+                }
+            }
+            m_applyStorageModifications = applyStorageModifications;
+            initiateManualModifications();
+        }
+
+        /// Initiates a series of modifications that will create requested files in root.
+        /// \a requestedFiles maps names of requested files to their sizes (in bytes).
+        void initiateManualModifications(
+                const std::map<std::string, size_t>& requestedFiles,
+                const bool applyStorageModifications = false) {
+            m_requestedDirectories.insert("");
+            for (const auto& [fileName, fileSize] : requestedFiles) {
+                m_requestedFiles.emplace(fileName, fileSize);
+            }
+            m_applyStorageModifications = applyStorageModifications;
+            initiateManualModifications();
+        }
+
+    private:
+        void onStorageModificationsApplied(std::optional<ApplyStorageModificationsResponse> response) {
+            ASSERT_TRUE(response);
+            m_promise.set_value();
+        }
+
+        void onStorageHashEvaluated(std::optional<EvaluateStorageHashResponse> res) {
+            ASSERT_TRUE(res);
+            if (m_applyStorageModifications) {
+                m_environment.applyStorageManualModifications(
+                        m_driveKey,
+                        ApplyStorageModificationsRequest{
+                            true,
+                            [this](auto response) { onStorageModificationsApplied(response); }
+                        });
+            } else {
+                m_promise.set_value();
+            }
+        }
+
+        void onSandboxModificationsApplied(std::optional<ApplySandboxModificationsResponse> response) {
+            ASSERT_TRUE(response);
+            ASSERT_TRUE(response->m_success);
+            m_environment.evaluateStorageHash(
+                    m_driveKey,
+                    EvaluateStorageHashRequest{
+                        [this](auto res) { onStorageHashEvaluated(res); }
+                    });
+        }
+
+        void onFileClosed(std::optional<CloseFileResponse> response) {
+            ASSERT_TRUE(response);
+            ASSERT_TRUE(response->m_success);
+
+            ++m_fileIter;
+            if (m_fileIter != m_requestedFiles.end()) {
+                const auto& fileAbsolutePath = m_fileIter->first;
+                m_environment.openFile(
+                        m_driveKey,
+                        OpenFileRequest{
+                            OpenFileMode::WRITE,
+                            fileAbsolutePath,
+                            [this](auto response) { onFileOpened(response); }
+                        });
+            } else {
+                m_environment.applySandboxManualModifications(
+                        m_driveKey,
+                        ApplySandboxModificationsRequest{
+                            true,
+                            [this](auto response) { onSandboxModificationsApplied(response); }
+                        });
+            }
+        }
+
+        void onFileFlushed(std::optional<FlushResponse> response) {
+            ASSERT_TRUE(response);
+            ASSERT_TRUE(response->m_success);
+            m_environment.closeFile(
+                    m_driveKey,
+                    CloseFileRequest{
+                        m_fileId,
+                        [this](auto response) { onFileClosed(response); }
+                    });
+        }
+
+        void onFileWritten(std::optional<WriteFileResponse> response) {
+            ASSERT_TRUE(response);
+            ASSERT_TRUE(response->m_success);
+            m_environment.flush(
+                    m_driveKey,
+                    FlushRequest{
+                        m_fileId,
+                        [this](auto response) { onFileFlushed(response); }
+                    });
+        }
+
+        void onFileOpened(std::optional<OpenFileResponse> response) {
+            ASSERT_TRUE(response);
+            auto responseValue = *response;
+            ASSERT_TRUE(responseValue.m_fileId);
+            m_fileId = *responseValue.m_fileId;
+
+            const auto& fileSize = m_fileIter->second;
+            std::vector<uint8_t> buffer(fileSize);
+            for (auto& byte : buffer)
+                byte = static_cast<uint8_t>(rand() % 256);
+
+            m_environment.writeFile(
+                    m_driveKey,
+                    WriteFileRequest{
+                        m_fileId,
+                        std::move(buffer),
+                        [this](auto response) { onFileWritten(response); }
+                    });
+        }
+
+        void onDirectoryCreated(std::optional<CreateDirectoriesResponse> response) {
+            ASSERT_TRUE(response);
+
+            ++m_directoryIter;
+            if (m_directoryIter != m_requestedDirectories.end()) {
+                m_environment.createDirectories(
+                        m_driveKey,
+                        CreateDirectoriesRequest{
+                            *m_directoryIter,
+                            [this](auto response) { onDirectoryCreated(response); }
+                        });
+            } else {
+                const auto& fileAbsolutePath = m_fileIter->first;
+                m_environment.openFile(
+                        m_driveKey,
+                        OpenFileRequest{
+                            OpenFileMode::WRITE,
+                            fileAbsolutePath,
+                            [this](auto response) { onFileOpened(response); }
+                        });
+            }
+        }
+
+        void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> response) {
+            ASSERT_TRUE(response);
+            m_environment.createDirectories(
+                    m_driveKey,
+                    CreateDirectoriesRequest{
+                        *m_directoryIter,
+                        [this](auto response) { onDirectoryCreated(response); }
+                    });
+        }
+
+        void onManualModificationsInitiated(std::optional<InitiateModificationsResponse> response) {
+            ASSERT_TRUE(response);
+            m_environment.initiateManualSandboxModifications(
+                    m_driveKey,
+                    InitiateSandboxModificationsRequest{
+                        [this](auto response) { onSandboxModificationsInitiated(response); }
+                    });
+        }
+
+        void initiateManualModifications() {
+            m_directoryIter = m_requestedDirectories.begin();
+            m_fileIter = m_requestedFiles.begin();
+            m_environment.initiateManualModifications(
+                    m_driveKey,
+                    InitiateModificationsRequest{
+                            randomByteArray<Hash256>(),
+                            [&](auto response) { onManualModificationsInitiated(response); }
+                    });
+        }
+
+    private:
+        std::promise<void> m_promise;
+        TEnvironment& m_environment;
+        DriveKey m_driveKey;
+        std::set<std::string> m_requestedDirectories;
+        std::map<std::string, size_t> m_requestedFiles;
+        bool m_applyStorageModifications;
+        std::set<std::string>::iterator m_directoryIter;
+        std::map<std::string, size_t>::iterator m_fileIter;
+        uint64_t m_fileId;
     };
 
     /// Some Functions For Tests
