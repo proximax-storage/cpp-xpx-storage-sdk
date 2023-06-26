@@ -10,7 +10,7 @@ pipeline {
     }
 
     stages {
-    stage ('Build') {
+        stage ('Build') {
             steps {
                 echo 'build inside a docker'
                 script {
@@ -31,10 +31,23 @@ pipeline {
                         && mkdir _build \
                         && cd _build \
                         && cmake .. \
-                        && make
+                        && make -j4
                     """
                 }
             }
+            post {
+                always {
+                    archiveArtifacts "_build/bin/*"
+                }
+            }
+        }
+    }
+    
+    post {
+        failure {
+            slackSend channel: '#devops',
+              color: 'bad',
+              message: "Branch *${env.GIT_BRANCH}* of *${currentBuild.fullDisplayName}* FAILED :scream:"
         }
     }
 }
