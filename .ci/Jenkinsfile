@@ -16,7 +16,8 @@ pipeline {
                 script {
                     sh """
                     # install dependencies
-                    apt-get update && apt-get install --no-install-recommends -y \
+                    sudo apt-get update 
+                    sudo apt-get install --no-install-recommends -y \
                         software-properties-common \
                         git \
                         build-essential \
