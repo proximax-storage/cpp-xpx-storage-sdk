@@ -1,0 +1,40 @@
+pipeline {
+    agent {
+        node {
+            label 'docker-build-node'
+        }
+    }
+
+    options {
+        timestamps()
+    }
+
+    stage ('Build') {
+        steps {
+            echo 'build inside a docker'
+            script {
+                sh """
+                # install dependencies
+                apt-get update && apt-get install --no-install-recommends -y \
+                    software-properties-common \
+                    git \
+                    build-essential \
+                    cmake \
+                    libboost-all-dev \
+                    libssl-dev \
+                    openssl \
+                    libgtest-dev
+
+                rm -rf _build \
+                    && mkdir _build \
+                    && cd _build \
+                    && cmake .. \
+                    && make
+                """
+            }
+        }
+    }
+
+
+
+}
