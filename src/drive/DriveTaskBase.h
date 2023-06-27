@@ -148,6 +148,11 @@ public:
 
         return os.str();
     }
+    
+    virtual std::optional<std::array<uint8_t,32>> getStreamId()
+    {
+        return {};
+    }
 
     virtual bool initiateSandboxModifications( const InitiateSandboxModificationsRequest& request )
     {

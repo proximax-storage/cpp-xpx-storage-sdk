@@ -55,8 +55,8 @@ inline std::string current_time()
     //
     //
     char buf[40];
-    sprintf(buf, "%04ld.%02ld.%02ld %02ld:%02ld:%02ld.%03ld",
-            year, month, day, hours, minutes, seconds, milliseconds);
+    std::snprintf(buf, sizeof(buf), "%04ld.%02ld.%02ld %02ld:%02ld:%02ld.%03ld",
+                  year, month, day, hours, minutes, seconds, milliseconds);
 
     return buf;
 }

@@ -316,8 +316,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
-        {
+        boost::asio::post(m_session->lt_session().get_context(), [=,driveRequest=std::move(driveRequest),this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -390,8 +389,9 @@ public:
 
             if ( auto drive = getDrive( driveKey ); drive )
             {
-                drive->startDriveClosing( DriveClosureRequest());
-            } else
+                drive->startDriveClosing(  std::make_unique<DriveClosureRequest>() );
+            }
+            else
             {
                 _LOG_ERR( "drive not found: " << driveKey );
                 return;
@@ -403,7 +403,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+    	boost::asio::post(m_session->lt_session().get_context(), [=,replicatorKeys=std::move(replicatorKeys),this]() mutable
         {
             DBG_MAIN_THREAD
 
@@ -432,7 +432,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+    	boost::asio::post(m_session->lt_session().get_context(), [=,replicatorKeys=std::move(replicatorKeys),this]() mutable
         {
             DBG_MAIN_THREAD
 
@@ -451,7 +451,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+    	boost::asio::post(m_session->lt_session().get_context(), [=,replicatorKeys=std::move(replicatorKeys),this]() mutable
         {
             DBG_MAIN_THREAD
 
@@ -466,9 +466,8 @@ public:
         } );
     }
 
-    virtual void asyncSetChanelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys ) override
-    {
-        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+	virtual void asyncSetChanelShard( mobj<Hash256>&& channelId, mobj<ReplicatorList>&& replicatorKeys ) override {
+    	boost::asio::post(m_session->lt_session().get_context(), [channelId=std::move(channelId),replicatorKeys=std::move(replicatorKeys),this]() mutable
         {
             DBG_MAIN_THREAD
 
@@ -499,8 +498,9 @@ public:
 
             if ( auto drive = getDrive( driveKey ); drive )
             {
-                drive->startDriveClosing( {transactionHash} );
-            } else
+                drive->startDriveClosing( std::make_unique<DriveClosureRequest>(transactionHash) );
+            }
+            else
             {
                 _LOG_ERR( "removeDrive: drive not found: " << driveKey );
                 return;
@@ -514,8 +514,7 @@ public:
 
         _LOG( "+++ ex startModifyDrive: " << modifyRequest->m_clientDataInfoHash )
 
-        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
-        {
+        boost::asio::post(m_session->lt_session().get_context(), [=,modifyRequest=std::move(modifyRequest),this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -565,7 +564,7 @@ public:
 
             if ( const auto drive = getDrive( driveKey ); drive )
             {
-                drive->cancelModifyDrive( transactionHash );
+                drive->cancelModifyDrive( std::make_unique<ModificationCancelRequest>(transactionHash) );
                 return;
             }
 
@@ -577,8 +576,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
-        {
+        boost::asio::post(m_session->lt_session().get_context(), [=,request=std::move(request),this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -628,8 +626,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
-        {
+        boost::asio::post(m_session->lt_session().get_context(), [=,request=std::move(request),this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -697,8 +694,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
-        {
+        boost::asio::post(m_session->lt_session().get_context(), [=,finishInfo=std::move(finishInfo),this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -722,8 +718,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
-        {
+        boost::asio::post(m_session->lt_session().get_context(), [=,request=std::move(request),this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -889,8 +884,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
-        {
+        boost::asio::post(m_session->lt_session().get_context(), [=,anOpinion=std::move(anOpinion),this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -1172,9 +1166,9 @@ public:
 
             myOpinion.Sign( keyPair(), blockHash.array(), channelId.array());
 
-            DownloadApprovalTransactionInfo transactionInfo{blockHash.array(),
-                                                            channelId.array(),
-                                                            {myOpinion}};
+            auto transactionInfo = std::make_unique<DownloadApprovalTransactionInfo>( blockHash.array(),
+                                                                                      channelId.array(),
+                                                                                     std::vector<DownloadOpinion>{ myOpinion } );
 
             addOpinion( std::move( transactionInfo ));
             shareDownloadOpinion( channelId, blockHash );
@@ -1356,8 +1350,9 @@ public:
 
             if ( auto drive = getDrive( anOpinion.m_driveKey ); drive )
             {
-                drive->onOpinionReceived( anOpinion );
-            } else
+                drive->onOpinionReceived( std::make_unique<ApprovalTransactionInfo>(anOpinion) );
+            }
+            else
             {
                 _LOG_ERR( "drive not found" );
             }
@@ -1379,8 +1374,7 @@ public:
 
         _LOG( "asyncApprovalTransactionHasBeenPublished, m_rootHash:" << Key( transaction->m_rootHash ))
 
-        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
-        {
+        boost::asio::post(m_session->lt_session().get_context(), [transaction=std::move(transaction),this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -1428,8 +1422,7 @@ public:
     {
         _FUNC_ENTRY()
 
-        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
-        {
+        boost::asio::post(m_session->lt_session().get_context(), [transaction=std::move(transaction),this]() mutable {
 
             DBG_MAIN_THREAD
 
@@ -1592,7 +1585,7 @@ public:
                     std::istringstream is( message, std::ios::binary );
                     cereal::PortableBinaryInputArchive iarchive( is );
 
-                    mobj<VerificationCodeInfo> info{VerificationCodeInfo{}};
+                auto info = std::make_unique<VerificationCodeInfo>();
                     iarchive( *info );
                     processVerificationCode( std::move( info ));
                 }
@@ -1607,7 +1600,7 @@ public:
                     std::istringstream is( message, std::ios::binary );
                     cereal::PortableBinaryInputArchive iarchive( is );
 
-                    mobj<VerifyApprovalTxInfo> info{VerifyApprovalTxInfo{}};
+                auto info = std::make_unique<VerifyApprovalTxInfo>();
                     iarchive( *info );
                     processVerificationOpinion( std::move( info ));
                 }
@@ -1671,7 +1664,7 @@ public:
 
                     if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end())
                     {
-                        mobj<ChunkInfo> chunkInfo{ChunkInfo{}};
+                    auto chunkInfo = std::make_unique<ChunkInfo>();
                         iarchive( *chunkInfo );
                         _ASSERT( chunkInfo )
 
@@ -1970,8 +1963,7 @@ public:
             return false;
         }
 
-//            _LOG( "message: " << message );
-//            _LOG( "response: " << response );
+        //_LOG( "query: " << query );
 
         const std::set<lt::string_view> supportedQueries =
                 {"opinion", "dn_opinion", "code_verify", "verify_opinion", "handshake", "endpoint_request",
@@ -2252,6 +2244,31 @@ public:
             if ( isModificationFinished )
             {
                 response["r"]["taskIsFinished"] = "yes";
+            }
+            return true;
+        }
+
+        else if ( query == "get_stream_status" )
+        {
+            //std::string message( query.begin(), query.end() );
+            auto str = message.dict_find_string_value("x");
+            std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
+
+            std::istringstream is( packet, std::ios::binary );
+            cereal::PortableBinaryInputArchive iarchive(is);
+            std::array<uint8_t,32> driveKey;
+            iarchive( driveKey );
+
+            if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
+            {
+                std::string status = driveIt->second->getStreamStatus();
+                response["r"]["q"] = std::string(query);
+                response["r"]["ret"] = status;
+                return true;
+            }
+            else
+            {
+                _LOG_WARN( "Unknown drive: " << Key(driveKey) )
             }
             return true;
         }

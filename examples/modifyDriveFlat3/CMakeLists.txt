@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
 
-add_executable(modifyDriveFlat3 modifyDriveFlat3.cpp)
+add_executable(modifyDriveFlat3 modifyDriveFlat3-repl-status.cpp)
 
 #target_precompile_headers(modifyDriveFlat PRIVATE pch.h)
 

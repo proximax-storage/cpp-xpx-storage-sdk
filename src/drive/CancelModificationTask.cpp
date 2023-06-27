@@ -26,7 +26,7 @@ public:
             DriveParams& drive,
             ModifyOpinionController& opinionTaskController)
             : DriveTaskBase(DriveTaskType::MODIFICATION_CANCEL, drive )
-            , m_request(request)
+            , m_request(std::move(request))
             , m_opinionTaskController(opinionTaskController)
     {
         _ASSERT( m_request )

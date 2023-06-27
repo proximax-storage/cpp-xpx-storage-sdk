@@ -96,6 +96,39 @@ public:
     {
         m_errorHandler = errorHandler;
     }
+
+    void addTorrentFileToSession(const std::string &torrentFilename,
+                                 const std::string &folderWhereFileIsLocated,
+                                 const std::array<uint8_t, 32>& driveKey,
+                                 const std::array<uint8_t, 32> &modifyTx,
+                                 const ReplicatorList& replicatorKeys) {
+        auto infoHash = stringToByteArray<Hash256>( torrentFilename );
+        fs::path filenameInSandbox = folderWhereFileIsLocated + "/" + torrentFilename;
+        fs::path torrentFilenameInSandbox = filenameInSandbox;
+        torrentFilenameInSandbox.replace_extension(".torrent");
+
+        endpoint_list endpoints;
+        for( const auto& key: replicatorKeys )
+        {
+            auto endpoint = m_endpointsManager.getEndpoint( key );
+            if ( endpoint )
+            {
+                endpoints.push_back( *endpoint );
+            }
+        }
+
+        uint64_t totalSize = 0;
+        lt_handle torrentHandle = m_session->addTorrentFileToSession(torrentFilenameInSandbox.string(),
+                                                                     folderWhereFileIsLocated,
+                                                                     lt::SiriusFlags::client_has_modify_data,
+                                                                     &driveKey,
+                                                                     nullptr,
+                                                                     &modifyTx,
+                                                                     endpoints,
+                                                                     &totalSize);
+
+        m_modifyTorrentMap[infoHash] = {torrentHandle, false};
+    }
     
     void setEndpointHandler()
     {
@@ -267,7 +300,10 @@ public:
             }
         }
 
+
         newActionList.serialize( (workFolder/"actionList.bin").string() );
+        _ASSERT(fs::exists(workFolder/"actionList.bin"))
+        _ASSERT(fs::file_size(workFolder/"actionList.bin") > 0)
 
         InfoHash infoHash0 = createTorrentFile( (workFolder/"actionList.bin").string(), drivePublicKey, workFolder.string(), {} );
 
@@ -553,6 +589,13 @@ protected:
         m_session->onTorrentDeleted( handle );
     }
 
+    void onCacheFlushed( lt::torrent_handle handle ) override
+    {
+        m_session->onCacheFlushed( handle );
+    }
+
+protected:
+
 //    void setDownloadChannelRequestedSizes( const Hash256& downloadChannelId, const std::map<Key, uint64_t>& sizes )
 //    {
 //        auto it = m_downloadChannelMap.find(downloadChannelId);
@@ -581,7 +624,9 @@ protected:
         return m_endpointsManager.getEndpoint(key);
     }
 
-    std::vector<std::array<uint8_t,32>> getTorrentHandleHashes() {
+public:
+    std::vector<std::array<uint8_t,32>> getTorrentHandleHashes()
+    {
         std::vector<std::array<uint8_t,32>> hashes;
         hashes.reserve(m_modifyTorrentMap.size());
         for( auto& [key,value]: m_modifyTorrentMap )
@@ -592,7 +637,6 @@ protected:
         return hashes;
     }
 
-public:
     void setSessionSettings(const lt::settings_pack& settings, bool localNodes)
     {
         m_session->lt_session().apply_settings(settings);

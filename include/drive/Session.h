@@ -186,6 +186,8 @@ public:
     
     virtual void      onTorrentDeleted( lt::torrent_handle handle ) = 0;
 
+    virtual void      onCacheFlushed( lt::torrent_handle handle ) = 0;
+
     virtual void      setTorrentDeletedHandler( std::function<void(lt::torrent_handle)> ) = 0;
 
     virtual Timer     startTimer( int milliseconds, std::function<void()> func ) = 0;

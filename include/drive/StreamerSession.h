@@ -23,6 +23,7 @@ namespace sirius::drive {
 
 class StreamerSession : public ClientSession, public DhtMessageHandler, public lt::plugin
 {
+protected:
     std::optional<Hash256>  m_streamId;
     Key                     m_driveKey;
     
@@ -244,7 +245,8 @@ public:
         // add chunk to libtorrent session
         if ( fs::exists( chunkFilename ) )
         {
-            _LOG_WARN( "*** Chunk already exists: " << chunkFilename );
+//            _LOG_WARN( "*** Chunk already exists: " << chunkFilename );
+            _LOG( "*** Chunk already exists: " << chunkFilename );
         }
         else
         {
@@ -451,7 +453,14 @@ public:
 
         return "";
     }
-
+    
+    virtual void dbgAddReplicatorList( const std::vector<ReplicatorInfo>& replicators )
+    {
+        for( auto& replicatorInfo : replicators )
+        {
+            m_endpointsManager.updateEndpoint( replicatorInfo.m_publicKey, replicatorInfo.m_endpoint );
+        }
+    }
 };
 
 inline std::shared_ptr<StreamerSession> createStreamerSession( const crypto::KeyPair&        keyPair,

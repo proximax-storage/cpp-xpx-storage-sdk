@@ -617,7 +617,7 @@ public:
         {
             // 'CatchingUp' should be started
             _LOG( "transaction.m_rootHash: " << Key( transaction.m_rootHash ))
-            m_catchingUpRequest = mobj<CatchingUpRequest>{transaction.m_rootHash, transaction.m_modifyTransactionHash};
+            m_catchingUpRequest = std::make_unique<CatchingUpRequest>( transaction.m_rootHash, transaction.m_modifyTransactionHash );
 
             if ( !m_task )
             {
@@ -682,7 +682,7 @@ public:
 
         if ( m_task && m_task->shouldCancelModify( *request ))
         {
-            m_modificationCancelRequest = request;
+            m_modificationCancelRequest = std::move(request);
         }
 
         auto it = std::find_if( m_deferredModificationRequests.begin(), m_deferredModificationRequests.end(),
@@ -936,7 +936,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_closeDriveRequest = request;
+        m_closeDriveRequest = std::move(request);
 
         cancelVerification();
 
@@ -1141,6 +1141,21 @@ public:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( streamId );
         archive( playlistHash->array());
+
+        return os.str();
+    }
+
+    virtual std::string getStreamStatus() override
+    {
+        // Prepare message
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( m_driveKey );
+        archive( m_task ? true : false );
+        if ( m_task )
+        {
+            archive( m_task->getStreamId() );
+        }
 
         return os.str();
     }

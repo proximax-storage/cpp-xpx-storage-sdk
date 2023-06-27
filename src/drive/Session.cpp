@@ -63,6 +63,12 @@ struct LtClientData
         ~RemoveNotifyer() { m_notifyer(); }
         std::function<void()> m_notifyer = {};
     };
+
+    enum class FinishStatus {
+        TORRENT_ADDED,
+        TORRENT_FINISHED,
+        TORRENT_FLUSHED
+    };
     
     std::shared_ptr<RemoveNotifyer> m_removeNotifyer;
 
@@ -76,6 +82,8 @@ struct LtClientData
     
     bool                            m_isRemoved           = false;
     Timer                           m_releaseFilesTimer;
+
+    FinishStatus                    m_finishStatus = FinishStatus::TORRENT_ADDED;
 };
 
 //
@@ -273,6 +281,10 @@ public:
         }
     }
 
+    void onCacheFlushed( lt::torrent_handle handle ) override
+    {
+        onTorrentFinished(handle);
+    }
 
     lt::settings_pack generateSessionSettings(bool useTcpSocket, const endpoint_list& bootstraps)
     {
@@ -439,7 +451,7 @@ public:
         params.flags |= lt::torrent_flags::seed_mode;
         params.flags |= lt::torrent_flags::upload_mode;
         params.flags |= lt::torrent_flags::no_verify_files;
-        
+
         // set super seeding mode for clients
 //        if ( !(siriusFlags & lt::sf_is_replicator) )
 //        {
@@ -456,6 +468,8 @@ public:
             params.m_channelId = *channelId;
         if ( modifyTx )
             params.m_modifyTx = *modifyTx;
+
+        auto hash = params.ti->info_hashes().get_best();
 
         //dbg///////////////////////////////////////////////////
 //        auto tInfo = lt::torrent_info(buffer, lt::from_span);
@@ -479,6 +493,7 @@ public:
         if ( outTotalSize != nullptr )
         {
             *outTotalSize = tHandle.torrent_file()->total_size();
+            _LOG("Out total size " << hash << " " << *outTotalSize)
         }
 
         return tHandle;
@@ -878,6 +893,9 @@ private:
             return;
         }
 
+        _ASSERT(userdata->m_finishStatus == LtClientData::FinishStatus::TORRENT_FINISHED);
+        userdata->m_finishStatus = LtClientData::FinishStatus::TORRENT_FLUSHED;
+
         if ( userdata->m_dnContexts.size() > 0 )
         {
             auto dnContext = userdata->m_dnContexts.front();
@@ -1124,7 +1142,7 @@ private:
 //                             }
                              //_LOG( "dht_query: " << query )
                              if ( query == "get_dn_rcpts" || query == "get-chunks-info" || query == "get-playlist-hash" ||
-                                 query == "get_channel_status" || query == "get_modification_status" )
+                                 query == "get_channel_status" || query == "get_modification_status" || query == "get_stream_status" )
                              {
                                  handleDhtResponse( response, theAlert->endpoint );
                              }
@@ -1269,17 +1287,10 @@ private:
                     auto userdata = theAlert->handle.userdata().get<LtClientData>();
                     _ASSERT( userdata != nullptr )
 
-                    auto sWeak = weak_from_this();
-                    auto s = sWeak.lock();
+                    _ASSERT( userdata->m_finishStatus ==
+                             LtClientData::FinishStatus::TORRENT_ADDED );
 
-                    userdata->m_releaseFilesTimer = Timer(m_session.get_context(), 2,[sessionWeak=weak_from_this(), handle=theAlert->handle] {
-
-                        auto session = sessionWeak.lock();
-                        if (session) {
-                            session->onTorrentFinished(handle);
-                        }
-                    });
-//                    onTorrentFinished(theAlert->handle);
+                    userdata->m_finishStatus = LtClientData::FinishStatus::TORRENT_FINISHED;
                     break;
                 }
                     
