@@ -234,7 +234,7 @@ public:
 //                if ( ! context.m_saveAs.empty() && context.m_downloadType == DownloadContext::file_from_drive )
 //                {
 //                    //_LOG( "context.m_saveAs: " << context.m_saveAs )
-//                    _ASSERT( ! m_ownerIsReplicator )
+//                    SIRIUS_ASSERT( ! m_ownerIsReplicator )
 //
 //                    fs::path destFilePath = context.m_saveAs;
 //
@@ -386,8 +386,8 @@ public:
             {
                 if ( torrentHandle.is_valid() && torrentHandle.status().state > 2 )
                 {
-                    __ASSERT( torrentHandle.userdata().get<LtClientData>() != nullptr )
-                    __ASSERT( ! torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer )
+                    _SIRIUS_ASSERT( torrentHandle.userdata().get<LtClientData>() != nullptr )
+                    _SIRIUS_ASSERT( ! torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer )
                     torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer = removeNotifyer;
                 }
             }
@@ -586,7 +586,7 @@ public:
 //            }
 //        }
 
-        __ASSERT( tHandle.userdata().get<LtClientData>() != nullptr )
+        _SIRIUS_ASSERT( tHandle.userdata().get<LtClientData>() != nullptr )
         tHandle.userdata().get<LtClientData>()->m_dnContexts.push_back( downloadContext );
 
         return tHandle;
@@ -887,7 +887,7 @@ private:
             return;
         }
 
-        _ASSERT(userdata->m_finishStatus == LtClientData::FinishStatus::TORRENT_FINISHED);
+        SIRIUS_ASSERT(userdata->m_finishStatus == LtClientData::FinishStatus::TORRENT_FINISHED);
         userdata->m_finishStatus = LtClientData::FinishStatus::TORRENT_FLUSHED;
 
         if ( userdata->m_dnContexts.size() > 0 )
@@ -1089,7 +1089,7 @@ private:
                             m_session.remove_torrent( theAlert->handle, lt::session::delete_files );
 
                             userdata->m_invalidMetadata = true;
-                            _ASSERT( userdata->m_dnContexts.size()==1 )
+                            SIRIUS_ASSERT( userdata->m_dnContexts.size()==1 )
                             userdata->m_dnContexts.front().m_downloadNotification(
                                                                 download_status::code::dn_failed,
                                                                 userdata->m_dnContexts.front().m_infoHash,
@@ -1249,7 +1249,7 @@ private:
                     _LOG(  m_addressAndPort << ": ERROR!!!: torrent error: " << theAlert->message())
                     break;
                     auto userdata = theAlert->handle.userdata().get<LtClientData>();
-                    _ASSERT( userdata != nullptr )
+                    SIRIUS_ASSERT( userdata != nullptr )
                     if ( userdata != nullptr && userdata->m_dnContexts.size()>0 )
                     {
                         userdata->m_dnContexts.front().m_downloadNotification(   download_status::code::dn_failed,
@@ -1279,9 +1279,9 @@ private:
 //                    }
                     
                     auto userdata = theAlert->handle.userdata().get<LtClientData>();
-                    _ASSERT( userdata != nullptr )
+                    SIRIUS_ASSERT( userdata != nullptr )
 
-                    _ASSERT( userdata->m_finishStatus ==
+                    SIRIUS_ASSERT( userdata->m_finishStatus ==
                              LtClientData::FinishStatus::TORRENT_ADDED );
 
                     userdata->m_finishStatus = LtClientData::FinishStatus::TORRENT_FINISHED;

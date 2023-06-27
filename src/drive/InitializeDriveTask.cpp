@@ -200,7 +200,7 @@ private:
         {
             if ( cancelRequest.m_modifyTransactionHash == m_opinionController.notApprovedModificationId() )
             {
-                _ASSERT( !foundAppropriateCancel )
+                SIRIUS_ASSERT( !foundAppropriateCancel )
                 foundAppropriateCancel = true;
                 _LOG( "Modification Has Been Cancelled During Initialization" );
                 m_drive.cancelModifyDrive( std::make_unique<ModificationCancelRequest>(cancelRequest) );
@@ -213,7 +213,7 @@ private:
 
         if ( it != m_completedModifications.end() && it->m_status == CompletedModification::CompletedModificationStatus::CANCELLED )
         {
-            _ASSERT( !foundAppropriateCancel )
+            SIRIUS_ASSERT( !foundAppropriateCancel )
             foundAppropriateCancel = true;
             _LOG( "Modification Has Been Cancelled During Offline" );
             m_drive.cancelModifyDrive( std::make_unique<ModificationCancelRequest>( it->m_modificationId ) );

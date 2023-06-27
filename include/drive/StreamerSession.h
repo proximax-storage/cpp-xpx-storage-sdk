@@ -96,8 +96,8 @@ public:
                      const fs::path&         workFolder,
                      const endpoint_list&    endPointList )
     {
-        _ASSERT( ! m_streamId )
-        _ASSERT( endPointList.size() > 0 )
+        SIRIUS_ASSERT( ! m_streamId )
+        SIRIUS_ASSERT( endPointList.size() > 0 )
 
         m_streamId = streamId;
         m_driveKey = driveKey;
@@ -135,7 +135,7 @@ public:
         for( uint32_t i=0; (i < m_chunkInfoMap.size()); i++ )
         {
             auto chunkInfoIt = m_chunkInfoMap.find(i);
-            _ASSERT( chunkInfoIt != m_chunkInfoMap.end() )
+            SIRIUS_ASSERT( chunkInfoIt != m_chunkInfoMap.end() )
             
             if ( (timeMks + chunkInfoIt->second.m_durationMks < startTimeSecods*1000000)
                 || (timeMks > endTimeSecods*1000000) )
@@ -254,7 +254,7 @@ public:
 
             fs::path torrentFilename = m_torrentFolder / toString( chunkHash );
             InfoHash chunkHash2 = createTorrentFile( chunkFilename.string(), m_keyPair.publicKey(), m_chunkFolder.string(), torrentFilename.string() );
-            _ASSERT( chunkHash2 == chunkHash )
+            SIRIUS_ASSERT( chunkHash2 == chunkHash )
 
             lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename.string(),
                                                                           m_chunkFolder.string(),
@@ -270,7 +270,7 @@ public:
         auto [it,ok] = m_chunkInfoMap.emplace( m_lastChunkIndex,
                                ChunkInfo{ m_streamId->array(), m_lastChunkIndex, chunkHash.array(), durationMs, chunkSize, {} } );
         m_lastChunkIndex++;
-        _ASSERT( ok )
+        SIRIUS_ASSERT( ok )
 
         auto& chunkInfo = it->second;
         chunkInfo.Sign( m_keyPair );

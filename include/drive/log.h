@@ -104,11 +104,6 @@ inline void checkLogFileSize()
 */
 
 
-#if _MSC_VER
-std::string m_dbgOurPeerName;
-#else
-#endif
-
 // _LOG - with m_dbgOurPeerName
 #define _LOG(expr) { \
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
@@ -154,7 +149,7 @@ std::string m_dbgOurPeerName;
     }
 #endif
 
-#define _ASSERT(expr) { \
+#define SIRIUS_ASSERT(expr) { \
     if (!(expr)) {\
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
         if (0) \
@@ -165,7 +160,7 @@ std::string m_dbgOurPeerName;
     }\
 }
 
-#define __ASSERT(expr) { \
+#define _SIRIUS_ASSERT(expr) { \
     if (!(expr)) {\
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
         std::cerr << __FILE__ << ":" << __LINE__ << " failed: " << current_time() << "\t" << #expr << "\n" << std::flush; \

@@ -48,7 +48,7 @@ public:
             : ModifyApprovalTaskBase( DriveTaskType::MODIFICATION_REQUEST, drive, std::move(receivedOpinions), opinionTaskController )
             , m_request( std::move(request) )
     {
-        _ASSERT( m_request )
+        SIRIUS_ASSERT( m_request )
     }
 
     void terminate() override
@@ -70,7 +70,7 @@ public:
         //_LOG( "?????????: " << m_request->m_clientDataInfoHash  << "   " << m_drive.m_torrentHandleMap.size() )
         if ( auto it = m_drive.m_torrentHandleMap.find( m_request->m_clientDataInfoHash ); it != m_drive.m_torrentHandleMap.end() )
         {
-            _ASSERT( 0 )
+            SIRIUS_ASSERT( 0 )
             m_actionListIsReceived = true;
 
             m_drive.executeOnBackgroundThread( [this]
@@ -102,7 +102,7 @@ public:
                                                        }
                                                        else if ( code == download_status::download_complete )
                                                        {
-                                                           //_ASSERT( !m_taskIsStopped );
+                                                           //SIRIUS_ASSERT( !m_taskIsStopped );
                                                            // it could be stopped after asyncApprovalTransactionHasBeenPublished
                                                            // if 'actionList' have not been downloaded
 
@@ -194,7 +194,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_taskIsInterrupted );
+        SIRIUS_ASSERT( !m_taskIsInterrupted );
 
         std::optional<Hash256> fileToDownload;
 
@@ -205,7 +205,7 @@ public:
 
             if ( auto it = m_drive.m_torrentHandleMap.find( *fileToDownload ); it != m_drive.m_torrentHandleMap.end())
             {
-                _ASSERT( it->second.m_ltHandle.is_valid() )
+                SIRIUS_ASSERT( it->second.m_ltHandle.is_valid() )
                 fileToDownload.reset();
             }
         }
@@ -280,7 +280,7 @@ public:
         actionList.deserialize( actionListFilename.string() );
 
         // Make copy of current FsTree
-        _ASSERT( m_drive.m_fsTree )
+        SIRIUS_ASSERT( m_drive.m_fsTree )
         m_sandboxFsTree = std::make_unique<FsTree>( *m_drive.m_fsTree );
 
         auto& torrentHandleMap = m_drive.m_torrentHandleMap;
@@ -581,7 +581,7 @@ protected:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( status != ModificationStatus::SUCCESS )
+        SIRIUS_ASSERT( status != ModificationStatus::SUCCESS )
 
 		_LOG( "modifyIsCompletedWithError " << errorText << " " << static_cast<uint8_t>(status) );
 
@@ -600,7 +600,7 @@ protected:
 
         m_drive.executeOnBackgroundThread([this]
         {
-            _ASSERT( m_drive.m_fsTree )
+            SIRIUS_ASSERT( m_drive.m_fsTree )
             m_sandboxRootHash = m_drive.m_rootHash;
             m_sandboxFsTree = std::make_unique<FsTree>( *m_drive.m_fsTree );
             std::error_code ec;

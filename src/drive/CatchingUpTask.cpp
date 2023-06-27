@@ -44,7 +44,7 @@ public:
                     : UpdateDriveTaskBase(DriveTaskType::CATCHING_UP, drive, opinionTaskController)
                     , m_request( std::move(request) )
     {
-        _ASSERT( m_request )
+        SIRIUS_ASSERT( m_request )
     }
     
     void terminate() override
@@ -60,7 +60,7 @@ public:
 
         if ( m_drive.m_lastApprovedModification == m_request->m_modifyTransactionHash )
         {
-            _ASSERT( m_drive.m_rootHash == m_request->m_rootHash );
+            SIRIUS_ASSERT( m_drive.m_rootHash == m_request->m_rootHash );
             finishTask();
             return;
         }
@@ -104,12 +104,12 @@ public:
                            {
                                DBG_MAIN_THREAD
 
-                               _ASSERT( !m_taskIsInterrupted );
+                               SIRIUS_ASSERT( !m_taskIsInterrupted );
 
                                if ( code == download_status::dn_failed )
                                {
                                    //todo is it possible?
-                                   _ASSERT( 0 );
+                                   SIRIUS_ASSERT( 0 );
                                    return;
                                }
 
@@ -160,8 +160,8 @@ public:
         // During the task is beeing finished the cancel is requested
         if ( cancelRequest.m_modifyTransactionHash == m_opinionController.notApprovedModificationId() )
         {
-            _ASSERT( cancelRequest.m_modifyTransactionHash != m_request->m_modifyTransactionHash )
-            _ASSERT( m_drive.m_lastApprovedModification == m_request->m_modifyTransactionHash )
+            SIRIUS_ASSERT( cancelRequest.m_modifyTransactionHash != m_request->m_modifyTransactionHash )
+            SIRIUS_ASSERT( m_drive.m_lastApprovedModification == m_request->m_modifyTransactionHash )
             return true;
         }
 
@@ -172,7 +172,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_sandboxFsTree )
+        SIRIUS_ASSERT( m_sandboxFsTree )
 
         //
         // Create list/set of unused files
@@ -269,7 +269,7 @@ public:
         _LOG( "startDownloadMissingFiles: " << m_downloadingLtHandle->id() << " "
                                                                        << m_downloadingLtHandle->info_hashes().v2 );
 
-        _ASSERT( m_sandboxFsTree )
+        SIRIUS_ASSERT( m_sandboxFsTree )
 
         //
         // Prepare missing list and start download
@@ -308,7 +308,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_taskIsInterrupted );
+        SIRIUS_ASSERT( !m_taskIsInterrupted );
 
         if ( m_catchingUpFileIt == m_catchingUpFileSet.end())
         {
@@ -340,7 +340,7 @@ public:
                                                                {
                                                                    if ( code == download_status::download_complete )
                                                                    {
-                                                                       //_ASSERT( fs::exists( m_drive.m_driveFolder / toString( infoHash )))
+                                                                       //SIRIUS_ASSERT( fs::exists( m_drive.m_driveFolder / toString( infoHash )))
 
                                                                        downloadMissingFiles();
                                                                    } else if ( code == download_status::dn_failed )
@@ -405,7 +405,7 @@ public:
 
         try
         {
-            _ASSERT( m_sandboxRootHash == m_request->m_rootHash );
+            SIRIUS_ASSERT( m_sandboxRootHash == m_request->m_rootHash );
 
             fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
             fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
@@ -460,7 +460,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_myOpinion )
+        SIRIUS_ASSERT( m_myOpinion )
 
         if ( m_taskIsInterrupted )
         {

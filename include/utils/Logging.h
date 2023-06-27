@@ -29,8 +29,8 @@
 #include <boost/thread/lock_guard.hpp>
 
 #if _MSC_VER
-#pragma warning (disable : 4251)
-#include <boost/thread/shared_mutex.hpp>
+    #pragma warning (disable : 4251)
+    #include <boost/thread/shared_mutex.hpp>
 #endif
 
 namespace sirius { namespace utils {
@@ -312,7 +312,7 @@ namespace sirius { namespace utils {
 						catapult_logger,
 #if _MSC_VER
                         // TODO: Incorrect behaviour can be here, but only on catapult side
-                        // Some incompatibles in windows api
+                        // Some incompatibles in Windows api
 						boost::log::sources::multi_thread_model<boost::shared_mutex>,
 #else
 						boost::log::sources::multi_thread_model<boost::log::aux::light_rw_mutex>,

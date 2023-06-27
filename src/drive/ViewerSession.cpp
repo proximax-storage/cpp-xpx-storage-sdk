@@ -137,7 +137,7 @@ public:
                                   HttpServerParams        httpServerParams,
                                   DownloadStreamProgress  downloadStreamProgress ) override
     {
-        _ASSERT( ! m_liveStreamId )
+        SIRIUS_ASSERT( ! m_liveStreamId )
 
         m_streamerKey            = streamerKey;
         m_driveKey               = driveKey;
@@ -192,7 +192,7 @@ public:
 
     void requestChunkInfo( uint32_t chunkIndex )
     {
-        _ASSERT( m_liveStreamId )
+        SIRIUS_ASSERT( m_liveStreamId )
 
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
@@ -376,7 +376,7 @@ public:
                 std::array<uint8_t,32> streamId;
                 iarchive( streamId );
 
-                _ASSERT( m_liveStreamId )
+                SIRIUS_ASSERT( m_liveStreamId )
 
                 if ( streamId != m_liveStreamId->array() )
                 {
@@ -498,7 +498,7 @@ public:
         }
 
         const auto& chunkInfo = m_chunkInfoList[m_tobeDownloadedChunkIndex];
-        _ASSERT( m_tobeDownloadedChunkIndex == chunkInfo.m_chunkIndex )
+        SIRIUS_ASSERT( m_tobeDownloadedChunkIndex == chunkInfo.m_chunkIndex )
         m_tobeDownloadedChunkIndex++;
 
         _LOG( "@@@ download: " << chunkInfo.m_chunkIndex  << " :" << InfoHash(chunkInfo.m_chunkInfoHash) )

@@ -138,9 +138,9 @@ public:
 
         _LOG( "Expected Cumulative Download " << expectedCumulativeDownload )
 
-        _ASSERT( expectedCumulativeDownload > 0 )
+        SIRIUS_ASSERT( expectedCumulativeDownload > 0 )
 
-        _ASSERT( expectedCumulativeDownload >= accountedCumulativeDownload )
+        SIRIUS_ASSERT( expectedCumulativeDownload >= accountedCumulativeDownload )
 
         uint64_t targetSize = expectedCumulativeDownload - accountedCumulativeDownload;
         normalizeUploads(currentUploads, targetSize);
@@ -169,7 +169,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT ( replicatorsUploads.empty() )
+        SIRIUS_ASSERT ( replicatorsUploads.empty() )
 
         for ( const auto&[key, bytes] : m_notApprovedCumulativeUploads.m_uploads )
         {
@@ -181,7 +181,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( modificationId.array() == m_notApprovedCumulativeUploads.m_modificationId );
+        SIRIUS_ASSERT( modificationId.array() == m_notApprovedCumulativeUploads.m_modificationId );
 
         m_approvedCumulativeUploads = m_notApprovedCumulativeUploads;
 
@@ -244,7 +244,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT(modificationUploads.contains(m_clientKey.array()))
+        SIRIUS_ASSERT(modificationUploads.contains(m_clientKey.array()))
 
         uint128_t longTargetSum = targetSum;
         uint128_t sumBefore = std::accumulate(modificationUploads.begin(),
@@ -266,7 +266,7 @@ private:
                     sumAfter += uploadBytes;
                 }
             }
-			_ASSERT( targetSum >= sumAfter );
+			SIRIUS_ASSERT( targetSum >= sumAfter );
             modificationUploads[m_clientKey.array()] = targetSum - sumAfter;
         }
         else
