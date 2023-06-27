@@ -1,4 +1,9 @@
 cmake_minimum_required(VERSION 3.9)
+
+if(POLICY CMP0074)
+    cmake_policy(SET CMP0074 NEW)
+endif()
+
 project(cpp-xpx-storage-sdk VERSION 1.0.0)
 include(CMakeGlobalSettings.cmake)
 
@@ -21,8 +26,13 @@ if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
     SET(Boost_ARCHITECTURE "-x64")
 endif()
 
+set(Boost_NO_WARN_NEW_VERSIONS 1)
+
 if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     find_package(Boost COMPONENTS atomic system date_time regex timer chrono log thread filesystem program_options random REQUIRED)
+elseif(WIN32)
+    find_package(Boost COMPONENTS atomic system date_time regex timer chrono log log_setup thread filesystem program_options random REQUIRED)
+    set(BOOST_STACKTRACE_BACKTRACE_INCLUDE_FILE "${Bost_INCLUDE_DIR}boost/stacktrace.hpp")
 else()
     find_package(Boost COMPONENTS atomic system date_time regex timer chrono log thread filesystem program_options random stacktrace_backtrace REQUIRED)
     add_definitions(-DBOOST_STACKTRACE_USE_BACKTRACE)
@@ -62,7 +72,10 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 add_subdirectory(src)
-add_subdirectory(replicator-service)
+
+if(NOT WIN32)
+    add_subdirectory(replicator-service)
+endif()
 
 if (XPX_STORAGE_SDK_NOT_BUILD_EXAMPLES)
 else()
