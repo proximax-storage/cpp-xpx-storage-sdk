@@ -183,15 +183,15 @@ public:
             for (const auto& [key, drive] : m_drives) {
                 const auto& driveReplicators = drive.m_driveRequest.m_fullReplicatorList;
                 if (std::find(driveReplicators.begin(), driveReplicators.end(), replicator->dbgReplicatorKey()) != driveReplicators.end()) {
-                    replicator->asyncAddDrive(key, drive.m_driveRequest);
+                    replicator->asyncAddDrive(key, std::make_unique<AddDriveRequest>(drive.m_driveRequest));
                     if (drive.m_lastApprovedModification) {
-                        replicator->asyncApprovalTransactionHasBeenPublished(PublishedModificationApprovalTransactionInfo(*drive.m_lastApprovedModification));
+                        replicator->asyncApprovalTransactionHasBeenPublished(std::make_unique<PublishedModificationApprovalTransactionInfo>(*drive.m_lastApprovedModification));
                     }
                     if (drive.m_pendingVerification) {
-                        replicator->asyncStartDriveVerification(key, *drive.m_pendingVerification);
+                        replicator->asyncStartDriveVerification(key, std::make_unique<VerificationRequest>(*drive.m_pendingVerification));
                     }
                     for (const auto& modification : drive.m_pendingModifications) {
-                        replicator->asyncModify(key, modification);
+                        replicator->asyncModify(key, std::make_unique<ModificationRequest>(modification));
                     }
                 }
             }
@@ -215,7 +215,7 @@ public:
         for (auto& key : replicators) {
             auto replicator = getReplicator(key);
             if (replicator) {
-                replicator->asyncAddDrive(driveKey, m_drives[driveKey].m_driveRequest);
+                replicator->asyncAddDrive(driveKey, std::make_unique<AddDriveRequest>(m_drives[driveKey].m_driveRequest));
             }
         }
     }
@@ -232,15 +232,15 @@ public:
         for (const auto& r : drive.m_driveRequest.m_fullReplicatorList) {
             auto replicator = getReplicator(r);
             if (replicator && replicator->replicatorKey() != replicatorKey) {
-                replicator->asyncSetReplicators(driveKey, drive.m_driveRequest.m_fullReplicatorList);
+                replicator->asyncSetReplicators(driveKey, std::make_unique<ReplicatorList>(drive.m_driveRequest.m_fullReplicatorList));
 
                 auto donatorShard = drive.m_driveRequest.m_modifyDonatorShard;
                 std::erase(donatorShard, replicator->replicatorKey());
-                replicator->asyncSetShardDonator(driveKey, donatorShard);
+                replicator->asyncSetShardDonator(driveKey, std::make_unique<ReplicatorList>(donatorShard));
 
                 auto recipientShard = drive.m_driveRequest.m_modifyRecipientShard;
                 std::erase(recipientShard, replicator->replicatorKey());
-                replicator->asyncSetShardRecipient(driveKey, recipientShard);
+                replicator->asyncSetShardRecipient(driveKey, std::make_unique<ReplicatorList>(recipientShard));
             }
         }
 
@@ -252,12 +252,12 @@ public:
                 std::erase(driveRequest.m_modifyDonatorShard, replicatorKey);
                 std::erase(driveRequest.m_modifyRecipientShard, replicatorKey);
 
-                replicator->asyncAddDrive(driveKey, driveRequest);
+                replicator->asyncAddDrive(driveKey, std::make_unique<AddDriveRequest>(driveRequest));
                 if (drive.m_lastApprovedModification) {
-                    replicator->asyncApprovalTransactionHasBeenPublished(PublishedModificationApprovalTransactionInfo(*drive.m_lastApprovedModification));
+                    replicator->asyncApprovalTransactionHasBeenPublished(std::make_unique<PublishedModificationApprovalTransactionInfo>(*drive.m_lastApprovedModification));
                 }
                 for (const auto& modification : drive.m_pendingModifications) {
-                    replicator->asyncModify(driveKey, modification);
+                    replicator->asyncModify(driveKey, std::make_unique<ModificationRequest>(modification));
                 }
             }
         }
@@ -275,9 +275,9 @@ public:
         for (const auto& r : drive.m_driveRequest.m_fullReplicatorList) {
             auto replicator = getReplicator(r);
             if (replicator) {
-                replicator->asyncSetReplicators(driveKey, drive.m_driveRequest.m_fullReplicatorList);
-                replicator->asyncSetShardDonator(driveKey, drive.m_driveRequest.m_modifyDonatorShard);
-                replicator->asyncSetShardRecipient(driveKey, drive.m_driveRequest.m_modifyRecipientShard);
+                replicator->asyncSetReplicators(driveKey, std::make_unique<ReplicatorList>(drive.m_driveRequest.m_fullReplicatorList));
+                replicator->asyncSetShardDonator(driveKey, std::make_unique<ReplicatorList>(drive.m_driveRequest.m_modifyDonatorShard));
+                replicator->asyncSetShardRecipient(driveKey, std::make_unique<ReplicatorList>(drive.m_driveRequest.m_modifyRecipientShard));
             }
         }
 
@@ -293,7 +293,7 @@ public:
         for (auto& key : m_drives[driveKey].m_driveRequest.m_fullReplicatorList) {
             auto replicator = getReplicator(key);
             if (replicator) {
-                replicator->asyncModify(driveKey, ModificationRequest(request));
+                replicator->asyncModify(driveKey, std::make_unique<ModificationRequest>(request));
             }
         }
     }
@@ -535,7 +535,7 @@ public:
     virtual void downloadFromDrive(const Key& driveKey, const DownloadRequest& request) {
         for (auto& replicator : m_replicators) {
             if (replicator) {
-                replicator->asyncAddDownloadChannelInfo(driveKey, DownloadRequest(request));
+                replicator->asyncAddDownloadChannelInfo(driveKey, std::make_unique<DownloadRequest>(request));
             }
         }
     }
@@ -584,7 +584,7 @@ public:
         for (auto& key : drive.m_driveRequest.m_fullReplicatorList) {
             auto replicator = getReplicator(key);
             if (replicator) {
-                replicator->asyncStartDriveVerification(driveKey, request);
+                replicator->asyncStartDriveVerification(driveKey, std::make_unique<VerificationRequest>(request));
             }
         }
     }
@@ -739,7 +739,7 @@ public:
             for (auto& key : m_drives[transactionInfo.m_driveKey].m_driveRequest.m_fullReplicatorList) {
                 if (auto r = getReplicator(key); r) {
                     r->asyncApprovalTransactionHasBeenPublished(
-                        PublishedModificationApprovalTransactionInfo(transactionInfo));
+                        std::make_unique<PublishedModificationApprovalTransactionInfo>(transactionInfo));
                 }
             }
 
@@ -827,7 +827,8 @@ public:
 
             EXLOG("Single Size " << *m_modificationSizes[transactionInfo.m_modifyTransactionHash].begin());
 
-            replicator.asyncSingleApprovalTransactionHasBeenPublished(PublishedModificationSingleApprovalTransactionInfo(transactionInfo));
+            replicator.asyncSingleApprovalTransactionHasBeenPublished(
+                    std::make_unique<PublishedModificationSingleApprovalTransactionInfo>(transactionInfo));
         }
     };
 
@@ -859,7 +860,7 @@ public:
     }
 
     void downloadOpinionHasBeenReceived(Replicator& replicator, const DownloadApprovalTransactionInfo& info) override {
-        replicator.asyncOnDownloadOpinionReceived(info);
+        replicator.asyncOnDownloadOpinionReceived(std::make_unique<DownloadApprovalTransactionInfo>(info));
     }
 
     void waitDriveIsInitialized(const Key& driveKey, int number) {

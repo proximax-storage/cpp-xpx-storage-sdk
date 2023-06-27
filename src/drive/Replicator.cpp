@@ -2447,7 +2447,7 @@ public:
                 return;
             }
 
-            driveIt->second->initiateManualModifications( request );
+            driveIt->second->initiateManualModifications( std::make_unique<InitiateModificationsRequest>(request) );
 
         } );
     }
@@ -2474,7 +2474,7 @@ public:
                 return;
             }
 
-            driveIt->second->initiateManualSandboxModifications( request );
+            driveIt->second->initiateManualSandboxModifications( std::make_unique<InitiateSandboxModificationsRequest>(request) );
 
         } );
     }
@@ -2500,7 +2500,7 @@ public:
                 return;
             }
 
-            driveIt->second->openFile( request );
+            driveIt->second->openFile( std::make_unique<OpenFileRequest>(request) );
 
         } );
     }
@@ -2526,7 +2526,7 @@ public:
                 return;
             }
 
-            driveIt->second->writeFile( request );
+            driveIt->second->writeFile( std::make_unique<WriteFileRequest>(request) );
 
         } );
     }
@@ -2552,7 +2552,7 @@ public:
                 return;
             }
 
-            driveIt->second->readFile( request );
+            driveIt->second->readFile( std::make_unique<ReadFileRequest>(request) );
 
         } );
     }
@@ -2578,7 +2578,7 @@ public:
                 return;
             }
 
-            driveIt->second->flush( request );
+            driveIt->second->flush( std::make_unique<FlushRequest>(request) );
 
         } );
     }
@@ -2604,7 +2604,7 @@ public:
                 return;
             }
 
-            driveIt->second->closeFile( request );
+            driveIt->second->closeFile( std::make_unique<CloseFileRequest>(request) );
 
         } );
     }
@@ -2630,7 +2630,7 @@ public:
                 return;
             }
 
-            driveIt->second->removeFsTreeEntry( request );
+            driveIt->second->removeFsTreeEntry( std::make_unique<RemoveFilesystemEntryRequest>(request) );
 
         } );
     }
@@ -2655,7 +2655,7 @@ public:
                 return;
             }
 
-            driveIt->second->pathExist( request );
+            driveIt->second->pathExist( std::make_unique<PathExistRequest>(request) );
 
         } );
     }
@@ -2680,7 +2680,7 @@ public:
                 return;
             }
 
-            driveIt->second->pathIsFile( request );
+            driveIt->second->pathIsFile( std::make_unique<PathIsFileRequest>(request) );
 
         } );
     }
@@ -2706,7 +2706,7 @@ public:
                 return;
             }
 
-            driveIt->second->fileSize( request );
+            driveIt->second->fileSize( std::make_unique<FileSizeRequest>(request) );
 
         } );
     }
@@ -2732,7 +2732,7 @@ public:
                 return;
             }
 
-            driveIt->second->createDirectories( request );
+            driveIt->second->createDirectories( std::make_unique<CreateDirectoriesRequest>(request) );
 
         } );
     }
@@ -2758,7 +2758,7 @@ public:
                 return;
             }
 
-            driveIt->second->folderIteratorCreate( request );
+            driveIt->second->folderIteratorCreate( std::make_unique<FolderIteratorCreateRequest>(request) );
 
         } );
     }
@@ -2784,7 +2784,7 @@ public:
                 return;
             }
 
-            driveIt->second->folderIteratorDestroy( request );
+            driveIt->second->folderIteratorDestroy( std::make_unique<FolderIteratorDestroyRequest>(request) );
 
         } );
     }
@@ -2810,7 +2810,7 @@ public:
                 return;
             }
 
-            driveIt->second->folderIteratorHasNext( request );
+            driveIt->second->folderIteratorHasNext( std::make_unique<FolderIteratorHasNextRequest>(request) );
 
         } );
     }
@@ -2836,7 +2836,7 @@ public:
                 return;
             }
 
-            driveIt->second->folderIteratorNext( request );
+            driveIt->second->folderIteratorNext( std::make_unique<FolderIteratorNextRequest>(request) );
 
         } );
     }
@@ -2862,7 +2862,7 @@ public:
                 return;
             }
 
-            driveIt->second->moveFsTreeEntry( request );
+            driveIt->second->moveFsTreeEntry( std::make_unique<MoveFilesystemEntryRequest>(request) );
 
         } );
     }
@@ -2889,7 +2889,7 @@ public:
                 return;
             }
 
-            driveIt->second->applySandboxManualModifications( request );
+            driveIt->second->applySandboxManualModifications( std::make_unique<ApplySandboxModificationsRequest>(request) );
 
         } );
     }
@@ -2915,7 +2915,7 @@ public:
                 return;
             }
 
-            driveIt->second->evaluateStorageHash( request );
+            driveIt->second->evaluateStorageHash( std::make_unique<EvaluateStorageHashRequest>(request) );
 
         } );
     }
@@ -2942,7 +2942,7 @@ public:
                 return;
             }
 
-            driveIt->second->applyStorageManualModifications( request );
+            driveIt->second->applyStorageManualModifications( std::make_unique<ApplyStorageModificationsRequest>(request) );
 
         } );
     }
@@ -2968,7 +2968,7 @@ public:
                 return;
             }
 
-            driveIt->second->manualSynchronize( request );
+            driveIt->second->manualSynchronize( std::make_unique<SynchronizationRequest>(request) );
 
         } );
     }
@@ -2994,7 +2994,7 @@ public:
                 return;
             }
 
-            driveIt->second->getFileInfo( request );
+            driveIt->second->getFileInfo( std::make_unique<FileInfoRequest>(request) );
 
         } );
     }
@@ -3020,7 +3020,7 @@ public:
                 return;
             }
 
-            driveIt->second->getActualModificationId( request );
+            driveIt->second->getActualModificationId( std::make_unique<ActualModificationIdRequest>(request) );
 
         } );
     }

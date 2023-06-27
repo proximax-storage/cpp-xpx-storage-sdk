@@ -291,8 +291,8 @@ public:
         {
             m_approvalTransactionInfo = { std::move(transactionInfo) };
 
-            std::thread( [] { gReplicator->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
-            std::thread( [] { gReplicator2->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
+            std::thread( [] { gReplicator->asyncApprovalTransactionHasBeenPublished( std::make_unique<PublishedModificationApprovalTransactionInfo>(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
+            std::thread( [] { gReplicator2->asyncApprovalTransactionHasBeenPublished( std::make_unique<PublishedModificationApprovalTransactionInfo>(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
 
 
             if ( testLateReplicator )
@@ -303,12 +303,12 @@ public:
                                 transactionInfo.m_modifyTransactionHash,
                                 replicatorList,
                                 uint64_t(MODIFY_DATA_SIZE)+uint64_t(MODIFY_DATA_SIZE) );
-                    gReplicator3->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) );
+                    gReplicator3->asyncApprovalTransactionHasBeenPublished( std::make_unique<PublishedModificationApprovalTransactionInfo>(*MyReplicatorEventHandler::m_approvalTransactionInfo) );
 //                } );
             }
             else
             {
-                std::thread( [] { gReplicator3->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
+                std::thread( [] { gReplicator3->asyncApprovalTransactionHasBeenPublished( std::make_unique<PublishedModificationApprovalTransactionInfo>(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
             }
         }
     }
@@ -367,7 +367,7 @@ public:
     virtual void downloadOpinionHasBeenReceived(  Replicator& replicator,
                                                   const DownloadApprovalTransactionInfo& opinion ) override
     {
-        replicator.asyncOnDownloadOpinionReceived( opinion );
+        replicator.asyncOnDownloadOpinionReceived( std::make_unique<DownloadApprovalTransactionInfo>(opinion) );
     }
 
     // It will be called when rootHash is calculated in sandbox
@@ -930,11 +930,11 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->setVerifyApprovalTransactionTimerDelay(1);
     replicator->start();
 //    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100,         0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
-    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100*1024*1024, 0, {}, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
+    replicator->asyncAddDrive( DRIVE_PUB_KEY, std::make_unique<AddDriveRequest>(AddDriveRequest{100*1024*1024, 0, {}, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } ));
 
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash1.array(), 100*1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash2.array(), 100*1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash3.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, std::make_unique<DownloadRequest>(DownloadRequest{ downloadChannelHash1.array(), 100*1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} ));
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, std::make_unique<DownloadRequest>(DownloadRequest{ downloadChannelHash2.array(), 100*1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} ));
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, std::make_unique<DownloadRequest>(DownloadRequest{ downloadChannelHash3.array(), 1024*1024, replicatorList, { clientKeyPair.publicKey(), clientKeyPair1.publicKey() }} ));
 
     return replicator;
 }
@@ -947,7 +947,7 @@ static void modifyDrive( std::shared_ptr<Replicator>    replicator,
                          const ReplicatorList&          replicatorList,
                          uint64_t                       maxDataSize )
 {
-    replicator->asyncModify( DRIVE_PUB_KEY, ModificationRequest{ clientDataInfoHash, transactionHash, maxDataSize, replicatorList } );
+    replicator->asyncModify( DRIVE_PUB_KEY, std::make_unique<ModificationRequest>(ModificationRequest{ clientDataInfoHash, transactionHash, maxDataSize, replicatorList } ));
 }
 
 //

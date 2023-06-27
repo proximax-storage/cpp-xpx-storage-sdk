@@ -100,7 +100,7 @@ namespace sirius::drive::test
                 for (const auto &r: m_replicators)
                 {
                     r->asyncApprovalTransactionHasBeenPublished(
-                        PublishedModificationApprovalTransactionInfo( transactionInfo ));
+                        std::make_unique<PublishedModificationApprovalTransactionInfo>( transactionInfo ));
                 }
             }
         }

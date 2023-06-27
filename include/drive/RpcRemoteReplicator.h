@@ -97,7 +97,7 @@ public:
             case RPC_CMD::asyncModify:
             {
                 Key                         driveKey;
-                mobj<ModificationRequest>   modifyRequest{ModificationRequest{}};
+                auto modifyRequest = std::make_unique<ModificationRequest>();
                 iarchive( driveKey );
                 iarchive( *modifyRequest );
                 
@@ -117,7 +117,7 @@ public:
             case RPC_CMD::asyncAddDownloadChannelInfo:
             {
                 Key                     driveKey;
-                mobj<DownloadRequest>   downloadRequest{DownloadRequest{}};
+                auto downloadRequest = std::make_unique<DownloadRequest>();
                 bool                    mustBeSynchronized;
                 iarchive( driveKey );
                 iarchive( *downloadRequest );
@@ -157,7 +157,7 @@ public:
             case RPC_CMD::asyncAddDrive:
             {
                 Key                     driveKey;
-                mobj<AddDriveRequest>   driveRequest{AddDriveRequest{}};
+                auto driveRequest = std::make_unique<AddDriveRequest>();
                 iarchive( driveKey );
                 iarchive( *driveRequest );
 
@@ -185,7 +185,7 @@ public:
             case RPC_CMD::asyncStartDriveVerification:
             {
                 Key                         driveKey;
-                mobj<VerificationRequest>   request{VerificationRequest{}};
+                auto request = std::make_unique<VerificationRequest>();
                 iarchive( driveKey );
                 iarchive( *request );
 
@@ -203,7 +203,7 @@ public:
             case RPC_CMD::asyncSetReplicators:
             {
                 Key                     driveKey;
-                mobj<std::vector<Key>>  replicatorKeys{std::vector<Key>{}};
+                auto replicatorKeys = std::make_unique<std::vector<Key>>();
                 iarchive( driveKey );
                 iarchive( *replicatorKeys );
 
@@ -213,7 +213,7 @@ public:
             case RPC_CMD::asyncSetShardDonator:
             {
                 Key                     driveKey;
-                mobj<std::vector<Key>>  replicatorKeys{std::vector<Key>{}};
+                auto replicatorKeys = std::make_unique<std::vector<Key>>();
                 iarchive( driveKey );
                 iarchive( *replicatorKeys );
 
@@ -223,7 +223,7 @@ public:
             case RPC_CMD::asyncSetShardRecipient:
             {
                 Key                     driveKey;
-                mobj<std::vector<Key>>  replicatorKeys{std::vector<Key>{}};
+                auto replicatorKeys = std::make_unique<std::vector<Key>>();
                 iarchive( driveKey );
                 iarchive( *replicatorKeys );
 
@@ -232,8 +232,8 @@ public:
             }
             case RPC_CMD::asyncSetChanelShard:
             {
-                mobj<Hash256>           channelId{Hash256{}};
-                mobj<std::vector<Key>>  replicatorKeys{std::vector<Key>{}};
+                auto channelId = std::make_unique<Hash256>();
+                auto replicatorKeys = std::make_unique<std::vector<Key>>();
                 iarchive( *channelId );
                 iarchive( *replicatorKeys );
 
@@ -242,7 +242,7 @@ public:
             }
             case RPC_CMD::asyncApprovalTransactionHasBeenPublished:
             {
-                mobj<PublishedModificationApprovalTransactionInfo>&& txInfo{PublishedModificationApprovalTransactionInfo{}};
+                auto txInfo = std::make_unique<PublishedModificationApprovalTransactionInfo>();
                 iarchive( *txInfo );
 
                 m_replicator->asyncApprovalTransactionHasBeenPublished( std::move(txInfo) );
@@ -250,7 +250,7 @@ public:
             }
             case RPC_CMD::asyncSingleApprovalTransactionHasBeenPublished:
             {
-                mobj<PublishedModificationSingleApprovalTransactionInfo>&& txInfo{PublishedModificationSingleApprovalTransactionInfo{}};
+                auto txInfo = std::make_unique<PublishedModificationSingleApprovalTransactionInfo>();
                 iarchive( *txInfo );
 
                 m_replicator->asyncSingleApprovalTransactionHasBeenPublished( std::move(txInfo) );
@@ -286,10 +286,10 @@ public:
             }
             case RPC_CMD::asyncOnDownloadOpinionReceived:
             {
-                DownloadApprovalTransactionInfo opinion;
-                iarchive( opinion );
+                auto opinion = std::make_unique<DownloadApprovalTransactionInfo>();
+                iarchive( *opinion );
 
-                m_replicator->asyncOnDownloadOpinionReceived( opinion );
+                m_replicator->asyncOnDownloadOpinionReceived( std::move(opinion) );
                 break;
             }
             case RPC_CMD::asyncApprovalTransactionHasFailedInvalidOpinions:

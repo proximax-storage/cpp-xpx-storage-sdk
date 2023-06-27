@@ -65,11 +65,11 @@ namespace sirius::drive::test
             for (uint i = 0; i < m_replicators.size() - 1; i++)
             {
                 auto &replicator = m_replicators[i];
-                replicator->asyncModify(driveKey, ModificationRequest(request));
+                replicator->asyncModify(driveKey, std::make_unique<ModificationRequest>(request));
             }
             boost::asio::post(m_offlineContext, [=, this]
                                   {
-                                      m_replicators.back()->asyncModify(driveKey, ModificationRequest(request));
+                                      m_replicators.back()->asyncModify(driveKey, std::make_unique<ModificationRequest>(request));
                                   });
         }
 
@@ -135,12 +135,12 @@ namespace sirius::drive::test
                 {
                     const auto &r = m_replicators[i];
                     r->asyncApprovalTransactionHasBeenPublished(
-                        PublishedModificationApprovalTransactionInfo(transactionInfo));
+                        std::make_unique<PublishedModificationApprovalTransactionInfo>(transactionInfo));
                 }
                 boost::asio::post(m_offlineContext, [=, this]
                                       {
                                           m_replicators.back()->asyncApprovalTransactionHasBeenPublished(
-                                              PublishedModificationApprovalTransactionInfo(transactionInfo));
+                                              std::make_unique<PublishedModificationApprovalTransactionInfo>(transactionInfo));
                                       });
             }
         }
@@ -173,13 +173,13 @@ namespace sirius::drive::test
 
                 if (replicator.dbgReplicatorKey() != m_replicators.back()->dbgReplicatorKey())
                 {
-                    replicator.asyncSingleApprovalTransactionHasBeenPublished( PublishedModificationSingleApprovalTransactionInfo(transactionInfo) );
+                    replicator.asyncSingleApprovalTransactionHasBeenPublished( std::make_unique<PublishedModificationSingleApprovalTransactionInfo>(transactionInfo) );
                 } else
                 {
                     boost::asio::post(m_offlineContext, [=, &replicator]
                                           {
                                                 replicator.asyncSingleApprovalTransactionHasBeenPublished(
-                                                    PublishedModificationSingleApprovalTransactionInfo( transactionInfo ) );
+                                                    std::make_unique<PublishedModificationSingleApprovalTransactionInfo>( transactionInfo ) );
 
                                           });
                 }
