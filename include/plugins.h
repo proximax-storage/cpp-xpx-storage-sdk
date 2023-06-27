@@ -21,12 +21,11 @@
 #pragma once
 
 #if defined(WIN32) || defined(WIN64)
-#define PLUGIN_API __declspec(dllexport)
+    #define PLUGIN_API __declspec(dllexport)
 #else
-#define PLUGIN_API __attribute__ ((visibility ("default")))
+    #define PLUGIN_API __attribute__ ((visibility ("default")))
 #endif
 
 #if _MSC_VER
-#define __attribute__(x)
-#else
+    #define __attribute__(x)
 #endif
