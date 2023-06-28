@@ -209,9 +209,11 @@ __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
                 const std::map<std::string, std::map<std::string, size_t>>& requestedFsTree,
                 const bool applyStorageModifications = false) {
             for (const auto& [directoryAbsolutePath, filesMap] : requestedFsTree) {
-                m_requestedDirectories.insert(directoryAbsolutePath);
+                const bool isAtRoot = directoryAbsolutePath == "";
+                if (!isAtRoot) {
+                    m_requestedDirectories.insert(directoryAbsolutePath);
+                }
                 for (const auto& [fileName, fileSize] : filesMap) {
-                    const bool isAtRoot = directoryAbsolutePath == "";
                     const auto fileAbsolutePath = isAtRoot ? fileName : (directoryAbsolutePath + "/" + fileName);
                     m_requestedFiles.emplace(fileAbsolutePath, fileSize);
                 }
