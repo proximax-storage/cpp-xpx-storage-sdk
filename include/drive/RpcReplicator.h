@@ -133,9 +133,12 @@ public:
     	rpcCallArchStr( RPC_CMD::createReplicator, os.str() );
 	}
 
+    void stopReplicator() override {
+        rpcCall( RPC_CMD::destroyReplicator );
+    }
+
     ~RpcReplicator() override
     {
-        rpcCall( RPC_CMD::destroyReplicator );
     }
     
     virtual bool isConnectionLost() const override

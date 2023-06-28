@@ -167,16 +167,10 @@ public:
         m_endpointsManager.stop();
     }
 
-    ~DefaultReplicator() override
-    {
-
-#ifdef DEBUG_OFF_CATAPULT
-        _LOG( "~DefaultReplicator() " )
-#endif
+    void stopReplicator() override {
 
         std::promise<void> barrier;
-        boost::asio::post( m_session->lt_session().get_context(), [&barrier, this]() mutable
-        {
+        boost::asio::post( m_session->lt_session().get_context(), [&barrier, this]() mutable {
             DBG_MAIN_THREAD
             stop();
             barrier.set_value();
@@ -188,14 +182,21 @@ public:
         auto blockedDestructor = m_session->lt_session().abort();
         m_session.reset();
 
-        if ( m_libtorrentThread.joinable())
-        {
+        if ( m_libtorrentThread.joinable()) {
             _LOG( "m_libtorrentThread joined" )
             m_libtorrentThread.join();
         }
 
         //(???+++)
         saveDownloadChannelMap();
+    }
+
+    ~DefaultReplicator() override
+    {
+
+#ifdef DEBUG_OFF_CATAPULT
+        _LOG( "~DefaultReplicator() " )
+#endif
     }
 
     void start() override

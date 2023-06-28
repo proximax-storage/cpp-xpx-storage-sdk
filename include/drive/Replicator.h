@@ -350,6 +350,8 @@ public:
     virtual uint64_t    getMinReplicatorsNumber() = 0;
     virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
 
+    virtual void        stopReplicator() = 0;
+
     // For RPC support
     virtual bool        isConnectionLost() const { return false; };
     

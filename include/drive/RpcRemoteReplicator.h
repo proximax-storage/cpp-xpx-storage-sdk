@@ -20,7 +20,12 @@ class RpcRemoteReplicator : public RpcClient, public ReplicatorEventHandler, pub
 public:
     
     RpcRemoteReplicator() {}
-    ~RpcRemoteReplicator() { delete m_keyPair; }
+    ~RpcRemoteReplicator() {
+        if (m_replicator) {
+            m_replicator->stopReplicator();
+        }
+        delete m_keyPair;
+    }
 
     virtual void handleCommand( RPC_CMD command, cereal::PortableBinaryInputArchive* iarchivePtr ) override
     {
@@ -79,7 +84,10 @@ public:
             }
             case RPC_CMD::destroyReplicator:
             {
-                m_replicator.reset();
+                if (m_replicator) {
+                    m_replicator->stopReplicator();
+                    m_replicator.reset();
+                }
                 break;
             }
             case RPC_CMD::start:
@@ -516,6 +524,7 @@ public:
     {
         rpcCall( RPC_CMD::modifyTransactionEndedWithError, driveKey, modifyRequest, reason, errorCode );
     }
+
 
 };
 
