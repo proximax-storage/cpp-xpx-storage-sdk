@@ -423,7 +423,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_task )
+        SIRIUS_ASSERT( !m_task )
 
         if ( m_deferredManualModificationRequest )
         {
@@ -433,7 +433,7 @@ public:
 
         m_task = createManualSynchronizationTask( std::move( m_synchronizationRequest ), *this, m_opinionController );
 
-        _ASSERT( m_task->getTaskType() == DriveTaskType::MANUAL_SYNCHRONIZATION )
+        SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::MANUAL_SYNCHRONIZATION )
 
         m_task->run();
     }
@@ -497,7 +497,7 @@ public:
 
         m_task = createDriveClosureTask( std::move( m_closeDriveRequest ), *this );
 
-        SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::DRIVE_CLOSURE )
+        SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::DRIVE_CLOSURE );
 
         m_task->run();
     }
@@ -525,7 +525,7 @@ public:
 
         m_task = createManualModificationsTask( std::move( m_deferredManualModificationRequest ), *this );
 
-        _ASSERT( m_task->getTaskType() == DriveTaskType::MANUAL_MODIFICATION )
+        SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::MANUAL_MODIFICATION )
 
         m_task->run();
     }
@@ -606,7 +606,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_synchronizationRequest )
+        SIRIUS_ASSERT( !m_synchronizationRequest )
 
         cancelVerification();
 
@@ -703,7 +703,7 @@ public:
 
         _LOG( "Initiated Manual Modifications" )
 
-        _ASSERT( !m_deferredManualModificationRequest )
+        SIRIUS_ASSERT( !m_deferredManualModificationRequest )
 
         if ( m_task ) {
             m_task->onManualModificationInitiated( *request );

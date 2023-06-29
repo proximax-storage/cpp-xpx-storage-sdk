@@ -248,7 +248,7 @@ public:
 
             if ( !m_services.empty() )
             {
-                _ASSERT(m_serviceServerAddress)
+                SIRIUS_ASSERT(m_serviceServerAddress)
                 grpc::ServerBuilder builder;
                 builder.AddListeningPort( *m_serviceServerAddress, grpc::InsecureServerCredentials());
                 for (const auto& service: m_services) {

@@ -43,7 +43,7 @@ public:
 
         for( auto& [key,value]: m_drive.m_torrentHandleMap )
         {
-            _ASSERT( key != Hash256() )
+            SIRIUS_ASSERT( key != Hash256() )
             tobeRemovedTorrents.insert( value.m_ltHandle );
         }
 

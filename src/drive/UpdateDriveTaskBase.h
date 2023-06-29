@@ -76,8 +76,8 @@ protected:
     {
         DBG_MAIN_THREAD
 
-        SIRIUS_ASSERT( m_sandboxFsTree )
-        SIRIUS_ASSERT( m_sandboxRootHash )
+        SIRIUS_ASSERT ( m_sandboxFsTree )
+        SIRIUS_ASSERT ( m_sandboxRootHash )
 
         if ( m_taskIsInterrupted )
         {
@@ -118,7 +118,7 @@ protected:
 
         _LOG( "diveUpdateIsCompleted: " << getModificationTransactionHash() );
 
-        SIRIUS_ASSERT( m_sandboxRootHash )
+        SIRIUS_ASSERT ( m_sandboxRootHash )
 
         if ( m_drive.m_dbgEventHandler ) {
             m_drive.m_dbgEventHandler->driveModificationIsCompleted(
@@ -184,7 +184,7 @@ protected:
     {
         DBG_MAIN_THREAD
 
-        SIRIUS_ASSERT( !m_taskIsInterrupted )
+        SIRIUS_ASSERT ( !m_taskIsInterrupted )
 
         auto& torrentHandleMap = m_drive.m_torrentHandleMap;
 
@@ -203,7 +203,7 @@ protected:
         // Add unused files into set<>
         for ( const auto& it : torrentHandleMap )
         {
-            _ASSERT( it.first != Hash256() )
+            SIRIUS_ASSERT ( it.first != Hash256() )
             const UseTorrentInfo& info = it.second;
             if ( !info.m_isUsed )
             {
@@ -291,7 +291,7 @@ private:
             return;
         }
 
-        SIRIUS_ASSERT( m_sandboxRootHash )
+        SIRIUS_ASSERT ( m_sandboxRootHash )
 
         const auto& keyPair = m_drive.m_replicator.keyPair();
         SingleOpinion opinion( keyPair.publicKey().array());
@@ -320,7 +320,7 @@ private:
                                            {
                                                DBG_BG_THREAD
 
-                                               SIRIUS_ASSERT( m_myOpinion )
+                                               SIRIUS_ASSERT  ( m_myOpinion )
 
                                                saveSingleApprovalTransaction( m_myOpinion );
 

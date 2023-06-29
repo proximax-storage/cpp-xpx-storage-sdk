@@ -136,7 +136,7 @@ void Folder::getSizes( const fs::path& driveFolder, const fs::path& torrentFolde
         }
         else {
             const auto& file = getFile(it->second);
-            __ASSERT(!file.isModifiable());
+            _SIRIUS_ASSERT(!file.isModifiable());
             const auto& fileHash = file.hash();
             std::cout << "name:  " << getFile(it->second).name() << "\n" << std::flush;
             std::cout << "tname: " << torrentFolder / toString(fileHash) << "\n" << std::flush;

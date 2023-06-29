@@ -26,7 +26,7 @@ public:
             : SynchronizationTaskBase( DriveTaskType::MANUAL_SYNCHRONIZATION, drive, opinionTaskController )
             , m_request( std::move( request ))
     {
-        _ASSERT( m_request )
+        SIRIUS_ASSERT( m_request )
     }
 
     bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
@@ -34,7 +34,7 @@ public:
 
         DBG_MAIN_THREAD
 
-        _ASSERT( 0 )
+        SIRIUS_ASSERT( 0 )
 
         return false;
     }
@@ -45,7 +45,7 @@ public:
         DBG_MAIN_THREAD
 
         // TODO seems it should never be the case
-        _ASSERT( 0 );
+        SIRIUS_ASSERT( 0 );
 
         return false;
     }
@@ -55,7 +55,7 @@ public:
         DBG_MAIN_THREAD
 
         // TODO seems it should never be the case
-        _ASSERT( 0 );
+        SIRIUS_ASSERT( 0 );
     }
 
     const Hash256& getModificationTransactionHash() override
