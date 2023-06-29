@@ -68,8 +68,6 @@ private:
     int m_verificationShareTimerDelay = 60 * 1000;
     uint64_t m_minReplicatorsNumber = 4;
 
-    bool m_replicatorIsDestructing = false;
-
     bool m_useTcpSocket;
 
     ReplicatorEventHandler& m_eventHandler;
@@ -123,8 +121,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-
-        return m_replicatorIsDestructing;
+        return m_isDestructing;
     }
 
     void executeOnBackgroundThread( const std::function<void()>& task ) override
@@ -139,7 +136,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_replicatorIsDestructing = true;
+        m_isDestructing = true;
 
         if (m_serviceServer) {
             m_serviceServer->Shutdown();
@@ -321,7 +318,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -383,7 +380,7 @@ public:
             DBG_MAIN_THREAD
 
             //(???) What will happen after restart?
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -492,7 +489,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -519,7 +516,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -558,7 +555,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -583,7 +580,7 @@ public:
 
             _LOG( "started verification" );
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -608,7 +605,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -631,7 +628,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -676,7 +673,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -699,7 +696,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -723,7 +720,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -889,7 +886,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1142,7 +1139,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1240,7 +1237,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1297,7 +1294,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1344,7 +1341,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1379,7 +1376,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1403,7 +1400,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1427,7 +1424,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1452,7 +1449,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1476,7 +1473,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_replicatorIsDestructing )
+        if ( m_isDestructing )
         {
             return;
         }
@@ -1499,7 +1496,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_replicatorIsDestructing )
+        if ( m_isDestructing )
         {
             return;
         }
@@ -1521,7 +1518,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_replicatorIsDestructing )
+        if ( m_isDestructing )
         {
             return;
         }
@@ -2303,7 +2300,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2326,7 +2323,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2435,7 +2432,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2462,7 +2459,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2488,7 +2485,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2514,7 +2511,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2540,7 +2537,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2566,7 +2563,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2592,7 +2589,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2618,7 +2615,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2643,7 +2640,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2668,7 +2665,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2694,7 +2691,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2720,7 +2717,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2746,7 +2743,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2772,7 +2769,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2798,7 +2795,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2824,7 +2821,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2850,7 +2847,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2877,7 +2874,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2903,7 +2900,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2930,7 +2927,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2956,7 +2953,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2982,7 +2979,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -3008,7 +3005,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -3034,7 +3031,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }

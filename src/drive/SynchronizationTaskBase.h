@@ -407,17 +407,6 @@ public:
         return true;
     }
 
-    void modifyIsCompleted() override
-    {
-        _LOG( "catchingIsCompleted" );
-        if ( m_drive.m_dbgEventHandler )
-        {
-            m_drive.m_dbgEventHandler->driveModificationIsCompleted(
-                    m_drive.m_replicator, m_drive.m_driveKey, getModificationTransactionHash(), *m_sandboxRootHash );
-        }
-        UpdateDriveTaskBase::modifyIsCompleted();
-    }
-
     void continueSynchronizingDriveWithSandbox() override
     {
         DBG_BG_THREAD

@@ -55,6 +55,8 @@ protected:
 
     std::thread::id     m_dbgThreadId;
 
+    bool m_isDestructing = false;
+
 public:
     DownloadLimiter( const crypto::KeyPair& keyPair, const std::string& dbgOurPeerName ) : m_keyPair(keyPair), m_dbgOurPeerName(dbgOurPeerName)
     {
@@ -62,16 +64,25 @@ public:
     
     virtual void onTorrentDeleted( lt::torrent_handle handle ) override
     {
+        if (m_isDestructing) {
+            return;
+        }
         m_session->onTorrentDeleted( handle );
     }
 
     void onCacheFlushed( lt::torrent_handle handle ) override
     {
+        if (m_isDestructing) {
+            return;
+        }
         m_session->onCacheFlushed( handle );
     }
     
     void printReport( std::array<uint8_t,32> txHash )
     {
+        if (m_isDestructing) {
+            return;
+        }
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             
             _LOG( "printReport:" );
@@ -94,7 +105,11 @@ public:
                          int                            siriusFlags ) override
     {
         DBG_MAIN_THREAD
-        
+
+        if (m_isDestructing) {
+            return;
+        }
+
         //TODO++
         return;
         
@@ -112,6 +127,10 @@ public:
     {
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable {
             DBG_MAIN_THREAD
+
+            if (m_isDestructing) {
+                return;
+            }
 
             for( auto& [key,drive] : m_driveMap )
             {
@@ -144,7 +163,11 @@ public:
                              lt::errors::error_code_enum&  outErrorCode ) override
     {
         DBG_MAIN_THREAD
-        
+
+        if (m_isDestructing) {
+            return false;
+        }
+
         outErrorCode = lt::errors::no_error;
 
         if ( m_session->isEnding() )
@@ -219,6 +242,10 @@ public:
     {
         DBG_MAIN_THREAD
 
+        if (m_isDestructing) {
+            return;
+        }
+
         if ( auto it = m_dnChannelMap.find(channelId); it != m_dnChannelMap.end() ) {
             _LOG( "???" );
 			_LOG_ERR( "Attempt To Add Already Existing Drive " << int(channelId[0]) );
@@ -281,6 +308,10 @@ public:
     void increaseChannelSize( const std::array<uint8_t,32>&  channelId,
 							  uint64_t                       prepaidDownloadSize)
 	{
+        if (m_isDestructing) {
+            return;
+        }
+
     	auto it = m_dnChannelMap.find(channelId);
 
 		if (it == m_dnChannelMap.end()) {
@@ -298,6 +329,10 @@ public:
                                                   lt::errors::error_code_enum&   outErrorCode ) override
     {
         DBG_MAIN_THREAD
+
+        if (m_isDestructing) {
+            return lt::connection_status::REJECTED;
+        }
 
         outErrorCode = lt::errors::no_error;
 
@@ -344,7 +379,11 @@ public:
                                      const std::array<uint8_t,32>&  peerKey ) override
     {
         DBG_MAIN_THREAD
-        
+
+        if (m_isDestructing) {
+            return lt::connection_status::REJECTED;
+        }
+
         if ( m_session->isEnding() )
         {
             return lt::connection_status::REJECTED;
@@ -385,7 +424,11 @@ public:
                                                uint64_t                       pieceSize ) override
     {
         DBG_MAIN_THREAD
-        
+
+        if (m_isDestructing) {
+            return false;
+        }
+
         if ( m_session->isEnding() )
         {
             return false;
@@ -403,6 +446,9 @@ public:
                                            const std::array<uint8_t,32>&      receiverPublicKey,
                                            uint64_t                           pieceSize ) override
     {
+        if (m_isDestructing) {
+            return false;
+        }
         //(???+++)
         //TODO
         return true;
@@ -413,7 +459,11 @@ public:
                       uint64_t                       pieceSize ) override
     {
         DBG_MAIN_THREAD
-        
+
+        if (m_isDestructing) {
+            return;
+        }
+
         if ( m_session->isEnding() )
         {
             return;
@@ -442,7 +492,11 @@ public:
                           uint64_t                       pieceSize ) override
     {
         DBG_MAIN_THREAD
-        
+
+        if (m_isDestructing) {
+            return;
+        }
+
         if ( m_session->isEnding() )
         {
             return;
@@ -462,7 +516,11 @@ public:
     virtual void acceptReceiptFromAnotherReplicator( const RcptMessage& message ) override
     {
         DBG_MAIN_THREAD
-        
+
+        if (m_isDestructing) {
+            return;
+        }
+
         if ( m_session->isEnding() )
         {
             return;
@@ -477,6 +535,10 @@ public:
     {
         DBG_MAIN_THREAD
 
+        if (m_isDestructing) {
+            return;
+        }
+
         m_dnChannelMap.erase( channelId );
     }
 
@@ -485,6 +547,11 @@ public:
     void signHandshake( const uint8_t* bytes, size_t size, std::array<uint8_t,64>& signature ) override
     {
         DBG_MAIN_THREAD
+
+        if (m_isDestructing) {
+            return;
+        }
+
         crypto::Sign( m_keyPair, utils::RawBuffer{bytes,size}, reinterpret_cast<Signature&>(signature) );
         //_LOG( "SIGN HANDSHAKE: " << int(signature[0]) )
     }
@@ -495,7 +562,11 @@ public:
                           const std::array<uint8_t,64>&  signature ) override
     {
         DBG_MAIN_THREAD
-        
+
+        if (m_isDestructing) {
+            return false;
+        }
+
         //_LOG( "verifyHandshake: " << int(signature[0]) )
         auto ok = crypto::Verify( publicKey, utils::RawBuffer{bytes,size}, signature );
         if ( !ok )
@@ -511,6 +582,11 @@ public:
                       std::array<uint8_t,64>&       outSignature ) override
     {
         DBG_MAIN_THREAD
+
+        if (m_isDestructing) {
+            return;
+        }
+
         // not used
         crypto::Sign( m_keyPair,
                       {
@@ -528,6 +604,11 @@ public:
                             const std::array<uint8_t,32>& pk,
                             const std::array<uint8_t,64>& sig ) override
     {
+
+        if (m_isDestructing) {
+            return false;
+        }
+
         return crypto::Verify(Key{pk},
                        {
                                utils::RawBuffer{reinterpret_cast<const uint8_t *>(value.data()), value.size()},
@@ -544,6 +625,10 @@ public:
     {
         DBG_MAIN_THREAD
 
+        if (m_isDestructing) {
+            return;
+        }
+
         crypto::Sign( m_keyPair,
                 {
                     utils::RawBuffer{reinterpret_cast<const uint8_t *>(value.data()), value.size()},
@@ -556,6 +641,10 @@ public:
     const std::vector<uint8_t>* getLastClientReceipt( const std::array<uint8_t,32>&  downloadChannelId,
                                                       const std::array<uint8_t,32>&  clientPublicKey ) override
     {
+        if (m_isDestructing) {
+            return nullptr;
+        }
+
         auto channelInfoIt = m_dnChannelMap.find( downloadChannelId );
         if ( channelInfoIt == m_dnChannelMap.end() )
         {
@@ -585,6 +674,11 @@ public:
                         bool&                          shouldBeDisconnected,
                         lt::errors::error_code_enum&   outErrorCode ) override
     {
+        if (m_isDestructing) {
+            outErrorCode = lt::errors::no_error;
+            return;
+        }
+
         if ( m_session->isEnding() )
         {
             outErrorCode = lt::errors::no_error;
@@ -605,6 +699,11 @@ public:
                             bool&                           shouldBeDisconnected,
                             lt::errors::error_code_enum&    outErrorCode )
     {
+        if (m_isDestructing) {
+            outErrorCode = lt::errors::no_error;
+            return;
+        }
+
         outErrorCode = lt::errors::no_error;
 
         // Get channel info
@@ -727,6 +826,11 @@ public:
     {
         DBG_MAIN_THREAD
 
+        if (m_isDestructing) {
+            outErrorCode = lt::errors::no_error;
+            return;
+        }
+
         shouldBeDisconnected = false;
 
         auto replicatorInfoIt = channelInfo.m_replicatorUploadRequestMap.find( msg.replicatorKey() );
@@ -830,6 +934,10 @@ public:
     std::shared_ptr<sirius::drive::FlatDrive> getDrive( const Key driveKey )
     {
         DBG_MAIN_THREAD
+
+        if (m_isDestructing) {
+            return {};
+        }
 
         if ( auto it = m_driveMap.find(driveKey); it != m_driveMap.end() )
         {
