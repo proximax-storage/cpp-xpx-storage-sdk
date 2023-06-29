@@ -40,9 +40,9 @@ struct RcptMessage : public std::vector<uint8_t>
     
     bool isValidSize() const { return size() == sizeof(ChannelId)+sizeof(ClientKey)+sizeof(ReplicatorKey)+8+sizeof(Sign); }
 
-    const ChannelId&      channelId()      const { __ASSERT(!empty()); return *reinterpret_cast<const ChannelId*>(     &this->at(0) );   }
-    const ClientKey&      clientKey()      const { __ASSERT(!empty()); return *reinterpret_cast<const ClientKey*>(     &this->at(32) );  }
-    const ReplicatorKey&  replicatorKey()  const { __ASSERT(!empty()); return *reinterpret_cast<const ReplicatorKey*>( &this->at(64) );  }
+    const ChannelId&      channelId()      const { _SIRIUS_ASSERT(!empty()); return *reinterpret_cast<const ChannelId*>(     &this->at(0) );   }
+    const ClientKey&      clientKey()      const { _SIRIUS_ASSERT(!empty()); return *reinterpret_cast<const ClientKey*>(     &this->at(32) );  }
+    const ReplicatorKey&  replicatorKey()  const { _SIRIUS_ASSERT(!empty()); return *reinterpret_cast<const ReplicatorKey*>( &this->at(64) );  }
     
     // to be downloaded size
     uint64_t              downloadedSize() const

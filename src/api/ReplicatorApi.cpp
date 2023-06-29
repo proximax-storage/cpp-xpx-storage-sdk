@@ -4,6 +4,11 @@
 *** license that can be found in the LICENSE file.
 **/
 
+#if _MSC_VER
+#pragma warning (disable : 4267)
+#pragma warning (disable : 4244)
+#endif
+
 #include "RemoteRequestDispatcher.h"
 #include "api/ReplicatorApi.h"
 #include "api/Packets.h"

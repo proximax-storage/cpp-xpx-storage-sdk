@@ -274,7 +274,7 @@ public:
             DBG_MAIN_THREAD
 
             const auto drive = getDrive( driveKey );
-            _ASSERT( drive );
+            SIRIUS_ASSERT( drive );
             auto rootHash = drive->rootHash();
             thePromise.set_value( rootHash );
         } );
@@ -1106,7 +1106,7 @@ public:
 
         auto channelIt = m_dnChannelMap.find( channelId );
 
-        _ASSERT( channelIt != m_dnChannelMap.end())
+        SIRIUS_ASSERT( channelIt != m_dnChannelMap.end() )
 
         auto& downloadMapValue = channelIt->second.m_downloadOpinionMap.find( blockHash.array())->second;
 
@@ -1181,13 +1181,13 @@ public:
         DBG_MAIN_THREAD
 
         auto it = m_dnChannelMap.find( downloadChannel.array());
-        _ASSERT( it != m_dnChannelMap.end());
+        SIRIUS_ASSERT( it != m_dnChannelMap.end() );
 
         auto eventIt = it->second.m_downloadOpinionMap.find( eventHash.array());
-        _ASSERT( eventIt != it->second.m_downloadOpinionMap.end())
+        SIRIUS_ASSERT( eventIt !=  it->second.m_downloadOpinionMap.end() )
 
         auto myOpinion = eventIt->second.m_opinions.find( publicKey());
-        _ASSERT( myOpinion != eventIt->second.m_opinions.end());
+        SIRIUS_ASSERT( myOpinion != eventIt->second.m_opinions.end() );
 
         DownloadApprovalTransactionInfo opinionToShare = {eventHash.array(), downloadChannel.array(),
                                                           {myOpinion->second}};
@@ -1218,7 +1218,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( blockHash )
+        SIRIUS_ASSERT( blockHash )
         for ( auto&[channelId, channelInfo] : m_dnChannelMap )
         {
             if ( channelInfo.m_driveKey == driveKey.array())
@@ -1327,7 +1327,7 @@ public:
 
         auto it = m_driveMap.find( driveKey );
 
-        _ASSERT( it != m_driveMap.end())
+        SIRIUS_ASSERT( it != m_driveMap.end() )
 
         m_driveMap.erase( it );
     }
@@ -1664,7 +1664,7 @@ public:
                     {
                     auto chunkInfo = std::make_unique<ChunkInfo>();
                         iarchive( *chunkInfo );
-                        _ASSERT( chunkInfo )
+                    SIRIUS_ASSERT( chunkInfo )
 
                         driveIt->second->acceptChunkInfoMessage( std::move( chunkInfo ), source );
                     } else
@@ -1701,7 +1701,7 @@ public:
 //                {
 //                    mobj<FinishStreamMsg> finishStream{FinishStreamMsg{}};
 //                    iarchive( *finishStream );
-//                    _ASSERT( finishStream )
+//                    SIRIUS_ASSERT( finishStream )
 //
 //                    driveIt->second->acceptFinishStreamTx( std::move(finishStream), source );
 //                }

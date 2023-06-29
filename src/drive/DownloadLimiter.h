@@ -479,7 +479,7 @@ public:
             }
             else
             {
-                _ASSERT( "unknown receiverPublicKey" );
+                SIRIUS_ASSERT( "unknown receiverPublicKey" );
             }
             return;
         }

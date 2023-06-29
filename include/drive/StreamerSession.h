@@ -96,8 +96,8 @@ public:
                      const fs::path&         workFolder,
                      const endpoint_list&    endPointList )
     {
-        _ASSERT( ! m_streamId )
-        _ASSERT( endPointList.size() > 0 )
+        SIRIUS_ASSERT( ! m_streamId )
+        SIRIUS_ASSERT( endPointList.size() > 0 )
 
         m_streamId = streamId;
         m_driveKey = driveKey;
@@ -135,7 +135,7 @@ public:
         for( uint32_t i=0; (i < m_chunkInfoMap.size()); i++ )
         {
             auto chunkInfoIt = m_chunkInfoMap.find(i);
-            _ASSERT( chunkInfoIt != m_chunkInfoMap.end() )
+            SIRIUS_ASSERT( chunkInfoIt != m_chunkInfoMap.end() )
             
             if ( (timeMks + chunkInfoIt->second.m_durationMks < startTimeSecods*1000000)
                 || (timeMks > endTimeSecods*1000000) )
@@ -179,10 +179,10 @@ public:
         }
 
         fs::path torrentFilename = m_torrentFolder / "finishStreamInfo";
-        InfoHash infoHash = createTorrentFile( finishStreamFilename, m_keyPair.publicKey(), m_chunkFolder, torrentFilename );
+        InfoHash infoHash = createTorrentFile( finishStreamFilename.string(), m_keyPair.publicKey(), m_chunkFolder.string(), torrentFilename.string() );
 
-        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename,
-                                                                      m_chunkFolder,
+        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename.string(),
+                                                                      m_chunkFolder.string(),
                                                                       lt::SiriusFlags::client_has_modify_data,
                                                                       &m_keyPair.publicKey().array(),
                                                                       nullptr,
@@ -234,7 +234,7 @@ public:
         
         uint64_t chunkSize = fs::file_size( tmp );
         
-        InfoHash chunkHash = createTorrentFile( tmp, m_keyPair.publicKey(), m_mediaFolder, {} );
+        InfoHash chunkHash = createTorrentFile( tmp.string(), m_keyPair.publicKey(), m_mediaFolder.string(), {} );
         fs::path chunkFilename = m_chunkFolder / toString( chunkHash );
 
         if ( dbgInfoHash != nullptr )
@@ -253,11 +253,11 @@ public:
             fs::create_symlink( tmp, chunkFilename );
 
             fs::path torrentFilename = m_torrentFolder / toString( chunkHash );
-            InfoHash chunkHash2 = createTorrentFile( chunkFilename, m_keyPair.publicKey(), m_chunkFolder, torrentFilename );
-            _ASSERT( chunkHash2 == chunkHash )
+            InfoHash chunkHash2 = createTorrentFile( chunkFilename.string(), m_keyPair.publicKey(), m_chunkFolder.string(), torrentFilename.string() );
+            SIRIUS_ASSERT( chunkHash2 == chunkHash )
 
-            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename,
-                                                                          m_chunkFolder,
+            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename.string(),
+                                                                          m_chunkFolder.string(),
                                                                           lt::SiriusFlags::client_has_modify_data,
                                                                           &m_keyPair.publicKey().array(),
                                                                           nullptr,
@@ -270,7 +270,7 @@ public:
         auto [it,ok] = m_chunkInfoMap.emplace( m_lastChunkIndex,
                                ChunkInfo{ m_streamId->array(), m_lastChunkIndex, chunkHash.array(), durationMs, chunkSize, {} } );
         m_lastChunkIndex++;
-        _ASSERT( ok )
+        SIRIUS_ASSERT( ok )
 
         auto& chunkInfo = it->second;
         chunkInfo.Sign( m_keyPair );

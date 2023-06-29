@@ -252,7 +252,7 @@ public:
             }
         } else
         {
-            _ASSERT(endpoint)
+            SIRIUS_ASSERT(endpoint)
             m_unknownEndpointsMap[key] = *endpoint;
         }
     }
@@ -263,7 +263,7 @@ public:
         {
             return it->second.m_endpoint;
         }
-        //_ASSERT(m_unknownEndpointsMap.find(key) == m_unknownEndpointsMap.end())
+        //SIRIUS_ASSERT(m_unknownEndpointsMap.find(key) == m_unknownEndpointsMap.end())
         return {};
     }
 
@@ -330,7 +330,7 @@ private:
 
     void sendHandshake(const Key& to)
     {
-        _ASSERT(m_externalEndpoint)
+        SIRIUS_ASSERT(m_externalEndpoint)
 
         auto endpoint = getEndpoint(to);
 

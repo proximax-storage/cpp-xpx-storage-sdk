@@ -70,15 +70,15 @@ public:
     void saveReceiptSize( const ClientKey& clientKey, uint64_t tobeUploadedSize )
     {
         auto it = m_clientMap.find( clientKey );
-        __ASSERT( it != m_clientMap.end() )
-        __ASSERT( it->second.m_acceptedSize <= tobeUploadedSize )
+        _SIRIUS_ASSERT( it != m_clientMap.end() )
+        _SIRIUS_ASSERT( it->second.m_acceptedSize <= tobeUploadedSize )
         it->second.m_acceptedSize = tobeUploadedSize;
     }
     
     void saveNotAcceptedReceiptSize( const ClientKey& clientKey, uint64_t size )
     {
         auto it = m_clientMap.find( clientKey );
-        __ASSERT( it != m_clientMap.end() )
+        _SIRIUS_ASSERT( it != m_clientMap.end() )
         if ( it->second.m_notAcceptedSize < size )
         {
             it->second.m_notAcceptedSize = size;

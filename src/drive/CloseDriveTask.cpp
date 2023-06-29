@@ -26,7 +26,7 @@ public:
             DriveTaskBase(DriveTaskType::DRIVE_CLOSURE, drive),
             m_request( std::move(request) )
     {
-        _ASSERT( m_request )
+        SIRIUS_ASSERT( m_request )
     }
 
     void run() override
@@ -74,7 +74,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT(0);
+        SIRIUS_ASSERT(0);
         return false;
     }
 
@@ -82,7 +82,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT(0)
+        SIRIUS_ASSERT(0)
         return false;
     }
 

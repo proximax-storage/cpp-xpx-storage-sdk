@@ -5,6 +5,14 @@
 */
 #pragma once
 
+#if (_MSC_VER)
+#pragma warning (disable : 4244)
+#pragma warning (disable : 4267)
+#pragma warning (disable : 5054)
+
+#include <io.h>
+#endif
+
 #include <iostream>
 #include <mutex>
 #include <filesystem>
@@ -73,7 +81,12 @@ inline void checkLogFileSize()
     if ( !gIsRemoteRpcClient )
         return;
 
+#if _MSC_VER
+    auto pos = _lseek( 1, 0, SEEK_END );
+#else
     auto pos = lseek( 1, 0, SEEK_END );
+#endif
+
     if ( ( pos > 100 * 1024 * 1024 ) && gCreateLogBackup )
     {
         (*gCreateLogBackup)();
@@ -89,6 +102,7 @@ inline void checkLogFileSize()
         std::cout << current_time() << "\t" << expr << std::endl << std::flush; \
     }
 */
+
 
 // _LOG - with m_dbgOurPeerName
 #define _LOG(expr) { \
@@ -135,7 +149,7 @@ inline void checkLogFileSize()
     }
 #endif
 
-#define _ASSERT(expr) { \
+#define SIRIUS_ASSERT(expr) { \
     if (!(expr)) {\
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
         if (0) \
@@ -146,7 +160,7 @@ inline void checkLogFileSize()
     }\
 }
 
-#define __ASSERT(expr) { \
+#define _SIRIUS_ASSERT(expr) { \
     if (!(expr)) {\
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
         std::cerr << __FILE__ << ":" << __LINE__ << " failed: " << current_time() << "\t" << #expr << "\n" << std::flush; \

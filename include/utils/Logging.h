@@ -28,6 +28,11 @@
 #include <boost/log/trivial.hpp>
 #include <boost/thread/lock_guard.hpp>
 
+#if _MSC_VER
+    #pragma warning (disable : 4251)
+    #include <boost/thread/shared_mutex.hpp>
+#endif
+
 namespace sirius { namespace utils {
 
 	// region LogLevel
@@ -242,6 +247,7 @@ namespace sirius { namespace utils {
 		protected:
 			template<typename TArgs>
 			boost::log::record open_record_unlocked(const TArgs& args) {
+#if !(_MSC_VER)
 				// extract value from parameter pack
 				const auto& keyword = boost::parameter::keyword<typename TTraits::TagType>::instance;
 				const auto& value = args[keyword];
@@ -255,9 +261,10 @@ namespace sirius { namespace utils {
 
 				// remove attribute upon scope exit
 				EraseOnExit<decltype(attrs)> eraseGuard(attrs, iter);
-
-				// forward to the base
-				return TBase::open_record_unlocked(args);
+#else
+#endif
+                // forward to the base
+                return TBase::open_record_unlocked(args);
 			}
 		};
 
@@ -303,8 +310,14 @@ namespace sirius { namespace utils {
 				public boost::log::sources::basic_composite_logger<
 						char,
 						catapult_logger,
+#if _MSC_VER
+                        // TODO: Incorrect behaviour can be here, but only on catapult side
+                        // Some incompatibles in Windows api
+						boost::log::sources::multi_thread_model<boost::shared_mutex>,
+#else
 						boost::log::sources::multi_thread_model<boost::log::aux::light_rw_mutex>,
-						boost::log::sources::features<
+#endif
+                        boost::log::sources::features<
 								boost::log::sources::severity<boost::log::trivial::severity_level>,
 								custom_info_tagger<LineNumberTraits>,
 								custom_info_tagger<FilenameTraits>,

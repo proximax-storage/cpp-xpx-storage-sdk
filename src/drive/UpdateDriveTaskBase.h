@@ -76,8 +76,8 @@ protected:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_sandboxFsTree )
-        _ASSERT( m_sandboxRootHash )
+        SIRIUS_ASSERT( m_sandboxFsTree )
+        SIRIUS_ASSERT( m_sandboxRootHash )
 
         if ( m_taskIsInterrupted )
         {
@@ -118,7 +118,7 @@ protected:
 
         _LOG( "diveUpdateIsCompleted: " << getModificationTransactionHash() );
 
-        _ASSERT( m_sandboxRootHash )
+        SIRIUS_ASSERT( m_sandboxRootHash )
 
         if ( m_drive.m_dbgEventHandler ) {
             m_drive.m_dbgEventHandler->driveModificationIsCompleted(
@@ -184,7 +184,7 @@ protected:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_taskIsInterrupted )
+        SIRIUS_ASSERT( !m_taskIsInterrupted )
 
         auto& torrentHandleMap = m_drive.m_torrentHandleMap;
 
@@ -291,7 +291,7 @@ private:
             return;
         }
 
-        _ASSERT( m_sandboxRootHash )
+        SIRIUS_ASSERT( m_sandboxRootHash )
 
         const auto& keyPair = m_drive.m_replicator.keyPair();
         SingleOpinion opinion( keyPair.publicKey().array());
@@ -320,7 +320,7 @@ private:
                                            {
                                                DBG_BG_THREAD
 
-                                               _ASSERT( m_myOpinion )
+                                               SIRIUS_ASSERT( m_myOpinion )
 
                                                saveSingleApprovalTransaction( m_myOpinion );
 

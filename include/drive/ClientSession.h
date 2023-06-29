@@ -302,8 +302,8 @@ public:
 
 
         newActionList.serialize( (workFolder/"actionList.bin").string() );
-        _ASSERT(fs::exists(workFolder/"actionList.bin"))
-        _ASSERT(fs::file_size(workFolder/"actionList.bin") > 0)
+        SIRIUS_ASSERT(fs::exists(workFolder/"actionList.bin"))
+        SIRIUS_ASSERT(fs::file_size(workFolder/"actionList.bin") > 0)
 
         InfoHash infoHash0 = createTorrentFile( (workFolder/"actionList.bin").string(), drivePublicKey, workFolder.string(), {} );
 
@@ -349,7 +349,7 @@ public:
                         torrentFilenameInSandbox.replace_extension(".torrent");
 
                         InfoHash infoHash2 = createTorrentFile( filenameInSandbox.string(), drivePublicKey, workFolder.string(), torrentFilenameInSandbox.string() );
-                        __ASSERT( infoHash == infoHash2 );
+                        _SIRIUS_ASSERT( infoHash == infoHash2 );
                         
                         uint64_t totalSize = 0;
                         lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox.string(),
@@ -544,7 +544,7 @@ protected:
             return;
         }
         
-        _ASSERT(channelId);
+        SIRIUS_ASSERT(channelId);
         if ( msg.channelId() != *channelId )
         {
             _LOG_WARN( "Bad channelId: " << toString(msg.channelId()) << " != " << toString(*channelId) );
@@ -1084,12 +1084,12 @@ private:
                                                                    bool,
                                                                    const char* );
 
-    friend std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&,
-                                                               const std::string&,
-                                                               const LibTorrentErrorHandler&,
-                                                               const endpoint_list&,
-                                                               bool,
-                                                               const char* );
+    friend PLUGIN_API std::shared_ptr<ViewerSession> createViewerSession(  const crypto::KeyPair&,
+                                                                           const std::string&,
+                                                                           const LibTorrentErrorHandler&,
+                                                                           const endpoint_list&,
+                                                                           bool,
+                                                                           const char* );
 
     auto session() { return m_session; }
 };

@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.2)
 
-set(CMAKE_CXX_STANDARD 20)
+if(POLICY CMP0074)
+    cmake_policy(SET CMP0074 NEW)
+endif()
 
+set(CMAKE_CXX_STANDARD 20)
 set(TARGET_NAME replicator-service)
 SET(CMAKE_CXX_FLAGS_DEBUG "-g3")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)

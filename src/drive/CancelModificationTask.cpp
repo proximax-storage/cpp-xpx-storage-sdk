@@ -29,7 +29,7 @@ public:
             , m_request(std::move(request))
             , m_opinionTaskController(opinionTaskController)
     {
-        _ASSERT( m_request )
+        SIRIUS_ASSERT( m_request )
     }
 
     void run() override

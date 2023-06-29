@@ -137,7 +137,7 @@ public:
                                   HttpServerParams        httpServerParams,
                                   DownloadStreamProgress  downloadStreamProgress ) override
     {
-        _ASSERT( ! m_liveStreamId )
+        SIRIUS_ASSERT( ! m_liveStreamId )
 
         m_streamerKey            = streamerKey;
         m_driveKey               = driveKey;
@@ -171,13 +171,13 @@ public:
         {
             try
             {
-                m_httpServer = std::make_unique<http::server::server>( m_httpServerParams.m_address, m_httpServerParams.m_port, m_streamRootFolder );
+                m_httpServer = std::make_unique<http::server::server>( m_httpServerParams.m_address, m_httpServerParams.m_port, m_streamRootFolder.string() );
                 std::thread( [this] { m_httpServer->run(); } ).detach();
             }
             catch( const std::runtime_error& err )
             {
                 _LOG_WARN( "httpServer error: " << err.what() );
-                (*m_downloadStreamProgress)( m_chunkFolder / PLAYLIST_FILE_NAME, 0, 1, err.what() );
+                (*m_downloadStreamProgress)( (m_chunkFolder / PLAYLIST_FILE_NAME).string(), 0, 1, err.what() );
             }
         }
         
@@ -192,7 +192,7 @@ public:
 
     void requestChunkInfo( uint32_t chunkIndex )
     {
-        _ASSERT( m_liveStreamId )
+        SIRIUS_ASSERT( m_liveStreamId )
 
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
@@ -299,7 +299,7 @@ public:
     {
         if ( m_startPlayerMethod )
         {
-            std::string address = "http://" + m_httpServerParams.m_address + ":" + m_httpServerParams.m_port + "/" + std::string( m_relativeChunkFolder / PLAYLIST_FILE_NAME);
+            std::string address = "http://" + m_httpServerParams.m_address + ":" + m_httpServerParams.m_port + "/" + (m_relativeChunkFolder / PLAYLIST_FILE_NAME).string();
 
             (*m_startPlayerMethod)( address );
             m_startPlayerMethod.reset();
@@ -376,7 +376,7 @@ public:
                 std::array<uint8_t,32> streamId;
                 iarchive( streamId );
 
-                _ASSERT( m_liveStreamId )
+                SIRIUS_ASSERT( m_liveStreamId )
 
                 if ( streamId != m_liveStreamId->array() )
                 {
@@ -498,7 +498,7 @@ public:
         }
 
         const auto& chunkInfo = m_chunkInfoList[m_tobeDownloadedChunkIndex];
-        _ASSERT( m_tobeDownloadedChunkIndex == chunkInfo.m_chunkIndex )
+        SIRIUS_ASSERT( m_tobeDownloadedChunkIndex == chunkInfo.m_chunkIndex )
         m_tobeDownloadedChunkIndex++;
 
         _LOG( "@@@ download: " << chunkInfo.m_chunkIndex  << " :" << InfoHash(chunkInfo.m_chunkInfoHash) )
@@ -519,14 +519,14 @@ public:
                                            _LOG( "@@@ downloaded: " << m_tobeDownloadedChunkIndex-1 )
                                            m_chunkInfoList[m_tobeDownloadedChunkIndex-1].m_isDownloaded = true;
                                            updatePlaylist( m_tobeDownloadedChunkIndex-1 );
-                                           (*m_downloadStreamProgress)( m_chunkFolder / PLAYLIST_FILE_NAME, m_tobeDownloadedChunkIndex-1, m_tobeDownloadedChunkIndex, {} );
+                                           (*m_downloadStreamProgress)( (m_chunkFolder / PLAYLIST_FILE_NAME).string(), m_tobeDownloadedChunkIndex-1, m_tobeDownloadedChunkIndex, {} );
                                            m_downloadingLtHandle.reset();
                                            tryLoadNextChunk();
                                        }
                                        else //if ( code == download_status::dn_failed )
                                        {
                                            _LOG( "@@@ download failed: " << m_tobeDownloadedChunkIndex-1 << " :" << infoHash )
-                                           (*m_downloadStreamProgress)( m_chunkFolder / PLAYLIST_FILE_NAME, m_tobeDownloadedChunkIndex-1, m_tobeDownloadedChunkIndex, "download failed" );
+                                           (*m_downloadStreamProgress)( (m_chunkFolder / PLAYLIST_FILE_NAME).string(), m_tobeDownloadedChunkIndex-1, m_tobeDownloadedChunkIndex, "download failed" );
                                        }
                                    },
 
@@ -536,8 +536,8 @@ public:
                                    true, {}
                            ),
 
-                           m_chunkFolder,
-                           m_torrentFolder / (toString(InfoHash(chunkInfo.m_chunkInfoHash))),
+                           m_chunkFolder.string(),
+                           (m_torrentFolder / (toString(InfoHash(chunkInfo.m_chunkInfoHash)))).string(),
                            m_replicatorList,
                            &m_driveKey.array(),
                            &(m_downloadChannelId),
@@ -616,7 +616,7 @@ public:
                                    false, {}
                            ),
 
-                           m_finishedStreamDestFolder,
+                           m_finishedStreamDestFolder.string(),
                            {},
                            m_replicatorList,
                            &m_driveKey.array(),
@@ -743,7 +743,7 @@ download_next_chunk:
 
         if ( m_downloadStreamChunksIt == m_downloadStreamChunks.end() )
         {
-            (*m_downloadStreamProgress)( m_finishedStreamDestFolder / PLAYLIST_FILE_NAME, m_downloadStreamChunkIndex, int(m_downloadStreamChunks.size()), {} );
+            (*m_downloadStreamProgress)( (m_finishedStreamDestFolder / PLAYLIST_FILE_NAME).string(), m_downloadStreamChunkIndex, int(m_downloadStreamChunks.size()), {} );
             return;
         }
 
@@ -767,7 +767,7 @@ download_next_chunk:
                                        if ( code == download_status::download_complete )
                                        {
                                            m_downloadingLtHandle.reset();
-                                           (*m_downloadStreamProgress)( m_finishedStreamDestFolder / PLAYLIST_FILE_NAME, m_downloadStreamChunkIndex, int(m_downloadStreamChunks.size()), {} );
+                                           (*m_downloadStreamProgress)( (m_finishedStreamDestFolder / PLAYLIST_FILE_NAME).string(), m_downloadStreamChunkIndex, int(m_downloadStreamChunks.size()), {} );
                                            startPlayer();
                                            continueDownloadChunks();
                                        }
@@ -782,7 +782,7 @@ download_next_chunk:
                                    false, {}
                            ),
 
-                           m_chunkFolder,
+                           m_chunkFolder.string(),
                            {},
                            m_replicatorList,
                            &m_driveKey.array(),

@@ -109,7 +109,7 @@ class DefaultFlatDrive
             {
                 return m_modificationRequest->m_transactionHash;
             }
-            __ASSERT( m_streamRequest )
+            _SIRIUS_ASSERT( m_streamRequest )
             return m_streamRequest->m_streamId;
         }
 
@@ -119,7 +119,7 @@ class DefaultFlatDrive
             {
                 return m_modificationRequest->m_maxDataSize;
             }
-            __ASSERT( m_streamRequest )
+            _SIRIUS_ASSERT( m_streamRequest )
             return m_streamRequest->m_maxSizeBytes;
         }
     };
@@ -358,11 +358,11 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_task )
+        SIRIUS_ASSERT( !m_task )
 
         m_task = createDriveInitializationTask( std::move( completedModifications ), *this, m_opinionController );
 
-        _ASSERT( m_task->getTaskType() == DriveTaskType::DRIVE_INITIALIZATION )
+        SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::DRIVE_INITIALIZATION )
 
         m_task->run();
     }
@@ -371,7 +371,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_task )
+        SIRIUS_ASSERT( !m_task )
 
         DeferredRequest request{std::move( m_deferredModificationRequests.front().m_modificationRequest ),
                                 std::move( m_deferredModificationRequests.front().m_streamRequest )};
@@ -382,7 +382,7 @@ public:
             runModificationTask( std::move( request.m_modificationRequest ));
         } else
         {
-            __ASSERT( request.m_streamRequest )
+            _SIRIUS_ASSERT( request.m_streamRequest )
             runStreamTask( std::move( request.m_streamRequest ));
         }
     }
@@ -391,14 +391,14 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_task )
+        SIRIUS_ASSERT( !m_task )
 
         auto opinions = std::move( m_unknownModificationOpinions[request->m_transactionHash] );
         m_unknownModificationOpinions.erase( request->m_transactionHash );
 
         m_task = createModificationTask( std::move( request ), std::move( opinions ), *this, m_opinionController );
 
-        _ASSERT( m_task->getTaskType() == DriveTaskType::MODIFICATION_REQUEST )
+        SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::MODIFICATION_REQUEST )
 
         m_task->run();
     }
@@ -407,14 +407,14 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_task )
+        SIRIUS_ASSERT( !m_task )
 
 //        auto opinions = std::move(m_unknownModificationOpinions[request->m_transactionHash]);
 //        m_unknownModificationOpinions.erase(request->m_transactionHash);
 
         m_task = createStreamTask( std::move( request ), *this, m_opinionController );
 
-        _ASSERT( m_task->getTaskType() == DriveTaskType::STREAM_REQUEST )
+        SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::STREAM_REQUEST )
 
         m_task->run();
     }
@@ -442,7 +442,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_task )
+        SIRIUS_ASSERT( !m_task )
 
         // clear modification queue - we will not execute these modifications
         auto it = std::find_if( m_deferredModificationRequests.begin(), m_deferredModificationRequests.end(),
@@ -469,9 +469,9 @@ public:
 
         m_task = createCatchingUpTask( std::move( m_catchingUpRequest ), *this, m_opinionController );
 
-        _ASSERT ( !m_catchingUpRequest )
+        SIRIUS_ASSERT ( !m_catchingUpRequest )
 
-        _ASSERT( m_task->getTaskType() == DriveTaskType::CATCHING_UP )
+        SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::CATCHING_UP )
 
         m_task->run();
     }
@@ -480,11 +480,11 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_task )
+        SIRIUS_ASSERT( !m_task )
 
         m_task = createModificationCancelTask( std::move( m_modificationCancelRequest ), *this, m_opinionController );
 
-        _ASSERT( m_task->getTaskType() == DriveTaskType::MODIFICATION_CANCEL )
+        SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::MODIFICATION_CANCEL )
 
         m_task->run();
     }
@@ -493,11 +493,11 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_task )
+        SIRIUS_ASSERT( !m_task )
 
         m_task = createDriveClosureTask( std::move( m_closeDriveRequest ), *this );
 
-        _ASSERT( m_task->getTaskType() == DriveTaskType::DRIVE_CLOSURE )
+        SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::DRIVE_CLOSURE )
 
         m_task->run();
     }

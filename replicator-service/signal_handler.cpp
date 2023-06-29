@@ -22,7 +22,6 @@
 #include <execinfo.h>
 #endif
 
-#include <execinfo.h>
 #include <cstdio>
 #include <string>
 #include <cstring>
