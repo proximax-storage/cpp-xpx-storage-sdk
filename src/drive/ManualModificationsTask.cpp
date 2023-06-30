@@ -87,7 +87,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_drive.m_fsTree )
+        SIRIUS_ASSERT ( m_drive.m_fsTree )
         m_lowerSandboxFsTree = std::make_unique<FsTree>( *m_drive.m_fsTree );
         m_request->m_callback( InitiateModificationsResponse{} );
     }
@@ -96,7 +96,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -119,8 +119,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -200,14 +200,14 @@ public:
                     m_upperSandboxFsTree->removeFlat( p, []( const auto& )
                     {} );
                     auto temporaryHash = m_upperSandboxFsTree->addModifiableFile( p.parent_path(), p.filename());
-                    _ASSERT( temporaryHash )
+                    SIRIUS_ASSERT ( temporaryHash )
                     m_callManagedHashes.insert( *temporaryHash );
                 }
             } else
             {
                 m_upperSandboxFsTree->addModifiableFile( p.parent_path(), p.filename());
                 auto temporaryHash = m_upperSandboxFsTree->addModifiableFile( p.parent_path(), p.filename());
-                _ASSERT( temporaryHash )
+                SIRIUS_ASSERT ( temporaryHash )
                 m_callManagedHashes.insert( *temporaryHash );
             }
 
@@ -287,9 +287,9 @@ private:
 
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_openFilesRead.contains( fileId ))
-        _ASSERT( !m_openFilesWrite.contains( fileId ))
-        _ASSERT( m_isExecutingQuery )
+        SIRIUS_ASSERT ( !m_openFilesRead.contains( fileId ))
+        SIRIUS_ASSERT ( !m_openFilesWrite.contains( fileId ))
+        SIRIUS_ASSERT ( m_isExecutingQuery )
 
         m_isExecutingQuery = false;
 
@@ -300,7 +300,7 @@ private:
             return;
         }
 
-        _ASSERT( clearedFileSize <= m_upperSandboxFilesSize )
+        SIRIUS_ASSERT ( clearedFileSize <= m_upperSandboxFilesSize )
         m_upperSandboxFilesSize -= clearedFileSize;
 
         if ( !stream->is_open())
@@ -311,8 +311,8 @@ private:
 
         auto* child = m_upperSandboxFsTree->getEntryPtr( fsPath );
 
-        _ASSERT( child != nullptr )
-        _ASSERT( isFile( *child ))
+        SIRIUS_ASSERT ( child != nullptr )
+        SIRIUS_ASSERT ( isFile( *child ))
 
         auto statisticsNode = getFile( *child ).statisticsNode();
 
@@ -336,8 +336,8 @@ public:
 
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -374,14 +374,14 @@ private:
 
         auto stream = weakStream.lock();
 
-        _ASSERT( stream )
+        SIRIUS_ASSERT ( stream )
 
         std::vector<uint8_t> buffer( bytes, 0 );
         stream->read( reinterpret_cast<char*>(buffer.data()), buffer.size());
         auto read = stream->gcount();
         buffer.resize( read );
 
-        _ASSERT( stream->good() || stream->eof())
+        SIRIUS_ASSERT ( stream->good() || stream->eof())
 
         m_drive.executeOnSessionThread( [=, this]() mutable
                                         {
@@ -396,7 +396,7 @@ private:
 
         DBG_MAIN_THREAD
 
-        _ASSERT( m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_isExecutingQuery )
 
         m_isExecutingQuery = false;
 
@@ -417,8 +417,8 @@ public:
 
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -465,11 +465,11 @@ private:
 
         auto stream = weakStream.lock();
 
-        _ASSERT( stream )
+        SIRIUS_ASSERT ( stream )
 
         stream->write( reinterpret_cast<char*>(buffer.data()), buffer.size());
 
-        _ASSERT( stream->good())
+        SIRIUS_ASSERT ( stream->good())
 
         m_drive.executeOnSessionThread( [=, this]() mutable
                                         {
@@ -481,7 +481,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_isExecutingQuery )
 
         m_isExecutingQuery = false;
 
@@ -503,8 +503,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -541,11 +541,11 @@ private:
 
         auto stream = weakStream.lock();
 
-        _ASSERT( stream )
+        SIRIUS_ASSERT ( stream )
 
         stream->flush();
 
-        _ASSERT( stream->good())
+        SIRIUS_ASSERT ( stream->good())
 
         m_drive.executeOnSessionThread( [=, this]
                                         {
@@ -557,7 +557,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_isExecutingQuery )
 
         m_isExecutingQuery = false;
 
@@ -577,8 +577,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -619,8 +619,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -642,7 +642,7 @@ private:
 
         auto stream = weakStream.lock();
 
-        _ASSERT( stream )
+        SIRIUS_ASSERT ( stream )
 
         try
         {
@@ -664,7 +664,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_isExecutingQuery )
 
         m_isExecutingQuery = false;
 
@@ -766,7 +766,7 @@ private:
 
         DBG_MAIN_THREAD
 
-        _ASSERT( m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_isExecutingQuery )
 
         m_isExecutingQuery = false;
 
@@ -777,7 +777,7 @@ private:
             return;
         }
 
-        _ASSERT( removedFilesSize <= m_upperSandboxFilesSize )
+        SIRIUS_ASSERT ( removedFilesSize <= m_upperSandboxFilesSize )
         m_upperSandboxFilesSize -= removedFilesSize;
 
         callback( RemoveFilesystemEntryResponse{true} );
@@ -817,8 +817,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -839,8 +839,8 @@ public:
     bool pathIsFile( const PathIsFileRequest& request ) override {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -867,8 +867,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -932,7 +932,7 @@ private:
                             const std::function<void( std::optional<FileSizeResponse> )>& callback) {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_isExecutingQuery )
 
         m_isExecutingQuery = false;
 
@@ -952,8 +952,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -973,8 +973,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -1006,8 +1006,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -1032,8 +1032,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -1056,8 +1056,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -1092,8 +1092,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_upperSandboxFsTree )
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
@@ -1139,7 +1139,7 @@ private:
 
         DBG_MAIN_THREAD
 
-        _ASSERT( m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_isExecutingQuery )
 
         m_isExecutingQuery = false;
 
@@ -1150,7 +1150,7 @@ private:
             return;
         }
 
-        _ASSERT( removedFilesSize <= m_upperSandboxFilesSize )
+        SIRIUS_ASSERT ( removedFilesSize <= m_upperSandboxFilesSize )
         m_upperSandboxFilesSize -= removedFilesSize;
 
         callback( MoveFilesystemEntryResponse{true} );
@@ -1162,14 +1162,14 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
             return false;
         }
 
-        _ASSERT( m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( m_upperSandboxFsTree )
 
         closeFiles( [=, this]
                     {
@@ -1185,7 +1185,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_isExecutingQuery )
 
         m_isExecutingQuery = false;
 
@@ -1232,7 +1232,7 @@ private:
 
         for ( const auto& hash: m_callManagedHashes )
         {
-            _ASSERT( hash != Hash256() )
+            SIRIUS_ASSERT ( hash != Hash256() )
             std::error_code ec;
             auto filePath = m_drive.m_driveFolder / toString( hash );
             removedFilesSize += fs::file_size( filePath, ec );
@@ -1312,7 +1312,7 @@ private:
 
         DBG_MAIN_THREAD
 
-        _ASSERT( m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_isExecutingQuery )
 
         m_isExecutingQuery = false;
 
@@ -1323,7 +1323,7 @@ private:
             return;
         }
 
-        _ASSERT(removedFilesSize <= m_upperSandboxFilesSize)
+        SIRIUS_ASSERT (removedFilesSize <= m_upperSandboxFilesSize)
         m_upperSandboxFilesSize -= removedFilesSize;
 
         if ( success )
@@ -1333,7 +1333,7 @@ private:
         } else
         {
             m_upperSandboxFsTree.reset();
-            _ASSERT(m_lowerSandboxFilesSize == m_upperSandboxFilesSize)
+            SIRIUS_ASSERT (m_lowerSandboxFilesSize == m_upperSandboxFilesSize)
             m_upperSandboxFilesSize = 0;
         }
         m_callManagedHashes.clear();
@@ -1347,14 +1347,14 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
             return false;
         }
 
-        _ASSERT( !m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_upperSandboxFsTree )
 
         m_isExecutingQuery = true;
         m_drive.executeOnBackgroundThread( [this, callback = request.m_callback]
@@ -1428,7 +1428,7 @@ private:
 
         DBG_MAIN_THREAD
 
-        _ASSERT( m_isExecutingQuery )
+        SIRIUS_ASSERT ( m_isExecutingQuery )
 
         m_isExecutingQuery = false;
 
@@ -1448,14 +1448,14 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_isExecutingQuery )
+        SIRIUS_ASSERT ( !m_isExecutingQuery )
 
         if ( m_taskIsInterrupted )
         {
             return false;
         }
 
-        _ASSERT( !m_upperSandboxFsTree )
+        SIRIUS_ASSERT ( !m_upperSandboxFsTree )
 
         if ( request.m_success )
         {
@@ -1521,7 +1521,7 @@ private:
         // Add unused files into set<>
         for ( const auto& it : m_drive.m_torrentHandleMap )
         {
-            _ASSERT( it.first != Hash256() )
+            SIRIUS_ASSERT ( it.first != Hash256() )
             const UseTorrentInfo& info = it.second;
             if ( !info.m_isUsed )
             {
@@ -1571,7 +1571,7 @@ private:
                 if ( !info.m_isUsed )
                 {
                     const auto& hash = it.first;
-                    _ASSERT( hash != Hash256() )
+                    SIRIUS_ASSERT ( hash != Hash256() )
                     std::string filename = hashToFileName( hash );
                     fs::remove( fs::path( m_drive.m_driveFolder ) / filename );
                     fs::remove( fs::path( m_drive.m_torrentFolder ) / filename );
@@ -1609,8 +1609,8 @@ private:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_sandboxRootHash )
-        _ASSERT( m_sandboxFsTreeHandle )
+        SIRIUS_ASSERT ( m_sandboxRootHash )
+        SIRIUS_ASSERT ( m_sandboxFsTreeHandle )
 
         m_drive.m_fsTree = std::move( m_lowerSandboxFsTree );
         m_drive.m_rootHash = *m_sandboxRootHash;
@@ -1679,7 +1679,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-//        _ASSERT( m_request->m_modificationIdentifier == request.m_modificationIdentifier )
+//        SIRIUS_ASSERT ( m_request->m_modificationIdentifier == request.m_modificationIdentifier )
 
         terminate();
     }

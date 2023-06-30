@@ -202,6 +202,14 @@ function(storage_sdk_shared_library TARGET_NAME)
         storage_sdk_find_all_target_files("shared lib" ${TARGET_NAME} ${ARGN})
 
         add_definitions(-DDLL_EXPORTS)
+
+        if (MSVC)
+                add_definitions(-D_BOOST_LOG_DLL)
+                add_definitions(-D_BOOST_ALL_DYN_LINK)
+                add_definitions(-D_BOOST_USE_WINAPI_VERSION=0x0A00)
+                add_definitions(-D_WIN32_WINNT=0x0A00)
+        endif ()
+
         add_library(${TARGET_NAME} SHARED ${${TARGET_NAME}_FILES} ${VERSION_RESOURCES})
 endfunction()
 

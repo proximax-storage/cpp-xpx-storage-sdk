@@ -58,7 +58,7 @@ public:
     {
         DBG_BG_THREAD
 
-        _ASSERT( fs::exists( m_restartRootPath ))
+        SIRIUS_ASSERT( fs::exists( m_restartRootPath ))
 
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
@@ -100,7 +100,7 @@ private:
                 std::ofstream fStream( outputFile + ".tmp", std::ios::binary );
                 fStream << data;
             }
-            _ASSERT( fs::exists( outputFile + ".tmp" ))
+            SIRIUS_ASSERT( fs::exists( outputFile + ".tmp" ))
             std::error_code err;
             fs::remove( outputFile, err );
             fs::rename( outputFile + ".tmp", outputFile, err );

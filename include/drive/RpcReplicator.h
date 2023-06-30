@@ -133,9 +133,12 @@ public:
     	rpcCallArchStr( RPC_CMD::createReplicator, os.str() );
 	}
 
+    void stopReplicator() override {
+        rpcCall( RPC_CMD::destroyReplicator );
+    }
+
     ~RpcReplicator() override
     {
-        rpcCall( RPC_CMD::destroyReplicator );
     }
     
     virtual bool isConnectionLost() const override
@@ -302,7 +305,7 @@ public:
         rpcCall( RPC_CMD::start );
     }
 
-    virtual const Key& replicatorKey() const override { __ASSERT(0); return m_unusedKey; }
+    virtual const Key& replicatorKey() const override { _SIRIUS_ASSERT(0); return m_unusedKey; }
 
     virtual void asyncInitializationFinished() override
     {
@@ -425,23 +428,23 @@ public:
     }
 
     virtual void        asyncVerifyApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 verificationId ) override {
-        __ASSERT(0);
+        _SIRIUS_ASSERT(0);
     }
 
-    virtual uint64_t    receiptLimit() const override { __ASSERT(0); return 0; }
+    virtual uint64_t    receiptLimit() const override { _SIRIUS_ASSERT(0); return 0; }
     virtual void        setReceiptLimit( uint64_t newLimitInBytes ) override {}
 
     virtual void        setDownloadApprovalTransactionTimerDelay( int milliseconds ) override {}
     virtual void        setModifyApprovalTransactionTimerDelay( int milliseconds ) override {}
-    virtual int         getModifyApprovalTransactionTimerDelay() override { __ASSERT(0); return 0; }
+    virtual int         getModifyApprovalTransactionTimerDelay() override { _SIRIUS_ASSERT(0); return 0; }
     virtual void        setVerifyCodeTimerDelay( int milliseconds ) override {}
-    virtual int         getVerifyCodeTimerDelay() override { __ASSERT(0); return 0; }
+    virtual int         getVerifyCodeTimerDelay() override { _SIRIUS_ASSERT(0); return 0; }
     virtual void        setVerifyApprovalTransactionTimerDelay( int milliseconds ) override {}
-    virtual int         getVerifyApprovalTransactionTimerDelay() override { __ASSERT(0); return 0; }
+    virtual int         getVerifyApprovalTransactionTimerDelay() override { _SIRIUS_ASSERT(0); return 0; }
     virtual void        setVerificationShareTimerDelay( int milliseconds ) override {}
-    virtual int         getVerificationShareTimerDelay() override { __ASSERT(0); return 0; }
+    virtual int         getVerificationShareTimerDelay() override { _SIRIUS_ASSERT(0); return 0; }
     virtual void        setMinReplicatorsNumber( uint64_t number ) override {}
-    virtual uint64_t    getMinReplicatorsNumber() override { __ASSERT(0); return 0; }
+    virtual uint64_t    getMinReplicatorsNumber() override { _SIRIUS_ASSERT(0); return 0; }
     virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) override {}
 
     void initiateManualModifications( const DriveKey& driveKey, const InitiateModificationsRequest& request ) override
@@ -581,7 +584,7 @@ public:
 
     virtual Hash256     dbgGetRootHash( const DriveKey& driveKey ) override
     {
-        //__ASSERT(0); return m_unusedHash;
+        //_SIRIUS_ASSERT(0); return m_unusedHash;
         auto hash = rpcDbgGetRootHash( driveKey );
         return hash;
     }

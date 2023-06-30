@@ -68,8 +68,6 @@ private:
     int m_verificationShareTimerDelay = 60 * 1000;
     uint64_t m_minReplicatorsNumber = 4;
 
-    bool m_replicatorIsDestructing = false;
-
     bool m_useTcpSocket;
 
     ReplicatorEventHandler& m_eventHandler;
@@ -123,8 +121,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-
-        return m_replicatorIsDestructing;
+        return m_isDestructing;
     }
 
     void executeOnBackgroundThread( const std::function<void()>& task ) override
@@ -139,7 +136,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_replicatorIsDestructing = true;
+        m_isDestructing = true;
 
         if (m_serviceServer) {
             m_serviceServer->Shutdown();
@@ -167,16 +164,10 @@ public:
         m_endpointsManager.stop();
     }
 
-    ~DefaultReplicator() override
-    {
-
-#ifdef DEBUG_OFF_CATAPULT
-        _LOG( "~DefaultReplicator() " )
-#endif
+    void stopReplicator() override {
 
         std::promise<void> barrier;
-        boost::asio::post( m_session->lt_session().get_context(), [&barrier, this]() mutable
-        {
+        boost::asio::post( m_session->lt_session().get_context(), [&barrier, this]() mutable {
             DBG_MAIN_THREAD
             stop();
             barrier.set_value();
@@ -188,14 +179,21 @@ public:
         auto blockedDestructor = m_session->lt_session().abort();
         m_session.reset();
 
-        if ( m_libtorrentThread.joinable())
-        {
+        if ( m_libtorrentThread.joinable()) {
             _LOG( "m_libtorrentThread joined" )
             m_libtorrentThread.join();
         }
 
         //(???+++)
         saveDownloadChannelMap();
+    }
+
+    ~DefaultReplicator() override
+    {
+
+#ifdef DEBUG_OFF_CATAPULT
+        _LOG( "~DefaultReplicator() " )
+#endif
     }
 
     void start() override
@@ -250,7 +248,7 @@ public:
 
             if ( !m_services.empty() )
             {
-                _ASSERT(m_serviceServerAddress)
+                SIRIUS_ASSERT(m_serviceServerAddress)
                 grpc::ServerBuilder builder;
                 builder.AddListeningPort( *m_serviceServerAddress, grpc::InsecureServerCredentials());
                 for (const auto& service: m_services) {
@@ -276,7 +274,7 @@ public:
             DBG_MAIN_THREAD
 
             const auto drive = getDrive( driveKey );
-            _ASSERT( drive );
+            SIRIUS_ASSERT( drive );
             auto rootHash = drive->rootHash();
             thePromise.set_value( rootHash );
         } );
@@ -320,7 +318,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -382,7 +380,7 @@ public:
             DBG_MAIN_THREAD
 
             //(???) What will happen after restart?
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -491,7 +489,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -518,7 +516,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -557,7 +555,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -582,7 +580,7 @@ public:
 
             _LOG( "started verification" );
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -607,7 +605,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -630,7 +628,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -675,7 +673,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -698,7 +696,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -722,7 +720,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -888,7 +886,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1108,7 +1106,7 @@ public:
 
         auto channelIt = m_dnChannelMap.find( channelId );
 
-        _ASSERT( channelIt != m_dnChannelMap.end())
+        SIRIUS_ASSERT( channelIt != m_dnChannelMap.end() )
 
         auto& downloadMapValue = channelIt->second.m_downloadOpinionMap.find( blockHash.array())->second;
 
@@ -1141,7 +1139,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1183,13 +1181,13 @@ public:
         DBG_MAIN_THREAD
 
         auto it = m_dnChannelMap.find( downloadChannel.array());
-        _ASSERT( it != m_dnChannelMap.end());
+        SIRIUS_ASSERT( it != m_dnChannelMap.end() );
 
         auto eventIt = it->second.m_downloadOpinionMap.find( eventHash.array());
-        _ASSERT( eventIt != it->second.m_downloadOpinionMap.end())
+        SIRIUS_ASSERT( eventIt !=  it->second.m_downloadOpinionMap.end() )
 
         auto myOpinion = eventIt->second.m_opinions.find( publicKey());
-        _ASSERT( myOpinion != eventIt->second.m_opinions.end());
+        SIRIUS_ASSERT( myOpinion != eventIt->second.m_opinions.end() );
 
         DownloadApprovalTransactionInfo opinionToShare = {eventHash.array(), downloadChannel.array(),
                                                           {myOpinion->second}};
@@ -1220,7 +1218,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( blockHash )
+        SIRIUS_ASSERT( blockHash )
         for ( auto&[channelId, channelInfo] : m_dnChannelMap )
         {
             if ( channelInfo.m_driveKey == driveKey.array())
@@ -1239,7 +1237,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1296,7 +1294,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1329,7 +1327,7 @@ public:
 
         auto it = m_driveMap.find( driveKey );
 
-        _ASSERT( it != m_driveMap.end())
+        SIRIUS_ASSERT( it != m_driveMap.end() )
 
         m_driveMap.erase( it );
     }
@@ -1343,7 +1341,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1378,7 +1376,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1402,7 +1400,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1426,7 +1424,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1451,7 +1449,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -1475,7 +1473,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_replicatorIsDestructing )
+        if ( m_isDestructing )
         {
             return;
         }
@@ -1498,7 +1496,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_replicatorIsDestructing )
+        if ( m_isDestructing )
         {
             return;
         }
@@ -1520,7 +1518,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_replicatorIsDestructing )
+        if ( m_isDestructing )
         {
             return;
         }
@@ -1666,7 +1664,7 @@ public:
                     {
                     auto chunkInfo = std::make_unique<ChunkInfo>();
                         iarchive( *chunkInfo );
-                        _ASSERT( chunkInfo )
+                    SIRIUS_ASSERT( chunkInfo )
 
                         driveIt->second->acceptChunkInfoMessage( std::move( chunkInfo ), source );
                     } else
@@ -1703,7 +1701,7 @@ public:
 //                {
 //                    mobj<FinishStreamMsg> finishStream{FinishStreamMsg{}};
 //                    iarchive( *finishStream );
-//                    _ASSERT( finishStream )
+//                    SIRIUS_ASSERT( finishStream )
 //
 //                    driveIt->second->acceptFinishStreamTx( std::move(finishStream), source );
 //                }
@@ -2302,7 +2300,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2325,7 +2323,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2434,7 +2432,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2461,7 +2459,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2487,7 +2485,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2513,7 +2511,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2539,7 +2537,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2565,7 +2563,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2591,7 +2589,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2617,7 +2615,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2642,7 +2640,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2667,7 +2665,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2693,7 +2691,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2719,7 +2717,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2745,7 +2743,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2771,7 +2769,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2797,7 +2795,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2823,7 +2821,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2849,7 +2847,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2876,7 +2874,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2902,7 +2900,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2929,7 +2927,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2955,7 +2953,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -2981,7 +2979,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -3007,7 +3005,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }
@@ -3033,7 +3031,7 @@ public:
         {
             DBG_MAIN_THREAD
 
-            if ( m_replicatorIsDestructing )
+            if ( m_isDestructing )
             {
                 return;
             }

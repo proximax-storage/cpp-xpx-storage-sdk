@@ -58,7 +58,7 @@ public:
 
         if ( m_drive.m_lastApprovedModification == getModificationTransactionHash() )
         {
-            _ASSERT( m_drive.m_rootHash == getRootHash() );
+            SIRIUS_ASSERT( m_drive.m_rootHash == getRootHash() );
             finishTask();
             return;
         }
@@ -102,12 +102,12 @@ public:
                             {
                                 DBG_MAIN_THREAD
 
-                                _ASSERT( !m_taskIsInterrupted );
+                                SIRIUS_ASSERT( !m_taskIsInterrupted );
 
                                 if ( code == download_status::dn_failed )
                                 {
                                     //todo is it possible?
-                                    _ASSERT( 0 );
+                                    SIRIUS_ASSERT( 0 );
                                     return;
                                 }
 
@@ -169,8 +169,8 @@ public:
         // During the task is beeing finished the cancel is requested
         if ( cancelRequest.m_modifyTransactionHash == m_opinionController.notApprovedModificationId())
         {
-            _ASSERT( cancelRequest.m_modifyTransactionHash != getModificationTransactionHash() )
-            _ASSERT( m_drive.m_lastApprovedModification == getModificationTransactionHash() )
+            SIRIUS_ASSERT( cancelRequest.m_modifyTransactionHash != getModificationTransactionHash() )
+            SIRIUS_ASSERT( m_drive.m_lastApprovedModification == getModificationTransactionHash() )
             return true;
         }
 
@@ -181,7 +181,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_sandboxFsTree )
+        SIRIUS_ASSERT( m_sandboxFsTree )
 
         //
         // Create list/set of unused files
@@ -201,7 +201,7 @@ public:
         // Add unused files into set<>
         for ( const auto& it : torrentHandleMap )
         {
-            _ASSERT( it.first != Hash256())
+            SIRIUS_ASSERT( it.first != Hash256())
             const UseTorrentInfo& info = it.second;
             if ( !info.m_isUsed )
             {
@@ -249,7 +249,7 @@ public:
         // remove unused files and torrent files from the drive
         for ( const auto& hash : filesToRemove )
         {
-            _ASSERT( hash != Hash256())
+            SIRIUS_ASSERT( hash != Hash256())
             std::string filename = hashToFileName( hash );
             std::error_code ec;
             fs::remove( fs::path( m_drive.m_driveFolder ) / filename, ec );
@@ -279,7 +279,7 @@ public:
         _LOG( "startDownloadMissingFiles: " << m_downloadingLtHandle->id() << " "
                                             << m_downloadingLtHandle->info_hashes().v2 );
 
-        _ASSERT( m_sandboxFsTree )
+        SIRIUS_ASSERT( m_sandboxFsTree )
 
         //
         // Prepare missing list and start download
@@ -307,7 +307,7 @@ public:
 
                 if ( !fs::exists( m_drive.m_driveFolder / toString( hash ), err ))
                 {
-                    _ASSERT( hash != Hash256())
+                    SIRIUS_ASSERT( hash != Hash256())
                     m_catchingUpFileSet.emplace( hash );
                 }
             }
@@ -319,7 +319,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( !m_taskIsInterrupted );
+        SIRIUS_ASSERT( !m_taskIsInterrupted );
 
         if ( m_catchingUpFileIt == m_catchingUpFileSet.end())
         {
@@ -334,7 +334,7 @@ public:
         {
             auto missingFileHash = *m_catchingUpFileIt;
 
-            _ASSERT( missingFileHash != Hash256())
+            SIRIUS_ASSERT( missingFileHash != Hash256())
 
             m_catchingUpFileIt++;
 
@@ -353,7 +353,7 @@ public:
                                 {
                                     if ( code == download_status::download_complete )
                                     {
-                                        //_ASSERT( fs::exists( m_drive.m_driveFolder / toString( infoHash )))
+                                        //SIRIUS_ASSERT( fs::exists( m_drive.m_driveFolder / toString( infoHash )))
 
                                         downloadMissingFiles();
                                     } else if ( code == download_status::dn_failed )
@@ -407,24 +407,13 @@ public:
         return true;
     }
 
-    void modifyIsCompleted() override
-    {
-        _LOG( "catchingIsCompleted" );
-        if ( m_drive.m_dbgEventHandler )
-        {
-            m_drive.m_dbgEventHandler->driveModificationIsCompleted(
-                    m_drive.m_replicator, m_drive.m_driveKey, getModificationTransactionHash(), *m_sandboxRootHash );
-        }
-        UpdateDriveTaskBase::modifyIsCompleted();
-    }
-
     void continueSynchronizingDriveWithSandbox() override
     {
         DBG_BG_THREAD
 
         try
         {
-            _ASSERT( m_sandboxRootHash == getRootHash() );
+            SIRIUS_ASSERT( m_sandboxRootHash == getRootHash() );
 
             fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
             fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
@@ -440,7 +429,7 @@ public:
                 if ( !info.m_isUsed )
                 {
                     const auto& hash = it.first;
-                    _ASSERT( hash != Hash256())
+                    SIRIUS_ASSERT( hash != Hash256())
                     std::string filename = hashToFileName( hash );
                     fs::remove( fs::path( m_drive.m_driveFolder ) / filename );
                     fs::remove( fs::path( m_drive.m_torrentFolder ) / filename );

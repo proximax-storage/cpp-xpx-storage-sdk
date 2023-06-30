@@ -79,7 +79,7 @@ public:
     ModifyApprovalTaskBase( DriveTaskType::STREAM_REQUEST, drive, {}, opinionTaskController )
             , m_request( std::move(request) )
     {
-        _ASSERT( m_request )
+        SIRIUS_ASSERT( m_request )
     }
     
     ~StreamTask()
@@ -150,7 +150,7 @@ public:
             return "";
         }
         
-        _ASSERT( chunkInfo->m_chunkIndex == requestedIndex )
+        SIRIUS_ASSERT( chunkInfo->m_chunkIndex == requestedIndex )
         uint32_t beginIndex = requestedIndex;
         
         // Find the end index (of the chunk sequence)
@@ -201,7 +201,7 @@ public:
     {
         DBG_MAIN_THREAD
         
-        _ASSERT( chunkInfo )
+        SIRIUS_ASSERT( chunkInfo )
         
         std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -283,14 +283,14 @@ public:
                 return;
             }
 
-            _ASSERT( ! m_downloadingLtHandle )
+            SIRIUS_ASSERT( ! m_downloadingLtHandle )
             
             // select next 'm_downloadingChunkInfoIt'
             //
             if ( ! m_downloadingChunkInfoItWasSet )
             {
                 // set 1-st m_downloadingChunkInfoIt
-                _ASSERT( ! m_chunkInfoList.empty() )
+                SIRIUS_ASSERT( ! m_chunkInfoList.empty() )
 
                 if ( m_chunkInfoList.begin()->get() == nullptr )
                 {
@@ -329,7 +329,7 @@ public:
                 
                 if ( auto it = m_drive.m_torrentHandleMap.find( chunkInfoHash ); it != m_drive.m_torrentHandleMap.end())
                 {
-                    _ASSERT( it->second.m_ltHandle.is_valid() )
+                    SIRIUS_ASSERT( it->second.m_ltHandle.is_valid() )
                     tryDownloadNextChunk();
                     return;
                 }
@@ -346,12 +346,12 @@ public:
                                {
                                    DBG_MAIN_THREAD
 
-                                   _ASSERT( !m_taskIsInterrupted );
+                                   SIRIUS_ASSERT( !m_taskIsInterrupted );
 
                                    if ( code == download_status::dn_failed )
                                    {
                                        //todo is it possible?
-                                       _ASSERT( 0 );
+                                       SIRIUS_ASSERT( 0 );
                                        m_drive.m_torrentHandleMap.erase( infoHash );
                                        m_downloadingLtHandle.reset();
                                        tryDownloadNextChunk();
@@ -445,7 +445,7 @@ public:
                                 &m_drive.m_driveKey.array(),
                                 nullptr,
                                 nullptr );
-                        _ASSERT( it.second.m_ltHandle.is_valid() )
+                        SIRIUS_ASSERT( it.second.m_ltHandle.is_valid() )
                         _LOG( "downloading: ADDED_TO_SESSION : " << m_drive.m_torrentFolder / fileName )
                     }
                 }
@@ -571,7 +571,7 @@ public:
         
         if ( auto it = m_drive.m_torrentHandleMap.find( *m_finishInfoHash ); it != m_drive.m_torrentHandleMap.end())
         {
-            _ASSERT( it->second.m_ltHandle.is_valid() )
+            SIRIUS_ASSERT( it->second.m_ltHandle.is_valid() )
             m_finishLtHandle = it->second.m_ltHandle;
             m_drive.executeOnBackgroundThread( [this]
             {
@@ -596,12 +596,12 @@ public:
                            {
                                DBG_MAIN_THREAD
 
-                               _ASSERT( !m_taskIsInterrupted );
+                               SIRIUS_ASSERT( !m_taskIsInterrupted );
 
                                if ( code == download_status::dn_failed )
                                {
                                    //todo is it possible?
-                                   _ASSERT( 0 );
+                                   SIRIUS_ASSERT( 0 );
                                    m_drive.m_torrentHandleMap.erase( infoHash );
                                    return;
                                }
@@ -817,7 +817,7 @@ public:
                                                               m_drive.m_driveKey,
                                                               m_drive.m_driveFolder.string(),
                                                               torrentFilename.string() );
-            _ASSERT( finishPlaylistHash2 == finishPlaylistHash )
+            SIRIUS_ASSERT( finishPlaylistHash2 == finishPlaylistHash )
         }
 
         streamFolder->m_childs.emplace( PLAYLIST_FILE_NAME, File{ PLAYLIST_FILE_NAME, finishPlaylistHash, playlistTxt.size() } );

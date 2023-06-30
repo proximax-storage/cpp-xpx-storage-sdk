@@ -19,6 +19,11 @@
 **/
 
 #pragma once
+
+#if (_MSC_VER)
+#pragma warning (disable : 4275)
+#endif
+
 #include "BatchPacketReader.h"
 #include "ConnectResult.h"
 #include "IoTypes.h"

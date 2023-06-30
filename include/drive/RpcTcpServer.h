@@ -449,7 +449,7 @@ protected:
             if ( command == RPC_CMD::PING )
                 goto readAgain;
             
-            __ASSERT( command == RPC_CMD::ack && packetLen == 0 );
+            _SIRIUS_ASSERT( command == RPC_CMD::ack && packetLen == 0 );
         }
         
         std::array<uint8_t,32> readAckDbgGetRootHash()
@@ -502,7 +502,7 @@ protected:
                 goto readAgain;
             
             std::array<uint8_t,32> hash;
-            __ASSERT( command == RPC_CMD::dbgHash && packetLen == 32 );
+            _SIRIUS_ASSERT( command == RPC_CMD::dbgHash && packetLen == 32 );
             
             asio::read( socket,
                        asio::buffer( hash.data(), 32 ),

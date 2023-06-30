@@ -68,13 +68,13 @@ public:
         // add unknown opinions in 'myVerifyApprovalTxInfo'
         for ( const auto& opinion: receivedOpinions )
         {
-            _ASSERT( processedVerificationOpinion(opinion) )
+            SIRIUS_ASSERT( processedVerificationOpinion(opinion) )
         }
 
         // Add early received 'verification codes' from other replicators
         for ( const auto& verifyCode: receivedCodes )
         {
-            _ASSERT ( processedVerificationCode( verifyCode ) )
+            SIRIUS_ASSERT ( processedVerificationCode( verifyCode ) )
         }
     }
 
@@ -190,7 +190,7 @@ public:
 
         _LOG( "processed verification opinion from "  << int(info.m_opinions[0].m_publicKey[0]) )
 
-        _ASSERT( info.m_opinions.size() == 1 )
+        SIRIUS_ASSERT( info.m_opinions.size() == 1 )
 
         if ( m_request->m_tx != info.m_tx )
         {
@@ -229,7 +229,7 @@ public:
             m_myVerificationApprovalTxInfo = info;
         }
 
-        _ASSERT( m_myVerificationApprovalTxInfo->m_tx == info.m_tx )
+        SIRIUS_ASSERT( m_myVerificationApprovalTxInfo->m_tx == info.m_tx )
 
         // At any case opinions with the same replicator key must be removed
         //
@@ -285,11 +285,11 @@ private:
 
         for ( uint32_t i = 0; i < m_verificationCodes.size(); i++ )
         {
-            uint64_t initHash = calcHash64( 0, m_request->m_tx.begin(),
-                                            m_request->m_tx.end());
+            uint64_t initHash = calcHash64(0, &(*m_request->m_tx.begin()),
+                                           &(*m_request->m_tx.end()));
             initHash = calcHash64( initHash,
-                                   m_request->m_replicators[i].begin(),
-                                   m_request->m_replicators[i].end());
+                                   &(*m_request->m_replicators[i].begin()),
+                                   &(*m_request->m_replicators[i].end()));
             m_verificationCodes[i] = initHash;
         }
 
@@ -310,7 +310,7 @@ private:
 
     uint64_t calcHash64( uint64_t initValue, uint8_t* begin, uint8_t* end )
     {
-        _ASSERT( begin < end )
+        SIRIUS_ASSERT( begin < end )
 
         uint64_t hash = initValue;
         uint8_t* ptr = begin;
@@ -440,7 +440,7 @@ private:
 
         _LOG( "Check Verify Code Number " << m_request->m_tx )
 
-        _ASSERT( m_myVerifyCodesCalculated )
+        SIRIUS_ASSERT( m_myVerifyCodesCalculated )
 
         if (m_myOpinion) {
             return;
@@ -458,7 +458,7 @@ private:
 		{
 			m_codeTimerRun = true;
 
-			_ASSERT( m_verificationStartedAt )
+			SIRIUS_ASSERT( m_verificationStartedAt )
 
 			auto msSinceVerificationStart =
 					(boost::posix_time::microsec_clock::universal_time() - *m_verificationStartedAt).total_milliseconds();
@@ -488,7 +488,7 @@ private:
 
         _LOG( "Verify Opinion Timer Expired " << m_request->m_tx )
 
-        _ASSERT( !m_verificationMustBeInterrupted )
+        SIRIUS_ASSERT( !m_verificationMustBeInterrupted )
 
         m_verifyApproveTxSent = true;
 
@@ -501,10 +501,10 @@ private:
 
         _LOG( "Verify Code Timer Expired " << m_request->m_tx )
 
-        _ASSERT( !m_verificationMustBeInterrupted )
+        SIRIUS_ASSERT( !m_verificationMustBeInterrupted )
 
-        _ASSERT( m_myVerifyCodesCalculated )
-        _ASSERT( !m_verifyApproveTxSent )
+        SIRIUS_ASSERT( m_myVerifyCodesCalculated )
+        SIRIUS_ASSERT( !m_verifyApproveTxSent )
 
         // Prepare 'Verify Approval Tx Info'
         m_myOpinion = {
@@ -549,7 +549,7 @@ private:
 
         shareVerifyOpinion();
 
-        _ASSERT ( processedVerificationOpinion( {*m_myOpinion} ) );
+        SIRIUS_ASSERT ( processedVerificationOpinion( {*m_myOpinion} ) );
     }
 
 
@@ -557,7 +557,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_myCodeInfo )
+        SIRIUS_ASSERT( m_myCodeInfo )
 
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
@@ -587,7 +587,7 @@ private:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_myOpinion )
+        SIRIUS_ASSERT( m_myOpinion )
 
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );

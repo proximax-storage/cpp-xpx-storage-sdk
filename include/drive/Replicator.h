@@ -70,15 +70,15 @@ public:
     void saveReceiptSize( const ClientKey& clientKey, uint64_t tobeUploadedSize )
     {
         auto it = m_clientMap.find( clientKey );
-        __ASSERT( it != m_clientMap.end() )
-        __ASSERT( it->second.m_acceptedSize <= tobeUploadedSize )
+        _SIRIUS_ASSERT( it != m_clientMap.end() )
+        _SIRIUS_ASSERT( it->second.m_acceptedSize <= tobeUploadedSize )
         it->second.m_acceptedSize = tobeUploadedSize;
     }
     
     void saveNotAcceptedReceiptSize( const ClientKey& clientKey, uint64_t size )
     {
         auto it = m_clientMap.find( clientKey );
-        __ASSERT( it != m_clientMap.end() )
+        _SIRIUS_ASSERT( it != m_clientMap.end() )
         if ( it->second.m_notAcceptedSize < size )
         {
             it->second.m_notAcceptedSize = size;
@@ -349,6 +349,8 @@ public:
     virtual void        setMinReplicatorsNumber( uint64_t number ) = 0;
     virtual uint64_t    getMinReplicatorsNumber() = 0;
     virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
+
+    virtual void        stopReplicator() = 0;
 
     // For RPC support
     virtual bool        isConnectionLost() const { return false; };

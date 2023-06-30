@@ -19,6 +19,11 @@
 **/
 
 #pragma once
+
+#if _MSC_VER
+#pragma warning (disable : 4996)
+#endif
+
 #include "utils/ClampedBaseValue.h"
 #include <type_traits>
 

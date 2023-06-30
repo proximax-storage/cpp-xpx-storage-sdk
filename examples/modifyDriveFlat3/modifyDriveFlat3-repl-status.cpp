@@ -831,10 +831,13 @@ int main(int,char**)
         gReplicatorMap.erase( gReplicator2->dbgReplicatorKey() );
         gReplicatorMap.erase( gReplicator3->dbgReplicatorKey() );
 
+        gReplicator->stopReplicator();
         gReplicator.reset();
         usleep(10000);
+        gReplicator2->stopReplicator();
         gReplicator2.reset();
         usleep(10000);
+        gReplicator3->stopReplicator();
         gReplicator3.reset();
 
         createReplicators(bootstraps);
@@ -859,8 +862,11 @@ int main(int,char**)
     sleep(5);//(???++++!!!)
 //    sleep(120);
     gClientSession.reset();
+    gReplicator->stopReplicator();
     gReplicator.reset();
+    gReplicator2->stopReplicator();
     gReplicator2.reset();
+    gReplicator3->stopReplicator();
     gReplicator3.reset();
 
     EXLOG( "" );

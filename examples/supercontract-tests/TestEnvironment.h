@@ -200,10 +200,17 @@ public:
     }
 
     void stopReplicator(int i) {
-        m_replicators[i - 1].reset();
+        if (m_replicators[i - 1]) {
+            m_replicators[i - 1]->stopReplicator();
+            m_replicators[i - 1].reset();
+        }
     }
 
-    virtual ~TestEnvironment() {}
+    virtual ~TestEnvironment() {
+        for (auto& replicator: m_replicators) {
+            replicator->stopReplicator();
+        }
+    }
 
     virtual void addDrive(const Key& driveKey,
                           const Key& client, uint64_t driveSize,

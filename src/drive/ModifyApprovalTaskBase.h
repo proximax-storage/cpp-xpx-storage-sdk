@@ -62,7 +62,7 @@ protected:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_myOpinion )
+        SIRIUS_ASSERT( m_myOpinion )
 
         if ( m_taskIsInterrupted )
         {
@@ -252,7 +252,7 @@ protected:
                                 &m_drive.m_driveKey.array(),
                                 nullptr,
                                 nullptr );
-                        _ASSERT( it.second.m_ltHandle.is_valid() )
+                        SIRIUS_ASSERT( it.second.m_ltHandle.is_valid() )
                         _LOG( "downloading: ADDED_TO_SESSION : " << m_drive.m_torrentFolder / fileName )
                     }
                 }

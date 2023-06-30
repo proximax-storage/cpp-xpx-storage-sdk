@@ -25,7 +25,7 @@ public:
                     : SynchronizationTaskBase(DriveTaskType::CATCHING_UP, drive, opinionTaskController)
                     , m_request( std::move(request) )
     {
-        _ASSERT( m_request )
+        SIRIUS_ASSERT( m_request )
     }
 
     bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override {
@@ -38,8 +38,8 @@ public:
         // During the task is beeing finished the cancel is requested
         if ( cancelRequest.m_modifyTransactionHash == m_opinionController.notApprovedModificationId() )
         {
-            _ASSERT( cancelRequest.m_modifyTransactionHash != m_request->m_modifyTransactionHash )
-            _ASSERT( m_drive.m_lastApprovedModification == m_request->m_modifyTransactionHash )
+            SIRIUS_ASSERT( cancelRequest.m_modifyTransactionHash != m_request->m_modifyTransactionHash )
+            SIRIUS_ASSERT( m_drive.m_lastApprovedModification == m_request->m_modifyTransactionHash )
             return true;
         }
 
@@ -69,7 +69,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _ASSERT( m_myOpinion )
+        SIRIUS_ASSERT( m_myOpinion )
 
         sendSingleApprovalTransaction( *m_myOpinion );
 
