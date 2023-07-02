@@ -35,9 +35,60 @@ pipeline {
                     """
                 }
             }
+
+        }
+        
+        stage ('Test') {
+            steps {
+                script {
+                    sh """
+                    # execute ip.sh
+                    sudo ip addr add 192.168.0.100 dev ens5
+                    sudo ip addr add 192.168.0.101 dev ens5
+                    sudo ip addr add 192.168.0.102 dev ens5
+                    sudo ip addr add 192.168.0.103 dev ens5
+                    sudo ip addr add 192.168.0.104 dev ens5
+                    sudo ip addr add 192.168.0.105 dev ens5
+                    
+                    sudo ip addr add 192.168.2.100 dev ens5
+                    sudo ip addr add 192.168.2.101 dev ens5
+                    sudo ip addr add 192.168.2.102 dev ens5
+                    sudo ip addr add 192.168.2.103 dev ens5
+                    sudo ip addr add 192.168.2.104 dev ens5
+                    sudo ip addr add 192.168.2.105 dev ens5
+                    sudo ip addr add 192.168.2.106 dev ens5
+                    sudo ip addr add 192.168.2.107 dev ens5
+                    sudo ip addr add 192.168.2.200 dev ens5
+                    sudo ip addr add 192.168.2.201 dev ens5
+                    
+                    sudo ip addr add 9.168.2.100 dev ens5
+                    sudo ip addr add 9.168.2.101 dev ens5
+                    sudo ip addr add 9.168.2.102 dev ens5
+                    sudo ip addr add 9.168.2.103 dev ens5
+                    sudo ip addr add 9.168.2.104 dev ens5
+                    sudo ip addr add 9.168.2.200 dev ens5
+                    sudo ip addr add 9.168.2.201 dev ens5
+                    
+                    sudo ip addr add 10.168.2.100 dev ens5
+                    sudo ip addr add 10.168.2.101 dev ens5
+                    sudo ip addr add 10.168.2.102 dev ens5
+                    sudo ip addr add 10.168.2.103 dev ens5
+                    sudo ip addr add 10.168.2.104 dev ens5
+                    sudo ip addr add 10.168.2.200 dev ens5
+                    sudo ip addr add 10.168.2.201 dev ens5
+                    
+                    cd _build
+                    ./bin/supercontract-tests --gtest_output=xml:results.xml
+                    """
+                }
+            }
             post {
                 always {
                     archiveArtifacts "_build/bin/*"
+                    xunit (
+                        thresholds: [ skipped(failureThreshold: '0'), failed(failureThreshold: '0') ],
+                        tools: [ GoogleTest(pattern: "_build/*.xml") ]
+                    )
                 }
             }
         }
