@@ -7,6 +7,7 @@
 #pragma once
 
 #include "messengerServer.pb.h"
+#include <optional>
 
 namespace sirius::drive::messenger
 {
