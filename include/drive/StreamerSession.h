@@ -93,7 +93,8 @@ public:
     void initStream( const Hash256&          streamId,
                      const Key&              driveKey,
                      const fs::path&         m3u8Playlist,
-                     const fs::path&         workFolder,
+                     const fs::path&         chunksFolder,
+                     const fs::path&         torrentsFolder,
                      const endpoint_list&    endPointList )
     {
         SIRIUS_ASSERT( ! m_streamId )
@@ -109,11 +110,10 @@ public:
         
         m_totalChunkBytes = 0;
 
-        fs::remove_all( workFolder );
         m_m3u8Playlist  = m3u8Playlist;
         m_mediaFolder   = fs::path(m3u8Playlist).parent_path();
-        m_chunkFolder   = workFolder / "chunks";
-        m_torrentFolder = workFolder / "torrents";
+        m_chunkFolder   = chunksFolder;
+        m_torrentFolder = torrentsFolder;
 
         fs::create_directories( m_chunkFolder );
         fs::create_directories( m_torrentFolder );

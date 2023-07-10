@@ -72,7 +72,7 @@ bool gBreak_On_Warning = true;
 #define REPLICATOR_SANDBOX_ROOT_FOLDER_4  fs::path(getenv("HOME")) / "111" / "sandbox_root_4"
 
 #define CLIENT_WORK_FOLDER                fs::path(getenv("HOME")) / "111" / "client_work_folder"
-#define VIEWER_STREAM_ROOT_FOLDER         fs::path(getenv("HOME")) / "111" / "stream_root_folder"
+#define VIEWER_STREAM_ROOT_FOLDER         fs::path(getenv("HOME")) / "111" / "viewer_stream_root_folder"
 #define STREAMER_WORK_FOLDER              fs::path(getenv("HOME")) / "111" / "streamer_folder"
 
 auto clientKeyPair = sirius::crypto::KeyPair::FromPrivate(
@@ -214,7 +214,7 @@ class MyReplicatorEventHandler : public ReplicatorEventHandler, public DbgReplic
 {
 public:
 
-    static std::optional<ApprovalTransactionInfo>           m_approvalTransactionInfo;
+    static std::optional<PublishedModificationApprovalTransactionInfo> m_approvalTransactionInfo;
     static std::optional<DownloadApprovalTransactionInfo>   m_dnApprovalTransactionInfo;
     static std::mutex                                       m_transactionInfoMutex;
 
@@ -295,10 +295,10 @@ public:
         {
             m_approvalTransactionInfo = { std::move(transactionInfo) };
 
-            std::thread( [] { gReplicator->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
-            std::thread( [] { gReplicator2->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
-            std::thread( [] { gReplicator3->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
-            std::thread( [] { gReplicator4->asyncApprovalTransactionHasBeenPublished( PublishedModificationApprovalTransactionInfo(*MyReplicatorEventHandler::m_approvalTransactionInfo) ); }).detach();
+            std::thread( [] { gReplicator->asyncApprovalTransactionHasBeenPublished( std::make_unique<PublishedModificationApprovalTransactionInfo>(MyReplicatorEventHandler::m_approvalTransactionInfo.value()) ); }).detach();
+            std::thread( [] { gReplicator2->asyncApprovalTransactionHasBeenPublished( std::make_unique<PublishedModificationApprovalTransactionInfo>(MyReplicatorEventHandler::m_approvalTransactionInfo.value()) ); }).detach();
+            std::thread( [] { gReplicator3->asyncApprovalTransactionHasBeenPublished( std::make_unique<PublishedModificationApprovalTransactionInfo>(MyReplicatorEventHandler::m_approvalTransactionInfo.value()) ); }).detach();
+            std::thread( [] { gReplicator4->asyncApprovalTransactionHasBeenPublished( std::make_unique<PublishedModificationApprovalTransactionInfo>(MyReplicatorEventHandler::m_approvalTransactionInfo.value()) ); }).detach();
         }
     }
 
@@ -354,7 +354,7 @@ public:
     virtual void downloadOpinionHasBeenReceived(  Replicator& replicator,
                                                   const DownloadApprovalTransactionInfo& opinion ) override
     {
-        replicator.asyncOnDownloadOpinionReceived( opinion );
+        replicator.asyncOnDownloadOpinionReceived( std::make_unique<DownloadApprovalTransactionInfo>(opinion) );
     }
     
     // It will be called when rootHash is calculated in sandbox
@@ -366,7 +366,7 @@ public:
     }
 };
 
-std::optional<ApprovalTransactionInfo>          MyReplicatorEventHandler::m_approvalTransactionInfo;
+std::optional<PublishedModificationApprovalTransactionInfo> MyReplicatorEventHandler::m_approvalTransactionInfo;
 std::optional<DownloadApprovalTransactionInfo>  MyReplicatorEventHandler::m_dnApprovalTransactionInfo;
 std::mutex                                      MyReplicatorEventHandler::m_transactionInfoMutex;
 
@@ -491,9 +491,9 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->setVerifyApprovalTransactionTimerDelay(1);
     replicator->start();
 //    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100,         0, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
-    replicator->asyncAddDrive( DRIVE_PUB_KEY, AddDriveRequest{100*1024*1024, 0, {}, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList } );
+    replicator->asyncAddDrive( DRIVE_PUB_KEY, std::make_unique<AddDriveRequest>(AddDriveRequest{100*1024*1024, 0, {}, replicatorList, clientKeyPair.publicKey(), replicatorList, replicatorList} ) );
 
-    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, DownloadRequest{ downloadChannelHash1.array(), 1024*1024*1024, replicatorList, { viewerKeyPair.publicKey() }} );
+    replicator->asyncAddDownloadChannelInfo( DRIVE_PUB_KEY, std::make_unique<DownloadRequest>(DownloadRequest{ downloadChannelHash1.array(), 1024*1024*1024, replicatorList, { viewerKeyPair.publicKey() }}) );
 
     return replicator;
 }
@@ -639,7 +639,13 @@ int main(int,char**)
     {
         fs::create_directories( fs::path(OSB_OUTPUT_PLAYLIST).parent_path() );
     }
-    gStreamerSession->initStream( streamTx, DRIVE_PUB_KEY, OSB_OUTPUT_PLAYLIST, STREAMER_WORK_FOLDER / "streamFolder", endpointList );
+    fs::remove_all( STREAMER_WORK_FOLDER / "streamFolder" );
+    gStreamerSession->initStream( streamTx,
+                                 DRIVE_PUB_KEY,
+                                 OSB_OUTPUT_PLAYLIST,
+                                 STREAMER_WORK_FOLDER / "streamFolder/chunks",
+                                 STREAMER_WORK_FOLDER / "streamFolder/torrents",
+                                 endpointList );
 
     downloadStreamEnded = false;
     auto progress = []( std::string playListPath, int chunkIndex, int chunkNumber, std::string error )
@@ -686,7 +692,7 @@ int main(int,char**)
     
     for( auto replicator : gReplicatorArray )
     {
-        replicator->asyncStartStream( DRIVE_PUB_KEY, streamRequest );
+        replicator->asyncStartStream( DRIVE_PUB_KEY, std::make_unique<StreamRequest>(streamRequest) );
     }
 
     sleep(10);
@@ -727,7 +733,7 @@ int main(int,char**)
     
     for( auto replicator : gReplicatorArray )
     {
-        replicator->asyncFinishStreamTxPublished( DRIVE_PUB_KEY, StreamFinishRequest{ streamTx, finishInfo.infoHash, finishInfo.streamSizeBytes } );
+        replicator->asyncFinishStreamTxPublished( DRIVE_PUB_KEY, std::make_unique<StreamFinishRequest>(StreamFinishRequest{ streamTx, finishInfo.infoHash, finishInfo.streamSizeBytes }) );
     }
     
     {
