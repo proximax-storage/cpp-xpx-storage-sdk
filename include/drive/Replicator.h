@@ -326,10 +326,12 @@ public:
     // It will be called if transaction sent by the Replicator has failed because of invalid Replicators list
     virtual void        asyncVerifyApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 verificationId ) = 0;
 
+#ifndef SKIP_GRPC
     virtual void        setServiceAddress( const std::string& address ) = 0;
     virtual void        enableSupercontractServer() = 0;
     virtual void        enableMessengerServer() = 0;
-
+#endif
+    
     // Max difference between requested data and signed receipt
     //
     virtual uint64_t    receiptLimit() const = 0;

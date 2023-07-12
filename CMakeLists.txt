@@ -13,6 +13,12 @@ set(CMAKE_CXX_EXTENSIONS ON)
 set(ABSL_PROPAGATE_CXX_STD ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+#set(SKIP_GRPC ON)
+
+if (DEFINED SKIP_GRPC)
+    add_compile_definitions(SKIP_GRPC)
+endif()
+
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 if(WIN32)
@@ -42,7 +48,9 @@ else()
 endif()
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 
-storage_sdk_third_party_lib(cmake/grpc.cmake)
+if (NOT DEFINED SKIP_GRPC)
+    storage_sdk_third_party_lib(cmake/grpc.cmake)
+endif()
 
 include_directories(cereal/include)
 add_subdirectory(libtorrent)
@@ -75,8 +83,11 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 #    add_subdirectory(examples)
 endif()
 
-add_subdirectory(supercontract-server)
-add_subdirectory(messenger-server)
+if (NOT DEFINED SKIP_GRPC)
+    add_subdirectory(supercontract-server)
+    add_subdirectory(messenger-server)
+endif()
+
 add_subdirectory(src)
 
 if(NOT WIN32)
