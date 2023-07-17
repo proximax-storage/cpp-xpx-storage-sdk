@@ -78,7 +78,7 @@ pipeline {
                     sudo ip addr add 10.168.2.201 dev ens5
                     
                     cd _build
-                    ./bin/supercontract-tests --gtest_output=xml:results.xml
+                    ./bin/supercontract-tests --gtest_output=xml:supercontract-tests-report.xml
                     """
                 }
             }
@@ -89,6 +89,10 @@ pipeline {
                         thresholds: [ skipped(failureThreshold: '0'), failed(failureThreshold: '0') ],
                         tools: [ GoogleTest(pattern: "_build/*.xml") ]
                     )
+                    slackUploadFile channel: '#devops',
+                        credentialId: 'slack-bot-token',
+                        filePath: '_build/supercontract-tests-report.xml', 
+                        initialComment: "contract-v3-supercontract-tests ${env.BUILD_NUMBER} completed"
                 }
             }
         }
