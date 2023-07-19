@@ -172,7 +172,7 @@ public:
 
             auto name = toString( getFile( child ).hash());
 
-            auto absolutePath = m_drive.m_driveFolder / name;
+            auto absolutePath = std::string(m_drive.m_driveFolder / name);
 
             m_isExecutingQuery = true;
             m_drive.executeOnBackgroundThread(
@@ -217,7 +217,7 @@ public:
 
             auto name = toString( getFile( child ).hash());
 
-            auto absolutePath = m_drive.m_driveFolder / name;
+            auto absolutePath = std::string(m_drive.m_driveFolder / name);
 
             m_isExecutingQuery = true;
             m_drive.executeOnBackgroundThread(
@@ -1391,10 +1391,10 @@ private:
                                                 	} else
                                                 	{
                                                 		fs::rename( filePath, m_drive.m_driveFolder / toString( hash ));
-                                                		createTorrentFile( std::string(m_drive.m_driveFolder / toString( hash )),
+                                                		createTorrentFile( m_drive.m_driveFolder.string() + "/" + toString( hash ),
 																		   m_drive.m_driveKey,
 																		   m_drive.m_driveFolder,
-                                                                           std::string(m_drive.m_torrentFolder / toString( hash )) );
+                                                                           m_drive.m_torrentFolder.string() + "/" + toString( hash ) );
                                                 	}
                                                     file.setHash( hash );
                                                     file.setSize( size );
