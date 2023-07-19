@@ -639,7 +639,7 @@ bool FsTree::iterateBranch( const std::string& fullPath,
         intermediateCall( *treeWalker );
     }
 
-    auto lastIt = treeWalker->m_childs.find( path.filename());
+    auto lastIt = treeWalker->m_childs.find( path.filename().string() );
 
     if ( lastIt == treeWalker->m_childs.end())
     {

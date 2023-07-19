@@ -154,7 +154,7 @@ public:
         if ( request.m_mode == OpenFileMode::READ )
         {
 
-            auto it = pFolder->childs().find( p.filename());
+            auto it = pFolder->childs().find( p.filename().string() );
 
             if ( it == pFolder->childs().end())
             {
@@ -182,7 +182,7 @@ public:
                     } );
         } else
         {
-            auto it = pFolder->childs().find( p.filename());
+            auto it = pFolder->childs().find( p.filename().string() );
 
             if ( it != pFolder->childs().end())
             {
@@ -211,7 +211,7 @@ public:
                 m_callManagedHashes.insert( *temporaryHash );
             }
 
-            it = pFolder->childs().find( p.filename());
+            it = pFolder->childs().find( p.filename().string() );
 
             const auto& child = it->second;
 
@@ -1391,10 +1391,10 @@ private:
                                                 	} else
                                                 	{
                                                 		fs::rename( filePath, m_drive.m_driveFolder / toString( hash ));
-                                                		createTorrentFile( m_drive.m_driveFolder / toString( hash ),
+                                                		createTorrentFile( std::string(m_drive.m_driveFolder / toString( hash )),
 																		   m_drive.m_driveKey,
 																		   m_drive.m_driveFolder,
-																		   m_drive.m_torrentFolder / toString( hash ) );
+                                                                           std::string(m_drive.m_torrentFolder / toString( hash )) );
                                                 	}
                                                     file.setHash( hash );
                                                     file.setSize( size );
