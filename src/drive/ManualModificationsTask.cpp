@@ -137,7 +137,7 @@ public:
 
         fs::path p( request.m_path );
 
-        auto pFolder = m_upperSandboxFsTree->getFolderPtr( p.parent_path());
+        auto pFolder = m_upperSandboxFsTree->getFolderPtr(p.parent_path().string());
 
         if ( !pFolder )
         {
@@ -197,16 +197,16 @@ public:
                 if ( !m_callManagedHashes.contains( file.hash()))
                 {
                     // This file on the disk has not been created during this call so we can not modify it
-                    m_upperSandboxFsTree->removeFlat( p, []( const auto& )
+                    m_upperSandboxFsTree->removeFlat( p.string(), []( const auto& )
                     {} );
-                    auto temporaryHash = m_upperSandboxFsTree->addModifiableFile( p.parent_path(), p.filename());
+                    auto temporaryHash = m_upperSandboxFsTree->addModifiableFile( p.parent_path().string(), p.filename().string());
                     SIRIUS_ASSERT ( temporaryHash )
                     m_callManagedHashes.insert( *temporaryHash );
                 }
             } else
             {
-                m_upperSandboxFsTree->addModifiableFile( p.parent_path(), p.filename());
-                auto temporaryHash = m_upperSandboxFsTree->addModifiableFile( p.parent_path(), p.filename());
+                m_upperSandboxFsTree->addModifiableFile( p.parent_path().string(), p.filename().string());
+                auto temporaryHash = m_upperSandboxFsTree->addModifiableFile( p.parent_path().string(), p.filename().string());
                 SIRIUS_ASSERT ( temporaryHash )
                 m_callManagedHashes.insert( *temporaryHash );
             }
@@ -904,7 +904,7 @@ public:
         m_drive.executeOnBackgroundThread(
                 [this, callback = request.m_callback, path = absolutePath]
                 {
-                    obtainFileSize( path, callback );
+                    obtainFileSize( path.string(), callback );
                 } );
     }
 
@@ -1381,7 +1381,7 @@ private:
                                                 auto size = fs::file_size( filePath );
 
                                                 auto hash = size > 0 ?
-                                                		calculateInfoHash(filePath, m_drive.m_driveKey) : Hash256();
+                                                		calculateInfoHash(filePath.string(), m_drive.m_driveKey) : Hash256();
 
                                                 try
                                                 {
