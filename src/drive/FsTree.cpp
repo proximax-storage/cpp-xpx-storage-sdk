@@ -316,7 +316,7 @@ bool FsTree::addFolder( const std::string& folderPath ) {
 
     if (folder != nullptr) {
         auto parentPath = fs::path(folderPath).parent_path();
-        Folder* parent = getFolderPtr( parentPath, false );
+        Folder* parent = getFolderPtr( parentPath.string(), false );
         if (parent != folder) {
             folder->setStatisticsParent(parent->statisticsNode());
         }

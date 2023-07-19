@@ -1393,7 +1393,7 @@ private:
                                                 		fs::rename( filePath, m_drive.m_driveFolder / toString( hash ));
                                                 		createTorrentFile( m_drive.m_driveFolder.string() + "/" + toString( hash ),
 																		   m_drive.m_driveKey,
-																		   m_drive.m_driveFolder,
+																		   m_drive.m_driveFolder.string(),
                                                                            m_drive.m_torrentFolder.string() + "/" + toString( hash ) );
                                                 	}
                                                     file.setHash( hash );
