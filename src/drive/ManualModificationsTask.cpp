@@ -172,7 +172,7 @@ public:
 
             auto name = toString( getFile( child ).hash());
 
-            auto absolutePath = std::string(m_drive.m_driveFolder / name);
+            auto absolutePath = m_drive.m_driveFolder.string() + "/" + name;
 
             m_isExecutingQuery = true;
             m_drive.executeOnBackgroundThread(
@@ -217,7 +217,7 @@ public:
 
             auto name = toString( getFile( child ).hash());
 
-            auto absolutePath = std::string(m_drive.m_driveFolder / name);
+            auto absolutePath = m_drive.m_driveFolder.string() + "/" + name;
 
             m_isExecutingQuery = true;
             m_drive.executeOnBackgroundThread(
