@@ -7,6 +7,7 @@
 #pragma once
 
 #include <vector>
+#include <optional>
 #include "types.h"
 #include "FsTree.h"
 

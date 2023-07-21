@@ -320,6 +320,7 @@ public:
                 m_replicator->asyncDownloadApprovalTransactionHasFailedInvalidOpinions( eventHash, channelId );
                 break;
             }
+#ifndef SKIP_GRPC
 			case RPC_CMD::setServiceAddress:
 			{
 				std::string address;
@@ -335,7 +336,7 @@ public:
 				m_replicator->enableSupercontractServer();
 				break;
 			}
-
+#endif
 
             case RPC_CMD::dbgGetRootHash:
             {

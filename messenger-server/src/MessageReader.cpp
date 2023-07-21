@@ -4,8 +4,8 @@
 *** license that can be found in the LICENSE file.
 */
 
+#include <optional>
 #include "MessageReader.h"
-
 #include "ReadRPCTag.h"
 
 namespace sirius::drive::messenger

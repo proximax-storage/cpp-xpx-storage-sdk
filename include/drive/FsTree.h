@@ -8,6 +8,7 @@
 #include "types.h"
 #include "plugins.h"
 #include <map>
+#include <optional>
 #include <variant>
 #include <functional>
 #include <filesystem>

@@ -316,7 +316,7 @@ bool FsTree::addFolder( const std::string& folderPath ) {
 
     if (folder != nullptr) {
         auto parentPath = fs::path(folderPath).parent_path();
-        Folder* parent = getFolderPtr( parentPath, false );
+        Folder* parent = getFolderPtr( parentPath.string(), false );
         if (parent != folder) {
             folder->setStatisticsParent(parent->statisticsNode());
         }
@@ -639,7 +639,7 @@ bool FsTree::iterateBranch( const std::string& fullPath,
         intermediateCall( *treeWalker );
     }
 
-    auto lastIt = treeWalker->m_childs.find( path.filename());
+    auto lastIt = treeWalker->m_childs.find( path.filename().string() );
 
     if ( lastIt == treeWalker->m_childs.end())
     {

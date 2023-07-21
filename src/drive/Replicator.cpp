@@ -14,12 +14,15 @@
 #include "drive/EndpointsManager.h"
 #include "RcptSyncronizer.h"
 #include "BackgroundExecutor.h"
+
+#ifndef SKIP_GRPC
 #include <drive/RPCService.h>
 
 #include <supercontract-server/StorageServer.h>
-
 #include <messenger-server/Messenger.h>
 #include <messenger-server/MessengerServerBuilder.h>
+
+#endif
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/array.hpp>
@@ -45,7 +48,9 @@ namespace sirius::drive
 //
 class DefaultReplicator
         : public DownloadLimiter,
+#ifndef SKIP_GRPC
           public messenger::Messenger,
+#endif
           public std::enable_shared_from_this<DefaultReplicator>    // Replicator
 {
 private:
@@ -83,14 +88,16 @@ private:
 
     BackgroundExecutor m_backgroundExecutor;
 
+#ifndef SKIP_GRPC
     std::optional<std::string> m_serviceServerAddress;
     std::vector<std::shared_ptr<RPCService>> m_services;
     std::unique_ptr<grpc::Server> m_serviceServer;
 
     std::map<std::string, std::shared_ptr<messenger::MessageSubscriber>> m_messageSubscribers;
+#endif
 
     bool m_dbgAllowCreateNonExistingDrives = false;
-
+    
 public:
     DefaultReplicator(
             const crypto::KeyPair& keyPair,
@@ -138,11 +145,13 @@ public:
 
         m_isDestructing = true;
 
+#ifndef SKIP_GRPC
         if (m_serviceServer) {
             m_serviceServer->Shutdown();
         }
         m_services.clear();
-
+#endif
+        
         m_session->endSession();
 
         m_dnOpinionSyncronizer.stop();
@@ -246,6 +255,7 @@ public:
 
             m_endpointsManager.start( m_session );
 
+#ifndef SKIP_GRPC
             if ( !m_services.empty() )
             {
                 SIRIUS_ASSERT(m_serviceServerAddress)
@@ -259,6 +269,7 @@ public:
                     service->run(m_session);
                 }
             }
+#endif
         } );
 
         m_dnOpinionSyncronizer.start( m_session );
@@ -1677,6 +1688,7 @@ public:
 
                 return;
             }
+#ifndef SKIP_GRPC
             else if (m_messageSubscribers.contains(query)) {
                 auto it = m_messageSubscribers.find(query);
 
@@ -1688,6 +1700,8 @@ public:
 
 				return;
             }
+#endif
+            
 //        else if ( query == "finish-stream" )
 //        {
 //            try
@@ -1968,8 +1982,11 @@ public:
                  "endpoint_response",
                  "chunk-info" //, "finish-stream"
                 };
-        if ( supportedQueries.contains( query ) ||
-			m_messageSubscribers.contains(std::string(query.begin(), query.end())))
+        if ( supportedQueries.contains( query )
+#ifndef SKIP_GRPC
+            || m_messageSubscribers.contains(std::string(query.begin(), query.end()))
+#endif
+            )
         {
             auto str = message.dict_find_string_value( "x" );
             std::string packet((char*) str.data(), (char*) str.data() + str.size());
@@ -3049,6 +3066,7 @@ public:
         } );
     }
 
+#ifndef SKIP_GRPC
     void setServiceAddress( const std::string& address ) override {
         m_serviceServerAddress = address;
         _LOG( "Listen RPC Services On" << address )
@@ -3079,6 +3097,7 @@ public:
         m_messageSubscribers[tag] = std::move(subscriber);
         _LOG( "Subscription To " << tag << " Is Requested" )
     }
+#endif //#ifndef SKIP_GRPC
 
 };
 
