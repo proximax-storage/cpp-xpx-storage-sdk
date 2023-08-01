@@ -136,7 +136,7 @@ public:
             assert( endpoint );
             if ( auto ptr = self.lock(); ptr )
             {
-                __LOG( "connect to: " << *endpoint << " " << key )
+                __LOG( "connectTorentsToEndpoint: " << *endpoint << " " << key )
                 ptr->m_session->connectTorentsToEndpoint( *endpoint );
             }
         });
@@ -1111,7 +1111,7 @@ inline std::shared_ptr<ClientSession> createClientSession(  const crypto::KeyPai
         clientSession->m_endpointsManager.start(clientSession->session());
         clientSession->setEndpointHandler();
     });
-    clientSession->addDownloadChannel(Hash256());
+    clientSession->addDownloadChannel(Hash256{});
     return clientSession;
 }
 

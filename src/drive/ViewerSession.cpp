@@ -804,6 +804,12 @@ std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&      
     session->m_session->lt_session().add_extension( std::dynamic_pointer_cast<lt::plugin>( session ) );
     session->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     
+    boost::asio::post(session->session()->lt_session().get_context(), [session] {
+        session->m_endpointsManager.start(session->session());
+        session->setEndpointHandler();
+    });
+    session->addDownloadChannel(Hash256{});
+
     return session;
 }
 

@@ -90,6 +90,11 @@ public:
         }
     }
     
+    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint( const Key& key )
+    {
+        return m_endpointsManager.getEndpoint( key );
+    }
+    
     void initStream( const Hash256&          streamId,
                      const Key&              driveKey,
                      const fs::path&         m3u8Playlist,
@@ -250,7 +255,16 @@ public:
         }
         else
         {
-            fs::create_symlink( tmp, chunkFilename );
+            std::error_code ec;
+            
+            _LOG( "Copy chunk: " << tmp << " to: " << chunkFilename );
+            fs::rename( tmp, chunkFilename, ec );
+            
+            if ( ec )
+            {
+                _LOG_WARN( "*** Cannot copy: " << ec.message() );
+                return;
+            }
 
             fs::path torrentFilename = m_torrentFolder / toString( chunkHash );
             InfoHash chunkHash2 = createTorrentFile( chunkFilename.string(), m_keyPair.publicKey(), m_chunkFolder.string(), torrentFilename.string() );
@@ -474,6 +488,13 @@ inline std::shared_ptr<StreamerSession> createStreamerSession( const crypto::Key
     session->m_session = createDefaultSession( address, errorHandler, session, bootstraps, session );
     session->m_session->lt_session().add_extension( std::dynamic_pointer_cast<lt::plugin>( session ) );
     session->session()->lt_session().m_dbgOurPeerName = dbgClientName;
+    
+    boost::asio::post(session->session()->lt_session().get_context(), [session] {
+        session->m_endpointsManager.start(session->session());
+        session->setEndpointHandler();
+    });
+    session->addDownloadChannel(Hash256{});
+
     return session;
 }
 
