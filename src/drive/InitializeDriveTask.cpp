@@ -232,6 +232,9 @@ private:
         if ( m_opinionController.approvedModificationId() != m_drive.m_lastApprovedModification )
         {
             // This is the case if the modification has been interrupted and approved modifications has not been updated
+			_LOG("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC");
+			_LOG(m_opinionController.approvedModificationId());
+			_LOG(m_drive.m_lastApprovedModification);
             m_opinionController.approveCumulativeUploads( m_drive.m_lastApprovedModification, [this] {
                 onApprovedOpinionRestored();
             });

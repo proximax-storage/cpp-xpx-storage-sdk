@@ -140,7 +140,7 @@ inline void checkLogFileSize()
         if ( gBreakOnError ) { assert(0); } \
     }
 
-#if 1
+#if 0
 #define _FUNC_ENTRY()
 #else
 #define _FUNC_ENTRY() { \
