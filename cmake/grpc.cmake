@@ -1,4 +1,5 @@
 include(FetchContent)
+add_definitions(-w)
 set(gRPC_SSL_PROVIDER "package" CACHE STRING "Provider of ssl library")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../lib)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
