@@ -107,6 +107,7 @@ public:
 
         m_streamId = streamId;
         m_driveKey = driveKey;
+        m_chunkInfoMap.clear();
 
         for( const auto& endpoint : endPointList )
         {
@@ -125,6 +126,11 @@ public:
     }
     
     struct FinishStreamInfo{ InfoHash infoHash; uint64_t streamSizeBytes; };
+    
+    void cancelStream()
+    {
+        m_streamId.reset();
+    }
     
     FinishStreamInfo finishStream( uint64_t startTimeSecods = 0, uint64_t endTimeSecods = std::numeric_limits<uint64_t>::max() )
     {
