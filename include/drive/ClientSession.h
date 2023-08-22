@@ -650,9 +650,15 @@ public:
 
     void stop()
     {
-        m_session->endSession();
-        auto blockedDestructor = m_session->lt_session().abort();
-        m_session.reset();
+        std::promise<void> barrier;
+        boost::asio::post(m_session->lt_session().get_context(), [this, &barrier]()
+        {
+            m_session->endSession();
+            auto blockedDestructor = m_session->lt_session().abort();
+            m_session.reset();
+            barrier.set_value();
+        });
+        barrier.get_future().wait();
     }
 
     void setTorrentDeletedHandler( std::function<void(lt::torrent_handle)> handler )
