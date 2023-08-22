@@ -261,7 +261,7 @@ public:
                     __LOG( "addActionListToSession: " << infoHash << " " << action.m_param1 )
                     if ( m_modifyTorrentMap.find(infoHash) == m_modifyTorrentMap.end() )
                     {
-                        fs::path filenameInSandbox = workFolder/hashToFileName(infoHash);
+                        fs::path filenameInSandbox = workFolder.string() + "/" + hashToFileName(infoHash);
                         if ( ! fs::exists( filenameInSandbox ) )
                         {
                             try
@@ -301,20 +301,20 @@ public:
         }
 
 
-        newActionList.serialize( (workFolder/"actionList.bin").string() );
-        SIRIUS_ASSERT(fs::exists(workFolder/"actionList.bin"))
-        SIRIUS_ASSERT(fs::file_size(workFolder/"actionList.bin") > 0)
+        newActionList.serialize(workFolder.string() + "/actionList.bin");
+        SIRIUS_ASSERT(fs::exists(workFolder.string() + "/actionList.bin"))
+        SIRIUS_ASSERT(fs::file_size(workFolder.string() + "/actionList.bin") > 0)
 
-        InfoHash infoHash0 = createTorrentFile( (workFolder/"actionList.bin").string(), drivePublicKey, workFolder.string(), {} );
+        InfoHash infoHash0 = createTorrentFile( workFolder.string() + "/actionList.bin", drivePublicKey, workFolder.string(), {} );
 
         if ( m_modifyTorrentMap.find(infoHash0) == m_modifyTorrentMap.end() )
         {
-            fs::path filenameInSandbox = workFolder/hashToFileName(infoHash0);
+            fs::path filenameInSandbox = workFolder.string() + "/" + hashToFileName(infoHash0);
             fs::path torrentFilenameInSandbox = filenameInSandbox;
             torrentFilenameInSandbox.replace_extension(".torrent");
             try
             {
-                fs::rename( workFolder/"actionList.bin", filenameInSandbox );
+                fs::rename( fs::path(workFolder.string() + "/actionList.bin"), filenameInSandbox );
             }
             catch(...)
             {
@@ -344,7 +344,7 @@ public:
                     InfoHash infoHash = stringToByteArray<Hash256>( action.m_param1 );
                     if ( m_modifyTorrentMap.find(infoHash) == m_modifyTorrentMap.end() )
                     {
-                        fs::path filenameInSandbox = workFolder/action.m_param1;
+                        fs::path filenameInSandbox = workFolder.string() + "/" + action.m_param1;
                         fs::path torrentFilenameInSandbox = filenameInSandbox;
                         torrentFilenameInSandbox.replace_extension(".torrent");
 
@@ -426,7 +426,7 @@ public:
         {
             auto tHandle = it->second.m_ltHandle;
             auto status = tHandle.status( lt::torrent_handle::query_save_path | lt::torrent_handle::query_name );
-            auto filePath = fs::path( status.save_path ) / status.name;
+            auto filePath = fs::path( status.save_path ).string() + "/" + status.name;
             if ( fs::exists(filePath) && ! fs::is_directory(filePath) )
             {
                 try {

@@ -54,7 +54,7 @@ namespace sirius::drive
 
 std::string FlatDrive::driveIsClosingPath( const std::string& driveRootPath )
 {
-    return (fs::path( driveRootPath ) / "restart-data" / "drive-is-closing").string();
+    return driveRootPath + "/restart-data/drive-is-closing";
 }
 
 

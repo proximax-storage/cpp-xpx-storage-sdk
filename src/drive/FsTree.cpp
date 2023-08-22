@@ -94,7 +94,7 @@ bool Folder::initWithFolder( const std::string& pathToFolder ) try {
 
             Folder subfolder{entryName};
 
-            if ( !subfolder.initWithFolder( (fs::path(pathToFolder) / entryName).string() ) )
+            if ( !subfolder.initWithFolder(pathToFolder + "/" + entryName) )
                 return false;
 
             m_childs[entryName] = subfolder;
@@ -139,9 +139,9 @@ void Folder::getSizes( const fs::path& driveFolder, const fs::path& torrentFolde
             _SIRIUS_ASSERT(!file.isModifiable());
             const auto& fileHash = file.hash();
             std::cout << "name:  " << getFile(it->second).name() << "\n" << std::flush;
-            std::cout << "tname: " << torrentFolder / toString(fileHash) << "\n" << std::flush;
-            metaFilesSize += fs::file_size( torrentFolder / toString(fileHash) );
-            filesSize += fs::file_size( driveFolder / toString(fileHash) );
+            std::cout << "tname: " << torrentFolder.string() + "/" + toString(fileHash) << "\n" << std::flush;
+            metaFilesSize += fs::file_size( torrentFolder.string() + "/" + toString(fileHash) );
+            filesSize += fs::file_size( driveFolder.string() + "/" + toString(fileHash) );
         }
     }
 }
@@ -158,10 +158,10 @@ uint64_t Folder::evaluateSizes( const std::filesystem::path& driveFolder,
         else {
             const auto& file = getFile(it->second);
             const auto& fileHash = file.hash();
-            size += fs::file_size( driveFolder / toString(fileHash) );
+            size += fs::file_size( driveFolder.string() + "/" + toString(fileHash) );
             if (!file.isModifiable())
             {
-                size += fs::file_size( torrentFolder / toString(fileHash) );
+                size += fs::file_size( torrentFolder.string() + "/" + toString(fileHash) );
             }
             else {
                 // Evaluate metafiles size as 5% of

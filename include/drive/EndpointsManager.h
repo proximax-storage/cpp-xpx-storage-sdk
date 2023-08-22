@@ -224,7 +224,9 @@ public:
     void updateEndpoint(const Key& key, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint)
     {
 #ifndef __APPLE__
-        _LOG("Update Endpoint of " << int(key[0]) << " at " << endpoint->address() << " " << std::dec << endpoint->port());
+        if (endpoint) {
+            _LOG("Update Endpoint of " << int(key[0]) << " at " << endpoint->address() << " " << std::dec << endpoint->port());
+        }
 #endif
         
         auto it = m_endpointsMap.find(key);
