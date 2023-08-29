@@ -64,7 +64,7 @@ public:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( value );
 
-        saveRestartData( (fs::path(m_restartRootPath) / path).string(), os.str());
+        saveRestartData( m_restartRootPath.string() + "/" + path, os.str());
     }
 
     template<class T>
@@ -74,7 +74,7 @@ public:
 
         std::string data;
 
-        if ( !loadRestartData( (fs::path(m_restartRootPath) / path).string(), data ))
+        if ( !loadRestartData( m_restartRootPath.string() + "/" + path, data ))
         {
             return false;
         }
@@ -170,29 +170,29 @@ private:
 public:
 
     // Drive paths
-    const fs::path  m_driveRootPath     = m_replicatorRoot / arrayToString(m_driveKey.array());
-    const fs::path  m_driveFolder       = m_driveRootPath  / "drive";
-    const fs::path  m_torrentFolder     = m_driveRootPath  / "torrent";
-    const fs::path  m_fsTreeFile        = m_driveRootPath  / "fs_tree" / FS_TREE_FILE_NAME;
-    const fs::path  m_fsTreeTorrent     = m_driveRootPath  / "fs_tree" / FS_TREE_FILE_NAME ".torrent";
-    const fs::path  m_emptyFile         = m_driveFolder / toString(Hash256());
-    const fs::path  m_emptyFileTorrent  = m_torrentFolder / toString(Hash256());
+    const fs::path  m_driveRootPath     = fs::path(m_replicatorRoot.string() + "/" + arrayToString(m_driveKey.array()));
+    const fs::path  m_driveFolder       = fs::path(m_driveRootPath.string() + "/drive");
+    const fs::path  m_torrentFolder     = fs::path(m_driveRootPath.string() + "/torrent");
+    const fs::path  m_fsTreeFile        = fs::path(m_driveRootPath.string() + "/fs_tree/" + FS_TREE_FILE_NAME);
+    const fs::path  m_fsTreeTorrent     = fs::path(m_driveRootPath.string() + "/fs_tree/" + FS_TREE_FILE_NAME ".torrent");
+    const fs::path  m_emptyFile         = fs::path(m_driveFolder.string() + "/" + toString(Hash256()));
+    const fs::path  m_emptyFileTorrent  = fs::path(m_torrentFolder.string() + "/" + toString(Hash256()));
 
     // Sandbox paths
-    const fs::path  m_sandboxRootPath       = m_replicatorSandboxRoot / arrayToString(m_driveKey.array());
-    const fs::path  m_sandboxFsTreeFile     = m_sandboxRootPath / FS_TREE_FILE_NAME;
-    const fs::path  m_sandboxFsTreeTorrent  = m_sandboxRootPath / FS_TREE_FILE_NAME ".torrent";
-    const fs::path  m_sandboxStreamFolder   = m_sandboxRootPath / "drive";
-    const fs::path  m_sandboxStreamTFolder  = m_sandboxRootPath / "torrent";
+    const fs::path  m_sandboxRootPath       = fs::path(m_replicatorSandboxRoot.string() + "/" + arrayToString(m_driveKey.array()));
+    const fs::path  m_sandboxFsTreeFile     = fs::path(m_sandboxRootPath.string() + "/" + FS_TREE_FILE_NAME);
+    const fs::path  m_sandboxFsTreeTorrent  = fs::path(m_sandboxRootPath.string() + "/" + FS_TREE_FILE_NAME ".torrent");
+    const fs::path  m_sandboxStreamFolder   = fs::path(m_sandboxRootPath.string() + "/drive");
+    const fs::path  m_sandboxStreamTFolder  = fs::path(m_sandboxRootPath.string() + "/torrent");
 
     // Client data paths (received action list and files)
-    const fs::path  m_clientDataFolder      = m_sandboxRootPath / "client-data";
-    const fs::path  m_clientDriveFolder     = m_clientDataFolder / "drive";
-    const fs::path  m_clientActionListFile  = m_clientDataFolder / "actionList.bin";
+    const fs::path  m_clientDataFolder      = fs::path(m_sandboxRootPath.string() + "/client-data");
+    const fs::path  m_clientDriveFolder     = fs::path(m_clientDataFolder.string() + "/drive");
+    const fs::path  m_clientActionListFile  = fs::path(m_clientDataFolder.string() + "/actionList.bin");
 
     // Restart data
-    const fs::path  m_restartRootPath       = m_driveRootPath  / "restart-data";
-    const fs::path  m_driveIsClosingPath    = m_driveRootPath  / "restart-data" / "drive-is-closing";
+    const fs::path  m_restartRootPath       = fs::path(m_driveRootPath.string() + "/restart-data");
+    const fs::path  m_driveIsClosingPath    = fs::path(m_driveRootPath.string() + "/restart-data/drive-is-closing");
 };
 
 class ThreadManager

@@ -218,7 +218,7 @@ public:
 
         if ( ! contextVector.empty() && ! userdata->m_invalidMetadata )
         {
-            fs::path srcFilePath = fs::path(userdata->m_saveFolder) / hashToFileName( contextVector[0].m_infoHash );
+            fs::path srcFilePath = fs::path(userdata->m_saveFolder.string() + "/" + hashToFileName( contextVector[0].m_infoHash ));
             //_LOG( "srcFilePath: " << srcFilePath )
 
             for( size_t i=0; i<contextVector.size(); i++ )
@@ -460,7 +460,15 @@ public:
 
         params.storage_mode     = lt::storage_mode_sparse;
         params.save_path        = fs::path(folderWhereFileIsLocated).string();
-        params.ti               = std::make_shared<lt::torrent_info>( buffer, lt::from_span );
+
+        lt::error_code tInfoErrorCode;
+        params.ti = std::make_shared<lt::torrent_info>( buffer, tInfoErrorCode, lt::from_span );
+        if ( tInfoErrorCode )
+        {
+            _LOG_WARN( "session::addTorrentFileToSession error: " << tInfoErrorCode.message() << " code: " << tInfoErrorCode.value() )
+            return {};
+        }
+
         params.m_siriusFlags    = siriusFlags;
         if ( driveKey )
             params.m_driveKey = *driveKey;
@@ -577,7 +585,7 @@ public:
 
         // set fs tree save path
         if ( downloadContext.m_downloadType == DownloadContext::fs_tree ) {
-            downloadContext.m_saveAs = fs::path(saveFolder) / FS_TREE_FILE_NAME;
+            downloadContext.m_saveAs = fs::path(saveFolder + "/" + FS_TREE_FILE_NAME);
         }
 //        else if ( downloadContext.m_downloadType == DownloadContext::file_from_drive ) {
 //            if (downloadContext.m_saveAs.empty())
@@ -1432,11 +1440,9 @@ InfoHash createTorrentFile( const std::string& fileOrFolder,
     lt::error_code ec;
     lt::set_piece_hashes( createInfo, rootFolder, ec );
     if ( ec ) {
-        __LOG( "createTorrentFile error: " << ec );
-        throw std::runtime_error( std::string("createTorrentFile error: ") + ec.message() );
+        __LOG_WARN( "createTorrentFile error: " << ec.message() << " code: " << ec.value() )
+        return {};
     }
-//    std::cout << ec.category().name() << ':' << ec.value();
-//    lt::set_piece_hashes( createInfo, fs::path(fileOrFolder).parent_path() );
 
     // generate metadata
     lt::entry entry_info = createInfo.generate();
@@ -1471,7 +1477,7 @@ InfoHash createTorrentFile( const std::string& fileOrFolder,
     {
         __LOG( "outputTorrentFilename: " << outputTorrentFilename )
         std::ofstream fileStream( outputTorrentFilename, std::ios::binary );
-        fileStream.write(torrentFileBytes.data(),torrentFileBytes.size());
+        fileStream.write(torrentFileBytes.data(),(std::streamsize)torrentFileBytes.size());
     }
 
     return infoHash;
@@ -1501,10 +1507,11 @@ InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
 
     // calculate hashes
     lt::error_code ec;
-    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path().string() );
+    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path().string(), ec );
     if ( ec )
     {
-        throw std::runtime_error( std::string("moveFileToFlatDrive: libtorrent error: ") + ec.message() );
+        __LOG_WARN( "calculateInfoHashAndCreateTorrentFile error: " << ec.message() << " code: " << ec.value() );
+        return {};
     }
 
     // generate metadata tree
@@ -1566,7 +1573,7 @@ InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& pathToFile,
     // write to file
     if ( !outputTorrentPath.empty() )
     {
-        std::ofstream fileStream( fs::path(outputTorrentPath) / (newFileName + outputTorrentFileExtension), std::ios::binary );
+        std::ofstream fileStream( fs::path(outputTorrentPath + "/" + newFileName + outputTorrentFileExtension), std::ios::binary );
         fileStream.write( torrentFileBytes2.data(), torrentFileBytes2.size() );
     }
 
@@ -1577,7 +1584,7 @@ InfoHash calculateInfoHash( const std::string& pathToFile, const Key& drivePubli
 {
     if ( fs::is_directory(pathToFile) )
     {
-        throw std::runtime_error( std::string("moveFileToFlatDrive: 1-st parameter cannot be a folder: ") + pathToFile );
+        throw std::runtime_error( std::string("calculateInfoHash: 1-st parameter cannot be a folder: ") + pathToFile );
     }
 
     // setup file storage
@@ -1589,10 +1596,11 @@ InfoHash calculateInfoHash( const std::string& pathToFile, const Key& drivePubli
 
     // calculate hashes
     lt::error_code ec;
-    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path().string() );
+    lt::set_piece_hashes( createInfo, fs::path(pathToFile).parent_path().string(), ec);
     if ( ec )
     {
-        throw std::runtime_error( std::string("moveFileToFlatDrive: libtorrent error: ") + ec.message() );
+        __LOG_WARN( "calculateInfoHash error: " << ec.message() << " code: " << ec.value() );
+        return {};
     }
 
     // generate metadata tree
