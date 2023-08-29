@@ -21,7 +21,7 @@ StreamContextKeeper::StreamContextKeeper( std::shared_ptr<StreamContext>&& conte
 
 StreamContextKeeper::~StreamContextKeeper()
 {
-    if ( m_context )
+    if ( m_context && !m_connectionManagerStopped )
     {
         m_context->finish();
     }
@@ -30,12 +30,23 @@ StreamContextKeeper::~StreamContextKeeper()
 void
 StreamContextKeeper::onConnectionBrokenDetected()
 {
+	if (m_connectionManagerStopped)
     m_connectionManager.onConnectionBroken( m_id );
 }
 
 StreamContext& StreamContextKeeper::context()
 {
     return *m_context;
+}
+
+void StreamContextKeeper::stop()
+{
+	m_connectionManagerStopped = true;
+}
+
+bool StreamContextKeeper::isStopped() const
+{
+	return m_connectionManagerStopped;
 }
 
 }

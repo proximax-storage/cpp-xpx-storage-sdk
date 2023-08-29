@@ -19,9 +19,9 @@ void MessageReader::read()
 {
     auto contextKeeper = m_context.lock();
 
-    if ( !contextKeeper )
+    if ( !contextKeeper || contextKeeper->isStopped() )
     {
-        return;
+    	return;
     }
 
     auto* tag = new ReadRPCTag( contextKeeper->context().m_ioContext, shared_from_this());
@@ -33,10 +33,12 @@ void MessageReader::onRead( const std::optional<messengerServer::ClientMessage>&
     if ( !message )
     {
         auto contextKeeper = m_context.lock();
-        if ( contextKeeper )
+        if ( !contextKeeper || contextKeeper->isStopped() )
         {
-            contextKeeper->onConnectionBrokenDetected();
+        	return;
         }
+
+		contextKeeper->onConnectionBrokenDetected();
         return;
     }
 

@@ -20,6 +20,9 @@ MessengerServer::MessengerServer( std::weak_ptr<Messenger>&& messenger )
 
 MessengerServer::~MessengerServer()
 {
+	for (const auto& [id, context]: m_connections) {
+		context->stop();
+	}
     m_completionQueue->Shutdown();
     if ( m_completionQueueThread.joinable())
     {

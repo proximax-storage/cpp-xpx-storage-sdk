@@ -22,6 +22,7 @@ private:
     std::shared_ptr<StreamContext> m_context;
     uint64_t m_id;
     ConnectionManager& m_connectionManager;
+    bool m_connectionManagerStopped = false;
 
 public:
 
@@ -32,6 +33,10 @@ public:
     void onConnectionBrokenDetected();
 
     StreamContext& context();
+
+	void stop();
+
+	bool isStopped() const;
 
 };
 
