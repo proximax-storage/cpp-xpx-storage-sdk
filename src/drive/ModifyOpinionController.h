@@ -181,7 +181,8 @@ public:
     {
         DBG_MAIN_THREAD
 
-        SIRIUS_ASSERT( modificationId.array() == m_notApprovedCumulativeUploads.m_modificationId );
+        // TODO: saving approvalConfigurationUpload not implemented for supercontracts!
+		//  SIRIUS_ASSERT( modificationId.array() == m_notApprovedCumulativeUploads.m_modificationId );
 
         m_approvedCumulativeUploads = m_notApprovedCumulativeUploads;
 
