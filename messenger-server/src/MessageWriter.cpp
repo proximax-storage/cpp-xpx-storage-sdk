@@ -36,17 +36,15 @@ void sirius::drive::messenger::MessageWriter::write()
 
     auto contextKeeper = m_context.lock();
 
-    if ( !contextKeeper )
+    if ( !contextKeeper || contextKeeper->isStopped() )
     {
-        return;
+    	return;
     }
 
     auto& context = contextKeeper->context();
 
     auto message = std::move( m_messages.front());
     m_messages.pop();
-
-	std::cout << "write message " << message.m_tag;
 
     auto* inputMessage = new messengerServer::InputMessage();
     inputMessage->set_tag( message.m_tag );
@@ -75,9 +73,11 @@ void sirius::drive::messenger::MessageWriter::onWritten( bool ok )
     {
         auto contextKeeper = m_context.lock();
 
-        if ( contextKeeper )
-        {
-            contextKeeper->onConnectionBrokenDetected();
-        }
+		if ( !contextKeeper || contextKeeper->isStopped() )
+		{
+			return;
+		}
+
+		contextKeeper->onConnectionBrokenDetected();
     }
 }

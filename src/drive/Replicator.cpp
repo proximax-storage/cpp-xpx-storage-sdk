@@ -147,7 +147,7 @@ public:
 
 #ifndef SKIP_GRPC
         if (m_serviceServer) {
-            m_serviceServer->Shutdown();
+        	m_serviceServer->Shutdown(std::chrono::system_clock::now());
         }
         m_services.clear();
 #endif

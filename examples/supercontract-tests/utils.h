@@ -209,9 +209,11 @@ __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
                 const std::map<std::string, std::map<std::string, size_t>>& requestedFsTree,
                 const bool applyStorageModifications = false) {
             for (const auto& [directoryAbsolutePath, filesMap] : requestedFsTree) {
-                m_requestedDirectories.insert(directoryAbsolutePath);
+                const bool isAtRoot = directoryAbsolutePath == "";
+                if (!isAtRoot) {
+                    m_requestedDirectories.insert(directoryAbsolutePath);
+                }
                 for (const auto& [fileName, fileSize] : filesMap) {
-                    const bool isAtRoot = directoryAbsolutePath == "";
                     const auto fileAbsolutePath = isAtRoot ? fileName : (directoryAbsolutePath + "/" + fileName);
                     m_requestedFiles.emplace(fileAbsolutePath, fileSize);
                 }
@@ -225,7 +227,6 @@ __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
         void initiateManualModifications(
                 const std::map<std::string, size_t>& requestedFiles,
                 const bool applyStorageModifications = false) {
-            m_requestedDirectories.insert("");
             for (const auto& [fileName, fileSize] : requestedFiles) {
                 m_requestedFiles.emplace(fileName, fileSize);
             }
@@ -239,8 +240,8 @@ __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
             m_promise.set_value();
         }
 
-        void onStorageHashEvaluated(std::optional<EvaluateStorageHashResponse> res) {
-            ASSERT_TRUE(res);
+        void onStorageHashEvaluated(std::optional<EvaluateStorageHashResponse> response) {
+            ASSERT_TRUE(response);
             if (m_applyStorageModifications) {
                 m_environment.applyStorageManualModifications(
                         m_driveKey,
@@ -259,32 +260,15 @@ __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
             m_environment.evaluateStorageHash(
                     m_driveKey,
                     EvaluateStorageHashRequest{
-                        [this](auto res) { onStorageHashEvaluated(res); }
+                        [this](auto response) { onStorageHashEvaluated(response); }
                     });
         }
 
         void onFileClosed(std::optional<CloseFileResponse> response) {
             ASSERT_TRUE(response);
             ASSERT_TRUE(response->m_success);
-
             ++m_fileIter;
-            if (m_fileIter != m_requestedFiles.end()) {
-                const auto& fileAbsolutePath = m_fileIter->first;
-                m_environment.openFile(
-                        m_driveKey,
-                        OpenFileRequest{
-                            OpenFileMode::WRITE,
-                            fileAbsolutePath,
-                            [this](auto response) { onFileOpened(response); }
-                        });
-            } else {
-                m_environment.applySandboxManualModifications(
-                        m_driveKey,
-                        ApplySandboxModificationsRequest{
-                            true,
-                            [this](auto response) { onSandboxModificationsApplied(response); }
-                        });
-            }
+            maybeOpenFile();
         }
 
         void onFileFlushed(std::optional<FlushResponse> response) {
@@ -329,18 +313,8 @@ __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
                     });
         }
 
-        void onDirectoryCreated(std::optional<CreateDirectoriesResponse> response) {
-            ASSERT_TRUE(response);
-
-            ++m_directoryIter;
-            if (m_directoryIter != m_requestedDirectories.end()) {
-                m_environment.createDirectories(
-                        m_driveKey,
-                        CreateDirectoriesRequest{
-                            *m_directoryIter,
-                            [this](auto response) { onDirectoryCreated(response); }
-                        });
-            } else {
+        void maybeOpenFile() {
+            if (m_fileIter != m_requestedFiles.end()) {
                 const auto& fileAbsolutePath = m_fileIter->first;
                 m_environment.openFile(
                         m_driveKey,
@@ -349,17 +323,38 @@ __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
                             fileAbsolutePath,
                             [this](auto response) { onFileOpened(response); }
                         });
+            } else {
+                m_environment.applySandboxManualModifications(
+                        m_driveKey,
+                        ApplySandboxModificationsRequest{
+                            true,
+                            [this](auto response) { onSandboxModificationsApplied(response); }
+                        });
+            }
+        }
+
+        void onDirectoryCreated(std::optional<CreateDirectoriesResponse> response) {
+            ASSERT_TRUE(response);
+            ++m_directoryIter;
+            maybeCreateDirectory();
+        }
+
+        void maybeCreateDirectory() {
+            if (m_directoryIter != m_requestedDirectories.end()) {
+                m_environment.createDirectories(
+                        m_driveKey,
+                        CreateDirectoriesRequest{
+                            *m_directoryIter,
+                            [this](auto response) { onDirectoryCreated(response); }
+                        });
+            } else {
+                maybeOpenFile();
             }
         }
 
         void onSandboxModificationsInitiated(std::optional<InitiateSandboxModificationsResponse> response) {
             ASSERT_TRUE(response);
-            m_environment.createDirectories(
-                    m_driveKey,
-                    CreateDirectoriesRequest{
-                        *m_directoryIter,
-                        [this](auto response) { onDirectoryCreated(response); }
-                    });
+            maybeCreateDirectory();
         }
 
         void onManualModificationsInitiated(std::optional<InitiateModificationsResponse> response) {

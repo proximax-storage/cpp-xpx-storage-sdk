@@ -176,10 +176,18 @@ public:
 
     void addEndpointEntry(const Key& key, bool shouldRequestEndpoint = true)
     {
-        if (m_endpointsMap.contains(key))
         {
-            return;
+            auto it = m_endpointsMap.find(key);
+            if ( it != m_endpointsMap.end() )
+            {
+                if ( !it->second.m_endpoint && shouldRequestEndpoint )
+                {
+                    requestEndpoint(key);
+                }
+                return;
+            }
         }
+        
         auto it = m_unknownEndpointsMap.find(key);
         if (it != m_unknownEndpointsMap.end())
         {
@@ -216,7 +224,9 @@ public:
     void updateEndpoint(const Key& key, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint)
     {
 #ifndef __APPLE__
-        _LOG("Update Endpoint of " << int(key[0]) << " at " << endpoint->address() << " " << std::dec << endpoint->port());
+        if (endpoint) {
+            _LOG("Update Endpoint of " << int(key[0]) << " at " << endpoint->address() << " " << std::dec << endpoint->port());
+        }
 #endif
         
         auto it = m_endpointsMap.find(key);
@@ -226,9 +236,16 @@ public:
             {
                 if ( m_endpointHandler && it->second.m_endpoint != endpoint )
                 {
+                    _LOG("todo: m_endpointHandler: <- " << it->first << " <- " << *endpoint );
                     (*m_endpointHandler)( key, endpoint);
                 }
+                
+                //----------------------------------------------------------------------------------------------
+                // !!! set endpoint here !!!
+                //----------------------------------------------------------------------------------------------
+                _LOG("todo: addEndpoint: <- " << it->first << " <- " << *endpoint );
                 it->second.m_endpoint = endpoint;
+                
 #ifdef UPDATE_ENDPOINTS_PERIODICALLY
                 if ( auto session = m_session.lock(); session )
                 {
@@ -261,6 +278,10 @@ public:
     {
         if (auto it = m_endpointsMap.find(key); it != m_endpointsMap.end())
         {
+            if ( it->second.m_endpoint )
+            {
+                _LOG("todo: getEndpoint: -> " << key << " -> " << *it->second.m_endpoint );
+            }
             return it->second.m_endpoint;
         }
         //SIRIUS_ASSERT(m_unknownEndpointsMap.find(key) == m_unknownEndpointsMap.end())
@@ -389,11 +410,11 @@ private:
             session->sendMessage("endpoint_request", {endpoint->address(), endpoint->port()}, os.str());
 
             _LOG("Requested External Endpoint from " <<
-            int(bootstrapToAsk.m_publicKey[0]) <<
-            " at " <<
-            bootstrapToAsk.m_endpoint.address() <<
-            ":" <<
-            std::dec << bootstrapToAsk.m_endpoint.port())
+                    int(bootstrapToAsk.m_publicKey[0]) <<
+                    " at " <<
+                    bootstrapToAsk.m_endpoint.address() <<
+                    ":" <<
+                    std::dec << bootstrapToAsk.m_endpoint.port())
         }
 
         m_externalPointUpdateTimer = session->startTimer(m_noResponseExternalEndpointDelayMs, [this]
