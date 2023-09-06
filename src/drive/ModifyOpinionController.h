@@ -159,6 +159,7 @@ public:
 
         m_threadManager.executeOnBackgroundThread([=, this] {
             m_serializer.saveRestartValue( m_notApprovedCumulativeUploads, "notApprovedCumulativeUploads" );
+			_LOG("1111111");
             m_threadManager.executeOnSessionThread([=] {
                 callback();
             });
@@ -218,6 +219,7 @@ public:
         m_threadManager.executeOnBackgroundThread( [=, this]
             {
                m_serializer.saveRestartValue( m_notApprovedCumulativeUploads,      "notApprovedCumulativeUploads" );
+			   _LOG("2222222");
                m_threadManager.executeOnSessionThread( [=]
                {
                    callback();

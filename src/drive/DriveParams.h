@@ -23,7 +23,7 @@
 #undef DBG_MAIN_THREAD
 //#define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
 #define DBG_MAIN_THREAD { _FUNC_ENTRY(); assert( m_dbgThreadId == std::this_thread::get_id() ); }
-#define DBG_BG_THREAD { assert( m_dbgThreadId != std::this_thread::get_id() ); }
+#define DBG_BG_THREAD { _FUNC_ENTRY(); assert( m_dbgThreadId != std::this_thread::get_id() ); }
 
 namespace sirius::drive {
 
