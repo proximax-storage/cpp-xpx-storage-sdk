@@ -168,7 +168,7 @@ struct FuncEntry
 //        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
 //        std::cout << m_dbgOurPeerName << ": call: " << __PRETTY_FUNCTION__ << std::endl << std::flush; \
 //    }
-#define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
+#define _FUNC_ENTRY  std::string dbgFuncName=__PRETTY_FUNCTION__; FuncEntry funcEntry(dbgFuncName,m_dbgOurPeerName);
 
 #endif
 
