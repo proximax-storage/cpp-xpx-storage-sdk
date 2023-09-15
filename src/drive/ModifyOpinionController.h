@@ -99,7 +99,7 @@ public:
     void updateCumulativeUploads( const Hash256&                modificationId,
                                   const ReplicatorList&         replicators,
                                   uint64_t                      addCumulativeDownload,
-                                  const std::function<void()>&  callback )
+                                  const std::function<void()>   callback )
     {
         DBG_MAIN_THREAD
 
