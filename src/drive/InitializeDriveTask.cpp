@@ -231,15 +231,22 @@ private:
 
         if ( m_opinionController.approvedModificationId() != m_drive.m_lastApprovedModification )
         {
-            // This is the case if the modification has been interrupted and approved modifications has not been updated
-			_LOG("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC");
-			_LOG(m_opinionController.approvedModificationId());
-			_LOG(m_drive.m_lastApprovedModification);
-            m_opinionController.approveCumulativeUploads( m_drive.m_lastApprovedModification, [this] {
-                onApprovedOpinionRestored();
-            });
+            // This could happen in a very rare case of "blackout" between calls
+            //         m_serializer.saveRestartValue( m_approvedCumulativeUploads, "approvedCumulativeUploads" );
+            //     and
+            //         m_serializer.saveRestartValue( modificationId.array(), "approvedModification" );
+            //
+            // SIRIUS_ASSERT( m_opinionController.approvedModificationId() == m_drive.m_lastApprovedModification )
+            //
+            _LOG( "!!!ERROR!!! m_opinionController.approvedModificationId() != m_drive.m_lastApprovedModification" );
+            _LOG( "!!!ERROR!!! m_opinionController.approvedModificationId(): " << m_opinionController.approvedModificationId() );
+            _LOG( "!!!ERROR!!! m_drive.m_lastApprovedModification: " << m_drive.m_lastApprovedModification );
 
-            return;
+            // This is the case if the modification has been interrupted and approved modifications has not been updated
+//            m_opinionController.approveCumulativeUploads( m_drive.m_lastApprovedModification, [this] {
+//                onApprovedOpinionRestored();
+//            });
+//            return;
         }
         onApprovedOpinionRestored();
     }

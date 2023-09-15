@@ -523,7 +523,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_task = createManualModificationsTask( std::move( m_deferredManualModificationRequest ), *this );
+        m_task = createManualModificationsTask( std::move( m_deferredManualModificationRequest ), *this, m_opinionController );
 
         SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::MANUAL_MODIFICATION )
 

@@ -48,6 +48,7 @@ class ManualModificationsTask
 {
 
     mobj<InitiateModificationsRequest> m_request;
+    ModifyOpinionController& m_opinionTaskController;
 
     uint64_t m_upperSandboxFilesSize = 0;
     uint64_t m_lowerSandboxFilesSize = 0;
@@ -77,8 +78,9 @@ class ManualModificationsTask
 public:
 
     ManualModificationsTask( mobj<InitiateModificationsRequest>&& request,
-                             DriveParams& drive )
-            : DriveTaskBase( DriveTaskType::MANUAL_MODIFICATION, drive ), m_request( std::move( request ))
+                             DriveParams& drive,
+                              ModifyOpinionController& opinionTaskController )
+            : DriveTaskBase( DriveTaskType::MANUAL_MODIFICATION, drive ), m_request( std::move( request )), m_opinionTaskController(opinionTaskController)
     {}
 
 public:
@@ -1415,6 +1417,9 @@ private:
                                                m_drive.m_driveKey,
                                                m_drive.m_sandboxRootPath.string(),
                                                m_drive.m_sandboxFsTreeTorrent.string());
+        
+        m_opinionTaskController.notApprovedModificationId() = m_request->m_modificationIdentifier.array();
+        m_opinionTaskController.saveNotApprovedCumulativeUploads( {} );
 
         m_drive.executeOnSessionThread( [=, this]
                                         {
@@ -1560,7 +1565,8 @@ private:
             fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
             fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
 
-            m_drive.m_serializer.saveRestartValue( m_request->m_modificationIdentifier, "approvedModification" );
+            m_opinionTaskController.saveRestartValues( m_request->m_modificationIdentifier, {} );
+            //m_drive.m_serializer.saveRestartValue( m_request->m_modificationIdentifier, "approvedModification" );
 
             auto& torrentHandleMap = m_drive.m_torrentHandleMap;
 
@@ -1825,9 +1831,10 @@ private:
 };
 
 std::unique_ptr<DriveTaskBase> createManualModificationsTask( mobj<InitiateModificationsRequest>&& request,
-                                                              DriveParams& drive )
+                                                              DriveParams& drive,
+                                                               ModifyOpinionController& opinionTaskController)
 {
-    return std::make_unique<ManualModificationsTask>( std::move( request ), drive );
+    return std::make_unique<ManualModificationsTask>( std::move( request ), drive, opinionTaskController );
 }
 
 }

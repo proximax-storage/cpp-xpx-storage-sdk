@@ -403,7 +403,8 @@ std::unique_ptr<DriveTaskBase> createDriveClosureTask( mobj<DriveClosureRequest>
                                                        DriveParams& drive );
 
 std::unique_ptr<DriveTaskBase> createManualModificationsTask( mobj<InitiateModificationsRequest>&& request,
-                                                              DriveParams& drive );
+                                                              DriveParams& drive,
+                                                               ModifyOpinionController& opinionTaskController );
 
 
 std::unique_ptr<DriveTaskBase> createManualSynchronizationTask( mobj<SynchronizationRequest>&& request,

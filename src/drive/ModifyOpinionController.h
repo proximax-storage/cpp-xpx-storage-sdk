@@ -158,11 +158,21 @@ public:
         m_notApprovedCumulativeUploads.m_modificationId = modificationId.array();
 
         m_threadManager.executeOnBackgroundThread([=, this] {
-            m_serializer.saveRestartValue( m_notApprovedCumulativeUploads, "notApprovedCumulativeUploads" );
-			_LOG("1111111");
-            m_threadManager.executeOnSessionThread([=] {
-                callback();
-            });
+            saveNotApprovedCumulativeUploads( callback );
+//            m_serializer.saveRestartValue( m_notApprovedCumulativeUploads, "notApprovedCumulativeUploads" );
+//            m_threadManager.executeOnSessionThread([=] {
+//                callback();
+//            });
+        });
+    }
+
+    void saveNotApprovedCumulativeUploads( const std::function<void()> callback )
+    {
+        DBG_BG_THREAD
+        
+        m_serializer.saveRestartValue( m_notApprovedCumulativeUploads, "notApprovedCumulativeUploads" );
+        m_threadManager.executeOnSessionThread([=] {
+            callback();
         });
     }
 
@@ -182,8 +192,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        // TODO: saving approvalConfigurationUpload not implemented for supercontracts!
-		//  SIRIUS_ASSERT( modificationId.array() == m_notApprovedCumulativeUploads.m_modificationId );
+		SIRIUS_ASSERT( modificationId.array() == m_notApprovedCumulativeUploads.m_modificationId );
 
         m_approvedCumulativeUploads = m_notApprovedCumulativeUploads;
 
@@ -197,15 +206,30 @@ public:
 
         m_threadManager.executeOnBackgroundThread( [=, this]
         {
-            m_serializer.saveRestartValue( m_approvedCumulativeUploads, "approvedCumulativeUploads" );
-
-            m_threadManager.executeOnSessionThread( [=]
-            {
-                callback();
-            } );
+            saveRestartValues( modificationId, callback );
+//            m_serializer.saveRestartValue( m_approvedCumulativeUploads, "approvedCumulativeUploads" );
+//            m_serializer.saveRestartValue( modificationId.array(), "approvedModification" );
+//
+//            m_threadManager.executeOnSessionThread( [=]
+//            {
+//                callback();
+//            } );
         } );
     }
 
+    void saveRestartValues( const Hash256& modificationId, const std::function<void()>& callback )
+    {
+        DBG_BG_THREAD
+
+        m_serializer.saveRestartValue( m_approvedCumulativeUploads, "approvedCumulativeUploads" );
+        m_serializer.saveRestartValue( modificationId.array(), "approvedModification" );
+
+        m_threadManager.executeOnSessionThread( [=]
+        {
+            callback();
+        } );
+    }
+    
     void disapproveCumulativeUploads( const Hash256& modificationId, const std::function<void()>& callback )
     {
 
@@ -219,7 +243,6 @@ public:
         m_threadManager.executeOnBackgroundThread( [=, this]
             {
                m_serializer.saveRestartValue( m_notApprovedCumulativeUploads,      "notApprovedCumulativeUploads" );
-			   _LOG("2222222");
                m_threadManager.executeOnSessionThread( [=]
                {
                    callback();
@@ -227,7 +250,7 @@ public:
             } );
     }
 
-    Hash256 notApprovedModificationId()
+    std::array<uint8_t,32>& notApprovedModificationId()
     {
         DBG_MAIN_THREAD
 

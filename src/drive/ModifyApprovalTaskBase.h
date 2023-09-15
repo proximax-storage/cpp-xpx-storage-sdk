@@ -213,7 +213,7 @@ protected:
             fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
             fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
 
-            m_drive.m_serializer.saveRestartValue( getModificationTransactionHash().array(), "approvedModification" );
+            //m_drive.m_serializer.saveRestartValue( getModificationTransactionHash().array(), "approvedModification" );
 
             auto& torrentHandleMap = m_drive.m_torrentHandleMap;
             // remove unused files and torrent files from the drive

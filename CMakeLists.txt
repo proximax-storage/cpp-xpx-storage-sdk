@@ -63,6 +63,7 @@ endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(CMAKE_VERBOSE_MAKEFILE ON)
+    add_definitions(-DBOOST_ASIO_HAS_STD_INVOKE_RESULT)
 
     # boost from brew has an issue linking to -licudata
     # https://stackoverflow.com/questions/65380307/os-x-library-not-found-for-licudata
