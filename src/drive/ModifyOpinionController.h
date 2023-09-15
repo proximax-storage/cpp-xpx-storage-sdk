@@ -158,22 +158,18 @@ public:
         m_notApprovedCumulativeUploads.m_modificationId = modificationId.array();
 
         m_threadManager.executeOnBackgroundThread([=, this] {
-            saveNotApprovedCumulativeUploads( callback );
-//            m_serializer.saveRestartValue( m_notApprovedCumulativeUploads, "notApprovedCumulativeUploads" );
-//            m_threadManager.executeOnSessionThread([=] {
-//                callback();
-//            });
+            m_serializer.saveRestartValue( m_notApprovedCumulativeUploads, "notApprovedCumulativeUploads" );
+            m_threadManager.executeOnSessionThread([=] {
+                callback();
+            });
         });
     }
 
-    void saveNotApprovedCumulativeUploads( const std::function<void()> callback )
+    void saveNotApprovedCumulativeUploadsForManualTask()
     {
         DBG_BG_THREAD
         
         m_serializer.saveRestartValue( m_notApprovedCumulativeUploads, "notApprovedCumulativeUploads" );
-        m_threadManager.executeOnSessionThread([=] {
-            callback();
-        });
     }
 
     void fillOpinion( std::vector<KeyAndBytes>& replicatorsUploads )

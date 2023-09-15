@@ -1369,7 +1369,7 @@ public:
 
 private:
 
-    void computeSandboxHash( const std::function<void( std::optional<EvaluateStorageHashResponse> )>& callback )
+    void computeSandboxHash( const std::function<void( std::optional<EvaluateStorageHashResponse> )> callback )
     {
         DBG_BG_THREAD
 
@@ -1419,7 +1419,7 @@ private:
                                                m_drive.m_sandboxFsTreeTorrent.string());
         
         m_opinionTaskController.notApprovedModificationId() = m_request->m_modificationIdentifier.array();
-        m_opinionTaskController.saveNotApprovedCumulativeUploads( {} );
+        m_opinionTaskController.saveNotApprovedCumulativeUploadsForManualTask();
 
         m_drive.executeOnSessionThread( [=, this]
                                         {
@@ -1428,7 +1428,7 @@ private:
     }
 
     void onStorageHashEvaluated( const InfoHash& storageHash,
-                                 const std::function<void( std::optional<EvaluateStorageHashResponse> )>& callback )
+                                 const std::function<void( std::optional<EvaluateStorageHashResponse> )> callback )
     {
 
         DBG_MAIN_THREAD
