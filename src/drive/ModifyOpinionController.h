@@ -252,8 +252,6 @@ public:
 
     std::array<uint8_t,32>& notApprovedModificationId()
     {
-        DBG_MAIN_THREAD
-
         return m_notApprovedCumulativeUploads.m_modificationId;
     }
 
