@@ -153,14 +153,14 @@ struct FuncEntry
     FuncEntry( const std::string& PRETTY_FUNCTION, const std::string& dbgOurPeerName ) : m_PRETTY_FUNCTION(PRETTY_FUNCTION), m_dbgOurPeerName(dbgOurPeerName)
     {
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        std::cout << m_dbgOurPeerName << ": call: " << gIndentString+sizeof(gIndentString)-gCallLevel-1 << __PRETTY_FUNCTION__ << std::endl << std::flush; \
+        std::cout << m_dbgOurPeerName << ": call: " << gIndentString+sizeof(gIndentString)-gCallLevel-1 << m_PRETTY_FUNCTION << std::endl << std::flush; \
         gCallLevel+=2;
     }
     
     ~FuncEntry()
     {
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        std::cout << m_dbgOurPeerName << ": call: " << gIndentString+sizeof(gIndentString)-gCallLevel-1 << "~" << __PRETTY_FUNCTION__ << std::endl << std::flush; \
+        std::cout << m_dbgOurPeerName << ": call: " << gIndentString+sizeof(gIndentString)-gCallLevel-1 << "~" << m_PRETTY_FUNCTION << std::endl << std::flush; \
         gCallLevel-=2;
     }
 };
@@ -168,7 +168,7 @@ struct FuncEntry
 //        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
 //        std::cout << m_dbgOurPeerName << ": call: " << __PRETTY_FUNCTION__ << std::endl << std::flush; \
 //    }
-#define _FUNC_ENTRY  std::string dbgFuncName=__PRETTY_FUNCTION__; FuncEntry funcEntry(dbgFuncName,m_dbgOurPeerName);
+#define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
 
 #endif
 
