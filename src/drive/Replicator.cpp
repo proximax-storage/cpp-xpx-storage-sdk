@@ -38,7 +38,7 @@
 #include <drive/Utils.h>
 
 #undef DBG_MAIN_THREAD
-#define DBG_MAIN_THREAD { _FUNC_ENTRY(); assert( m_dbgThreadId == std::this_thread::get_id() ); }
+#define DBG_MAIN_THREAD _FUNC_ENTRY; assert( m_dbgThreadId == std::this_thread::get_id() );
 
 namespace sirius::drive
 {
@@ -312,7 +312,7 @@ public:
 
     void asyncInitializationFinished() override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [this]
         {
@@ -323,7 +323,7 @@ public:
 
     void asyncAddDrive( Key driveKey, mobj<AddDriveRequest>&& driveRequest ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post(m_session->lt_session().get_context(), [=,driveRequest=std::move(driveRequest),this]() mutable {
 
@@ -384,7 +384,7 @@ public:
 
     void asyncRemoveDrive( Key driveKey ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -410,7 +410,7 @@ public:
 
     void asyncSetReplicators( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
     	boost::asio::post(m_session->lt_session().get_context(), [=,replicatorKeys=std::move(replicatorKeys),this]() mutable
         {
@@ -439,7 +439,7 @@ public:
     // It notifies about changes in modification shards
     void asyncSetShardDonator( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
     	boost::asio::post(m_session->lt_session().get_context(), [=,replicatorKeys=std::move(replicatorKeys),this]() mutable
         {
@@ -458,7 +458,7 @@ public:
 
     void asyncSetShardRecipient( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
     	boost::asio::post(m_session->lt_session().get_context(), [=,replicatorKeys=std::move(replicatorKeys),this]() mutable
         {
@@ -493,7 +493,7 @@ public:
 
     void asyncCloseDrive( Key driveKey, Hash256 transactionHash ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -519,7 +519,7 @@ public:
 
     void asyncModify( Key driveKey, mobj<ModificationRequest>&& modifyRequest ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         _LOG( "+++ ex startModifyDrive: " << modifyRequest->m_clientDataInfoHash )
 
@@ -559,7 +559,7 @@ public:
 
     void asyncCancelModify( Key driveKey, Hash256 transactionHash ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -583,7 +583,7 @@ public:
 
     void asyncStartDriveVerification( Key driveKey, mobj<VerificationRequest>&& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post(m_session->lt_session().get_context(), [=,request=std::move(request),this]() mutable {
 
@@ -608,7 +608,7 @@ public:
 
     void asyncCancelDriveVerification( Key driveKey ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         //TODO
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
@@ -633,7 +633,7 @@ public:
 
     void asyncStartStream( Key driveKey, mobj<StreamRequest>&& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post(m_session->lt_session().get_context(), [=,request=std::move(request),this]() mutable {
 
@@ -677,7 +677,7 @@ public:
 
     void asyncIncreaseStream( Key driveKey, mobj<StreamIncreaseRequest>&& ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -701,7 +701,7 @@ public:
 
     void asyncFinishStreamTxPublished( Key driveKey, mobj<StreamFinishRequest>&& finishInfo ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post(m_session->lt_session().get_context(), [=,finishInfo=std::move(finishInfo),this]() mutable {
 
@@ -725,7 +725,7 @@ public:
 
     void asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&& request, bool mustBeSyncronized ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post(m_session->lt_session().get_context(), [=,request=std::move(request),this]() mutable {
 
@@ -794,7 +794,7 @@ public:
 
     void asyncRemoveDownloadChannelInfo( ChannelId channelId ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -891,7 +891,7 @@ public:
 
     virtual void asyncOnDownloadOpinionReceived( mobj<DownloadApprovalTransactionInfo>&& anOpinion ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post(m_session->lt_session().get_context(), [=,anOpinion=std::move(anOpinion),this]() mutable {
 
@@ -1143,7 +1143,7 @@ public:
     {
         //todo make queue for several simultaneous requests of the same channelId
 
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -1241,7 +1241,7 @@ public:
 
     void asyncDownloadApprovalTransactionHasFailedInvalidOpinions( Hash256 eventHash, Hash256 channelId ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -1298,7 +1298,7 @@ public:
     virtual void asyncDownloadApprovalTransactionHasBeenPublished( Hash256 eventHash, Hash256 channelId,
                                                                    bool channelMustBeClosed ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -1345,7 +1345,7 @@ public:
 
     virtual void asyncOnOpinionReceived( ApprovalTransactionInfo anOpinion ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -1379,7 +1379,7 @@ public:
     virtual void asyncApprovalTransactionHasBeenPublished(
             mobj<PublishedModificationApprovalTransactionInfo>&& transaction ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         _LOG( "asyncApprovalTransactionHasBeenPublished, m_rootHash:" << Key( transaction->m_rootHash ))
 
@@ -1404,7 +1404,7 @@ public:
 
     void asyncApprovalTransactionHasFailedInvalidOpinions( Key driveKey, Hash256 transactionHash ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -1429,7 +1429,7 @@ public:
     virtual void asyncSingleApprovalTransactionHasBeenPublished(
             mobj<PublishedModificationSingleApprovalTransactionInfo>&& transaction ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post(m_session->lt_session().get_context(), [transaction=std::move(transaction),this]() mutable {
 
@@ -1453,7 +1453,7 @@ public:
     virtual void
     asyncVerifyApprovalTransactionHasBeenPublished( PublishedVerificationApprovalTransactionInfo info ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2311,7 +2311,7 @@ public:
 
     void dbgSetLogMode( uint8_t mode ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post(m_session->lt_session().get_context(), [=,this]() mutable
         {
@@ -2333,7 +2333,7 @@ public:
 
     void asyncDbgAddVirtualDrive( Key driveKey )
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2439,7 +2439,7 @@ public:
 
     void initiateManualModifications( const DriveKey& driveKey, const InitiateModificationsRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         if (m_dbgAllowCreateNonExistingDrives) {
             asyncDbgAddVirtualDrive(driveKey);
@@ -2470,7 +2470,7 @@ public:
     void initiateManualSandboxModifications( const DriveKey& driveKey,
                                              const InitiateSandboxModificationsRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2496,7 +2496,7 @@ public:
 
     void openFile( const DriveKey& driveKey, const OpenFileRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2522,7 +2522,7 @@ public:
 
     void writeFile( const DriveKey& driveKey, const WriteFileRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2548,7 +2548,7 @@ public:
 
     void readFile( const DriveKey& driveKey, const ReadFileRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2574,7 +2574,7 @@ public:
 
     void flush( const DriveKey& driveKey, const FlushRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2600,7 +2600,7 @@ public:
 
     void closeFile( const DriveKey& driveKey, const CloseFileRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2626,7 +2626,7 @@ public:
 
     void removeFsTreeEntry( const DriveKey& driveKey, const RemoveFilesystemEntryRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2651,7 +2651,7 @@ public:
     }
 
     void pathExist( const DriveKey& driveKey, const PathExistRequest& request ) override {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2676,7 +2676,7 @@ public:
     }
 
     void pathIsFile( const DriveKey& driveKey, const PathIsFileRequest& request ) override {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2702,7 +2702,7 @@ public:
 
     void fileSize( const DriveKey& driveKey, const FileSizeRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2728,7 +2728,7 @@ public:
 
     void createDirectories( const DriveKey& driveKey, const CreateDirectoriesRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2754,7 +2754,7 @@ public:
 
     void folderIteratorCreate( const DriveKey& driveKey, const FolderIteratorCreateRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2780,7 +2780,7 @@ public:
 
     void folderIteratorDestroy( const DriveKey& driveKey, const FolderIteratorDestroyRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2806,7 +2806,7 @@ public:
 
     void folderIteratorHasNext( const DriveKey& driveKey, const FolderIteratorHasNextRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2832,7 +2832,7 @@ public:
 
     void folderIteratorNext( const DriveKey& driveKey, const FolderIteratorNextRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2858,7 +2858,7 @@ public:
 
     void moveFsTreeEntry( const DriveKey& driveKey, const MoveFilesystemEntryRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2885,7 +2885,7 @@ public:
     void applySandboxManualModifications( const DriveKey& driveKey,
                                           const ApplySandboxModificationsRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2911,7 +2911,7 @@ public:
 
     void evaluateStorageHash( const DriveKey& driveKey, const EvaluateStorageHashRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2938,7 +2938,7 @@ public:
     void applyStorageManualModifications( const DriveKey& driveKey,
                                           const ApplyStorageModificationsRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2964,7 +2964,7 @@ public:
 
     void manualSynchronize( const DriveKey& driveKey, const SynchronizationRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -2990,7 +2990,7 @@ public:
 
     void getFileInfo( const DriveKey& driveKey, const FileInfoRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -3016,7 +3016,7 @@ public:
 
     void getActualModificationId( const DriveKey& driveKey, const ActualModificationIdRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -3042,7 +3042,7 @@ public:
 
     void getFilesystem( const DriveKey& driveKey, const FilesystemRequest& request ) override
     {
-        _FUNC_ENTRY()
+        _FUNC_ENTRY
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {

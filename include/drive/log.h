@@ -141,12 +141,35 @@ inline void checkLogFileSize()
     }
 
 #if 0
-#define _FUNC_ENTRY()
+#define _FUNC_ENTRY
 #else
-#define _FUNC_ENTRY() { \
+inline int gCallLevel = 0;
+inline char gIndentString[] = "          " "          " "          " "          " "          " "          " "          " "          " "          " "          ";
+struct FuncEntry
+{
+    const std::string m_PRETTY_FUNCTION;
+    const std::string m_dbgOurPeerName;
+    
+    FuncEntry( const std::string& PRETTY_FUNCTION, const std::string& dbgOurPeerName ) : m_PRETTY_FUNCTION(PRETTY_FUNCTION), m_dbgOurPeerName(dbgOurPeerName)
+    {
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        std::cout << m_dbgOurPeerName << ": call: " << __PRETTY_FUNCTION__ << std::endl << std::flush; \
+        std::cout << m_dbgOurPeerName << ": call: " << gIndentString+sizeof(gIndentString)-gCallLevel-1 << __PRETTY_FUNCTION__ << std::endl << std::flush; \
+        gCallLevel+=2;
     }
+    
+    ~FuncEntry()
+    {
+        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::cout << m_dbgOurPeerName << ": call: " << gIndentString+sizeof(gIndentString)-gCallLevel-1 << "~" << __PRETTY_FUNCTION__ << std::endl << std::flush; \
+        gCallLevel-=2;
+    }
+};
+//#define _FUNC_ENTRY { \
+//        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+//        std::cout << m_dbgOurPeerName << ": call: " << __PRETTY_FUNCTION__ << std::endl << std::flush; \
+//    }
+#define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
+
 #endif
 
 #define SIRIUS_ASSERT(expr) { \
