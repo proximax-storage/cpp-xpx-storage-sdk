@@ -1423,6 +1423,7 @@ private:
 
         m_drive.executeOnSessionThread( [=, this]
                                         {
+                                            _LOG( "todo: Execution on bg thread: onStorageHashEvaluated()" );
                                             onStorageHashEvaluated( *m_sandboxRootHash, callback );
                                         } );
     }
@@ -1430,7 +1431,7 @@ private:
     void onStorageHashEvaluated( const InfoHash& storageHash,
                                  const std::function<void( std::optional<EvaluateStorageHashResponse> )> callback )
     {
-
+        _LOG( "todo: onStorageHashEvaluated()" );
         DBG_MAIN_THREAD
 
         SIRIUS_ASSERT ( m_isExecutingQuery )
