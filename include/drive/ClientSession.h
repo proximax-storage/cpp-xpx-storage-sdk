@@ -118,8 +118,8 @@ public:
         }
 
         uint64_t totalSize = 0;
-        lt_handle torrentHandle = m_session->addTorrentFileToSession(torrentFilenameInSandbox.string(),
-                                                                     folderWhereFileIsLocated,
+        lt_handle torrentHandle = m_session->addTorrentFileToSession(torrentFilenameInSandbox.make_preferred(),
+                                                                     fs::path(folderWhereFileIsLocated).make_preferred(),
                                                                      lt::SiriusFlags::client_has_modify_data,
                                                                      &driveKey,
                                                                      nullptr,
@@ -211,7 +211,8 @@ public:
                                      const ReplicatorList&  replicatorKeys,
                                      const std::string&     sandboxFolder, // it is the folder where all ActionLists and file-links will be placed
                                      uint64_t&              outTotalModifySize,
-                                     endpoint_list          endpointList = {}
+                                     endpoint_list          endpointList,
+                                     std::error_code&       ec
                                    )
     {
         for( const auto& key: replicatorKeys )
@@ -228,10 +229,14 @@ public:
                 }
             }
         }
-        
+
         fs::path workFolder = sandboxFolder;
-        std::error_code ec;
-        fs::create_directories( workFolder, ec );
+        fs::create_directories(workFolder.make_preferred(), ec );
+        if (ec)
+        {
+            __LOG( "ClientSession.h addActionListToSession. fs::create_directories error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << workFolder.string() )
+            return {};
+        }
 
         outTotalModifySize = 0;
 
@@ -244,54 +249,87 @@ public:
             {
                 case action_list_id::upload:
                 {
-                    if ( ! fs::exists(action.m_param1) )
+                    const auto pathToFile = fs::path(action.m_param1).make_preferred();
+                    bool isPathExists = fs::exists(pathToFile, ec);
+                    if (ec)
                     {
-                        throw std::runtime_error( std::string("File is absent: ") + action.m_param1 );
-                        break;
+                        __LOG( "ClientSession.h addActionListToSession. fs::exists error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << pathToFile.string() )
+                        return {};
                     }
 
-                    if ( fs::is_directory(action.m_param1) )
+                    if ( ! isPathExists )
                     {
-                        throw std::runtime_error( std::string("Folder could not be added, only files: ") + action.m_param1 );
-                        break;
+                        __LOG( "ClientSession.h File is absent: " << pathToFile )
+                        return {};
+                    }
+
+                    bool isDirectory = fs::is_directory(pathToFile, ec);
+                    if (ec)
+                    {
+                        __LOG( "ClientSession.h addActionListToSession. fs::is_directory error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << pathToFile )
+                        return {};
+                    }
+
+                    if ( isDirectory )
+                    {
+                        __LOG( "ClientSession.h Folder could not be added, only files: " << pathToFile )
+                        return {};
                     }
 
                     // calculate InfoHash
-                    InfoHash infoHash = createTorrentFile( action.m_param1, drivePublicKey, fs::path(action.m_param1).parent_path().string(), {} );
-                    __LOG( "addActionListToSession: " << infoHash << " " << action.m_param1 )
+                    InfoHash infoHash = createTorrentFile( pathToFile, drivePublicKey, fs::path(action.m_param1).parent_path().make_preferred(), {} );
+                    __LOG( "addActionListToSession: " << infoHash << " " << pathToFile )
                     if ( m_modifyTorrentMap.find(infoHash) == m_modifyTorrentMap.end() )
                     {
-                        fs::path filenameInSandbox = workFolder.string() + "/" + hashToFileName(infoHash);
-                        if ( ! fs::exists( filenameInSandbox ) )
+                        const auto filenameInSandbox = fs::path(workFolder.string() + "/" + hashToFileName(infoHash)).make_preferred();
+                        bool isExists = fs::exists( filenameInSandbox, ec );
+                        if (ec)
                         {
-                            try
+                            __LOG( "ClientSession.h fs::exists error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << filenameInSandbox )
+                            return {};
+                        }
+
+                        if ( ! isExists )
+                        {
+                            // remove symlink and not the file
+                            fs::remove( filenameInSandbox, ec );
+                            if (ec)
                             {
-                                // remove symlink and not the file
-                                fs::remove( filenameInSandbox );
-                                fs::create_symlink( action.m_param1, filenameInSandbox );
+                                __LOG( "ClientSession.h fs::remove error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << filenameInSandbox )
+                                return {};
                             }
-                            catch( const std::filesystem::filesystem_error& err ) {
-                                __LOG( "ERRROR: " << err.what() << err.path1() << " " << err.path2() );
-                                throw std::runtime_error( "Internal error: fs::create_symlink( action.m_param1, filenameInSandbox );" );
-                            }
-                            catch(...)
+
+#if defined(_WIN32) || defined(_WIN64)
+                            fs::copy( fs::path(action.m_param1).make_preferred(), filenameInSandbox, ec );
+#else
+                            fs::create_symlink( pathToFile, filenameInSandbox, ec );
+#endif
+                            if (ec)
                             {
-                                throw std::runtime_error( "Internal error: fs::create_symlink( action.m_param1, filenameInSandbox );" );
+                                __LOG( "ClientSession.h fs::create_symlink/copy error: " << ec.message() << " category name: " << ec.category().name() << " code: " << std::to_string(ec.value()) << " source path: " << pathToFile << " new symlink: " << filenameInSandbox )
+                                return {};
                             }
                         }
                     }
+
                     action.m_filename = fs::path( action.m_param1 ).filename().string();
                     action.m_param1 = hashToFileName(infoHash);
                     break;
                 }
+
                 case action_list_id::move:
                 {
-                    if ( isPathInsideFolder( action.m_param1, action.m_param2 ) )
+                    bool isPathInside = isPathInsideFolder( action.m_param1, action.m_param2, ec );
+                    if (ec)
                     {
-                        LOG( action.m_param1 );
-                        LOG( action.m_param2 );
-                        throw std::runtime_error( "invalid 'move/rename' action (destination is a child folder): " + action.m_param1
-                        + " -> " + action.m_param2 );
+                        __LOG( "ClientSession.h isPathInsideFolder error: " << ec.message() << " code: " << std::to_string(ec.value()) + " path 1: " << action.m_param1 << " path 2: " << action.m_param2 )
+                        return {};
+                    }
+
+                    if ( isPathInside )
+                    {
+                        __LOG( "ClientSession.h invalid 'move/rename' action (destination is a child folder): " << action.m_param1 << " -> " << action.m_param2 )
+                        return {};
                     }
                     break;
                 }
@@ -300,31 +338,43 @@ public:
             }
         }
 
+        const auto actionListPath = fs::path(workFolder.string() + "/actionList.bin").make_preferred();
+        newActionList.serialize(actionListPath);
+        bool isExists = fs::exists(actionListPath, ec);
+        if (ec)
+        {
+            __LOG( "ClientSession.h isExists actionList.bin error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << actionListPath )
+            return {};
+        }
 
-        newActionList.serialize(workFolder.string() + "/actionList.bin");
-        SIRIUS_ASSERT(fs::exists(workFolder.string() + "/actionList.bin"))
-        SIRIUS_ASSERT(fs::file_size(workFolder.string() + "/actionList.bin") > 0)
+        SIRIUS_ASSERT(isExists)
+        bool isFileSizeOk = fs::file_size(actionListPath, ec) > 0;
+        if (ec)
+        {
+            __LOG( "ClientSession.h fs::file_size actionList.bin error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << actionListPath )
+            return {};
+        }
 
-        InfoHash infoHash0 = createTorrentFile( workFolder.string() + "/actionList.bin", drivePublicKey, workFolder.string(), {} );
+        SIRIUS_ASSERT(isFileSizeOk)
+
+        InfoHash infoHash0 = createTorrentFile( actionListPath, drivePublicKey, workFolder.make_preferred(), {} );
 
         if ( m_modifyTorrentMap.find(infoHash0) == m_modifyTorrentMap.end() )
         {
             fs::path filenameInSandbox = workFolder.string() + "/" + hashToFileName(infoHash0);
             fs::path torrentFilenameInSandbox = filenameInSandbox;
             torrentFilenameInSandbox.replace_extension(".torrent");
-            try
+            fs::rename( actionListPath, filenameInSandbox.make_preferred(), ec );
+            if (ec)
             {
-                fs::rename( fs::path(workFolder.string() + "/actionList.bin"), filenameInSandbox );
-            }
-            catch(...)
-            {
-                throw std::runtime_error( "Internal error: fs::rename( workFolder/actionList.bin, filenameInSandbox );" );
+                __LOG( "ClientSession.h fs::rename error: " << ec.message() << " code: " << std::to_string(ec.value()) << " from path: " << actionListPath << " to path: " << filenameInSandbox.make_preferred() )
+                return {};
             }
 
-            InfoHash infoHash2 = createTorrentFile( filenameInSandbox.string(), drivePublicKey, workFolder.string(), torrentFilenameInSandbox.string() );
+            InfoHash infoHash2 = createTorrentFile( filenameInSandbox.make_preferred(), drivePublicKey, workFolder.make_preferred(), torrentFilenameInSandbox.make_preferred() );
             uint64_t totalSize = 0;
-            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox.string(),
-                                                                          workFolder.string(),
+            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox.make_preferred(),
+                                                                          workFolder.make_preferred(),
                                                                           lt::SiriusFlags::client_has_modify_data,
                                                                           &infoHash0.array(),
                                                                           nullptr,
@@ -348,12 +398,12 @@ public:
                         fs::path torrentFilenameInSandbox = filenameInSandbox;
                         torrentFilenameInSandbox.replace_extension(".torrent");
 
-                        InfoHash infoHash2 = createTorrentFile( filenameInSandbox.string(), drivePublicKey, workFolder.string(), torrentFilenameInSandbox.string() );
+                        InfoHash infoHash2 = createTorrentFile( filenameInSandbox.make_preferred(), drivePublicKey, workFolder.make_preferred(), torrentFilenameInSandbox.make_preferred() );
                         _SIRIUS_ASSERT( infoHash == infoHash2 );
                         
                         uint64_t totalSize = 0;
-                        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox.string(),
-                                                                                      workFolder.string(),
+                        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilenameInSandbox.make_preferred(),
+                                                                                      workFolder.make_preferred(),
                                                                                       lt::SiriusFlags::client_has_modify_data,
                                                                                       &infoHash0.array(),
                                                                                       nullptr,
@@ -365,14 +415,20 @@ public:
                     }
                     break;
                 }
+
                 case action_list_id::move:
                 {
-                    if ( isPathInsideFolder( action.m_param1, action.m_param2 ) )
+                    bool isPathInside = isPathInsideFolder( action.m_param1, action.m_param2,  ec );
+                    if (ec)
                     {
-                        LOG( action.m_param1 );
-                        LOG( action.m_param2 );
-                        throw std::runtime_error( "invalid 'move/rename' action (destination is a child folder): " + action.m_param1
-                        + " -> " + action.m_param2 );
+                        __LOG( "ClientSession.h action_list_id::move isPathInsideFolder error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path 1: " << action.m_param1 << " path 2: " << action.m_param2 )
+                        return {};
+                    }
+
+                    if ( isPathInside )
+                    {
+                        __LOG( "ClientSession.h invalid 'move/rename' action (destination is a child folder): " << action.m_param1 << " -> " << action.m_param2 )
+                        return {};
                     }
                     break;
                 }
@@ -407,12 +463,12 @@ public:
     }
 
     // Initiate file downloading (identified by downloadParameters.m_infoHash)
-    lt_handle download( DownloadContext&&     downloadParameters,
-                       const Hash256&         downloadChannelId,
-                       const std::string&     saveFolder,
-                       const std::string&     saveTorrentFolder,
-                       const endpoint_list&   endpointsHints = {},
-                       const ReplicatorList&  replicatorList = {} )
+    lt_handle download( DownloadContext&&           downloadParameters,
+                       const Hash256&               downloadChannelId,
+                       const std::filesystem::path& saveFolder,
+                       const std::filesystem::path& saveTorrentFolder,
+                       const endpoint_list&         endpointsHints = {},
+                       const ReplicatorList&        replicatorList = {} )
     {
         // check that download channel was set
         if ( !m_downloadChannelMap.contains(downloadChannelId) )
@@ -426,7 +482,7 @@ public:
         {
             auto tHandle = it->second.m_ltHandle;
             auto status = tHandle.status( lt::torrent_handle::query_save_path | lt::torrent_handle::query_name );
-            auto filePath = fs::path( status.save_path ).string() + "/" + status.name;
+            auto filePath = fs::path(fs::path( status.save_path ).string() + "/" + status.name).make_preferred();
             if ( fs::exists(filePath) && ! fs::is_directory(filePath) )
             {
                 try {

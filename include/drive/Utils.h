@@ -28,7 +28,7 @@ PLUGIN_API std::string toString( const std::array<uint8_t,32>& key );
 // hashToFileName
 PLUGIN_API std::string hashToFileName( const InfoHash& key );
 
-PLUGIN_API bool isPathInsideFolder( const fs::path& path, const fs::path& folder );
+PLUGIN_API bool isPathInsideFolder( const fs::path& path, const fs::path& folder, std::error_code& ec );
 
 PLUGIN_API int charToInt( char input );
 

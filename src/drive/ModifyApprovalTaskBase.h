@@ -246,8 +246,8 @@ protected:
                     {
                         std::string fileName = hashToFileName( it.first );
                         it.second.m_ltHandle = session->addTorrentFileToSession(
-                                (m_drive.m_torrentFolder / fileName).string(),
-                                m_drive.m_driveFolder.string(),
+                                m_drive.m_torrentFolder / fileName,
+                                m_drive.m_driveFolder,
                                 lt::SiriusFlags::peer_is_replicator,
                                 &m_drive.m_driveKey.array(),
                                 nullptr,
@@ -261,8 +261,8 @@ protected:
             // Add FsTree torrent to session
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent.string(),
-                                                                            m_drive.m_fsTreeTorrent.parent_path().string(),
+                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
+                                                                            m_drive.m_fsTreeTorrent.parent_path(),
                                                                             lt::SiriusFlags::peer_is_replicator,
                                                                             &m_drive.m_driveKey.array(),
                                                                             nullptr,

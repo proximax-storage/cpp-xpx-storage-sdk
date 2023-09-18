@@ -144,8 +144,8 @@ public:
     virtual bool      isEnding() = 0;
 
     // It loads existing file from disk
-    virtual lt_handle addTorrentFileToSession( const std::string&               torrentFilename,
-                                               const std::string&               folderWhereFileIsLocated,
+    virtual lt_handle addTorrentFileToSession( const std::filesystem::path&     torrentFilename,
+                                               const std::filesystem::path&     folderWhereFileIsLocated,
                                                lt::SiriusFlags::type            siriusFlags,
                                                const std::array<uint8_t,32>*    driveKey,
                                                const std::array<uint8_t,32>*    channelId,
@@ -165,8 +165,8 @@ public:
     // It is not necessary to mention the hints: libtorrent will try to find the peers itself
     // But it can speed up downloading
     virtual lt_handle download( DownloadContext&&               downloadParameters,
-                                const std::string&              saveFolder,
-                                const std::string&              saveTorrentFilePath,
+                                const std::filesystem::path&    saveFolder,
+                                const std::filesystem::path&    saveTorrentFilePath,
                                 const ReplicatorList&           keysHints,
                                 const std::array<uint8_t,32>*   driveKey,
                                 const std::array<uint8_t,32>*   channelId,
@@ -201,10 +201,10 @@ public:
 };
 
 // createTorrentFile
-PLUGIN_API InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
-                                       const Key&         drivePublicKey, // or client public key
-                                       const std::string& pathToRootFolder,
-                                       const std::string& outputTorrentFilename );
+PLUGIN_API InfoHash createTorrentFile( const std::filesystem::path& pathToFolderOrFolder,
+                                       const Key&                   drivePublicKey, // or client public key
+                                       const std::filesystem::path& pathToRootFolder,
+                                       const std::filesystem::path& outputTorrentFilename );
 
 //
 // It is used on drive side only.
@@ -212,12 +212,12 @@ PLUGIN_API InfoHash createTorrentFile( const std::string& pathToFolderOrFolder,
 // and creates modified torrent file in 'outputTorrentPath'
 // with name as 'InfoHash' + '.' + 'outputTorrentFileExtension'
 //
-PLUGIN_API InfoHash calculateInfoHashAndCreateTorrentFile( const std::string& file,
-                                                           const Key&         drivePublicKey, // or client public key
-                                                           const std::string& outputTorrentPath,
-                                                           const std::string& outputTorrentFileExtension );
+PLUGIN_API InfoHash calculateInfoHashAndCreateTorrentFile( const std::filesystem::path& file,
+                                                           const Key&                   drivePublicKey, // or client public key
+                                                           const std::filesystem::path& outputTorrentPath,
+                                                           const std::filesystem::path& outputTorrentFileExtension );
 
-PLUGIN_API InfoHash calculateInfoHash( const std::string& pathToFile, const Key& drivePublicKey );
+PLUGIN_API InfoHash calculateInfoHash( const std::filesystem::path& pathToFile, const Key& drivePublicKey );
 
 
 //
