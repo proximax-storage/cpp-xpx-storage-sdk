@@ -433,10 +433,6 @@ public:
                                                endpoint_list list,
                                                uint64_t* outTotalSize ) override
     {
-        // read torrent file
-        std::ifstream torrentFile( torrentFilename );
-        std::vector<char> buffer( (std::istreambuf_iterator<char>(torrentFile)), std::istreambuf_iterator<char>() );
-
         // create add_torrent_params
         lt::add_torrent_params params;
         params.userdata = new LtClientData();
@@ -462,7 +458,7 @@ public:
         params.save_path        = folderWhereFileIsLocated.string();
 
         lt::error_code tInfoErrorCode;
-        params.ti = std::make_shared<lt::torrent_info>( buffer, tInfoErrorCode, lt::from_span );
+        params.ti = std::make_shared<lt::torrent_info>( torrentFilename.string(), tInfoErrorCode );
         if ( tInfoErrorCode )
         {
             _LOG_WARN( "session::addTorrentFileToSession error: " << tInfoErrorCode.message() << " code: " << tInfoErrorCode.value() )
@@ -1425,14 +1421,14 @@ InfoHash createTorrentFile( const fs::path& fileOrFolder,
 {
     // setup file storage
     lt::file_storage fStorage;
-    lt::add_files( fStorage, fileOrFolder.string(), lt::create_flags_t{} );
+    lt::add_files( fStorage, fileOrFolder.string().c_str(), lt::create_flags_t{} );
 
     // create torrent info
     lt::create_torrent createInfo( fStorage, PIECE_SIZE, lt::create_torrent::v2_only );
 
     // calculate hashes for 'fileOrFolder' relative to 'rootFolder'
     lt::error_code ec;
-    lt::set_piece_hashes( createInfo, rootFolder.string(), ec );
+    lt::set_piece_hashes( createInfo, rootFolder.string().c_str(), ec );
     if ( ec ) {
         __LOG_WARN( "createTorrentFile error: " << ec.message() << " code: " << ec.value() )
         return {};
@@ -1494,14 +1490,14 @@ InfoHash calculateInfoHashAndCreateTorrentFile( const std::filesystem::path& pat
 
     // setup file storage
     lt::file_storage fStorage;
-    lt::add_files( fStorage, pathToFile.string(), lt::create_flags_t{} );
+    lt::add_files( fStorage, pathToFile.string().c_str(), lt::create_flags_t{} );
 
     // create torrent info
     lt::create_torrent createInfo( fStorage, PIECE_SIZE, lt::create_torrent::v2_only );
 
     // calculate hashes
     lt::error_code ec;
-    lt::set_piece_hashes( createInfo, pathToFile.parent_path().string(), ec );
+    lt::set_piece_hashes( createInfo, pathToFile.parent_path().string().c_str(), ec );
     if ( ec )
     {
         __LOG_WARN( "calculateInfoHashAndCreateTorrentFile error: " << ec.message() << " code: " << ec.value() );
