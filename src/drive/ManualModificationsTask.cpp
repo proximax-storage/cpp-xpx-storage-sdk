@@ -48,6 +48,7 @@ class ManualModificationsTask
 {
 
     mobj<InitiateModificationsRequest> m_request;
+    ModifyOpinionController& m_opinionTaskController;
 
     uint64_t m_upperSandboxFilesSize = 0;
     uint64_t m_lowerSandboxFilesSize = 0;
@@ -77,8 +78,9 @@ class ManualModificationsTask
 public:
 
     ManualModificationsTask( mobj<InitiateModificationsRequest>&& request,
-                             DriveParams& drive )
-            : DriveTaskBase( DriveTaskType::MANUAL_MODIFICATION, drive ), m_request( std::move( request ))
+                             DriveParams& drive,
+                              ModifyOpinionController& opinionTaskController )
+            : DriveTaskBase( DriveTaskType::MANUAL_MODIFICATION, drive ), m_request( std::move( request )), m_opinionTaskController(opinionTaskController)
     {}
 
 public:
@@ -1367,7 +1369,7 @@ public:
 
 private:
 
-    void computeSandboxHash( const std::function<void( std::optional<EvaluateStorageHashResponse> )>& callback )
+    void computeSandboxHash( const std::function<void( std::optional<EvaluateStorageHashResponse> )> callback )
     {
         DBG_BG_THREAD
 
@@ -1416,6 +1418,9 @@ private:
                                                m_drive.m_sandboxRootPath,
                                                m_drive.m_sandboxFsTreeTorrent);
 
+        m_opinionTaskController.notApprovedModificationId() = m_request->m_modificationIdentifier.array();
+        m_opinionTaskController.saveNotApprovedCumulativeUploadsForManualTask();
+
         m_drive.executeOnSessionThread( [=, this]
                                         {
                                             onStorageHashEvaluated( *m_sandboxRootHash, callback );
@@ -1423,7 +1428,7 @@ private:
     }
 
     void onStorageHashEvaluated( const InfoHash& storageHash,
-                                 const std::function<void( std::optional<EvaluateStorageHashResponse> )>& callback )
+                                 const std::function<void( std::optional<EvaluateStorageHashResponse> )> callback )
     {
 
         DBG_MAIN_THREAD
@@ -1560,7 +1565,8 @@ private:
             fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
             fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
 
-            m_drive.m_serializer.saveRestartValue( m_request->m_modificationIdentifier, "approvedModification" );
+            m_opinionTaskController.saveRestartValues( m_request->m_modificationIdentifier, {} );
+            //m_drive.m_serializer.saveRestartValue( m_request->m_modificationIdentifier, "approvedModification" );
 
             auto& torrentHandleMap = m_drive.m_torrentHandleMap;
 
@@ -1825,9 +1831,10 @@ private:
 };
 
 std::unique_ptr<DriveTaskBase> createManualModificationsTask( mobj<InitiateModificationsRequest>&& request,
-                                                              DriveParams& drive )
+                                                              DriveParams& drive,
+                                                               ModifyOpinionController& opinionTaskController)
 {
-    return std::make_unique<ManualModificationsTask>( std::move( request ), drive );
+    return std::make_unique<ManualModificationsTask>( std::move( request ), drive, opinionTaskController );
 }
 
 }

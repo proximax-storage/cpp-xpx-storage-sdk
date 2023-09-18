@@ -44,8 +44,8 @@ namespace sirius::drive
 
 #undef DBG_MAIN_THREAD
 //#define DBG_MAIN_THREAD { assert( m_dbgThreadId == std::this_thread::get_id() ); }
-#define DBG_MAIN_THREAD { _FUNC_ENTRY(); assert( m_dbgThreadId == std::this_thread::get_id() ); }
-#define DBG_BG_THREAD { _FUNC_ENTRY(); assert( m_dbgThreadId != std::this_thread::get_id() ); }
+#define DBG_MAIN_THREAD _FUNC_ENTRY; assert( m_dbgThreadId == std::this_thread::get_id() );
+#define DBG_BG_THREAD _FUNC_ENTRY; assert( m_dbgThreadId != std::this_thread::get_id() );
 #define DBG_VERIFY_THREAD { assert( m_verifyThread.get_id() == std::this_thread::get_id() ); }
 
 //
@@ -523,7 +523,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        m_task = createManualModificationsTask( std::move( m_deferredManualModificationRequest ), *this );
+        m_task = createManualModificationsTask( std::move( m_deferredManualModificationRequest ), *this, m_opinionController );
 
         SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::MANUAL_MODIFICATION )
 
@@ -789,8 +789,6 @@ public:
 
     void pathExist( mobj<PathExistRequest>&& request ) override
     {
-        DBG_MAIN_THREAD
-
         DBG_MAIN_THREAD
 
         if ( !m_task || !m_task->pathExist( *request ))
