@@ -299,10 +299,14 @@ public:
                                 return {};
                             }
 
+#if defined(_WIN32) || defined(_WIN64)
+                            fs::copy( fs::path(action.m_param1).make_preferred(), filenameInSandbox, ec );
+#else
                             fs::create_symlink( pathToFile, filenameInSandbox, ec );
+#endif
                             if (ec)
                             {
-                                __LOG( "ClientSession.h fs::create_symlink error: " << ec.message() << " category name: " << ec.category().name() << " code: " << std::to_string(ec.value()) << " source path: " << pathToFile << " new symlink: " << filenameInSandbox )
+                                __LOG( "ClientSession.h fs::create_symlink/copy error: " << ec.message() << " category name: " << ec.category().name() << " code: " << std::to_string(ec.value()) << " source path: " << pathToFile << " new symlink: " << filenameInSandbox )
                                 return {};
                             }
                         }
