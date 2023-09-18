@@ -119,7 +119,7 @@ private:
             {
                 try
                 {
-                    m_drive.m_fsTree->deserialize( m_drive.m_fsTreeFile.string() );
+                    m_drive.m_fsTree->deserialize( m_drive.m_fsTreeFile );
                     m_drive.updateStreamMap();
                 }
                 catch (const std::exception& ex)
@@ -145,10 +145,10 @@ private:
             }
 
             // Calculate torrent and root hash
-            m_drive.m_rootHash = createTorrentFile( m_drive.m_fsTreeFile.string(),
+            m_drive.m_rootHash = createTorrentFile( m_drive.m_fsTreeFile,
                                                     m_drive.m_driveKey,
-                                                    m_drive.m_fsTreeFile.parent_path().string(),
-                                                    m_drive.m_fsTreeTorrent.string() );
+                                                    m_drive.m_fsTreeFile.parent_path(),
+                                                    m_drive.m_fsTreeTorrent );
         
             _LOG( "m_rootHash=" << m_drive.m_rootHash )
 
@@ -169,8 +169,8 @@ private:
                     //TODO try recovery!
                     _LOG_ERR( "disk corrupted: fsTreeTorrent does not exist: " << m_drive.m_fsTreeTorrent )
                 }
-                m_drive.m_fsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent.string(),
-                                                                             m_drive.m_fsTreeTorrent.parent_path().string(),
+                m_drive.m_fsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
+                                                                             m_drive.m_fsTreeTorrent.parent_path(),
                                                                              lt::SiriusFlags::peer_is_replicator,
                                                                              &m_drive.m_driveKey.array(),
                                                                              nullptr,
@@ -292,8 +292,8 @@ private:
 
                     if ( auto session = m_drive.m_session.lock(); session )
                     {
-                        auto ltHandle = session->addTorrentFileToSession( (m_drive.m_torrentFolder / fileName).string(),
-                                                                          m_drive.m_driveFolder.string(),
+                        auto ltHandle = session->addTorrentFileToSession( m_drive.m_torrentFolder / fileName,
+                                                                          m_drive.m_driveFolder,
                                                                           lt::SiriusFlags::peer_is_replicator,
                                                                           &m_drive.m_driveKey.array(),
                                                                           nullptr,

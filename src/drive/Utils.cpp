@@ -40,8 +40,8 @@ std::string magnetLink( const InfoHash& key ) {
     return std::string("magnet:?xt=urn:btmh:1220") + hashStr;
 }
 
-PLUGIN_API fs::path toPath( const std::string& s ) {
-    return fs::path(s.begin(), s.end());
+fs::path toPath( const std::string& s ) {
+    return { (s.begin(), s.end()) };
 }
 
 std::string toString( const InfoHash& key ) {
@@ -93,10 +93,19 @@ std::string hashToFileName( const InfoHash& key ) {
 }
 
 
-bool isPathInsideFolder( const fs::path& path, const fs::path& folder )
+bool isPathInsideFolder( const fs::path& path, const fs::path& folder, std::error_code& ec )
 {
-    fs::path path0 = fs::absolute(path);
-    fs::path folder0 = fs::absolute(folder);
+    fs::path path0 = fs::absolute(path, ec);
+    if (ec)
+    {
+        return false;
+    }
+
+    fs::path folder0 = fs::absolute(folder, ec);
+    if (ec)
+    {
+        return false;
+    }
 
     // if root paths are different, return false
     if( path0.root_path() != folder0.root_path() )

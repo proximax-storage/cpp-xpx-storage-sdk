@@ -1381,7 +1381,7 @@ private:
                                                 auto size = fs::file_size( filePath );
 
                                                 auto hash = size > 0 ?
-                                                		calculateInfoHash(filePath.string(), m_drive.m_driveKey) : Hash256();
+                                                		calculateInfoHash(filePath, m_drive.m_driveKey) : Hash256();
 
                                                 try
                                                 {
@@ -1391,10 +1391,10 @@ private:
                                                 	} else
                                                 	{
                                                 		fs::rename( filePath, m_drive.m_driveFolder / toString( hash ));
-                                                		createTorrentFile( m_drive.m_driveFolder.string() + "/" + toString( hash ),
+                                                		createTorrentFile( m_drive.m_driveFolder / toString( hash ),
 																		   m_drive.m_driveKey,
-																		   m_drive.m_driveFolder.string(),
-                                                                           m_drive.m_torrentFolder.string() + "/" + toString( hash ) );
+																		   m_drive.m_driveFolder,
+                                                                           m_drive.m_torrentFolder / toString( hash ) );
                                                 	}
                                                     file.setHash( hash );
                                                     file.setSize( size );
@@ -1411,10 +1411,10 @@ private:
 
         m_lowerSandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile.string());
 
-        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile.string(),
+        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile,
                                                m_drive.m_driveKey,
-                                               m_drive.m_sandboxRootPath.string(),
-                                               m_drive.m_sandboxFsTreeTorrent.string());
+                                               m_drive.m_sandboxRootPath,
+                                               m_drive.m_sandboxFsTreeTorrent);
 
         m_drive.executeOnSessionThread( [=, this]
                                         {
@@ -1493,8 +1493,8 @@ private:
                     std::string fileName = toString( file );
 
                     m_drive.m_torrentHandleMap[file].m_ltHandle = session->addTorrentFileToSession(
-                            (m_drive.m_torrentFolder / fileName).string(),
-                            m_drive.m_driveFolder.string(),
+                            m_drive.m_torrentFolder / fileName,
+                            m_drive.m_driveFolder,
                             lt::SiriusFlags::peer_is_replicator,
                             &m_drive.m_driveKey.array(),
                             nullptr,
@@ -1581,8 +1581,8 @@ private:
             // Add FsTree torrent to session
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                m_sandboxFsTreeHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent.string(),
-                                                                          m_drive.m_fsTreeTorrent.parent_path().string(),
+                m_sandboxFsTreeHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
+                                                                          m_drive.m_fsTreeTorrent.parent_path(),
                                                                           lt::SiriusFlags::peer_is_replicator,
                                                                           &m_drive.m_driveKey.array(),
                                                                           nullptr,

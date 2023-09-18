@@ -72,7 +72,7 @@ public:
                                                    m_sandboxRootHash = getRootHash();
                                                    m_sandboxRootHash = m_drive.m_rootHash;
                                                    m_sandboxFsTree = std::make_unique<FsTree>();
-                                                   m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile.string());
+                                                   m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile);
                                                    std::error_code ec;
                                                    fs::remove( m_drive.m_sandboxFsTreeFile, ec );
                                                    fs::copy( m_drive.m_fsTreeFile, m_drive.m_sandboxFsTreeFile );
@@ -122,7 +122,7 @@ public:
                                                                            {
                                                                                m_sandboxFsTree = std::make_unique<FsTree>();
                                                                                m_sandboxFsTree->deserialize(
-                                                                                       m_drive.m_sandboxFsTreeFile.string());
+                                                                                       m_drive.m_sandboxFsTreeFile);
                                                                                m_sandboxFsTree->dbgPrint();
                                                                            }
                                                                            catch ( ... )
@@ -143,8 +143,8 @@ public:
                             getModificationTransactionHash(),
                             0, true, m_drive.m_sandboxFsTreeFile
                     ),
-                    m_drive.m_sandboxRootPath.string(),
-                    m_drive.m_sandboxFsTreeTorrent.string(),
+                    m_drive.m_sandboxRootPath,
+                    m_drive.m_sandboxFsTreeTorrent,
                     getUploaders(),
                     &m_drive.m_driveKey.array(),
                     nullptr,
@@ -366,8 +366,8 @@ public:
                                 getModificationTransactionHash(),
                                 0, true, ""
                         ),
-                        m_drive.m_driveFolder.string(),
-                        (m_drive.m_torrentFolder / toString( missingFileHash )).string(),
+                        m_drive.m_driveFolder,
+                        m_drive.m_torrentFolder / toString( missingFileHash ),
                         getUploaders(),
                         &m_drive.m_driveKey.array(),
                         nullptr,
@@ -439,8 +439,8 @@ public:
             // Add FsTree torrent to session
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent.string(),
-                                                                            m_drive.m_fsTreeTorrent.parent_path().string(),
+                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
+                                                                            m_drive.m_fsTreeTorrent.parent_path(),
                                                                             lt::SiriusFlags::peer_is_replicator,
                                                                             &m_drive.m_driveKey.array(),
                                                                             nullptr,

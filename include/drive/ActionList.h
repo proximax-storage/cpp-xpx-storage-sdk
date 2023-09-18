@@ -8,6 +8,7 @@
 #include "types.h"
 #include "plugins.h"
 #include <libtorrent/torrent_handle.hpp>
+#include <filesystem>
 
 namespace sirius { namespace drive {
 
@@ -125,8 +126,8 @@ namespace sirius { namespace drive {
     // ActionList
     struct PLUGIN_API ActionList : public std::vector<Action>
     {
-        void serialize( std::string fileName ) const;
-        void deserialize( std::string fileName );
+        void serialize( const std::filesystem::path& fileName ) const;
+        void deserialize( const std::filesystem::path& fileName );
 
         void dbgPrint() const;
     };

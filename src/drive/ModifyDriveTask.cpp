@@ -125,8 +125,8 @@ public:
                                                    m_request->m_maxDataSize - m_uploadedDataSize,
                                                    true,
                                                    "" ),
-                                               m_drive.m_sandboxRootPath.string(),
-                                               (m_drive.m_sandboxRootPath / toPath((toString(m_request->m_clientDataInfoHash)) + ".torrent")).string(),
+                                               m_drive.m_sandboxRootPath,
+                                               m_drive.m_sandboxRootPath / toPath((toString(m_request->m_clientDataInfoHash)) + ".torrent"),
                                                getUploaders(),
                                                &m_drive.m_driveKey.array(),
                                                nullptr,
@@ -159,7 +159,7 @@ public:
         // Load 'actionList' into memory
         ActionList actionList;
         try {
-            actionList.deserialize( actionListFilename.string() );
+            actionList.deserialize( actionListFilename );
         } catch (...)
         {
             _LOG_WARN( "modifyDriveInSandbox: invalid 'ActionList'" << m_request->m_clientDataInfoHash );
@@ -246,8 +246,8 @@ public:
                                                                    m_request->m_maxDataSize - m_uploadedDataSize,
                                                                    true,
                                                                    "" ),
-                                                           m_drive.m_driveFolder.string(),
-                                                           (m_drive.m_torrentFolder / toString(*fileToDownload)).string(),
+                                                           m_drive.m_driveFolder,
+                                                           m_drive.m_torrentFolder / toString(*fileToDownload),
                                                            getUploaders(),
                                                            &m_drive.m_driveKey.array(),
                                                            nullptr,
@@ -278,7 +278,7 @@ public:
         // Load 'actionList' into memory
         ActionList actionList;
         auto actionListFilename = m_drive.m_sandboxRootPath / hashToFileName( m_request->m_clientDataInfoHash );
-        actionList.deserialize( actionListFilename.string() );
+        actionList.deserialize( actionListFilename );
 
         // Make copy of current FsTree
         SIRIUS_ASSERT( m_drive.m_fsTree )
@@ -391,7 +391,17 @@ public:
                         fs::path destPath = fs::path( "root" ) / action.m_param2;
 
                         // srcPath should not be a parent folder of destPath
-                        if ( isPathInsideFolder( srcPath, destPath ))
+                        std::error_code ec;
+                        bool isPathInside = isPathInsideFolder( srcPath, destPath, ec );
+                        if (ec)
+                        {
+                            _LOG( "ModifyDriveTask::modifyFsTreeInSandbox. isPathInsideFolder error: " << ec.message() << " code: " << ec.value()
+                                                                                                       << " srcPath: " << srcPath.string()
+                                                                                                       << " destPath: " << destPath.string() )
+                            break;
+                        }
+
+                        if ( isPathInside )
                         {
                             _LOG( "! ActionList: invalid 'move': 'srcPath' is a directory which is an ancestor of 'destPath'" )
                             _LOG( "  invalid 'move': 'srcPath' : " << action.m_param1 );
@@ -445,10 +455,10 @@ public:
         // create FsTree in sandbox
         m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile.string() );
 
-        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile.string(),
+        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile,
                                                m_drive.m_driveKey,
-                                               m_drive.m_sandboxRootPath.string(),
-                                               m_drive.m_sandboxFsTreeTorrent.string() );
+                                               m_drive.m_sandboxRootPath,
+                                               m_drive.m_sandboxFsTreeTorrent );
 
         getSandboxDriveSizes( m_metaFilesSize, m_sandboxDriveSize );
         m_fsTreeSize = sandboxFsTreeSize();

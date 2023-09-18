@@ -346,7 +346,7 @@ public:
 
     void doSerialize( std::string fileName );
 
-    void deserialize( std::string fileName );
+    void deserialize( const std::filesystem::path& fileName );
 
     Folder* getFolderPtr( const std::string& path, bool createIfNotExist = false );
 

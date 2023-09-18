@@ -235,7 +235,7 @@ void FsTree::doSerialize( std::string fileName ) {
 }
 
 // deserialize
-void FsTree::deserialize( std::string fileName ) {
+void FsTree::deserialize( const std::filesystem::path& fileName ) {
 
     m_childs.clear();
 
@@ -248,12 +248,12 @@ void FsTree::deserialize( std::string fileName ) {
         iarchive( version );
     }
     catch(...) {
-        throw std::runtime_error( std::string("Invalid FsTree file format: ") + fileName );
+        throw std::runtime_error( std::string("Invalid FsTree file format: ") + fileName.string() );
     }
 
     // check fs tree version
     if ( version != FS_TREE_VERSION ) {
-        throw std::runtime_error( std::string("Invalid FS_TREE_VERSION: ") + fileName );
+        throw std::runtime_error( std::string("Invalid FS_TREE_VERSION: ") + fileName.string() );
     }
 
     // deserialize fs tree
@@ -261,7 +261,7 @@ void FsTree::deserialize( std::string fileName ) {
         iarchive( *this );
     }
     catch(...) {
-            throw std::runtime_error( std::string("Invalid FsTree file format: ") + fileName );
+            throw std::runtime_error( std::string("Invalid FsTree file format: ") + fileName.string() );
     }
 }
 

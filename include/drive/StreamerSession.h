@@ -190,10 +190,10 @@ public:
         }
 
         fs::path torrentFilename = m_torrentFolder / "finishStreamInfo";
-        InfoHash infoHash = createTorrentFile( finishStreamFilename.string(), m_keyPair.publicKey(), m_chunkFolder.string(), torrentFilename.string() );
+        InfoHash infoHash = createTorrentFile( finishStreamFilename, m_keyPair.publicKey(), m_chunkFolder, torrentFilename );
 
-        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename.string(),
-                                                                      m_chunkFolder.string(),
+        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename.make_preferred(),
+                                                                      m_chunkFolder.make_preferred(),
                                                                       lt::SiriusFlags::client_has_modify_data,
                                                                       &m_keyPair.publicKey().array(),
                                                                       nullptr,
@@ -245,8 +245,8 @@ public:
         
         uint64_t chunkSize = fs::file_size( tmp );
         
-        InfoHash chunkHash = createTorrentFile( tmp.string(), m_keyPair.publicKey(), m_mediaFolder.string(), {} );
-        fs::path chunkFilename = m_chunkFolder / toString( chunkHash );
+        InfoHash chunkHash = createTorrentFile( fs::path(tmp).make_preferred(), m_keyPair.publicKey(), m_mediaFolder.make_preferred(), {} );
+        fs::path chunkFilename = (m_chunkFolder / toString( chunkHash )).make_preferred();
 
         if ( dbgInfoHash != nullptr )
         {
@@ -273,11 +273,11 @@ public:
             }
 
             fs::path torrentFilename = m_torrentFolder / toString( chunkHash );
-            InfoHash chunkHash2 = createTorrentFile( chunkFilename.string(), m_keyPair.publicKey(), m_chunkFolder.string(), torrentFilename.string() );
+            InfoHash chunkHash2 = createTorrentFile( chunkFilename.make_preferred(), m_keyPair.publicKey(), m_chunkFolder.make_preferred(), torrentFilename.make_preferred() );
             SIRIUS_ASSERT( chunkHash2 == chunkHash )
 
-            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename.string(),
-                                                                          m_chunkFolder.string(),
+            lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename.make_preferred(),
+                                                                          m_chunkFolder.make_preferred(),
                                                                           lt::SiriusFlags::client_has_modify_data,
                                                                           &m_keyPair.publicKey().array(),
                                                                           nullptr,
