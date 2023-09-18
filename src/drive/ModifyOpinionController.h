@@ -202,28 +202,22 @@ public:
 
         m_threadManager.executeOnBackgroundThread( [=, this]
         {
-            saveRestartValues( modificationId, callback );
-//            m_serializer.saveRestartValue( m_approvedCumulativeUploads, "approvedCumulativeUploads" );
-//            m_serializer.saveRestartValue( modificationId.array(), "approvedModification" );
-//
-//            m_threadManager.executeOnSessionThread( [=]
-//            {
-//                callback();
-//            } );
+            m_serializer.saveRestartValue( m_approvedCumulativeUploads, "approvedCumulativeUploads" );
+            m_serializer.saveRestartValue( modificationId.array(), "approvedModification" );
+
+            m_threadManager.executeOnSessionThread( [=]
+            {
+                callback();
+            } );
         } );
     }
 
-    void saveRestartValues( const Hash256& modificationId, const std::function<void()>& callback )
+    void saveRestartValuesForManualTask( const Hash256& modificationId )
     {
         DBG_BG_THREAD
 
         m_serializer.saveRestartValue( m_approvedCumulativeUploads, "approvedCumulativeUploads" );
         m_serializer.saveRestartValue( modificationId.array(), "approvedModification" );
-
-        m_threadManager.executeOnSessionThread( [=]
-        {
-            callback();
-        } );
     }
     
     void disapproveCumulativeUploads( const Hash256& modificationId, const std::function<void()>& callback )

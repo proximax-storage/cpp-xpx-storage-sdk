@@ -1566,7 +1566,7 @@ private:
             fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
             fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
 
-            m_opinionTaskController.saveRestartValues( m_request->m_modificationIdentifier, {} );
+            m_opinionTaskController.saveRestartValuesForManualTask( m_request->m_modificationIdentifier );
             //m_drive.m_serializer.saveRestartValue( m_request->m_modificationIdentifier, "approvedModification" );
 
             auto& torrentHandleMap = m_drive.m_torrentHandleMap;
