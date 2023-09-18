@@ -159,9 +159,9 @@ struct FuncEntry
     
     ~FuncEntry()
     {
+        gCallLevel-=2;
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
         std::cout << m_dbgOurPeerName << ": call: " << gIndentString+sizeof(gIndentString)-gCallLevel-1 << "<-" << m_PRETTY_FUNCTION << std::endl << std::flush; \
-        gCallLevel-=2;
     }
 };
 //#define _FUNC_ENTRY { \
