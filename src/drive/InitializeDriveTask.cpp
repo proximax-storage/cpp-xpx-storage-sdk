@@ -63,7 +63,7 @@ public:
 
         if ( m_initialized )
         {
-            if ( m_opinionController.notApprovedModificationId() == cancelRequest.m_modifyTransactionHash )
+            if ( m_opinionController.notApprovedModificationId() == cancelRequest.m_modifyTransactionHash.array() )
             {
                 return true;
             }
@@ -208,7 +208,7 @@ private:
 
         for ( const auto& cancelRequest: m_cancelRequests)
         {
-            if ( cancelRequest.m_modifyTransactionHash == m_opinionController.notApprovedModificationId() )
+            if ( cancelRequest.m_modifyTransactionHash.array() == m_opinionController.notApprovedModificationId() )
             {
                 SIRIUS_ASSERT( !foundAppropriateCancel )
                 foundAppropriateCancel = true;
@@ -218,7 +218,7 @@ private:
         }
 
         auto it = std::find_if( m_completedModifications.begin(), m_completedModifications.end(), [this] (const auto& item) {
-            return item.m_modificationId == m_opinionController.notApprovedModificationId();
+            return item.m_modificationId.array() == m_opinionController.notApprovedModificationId();
         });
 
         if ( it != m_completedModifications.end() && it->m_status == CompletedModification::CompletedModificationStatus::CANCELLED )
