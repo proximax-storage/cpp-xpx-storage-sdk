@@ -88,7 +88,11 @@ __LOG( "+++ exlog: " << expr << std::endl << std::flush); \
             auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
             // start file uploading
             uint64_t totalModifyDataSize;
-            InfoHash hash = m_clientSession->addActionListToSession(actionList, drivePubKey, replicatorList, tmpFolder, totalModifyDataSize );
+            std::error_code ec;
+            InfoHash hash = m_clientSession->addActionListToSession(actionList, drivePubKey, replicatorList, tmpFolder, totalModifyDataSize, {}, ec);
+            if (ec) {
+                // handle error here
+            }
 
             // inform replicator
             m_actionListHashes.push_back(hash);

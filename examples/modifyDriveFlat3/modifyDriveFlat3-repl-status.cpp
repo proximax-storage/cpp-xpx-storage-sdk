@@ -1038,7 +1038,11 @@ static void clientModifyDrive( const ActionList& actionList,
 
     // start file uploading
     uint64_t totalModifySize;
-    InfoHash hash = gClientSession->addActionListToSession(  actionList, DRIVE_PUB_KEY, replicatorList, tmpFolder, totalModifySize );
+    std::error_code ec;
+    InfoHash hash = gClientSession->addActionListToSession(  actionList, DRIVE_PUB_KEY, replicatorList, tmpFolder, totalModifySize, {}, ec );
+    if (ec) {
+        // handle error here
+    }
 
     // inform replicator
     clientModifyHash = hash;
