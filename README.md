@@ -1,7 +1,7 @@
 # Get cpp-xpx-storage-sdk
 
 ```shell
-git clone git@github.com:proximax-storage/cpp-xpx-storage-sdk.git
+git clone [git@github.com:proximax-storage/cpp-xpx-storage-sdk.git](https://github.com/proximax-storage/cpp-xpx-storage-sdk.git)
 cd cpp-xpx-storage-sdk
 git fetch --all
 git checkout develop # or another
