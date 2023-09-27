@@ -27,12 +27,27 @@ namespace sirius::drive {
         std::string                 m_folder;       // where it will be saved in FsTree
         uint64_t                    m_maxSizeBytes; // could be increased
         ReplicatorList              m_replicatorList;
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_streamId );
+            arch( m_streamerKey );
+            arch( m_folder );
+            arch( m_maxSizeBytes );
+            arch( m_replicatorList );
+        }
     };
 
     struct StreamIncreaseRequest
     {
         Hash256                     m_streamId; // transaction hash
         uint64_t                    m_maxSizeBytes; // stream size after increasing
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_streamId );
+            arch( m_maxSizeBytes );
+        }
     };
 
     struct StreamFinishRequest
@@ -40,6 +55,13 @@ namespace sirius::drive {
         Hash256                     m_streamId; // transaction hash
         InfoHash                    m_finishDataInfoHash;
         uint64_t                    m_streamSizeBytes; // stream size after increasing
+
+        template <class Archive> void serialize( Archive & arch )
+        {
+            arch( m_streamId );
+            arch( m_finishDataInfoHash );
+            arch( m_streamSizeBytes );
+        }
     };
 
     struct ChunkInfo

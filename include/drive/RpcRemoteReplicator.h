@@ -320,6 +320,34 @@ public:
                 m_replicator->asyncDownloadApprovalTransactionHasFailedInvalidOpinions( eventHash, channelId );
                 break;
             }
+            case RPC_CMD::asyncStartStream:
+            {
+                Key driveKey;
+                auto request = std::make_unique<StreamRequest>();
+                iarchive( driveKey );
+                iarchive( *request );
+                m_replicator->asyncStartStream( driveKey, std::move(request) );
+                break;
+            }
+            case RPC_CMD::asyncIncreaseStream:
+            {
+                Key driveKey;
+                auto request = std::make_unique<StreamIncreaseRequest>();
+                iarchive( driveKey );
+                iarchive( *request );
+                m_replicator->asyncIncreaseStream( driveKey, std::move(request) );
+                break;
+            }
+            case RPC_CMD::asyncFinishStreamTxPublished:
+            {
+                Key driveKey;
+                auto request = std::make_unique<StreamFinishRequest>();
+                iarchive( driveKey );
+                iarchive( *request );
+                m_replicator->asyncFinishStreamTxPublished( driveKey, std::move(request) );
+                break;
+            }
+                
 #ifndef SKIP_GRPC
 			case RPC_CMD::setServiceAddress:
 			{

@@ -59,6 +59,10 @@ DECLARE_ENUM16 ( RPC_CMD,
     asyncApprovalTransactionHasFailedInvalidOpinions,
     asyncDownloadApprovalTransactionHasFailedInvalidOpinions,
 
+    asyncStartStream,
+    asyncIncreaseStream,
+    asyncFinishStreamTxPublished,
+
     // for debugging (dn)
     dbgGetRootHash,
                 
@@ -86,6 +90,7 @@ DECLARE_ENUM16 ( RPC_CMD,
     driveIsRemoved,
     driveModificationIsCanceled,
     modifyTransactionEndedWithError,
+
     setServiceAddress,
     enableSupercontractServer,
     enableMessengerServer,
