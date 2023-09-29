@@ -369,17 +369,17 @@ public:
 
     virtual void        asyncStartStream( Key driveKey, mobj<StreamRequest>&& request ) override
     {
-		rpcCall( RPC_CMD::asyncStartStream, driveKey, request );
+        rpcCall( RPC_CMD::asyncStartStream, driveKey, *request );
     }
 
     virtual void        asyncIncreaseStream( Key driveKey, mobj<StreamIncreaseRequest>&& request ) override
     {
-		rpcCall( RPC_CMD::asyncIncreaseStream, driveKey, request );
+		rpcCall( RPC_CMD::asyncIncreaseStream, driveKey, *request );
     }
 
     virtual void        asyncFinishStreamTxPublished( Key driveKey, mobj<StreamFinishRequest>&& request ) override
     {
-		rpcCall( RPC_CMD::asyncFinishStreamTxPublished, driveKey, request );
+		rpcCall( RPC_CMD::asyncFinishStreamTxPublished, driveKey, *request );
     }
 
     virtual void        asyncAddDownloadChannelInfo( Key driveKey, mobj<DownloadRequest>&&  downloadRequest, bool mustBeSynchronized = false ) override
