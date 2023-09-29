@@ -14,6 +14,10 @@ add_definitions(-DSIRIUS_DRIVE_MULTI)
 IF(APPLE)
     #add_definitions(-D_GNU_SOURCE)
     add_definitions(-DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED)
+
+    set(BOOST_LIB_DIR "/usr/local/lib")
+    set(OPENSSL_ROOT_DIR "/usr/local/opt/openssl")
+    set(OPENSSL_LIBRARIES "/usr/local/opt/openssl/lib")
 endif()
 
 include_directories(SYSTEM "../libtorrent/include")
