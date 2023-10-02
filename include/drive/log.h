@@ -164,10 +164,12 @@ struct FuncEntry
         std::cout << m_dbgOurPeerName << ": call: " << gIndentString+sizeof(gIndentString)-gCallLevel-1 << "<-" << m_PRETTY_FUNCTION << std::endl << std::flush; \
     }
 };
-//#define _FUNC_ENTRY { \
-//        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-//        std::cout << m_dbgOurPeerName << ": call: " << __PRETTY_FUNCTION__ << std::endl << std::flush; \
-//    }
+/*
+#define _FUNC_ENTRY { \
+        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::cout << m_dbgOurPeerName << ": call: " << __PRETTY_FUNCTION__ << std::endl << std::flush; \
+    }
+*/
 #define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
 
 #endif
