@@ -14,6 +14,8 @@
 #include "EndpointsManager.h"
 #include <sirius_drive/session_delegate.h>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/algorithm/string.hpp>
+
 
 namespace sirius::drive {
 
@@ -102,7 +104,12 @@ public:
                                  const std::array<uint8_t, 32>& driveKey,
                                  const std::array<uint8_t, 32> &modifyTx,
                                  const ReplicatorList& replicatorKeys) {
-        auto infoHash = stringToByteArray<Hash256>( torrentFilename );
+        std::string filename = torrentFilename;
+        if ( boost::algorithm::ends_with( filename, ".torrent" ) )
+        {
+            filename.erase(64);
+        }
+        auto infoHash = stringToByteArray<Hash256>( filename );
         fs::path filenameInSandbox = folderWhereFileIsLocated + "/" + torrentFilename;
         fs::path torrentFilenameInSandbox = filenameInSandbox;
         torrentFilenameInSandbox.replace_extension(".torrent");
