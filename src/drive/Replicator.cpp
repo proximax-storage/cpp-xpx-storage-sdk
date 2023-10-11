@@ -1556,7 +1556,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            //_LOG( "query: " << query )
+            _LOG( "query: " << query << " from: " << source.address() << ":" << source.port() );
 
             if ( query == "opinion" )
             {
