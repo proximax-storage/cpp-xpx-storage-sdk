@@ -144,7 +144,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _LOG( "processed verification code from "  << int(info.m_replicatorKey[0]) )
+        _LOG( "processed verification code from "  << toString(info.m_replicatorKey) )
 
         // Save verification opinion in queue, if we so far does not received verificationRequest
         if ( info.m_tx != m_request->m_tx.array() )
@@ -188,7 +188,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        _LOG( "processed verification opinion from "  << int(info.m_opinions[0].m_publicKey[0]) )
+        _LOG( "processed verification opinion from "  << toString(info.m_opinions[0].m_publicKey) )
 
         SIRIUS_ASSERT( info.m_opinions.size() == 1 )
 

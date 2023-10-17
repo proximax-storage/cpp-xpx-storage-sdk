@@ -90,12 +90,12 @@ public:
             {
                 for( auto& [key,value] : it->second.m_sentClientMap )
                 {
-                    _LOG( "client: " << int(key[0]) << "; uploadedSize=" << value.m_sentSize );
+                    _LOG( "client: " << toString(key.array()) << "; uploadedSize=" << value.m_sentSize );
                 }
                 return;
             }
 
-            _LOG( dbgOurPeerName() << "ERROR: printReport hash: " << (int)txHash[0] );
+            _LOG( dbgOurPeerName() << "ERROR: printReport hash: " << toString(txHash) );
             assert(0);
         });
     }
@@ -142,11 +142,11 @@ public:
                     {
                         if ( replicatorIt.second.m_receivedSize )
                         {
-                            _LOG( " receivedSize: " <<  replicatorIt.second.m_receivedSize << " from " << (int)replicatorIt.first[0] );
+                            _LOG( " receivedSize: " <<  replicatorIt.second.m_receivedSize << " from " << toString(replicatorIt.first) );
                         }
                         if ( replicatorIt.second.m_requestedSize )
                         {
-                            _LOG( " requestedSize: "     <<  replicatorIt.second.m_requestedSize << " by " << (int)replicatorIt.first[0] );
+                            _LOG( " requestedSize: "     <<  replicatorIt.second.m_requestedSize << " by " << toString(replicatorIt.first) );
                         }
                     }
                     return;
@@ -247,8 +247,7 @@ public:
         }
 
         if ( auto it = m_dnChannelMap.find(channelId); it != m_dnChannelMap.end() ) {
-            _LOG( "???" );
-			_LOG_ERR( "Attempt To Add Already Existing Drive " << int(channelId[0]) );
+			_LOG_ERR( "Attempt To Add Already Existing Drive " << toString(channelId) )
 			return;
 		}
 
@@ -315,7 +314,7 @@ public:
     	auto it = m_dnChannelMap.find(channelId);
 
 		if (it == m_dnChannelMap.end()) {
-			_LOG_ERR( "Attempt To Increase Size Of Not Existing Download Channel " << int(channelId[0]) );
+			_LOG_ERR( "Attempt To Increase Size Of Not Existing Download Channel " << toString(channelId) )
 			return;
 		}
 
@@ -484,7 +483,7 @@ public:
             return;
         }
 
-        _LOG_WARN( "unknown txHash: " << (int)txHash[0] );
+        _LOG_WARN( "unknown txHash: " << toString(txHash) );
     }
     
     void onPieceReceived( const std::array<uint8_t,32>&  driveKey,

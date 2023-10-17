@@ -132,8 +132,6 @@ private:
     
     using EndpointHandler = std::function<void(const Key&,const std::optional<boost::asio::ip::tcp::endpoint>&)>;
     std::optional<EndpointHandler> m_endpointHandler;
-
-    std::thread::id m_dbgThreadId;
     std::string m_dbgOurPeerName = "noname";
 
 public:
@@ -143,9 +141,11 @@ public:
                      const std::string& dbgOurPeerName)
             : m_keyPair(keyPair), m_bootstraps(bootstraps), m_dbgOurPeerName(dbgOurPeerName)
     {
-        std::erase_if( m_bootstraps, [this]( const auto& item ) {
+        std::erase_if( m_bootstraps, [this]( const auto& item )
+        {
             return m_keyPair.publicKey() == item.m_publicKey;
-        } );
+        });
+
         for (const auto&[endpoint, key] : bootstraps)
         {
             m_endpointsMap[key] = {endpoint, {}};
@@ -160,8 +160,6 @@ public:
     void start(std::weak_ptr<Session> session)
     {
         m_session = std::move(session);
-        m_dbgThreadId = std::this_thread::get_id();
-
         onUpdateExternalEndpointTimerTick();
     }
 
@@ -177,21 +175,16 @@ public:
     void addEndpointEntry(const Key& key, bool shouldRequestEndpoint = true)
     {
         {
-            auto it = m_endpointsMap.find(key);
-            if ( it != m_endpointsMap.end() )
+            if (m_endpointsMap.contains(key) && !m_endpointsMap[key].m_endpoint && shouldRequestEndpoint)
             {
-                if ( !it->second.m_endpoint && shouldRequestEndpoint )
-                {
-                    requestEndpoint(key);
-                }
+                requestEndpoint(key);
                 return;
             }
         }
-        
-        auto it = m_unknownEndpointsMap.find(key);
-        if (it != m_unknownEndpointsMap.end())
+
+        if (m_unknownEndpointsMap.contains(key))
         {
-            m_endpointsMap[key].m_endpoint = it->second;
+            m_endpointsMap[key].m_endpoint = m_unknownEndpointsMap[key];
 #ifdef UPDATE_ENDPOINTS_PERIODICALLY
             if ( auto session = m_session.lock(); session )
             {
@@ -201,7 +194,7 @@ public:
                 });
             }
 #endif
-            m_unknownEndpointsMap.erase(it);
+            m_unknownEndpointsMap.erase(key);
         } else
         {
             m_endpointsMap[key] = {};
@@ -223,11 +216,10 @@ public:
 
     void updateEndpoint(const Key& key, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint)
     {
-#ifndef __APPLE__
-        if (endpoint) {
-            _LOG("Update Endpoint of " << int(key[0]) << " at " << endpoint->address() << " " << std::dec << endpoint->port());
+        if (endpoint)
+        {
+            _LOG("Update Endpoint of " << toString(key.array()) << " at " << endpoint->address().to_string() << " : " << endpoint->port())
         }
-#endif
         
         auto it = m_endpointsMap.find(key);
         if (it != m_endpointsMap.end())
@@ -236,14 +228,14 @@ public:
             {
                 if ( m_endpointHandler && it->second.m_endpoint != endpoint )
                 {
-                    _LOG("todo: m_endpointHandler: <- " << it->first << " <- " << *endpoint );
+                    _LOG("todo: m_endpointHandler: <- " << toString(it->first.array()) << " <- " << endpoint->address().to_string() << " : " << endpoint->port())
                     (*m_endpointHandler)( key, endpoint);
                 }
                 
                 //----------------------------------------------------------------------------------------------
                 // !!! set endpoint here !!!
                 //----------------------------------------------------------------------------------------------
-                _LOG("todo: addEndpoint: <- " << it->first << " <- " << *endpoint );
+                _LOG("todo: addEndpoint: <- " << toString(it->first.array()) << " <- " << endpoint->address().to_string() << " : " << endpoint->port())
                 it->second.m_endpoint = endpoint;
                 
 #ifdef UPDATE_ENDPOINTS_PERIODICALLY
@@ -276,22 +268,23 @@ public:
 
     std::optional<boost::asio::ip::tcp::endpoint> getEndpoint(const Key& key)
     {
-        if (auto it = m_endpointsMap.find(key); it != m_endpointsMap.end())
+        auto it = m_endpointsMap.find(key);
+        if (it != m_endpointsMap.end())
         {
             if ( it->second.m_endpoint )
             {
-                _LOG("todo: getEndpoint: -> " << key << " -> " << *it->second.m_endpoint );
+                _LOG("todo: getEndpoint: -> " << toString(key.array()) << " -> " << *it->second.m_endpoint )
             }
+
             return it->second.m_endpoint;
         }
-        //SIRIUS_ASSERT(m_unknownEndpointsMap.find(key) == m_unknownEndpointsMap.end())
+
         return {};
     }
 
     void updateExternalEndpoint(const ExternalEndpointResponse& response)
     {
         auto session = m_session.lock();
-
         if (!session)
         {
             return;
@@ -310,14 +303,17 @@ public:
         }
 
         auto receivedEndpoint = *reinterpret_cast<const boost::asio::ip::tcp::endpoint*>(&response.m_endpoint);
+        if (m_keyPair.publicKey().array() == response.m_requestTo)
+        {
+            return;
+        }
 
         _LOG("External Endpoint Discovered " << receivedEndpoint.address() << " " << std::dec << receivedEndpoint.port())
 
-        boost::asio::ip::tcp::endpoint externalEndpoint(receivedEndpoint.address(), session->lt_session().listen_port());
+        boost::asio::ip::tcp::endpoint externalEndpoint(receivedEndpoint.address(), receivedEndpoint.port());
 
         bool ipChanged = false;
-
-        if (!m_externalEndpoint || m_externalEndpoint != externalEndpoint)
+        if (!m_externalEndpoint || m_externalEndpoint.value() != externalEndpoint)
         {
             ipChanged = true;
         }
@@ -353,8 +349,12 @@ private:
     {
         SIRIUS_ASSERT(m_externalEndpoint)
 
-        auto endpoint = getEndpoint(to);
+        if (to.array() == m_keyPair.publicKey().array())
+        {
+            return;
+        }
 
+        auto endpoint = getEndpoint(to);
         if ( !endpoint )
         {
             return;
@@ -365,15 +365,19 @@ private:
         handshake.m_toPublicKey = to.array();
         handshake.m_endpoint = *reinterpret_cast<const std::array<uint8_t, sizeof(boost::asio::ip::tcp::endpoint)>*>(m_externalEndpoint->data());
         handshake.Sign(m_keyPair);
+
         std::ostringstream os(std::ios::binary);
         cereal::PortableBinaryOutputArchive archive(os);
         archive(handshake);
+
         auto session = m_session.lock();
         if (!session) {
             return;
         }
+
         session->sendMessage("handshake", {endpoint->address(), endpoint->port()}, os.str());
-        _LOG("Try to Send Handshake to " << int(to[0]))
+
+        _LOG("Try to Send Handshake to " << toString(handshake.m_toPublicKey))
     }
 
     void onUpdateExternalEndpointTimerTick()
@@ -384,7 +388,7 @@ private:
             return;
         }
 
-        int bootstrapToAskIndex = rand() % m_bootstraps.size();
+        int bootstrapToAskIndex = rand() % (int)m_bootstraps.size();
         const auto& bootstrapToAsk = m_bootstraps[bootstrapToAskIndex];
         m_externalEndpointRequest =
                 {
@@ -397,24 +401,23 @@ private:
         archive(*m_externalEndpointRequest);
 
         auto session = m_session.lock();
-
         if ( !session )
         {
             return;
         }
 
         auto endpoint = getEndpoint(bootstrapToAsk.m_publicKey);
-        
-        if (endpoint)
+        if (endpoint &&
+            m_keyPair.publicKey().array() != m_externalEndpointRequest->m_requestTo &&
+            m_keyPair.publicKey().array() != bootstrapToAsk.m_publicKey.array())
         {
             session->sendMessage("endpoint_request", {endpoint->address(), endpoint->port()}, os.str());
 
             _LOG("Requested External Endpoint from " <<
-                    int(bootstrapToAsk.m_publicKey[0]) <<
+                    toString(bootstrapToAsk.m_publicKey.array()) <<
                     " at " <<
-                    bootstrapToAsk.m_endpoint.address() <<
-                    ":" <<
-                    std::dec << bootstrapToAsk.m_endpoint.port())
+                    bootstrapToAsk.m_endpoint.address().to_string() <<
+                    " : " << bootstrapToAsk.m_endpoint.port())
         }
 
         m_externalPointUpdateTimer = session->startTimer(m_noResponseExternalEndpointDelayMs, [this]
@@ -425,8 +428,7 @@ private:
 
     void requestEndpoint(const Key& key)
     {
-        _LOG("Requested Endpoint of " << int(key[0]));
-
+        _LOG("Requested Endpoint of " << toString(key.array()))
         if (auto session = m_session.lock(); session)
         {
             session->findAddress(key);

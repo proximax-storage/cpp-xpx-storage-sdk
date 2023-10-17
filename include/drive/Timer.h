@@ -6,6 +6,7 @@
 #pragma once
 
 #include <memory>
+#include "log.h"
 
 namespace sirius::drive {
 
@@ -20,6 +21,7 @@ private:
 
         boost::asio::high_resolution_timer m_timer;
         std::function<void()> m_callback;
+        std::string m_dbgOurPeerName = "noname";
 
     public:
 
@@ -46,10 +48,12 @@ private:
         {
             if ( ec )
             {
-                return;
+                _LOG("Timer::onTimeout error: " << ec.message() << " code: " << ec.value() )
             }
-
-            m_callback();
+            else
+            {
+                m_callback();
+            }
         }
 
     };

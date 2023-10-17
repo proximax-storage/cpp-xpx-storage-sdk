@@ -144,7 +144,7 @@ public:
         _LOG( "DefaultSession created: " );
         _LOG( "DefaultSession created: " << m_addressAndPort );
         _LOG( "DefaultSession created: " << m_addressAndPort << " " << m_replicator.lock() );
-        _LOG( "DefaultSession created: " << m_addressAndPort << " " << int(m_replicator.lock()->replicatorKey()[0]) );
+        _LOG( "DefaultSession created: " << m_addressAndPort << " " << toString(m_replicator.lock()->replicatorKey().array()) );
     }
 
     // Constructor for Client
@@ -691,6 +691,8 @@ public:
                       const std::vector<uint8_t>&       message,
                       const Signature*                  signature ) override
     {
+        _LOG( "signature sendMessage: query: " << query << " " << endPoint )
+
         lt::entry entry;
         entry["q"] = query;
         entry["x"] = std::string( message.begin(), message.end() );
@@ -705,6 +707,8 @@ public:
 
     void sendMessage( const std::string& query, boost::asio::ip::udp::endpoint endPoint, const std::string& message ) override
     {
+        _LOG( "sendMessage: query: " << query << " " << endPoint )
+
         lt::entry entry;
         entry["q"] = query;
         entry["x"] = message;
@@ -818,28 +822,28 @@ private:
 
     void processEndpointItem(lt::dht_mutable_item_alert* theAlert)
     {
-        if ( theAlert->seq < 0 )
+        if ( theAlert->seq < 0 || theAlert->seq > std::numeric_limits<int64_t>::max() )
         {
             return;
         }
+
         auto limiter = m_downloadLimiter.lock();
         if ( !limiter )
         {
             return;
         }
-        auto publicKey = *reinterpret_cast<std::array<uint8_t, 32> *>( &theAlert->key );
-        if ( theAlert->seq == 0 )
-        {
-            limiter->onEndpointDiscovered(publicKey, {});
-            return;
-        }
+
         auto response = theAlert->item.string();
         if ( response.size() != sizeof(boost::asio::ip::tcp::endpoint) )
         {
             return;
         }
+
+        auto publicKey = *reinterpret_cast<std::array<uint8_t, 32> *>( &theAlert->key );
         auto endpoint = *reinterpret_cast<boost::asio::ip::tcp::endpoint*>(response.data());
-        limiter->onEndpointDiscovered(publicKey, endpoint);
+
+        _LOG( "DefaultSession::processEndpointItem: " << toString(publicKey) << " endpoint: " << endpoint.address().to_string() << " : " << endpoint.port() )
+        limiter->onEndpointDiscovered(publicKey, std::make_optional<>(endpoint));
     }
 
     void saveTorrentFile( const std::shared_ptr<lt::torrent_info>&& ti, LtClientData* userdata )

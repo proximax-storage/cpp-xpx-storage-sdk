@@ -634,9 +634,9 @@ protected:
             _LOG( "msg.clientKey() " << msg.clientKey() )
             _LOG( "msg.replicatorKey() " << msg.replicatorKey() )
             _LOG( "downloadedSize: " << *msg.downloadedSizePtr() )
-            _LOG( "msg.signature() " << int(msg.signature()[0]) )
+            _LOG( "msg.signature() " << hexToString(msg.signature().begin(), msg.signature().end()) )
 
-            _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature will be ignored: " << int(msg.channelId()[0]) << " " << int(msg.replicatorKey()[0]) )
+            _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature will be ignored: channel id: " << toString(msg.channelId().array()) << " replicator key: " << toString(msg.replicatorKey().array()) )
             return;
         }
 
@@ -1127,6 +1127,7 @@ protected:
 public:
     void
     onEndpointDiscovered( const std::array<uint8_t, 32>& key, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint ) override {
+        __LOG( "@@@  onEndpointDiscovered: public key: " << toString(key) << " endpoint: " << endpoint->address().to_string() << " : " << endpoint->port())
         m_endpointsManager.updateEndpoint(key, endpoint);
     }
 

@@ -95,7 +95,7 @@ public:
 
         if ( syncChannelIt == m_syncChannelMap.end() )
         {
-            _LOG_WARN( "Unknown sync channel id: " << channelId )
+            _LOG_WARN( "Unknown sync channel id: " << toString(channelId.array()) )
             return;
         }
 
@@ -104,7 +104,7 @@ public:
         {
             syncChannelIt->second.m_syncTimeoutTimer.cancel();
             m_syncChannelMap.erase( syncChannelIt );
-            _LOG( "channel is synced: chId=" << int(channelId[0]) )
+            _LOG( "channel is synced: chId=" << toString(channelId.array()) )
         }
     }
 

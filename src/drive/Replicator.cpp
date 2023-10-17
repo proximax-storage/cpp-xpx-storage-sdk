@@ -843,10 +843,11 @@ public:
     {
         DBG_MAIN_THREAD
 
+        _LOG ( "onEndpointDiscovered. public key: " << toString(key) << " endpoint: " << endpoint.value().address().to_string() << " : " << endpoint.value().port())
         m_endpointsManager.updateEndpoint( key, endpoint );
     }
 
-    void processHandshake( const DhtHandshake& info, const boost::asio::ip::tcp::endpoint& endpoint )
+    void processHandshake( const DhtHandshake& info, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint )
     {
         if ( info.m_toPublicKey != m_keyPair.publicKey().array())
         {
@@ -858,11 +859,8 @@ public:
             return;
         }
 
-        auto receivedEndpoint = *reinterpret_cast<const boost::asio::ip::tcp::endpoint*>(&info.m_endpoint);
-
-        _LOG ( "Received Handshake from " << int(info.m_fromPublicKey[0]) << " at " << endpoint.address().to_string() << ": " << receivedEndpoint.address() << ":" << receivedEndpoint.port() );
-
-        onEndpointDiscovered(info.m_fromPublicKey, receivedEndpoint);
+        _LOG ( "Received Handshake from: " << toString(info.m_fromPublicKey) << " endpoint: " << endpoint.value().address().to_string() << " : " << endpoint.value().port())
+        onEndpointDiscovered(info.m_fromPublicKey, endpoint);
     }
 
     void
@@ -1626,7 +1624,7 @@ public:
                     DhtHandshake handshake;
                     iarchive( handshake );
 
-                    processHandshake( handshake, {source.address(), source.port()} );
+                    processHandshake( handshake, std::make_optional<boost::asio::ip::tcp::endpoint>(source.address(), source.port()) );
                 }
                 catch ( ... )
                 {_LOG_WARN( "execption occured" )}
