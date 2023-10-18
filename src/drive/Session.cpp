@@ -1402,6 +1402,18 @@ private:
                     break;
                 }
 
+                case lt::portmap_log_alert::alert_type: {
+                    auto *theAlert = dynamic_cast<lt::portmap_log_alert *>(alert);
+                    _LOG( "portmap_log_alert: " << theAlert->log_message() )
+                    break;
+                }
+                    
+                case lt::dht_pkt_alert::alert_type: {
+                    auto *theAlert = dynamic_cast<lt::dht_pkt_alert *>(alert);
+                    _LOG( "dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
+                    break;
+                }
+
                 default: {
 //                    if ( alert->type() != 52 && alert->type() != 78 && alert->type() != 86
 //                        && alert->type() != 81 && alert->type() != 85

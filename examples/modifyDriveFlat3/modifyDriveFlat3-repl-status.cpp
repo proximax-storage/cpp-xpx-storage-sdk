@@ -43,18 +43,32 @@ const char* RPC_REPLICATOR_NAME = "";//replicator1";
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_IP_ADDR          "192.168.2.200"
+//#define CLIENT_IP_ADDR          "192.168.2.200"
+//#define CLIENT_PORT             ":2000"
+//#define CLIENT_IP_ADDR1         "192.168.2.201"
+//#define CLIENT_PORT1            ":2001"
+//#define CLIENT_IP_ADDR2         "192.168.2.202"
+//#define CLIENT_PORT2            ":2002"
+
+//#define REPLICATOR_IP_ADDR      "192.168.2.101"
+//#define REPLICATOR_PORT         5001
+//#define REPLICATOR_IP_ADDR_2    "192.168.2.102"
+//#define REPLICATOR_PORT_2       5002
+//#define REPLICATOR_IP_ADDR_3    "192.168.2.103"
+//#define REPLICATOR_PORT_3       5003
+
+#define CLIENT_IP_ADDR          "10.0.0.200"
 #define CLIENT_PORT             ":2000"
-#define CLIENT_IP_ADDR1         "192.168.2.201"
+#define CLIENT_IP_ADDR1         "10.0.0.201"
 #define CLIENT_PORT1            ":2001"
-#define CLIENT_IP_ADDR2         "192.168.2.202"
+#define CLIENT_IP_ADDR2         "10.0.0.202"
 #define CLIENT_PORT2            ":2002"
 
-#define REPLICATOR_IP_ADDR      "192.168.2.101"
+#define REPLICATOR_IP_ADDR      "10.0.0.101"
 #define REPLICATOR_PORT         5001
-#define REPLICATOR_IP_ADDR_2    "192.168.2.102"
+#define REPLICATOR_IP_ADDR_2    "10.0.0.102"
 #define REPLICATOR_PORT_2       5002
-#define REPLICATOR_IP_ADDR_3    "192.168.2.103"
+#define REPLICATOR_IP_ADDR_3    "10.0.0.103"
 #define REPLICATOR_PORT_3       5003
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111"
