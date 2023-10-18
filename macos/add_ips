@@ -1,0 +1,8 @@
+sudo ifconfig lo0 alias 10.0.0.200/24 up
+sudo ifconfig lo0 alias 10.0.0.201/24 up
+sudo ifconfig lo0 alias 10.0.0.202/24 up
+sudo ifconfig lo0 alias 10.0.0.101/24 up
+sudo ifconfig lo0 alias 10.0.0.102/24 up
+sudo ifconfig lo0 alias 10.0.0.103/24 up
+sudo ifconfig lo0 alias 10.0.0.104/24 up
+
