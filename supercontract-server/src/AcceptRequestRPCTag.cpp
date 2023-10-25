@@ -4,9 +4,9 @@
 *** license that can be found in the LICENSE file.
 */
 
+#include <utility>
 #include "AcceptRequestRPCTag.h"
 #include <boost/asio.hpp>
-#include <utility>
 
 namespace sirius::drive::contract
 {

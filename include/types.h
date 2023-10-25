@@ -5,6 +5,7 @@
 */
 
 #pragma once
+#include <utility>
 #include "utils/ByteArray.h"
 #include "utils/RawBuffer.h"
 #include <string>

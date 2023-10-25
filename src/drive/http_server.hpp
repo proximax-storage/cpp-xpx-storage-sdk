@@ -11,6 +11,7 @@
 #ifndef HTTP_SERVER_HPP
 #define HTTP_SERVER_HPP
 
+#include <utility>
 #include <boost/asio.hpp>
 #include <string>
 #include "http_connection.hpp"
