@@ -310,6 +310,11 @@ public:
         settingsPack.set_bool( lt::settings_pack::enable_upnp, true );
         settingsPack.set_bool( lt::settings_pack::enable_natpmp, true );
 
+        // We must accept udp messages from 3.*.*.* addresses
+        // (maybe we need to edit blocklist in dht_tracker.cpp)
+        // (list - 3, 6, 7, 9, 11, 19, 21, 22, 25, 26, 28, 29, 30, 33, 34, 48, 56)
+        settingsPack.set_bool( lt::settings_pack::dht_ignore_dark_internet, false );
+
         std::ostringstream bootstrapsBuilder;
         for ( const auto& bootstrap: bootstraps )
         {
