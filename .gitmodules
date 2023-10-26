@@ -4,7 +4,7 @@
 [submodule "libtorrent"]
 	path = libtorrent
 	url = https://github.com/proximax-storage/libtorrent
-	branch = xpx-work-v3
+	branch = xpx_dht_port_issues_2
 [submodule "cpp-xpx-rpclib"]
 	path = cpp-xpx-rpclib
 	url = https://github.com/proximax-storage/cpp-xpx-rpclib.git
