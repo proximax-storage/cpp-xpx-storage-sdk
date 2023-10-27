@@ -670,17 +670,22 @@ public:
         
         std::lock_guard<std::mutex> lock(m_mutex);
 
+        _LOG( "m_finishInfo.size(): " << m_finishInfo.size() )
+        
         for( ; m_finishStreamIt != m_finishInfo.end(); m_finishStreamIt++ )
         {
             if ( m_drive.m_torrentHandleMap.find( m_finishStreamIt->m_chunkInfoHash ) == m_drive.m_torrentHandleMap.end() )
             {
                 m_drive.executeOnSessionThread( [this]
                 {
+                    _LOG( "requestMissingChunkInfo: " << m_finishStreamIt->m_chunkIndex )
                     requestMissingChunkInfo( m_finishStreamIt->m_chunkIndex, m_streamerEndpoint );
                 });
                 return;
             }
         }
+        
+        checkFinishCondition();
     }
 
 
@@ -695,6 +700,10 @@ public:
         
         if ( m_chunkInfoList.size() < m_finishInfo.size() )
         {
+            if ( m_finishInfo.size() > 0 )
+            {
+                _LOG( "checkFinishCondition: "  << m_chunkInfoList.size() << " <> " << m_finishInfo.size() )
+            }
             return;
         }
         
@@ -720,6 +729,7 @@ public:
         
         if ( ! allChunkInfoReceived )
         {
+            _LOG( "! allChunkInfoReceived" )
             return;
         }
         
