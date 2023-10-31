@@ -21,6 +21,12 @@
 
 namespace sirius::drive {
 
+struct FinishStreamInfo
+{
+    InfoHash infoHash;
+    uint64_t streamSizeBytes;
+};
+
 class StreamerSession : public ClientSession, public DhtMessageHandler, public lt::plugin
 {
 protected:
@@ -125,8 +131,6 @@ public:
         fs::create_directories( m_torrentFolder );
     }
     
-    struct FinishStreamInfo{ InfoHash infoHash; uint64_t streamSizeBytes; };
-    
     void cancelStream()
     {
         m_streamId.reset();
@@ -167,15 +171,18 @@ public:
             
             std::error_code ec;
             auto fileSize = fs::file_size( m_chunkFolder / toString(chunkInfoIt->second.m_chunkInfoHash), ec );
+            _LOG( "fileSize: " << fileSize );
             if ( ! ec )
             {
                 streamSize += fileSize;
             }
             auto torrentFileSize = fs::file_size( m_torrentFolder / toString(chunkInfoIt->second.m_chunkInfoHash), ec );
+            _LOG( "torrentFileSize: " << torrentFileSize );
             if ( ! ec )
             {
                 streamSize += torrentFileSize;
             }
+            _LOG( "streamSize: " << streamSize );
         }
         
 //        std::ostringstream os( std::ios::binary );
@@ -241,6 +248,8 @@ public:
 
     void addMediaToStream( const fs::path& tmp, uint32_t durationMs, InfoHash* dbgInfoHash = nullptr )
     {
+        _LOG( "addMediaToStream: " << tmp );
+        
         std::lock_guard<std::mutex> lock( m_chunkMutex );
         
         uint64_t chunkSize = fs::file_size( tmp );
@@ -264,8 +273,10 @@ public:
             std::error_code ec;
             
             _LOG( "Copy chunk: " << tmp << " to: " << chunkFilename );
-            fs::rename( tmp, chunkFilename, ec );
-            
+            //TODO:
+            //fs::rename( tmp, chunkFilename, ec );
+            fs::copy( tmp, chunkFilename, ec );
+
             if ( ec )
             {
                 _LOG_WARN( "*** Cannot copy: " << ec.message() );
@@ -460,12 +471,16 @@ public:
                     m_startSequenceNumber = sequenceNumber;
                 }
                 
-                int chunkIndex = sequenceNumber - m_startSequenceNumber + mediaIndex;
+                uint32_t chunkIndex = sequenceNumber - m_startSequenceNumber + mediaIndex;
                 
                 if ( m_chunkInfoMap.find( chunkIndex ) == m_chunkInfoMap.end() )
                 {
                     addMediaToStream( m_mediaFolder / line, duration*1000000  );
-                    mediaIndex++;
+                }
+                mediaIndex++;
+                for( auto& [key,value] : m_chunkInfoMap )
+                {
+                    _LOG( "key: " << key << " chunkIndex: " << chunkIndex << "   " << (key==chunkIndex) );
                 }
                 continue;
             }
