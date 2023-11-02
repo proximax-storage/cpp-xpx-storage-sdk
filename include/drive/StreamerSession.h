@@ -96,7 +96,7 @@ public:
         }
     }
     
-    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint( const Key& key )
+    std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const Key& key )
     {
         return m_endpointsManager.getEndpoint( key );
     }

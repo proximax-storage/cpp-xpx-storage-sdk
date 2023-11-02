@@ -8,6 +8,7 @@
 #include "DriveTaskBase.h"
 #include "drive/FsTree.h"
 #include "drive/FlatDrive.h"
+#include "drive/EndpointsManager.h"
 #include "DriveParams.h"
 #include "ModifyApprovalTaskBase.h"
 
@@ -37,7 +38,7 @@ class StreamTask : public ModifyApprovalTaskBase
     ChunkInfoList::iterator         m_downloadingChunkInfoIt;
     bool                            m_downloadingChunkInfoItWasSet = false;
     
-    boost::asio::ip::udp::endpoint  m_streamerEndpoint;
+    std::optional<boost::asio::ip::udp::endpoint>  m_streamerEndpoint;
 
     ///---
 
@@ -248,11 +249,30 @@ public:
         return {};
     }
 
-    void requestMissingChunkInfo( uint32_t chunkIndex, const boost::asio::ip::udp::endpoint& sender )
+    void requestMissingChunkInfo( uint32_t chunkIndex )
     {
         DBG_MAIN_THREAD
 
         _LOG( "get-chunk-info: " << chunkIndex )
+        
+        if ( ! m_streamerEndpoint )
+        {
+            if ( auto epManager = m_request->m_endpointsManager.lock(); epManager )
+            {
+                m_streamerEndpoint = epManager->getEndpoint( m_request->m_streamerKey );
+
+                if ( ! m_streamerEndpoint )
+                {
+                    _LOG_WARN( "no m_streamerEndpoint: " << m_request->m_streamerKey )
+                    return;
+                }
+            }
+            else
+            {
+                _LOG_WARN( "cannot lock m_endpointsManager" )
+                return;
+            }
+        }
         
         if ( auto session = m_drive.m_session.lock(); session )
         {
@@ -260,7 +280,7 @@ public:
             cereal::PortableBinaryOutputArchive archive( os );
             archive( chunkIndex );
 
-            session->sendMessage( "get-chunk-info", sender, os.str() );
+            session->sendMessage( "get-chunk-info", *m_streamerEndpoint, os.str() );
         }
     }
     
@@ -295,7 +315,7 @@ public:
                 if ( m_chunkInfoList.begin()->get() == nullptr )
                 {
                     // 1-st ChunkInfo is not received
-                    requestMissingChunkInfo( 0, m_streamerEndpoint );
+                    requestMissingChunkInfo( 0 );
                     return;
                 }
 
@@ -314,7 +334,7 @@ public:
                 if ( next->get() == nullptr )
                 {
                     // send request to streamer about missing info
-                    requestMissingChunkInfo( m_downloadingChunkInfoIt->get()->m_chunkIndex+1, m_streamerEndpoint );
+                    requestMissingChunkInfo( m_downloadingChunkInfoIt->get()->m_chunkIndex+1 );
                     return;
                 }
 
@@ -679,7 +699,7 @@ public:
                 m_drive.executeOnSessionThread( [this]
                 {
                     _LOG( "requestMissingChunkInfo: " << m_finishStreamIt->m_chunkIndex )
-                    requestMissingChunkInfo( m_finishStreamIt->m_chunkIndex, m_streamerEndpoint );
+                    requestMissingChunkInfo( m_finishStreamIt->m_chunkIndex );
                 });
                 return;
             }
@@ -722,7 +742,7 @@ public:
             const auto& chunkInfo = m_chunkInfoList[i];
             if ( chunkInfo.get() == nullptr )
             {
-                requestMissingChunkInfo( i, m_streamerEndpoint );
+                requestMissingChunkInfo( i );
                 allChunkInfoReceived = false;
             }
         }

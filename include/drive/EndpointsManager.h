@@ -16,7 +16,7 @@ namespace sirius::drive
 
 struct EndpointInformation
 {
-    std::optional<boost::asio::ip::tcp::endpoint> m_endpoint;
+    std::optional<boost::asio::ip::udp::endpoint> m_endpoint;
     Timer m_timer;
 };
 
@@ -39,7 +39,7 @@ struct ExternalEndpointResponse
 
     std::array<uint8_t, 32> m_requestTo;
     std::array<uint8_t, 32> m_challenge;
-    std::array<uint8_t, sizeof( boost::asio::ip::tcp::endpoint )> m_endpoint;
+    std::array<uint8_t, sizeof( boost::asio::ip::udp::endpoint )> m_endpoint;
     Signature m_signature;
 
     void Sign( const crypto::KeyPair& keyPair )
@@ -76,7 +76,7 @@ struct DhtHandshake
 {
     std::array<uint8_t, 32> m_fromPublicKey;
     std::array<uint8_t, 32> m_toPublicKey;
-    std::array<uint8_t, sizeof( boost::asio::ip::tcp::endpoint )> m_endpoint;
+    std::array<uint8_t, sizeof( boost::asio::ip::udp::endpoint )> m_endpoint;
     Signature m_signature;
 
     void Sign( const crypto::KeyPair& keyPair )
@@ -116,21 +116,21 @@ class EndpointsManager
 private:
 
     std::map<Key, EndpointInformation> m_endpointsMap;
-    std::map<Key, boost::asio::ip::tcp::endpoint> m_unknownEndpointsMap;
+    std::map<Key, boost::asio::ip::udp::endpoint> m_unknownEndpointsMap;
 
     const crypto::KeyPair& m_keyPair;
     std::weak_ptr<Session> m_session;
 
     Timer m_externalPointUpdateTimer;
 
-    std::optional<boost::asio::ip::tcp::endpoint> m_externalEndpoint;
+    std::optional<boost::asio::ip::udp::endpoint> m_externalEndpoint;
     std::optional<ExternalEndpointRequest> m_externalEndpointRequest;
     std::vector<ReplicatorInfo> m_bootstraps;
 
     const int m_standardExternalEndpointDelayMs = 1000 * 60 * 60;
     const int m_noResponseExternalEndpointDelayMs = 1000 * 5;
     
-    using EndpointHandler = std::function<void(const Key&,const std::optional<boost::asio::ip::tcp::endpoint>&)>;
+    using EndpointHandler = std::function<void(const Key&,const std::optional<boost::asio::ip::udp::endpoint>&)>;
     std::optional<EndpointHandler> m_endpointHandler;
     std::string m_dbgOurPeerName = "noname";
 
@@ -214,7 +214,7 @@ public:
         }
     }
 
-    void updateEndpoint(const Key& key, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint)
+    void updateEndpoint(const Key& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint)
     {
         if (endpoint)
         {
@@ -266,7 +266,7 @@ public:
         }
     }
 
-    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint(const Key& key)
+    std::optional<boost::asio::ip::udp::endpoint> getEndpoint(const Key& key)
     {
         auto it = m_endpointsMap.find(key);
         if (it != m_endpointsMap.end())
@@ -276,7 +276,10 @@ public:
                 _LOG("todo: getEndpoint: -> " << toString(key.array()) << " -> " << *it->second.m_endpoint )
             }
 
-            return it->second.m_endpoint;
+            if ( it->second.m_endpoint )
+            {
+                return boost::asio::ip::udp::endpoint{ it->second.m_endpoint->address(), it->second.m_endpoint->port() };
+            }
         }
 
         return {};
@@ -302,7 +305,7 @@ public:
             return;
         }
 
-        auto receivedEndpoint = *reinterpret_cast<const boost::asio::ip::tcp::endpoint*>(&response.m_endpoint);
+        auto receivedEndpoint = *reinterpret_cast<const boost::asio::ip::udp::endpoint*>(&response.m_endpoint);
         if (m_keyPair.publicKey().array() == response.m_requestTo)
         {
             return;
@@ -310,7 +313,7 @@ public:
 
         _LOG("External Endpoint Discovered " << receivedEndpoint.address() << " " << std::dec << receivedEndpoint.port())
 
-        boost::asio::ip::tcp::endpoint externalEndpoint(receivedEndpoint.address(), receivedEndpoint.port());
+        boost::asio::ip::udp::endpoint externalEndpoint(receivedEndpoint.address(), receivedEndpoint.port());
 
         bool ipChanged = false;
         if (!m_externalEndpoint || m_externalEndpoint.value() != externalEndpoint)
@@ -363,7 +366,7 @@ private:
         DhtHandshake handshake;
         handshake.m_fromPublicKey = m_keyPair.publicKey().array();
         handshake.m_toPublicKey = to.array();
-        handshake.m_endpoint = *reinterpret_cast<const std::array<uint8_t, sizeof(boost::asio::ip::tcp::endpoint)>*>(m_externalEndpoint->data());
+        handshake.m_endpoint = *reinterpret_cast<const std::array<uint8_t, sizeof(boost::asio::ip::udp::endpoint)>*>(m_externalEndpoint->data());
         handshake.Sign(m_keyPair);
 
         std::ostringstream os(std::ios::binary);

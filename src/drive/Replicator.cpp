@@ -78,7 +78,7 @@ private:
     ReplicatorEventHandler& m_eventHandler;
     DbgReplicatorEventHandler* m_dbgEventHandler;
 
-    EndpointsManager m_endpointsManager;
+    std::shared_ptr<EndpointsManager> m_endpointsManager;
     RcptSyncronizer m_dnOpinionSyncronizer;
 
     // key is verify tx
@@ -118,7 +118,7 @@ public:
         m_useTcpSocket( useTcpSocket ),
         m_eventHandler( handler ),
         m_dbgEventHandler( dbgEventHandler ),
-        m_endpointsManager( m_keyPair, bootstraps, m_dbgOurPeerName ),
+        m_endpointsManager( std::make_shared<EndpointsManager>(m_keyPair, bootstraps, m_dbgOurPeerName) ),
         m_dnOpinionSyncronizer( *this, m_dbgOurPeerName )
     {
         _LOG("Replicator Public Key: " << m_keyPair.publicKey())
@@ -170,7 +170,7 @@ public:
             }
         }
 
-        m_endpointsManager.stop();
+        m_endpointsManager->stop();
     }
 
     void stopReplicator() override {
@@ -208,7 +208,7 @@ public:
     void start() override
     {
         endpoint_list bootstrapEndpoints;
-        for ( const auto& info: m_endpointsManager.getBootstraps())
+        for ( const auto& info: m_endpointsManager->getBootstraps())
         {
             bootstrapEndpoints.push_back( info.m_endpoint );
         }
@@ -253,7 +253,7 @@ public:
 
             DBG_MAIN_THREAD
 
-            m_endpointsManager.start( m_session );
+            m_endpointsManager->start( m_session );
 
 #ifndef SKIP_GRPC
             if ( !m_services.empty() )
@@ -371,8 +371,8 @@ public:
 
             m_driveMap[driveKey] = drive;
 
-            m_endpointsManager.addEndpointsEntries( driveRequest->m_fullReplicatorList );
-            m_endpointsManager.addEndpointEntry( driveRequest->m_client, false );
+            m_endpointsManager->addEndpointsEntries( driveRequest->m_fullReplicatorList );
+            m_endpointsManager->addEndpointEntry( driveRequest->m_client, false );
 
             // Notify
             if ( m_dbgEventHandler )
@@ -426,7 +426,7 @@ public:
                         break;
                     }
                 }
-                m_endpointsManager.addEndpointsEntries( *replicatorKeys );
+                m_endpointsManager->addEndpointsEntries( *replicatorKeys );
                 drive->setReplicators( std::move( replicatorKeys ));
             } else
             {
@@ -667,6 +667,7 @@ public:
 
             if ( const auto drive = getDrive( driveKey ); drive )
             {
+                request->m_endpointsManager = m_endpointsManager;
                 drive->startStream( std::move( request ));
                 return;
             }
@@ -839,15 +840,15 @@ public:
     }
 
     void onEndpointDiscovered( const std::array<uint8_t, 32>& key,
-                               const std::optional<boost::asio::ip::tcp::endpoint>& endpoint ) override
+                               const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) override
     {
         DBG_MAIN_THREAD
 
         _LOG ( "onEndpointDiscovered. public key: " << toString(key) << " endpoint: " << endpoint.value().address().to_string() << " : " << endpoint.value().port())
-        m_endpointsManager.updateEndpoint( key, endpoint );
+        m_endpointsManager->updateEndpoint( key, endpoint );
     }
 
-    void processHandshake( const DhtHandshake& info, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint )
+    void processHandshake( const DhtHandshake& info, const std::optional<boost::asio::ip::udp::endpoint>& endpoint )
     {
         if ( info.m_toPublicKey != m_keyPair.publicKey().array())
         {
@@ -864,14 +865,14 @@ public:
     }
 
     void
-    processEndpointRequest( const ExternalEndpointRequest& request, const boost::asio::ip::tcp::endpoint& endpoint )
+    processEndpointRequest( const ExternalEndpointRequest& request, const boost::asio::ip::udp::endpoint& endpoint )
     {
         if ( m_keyPair.publicKey() == request.m_requestTo )
         {
             ExternalEndpointResponse response;
             response.m_requestTo = request.m_requestTo;
             response.m_challenge = request.m_challenge;
-            response.m_endpoint = *reinterpret_cast<const std::array<uint8_t, sizeof( boost::asio::ip::tcp::endpoint )>*>(&endpoint);
+            response.m_endpoint = *reinterpret_cast<const std::array<uint8_t, sizeof( boost::asio::ip::udp::endpoint )>*>(&endpoint);
             response.Sign( m_keyPair );
 
             std::ostringstream os( std::ios::binary );
@@ -882,9 +883,9 @@ public:
         }
     }
 
-    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint( const std::array<uint8_t, 32>& key ) override
+    std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const std::array<uint8_t, 32>& key ) override
     {
-        return m_endpointsManager.getEndpoint( key );
+        return m_endpointsManager->getEndpoint( key );
     }
 
     virtual void asyncOnDownloadOpinionReceived( mobj<DownloadApprovalTransactionInfo>&& anOpinion ) override
@@ -1487,7 +1488,7 @@ public:
             return;
         }
 
-        auto endpointTo = m_endpointsManager.getEndpoint( replicatorKey );
+        auto endpointTo = m_endpointsManager->getEndpoint( replicatorKey );
         if ( endpointTo )
         {
             m_session->sendMessage( query, {endpointTo->address(), endpointTo->port()}, message );
@@ -1510,7 +1511,7 @@ public:
             return;
         }
 
-        auto endpointTo = m_endpointsManager.getEndpoint( replicatorKey );
+        auto endpointTo = m_endpointsManager->getEndpoint( replicatorKey );
         if ( endpointTo )
         {
             //__LOG( "*** sendMessage: " << query << " to: " << *endpointTo << " " << int(replicatorKey[0]) );
@@ -1532,7 +1533,7 @@ public:
             return;
         }
 
-        auto endpointTo = m_endpointsManager.getEndpoint( replicatorKey );
+        auto endpointTo = m_endpointsManager->getEndpoint( replicatorKey );
         if ( endpointTo )
         {
             Signature signature;
@@ -1624,7 +1625,7 @@ public:
                     DhtHandshake handshake;
                     iarchive( handshake );
 
-                    processHandshake( handshake, std::make_optional<boost::asio::ip::tcp::endpoint>(source.address(), source.port()) );
+                    processHandshake( handshake, std::make_optional<boost::asio::ip::udp::endpoint>(source.address(), source.port()) );
                 }
                 catch ( ... )
                 {_LOG_WARN( "execption occured" )}
@@ -1654,7 +1655,7 @@ public:
                     ExternalEndpointResponse response;
                     iarchive( response );
 
-                    m_endpointsManager.updateExternalEndpoint( response );
+                    m_endpointsManager->updateExternalEndpoint( response );
                 }
                 catch ( ... )
                 {_LOG_WARN( "execption occured" )}
@@ -2370,8 +2371,8 @@ public:
 
             m_driveMap[driveKey] = drive;
 
-            m_endpointsManager.addEndpointsEntries( driveRequest.m_fullReplicatorList );
-            m_endpointsManager.addEndpointEntry( driveRequest.m_client, false );
+            m_endpointsManager->addEndpointsEntries( driveRequest.m_fullReplicatorList );
+            m_endpointsManager->addEndpointEntry( driveRequest.m_client, false );
 
             std::cout << "added virtualDrive " << driveKey;
         } );//post

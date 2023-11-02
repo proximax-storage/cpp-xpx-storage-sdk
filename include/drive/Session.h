@@ -27,7 +27,7 @@
 #include <libtorrent/session.hpp>
 #endif
 
-using  endpoint_list = std::vector<boost::asio::ip::tcp::endpoint>;
+using  endpoint_list = std::vector<boost::asio::ip::udp::endpoint>;
 
 namespace sirius::drive {
 
@@ -182,7 +182,7 @@ public:
     virtual void      sendMessage(const std::string& query, boost::asio::ip::udp::endpoint, const std::string& ) = 0;
     
     virtual void      findAddress( const Key& key ) = 0;
-    virtual void      announceExternalAddress( const boost::asio::ip::tcp::endpoint& endpoint ) = 0;
+    virtual void      announceExternalAddress( const boost::asio::ip::udp::endpoint& endpoint ) = 0;
     
     virtual void      onTorrentDeleted( lt::torrent_handle handle ) = 0;
 
@@ -192,7 +192,7 @@ public:
 
     virtual Timer     startTimer( int milliseconds, std::function<void()> func ) = 0;
 
-    virtual void      connectTorentsToEndpoint( const boost::asio::ip::tcp::endpoint& endpoint ) = 0;
+    virtual void      connectTorentsToEndpoint( const boost::asio::ip::udp::endpoint& endpoint ) = 0;
 
     // for testing and debugging
     virtual void      dbgPrintActiveTorrents() = 0;

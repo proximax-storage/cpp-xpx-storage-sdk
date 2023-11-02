@@ -12,7 +12,7 @@
 #include <array>
 #include <set>
 #include <functional>
-#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ip/udp.hpp>
 
 
 namespace sirius {
@@ -77,7 +77,7 @@ namespace sirius {
                 return ri.m_publicKey == m_publicKey;
             }
 
-            boost::asio::ip::tcp::endpoint  m_endpoint;
+            boost::asio::ip::udp::endpoint  m_endpoint;
             Key                             m_publicKey;
         };
 

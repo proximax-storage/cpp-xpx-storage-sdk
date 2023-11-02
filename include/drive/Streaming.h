@@ -17,6 +17,8 @@
 
 namespace sirius::drive {
 
+class EndpointsManager;
+
     // если размер sandbox-a позволяет, то мы храним все чанки
     // иначе удаляем старые
     //
@@ -27,6 +29,8 @@ namespace sirius::drive {
         std::string                 m_folder;       // where it will be saved in FsTree
         uint64_t                    m_maxSizeBytes; // could be increased
         ReplicatorList              m_replicatorList;
+        
+        std::weak_ptr<EndpointsManager>           m_endpointsManager;
 
         template <class Archive> void serialize( Archive & arch )
         {

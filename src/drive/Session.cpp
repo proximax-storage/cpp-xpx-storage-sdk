@@ -574,14 +574,14 @@ public:
                 if ( endpoint )
                 {
                     _LOG( "connect_peer: " << *endpoint << " " << key );
-                    tHandle.connect_peer( *endpoint );
+                    tHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint->address(), endpoint->port() } );
                 }
             }
         }
 
         for ( const auto& endpoint: endpointsHints )
         {
-            tHandle.connect_peer( endpoint );
+            tHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint.address(), endpoint.port() } );
         }
 
         // set fs tree save path
@@ -608,11 +608,11 @@ public:
         //TODO check if not set m_lastTorrentFileHandle
         for( const auto& endpoint : list ) {
             _LOG( "connectPeers: " << endpoint )
-            tHandle.connect_peer(endpoint);
+            tHandle.connect_peer(boost::asio::ip::tcp::endpoint{ endpoint.address(), endpoint.port() });
         }
     }
 
-    void connectTorentsToEndpoint( const boost::asio::ip::tcp::endpoint& endpoint ) override
+    void connectTorentsToEndpoint( const boost::asio::ip::udp::endpoint& endpoint ) override
     {
         std::vector<lt::torrent_handle> torrents = m_session.get_torrents();
         for( const lt::torrent_handle& tHandle : torrents )
@@ -620,7 +620,7 @@ public:
             //if ( tHandle.in_session() )
             if ( tHandle.is_valid() )
             {
-                tHandle.connect_peer(endpoint);
+                tHandle.connect_peer( boost::asio::ip::tcp::endpoint{endpoint.address(),endpoint.port()});
             }
         }
     }
@@ -744,11 +744,11 @@ public:
         m_session.dht_get_item( publicKey, "ip" );
     }
 
-    void announceExternalAddress( const boost::asio::ip::tcp::endpoint& endpoint ) override
+    void announceExternalAddress( const boost::asio::ip::udp::endpoint& endpoint ) override
     {
         if ( auto limiter = m_downloadLimiter.lock(); limiter )
         {
-            std::string data(reinterpret_cast<const char *>(&endpoint), sizeof(boost::asio::ip::tcp::endpoint));
+            std::string data(reinterpret_cast<const char *>(&endpoint), sizeof(boost::asio::ip::udp::endpoint));
             auto publicKey = *reinterpret_cast<const std::array<char, 32> *>(limiter->publicKey().data());
             m_session.dht_put_item(publicKey,
                                    [limiter = m_downloadLimiter, d = std::move(data)]
@@ -839,16 +839,16 @@ private:
         }
 
         auto response = theAlert->item.string();
-        if ( response.size() != sizeof(boost::asio::ip::tcp::endpoint) )
+        if ( response.size() != sizeof(boost::asio::ip::udp::endpoint) )
         {
             return;
         }
 
         auto publicKey = *reinterpret_cast<std::array<uint8_t, 32> *>( &theAlert->key );
-        auto endpoint = *reinterpret_cast<boost::asio::ip::tcp::endpoint*>(response.data());
+        auto endpoint = *reinterpret_cast<boost::asio::ip::udp::endpoint*>(response.data());
 
         _LOG( "DefaultSession::processEndpointItem: " << toString(publicKey) << " endpoint: " << endpoint.address().to_string() << " : " << endpoint.port() )
-        limiter->onEndpointDiscovered(publicKey, std::make_optional<>(endpoint));
+        limiter->onEndpointDiscovered(publicKey, endpoint);
     }
 
     void saveTorrentFile( const std::shared_ptr<lt::torrent_info>&& ti, LtClientData* userdata )

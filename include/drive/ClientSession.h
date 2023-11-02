@@ -139,7 +139,7 @@ public:
     
     void setEndpointHandler()
     {
-        m_endpointsManager.setEndpointHandler( [self=weak_from_this()] (const Key& key, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint) {
+        m_endpointsManager.setEndpointHandler( [self=weak_from_this()] (const Key& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint) {
             assert( endpoint );
             if ( auto ptr = self.lock(); ptr )
             {
@@ -157,7 +157,7 @@ public:
     bool sendChannelStatusRequestToReplicator( const Key&     replicatorKey,
                                                const Key&     driveKey,
                                                const Hash256& downloadChannelId,
-                                               std::optional<boost::asio::ip::tcp::endpoint> replicatorEndpoint = {} )
+                                               std::optional<boost::asio::ip::udp::endpoint> replicatorEndpoint = {} )
     {
         if ( ! replicatorEndpoint )
         {
@@ -189,7 +189,7 @@ public:
     bool sendModificationStatusRequestToReplicator( const Key&     replicatorKey,
                                                     const Key&     driveKey,
                                                     const Hash256& modificationHash,
-                                                    std::optional<boost::asio::ip::tcp::endpoint> replicatorEndpoint = {} )
+                                                    std::optional<boost::asio::ip::udp::endpoint> replicatorEndpoint = {} )
     {
         if ( ! replicatorEndpoint )
         {
@@ -682,7 +682,7 @@ protected:
         //todo here could be call back-call of test UI app
     }
 
-    std::optional<boost::asio::ip::tcp::endpoint> getEndpoint(const std::array<uint8_t, 32> &key) override
+    std::optional<boost::asio::ip::udp::endpoint> getEndpoint(const std::array<uint8_t, 32> &key) override
     {
         return m_endpointsManager.getEndpoint(key);
     }
@@ -1126,7 +1126,7 @@ protected:
 
 public:
     void
-    onEndpointDiscovered( const std::array<uint8_t, 32>& key, const std::optional<boost::asio::ip::tcp::endpoint>& endpoint ) override {
+    onEndpointDiscovered( const std::array<uint8_t, 32>& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) override {
         __LOG( "@@@  onEndpointDiscovered: public key: " << toString(key) << " endpoint: " << endpoint->address().to_string() << " : " << endpoint->port())
         m_endpointsManager.updateEndpoint(key, endpoint);
     }
