@@ -210,8 +210,8 @@ protected:
             {
                 _LOG_ERR( "not exist 2: " <<m_drive.m_fsTreeFile.parent_path() )
             }
-            fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
-            fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
+            moveFile( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
+            moveFile( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
 
             //m_drive.m_serializer.saveRestartValue( getModificationTransactionHash().array(), "approvedModification" );
 

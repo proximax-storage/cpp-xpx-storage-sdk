@@ -198,7 +198,7 @@ public:
         return os.str();
     }
 
-    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& streamer ) override
+    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& sender ) override
     {
         DBG_MAIN_THREAD
         
@@ -218,7 +218,7 @@ public:
             return;
         }
         
-        m_streamerEndpoint = streamer;
+        //m_streamerEndpoint = sender;
 
         if ( chunkInfo->m_chunkIndex < m_chunkInfoList.size() )
         {
@@ -425,8 +425,8 @@ public:
             {
                 _LOG_ERR( "not exist 2: " <<m_drive.m_fsTreeFile.parent_path() )
             }
-            fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
-            fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
+            moveFile( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
+            moveFile( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
 
             auto& torrentHandleMap = m_drive.m_torrentHandleMap;
             // remove unused files and torrent files from the drive
@@ -839,7 +839,7 @@ public:
         fs::path torrentFilename = m_drive.m_torrentFolder / toString( finishPlaylistHash );
         if ( ! fs::exists(finishPlaylistFilename) )
         {
-            fs::rename( tmp, finishPlaylistFilename );
+            moveFile( tmp, finishPlaylistFilename );
         }
         if ( ! fs::exists(torrentFilename) )
         {

@@ -1392,7 +1392,7 @@ private:
                                                 		fs::remove( filePath );
                                                 	} else
                                                 	{
-                                                		fs::rename( filePath, m_drive.m_driveFolder / toString( hash ));
+                                                        moveFile( filePath, m_drive.m_driveFolder / toString( hash ));
                                                 		createTorrentFile( m_drive.m_driveFolder / toString( hash ),
 																		   m_drive.m_driveKey,
 																		   m_drive.m_driveFolder,
@@ -1563,8 +1563,8 @@ private:
 
         try
         {
-            fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
-            fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
+            moveFile( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
+            moveFile( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
 
             m_opinionTaskController.saveRestartValuesForManualTask( m_request->m_modificationIdentifier );
             //m_drive.m_serializer.saveRestartValue( m_request->m_modificationIdentifier, "approvedModification" );

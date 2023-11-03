@@ -6,6 +6,7 @@
 #pragma once
 
 #include "types.h"
+#include "log.h"
 #include <filesystem>
 #include "plugins.h"
 #include <boost/utility/string_view.hpp>
@@ -61,5 +62,16 @@ T randomByteArray()
     return data;
 }
 
+inline void moveFile( const fs::path& src, const fs::path& dest )
+{
+    std::error_code ec;
+    fs::rename( src, dest, ec );
+    if ( ec )
+    {
+        __LOG( "WARNING!!!: Cannot move " << src.string() << " to " << dest.string() << " : " << ec.message() );
+        fs::copy( src, dest );
+        fs::remove( src );
+    }
+}
 }}
 

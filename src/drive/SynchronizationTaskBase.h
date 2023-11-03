@@ -11,6 +11,7 @@
 #include "drive/FlatDrive.h"
 #include "DriveParams.h"
 #include "UpdateDriveTaskBase.h"
+#include "drive/Utils.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
 
@@ -415,8 +416,8 @@ public:
         {
             SIRIUS_ASSERT( m_sandboxRootHash == getRootHash() );
 
-            fs::rename( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
-            fs::rename( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
+            moveFile( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
+            moveFile( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
 
             m_drive.m_serializer.saveRestartValue( getModificationTransactionHash().array(), "approvedModification" );
 

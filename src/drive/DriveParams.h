@@ -148,12 +148,10 @@ private:
 class FlatDrivePaths {
 protected:
     FlatDrivePaths( const std::string&  replicatorRootFolder,
-                    const std::string&      replicatorSandboxRootFolder,
                     const Key&              drivePubKey )
                     :
                     m_driveKey( drivePubKey ),
-                    m_replicatorRoot( replicatorRootFolder ),
-                    m_replicatorSandboxRoot( replicatorSandboxRootFolder )
+                    m_replicatorRoot( replicatorRootFolder )
                     {}
 
                     virtual~FlatDrivePaths() {}
@@ -165,7 +163,6 @@ public:
 private:
 
     const fs::path  m_replicatorRoot;
-    const fs::path  m_replicatorSandboxRoot;
 
 public:
 
@@ -179,6 +176,7 @@ public:
     const fs::path  m_emptyFileTorrent  = fs::path(m_torrentFolder.string() + "/" + toString(Hash256()));
 
     // Sandbox paths
+    const fs::path  m_replicatorSandboxRoot = fs::path(m_driveRootPath.string() + "/sandboxes");
     const fs::path  m_sandboxRootPath       = fs::path(m_replicatorSandboxRoot.string() + "/" + arrayToString(m_driveKey.array()));
     const fs::path  m_sandboxFsTreeFile     = fs::path(m_sandboxRootPath.string() + "/" + FS_TREE_FILE_NAME);
     const fs::path  m_sandboxFsTreeTorrent  = fs::path(m_sandboxRootPath.string() + "/" + FS_TREE_FILE_NAME ".torrent");
@@ -273,7 +271,7 @@ protected:
             const std::string&          replicatorSandboxRootFolder,
             const std::string&          dbgOurPeerName
         )
-        : FlatDrivePaths( replicatorRootFolder, replicatorSandboxRootFolder, drivePubKey )
+        : FlatDrivePaths( replicatorRootFolder, drivePubKey )
         , m_driveOwner(driveOwner)
         , m_maxSize(maxSize)
         , m_session( session )
