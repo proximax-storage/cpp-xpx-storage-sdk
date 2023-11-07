@@ -715,9 +715,12 @@ public:
         
         if ( m_finishInfo.size() == 0 ) // finishInfo-file not received
         {
+            _LOG( "checkFinishCondition: m_finishInfo.size() == 0" )
             return;
         }
         
+        _LOG( "checkFinishCondition: m_chunkInfoList.size(), m_finishInfo.size(): " << m_chunkInfoList.size() << ", " << m_finishInfo.size() )
+
         if ( m_chunkInfoList.size() < m_finishInfo.size() )
         {
             if ( m_finishInfo.size() > 0 )
@@ -778,6 +781,8 @@ public:
 
     void completeStreamFinishing()
     {
+        DBG_BG_THREAD
+
         m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
         
         if ( ! m_sandboxFsTree->addFolder( m_request->m_folder ) )
@@ -795,6 +800,7 @@ public:
             {
                 auto name = toString(chunkInfo.m_chunkInfoHash);
                 streamFolder->m_childs.emplace( name, File{ name, chunkInfo.m_chunkInfoHash, chunkInfo.m_sizeBytes} );
+                _LOG( "add chunk chunkInfo.m_chunkInfoHash: " << toString(chunkInfo.m_chunkInfoHash) );
             }
         }
         
@@ -826,6 +832,8 @@ public:
         }
 
         auto playlistTxt = playlist.str();
+        
+        _LOG( "playlistTxt: " << playlistTxt )
 
         fs::path tmp = m_drive.m_sandboxRootPath / PLAYLIST_FILE_NAME;
         {
@@ -837,10 +845,12 @@ public:
         InfoHash finishPlaylistHash = createTorrentFile( tmp, m_drive.m_driveKey, m_drive.m_sandboxRootPath, {} );
         fs::path finishPlaylistFilename = m_drive.m_driveFolder / toString( finishPlaylistHash );
         fs::path torrentFilename = m_drive.m_torrentFolder / toString( finishPlaylistHash );
+        
         if ( ! fs::exists(finishPlaylistFilename) )
         {
             moveFile( tmp, finishPlaylistFilename );
         }
+        
         if ( ! fs::exists(torrentFilename) )
         {
             InfoHash finishPlaylistHash2 = createTorrentFile( finishPlaylistFilename,
@@ -866,6 +876,8 @@ public:
         
         if ( m_metaFilesSize + m_sandboxDriveSize + m_fsTreeSize > m_drive.m_maxSize )
         {
+            _LOG( "!!! Drive is full:" )
+            //TODO!
 //            m_drive.executeOnSessionThread( [this] {
 //                modifyIsCompletedWithError( "Drive is full", 0 );
 //            });
@@ -874,6 +886,7 @@ public:
 
         m_drive.executeOnSessionThread( [this,torrentFilename]() //mutable
         {
+            _LOG( "add playlist as torrent" );
             if ( auto session = m_drive.m_session.lock(); session )
             {
                 session->addTorrentFileToSession( torrentFilename,
