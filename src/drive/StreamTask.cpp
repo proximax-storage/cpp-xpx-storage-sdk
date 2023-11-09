@@ -99,6 +99,27 @@ public:
         breakTorrentDownloadAndRunNextTask();
     }
     
+    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
+    {
+        DBG_MAIN_THREAD
+        
+        if ( m_taskIsInterrupted )
+        {
+            return false;
+        }
+
+        if ( cancelRequest.m_modifyTransactionHash == m_request->m_streamId )
+        {
+            breakTorrentDownloadAndRunNextTask();
+            return true;
+        }
+        
+        _LOG( "!!! cancelRequest.m_modifyTransactionHash != m_request->m_streamId" )
+
+        return false;
+    }
+
+
     void tryBreakTask() override
     {
         if ( m_sandboxCalculated & !m_modifyApproveTxReceived )
@@ -784,26 +805,35 @@ public:
         DBG_BG_THREAD
 
         m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
-        
+        _LOG( "--0--" << m_request->m_folder );
+
         if ( ! m_sandboxFsTree->addFolder( m_request->m_folder ) )
         {
             _LOG_WARN( "cannot add folder: " << m_request->m_folder )
             //todo cancel tx
             return;
         }
-        
+        _LOG( "--1--: m_request->m_folder: " << m_request->m_folder );
+
         Folder* streamFolder = m_sandboxFsTree->getFolderPtr( m_request->m_folder );
+
+        _LOG( "--2--: " << (streamFolder==nullptr) );
 
         for( const auto& chunkInfo : m_finishInfo )
         {
+            _LOG( "--3--:" << chunkInfo.m_chunkIndex );
             if ( chunkInfo.m_saveOnDrive )
             {
+                _LOG( "--3--a" );
                 auto name = toString(chunkInfo.m_chunkInfoHash);
+                _LOG( "--3--b" );
                 streamFolder->m_childs.emplace( name, File{ name, chunkInfo.m_chunkInfoHash, chunkInfo.m_sizeBytes} );
                 _LOG( "add chunk chunkInfo.m_chunkInfoHash: " << toString(chunkInfo.m_chunkInfoHash) );
             }
         }
         
+        _LOG( "--4--" );
+
         //
         // Generate playlist
         //

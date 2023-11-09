@@ -126,7 +126,7 @@ class EndpointsManager;
         std::array<uint8_t,32>      m_chunkInfoHash;
         uint32_t                    m_durationMks;   // microseconds
         uint64_t                    m_sizeBytes;
-        bool                        m_saveOnDrive;
+        bool                        m_saveOnDrive = true;
 
         template <class Archive> void serialize( Archive & arch )
         {
