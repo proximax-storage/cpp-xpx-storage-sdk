@@ -804,22 +804,20 @@ public:
     {
         DBG_BG_THREAD
 
-        _LOG( "m_drive.m_fsTreeFile: " << m_drive.m_fsTreeFile.string() );
-        _LOG( "m_drive.m_sandboxFsTreeFile: " << m_drive.m_sandboxFsTreeFile.string() );
-
-        m_sandboxFsTree->dbgPrint();
-        m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
-        _LOG( "--0--" << m_request->m_folder );
+        m_sandboxFsTree = std::make_unique<FsTree>( *m_drive.m_fsTree );
 
         if ( ! m_sandboxFsTree->addFolder( m_request->m_folder ) )
         {
-            _LOG_WARN( "cannot add folder: " << m_request->m_folder )
-            //todo cancel tx
-            return;
+            _LOG( "cannot add folder: " << m_request->m_folder )
         }
         _LOG( "--1--: m_request->m_folder: " << m_request->m_folder );
 
         Folder* streamFolder = m_sandboxFsTree->getFolderPtr( m_request->m_folder );
+        if ( streamFolder == nullptr )
+        {
+            _LOG_WARN( "streamFolder == nullptr: " << m_request->m_folder )
+            return;
+        }
 
         _LOG( "--2--: " << (streamFolder==nullptr) );
 
