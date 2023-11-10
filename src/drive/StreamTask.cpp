@@ -804,6 +804,10 @@ public:
     {
         DBG_BG_THREAD
 
+        _LOG( "m_drive.m_fsTreeFile: " << m_drive.m_fsTreeFile.string() );
+        _LOG( "m_drive.m_sandboxFsTreeFile: " << m_drive.m_sandboxFsTreeFile.string() );
+
+        m_sandboxFsTree->dbgPrint();
         m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile );
         _LOG( "--0--" << m_request->m_folder );
 
