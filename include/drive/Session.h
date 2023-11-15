@@ -198,6 +198,8 @@ public:
     virtual void      dbgPrintActiveTorrents() = 0;
 
     virtual void      setLogMode( LogMode mode ) = 0;
+    
+    virtual int       listeningPort() = 0;
 };
 
 // createTorrentFile

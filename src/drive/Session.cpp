@@ -97,6 +97,7 @@ class DefaultSession: public Session, public std::enable_shared_from_this<Defaul
     
     std::string             m_addressAndPort;
     lt::session             m_session;
+    int                     m_listeningPort = 0;
 
     // It will be called on socket listening error
     LibTorrentErrorHandler  m_alertHandler;
@@ -333,8 +334,19 @@ public:
         settingsPack.set_bool( lt::settings_pack::listen_system_port_fallback, false );
         
         //settingsPack.set_int( lt::settings_pack::max_out_request_queue, 10 );
+        
+        if ( auto colonPos = m_addressAndPort.find(":"); colonPos != std::string::npos )
+        {
+            std::string portString = m_addressAndPort.substr(colonPos + 1);
+            m_listeningPort = std::stoi(portString);
+        }
 
         return settingsPack;
+    }
+
+    virtual int listeningPort() override
+    {
+        return m_listeningPort;
     }
 
     void setDbgThreadId()

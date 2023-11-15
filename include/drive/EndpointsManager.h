@@ -310,11 +310,11 @@ public:
             return;
         }
 
-        auto receivedEndpoint = *reinterpret_cast<const boost::asio::ip::udp::endpoint*>(&response.m_endpoint);
+        auto endpoint = *reinterpret_cast<const boost::asio::ip::udp::endpoint*>(&response.m_endpoint);
         
-        if ( receivedEndpoint.address().to_v4() == boost::asio::ip::address_v4::any() )
+        if ( endpoint.address().to_v4() == boost::asio::ip::address_v4::any() )
         {
-            _LOG_WARN("updateExternalEndpoint: invalid address " << receivedEndpoint.address() )
+            _LOG_WARN("updateExternalEndpoint: invalid address " << endpoint.address() )
         }
         
         if (m_keyPair.publicKey().array() == response.m_requestTo)
@@ -322,29 +322,43 @@ public:
             return;
         }
 
-        _LOG("External Endpoint Discovered " << receivedEndpoint.address() << " " << std::dec << receivedEndpoint.port())
-
-        boost::asio::ip::udp::endpoint externalEndpoint(receivedEndpoint.address(), receivedEndpoint.port());
-
-        bool ipChanged = false;
-        if (!m_myExternalEndpoint || m_myExternalEndpoint.value() != externalEndpoint)
+        _LOG("External Endpoint Discovered " << endpoint.address() << " " << std::dec << endpoint.port())
+        
+        if ( session->listeningPort() != endpoint.port() )
         {
+            _LOG("Invalid port " << std::dec << endpoint.port() << " != " << session->listeningPort() )
+            return;
+        }
+        
+        _LOG("--1--")
+        
+        bool ipChanged = false;
+        if (!m_myExternalEndpoint || m_myExternalEndpoint.value() != endpoint)
+        {
+            _LOG("--2--")
             ipChanged = true;
         }
 
-        m_myExternalEndpoint = externalEndpoint;
+        _LOG("--3--")
+        m_myExternalEndpoint = endpoint;
+        _LOG("--4--")
 
         if (ipChanged) {
+            _LOG("--5--")
             // We expect that this operation does not take place too often
             // So the loop does not influence performance
             for (const auto&[key, point]: m_endpointsMap)
             {
+                _LOG("--6--")
                 sendHandshake(key);
             }
         }
+        _LOG("--7--")
 
         m_myExternalEndpointRequest.reset();
-        session->announceMyIp(externalEndpoint);
+        _LOG("--8--")
+        session->announceMyIp(endpoint);
+        _LOG("--9--")
 
         m_externalPointUpdateTimer = session->startTimer(m_standardExternalEndpointDelayMs, [this]
         {
