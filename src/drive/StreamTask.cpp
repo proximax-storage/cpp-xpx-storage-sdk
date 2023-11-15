@@ -122,6 +122,8 @@ public:
 
     void tryBreakTask() override
     {
+        DBG_MAIN_THREAD
+
         if ( m_sandboxCalculated & !m_modifyApproveTxReceived )
         {
             finishTask();

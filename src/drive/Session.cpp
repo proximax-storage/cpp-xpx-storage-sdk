@@ -744,8 +744,16 @@ public:
         m_session.dht_get_item( publicKey, "ip" );
     }
 
-    void announceExternalAddress( const boost::asio::ip::udp::endpoint& endpoint ) override
+    void announceMyIp( const boost::asio::ip::udp::endpoint& endpoint ) override
     {
+        _LOG( "announceMyIp: " << endpoint )
+
+        if ( endpoint.address().to_v4() == boost::asio::ip::address_v4::any() )
+        {
+            _LOG_WARN( "Invalid endpoint address" )
+            return;
+        }
+        
         if ( auto limiter = m_downloadLimiter.lock(); limiter )
         {
             std::string data(reinterpret_cast<const char *>(&endpoint), sizeof(boost::asio::ip::udp::endpoint));
@@ -1413,11 +1421,11 @@ private:
                     break;
                 }
                     
-                case lt::dht_pkt_alert::alert_type: {
-                    auto *theAlert = dynamic_cast<lt::dht_pkt_alert *>(alert);
-                    _LOG( "dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
-                    break;
-                }
+//                case lt::dht_pkt_alert::alert_type: {
+//                    auto *theAlert = dynamic_cast<lt::dht_pkt_alert *>(alert);
+//                    _LOG( "dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
+//                    break;
+//                }
 
                 default: {
 //                    if ( alert->type() != 52 && alert->type() != 78 && alert->type() != 86

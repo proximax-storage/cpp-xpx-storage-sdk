@@ -182,7 +182,7 @@ public:
     virtual void      sendMessage(const std::string& query, boost::asio::ip::udp::endpoint, const std::string& ) = 0;
     
     virtual void      findAddress( const Key& key ) = 0;
-    virtual void      announceExternalAddress( const boost::asio::ip::udp::endpoint& endpoint ) = 0;
+    virtual void      announceMyIp( const boost::asio::ip::udp::endpoint& endpoint ) = 0;
     
     virtual void      onTorrentDeleted( lt::torrent_handle handle ) = 0;
 

@@ -410,7 +410,7 @@ public:
 
     void asyncSetReplicators( Key driveKey, mobj<ReplicatorList>&& replicatorKeys ) override
     {
-        _FUNC_ENTRY
+        //_FUNC_ENTRY
 
     	boost::asio::post(m_session->lt_session().get_context(), [=,replicatorKeys=std::move(replicatorKeys),this]() mutable
         {
@@ -842,7 +842,7 @@ public:
     void onEndpointDiscovered( const std::array<uint8_t, 32>& key,
                                const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) override
     {
-        DBG_MAIN_THREAD
+        //DBG_MAIN_THREAD
 
         _LOG ( "onEndpointDiscovered. public key: " << toString(key) << " endpoint: " << endpoint.value().address().to_string() << " : " << endpoint.value().port())
         m_endpointsManager->updateEndpoint( key, endpoint );
@@ -1655,7 +1655,7 @@ public:
                     ExternalEndpointResponse response;
                     iarchive( response );
 
-                    m_endpointsManager->updateExternalEndpoint( response );
+                    m_endpointsManager->updateMyExternalEndpoint( response );
                 }
                 catch ( ... )
                 {_LOG_WARN( "execption occured" )}
