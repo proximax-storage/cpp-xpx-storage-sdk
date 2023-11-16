@@ -292,6 +292,8 @@ public:
 
     void updateMyExternalEndpoint(const ExternalEndpointResponse& response)
     {
+        _LOG("updateMyExternalEndpoint:")
+
         auto session = m_session.lock();
         if (!session)
         {
@@ -375,19 +377,24 @@ private:
 
     void sendHandshake(const Key& to)
     {
+        _LOG("sendHandshake:")
+
         SIRIUS_ASSERT(m_myExternalEndpoint)
 
         if (to.array() == m_keyPair.publicKey().array())
         {
+            _LOG("Try to Send Handshake to --1--")
             return;
         }
 
         auto endpoint = getEndpoint(to);
         if ( !endpoint )
         {
+            _LOG("Try to Send Handshake to --2--")
             return;
         }
 
+        _LOG("Try to Send Handshake to --3--")
         DhtHandshake handshake;
         handshake.m_fromPublicKey = m_keyPair.publicKey().array();
         handshake.m_toPublicKey = to.array();
@@ -397,9 +404,11 @@ private:
         std::ostringstream os(std::ios::binary);
         cereal::PortableBinaryOutputArchive archive(os);
         archive(handshake);
+        _LOG("Try to Send Handshake to --4--")
 
         auto session = m_session.lock();
         if (!session) {
+            _LOG("Try to Send Handshake to --5--")
             return;
         }
 
