@@ -146,6 +146,19 @@ public:
         _LOG( "DefaultSession created: " << m_addressAndPort );
         _LOG( "DefaultSession created: " << m_addressAndPort << " " << m_replicator.lock() );
         _LOG( "DefaultSession created: " << m_addressAndPort << " " << toString(m_replicator.lock()->replicatorKey().array()) );
+        
+        if ( auto colonPos = m_addressAndPort.find(":"); colonPos != std::string::npos )
+        {
+            std::string portString = m_addressAndPort.substr(colonPos + 1);
+            m_listeningPort = std::stoi(portString);
+        }
+
+        _LOG( "DefaultSession created: m_listeningPort " << m_listeningPort );
+    }
+
+    virtual int listeningPort() override
+    {
+        return m_listeningPort;
     }
 
     // Constructor for Client
@@ -171,6 +184,14 @@ public:
         m_session.setDelegate( m_downloadLimiter );
 
         _LOG( "DefaultSession created: " << m_addressAndPort );
+
+        if ( auto colonPos = m_addressAndPort.find(":"); colonPos != std::string::npos )
+        {
+            std::string portString = m_addressAndPort.substr(colonPos + 1);
+            m_listeningPort = std::stoi(portString);
+        }
+
+        _LOG( "Client DefaultSession created: m_listeningPort " << m_listeningPort );
     }
 
     virtual ~DefaultSession()
@@ -335,19 +356,9 @@ public:
         
         //settingsPack.set_int( lt::settings_pack::max_out_request_queue, 10 );
         
-        if ( auto colonPos = m_addressAndPort.find(":"); colonPos != std::string::npos )
-        {
-            std::string portString = m_addressAndPort.substr(colonPos + 1);
-            m_listeningPort = std::stoi(portString);
-        }
-
         return settingsPack;
     }
 
-    virtual int listeningPort() override
-    {
-        return m_listeningPort;
-    }
 
     void setDbgThreadId()
     {
