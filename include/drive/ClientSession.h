@@ -355,14 +355,16 @@ public:
         }
 
         SIRIUS_ASSERT(isExists)
-        bool isFileSizeOk = fs::file_size(actionListPath, ec) > 0;
+        const unsigned long int actionListSizeBytes = fs::file_size(actionListPath, ec) > 0;
         if (ec)
         {
             __LOG( "ClientSession.h fs::file_size actionList.bin error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << actionListPath )
             return {};
         }
 
-        SIRIUS_ASSERT(isFileSizeOk)
+        SIRIUS_ASSERT((bool)actionListSizeBytes)
+
+        outTotalModifySize += actionListSizeBytes;
 
         InfoHash infoHash0 = createTorrentFile( actionListPath, drivePublicKey, workFolder.make_preferred(), {} );
 
@@ -717,10 +719,10 @@ public:
         boost::asio::post(m_session->lt_session().get_context(), [this, &barrier]()
         {
             m_session->endSession();
-            auto blockedDestructor = m_session->lt_session().abort();
-            m_session.reset();
+            m_session->lt_session().abort();
             barrier.set_value();
         });
+
         barrier.get_future().wait();
     }
 
