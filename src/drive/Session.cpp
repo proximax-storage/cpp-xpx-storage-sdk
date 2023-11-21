@@ -20,6 +20,8 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/asio/ip/address.hpp>
 
 // cereal
 #include <cereal/types/vector.hpp>
@@ -191,13 +193,6 @@ public:
         m_session.setDelegate( m_downloadLimiter );
 
         _LOG( "DefaultSession created: " << m_addressAndPort );
-
-        if ( auto colonPos = m_addressAndPort.find(":"); colonPos != std::string::npos )
-        {
-            std::string portString = m_addressAndPort.substr(colonPos + 1);
-            m_listeningPort = std::stoi(portString);
-        }
-
         _LOG( "Client DefaultSession created: m_listeningPort " << m_listeningPort );
     }
 
@@ -797,7 +792,8 @@ public:
         
         if ( auto limiter = m_downloadLimiter.lock(); limiter )
         {
-            std::string data(reinterpret_cast<const char *>(&endpoint), sizeof(boost::asio::ip::udp::endpoint));
+            //std::string data(reinterpret_cast<const char *>(&endpoint), sizeof(boost::asio::ip::udp::endpoint));
+            std::string data = endpoint.address().to_string() + "?" + std::to_string( endpoint.port() );
             auto publicKey = *reinterpret_cast<const std::array<char, 32> *>(limiter->publicKey().data());
             m_session.dht_put_item(publicKey,
                                    [limiter = m_downloadLimiter, d = std::move(data)]
@@ -888,13 +884,19 @@ private:
         }
 
         auto response = theAlert->item.string();
-        if ( response.size() != sizeof(boost::asio::ip::udp::endpoint) )
-        {
-            return;
-        }
 
+//        boost::asio::ip::address ipAddress = boost::asio::ip::make_address("127.0.0.1"); // Example IP address
+//        unsigned short portNumber = 12345; // Example port number
+//        boost::asio::ip::udp::endpoint ep(ipAddress, portNumber);
+//        response = ep.address().to_string() + "?" + std::to_string( ep.port() );
+        
         auto publicKey = *reinterpret_cast<std::array<uint8_t, 32> *>( &theAlert->key );
-        auto endpoint = *reinterpret_cast<boost::asio::ip::udp::endpoint*>(response.data());
+        //auto endpoint = *reinterpret_cast<boost::asio::ip::udp::endpoint*>(response.data());
+        std::vector<std::string> addressAndPort;
+        boost::split( addressAndPort, response, [](char c){ return c=='?'; } );
+        boost::system::error_code ec;
+        auto addr = boost::asio::ip::make_address(addressAndPort[0],ec);
+        boost::asio::ip::udp::endpoint endpoint{ addr, (uint16_t)std::stoi( addressAndPort[1] ) };
 
         _LOG( "DefaultSession::processEndpointItem: " << toString(publicKey) << " endpoint: " << endpoint.address().to_string() << " : " << endpoint.port() )
         limiter->onEndpointDiscovered(publicKey, endpoint);
@@ -1085,6 +1087,7 @@ private:
                     }
                         
                     case lt::dht_immutable_item_alert::alert_type: {
+                        //_LOG( "*** lt::dht_immutable_item_alert::alert_type: " );
                         break;
                     }
                         
