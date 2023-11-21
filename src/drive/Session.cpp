@@ -889,15 +889,26 @@ private:
 //        unsigned short portNumber = 12345; // Example port number
 //        boost::asio::ip::udp::endpoint ep(ipAddress, portNumber);
 //        response = ep.address().to_string() + "?" + std::to_string( ep.port() );
-        
-        auto publicKey = *reinterpret_cast<std::array<uint8_t, 32> *>( &theAlert->key );
+
         //auto endpoint = *reinterpret_cast<boost::asio::ip::udp::endpoint*>(response.data());
         std::vector<std::string> addressAndPort;
         boost::split( addressAndPort, response, [](char c){ return c=='?'; } );
+        if (addressAndPort.size() != 2)
+        {
+            return;
+        }
+
         boost::system::error_code ec;
         auto addr = boost::asio::ip::make_address(addressAndPort[0],ec);
+        if (ec)
+        {
+            _LOG( "DefaultSession::processEndpointItem: " << ec.message() << " code: " << ec.value() )
+            return;
+        }
+
         boost::asio::ip::udp::endpoint endpoint{ addr, (uint16_t)std::stoi( addressAndPort[1] ) };
 
+        auto publicKey = *reinterpret_cast<std::array<uint8_t, 32> *>( &theAlert->key );
         _LOG( "DefaultSession::processEndpointItem: " << toString(publicKey) << " endpoint: " << endpoint.address().to_string() << " : " << endpoint.port() )
         limiter->onEndpointDiscovered(publicKey, endpoint);
     }
