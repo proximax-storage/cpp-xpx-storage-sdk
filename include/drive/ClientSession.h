@@ -459,7 +459,7 @@ public:
 
     void addReplicatorList( const sirius::drive::ReplicatorList& keys )
     {
-        m_endpointsManager.addEndpointsEntries( keys );
+        m_endpointsManager.addEndpointQueries( keys );
     }
 
     void setDownloadChannelReplicators( const Hash256& downloadChannelId, const ReplicatorList& replicators )
@@ -1130,7 +1130,7 @@ public:
     void
     onEndpointDiscovered( const std::array<uint8_t, 32>& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) override {
         __LOG( "@@@  onEndpointDiscovered: public key: " << toString(key) << " endpoint: " << endpoint->address().to_string() << " : " << endpoint->port())
-        m_endpointsManager.updateEndpoint(key, endpoint);
+        m_endpointsManager.onEndpointDiscovered(key, endpoint);
     }
 
 protected:

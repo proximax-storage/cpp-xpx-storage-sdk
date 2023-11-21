@@ -29,6 +29,13 @@
 
 using  endpoint_list = std::vector<boost::asio::ip::udp::endpoint>;
 
+inline bool isValid( const boost::asio::ip::udp::endpoint& ep )
+{
+    if ( ep.address().is_v4() && ep.address().to_v4() != boost::asio::ip::address_v4::any() ) return true;
+    if ( ep.address().is_v6() && ep.address().to_v6() != boost::asio::ip::address_v6::any() ) return true;
+    return false;
+}
+
 namespace sirius::drive {
 
 #define FS_TREE_FILE_NAME  "FsTree.bin"

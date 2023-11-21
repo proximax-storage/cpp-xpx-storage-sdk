@@ -493,7 +493,7 @@ public:
     {
         for( auto& replicatorInfo : replicators )
         {
-            m_endpointsManager.updateEndpoint( replicatorInfo.m_publicKey, replicatorInfo.m_endpoint );
+            m_endpointsManager.onEndpointDiscovered( replicatorInfo.m_publicKey, replicatorInfo.m_endpoint );
         }
     }
 };

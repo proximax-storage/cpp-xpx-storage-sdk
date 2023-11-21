@@ -126,7 +126,7 @@ public:
 
     bool isStopped() override
     {
-        DBG_MAIN_THREAD
+        //DBG_MAIN_THREAD
 
         return m_isDestructing;
     }
@@ -371,8 +371,8 @@ public:
 
             m_driveMap[driveKey] = drive;
 
-            m_endpointsManager->addEndpointsEntries( driveRequest->m_fullReplicatorList );
-            m_endpointsManager->addEndpointEntry( driveRequest->m_client, false );
+            m_endpointsManager->addEndpointQueries( driveRequest->m_fullReplicatorList );
+            m_endpointsManager->addEndpointQuery( driveRequest->m_client, false );
 
             // Notify
             if ( m_dbgEventHandler )
@@ -426,7 +426,7 @@ public:
                         break;
                     }
                 }
-                m_endpointsManager->addEndpointsEntries( *replicatorKeys );
+                m_endpointsManager->addEndpointQueries( *replicatorKeys );
                 drive->setReplicators( std::move( replicatorKeys ));
             } else
             {
@@ -845,7 +845,7 @@ public:
         //DBG_MAIN_THREAD
 
         _LOG ( "onEndpointDiscovered. public key: " << toString(key) << " endpoint: " << endpoint.value().address().to_string() << " : " << endpoint.value().port())
-        m_endpointsManager->updateEndpoint( key, endpoint );
+        m_endpointsManager->onEndpointDiscovered( key, endpoint );
     }
 
     void processHandshake( const DhtHandshake& info, const std::optional<boost::asio::ip::udp::endpoint>& endpoint )
@@ -880,6 +880,10 @@ public:
             archive( response );
 
             m_session->sendMessage( "endpoint_response", {endpoint.address(), endpoint.port()}, os.str());
+        }
+        else
+        {
+            _LOG( "m_keyPair.publicKey() == request.m_requestTo: " << m_keyPair.publicKey() << " " << toString(request.m_requestTo).c_str() )
         }
     }
 
@@ -1655,7 +1659,7 @@ public:
                     ExternalEndpointResponse response;
                     iarchive( response );
 
-                    m_endpointsManager->updateMyExternalEndpoint( response );
+                    m_endpointsManager->onMyEndpointResponse( response );
                 }
                 catch ( ... )
                 {_LOG_WARN( "execption occured" )}
@@ -2371,8 +2375,8 @@ public:
 
             m_driveMap[driveKey] = drive;
 
-            m_endpointsManager->addEndpointsEntries( driveRequest.m_fullReplicatorList );
-            m_endpointsManager->addEndpointEntry( driveRequest.m_client, false );
+            m_endpointsManager->addEndpointQueries( driveRequest.m_fullReplicatorList );
+            m_endpointsManager->addEndpointQuery( driveRequest.m_client, false );
 
             std::cout << "added virtualDrive " << driveKey;
         } );//post

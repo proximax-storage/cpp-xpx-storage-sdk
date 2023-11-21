@@ -121,7 +121,7 @@ private:
     const crypto::KeyPair& m_keyPair;
     std::weak_ptr<Session> m_session;
 
-    Timer m_externalPointUpdateTimer;
+    Timer m_myEndpointUpdateTimer;
 
     std::optional<boost::asio::ip::udp::endpoint> m_myExternalEndpoint;
     std::optional<ExternalEndpointRequest> m_myExternalEndpointRequest;
@@ -160,19 +160,22 @@ public:
     void start(std::weak_ptr<Session> session)
     {
         m_session = std::move(session);
-        onUpdateExternalEndpointTimerTick();
+        if ( ! m_bootstraps.empty() )
+        {
+            onMyEndpointTimerTick();
+        }
     }
 
     void stop()
     {
-        m_externalPointUpdateTimer.cancel();
+        m_myEndpointUpdateTimer.cancel();
         for (auto&[key, value]: m_endpointsMap)
         {
             value.m_timer.cancel();
         }
     }
 
-    void addEndpointEntry(const Key& key, bool shouldRequestEndpoint = true)
+    void addEndpointQuery(const Key& key, bool shouldRequestEndpoint = true)
     {
         {
             if (m_endpointsMap.contains(key) && !m_endpointsMap[key].m_endpoint && shouldRequestEndpoint)
@@ -206,23 +209,31 @@ public:
         }
     }
 
-    void addEndpointsEntries(const std::vector<Key>& keys, bool shouldRequestEndpoint = true)
+    void addEndpointQueries(const std::vector<Key>& keys, bool shouldRequestEndpoint = true)
     {
         for (const auto& key: keys)
         {
-            addEndpointEntry(key, shouldRequestEndpoint);
+            addEndpointQuery(key, shouldRequestEndpoint);
         }
     }
 
-    void updateEndpoint(const Key& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint)
+    void onEndpointDiscovered(const Key& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint)
     {
-        if ( endpoint && endpoint->address().to_v4() != boost::asio::ip::address_v4::any() )
+        if ( endpoint && isValid(*endpoint) )
         {
             _LOG("Update Endpoint of " << toString(key.array()) << " at " << endpoint->address().to_string() << " : " << endpoint->port())
         }
         else
         {
             _LOG_WARN("Update Endpoint: invalid address")
+            
+            if ( auto session = m_session.lock(); session )
+            {
+                m_endpointsMap[key].m_timer = session->startTimer(m_noResponseExternalEndpointDelayMs, [this, key]
+                {
+                    requestEndpoint(key);
+                });
+            }
             return;
         }
         
@@ -281,7 +292,7 @@ public:
                 _LOG("todo: getEndpoint: -> " << toString(key.array()) << " -> " << *it->second.m_endpoint )
             }
 
-            if ( it->second.m_endpoint && it->second.m_endpoint->address().to_v4() != boost::asio::ip::address_v4::any() )
+            if ( it->second.m_endpoint && isValid(*it->second.m_endpoint) )
             {
                 return boost::asio::ip::udp::endpoint{ it->second.m_endpoint->address(), it->second.m_endpoint->port() };
             }
@@ -290,37 +301,44 @@ public:
         return {};
     }
 
-    void updateMyExternalEndpoint(const ExternalEndpointResponse& response)
+    void onMyEndpointResponse(const ExternalEndpointResponse& response)
     {
         _LOG("updateMyExternalEndpoint:")
 
         auto session = m_session.lock();
         if (!session)
         {
+            _LOG( "!session" )
             return;
         }
 
-        if (!m_myExternalEndpointRequest ||
-            m_myExternalEndpointRequest->m_challenge != response.m_challenge ||
-            m_myExternalEndpointRequest->m_requestTo != response.m_requestTo)
+        if ( !m_myExternalEndpointRequest ||
+             m_myExternalEndpointRequest->m_challenge != response.m_challenge ||
+             m_myExternalEndpointRequest->m_requestTo != response.m_requestTo )
         {
+            _LOG( "Bad response: " << bool(!m_myExternalEndpointRequest) )
+            _LOG( "Bad response (1): " << toString(m_myExternalEndpointRequest->m_challenge) << " " << toString(response.m_challenge) )
+            _LOG( "Bad response (2): " << toString(m_myExternalEndpointRequest->m_requestTo) << " " << toString(response.m_requestTo) )
             return;
         }
 
         if (!response.Verify())
         {
+            _LOG( "Bad response verification" )
             return;
         }
 
         auto endpoint = *reinterpret_cast<const boost::asio::ip::udp::endpoint*>(&response.m_endpoint);
         
-        if ( endpoint.address().to_v4() == boost::asio::ip::address_v4::any() )
+        if ( ! isValid(endpoint) )
         {
             _LOG_WARN("updateExternalEndpoint: invalid address " << endpoint.address() )
+            return;
         }
         
         if (m_keyPair.publicKey().array() == response.m_requestTo)
         {
+            _LOG_WARN("updateExternalEndpoint: invalid public key " << endpoint.address() )
             return;
         }
 
@@ -361,11 +379,6 @@ public:
         _LOG("--8--")
         session->announceMyIp(endpoint);
         _LOG("--9--")
-
-        m_externalPointUpdateTimer = session->startTimer(m_standardExternalEndpointDelayMs, [this]
-        {
-            onUpdateExternalEndpointTimerTick();
-        });
     }
 
     const std::vector<ReplicatorInfo>& getBootstraps()
@@ -417,10 +430,11 @@ private:
         _LOG("Try to Send Handshake to " << toString(handshake.m_toPublicKey))
     }
 
-    void onUpdateExternalEndpointTimerTick()
+    void onMyEndpointTimerTick()
     {
         if (m_bootstraps.empty())
         {
+            _LOG( "m_bootstraps.empty()" );
             // TODO maybe ask other nodes?
             return;
         }
@@ -437,30 +451,28 @@ private:
         cereal::PortableBinaryOutputArchive archive(os);
         archive(*m_myExternalEndpointRequest);
 
-        auto session = m_session.lock();
-        if ( !session )
+        if ( auto session = m_session.lock(); !session )
         {
+            _LOG( "!session" );
             return;
         }
-
-        auto endpoint = getEndpoint(bootstrapToAsk.m_publicKey);
-        if (endpoint &&
-            m_keyPair.publicKey().array() != m_myExternalEndpointRequest->m_requestTo &&
-            m_keyPair.publicKey().array() != bootstrapToAsk.m_publicKey.array())
+        else
         {
-            session->sendMessage("endpoint_request", {endpoint->address(), endpoint->port()}, os.str());
-
-            _LOG("Requested External Endpoint from " <<
-                    toString(bootstrapToAsk.m_publicKey.array()) <<
-                    " at " <<
-                    bootstrapToAsk.m_endpoint.address().to_string() <<
-                    " : " << bootstrapToAsk.m_endpoint.port())
+            _LOG("session->sendMessage(endpoint_request)");
+            
+            session->sendMessage("endpoint_request", bootstrapToAsk.m_endpoint, os.str());
+            
+            _LOG("Requested External Endpoint from " << bootstrapToAsk.m_publicKey <<
+                 " at " <<
+                 bootstrapToAsk.m_endpoint.address().to_string() <<
+                 " : " <<
+                 bootstrapToAsk.m_endpoint.port() )
+            
+            m_myEndpointUpdateTimer = session->startTimer(m_noResponseExternalEndpointDelayMs, [this]
+            {
+                onMyEndpointTimerTick();
+            });
         }
-
-        m_externalPointUpdateTimer = session->startTimer(m_noResponseExternalEndpointDelayMs, [this]
-        {
-            onUpdateExternalEndpointTimerTick();
-        });
     }
 
     void requestEndpoint(const Key& key)

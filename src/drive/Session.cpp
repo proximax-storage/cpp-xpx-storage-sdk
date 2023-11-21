@@ -20,6 +20,8 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/asio/ip/address.hpp>
 
 // cereal
 #include <cereal/types/vector.hpp>
@@ -96,8 +98,8 @@ class DefaultSession: public Session, public std::enable_shared_from_this<Defaul
 	bool                    m_ownerIsReplicator = true;
     
     std::string             m_addressAndPort;
+    int                     m_listeningPort;
     lt::session             m_session;
-    int                     m_listeningPort = 0;
 
     // It will be called on socket listening error
     LibTorrentErrorHandler  m_alertHandler;
@@ -130,6 +132,7 @@ public:
                     )
         : m_ownerIsReplicator(true)
         , m_addressAndPort(address)
+        , m_listeningPort(extractListeningPort())
         , m_session( lt::session_params{ generateSessionSettings( false, bootstraps) }, context, {})
         , m_alertHandler(alertHandler)
         , m_replicator(replicator)
@@ -146,6 +149,24 @@ public:
         _LOG( "DefaultSession created: " << m_addressAndPort );
         _LOG( "DefaultSession created: " << m_addressAndPort << " " << m_replicator.lock() );
         _LOG( "DefaultSession created: " << m_addressAndPort << " " << toString(m_replicator.lock()->replicatorKey().array()) );
+        
+        _LOG( "DefaultSession created: m_listeningPort " << m_listeningPort );
+    }
+
+    int extractListeningPort()
+    {
+        if ( auto colonPos = m_addressAndPort.find(":"); colonPos != std::string::npos )
+        {
+            std::string portString = m_addressAndPort.substr(colonPos + 1);
+            return std::stoi(portString);
+        }
+        return 0;
+    }
+
+
+    virtual int listeningPort() override
+    {
+        return m_listeningPort;
     }
 
     // Constructor for Client
@@ -159,6 +180,7 @@ public:
                     )
         : m_ownerIsReplicator(false)
         , m_addressAndPort(address)
+        , m_listeningPort(extractListeningPort())
         , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
         , m_alertHandler(alertHandler)
         , m_downloadLimiter(downloadLimiter)
@@ -171,6 +193,7 @@ public:
         m_session.setDelegate( m_downloadLimiter );
 
         _LOG( "DefaultSession created: " << m_addressAndPort );
+        _LOG( "Client DefaultSession created: m_listeningPort " << m_listeningPort );
     }
 
     virtual ~DefaultSession()
@@ -335,19 +358,9 @@ public:
         
         //settingsPack.set_int( lt::settings_pack::max_out_request_queue, 10 );
         
-        if ( auto colonPos = m_addressAndPort.find(":"); colonPos != std::string::npos )
-        {
-            std::string portString = m_addressAndPort.substr(colonPos + 1);
-            m_listeningPort = std::stoi(portString);
-        }
-
         return settingsPack;
     }
 
-    virtual int listeningPort() override
-    {
-        return m_listeningPort;
-    }
 
     void setDbgThreadId()
     {
@@ -675,17 +688,28 @@ public:
             lt::bdecode_node const&                 message,
             lt::entry&                              response ) override
         {
-            if ( query == "get_peers" || query == "announce_peer" )
+            try
             {
-                return false;
+                if ( query == "get_peers" || query == "announce_peer" )
+                {
+                    return false;
+                }
+                
+                if ( auto handler = m_handler.lock(); handler )
+                {
+                    return handler->on_dht_request( query,
+                                                   source,
+                                                   message,
+                                                   response );
+                }
             }
-
-            if ( auto handler = m_handler.lock(); handler )
+            catch( std::runtime_error& ex )
             {
-                return handler->on_dht_request( query,
-                                                source,
-                                                message,
-                                                response );
+                __LOG( "!!!ERROR!!!: unhandled exception: " << ex.what() );
+            }
+            catch(...)
+            {
+                __LOG( "!!!ERROR!!!: unhandled exception: in on_dht_request()" );
             }
 
             return false;
@@ -753,14 +777,14 @@ public:
     void findAddress( const Key& key ) override
     {
         auto publicKey = *reinterpret_cast<const std::array<char, 32> *>(key.data());
-        m_session.dht_get_item( publicKey, "ip" );
+        m_session.dht_get_item( publicKey, "epdbg" );
     }
 
     void announceMyIp( const boost::asio::ip::udp::endpoint& endpoint ) override
     {
         _LOG( "announceMyIp: " << endpoint )
 
-        if ( endpoint.address().to_v4() == boost::asio::ip::address_v4::any() )
+        if ( ! isValid(endpoint) )
         {
             _LOG_WARN( "Invalid endpoint address" )
             return;
@@ -768,7 +792,8 @@ public:
         
         if ( auto limiter = m_downloadLimiter.lock(); limiter )
         {
-            std::string data(reinterpret_cast<const char *>(&endpoint), sizeof(boost::asio::ip::udp::endpoint));
+            //std::string data(reinterpret_cast<const char *>(&endpoint), sizeof(boost::asio::ip::udp::endpoint));
+            std::string data = endpoint.address().to_string() + "?" + std::to_string( endpoint.port() );
             auto publicKey = *reinterpret_cast<const std::array<char, 32> *>(limiter->publicKey().data());
             m_session.dht_put_item(publicKey,
                                    [limiter = m_downloadLimiter, d = std::move(data)]
@@ -786,7 +811,7 @@ public:
                                            std::copy(signature.begin(), signature.end(), sig.begin());
                                        }
                                    },
-                                   "ip");
+                                   "epdbg");
         }
     }
 
@@ -859,13 +884,19 @@ private:
         }
 
         auto response = theAlert->item.string();
-        if ( response.size() != sizeof(boost::asio::ip::udp::endpoint) )
-        {
-            return;
-        }
 
+//        boost::asio::ip::address ipAddress = boost::asio::ip::make_address("127.0.0.1"); // Example IP address
+//        unsigned short portNumber = 12345; // Example port number
+//        boost::asio::ip::udp::endpoint ep(ipAddress, portNumber);
+//        response = ep.address().to_string() + "?" + std::to_string( ep.port() );
+        
         auto publicKey = *reinterpret_cast<std::array<uint8_t, 32> *>( &theAlert->key );
-        auto endpoint = *reinterpret_cast<boost::asio::ip::udp::endpoint*>(response.data());
+        //auto endpoint = *reinterpret_cast<boost::asio::ip::udp::endpoint*>(response.data());
+        std::vector<std::string> addressAndPort;
+        boost::split( addressAndPort, response, [](char c){ return c=='?'; } );
+        boost::system::error_code ec;
+        auto addr = boost::asio::ip::make_address(addressAndPort[0],ec);
+        boost::asio::ip::udp::endpoint endpoint{ addr, (uint16_t)std::stoi( addressAndPort[1] ) };
 
         _LOG( "DefaultSession::processEndpointItem: " << toString(publicKey) << " endpoint: " << endpoint.address().to_string() << " : " << endpoint.port() )
         limiter->onEndpointDiscovered(publicKey, endpoint);
@@ -972,482 +1003,496 @@ private:
         {
             return;
         }
-
-        // extract alerts
-        std::vector<lt::alert *> alerts;
-        m_session.pop_alerts(&alerts);
-
-        // loop by alerts
-        for (auto &alert : alerts) {
-
-            if (m_logMode == LogMode::FULL)
-            {
-                _LOG( ">>>" << alert->what() << " (type="<< alert->type() <<"):  " << alert->message() );
-            }
-
-////            if ( alert->type() == lt::dht_log_alert::alert_type || alert->type() == lt::dht_direct_response_alert::alert_type )
-//            {
-//                    _LOG( ">" << m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
-//            }
-
-//            if ( alert->type() != lt::log_alert::alert_type )
-//            {
-////                if ( m_addressAndPort == "192.168.1.102:5551" ) {
-//                    LOG( ">" << m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
-////                }
-//            }
-
+        
+        try
+        {
+            
+            // extract alerts
+            std::vector<lt::alert *> alerts;
+            m_session.pop_alerts(&alerts);
+            
+            // loop by alerts
+            for (auto &alert : alerts) {
+                
+                if (m_logMode == LogMode::FULL)
+                {
+                    _LOG( ">>>" << alert->what() << " (type="<< alert->type() <<"):  " << alert->message() );
+                }
+                
+                ////            if ( alert->type() == lt::dht_log_alert::alert_type || alert->type() == lt::dht_direct_response_alert::alert_type )
+                //            {
+                //                    _LOG( ">" << m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
+                //            }
+                
+                //            if ( alert->type() != lt::log_alert::alert_type )
+                //            {
+                ////                if ( m_addressAndPort == "192.168.1.102:5551" ) {
+                //                    LOG( ">" << m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
+                ////                }
+                //            }
+                
 #ifdef __APPLE__
 #pragma mark --alerts--
 #endif
-            //_LOG( alert->message() );
-
-            switch (alert->type()) {
-                    
-                //todo++++
-//                case lt::torrent_log_alert::alert_type:
-//                {
-//                    auto* theAlert = dynamic_cast<lt::torrent_log_alert*>(alert);
-//                    _LOG( theAlert->message() );
-//                    break;
-//                }
-
-                case lt::peer_log_alert::alert_type: {
-                    if ( m_logMode == LogMode::PEER )
+                //_LOG( alert->message() );
+                
+                switch (alert->type()) {
+                        
+                        //todo++++
+                        //                case lt::torrent_log_alert::alert_type:
+                        //                {
+                        //                    auto* theAlert = dynamic_cast<lt::torrent_log_alert*>(alert);
+                        //                    _LOG( theAlert->message() );
+                        //                    break;
+                        //                }
+                        
+                    case lt::peer_log_alert::alert_type: {
+                        if ( m_logMode == LogMode::PEER )
+                        {
+                            _LOG(  ": peer_log_alert: " << alert->message())
+                        }
+                        break;
+                    }
+                        
+                    case lt::listen_failed_alert::alert_type: {
+                        this->m_alertHandler( alert );
+                        
+                        auto *theAlert = dynamic_cast<lt::listen_failed_alert *>(alert);
+                        
+                        if ( theAlert ) {
+                            LOG(  "listen error: " << theAlert->message())
+                        }
+                        break;
+                    }
+                        
+                    case lt::log_alert::alert_type: {
+                        _LOG(  ": session_log_alert: " << alert->message())
+                        break;
+                    }
+                        
+                    case lt::dht_bootstrap_alert::alert_type: {
+                        _LOG( "dht_bootstrap_alert: " << alert->message() )
+                        //m_bootstrapBarrier.set_value();
+                        break;
+                    }
+                        
+                    case lt::external_ip_alert::alert_type: {
+                        auto* theAlert = dynamic_cast<lt::external_ip_alert*>(alert);
+                        _LOG( "External Ip Alert " << " " << theAlert->message())
+                        break;
+                    }
+                        
+                    case lt::dht_announce_alert::alert_type: {
+                        break;
+                    }
+                        
+                    case lt::dht_immutable_item_alert::alert_type: {
+                        //_LOG( "*** lt::dht_immutable_item_alert::alert_type: " );
+                        break;
+                    }
+                        
+                    case lt::dht_mutable_item_alert::alert_type: {
+                        
+                        auto* theAlert = dynamic_cast<lt::dht_mutable_item_alert*>(alert);
+                        if ( theAlert->salt == "epdbg" )
+                        {
+                            processEndpointItem( theAlert );
+                        }
+                        
+                        break;
+                    }
+                        
+                    case lt::add_torrent_alert::        alert_type:
                     {
-                        _LOG(  ": peer_log_alert: " << alert->message())
+                        auto* theAlert = dynamic_cast<lt::add_torrent_alert*>(alert);
+                        _LOG( "*** add_torrent_alert: " << theAlert->handle.info_hashes().v2 );
+                        //_LOG( "*** added get_torrents().size()=" << m_session.get_torrents().size() );
+                        break;
                     }
-                    break;
-                }
-
-                case lt::listen_failed_alert::alert_type: {
-                    this->m_alertHandler( alert );
-
-                    auto *theAlert = dynamic_cast<lt::listen_failed_alert *>(alert);
-
-                    if ( theAlert ) {
-                        LOG(  "listen error: " << theAlert->message())
-                    }
-                    break;
-                }
-
-                case lt::log_alert::alert_type: {
-                    _LOG(  ": session_log_alert: " << alert->message())
-                    break;
-                }
-
-                case lt::dht_bootstrap_alert::alert_type: {
-                    _LOG( "dht_bootstrap_alert: " << alert->message() )
-                    //m_bootstrapBarrier.set_value();
-                    break;
-                }
-
-                case lt::external_ip_alert::alert_type: {
-                    auto* theAlert = dynamic_cast<lt::external_ip_alert*>(alert);
-                    _LOG( "External Ip Alert " << " " << theAlert->message())
-                    break;
-                }
-
-                case lt::dht_announce_alert::alert_type: {
-                    break;
-                }
-
-                case lt::dht_immutable_item_alert::alert_type: {
-                    break;
-                }
-
-                case lt::dht_mutable_item_alert::alert_type: {
-
-                    auto* theAlert = dynamic_cast<lt::dht_mutable_item_alert*>(alert);
-                    if ( theAlert->salt == "ip" )
-                    {
-                        processEndpointItem( theAlert );
-                    }
-
-                    break;
-                }
-                    
-                case lt::add_torrent_alert::        alert_type:
-                {
-                    auto* theAlert = dynamic_cast<lt::add_torrent_alert*>(alert);
-                    _LOG( "*** add_torrent_alert: " << theAlert->handle.info_hashes().v2 );
-                    //_LOG( "*** added get_torrents().size()=" << m_session.get_torrents().size() );
-                    break;
-                }
-
+                        
 #ifdef __APPLE__
 #pragma mark --metadata_received_alert
 #endif
-                case lt::metadata_received_alert::        alert_type:
-                {
-                    //sleep(1);
-                    auto* theAlert = dynamic_cast<lt::metadata_received_alert*>(alert);
-                    if ( theAlert->handle.is_valid() && theAlert->handle.userdata().get<LtClientData>() != nullptr )
+                    case lt::metadata_received_alert::        alert_type:
                     {
-                        auto userdata = theAlert->handle.userdata().get<LtClientData>();
-
-                        std::optional<std::string> errorText;
-
-                        auto torrentInfo = theAlert->handle.torrent_file();
-
-						if (torrentInfo->total_size() > m_maxTotalSize) {
-							errorText = "Max Total Size Exceeded";
-							_LOG( "+**** Max Total Size Exceeded: " << torrentInfo->total_size() );
-						}
-
-						if ( !errorText )
-						{
-							auto expectedPieceSize = lt::create_torrent::automatic_piece_size(torrentInfo->total_size());
-							auto actualPieceSize = torrentInfo->piece_length();
-
-							if (expectedPieceSize != actualPieceSize) {
-								errorText = "Invalid Piece Size";
-								_LOG( "+**** Invalid Piece Size: " << actualPieceSize << " " << expectedPieceSize );
-							}
-						}
-
-                        if ( !errorText )
+                        //sleep(1);
+                        auto* theAlert = dynamic_cast<lt::metadata_received_alert*>(alert);
+                        if ( theAlert->handle.is_valid() && theAlert->handle.userdata().get<LtClientData>() != nullptr )
                         {
-                            int64_t downloadLimit = (userdata->m_dnContexts.size() == 0) ? 0 : userdata->m_dnContexts.front().m_downloadLimit;
-                            userdata->m_uploadedDataSize = theAlert->handle.torrent_file()->total_size();
-
-                            if ( downloadLimit != 0 && downloadLimit < torrentInfo->total_size() ) {
-                                errorText = "Limit Is Exceeded";
-                                _LOG( "+**** limitIsExceeded: " << torrentInfo->total_size() );
+                            auto userdata = theAlert->handle.userdata().get<LtClientData>();
+                            
+                            std::optional<std::string> errorText;
+                            
+                            auto torrentInfo = theAlert->handle.torrent_file();
+                            
+                            if (torrentInfo->total_size() > m_maxTotalSize) {
+                                errorText = "Max Total Size Exceeded";
+                                _LOG( "+**** Max Total Size Exceeded: " << torrentInfo->total_size() );
+                            }
+                            
+                            if ( !errorText )
+                            {
+                                auto expectedPieceSize = lt::create_torrent::automatic_piece_size(torrentInfo->total_size());
+                                auto actualPieceSize = torrentInfo->piece_length();
+                                
+                                if (expectedPieceSize != actualPieceSize) {
+                                    errorText = "Invalid Piece Size";
+                                    _LOG( "+**** Invalid Piece Size: " << actualPieceSize << " " << expectedPieceSize );
+                                }
+                            }
+                            
+                            if ( !errorText )
+                            {
+                                int64_t downloadLimit = (userdata->m_dnContexts.size() == 0) ? 0 : userdata->m_dnContexts.front().m_downloadLimit;
+                                userdata->m_uploadedDataSize = theAlert->handle.torrent_file()->total_size();
+                                
+                                if ( downloadLimit != 0 && downloadLimit < torrentInfo->total_size() ) {
+                                    errorText = "Limit Is Exceeded";
+                                    _LOG( "+**** limitIsExceeded: " << torrentInfo->total_size() );
+                                }
+                            }
+                            
+                            if ( errorText )
+                            {
+                                m_session.remove_torrent( theAlert->handle, lt::session::delete_files );
+                                
+                                userdata->m_invalidMetadata = true;
+                                SIRIUS_ASSERT( userdata->m_dnContexts.size()==1 )
+                                userdata->m_dnContexts.front().m_downloadNotification(
+                                                                                      download_status::code::dn_failed,
+                                                                                      userdata->m_dnContexts.front().m_infoHash,
+                                                                                      userdata->m_dnContexts.front().m_saveAs,
+                                                                                      userdata->m_uploadedDataSize,
+                                                                                      0,
+                                                                                      *errorText);
                             }
                         }
-
-                        if ( errorText )
-                        {
-                            m_session.remove_torrent( theAlert->handle, lt::session::delete_files );
-
-                            userdata->m_invalidMetadata = true;
-                            SIRIUS_ASSERT( userdata->m_dnContexts.size()==1 )
-                            userdata->m_dnContexts.front().m_downloadNotification(
-                                                                download_status::code::dn_failed,
-                                                                userdata->m_dnContexts.front().m_infoHash,
-                                                                userdata->m_dnContexts.front().m_saveAs,
-                                                                userdata->m_uploadedDataSize,
-                                                                0,
-                                                                *errorText);
-                        }
+                        
+                        break;
                     }
-                    
-                    break;
-                }
-
-//                case lt::dht_announce_alert::       alert_type:
-//                case lt::torrent_log_alert::        alert_type:
-//                case lt::incoming_connection_alert::alert_type: {
-//                    LOG( m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
-//                    break;
-//                }
-
+                        
+                        //                case lt::dht_announce_alert::       alert_type:
+                        //                case lt::torrent_log_alert::        alert_type:
+                        //                case lt::incoming_connection_alert::alert_type: {
+                        //                    LOG( m_addressAndPort << " " << alert->what() << ":("<< alert->type() <<")  " << alert->message() );
+                        //                    break;
+                        //                }
+                        
 #ifdef __APPLE__
 #pragma mark --dht_direct_response_alert
 #endif
-                case lt::dht_direct_response_alert::alert_type: {
-                    if ( m_stopping )
-                    {
+                    case lt::dht_direct_response_alert::alert_type: {
+                        if ( m_stopping )
+                        {
+                            break;
+                        }
+                        
+                        auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
+                        //_LOG( "*** dht_direct_response_alert: " );
+                        auto response = theAlert->response();
+                        if ( response.type() == lt::bdecode_node::dict_t )
+                        {
+                            auto rDict = response.dict_find_dict("r");
+                            if ( rDict.type() == lt::bdecode_node::dict_t )
+                            {
+                                auto query = rDict.dict_find_string_value("q");
+                                //                             if ( query.size() > 0 && query != "chunk-info" && query != "endpoint_request"
+                                //                                    && query != "handshake" && query != "endpoint_response" )
+                                //                             {
+                                //                                 _LOG( "dht_query: " << query );
+                                //                                 _LOG( "" );
+                                //                             }
+                                //_LOG( "dht_query: " << query )
+                                if ( query == "get_dn_rcpts" || query == "get-chunks-info" || query == "get-playlist-hash" ||
+                                    query == "get_channel_status" || query == "get_modification_status" || query == "get_stream_status" )
+                                {
+                                    handleDhtResponse( response, theAlert->endpoint );
+                                }
+                            }
+                        }
+                        else
+                        {
+                            //_LOG_WARN( "*** NULL dht_direct_response_alert: " << theAlert->what() << ":("<< alert->type() <<")  " << theAlert->message() );
+                            _LOG( "*** NULL dht_direct_response_alert: " << theAlert->what() << ":("<< alert->type() <<")  " << theAlert->message() );
+                        }
                         break;
                     }
-                    
-                     auto* theAlert = dynamic_cast<lt::dht_direct_response_alert*>(alert);
-                    //_LOG( "*** dht_direct_response_alert: " );
-                     auto response = theAlert->response();
-                     if ( response.type() == lt::bdecode_node::dict_t )
-                     {
-                         auto rDict = response.dict_find_dict("r");
-                         if ( rDict.type() == lt::bdecode_node::dict_t )
-                         {
-                             auto query = rDict.dict_find_string_value("q");
-//                             if ( query.size() > 0 && query != "chunk-info" && query != "endpoint_request"
-//                                    && query != "handshake" && query != "endpoint_response" )
-//                             {
-//                                 _LOG( "dht_query: " << query );
-//                                 _LOG( "" );
-//                             }
-                             //_LOG( "dht_query: " << query )
-                             if ( query == "get_dn_rcpts" || query == "get-chunks-info" || query == "get-playlist-hash" ||
-                                 query == "get_channel_status" || query == "get_modification_status" || query == "get_stream_status" )
-                             {
-                                 handleDhtResponse( response, theAlert->endpoint );
-                             }
-                         }
-                     }
-                    else
-                    {
-                        //_LOG_WARN( "*** NULL dht_direct_response_alert: " << theAlert->what() << ":("<< alert->type() <<")  " << theAlert->message() );
-                        _LOG( "*** NULL dht_direct_response_alert: " << theAlert->what() << ":("<< alert->type() <<")  " << theAlert->message() );
+                        
+                    case lt::incoming_request_alert::alert_type: {
+                        //                    auto* theAlert = dynamic_cast<lt::incoming_request_alert*>(alert);
+                        //
+                        //                    LOG( m_addressAndPort << " " << "#!!!incoming_request_alert!!!: " << theAlert->endpoint <<
+                        //                        " " << theAlert->pid << " " << theAlert->req.length << "\n" );
+                        //                    LOG( "# : " << theAlert->torrent_name() <<
+                        //                        " " << theAlert->req.piece << " " << theAlert->req.start << " " << theAlert->req.length << "\n" );
+                        break;
                     }
-                     break;
-                }
-
-                case lt::incoming_request_alert::alert_type: {
-//                    auto* theAlert = dynamic_cast<lt::incoming_request_alert*>(alert);
-//
-//                    LOG( m_addressAndPort << " " << "#!!!incoming_request_alert!!!: " << theAlert->endpoint <<
-//                        " " << theAlert->pid << " " << theAlert->req.length << "\n" );
-//                    LOG( "# : " << theAlert->torrent_name() <<
-//                        " " << theAlert->req.piece << " " << theAlert->req.start << " " << theAlert->req.length << "\n" );
-                    break;
-                }
-
-
-                case lt::block_downloading_alert::alert_type: {
-//                    auto* theAlert = dynamic_cast<lt::block_downloading_alert*>(alert);
-//
-//                    LOG( m_addressAndPort << " " << "#!!!block_downloading_alert!!!: " << theAlert->endpoint << "\n" );
-//                    LOG( "#!!!block_downloading_alert!!!: block idx:" << theAlert->block_index << " piece_index:" << theAlert->piece_index << " pid:" << theAlert->pid << "\n" );
-                    break;
-                }
-
-                case lt::peer_snubbed_alert::alert_type: {
-                    auto* theAlert = dynamic_cast<lt::peer_snubbed_alert*>(alert);
-
-                    _LOG( "#!!!peer_snubbed_alert!!!: " << theAlert->endpoint << "\n" );
-                    break;
-                }
-
-                case lt::peer_disconnected_alert::alert_type: {
-//                    auto* theAlert = dynamic_cast<lt::peer_disconnected_alert*>(alert);
-//
-//                    LOG( "#peer_disconnected_alert: " << theAlert->error.category().name() << " " << theAlert->error << " " << theAlert->endpoint << "\n" );
-//                    break;
-                }
-
+                        
+                        
+                    case lt::block_downloading_alert::alert_type: {
+                        //                    auto* theAlert = dynamic_cast<lt::block_downloading_alert*>(alert);
+                        //
+                        //                    LOG( m_addressAndPort << " " << "#!!!block_downloading_alert!!!: " << theAlert->endpoint << "\n" );
+                        //                    LOG( "#!!!block_downloading_alert!!!: block idx:" << theAlert->block_index << " piece_index:" << theAlert->piece_index << " pid:" << theAlert->pid << "\n" );
+                        break;
+                    }
+                        
+                    case lt::peer_snubbed_alert::alert_type: {
+                        auto* theAlert = dynamic_cast<lt::peer_snubbed_alert*>(alert);
+                        
+                        _LOG( "#!!!peer_snubbed_alert!!!: " << theAlert->endpoint << "\n" );
+                        break;
+                    }
+                        
+                    case lt::peer_disconnected_alert::alert_type: {
+                        //                    auto* theAlert = dynamic_cast<lt::peer_disconnected_alert*>(alert);
+                        //
+                        //                    LOG( "#peer_disconnected_alert: " << theAlert->error.category().name() << " " << theAlert->error << " " << theAlert->endpoint << "\n" );
+                        //                    break;
+                    }
+                        
 #ifdef __APPLE__
 #pragma mark --download-progress--
 #endif
-                // piece_finished_alert
-                case lt::piece_finished_alert::alert_type:
-                {
-//                    auto *theAlert = dynamic_cast<lt::piece_finished_alert *>(alert);
-//
-//                    if ( theAlert ) {
-//
-//                        _LOG( "@@@ piece_finished_alert: " << theAlert->handle.torrent_file()->files().file_path(0) );
-//
-//                        // TODO: better to use piece_granularity
-//                        std::vector<int64_t> fp = theAlert->handle.file_progress();// lt::torrent_handle::piece_granularity );
-//
-//                        bool calculatePercents = false;//true;
-//                        uint64_t dnBytes = 0;
-//                        uint64_t totalBytes = 0;
-//
-//                        // check completeness
-//                        bool isAllComplete = true;
-//                        for( uint32_t i=0; i<fp.size(); i++ ) {
-//
-//                            auto fsize = theAlert->handle.torrent_file()->files().file_size(i);
-//                            bool const complete = ( fp[i] == fsize );
-//
-//                            isAllComplete = isAllComplete && complete;
-//
-//                            if ( calculatePercents )
-//                            {
-//                                dnBytes    += fp[i];
-//                                totalBytes += fsize;
-//                            }
-//
-//                            //dbg/////////////////////////
-//                            const std::string filePath = theAlert->handle.torrent_file()->files().file_path(i);
-//                            _LOG( "@@@ progress: " << fp[i] << " of " << fsize << " " << filePath );
-//                            //dbg/////////////////////////
-//                        }
-//
-//                        if ( calculatePercents )
-//                        {
-//                            _LOG( "@@@  progress: " << 100.*double(dnBytes)/double(totalBytes) << "   " << dnBytes << "/" << totalBytes << "  piece_index=" << theAlert->piece_index );
-//                        }
-//
-//                        if ( isAllComplete )
-//                        {
-//                            _LOG( "@@@ all completed: " << theAlert->handle.torrent_file()->files().file_path(0) )
-//                        }
-//                    }
-                    break;
-                }
-
-                case lt::file_completed_alert::alert_type: {
-                    auto *theAlert= dynamic_cast<lt::file_completed_alert *>(alert);
-                    _LOG( "*** file_completed_alert:" << theAlert->handle.torrent_file()->files().file_path(0) );
-                    break;
-                }
-
-
-                case lt::torrent_error_alert::alert_type: {
-                    auto *theAlert = dynamic_cast<lt::torrent_error_alert *>(alert);
-                    //(???+++) when client destructing?
-                    _LOG(  m_addressAndPort << ": ERROR!!!: torrent error: " << theAlert->message())
-                    break;
-                    auto userdata = theAlert->handle.userdata().get<LtClientData>();
-                    SIRIUS_ASSERT( userdata != nullptr )
-                    if ( userdata != nullptr && userdata->m_dnContexts.size()>0 )
+                        // piece_finished_alert
+                    case lt::piece_finished_alert::alert_type:
                     {
-                        userdata->m_dnContexts.front().m_downloadNotification(   download_status::code::dn_failed,
-                                                                                 userdata->m_dnContexts.front().m_infoHash,
-                                                                                 userdata->m_dnContexts.front().m_saveAs,
-                                                                                 userdata->m_uploadedDataSize,
-                                                                                 0,
-                                                                                 theAlert->message() );
+                        //                    auto *theAlert = dynamic_cast<lt::piece_finished_alert *>(alert);
+                        //
+                        //                    if ( theAlert ) {
+                        //
+                        //                        _LOG( "@@@ piece_finished_alert: " << theAlert->handle.torrent_file()->files().file_path(0) );
+                        //
+                        //                        // TODO: better to use piece_granularity
+                        //                        std::vector<int64_t> fp = theAlert->handle.file_progress();// lt::torrent_handle::piece_granularity );
+                        //
+                        //                        bool calculatePercents = false;//true;
+                        //                        uint64_t dnBytes = 0;
+                        //                        uint64_t totalBytes = 0;
+                        //
+                        //                        // check completeness
+                        //                        bool isAllComplete = true;
+                        //                        for( uint32_t i=0; i<fp.size(); i++ ) {
+                        //
+                        //                            auto fsize = theAlert->handle.torrent_file()->files().file_size(i);
+                        //                            bool const complete = ( fp[i] == fsize );
+                        //
+                        //                            isAllComplete = isAllComplete && complete;
+                        //
+                        //                            if ( calculatePercents )
+                        //                            {
+                        //                                dnBytes    += fp[i];
+                        //                                totalBytes += fsize;
+                        //                            }
+                        //
+                        //                            //dbg/////////////////////////
+                        //                            const std::string filePath = theAlert->handle.torrent_file()->files().file_path(i);
+                        //                            _LOG( "@@@ progress: " << fp[i] << " of " << fsize << " " << filePath );
+                        //                            //dbg/////////////////////////
+                        //                        }
+                        //
+                        //                        if ( calculatePercents )
+                        //                        {
+                        //                            _LOG( "@@@  progress: " << 100.*double(dnBytes)/double(totalBytes) << "   " << dnBytes << "/" << totalBytes << "  piece_index=" << theAlert->piece_index );
+                        //                        }
+                        //
+                        //                        if ( isAllComplete )
+                        //                        {
+                        //                            _LOG( "@@@ all completed: " << theAlert->handle.torrent_file()->files().file_path(0) )
+                        //                        }
+                        //                    }
+                        break;
                     }
-                    break;
-                }
-
+                        
+                    case lt::file_completed_alert::alert_type: {
+                        auto *theAlert= dynamic_cast<lt::file_completed_alert *>(alert);
+                        _LOG( "*** file_completed_alert:" << theAlert->handle.torrent_file()->files().file_path(0) );
+                        break;
+                    }
+                        
+                        
+                    case lt::torrent_error_alert::alert_type: {
+                        auto *theAlert = dynamic_cast<lt::torrent_error_alert *>(alert);
+                        //(???+++) when client destructing?
+                        _LOG(  m_addressAndPort << ": ERROR!!!: torrent error: " << theAlert->message())
+                        break;
+                        auto userdata = theAlert->handle.userdata().get<LtClientData>();
+                        SIRIUS_ASSERT( userdata != nullptr )
+                        if ( userdata != nullptr && userdata->m_dnContexts.size()>0 )
+                        {
+                            userdata->m_dnContexts.front().m_downloadNotification(   download_status::code::dn_failed,
+                                                                                  userdata->m_dnContexts.front().m_infoHash,
+                                                                                  userdata->m_dnContexts.front().m_saveAs,
+                                                                                  userdata->m_uploadedDataSize,
+                                                                                  0,
+                                                                                  theAlert->message() );
+                        }
+                        break;
+                    }
+                        
 #ifdef __APPLE__
 #pragma mark --torrent_finished_alert
 #endif
-                case lt::torrent_finished_alert::alert_type: {
-                    //sleep(1);
-                    auto *theAlert = dynamic_cast<lt::torrent_finished_alert*>(alert);
-                     //_LOG( "*** finished theAlert->handle.id()=" << theAlert->handle.id() );
-                    //dbgPrintActiveTorrents();
-
-                    //auto handle_id = theAlert->handle.id();
-                    
-//                    if ( ltDataToHash(theAlert->handle.info_hashes().v2.data()) == stringToHash("e71463c9ad6ab4205523fc5fe71c82ff4b78088c97735418c3ba8caaaf900d59") )
-//                    {
-//                        dbgPrintActiveTorrents();
-//                    }
-                    
-                    auto userdata = theAlert->handle.userdata().get<LtClientData>();
-                    SIRIUS_ASSERT( userdata != nullptr )
-
-                    SIRIUS_ASSERT( userdata->m_finishStatus ==
-                             LtClientData::FinishStatus::TORRENT_ADDED );
-
-                    userdata->m_finishStatus = LtClientData::FinishStatus::TORRENT_FINISHED;
-                    break;
-                }
-                    
+                    case lt::torrent_finished_alert::alert_type: {
+                        //sleep(1);
+                        auto *theAlert = dynamic_cast<lt::torrent_finished_alert*>(alert);
+                        //_LOG( "*** finished theAlert->handle.id()=" << theAlert->handle.id() );
+                        //dbgPrintActiveTorrents();
+                        
+                        //auto handle_id = theAlert->handle.id();
+                        
+                        //                    if ( ltDataToHash(theAlert->handle.info_hashes().v2.data()) == stringToHash("e71463c9ad6ab4205523fc5fe71c82ff4b78088c97735418c3ba8caaaf900d59") )
+                        //                    {
+                        //                        dbgPrintActiveTorrents();
+                        //                    }
+                        
+                        auto userdata = theAlert->handle.userdata().get<LtClientData>();
+                        SIRIUS_ASSERT( userdata != nullptr )
+                        
+                        SIRIUS_ASSERT( userdata->m_finishStatus ==
+                                      LtClientData::FinishStatus::TORRENT_ADDED );
+                        
+                        userdata->m_finishStatus = LtClientData::FinishStatus::TORRENT_FINISHED;
+                        break;
+                    }
+                        
 #ifdef __APPLE__
 #pragma mark --torrent_deleted_alert
 #endif
-                case lt::torrent_deleted_alert::alert_type: {
-                    auto *theAlert = dynamic_cast<lt::torrent_deleted_alert*>(alert);
-                    _LOG( "*** torrent_deleted_alert:" << theAlert->handle.info_hashes().v2 << " " << theAlert->handle.torrent_file()->files().file_name(0) );
-                    //_LOG( "*** deleted get_torrents().size()=" << m_session.get_torrents().size() );
-                    //dbgPrintActiveTorrents();
-                    break;
-                }
-
-                case lt::request_dropped_alert::alert_type: {
-                    LOG("!!!!! request_dropped_alert");
-                    break;
-                }
-
-                case lt::storage_moved_alert::alert_type: {
-                    LOG("!!!!! storage_moved_alert");
-                    break;
-                }
-
-//                case lt::block_finished_alert::alert_type: {
-//                    LOG("!!!!! block_finished_alert");
-//                    break;
-//                }
-
-                case lt::portmap_error_alert::alert_type: {
-                    auto *theAlert = dynamic_cast<lt::portmap_error_alert *>(alert);
-
-                    if ( theAlert ) {
-                        LOG(  "portmap error: " << theAlert->message())
+                    case lt::torrent_deleted_alert::alert_type: {
+                        auto *theAlert = dynamic_cast<lt::torrent_deleted_alert*>(alert);
+                        _LOG( "*** torrent_deleted_alert:" << theAlert->handle.info_hashes().v2 << " " << theAlert->handle.torrent_file()->files().file_name(0) );
+                        //_LOG( "*** deleted get_torrents().size()=" << m_session.get_torrents().size() );
+                        //dbgPrintActiveTorrents();
+                        break;
                     }
-                    break;
-                }
-
-                case lt::dht_error_alert::alert_type: {
-                    auto *theAlert = dynamic_cast<lt::dht_error_alert *>(alert);
-
-                    if ( theAlert ) {
-                        LOG(  "dht error: " << theAlert->message())
+                        
+                    case lt::request_dropped_alert::alert_type: {
+                        LOG("!!!!! request_dropped_alert");
+                        break;
                     }
-                    break;
-                }
-
-                case lt::session_error_alert::alert_type: {
-                    auto *theAlert = dynamic_cast<lt::session_error_alert *>(alert);
-
-                    if ( theAlert ) {
-                        LOG(  "session error: " << theAlert->message())
+                        
+                    case lt::storage_moved_alert::alert_type: {
+                        LOG("!!!!! storage_moved_alert");
+                        break;
                     }
-                    break;
-                }
-
-                case lt::udp_error_alert::alert_type: {
-                    auto *theAlert = dynamic_cast<lt::udp_error_alert *>(alert);
-
-                    if ( theAlert ) {
-                        LOG(  "udp error: " << theAlert->message())
+                        
+                        //                case lt::block_finished_alert::alert_type: {
+                        //                    LOG("!!!!! block_finished_alert");
+                        //                    break;
+                        //                }
+                        
+                    case lt::portmap_error_alert::alert_type: {
+                        auto *theAlert = dynamic_cast<lt::portmap_error_alert *>(alert);
+                        
+                        if ( theAlert ) {
+                            LOG(  "portmap error: " << theAlert->message())
+                        }
+                        break;
                     }
-                    break;
-                }
-
-                case lt::peer_error_alert::alert_type: {
-                    auto *theAlert = dynamic_cast<lt::peer_error_alert *>(alert);
-
-                    if ( theAlert ) {
-                        LOG(  m_addressAndPort << ": peer error: " << theAlert->message())
+                        
+                    case lt::dht_error_alert::alert_type: {
+                        auto *theAlert = dynamic_cast<lt::dht_error_alert *>(alert);
+                        
+                        if ( theAlert ) {
+                            LOG(  "dht error: " << theAlert->message())
+                        }
+                        break;
                     }
-                    break;
-                }
-
-                case lt::file_error_alert::alert_type: {
-                    auto *theAlert = dynamic_cast<lt::file_error_alert *>(alert);
-
-                    if ( theAlert ) {
-                        LOG(  "file error: " << theAlert->message())
+                        
+                    case lt::session_error_alert::alert_type: {
+                        auto *theAlert = dynamic_cast<lt::session_error_alert *>(alert);
+                        
+                        if ( theAlert ) {
+                            LOG(  "session error: " << theAlert->message())
+                        }
+                        break;
                     }
-                    break;
-                }
-
-                case lt::block_uploaded_alert::alert_type: {
-//                    auto *theAlert = dynamic_cast<lt::block_uploaded_alert *>(alert);
-//                    //TODO download statistic!
-//                    if (theAlert) {
-//                        LOG("block_uploaded: " << theAlert->message())
-//
-//                        // get peers info
-//                        std::vector<lt::peer_info> peers;
-//                        theAlert->handle.get_peer_info(peers);
-//
-//                        for (const lt::peer_info &pi : peers) {
-//                            LOG("Upload. client: " << pi.client);
-//                            LOG("Upload. ip: " << pi.ip);
-//                            LOG("Upload. pid: " << pi.pid.to_string());
-//                            LOG("Upload. local_endpoint: " << pi.local_endpoint);
-//
-//                             //the total number of bytes downloaded from and uploaded to this peer.
-//                             //These numbers do not include the protocol chatter, but only the
-//                             //payload data.
-//                            LOG("Upload. Total download: " << pi.total_download)
-//                            LOG("Upload. Total upload: " << pi.total_upload)
-//                        }
-//                    }
-                    break;
-                }
-
-                case lt::portmap_log_alert::alert_type: {
-                    auto *theAlert = dynamic_cast<lt::portmap_log_alert *>(alert);
-                    _LOG( "portmap_log_alert: " << theAlert->log_message() )
-                    break;
-                }
-                    
-//                case lt::dht_pkt_alert::alert_type: {
-//                    auto *theAlert = dynamic_cast<lt::dht_pkt_alert *>(alert);
-//                    _LOG( "dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
-//                    break;
-//                }
-
-                default: {
-//                    if ( alert->type() != 52 && alert->type() != 78 && alert->type() != 86
-//                        && alert->type() != 81 && alert->type() != 85
-//                        && m_addressAndPort == "192.168.1.101:5551") //52==portmap_log_alert
-//                    {
-//                        LOG( m_addressAndPort << " alert(" << alert->type() << "): " << alert->message() );
-//                    }
+                        
+                    case lt::udp_error_alert::alert_type: {
+                        auto *theAlert = dynamic_cast<lt::udp_error_alert *>(alert);
+                        
+                        if ( theAlert ) {
+                            LOG(  "udp error: " << theAlert->message())
+                        }
+                        break;
+                    }
+                        
+                    case lt::peer_error_alert::alert_type: {
+                        auto *theAlert = dynamic_cast<lt::peer_error_alert *>(alert);
+                        
+                        if ( theAlert ) {
+                            LOG(  m_addressAndPort << ": peer error: " << theAlert->message())
+                        }
+                        break;
+                    }
+                        
+                    case lt::file_error_alert::alert_type: {
+                        auto *theAlert = dynamic_cast<lt::file_error_alert *>(alert);
+                        
+                        if ( theAlert ) {
+                            LOG(  "file error: " << theAlert->message())
+                        }
+                        break;
+                    }
+                        
+                    case lt::block_uploaded_alert::alert_type: {
+                        //                    auto *theAlert = dynamic_cast<lt::block_uploaded_alert *>(alert);
+                        //                    //TODO download statistic!
+                        //                    if (theAlert) {
+                        //                        LOG("block_uploaded: " << theAlert->message())
+                        //
+                        //                        // get peers info
+                        //                        std::vector<lt::peer_info> peers;
+                        //                        theAlert->handle.get_peer_info(peers);
+                        //
+                        //                        for (const lt::peer_info &pi : peers) {
+                        //                            LOG("Upload. client: " << pi.client);
+                        //                            LOG("Upload. ip: " << pi.ip);
+                        //                            LOG("Upload. pid: " << pi.pid.to_string());
+                        //                            LOG("Upload. local_endpoint: " << pi.local_endpoint);
+                        //
+                        //                             //the total number of bytes downloaded from and uploaded to this peer.
+                        //                             //These numbers do not include the protocol chatter, but only the
+                        //                             //payload data.
+                        //                            LOG("Upload. Total download: " << pi.total_download)
+                        //                            LOG("Upload. Total upload: " << pi.total_upload)
+                        //                        }
+                        //                    }
+                        break;
+                    }
+                        
+                        //                case lt::portmap_log_alert::alert_type: {
+                        //                    auto *theAlert = dynamic_cast<lt::portmap_log_alert *>(alert);
+                        //                    _LOG( "portmap_log_alert: " << theAlert->log_message() )
+                        //                    break;
+                        //                }
+                        
+                    case lt::dht_pkt_alert::alert_type: {
+                        auto *theAlert = dynamic_cast<lt::dht_pkt_alert *>(alert);
+                        _LOG( "dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
+                        break;
+                    }
+                        
+                    default: {
+                        //                    if ( alert->type() != 52 && alert->type() != 78 && alert->type() != 86
+                        //                        && alert->type() != 81 && alert->type() != 85
+                        //                        && m_addressAndPort == "192.168.1.101:5551") //52==portmap_log_alert
+                        //                    {
+                        //                        LOG( m_addressAndPort << " alert(" << alert->type() << "): " << alert->message() );
+                        //                    }
+                    }
                 }
             }
+        }
+        catch(std::runtime_error& ex)
+        {
+            _LOG( "!!!ERROR!!!: unhandled exception: " << ex.what() );
+            _LOG( "!!!ERROR!!!: unhandled exception in alertHandler()");
+        }
+        catch(...)
+        {
+            _LOG( "!!!ERROR!!!: unhandled exception in alertHandler()");
         }
     }
 };
