@@ -895,6 +895,7 @@ private:
         boost::split( addressAndPort, response, [](char c){ return c=='?'; } );
         if (addressAndPort.size() != 2)
         {
+            _LOG( "!!!ERROR!!! Bad endpoint data" )
             return;
         }
 
@@ -902,7 +903,7 @@ private:
         auto addr = boost::asio::ip::make_address(addressAndPort[0],ec);
         if (ec)
         {
-            _LOG( "DefaultSession::processEndpointItem: " << ec.message() << " code: " << ec.value() )
+            _LOG( "!!!ERROR!!! DefaultSession::processEndpointItem: " << ec.message() << " code: " << ec.value() )
             return;
         }
 
