@@ -6,6 +6,7 @@
 
 #include "drive/Session.h"
 #include "ReplicatorInt.h"
+#include "Kademlia.h"
 #include "drive/Utils.h"
 #include "drive/log.h"
 
