@@ -1,0 +1,601 @@
+modprobe dummy
+
+ip link add eth1 type dummy
+ip address change dev eth10 192.168.10.1
+
+ip link add eth2 type dummy
+ip address change dev eth10 192.168.10.2
+
+ip link add eth3 type dummy
+ip address change dev eth10 192.168.10.3
+
+ip link add eth4 type dummy
+ip address change dev eth10 192.168.10.4
+
+ip link add eth5 type dummy
+ip address change dev eth10 192.168.10.5
+
+ip link add eth6 type dummy
+ip address change dev eth10 192.168.10.6
+
+ip link add eth7 type dummy
+ip address change dev eth10 192.168.10.7
+
+ip link add eth8 type dummy
+ip address change dev eth10 192.168.10.8
+
+ip link add eth9 type dummy
+ip address change dev eth10 192.168.10.9
+
+ip link add eth10 type dummy
+ip address change dev eth10 192.168.10.10
+
+ip link add eth11 type dummy
+ip address change dev eth10 192.168.10.11
+
+ip link add eth12 type dummy
+ip address change dev eth10 192.168.10.12
+
+ip link add eth13 type dummy
+ip address change dev eth10 192.168.10.13
+
+ip link add eth14 type dummy
+ip address change dev eth10 192.168.10.14
+
+ip link add eth15 type dummy
+ip address change dev eth10 192.168.10.15
+
+ip link add eth16 type dummy
+ip address change dev eth10 192.168.10.16
+
+ip link add eth17 type dummy
+ip address change dev eth10 192.168.10.17
+
+ip link add eth18 type dummy
+ip address change dev eth10 192.168.10.18
+
+ip link add eth19 type dummy
+ip address change dev eth10 192.168.10.19
+
+ip link add eth20 type dummy
+ip address change dev eth10 192.168.10.20
+
+ip link add eth21 type dummy
+ip address change dev eth10 192.168.10.21
+
+ip link add eth22 type dummy
+ip address change dev eth10 192.168.10.22
+
+ip link add eth23 type dummy
+ip address change dev eth10 192.168.10.23
+
+ip link add eth24 type dummy
+ip address change dev eth10 192.168.10.24
+
+ip link add eth25 type dummy
+ip address change dev eth10 192.168.10.25
+
+ip link add eth26 type dummy
+ip address change dev eth10 192.168.10.26
+
+ip link add eth27 type dummy
+ip address change dev eth10 192.168.10.27
+
+ip link add eth28 type dummy
+ip address change dev eth10 192.168.10.28
+
+ip link add eth29 type dummy
+ip address change dev eth10 192.168.10.29
+
+ip link add eth30 type dummy
+ip address change dev eth10 192.168.10.30
+
+ip link add eth31 type dummy
+ip address change dev eth10 192.168.10.31
+
+ip link add eth32 type dummy
+ip address change dev eth10 192.168.10.32
+
+ip link add eth33 type dummy
+ip address change dev eth10 192.168.10.33
+
+ip link add eth34 type dummy
+ip address change dev eth10 192.168.10.34
+
+ip link add eth35 type dummy
+ip address change dev eth10 192.168.10.35
+
+ip link add eth36 type dummy
+ip address change dev eth10 192.168.10.36
+
+ip link add eth37 type dummy
+ip address change dev eth10 192.168.10.37
+
+ip link add eth38 type dummy
+ip address change dev eth10 192.168.10.38
+
+ip link add eth39 type dummy
+ip address change dev eth10 192.168.10.39
+
+ip link add eth40 type dummy
+ip address change dev eth10 192.168.10.40
+
+ip link add eth41 type dummy
+ip address change dev eth10 192.168.10.41
+
+ip link add eth42 type dummy
+ip address change dev eth10 192.168.10.42
+
+ip link add eth43 type dummy
+ip address change dev eth10 192.168.10.43
+
+ip link add eth44 type dummy
+ip address change dev eth10 192.168.10.44
+
+ip link add eth45 type dummy
+ip address change dev eth10 192.168.10.45
+
+ip link add eth46 type dummy
+ip address change dev eth10 192.168.10.46
+
+ip link add eth47 type dummy
+ip address change dev eth10 192.168.10.47
+
+ip link add eth48 type dummy
+ip address change dev eth10 192.168.10.48
+
+ip link add eth49 type dummy
+ip address change dev eth10 192.168.10.49
+
+ip link add eth50 type dummy
+ip address change dev eth10 192.168.10.50
+
+ip link add eth51 type dummy
+ip address change dev eth10 192.168.10.51
+
+ip link add eth52 type dummy
+ip address change dev eth10 192.168.10.52
+
+ip link add eth53 type dummy
+ip address change dev eth10 192.168.10.53
+
+ip link add eth54 type dummy
+ip address change dev eth10 192.168.10.54
+
+ip link add eth55 type dummy
+ip address change dev eth10 192.168.10.55
+
+ip link add eth56 type dummy
+ip address change dev eth10 192.168.10.56
+
+ip link add eth57 type dummy
+ip address change dev eth10 192.168.10.57
+
+ip link add eth58 type dummy
+ip address change dev eth10 192.168.10.58
+
+ip link add eth59 type dummy
+ip address change dev eth10 192.168.10.59
+
+ip link add eth60 type dummy
+ip address change dev eth10 192.168.10.60
+
+ip link add eth61 type dummy
+ip address change dev eth10 192.168.10.61
+
+ip link add eth62 type dummy
+ip address change dev eth10 192.168.10.62
+
+ip link add eth63 type dummy
+ip address change dev eth10 192.168.10.63
+
+ip link add eth64 type dummy
+ip address change dev eth10 192.168.10.64
+
+ip link add eth65 type dummy
+ip address change dev eth10 192.168.10.65
+
+ip link add eth66 type dummy
+ip address change dev eth10 192.168.10.66
+
+ip link add eth67 type dummy
+ip address change dev eth10 192.168.10.67
+
+ip link add eth68 type dummy
+ip address change dev eth10 192.168.10.68
+
+ip link add eth69 type dummy
+ip address change dev eth10 192.168.10.69
+
+ip link add eth70 type dummy
+ip address change dev eth10 192.168.10.70
+
+ip link add eth71 type dummy
+ip address change dev eth10 192.168.10.71
+
+ip link add eth72 type dummy
+ip address change dev eth10 192.168.10.72
+
+ip link add eth73 type dummy
+ip address change dev eth10 192.168.10.73
+
+ip link add eth74 type dummy
+ip address change dev eth10 192.168.10.74
+
+ip link add eth75 type dummy
+ip address change dev eth10 192.168.10.75
+
+ip link add eth76 type dummy
+ip address change dev eth10 192.168.10.76
+
+ip link add eth77 type dummy
+ip address change dev eth10 192.168.10.77
+
+ip link add eth78 type dummy
+ip address change dev eth10 192.168.10.78
+
+ip link add eth79 type dummy
+ip address change dev eth10 192.168.10.79
+
+ip link add eth80 type dummy
+ip address change dev eth10 192.168.10.80
+
+ip link add eth81 type dummy
+ip address change dev eth10 192.168.10.81
+
+ip link add eth82 type dummy
+ip address change dev eth10 192.168.10.82
+
+ip link add eth83 type dummy
+ip address change dev eth10 192.168.10.83
+
+ip link add eth84 type dummy
+ip address change dev eth10 192.168.10.84
+
+ip link add eth85 type dummy
+ip address change dev eth10 192.168.10.85
+
+ip link add eth86 type dummy
+ip address change dev eth10 192.168.10.86
+
+ip link add eth87 type dummy
+ip address change dev eth10 192.168.10.87
+
+ip link add eth88 type dummy
+ip address change dev eth10 192.168.10.88
+
+ip link add eth89 type dummy
+ip address change dev eth10 192.168.10.89
+
+ip link add eth90 type dummy
+ip address change dev eth10 192.168.10.90
+
+ip link add eth91 type dummy
+ip address change dev eth10 192.168.10.91
+
+ip link add eth92 type dummy
+ip address change dev eth10 192.168.10.92
+
+ip link add eth93 type dummy
+ip address change dev eth10 192.168.10.93
+
+ip link add eth94 type dummy
+ip address change dev eth10 192.168.10.94
+
+ip link add eth95 type dummy
+ip address change dev eth10 192.168.10.95
+
+ip link add eth96 type dummy
+ip address change dev eth10 192.168.10.96
+
+ip link add eth97 type dummy
+ip address change dev eth10 192.168.10.97
+
+ip link add eth98 type dummy
+ip address change dev eth10 192.168.10.98
+
+ip link add eth99 type dummy
+ip address change dev eth10 192.168.10.99
+
+ip link add eth100 type dummy
+ip address change dev eth10 192.168.10.100
+
+ip link add eth101 type dummy
+ip address change dev eth10 192.168.10.101
+
+ip link add eth102 type dummy
+ip address change dev eth10 192.168.10.102
+
+ip link add eth103 type dummy
+ip address change dev eth10 192.168.10.103
+
+ip link add eth104 type dummy
+ip address change dev eth10 192.168.10.104
+
+ip link add eth105 type dummy
+ip address change dev eth10 192.168.10.105
+
+ip link add eth106 type dummy
+ip address change dev eth10 192.168.10.106
+
+ip link add eth107 type dummy
+ip address change dev eth10 192.168.10.107
+
+ip link add eth108 type dummy
+ip address change dev eth10 192.168.10.108
+
+ip link add eth109 type dummy
+ip address change dev eth10 192.168.10.109
+
+ip link add eth110 type dummy
+ip address change dev eth10 192.168.10.110
+
+ip link add eth111 type dummy
+ip address change dev eth10 192.168.10.111
+
+ip link add eth112 type dummy
+ip address change dev eth10 192.168.10.112
+
+ip link add eth113 type dummy
+ip address change dev eth10 192.168.10.113
+
+ip link add eth114 type dummy
+ip address change dev eth10 192.168.10.114
+
+ip link add eth115 type dummy
+ip address change dev eth10 192.168.10.115
+
+ip link add eth116 type dummy
+ip address change dev eth10 192.168.10.116
+
+ip link add eth117 type dummy
+ip address change dev eth10 192.168.10.117
+
+ip link add eth118 type dummy
+ip address change dev eth10 192.168.10.118
+
+ip link add eth119 type dummy
+ip address change dev eth10 192.168.10.119
+
+ip link add eth120 type dummy
+ip address change dev eth10 192.168.10.120
+
+ip link add eth121 type dummy
+ip address change dev eth10 192.168.10.121
+
+ip link add eth122 type dummy
+ip address change dev eth10 192.168.10.122
+
+ip link add eth123 type dummy
+ip address change dev eth10 192.168.10.123
+
+ip link add eth124 type dummy
+ip address change dev eth10 192.168.10.124
+
+ip link add eth125 type dummy
+ip address change dev eth10 192.168.10.125
+
+ip link add eth126 type dummy
+ip address change dev eth10 192.168.10.126
+
+ip link add eth127 type dummy
+ip address change dev eth10 192.168.10.127
+
+ip link add eth128 type dummy
+ip address change dev eth10 192.168.10.128
+
+ip link add eth129 type dummy
+ip address change dev eth10 192.168.10.129
+
+ip link add eth130 type dummy
+ip address change dev eth10 192.168.10.130
+
+ip link add eth131 type dummy
+ip address change dev eth10 192.168.10.131
+
+ip link add eth132 type dummy
+ip address change dev eth10 192.168.10.132
+
+ip link add eth133 type dummy
+ip address change dev eth10 192.168.10.133
+
+ip link add eth134 type dummy
+ip address change dev eth10 192.168.10.134
+
+ip link add eth135 type dummy
+ip address change dev eth10 192.168.10.135
+
+ip link add eth136 type dummy
+ip address change dev eth10 192.168.10.136
+
+ip link add eth137 type dummy
+ip address change dev eth10 192.168.10.137
+
+ip link add eth138 type dummy
+ip address change dev eth10 192.168.10.138
+
+ip link add eth139 type dummy
+ip address change dev eth10 192.168.10.139
+
+ip link add eth140 type dummy
+ip address change dev eth10 192.168.10.140
+
+ip link add eth141 type dummy
+ip address change dev eth10 192.168.10.141
+
+ip link add eth142 type dummy
+ip address change dev eth10 192.168.10.142
+
+ip link add eth143 type dummy
+ip address change dev eth10 192.168.10.143
+
+ip link add eth144 type dummy
+ip address change dev eth10 192.168.10.144
+
+ip link add eth145 type dummy
+ip address change dev eth10 192.168.10.145
+
+ip link add eth146 type dummy
+ip address change dev eth10 192.168.10.146
+
+ip link add eth147 type dummy
+ip address change dev eth10 192.168.10.147
+
+ip link add eth148 type dummy
+ip address change dev eth10 192.168.10.148
+
+ip link add eth149 type dummy
+ip address change dev eth10 192.168.10.149
+
+ip link add eth150 type dummy
+ip address change dev eth10 192.168.10.150
+
+ip link add eth151 type dummy
+ip address change dev eth10 192.168.10.151
+
+ip link add eth152 type dummy
+ip address change dev eth10 192.168.10.152
+
+ip link add eth153 type dummy
+ip address change dev eth10 192.168.10.153
+
+ip link add eth154 type dummy
+ip address change dev eth10 192.168.10.154
+
+ip link add eth155 type dummy
+ip address change dev eth10 192.168.10.155
+
+ip link add eth156 type dummy
+ip address change dev eth10 192.168.10.156
+
+ip link add eth157 type dummy
+ip address change dev eth10 192.168.10.157
+
+ip link add eth158 type dummy
+ip address change dev eth10 192.168.10.158
+
+ip link add eth159 type dummy
+ip address change dev eth10 192.168.10.159
+
+ip link add eth160 type dummy
+ip address change dev eth10 192.168.10.160
+
+ip link add eth161 type dummy
+ip address change dev eth10 192.168.10.161
+
+ip link add eth162 type dummy
+ip address change dev eth10 192.168.10.162
+
+ip link add eth163 type dummy
+ip address change dev eth10 192.168.10.163
+
+ip link add eth164 type dummy
+ip address change dev eth10 192.168.10.164
+
+ip link add eth165 type dummy
+ip address change dev eth10 192.168.10.165
+
+ip link add eth166 type dummy
+ip address change dev eth10 192.168.10.166
+
+ip link add eth167 type dummy
+ip address change dev eth10 192.168.10.167
+
+ip link add eth168 type dummy
+ip address change dev eth10 192.168.10.168
+
+ip link add eth169 type dummy
+ip address change dev eth10 192.168.10.169
+
+ip link add eth170 type dummy
+ip address change dev eth10 192.168.10.170
+
+ip link add eth171 type dummy
+ip address change dev eth10 192.168.10.171
+
+ip link add eth172 type dummy
+ip address change dev eth10 192.168.10.172
+
+ip link add eth173 type dummy
+ip address change dev eth10 192.168.10.173
+
+ip link add eth174 type dummy
+ip address change dev eth10 192.168.10.174
+
+ip link add eth175 type dummy
+ip address change dev eth10 192.168.10.175
+
+ip link add eth176 type dummy
+ip address change dev eth10 192.168.10.176
+
+ip link add eth177 type dummy
+ip address change dev eth10 192.168.10.177
+
+ip link add eth178 type dummy
+ip address change dev eth10 192.168.10.178
+
+ip link add eth179 type dummy
+ip address change dev eth10 192.168.10.179
+
+ip link add eth180 type dummy
+ip address change dev eth10 192.168.10.180
+
+ip link add eth181 type dummy
+ip address change dev eth10 192.168.10.181
+
+ip link add eth182 type dummy
+ip address change dev eth10 192.168.10.182
+
+ip link add eth183 type dummy
+ip address change dev eth10 192.168.10.183
+
+ip link add eth184 type dummy
+ip address change dev eth10 192.168.10.184
+
+ip link add eth185 type dummy
+ip address change dev eth10 192.168.10.185
+
+ip link add eth186 type dummy
+ip address change dev eth10 192.168.10.186
+
+ip link add eth187 type dummy
+ip address change dev eth10 192.168.10.187
+
+ip link add eth188 type dummy
+ip address change dev eth10 192.168.10.188
+
+ip link add eth189 type dummy
+ip address change dev eth10 192.168.10.189
+
+ip link add eth190 type dummy
+ip address change dev eth10 192.168.10.190
+
+ip link add eth191 type dummy
+ip address change dev eth10 192.168.10.191
+
+ip link add eth192 type dummy
+ip address change dev eth10 192.168.10.192
+
+ip link add eth193 type dummy
+ip address change dev eth10 192.168.10.193
+
+ip link add eth194 type dummy
+ip address change dev eth10 192.168.10.194
+
+ip link add eth195 type dummy
+ip address change dev eth10 192.168.10.195
+
+ip link add eth196 type dummy
+ip address change dev eth10 192.168.10.196
+
+ip link add eth197 type dummy
+ip address change dev eth10 192.168.10.197
+
+ip link add eth198 type dummy
+ip address change dev eth10 192.168.10.198
+
+ip link add eth199 type dummy
+ip address change dev eth10 192.168.10.199
+
+ip link add eth200 type dummy
+ip address change dev eth10 192.168.10.200
