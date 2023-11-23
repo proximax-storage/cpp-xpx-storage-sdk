@@ -1177,7 +1177,7 @@ inline std::shared_ptr<ClientSession> createClientSession(  const crypto::KeyPai
     //LOG( "creating: " << dbgClientName << " with key: " <<  int(keyPair.publicKey().array()[0]) )
 
     std::shared_ptr<ClientSession> clientSession = std::make_shared<ClientSession>( keyPair, dbgClientName );
-    clientSession->m_session = createDefaultSession( address, errorHandler, clientSession, bootstraps, {} );
+    clientSession->m_session = createDefaultSession( address, errorHandler, clientSession, { ReplicatorInfo{bootstraps[0],{}}}, {} );
     clientSession->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     boost::asio::post(clientSession->session()->lt_session().get_context(), [clientSession] {
         clientSession->m_endpointsManager.start(clientSession->session());

@@ -80,6 +80,7 @@ private:
 
     std::shared_ptr<EndpointsManager> m_endpointsManager;
     RcptSyncronizer m_dnOpinionSyncronizer;
+    std::vector<ReplicatorInfo>       m_bootstraps;
 
     // key is verify tx
     std::map<std::array<uint8_t, 32>, VerifyOpinion> m_verifyApprovalMap;
@@ -119,6 +120,7 @@ public:
         m_eventHandler( handler ),
         m_dbgEventHandler( dbgEventHandler ),
         m_endpointsManager( std::make_shared<EndpointsManager>(m_keyPair, bootstraps, m_dbgOurPeerName) ),
+        m_bootstraps(bootstraps),
         m_dnOpinionSyncronizer( *this, m_dbgOurPeerName )
     {
         _LOG("Replicator Public Key: " << m_keyPair.publicKey())
@@ -207,12 +209,6 @@ public:
 
     void start() override
     {
-        endpoint_list bootstrapEndpoints;
-        for ( const auto& info: m_endpointsManager->getBootstraps())
-        {
-            bootstrapEndpoints.push_back( info.m_endpoint );
-        }
-
         std::promise<void> bootstrapBarrier;
         m_bootstrapFuture = bootstrapBarrier.get_future();
 
@@ -230,7 +226,7 @@ public:
                                           },
                                           weak_from_this(),
                                           weak_from_this(),
-                                          bootstrapEndpoints,
+                                          m_bootstraps,
                                           std::move( bootstrapBarrier ));
 
         m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName;

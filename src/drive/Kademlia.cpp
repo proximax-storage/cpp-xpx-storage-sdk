@@ -7,7 +7,7 @@ class KademliaDhtImpl : public Kademlia
 {
     KademliaTransport&              m_kademliaTransport;
     const crypto::KeyPair&          m_keyPair;
-    std::set<BoostrapNodeInfo>      m_bootstraps;
+    std::vector<NodeInfo>           m_bootstraps;
     uint8_t                         m_myPort;
     bool                            m_isClient;
 
@@ -16,11 +16,11 @@ private:
 
 public:
     
-    KademliaDhtImpl(  KademliaTransport&                    kademliaTransport,
-                      const crypto::KeyPair&                keyPair,
-                      const std::set<BoostrapNodeInfo>&     bootstraps,
-                      uint8_t                               myPort,
-                      bool                                  isClient )
+    KademliaDhtImpl(  KademliaTransport&            kademliaTransport,
+                      const crypto::KeyPair&        keyPair,
+                      const std::vector<NodeInfo>&  bootstraps,
+                      uint8_t                       myPort,
+                      bool                          isClient )
         :   m_kademliaTransport(kademliaTransport),
             m_keyPair(keyPair),
             m_bootstraps(bootstraps),
@@ -29,7 +29,7 @@ public:
     {
         std::erase_if( m_bootstraps, [this]( const auto& item )
         {
-            return m_keyPair.publicKey().array() == item.m_peerKey;
+            return m_keyPair.publicKey().array() == item.m_publicKey;
         });
         
 //        for( const auto& nodeInfo : bootstraps )
@@ -43,22 +43,34 @@ public:
         return MyIpResponse{};
     }
     
+    void            onGetMyIpResponse( const std::string& ) override
+    {
+    }
+    
     PeerIpResponse  onGetPeerIpRequest( const std::string& ) override
     {
         return PeerIpResponse{};
     }
 
-    void onMyIpResponse( const std::string& )
+    void            onGetPeerIpResponse( const std::string& ) override
     {
-        //...
     }
-    
-    void onPeerIpResponse( const std::string& )
-    {
-        //...
-    }
+
 };
 
+
+std::unique_ptr<kademlia::Kademlia> createKademlia(  KademliaTransport&             kademliaTransport,
+                                                     const crypto::KeyPair&         keyPair,
+                                                     const std::vector<NodeInfo>&   bootstraps,
+                                                     uint8_t                        myPort,
+                                                     bool                           isClient )
+{
+    return std::make_unique<kademlia::KademliaDhtImpl>( kademliaTransport,
+                                                        keyPair,
+                                                        bootstraps,
+                                                        myPort,
+                                                        isClient );
+}
 
 }}}
 

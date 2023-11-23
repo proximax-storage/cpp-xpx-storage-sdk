@@ -191,28 +191,23 @@ public:
     //
     // Requests
     //
-    virtual void sendGetMyIpRequest( const MyIpRequest& request ) = 0;
-    virtual void sendGetPeerIpRequest( const MyIpRequest& request ) = 0;
+    virtual void sendGetMyIpRequest( const MyIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) = 0;
+    virtual void sendGetPeerIpRequest( const PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) = 0;
 
     virtual void onGetMyIpRequest( const std::string& ) = 0;
     virtual void onGetPeerIpRequest( const std::string& ) = 0;
-
-    //
-    // Responses
-    //
-    virtual void sendGetMyIpResponse( const MyIpResponse& request ) = 0;
-    virtual void sendGetPeerIpResponse( const MyIpRequest& request ) = 0;
 
     virtual void onGetMyIpResponse( const std::string& ) = 0;
     virtual void onGetPeerIpResponse( const std::string& ) = 0;
 };
 
-struct BoostrapNodeInfo {
-    PeerKey                         m_peerKey;
-    boost::asio::ip::udp::endpoint  m_endpoint;
-    
-    bool operator< (const BoostrapNodeInfo& info) const { return m_peerKey < info.m_peerKey; }
-};
+using NodeInfo = ReplicatorInfo;
+
+std::unique_ptr<kademlia::Kademlia> createKademlia(  KademliaTransport&             kademliaTransport,
+                                                     const crypto::KeyPair&         keyPair,
+                                                     const std::vector<NodeInfo>&   bootstraps,
+                                                     uint8_t                        myPort,
+                                                     bool                           isClient );
 
 }}}
 

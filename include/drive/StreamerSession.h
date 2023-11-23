@@ -506,7 +506,7 @@ inline std::shared_ptr<StreamerSession> createStreamerSession( const crypto::Key
                                                                const char*                   dbgClientName = "" )
 {
     std::shared_ptr<StreamerSession> session = std::make_shared<StreamerSession>( keyPair, dbgClientName );
-    session->m_session = createDefaultSession( address, errorHandler, session, bootstraps, session );
+    session->m_session = createDefaultSession( address, errorHandler, session, { ReplicatorInfo{bootstraps[0],{}}}, session );
     session->m_session->lt_session().add_extension( std::dynamic_pointer_cast<lt::plugin>( session ) );
     session->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     

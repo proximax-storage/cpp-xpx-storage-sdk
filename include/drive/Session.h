@@ -246,13 +246,13 @@ PLUGIN_API std::shared_ptr<Session> createDefaultSession( boost::asio::io_contex
                                                           const LibTorrentErrorHandler&,
                                                           std::weak_ptr<ReplicatorInt>,
                                                           std::weak_ptr<lt::session_delegate>,
-                                                          const endpoint_list& bootstraps,
+                                                          const std::vector<ReplicatorInfo>& bootstraps,
                                                           std::promise<void>&& bootstrapBarrier );
 
 PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address,
                                                           const LibTorrentErrorHandler&,
                                                           std::weak_ptr<lt::session_delegate>,
-                                                          const endpoint_list& bootstraps,
+                                                          const std::vector<ReplicatorInfo>& bootstraps,
                                                           std::weak_ptr<DhtMessageHandler> dhtMessageHandler );
 
 }
