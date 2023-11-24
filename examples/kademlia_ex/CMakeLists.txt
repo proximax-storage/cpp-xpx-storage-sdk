@@ -14,7 +14,7 @@ add_definitions(-DENABLE_VERIFICATIONS)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     add_definitions(-D_GNU_SOURCE)
-    target_link_libraries(modifyDriveFlat3 drive storage-crypto torrent-sirius )
+    target_link_libraries(kademlia_ex drive storage-crypto torrent-sirius )
 else()
     target_link_libraries(kademlia_ex drive storage-crypto torrent-sirius Threads::Threads)
 endif()

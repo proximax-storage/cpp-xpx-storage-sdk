@@ -1,26 +1,44 @@
 #include "drive/Session.h"
 #include "Kademlia.h"
+#include "KademliaBucket.h"
+#include "KademliaNode.h"
 
 namespace sirius { namespace drive { namespace kademlia {
 
-class KademliaDhtImpl : public Kademlia
+struct RequestPullItem
 {
-    KademliaTransport&              m_kademliaTransport;
+    
+};
+
+class KademliaDht
+{
+    
+    
+};
+
+
+class EndpointCatalogueImpl : public EndpointCatalogue
+{
+    Transport&                      m_kademliaTransport;
     const crypto::KeyPair&          m_keyPair;
     std::vector<NodeInfo>           m_bootstraps;
     uint8_t                         m_myPort;
     bool                            m_isClient;
+
+    std::map<PeerKey,boost::asio::ip::udp::endpoint> m_localEndpointMap;
+    
+    KademliaDht                     m_dht;
 
 private:
     boost::asio::ip::udp::endpoint  m_myIp;
 
 public:
     
-    KademliaDhtImpl(  KademliaTransport&            kademliaTransport,
-                      const crypto::KeyPair&        keyPair,
-                      const std::vector<NodeInfo>&  bootstraps,
-                      uint8_t                       myPort,
-                      bool                          isClient )
+    EndpointCatalogueImpl(  Transport&                    kademliaTransport,
+                            const crypto::KeyPair&        keyPair,
+                            const std::vector<NodeInfo>&  bootstraps,
+                            uint8_t                       myPort,
+                            bool                          isClient )
         :   m_kademliaTransport(kademliaTransport),
             m_keyPair(keyPair),
             m_bootstraps(bootstraps),
@@ -32,12 +50,17 @@ public:
             return m_keyPair.publicKey().array() == item.m_publicKey;
         });
         
-//        for( const auto& nodeInfo : bootstraps )
-//        {
-//            addToBuckets(nodeInfo);
-//        }
+        for( const auto& nodeInfo : m_bootstraps )
+        {
+            m_localEndpointMap[nodeInfo.m_publicKey.array()] = nodeInfo.m_endpoint;
+        }
     }
-    
+
+    std::optional<boost::asio::ip::udp::endpoint> getEndpoint( PeerKey& key )
+    {
+        return {};
+    }
+
     MyIpResponse    onGetMyIpRequest( const std::string& ) override
     {
         return MyIpResponse{};
@@ -59,17 +82,18 @@ public:
 };
 
 
-std::unique_ptr<kademlia::Kademlia> createKademlia(  KademliaTransport&             kademliaTransport,
-                                                     const crypto::KeyPair&         keyPair,
-                                                     const std::vector<NodeInfo>&   bootstraps,
-                                                     uint8_t                        myPort,
-                                                     bool                           isClient )
+std::unique_ptr<kademlia::EndpointCatalogue> createEndpointCatalogue(
+                                                             Transport&                     kademliaTransport,
+                                                             const crypto::KeyPair&         keyPair,
+                                                             const std::vector<NodeInfo>&   bootstraps,
+                                                             uint8_t                        myPort,
+                                                             bool                           isClient )
 {
-    return std::make_unique<kademlia::KademliaDhtImpl>( kademliaTransport,
-                                                        keyPair,
-                                                        bootstraps,
-                                                        myPort,
-                                                        isClient );
+    return std::make_unique<kademlia::EndpointCatalogueImpl>( kademliaTransport,
+                                                              keyPair,
+                                                              bootstraps,
+                                                              myPort,
+                                                              isClient );
 }
 
 }}}

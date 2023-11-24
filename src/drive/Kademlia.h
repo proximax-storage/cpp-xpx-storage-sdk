@@ -164,29 +164,12 @@ struct PeerIpResponse
 };
 
 //-----------------------------------------------------
-// Kademlia interface
+// Kademlia Transport interface
 //-----------------------------------------------------
-class Kademlia
+class Transport
 {
 public:
-    virtual ~Kademlia() = default;
-    
-    // on 'get-my-ip' request
-    virtual MyIpResponse    onGetMyIpRequest( const std::string& ) = 0;
-    virtual void            onGetMyIpResponse( const std::string& ) = 0;
-
-    // on 'get-ip' request
-    virtual PeerIpResponse  onGetPeerIpRequest( const std::string& ) = 0;
-    virtual void            onGetPeerIpResponse( const std::string& ) = 0;
-};
-
-//-----------------------------------------------------
-// KademliaTransport interface
-//-----------------------------------------------------
-class KademliaTransport
-{
-public:
-    virtual ~KademliaTransport() = default;
+    virtual ~Transport() = default;
 
     //
     // Requests
@@ -201,13 +184,34 @@ public:
     virtual void onGetPeerIpResponse( const std::string& ) = 0;
 };
 
+//-----------------------------------------------------
+// EndpointCatalogue interface
+//-----------------------------------------------------
+class EndpointCatalogue
+{
+public:
+    virtual ~EndpointCatalogue() = default;
+    
+    std::optional<boost::asio::ip::udp::endpoint> getEndpoint( PeerKey& key );
+    
+    // 'get-my-ip'
+    virtual MyIpResponse    onGetMyIpRequest( const std::string& ) = 0;
+    virtual void            onGetMyIpResponse( const std::string& ) = 0;
+
+    // 'get-ip'
+    virtual PeerIpResponse  onGetPeerIpRequest( const std::string& ) = 0;
+    virtual void            onGetPeerIpResponse( const std::string& ) = 0;
+};
+
+
 using NodeInfo = ReplicatorInfo;
 
-std::unique_ptr<kademlia::Kademlia> createKademlia(  KademliaTransport&             kademliaTransport,
-                                                     const crypto::KeyPair&         keyPair,
-                                                     const std::vector<NodeInfo>&   bootstraps,
-                                                     uint8_t                        myPort,
-                                                     bool                           isClient );
+std::unique_ptr<kademlia::EndpointCatalogue> createEndpointCatalogue(
+                                                    Transport&                     kademliaTransport,
+                                                    const crypto::KeyPair&         keyPair,
+                                                    const std::vector<NodeInfo>&   bootstraps,
+                                                    uint8_t                        myPort,
+                                                    bool                           isClient );
 
 }}}
 

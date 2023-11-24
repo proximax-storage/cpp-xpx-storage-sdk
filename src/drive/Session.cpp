@@ -93,10 +93,10 @@ struct LtClientData
 // DefaultSession
 //
 class DefaultSession:   public Session,
-                        public kademlia::KademliaTransport,
+                        public kademlia::Transport,
                         public std::enable_shared_from_this<DefaultSession>
 {
-    std::unique_ptr<kademlia::Kademlia> m_kademlia;
+    std::unique_ptr<kademlia::EndpointCatalogue> m_kademlia;
     
     const int64_t			m_maxTotalSize = 256LL * 1024LL * 1024LL * 1024LL; // 256GB
     
@@ -145,7 +145,7 @@ public:
     {
         if ( auto replicatorPtr = replicator.lock(); replicatorPtr )
         {
-            m_kademlia = std::move( kademlia::createKademlia( *this, replicatorPtr->keyPair(), bootstraps, m_listeningPort, false ));
+            m_kademlia = std::move( kademlia::createEndpointCatalogue( *this, replicatorPtr->keyPair(), bootstraps, m_listeningPort, false ));
         }
         else
         {
