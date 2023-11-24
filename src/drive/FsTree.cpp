@@ -483,7 +483,7 @@ bool FsTree::moveFlat( const std::string& srcPathAndName,
                        const std::string& destPathAndName,
                        std::function<void(const InfoHash&)> addInfoHashToFileMapFunc )
 {
-   //TODO? check if dest is a subfolder of src
+   //TODO check if dest is a subfolder of src
 
    fs::path srcPath( srcPathAndName );
    std::string srcFilename = srcPath.filename().string();

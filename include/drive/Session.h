@@ -12,6 +12,7 @@
 #include "IOContextProvider.h"
 
 #include "crypto/Signer.h"
+#include "Kademlia.h"
 
 #include <cereal/archives/binary.hpp>
 
@@ -137,7 +138,7 @@ enum class LogMode: uint8_t {
 //
 // It provides the ability to exchange files
 //
-class Session: public IOContextProvider {
+class Session: public IOContextProvider, public kademlia::Transport {
 public:
 
     using lt_handle = lt::torrent_handle;
@@ -150,6 +151,8 @@ public:
     virtual void      endSession() = 0;
     virtual bool      isEnding() = 0;
 
+    virtual bool      isClient() = 0;
+    
     // It loads existing file from disk
     virtual lt_handle addTorrentFileToSession( const std::filesystem::path&     torrentFilename,
                                                const std::filesystem::path&     folderWhereFileIsLocated,

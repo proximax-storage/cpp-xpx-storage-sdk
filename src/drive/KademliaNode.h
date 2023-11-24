@@ -19,7 +19,7 @@ inline int equalPrefixLength( const PeerKey& a, const PeerKey& b )
 
 
 
-class Node //: public PeerKey, public NodeStatistic
+class HashTable //: public PeerKey, public NodeStatistic
 {
     PeerKey m_key;
     std::array<Bucket,BUCKET_SIZE> m_buckets;
@@ -30,9 +30,9 @@ class Node //: public PeerKey, public NodeStatistic
 //#endif
     
 public:
-    Node(){}
+    HashTable(){}
     
-    Node( const PeerKey& key )
+    HashTable( const PeerKey& key )
     {
         m_key = key;
     }
@@ -42,6 +42,19 @@ public:
     int calcBucketIndex( const PeerKey& candidate ) const
     {
         return equalPrefixLength( this->m_key, candidate );
+    }
+    
+    std::optional<boost::asio::ip::udp::endpoint> getPeerInfo( const PeerKey& key, Bucket* bucket )
+    {
+        auto bucketIndex = 0; //TODO? calcBucketIndex( key );
+        
+        const PeerInfo* info = m_buckets[bucketIndex].getPeerInfo( key );
+        if ( info != nullptr )
+            return info->endpoint();
+        
+        //TODO? up/down algorithm
+        
+        return {};
     }
     
     bool justFind( const PeerKey& searchedNodeKey, int& bucketIndex, bool& isFull )

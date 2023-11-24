@@ -22,7 +22,7 @@ using PeerKey       = std::array<uint8_t,32>;
 //-----------------------------------------------------
 struct PeerInfo
 {
-    PeerKey     m_peerKey;
+    PeerKey     m_publicKey;
     std::string m_address;
     uint16_t    m_port;
     uint64_t    m_time; // uint64_t now = duration_cast(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -34,7 +34,7 @@ struct PeerInfo
     //PeerInfo( const PeerKey& peerKey ) : m_peerKey(peerKey) {}
 
     PeerInfo( const PeerKey& peerKey, boost::asio::ip::udp::endpoint& endpoint )
-      : m_peerKey(peerKey),
+      : m_publicKey(peerKey),
         m_address(endpoint.address().to_string()),
         m_port(endpoint.port()),
         m_time( std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() )
@@ -45,18 +45,22 @@ struct PeerInfo
     template<class Archive>
     void serialize(Archive &arch)
     {
-        arch(m_peerKey);
+        arch(m_publicKey);
         arch(m_address);
         arch(m_port);
         arch(m_time);
         arch(m_signature);
     }
     
+    boost::asio::ip::udp::endpoint endpoint() const {
+        return boost::asio::ip::udp::endpoint{ boost::asio::ip::make_address(m_address), uint16_t(m_port) };
+    }
+    
     bool Verify() const
     {
-        return crypto::Verify( m_peerKey,
+        return crypto::Verify( m_publicKey,
                               {
-            utils::RawBuffer{ (const uint8_t*)&m_peerKey[0], sizeof(m_peerKey) },
+            utils::RawBuffer{ (const uint8_t*)&m_publicKey[0], sizeof(m_publicKey) },
             utils::RawBuffer{ (const uint8_t*)m_address.c_str(), m_address.size() },
             utils::RawBuffer{ (const uint8_t*)m_port, sizeof(m_port) },
             utils::RawBuffer{ (const uint8_t*)m_time, sizeof(m_time) },
@@ -68,7 +72,7 @@ struct PeerInfo
     {
         crypto::Sign( keyPair,
                      {
-            utils::RawBuffer{ (const uint8_t*)&m_peerKey[0], sizeof(m_peerKey) },
+            utils::RawBuffer{ (const uint8_t*)&m_publicKey[0], sizeof(m_publicKey) },
             utils::RawBuffer{ (const uint8_t*)m_address.c_str(), m_address.size() },
             utils::RawBuffer{ (const uint8_t*)m_port, sizeof(m_port) },
             utils::RawBuffer{ (const uint8_t*)m_time, sizeof(m_time) },
@@ -192,8 +196,10 @@ class EndpointCatalogue
 public:
     virtual ~EndpointCatalogue() = default;
     
-    std::optional<boost::asio::ip::udp::endpoint> getEndpoint( PeerKey& key );
-    
+    virtual PeerKey publicKey() = 0;
+
+    virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( PeerKey& key ) =0;
+
     // 'get-my-ip'
     virtual MyIpResponse    onGetMyIpRequest( const std::string& ) = 0;
     virtual void            onGetMyIpResponse( const std::string& ) = 0;

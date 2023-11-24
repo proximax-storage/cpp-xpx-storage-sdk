@@ -1,24 +1,51 @@
 #include "drive/Session.h"
-#include "Kademlia.h"
+#include "drive/Kademlia.h"
 #include "KademliaBucket.h"
 #include "KademliaNode.h"
+#include "drive/Timer.h"
 
 namespace sirius { namespace drive { namespace kademlia {
 
-struct RequestPullItem
+class PeerSeeker
 {
+    PeerKey                 m_targetPeerKey;
+    std::vector<NodeInfo>   m_candidates;
+    std::set<PeerKey>       m_loserPeers;
     
+    EndpointCatalogue&      m_endpointCatalogue;
+    std::weak_ptr<Session>  m_session;
+    Timer                   m_timer;
+    
+    const int PEER_ASWER_LIMIT_MS = 1000;
+    
+    PeerSeeker( const PeerKey&                  targetPeerKey,
+               const std::vector<NodeInfo>&     candidates,
+               EndpointCatalogue&               endpointCatalogue,
+               std::weak_ptr<Session>           session )
+    :
+        m_targetPeerKey(targetPeerKey),
+        m_candidates(candidates),
+        m_endpointCatalogue(endpointCatalogue),
+        m_session(session)
+    {
+        if ( auto session = m_session.lock(); session )
+        {
+            PeerIpRequest request{ session->isClient(), targetPeerKey, m_endpointCatalogue.publicKey() };
+            //TODO? candidates[0].m_endpoint should be replaced by nearest node
+            session->sendGetPeerIpRequest( request, candidates[0].m_endpoint );
+            m_timer = session->startTimer( PEER_ASWER_LIMIT_MS, []{} );
+        }
+    }
+    
+    void onGetMyIpResponse( const std::string& )
+    {
+    }
 };
-
-class KademliaDht
-{
-    
-    
-};
-
 
 class EndpointCatalogueImpl : public EndpointCatalogue
 {
+    using SeekerMap = std::map<PeerKey,PeerSeeker>;
+    
     Transport&                      m_kademliaTransport;
     const crypto::KeyPair&          m_keyPair;
     std::vector<NodeInfo>           m_bootstraps;
@@ -27,7 +54,8 @@ class EndpointCatalogueImpl : public EndpointCatalogue
 
     std::map<PeerKey,boost::asio::ip::udp::endpoint> m_localEndpointMap;
     
-    KademliaDht                     m_dht;
+    HashTable                      m_hashTable;
+    SeekerMap                      m_seekerMap;
 
 private:
     boost::asio::ip::udp::endpoint  m_myIp;
@@ -56,8 +84,17 @@ public:
         }
     }
 
-    std::optional<boost::asio::ip::udp::endpoint> getEndpoint( PeerKey& key )
+    virtual PeerKey publicKey() override { return m_keyPair.publicKey().array(); }
+
+    std::optional<boost::asio::ip::udp::endpoint> getEndpoint( PeerKey& key ) override
     {
+        if ( auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() )
+        {
+            return it->second;
+        }
+        
+//        m_hashTable->getEndpoint( key );
+        
         return {};
     }
 

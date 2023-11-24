@@ -17,7 +17,7 @@ const size_t BUCKET_SIZE = sizeof(Key)*4;
 
 class Bucket
 {
-    std::vector<NodeInfo> m_nodes;
+    std::vector<PeerInfo> m_nodes;
     
 public:
     
@@ -32,6 +32,16 @@ public:
     bool empty() const { return m_nodes.empty(); }
     
     size_t size() const { return m_nodes.size(); }
+    
+    const PeerInfo* getPeerInfo( const PeerKey& key ) const
+    {
+        for( auto& nodeInfo : m_nodes )
+        {
+            if ( nodeInfo.m_publicKey == key )
+                return &nodeInfo;
+        }
+        return nullptr;
+    }
     
     bool justFindNode( const PeerKey& searchedKey, bool& isFull ) const
     {

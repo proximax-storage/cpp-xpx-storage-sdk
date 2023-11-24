@@ -6,7 +6,6 @@
 
 #include "drive/Session.h"
 #include "ReplicatorInt.h"
-#include "Kademlia.h"
 #include "drive/Utils.h"
 #include "drive/log.h"
 
@@ -93,7 +92,6 @@ struct LtClientData
 // DefaultSession
 //
 class DefaultSession:   public Session,
-                        public kademlia::Transport,
                         public std::enable_shared_from_this<DefaultSession>
 {
     std::unique_ptr<kademlia::EndpointCatalogue> m_kademlia;
@@ -220,6 +218,12 @@ public:
         
         m_stopping = true;
     }
+    
+    virtual bool      isClient() override
+    {
+        return m_replicator.expired();
+    }
+
     
     // for dbg
     lt::session &lt_session() override
