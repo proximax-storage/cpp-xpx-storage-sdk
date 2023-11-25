@@ -33,6 +33,8 @@ public:
     
     size_t size() const { return m_nodes.size(); }
     
+    const std::vector<PeerInfo>& nodes() const { return m_nodes; }
+
     const PeerInfo* getPeerInfo( const PeerKey& key ) const
     {
         for( auto& nodeInfo : m_nodes )

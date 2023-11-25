@@ -14,7 +14,6 @@
 
 namespace sirius { namespace drive { namespace kademlia {
 
-
 using PeerKey       = std::array<uint8_t,32>;
 
 //-----------------------------------------------------
@@ -33,7 +32,7 @@ struct PeerInfo
 
     //PeerInfo( const PeerKey& peerKey ) : m_peerKey(peerKey) {}
 
-    PeerInfo( const PeerKey& peerKey, boost::asio::ip::udp::endpoint& endpoint )
+    PeerInfo( const PeerKey& peerKey, const boost::asio::ip::udp::endpoint& endpoint )
       : m_publicKey(peerKey),
         m_address(endpoint.address().to_string()),
         m_port(endpoint.port()),
@@ -119,9 +118,10 @@ struct MyIpResponse
     //todo for debugging
     MyIpResponse() = default;
     
-    MyIpResponse( const crypto::KeyPair& keyPair, boost::asio::ip::udp::endpoint& queriedEndpoint )
-    : m_response( keyPair.publicKey().array(), queriedEndpoint )
+    MyIpResponse( const crypto::KeyPair& keyPair, const boost::asio::ip::udp::endpoint& queriedEndpoint )
+    : m_badPort(false), m_response( keyPair.publicKey().array(), queriedEndpoint )
     {
+        m_response.m_time = std::chrono::steady_clock::now().time_since_epoch().count();
         m_response.Sign( keyPair );
     }
     
@@ -201,24 +201,25 @@ public:
     virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( PeerKey& key ) =0;
 
     // 'get-my-ip'
-    virtual MyIpResponse    onGetMyIpRequest( const std::string& ) = 0;
+    virtual std::string     onGetMyIpRequest( const std::string& request, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
     virtual void            onGetMyIpResponse( const std::string& ) = 0;
 
     // 'get-ip'
-    virtual PeerIpResponse  onGetPeerIpRequest( const std::string& ) = 0;
+    virtual std::string     onGetPeerIpRequest( const std::string& ) = 0;
     virtual void            onGetPeerIpResponse( const std::string& ) = 0;
 };
 
 
-using NodeInfo = ReplicatorInfo;
+} // namespace kademlia
 
+class Session;
 std::unique_ptr<kademlia::EndpointCatalogue> createEndpointCatalogue(
-                                                    Transport&                     kademliaTransport,
-                                                    const crypto::KeyPair&         keyPair,
-                                                    const std::vector<NodeInfo>&   bootstraps,
-                                                    uint8_t                        myPort,
-                                                    bool                           isClient );
+                                                    std::weak_ptr<Session>              kademliaTransport,
+                                                    const crypto::KeyPair&              keyPair,
+                                                    const std::vector<ReplicatorInfo>&  bootstraps,
+                                                    uint8_t                             myPort,
+                                                    bool                                isClient );
 
-}}}
+}}
 
 

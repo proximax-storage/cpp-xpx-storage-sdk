@@ -52,6 +52,12 @@ public:
         if ( info != nullptr )
             return info->endpoint();
         
+        if ( ! m_buckets[bucketIndex].nodes().empty() )
+        {
+            bucket = &m_buckets[bucketIndex];
+            return;
+        }
+        
         //TODO? up/down algorithm
         
         return {};

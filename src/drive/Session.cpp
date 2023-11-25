@@ -143,7 +143,7 @@ public:
     {
         if ( auto replicatorPtr = replicator.lock(); replicatorPtr )
         {
-            m_kademlia = std::move( kademlia::createEndpointCatalogue( *this, replicatorPtr->keyPair(), bootstraps, m_listeningPort, false ));
+            m_kademlia = std::move( createEndpointCatalogue( weak_from_this(), replicatorPtr->keyPair(), bootstraps, m_listeningPort, false ));
         }
         else
         {
