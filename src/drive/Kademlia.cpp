@@ -1,8 +1,15 @@
 #include "drive/Session.h"
 #include "drive/Kademlia.h"
 #include "KademliaBucket.h"
-#include "KademliaNode.h"
+#include "KademliaHashTable.h"
 #include "drive/Timer.h"
+
+#include <cereal/types/vector.hpp>
+#include <cereal/types/array.hpp>
+#include <cereal/types/map.hpp>
+#include <cereal/types/optional.hpp>
+#include <cereal/archives/portable_binary.hpp>
+
 
 namespace sirius { namespace drive { namespace kademlia {
 
@@ -13,7 +20,7 @@ class PeerSearcher
 {
     PeerKey                 m_targetPeerKey;
     std::vector<NodeInfo>   m_candidates;
-    std::set<PeerKey>       m_loserPeers;
+    std::set<PeerKey>       m_triedPeers;
 
     EndpointCatalogue&      m_endpointCatalogue;
     std::weak_ptr<Session>  m_session;
@@ -36,18 +43,39 @@ public:
         {
             m_candidates.emplace_back( NodeInfo{ peerInfo.endpoint(), peerInfo.m_publicKey } );
         }
+        
+        //TODO? sort m_candidates (back sorting)
 
+        sendNextRequest();
+    }
+    
+    inline void sendNextRequest()
+    {
         if ( auto session = m_session.lock(); session )
         {
-            PeerIpRequest request{ session->isClient(), targetPeerKey, m_endpointCatalogue.publicKey() };
-            //TODO? candidates[0].m_endpoint should be replaced by nearest node
-            session->sendGetPeerIpRequest( request, m_candidates[0].m_endpoint );
-            m_timer = session->startTimer( PEER_ASWER_LIMIT_MS, []{} );
+            PeerIpRequest request{ session->isClient(), m_targetPeerKey, m_endpointCatalogue.publicKey() };
+            session->sendGetPeerIpRequest( request, m_candidates.back().m_endpoint );
+            m_triedPeers.insert( m_candidates.back().m_publicKey.array() );
+            m_candidates.pop_back();
+
+            m_timer = session->startTimer( PEER_ASWER_LIMIT_MS, [this]{ onTimer(); } );
         }
     }
-
-    void onGetMyIpResponse( const std::string& )
+    
+    void onTimer()
     {
+        if ( m_candidates.empty() )
+        {
+            __LOG( "onTimer: no candidates" )
+            return;
+        }
+        
+        sendNextRequest();
+    }
+
+    void onGetPeerIpResponse( const PeerIpResponse& response )
+    {
+        //TODO?
     }
 };
 
@@ -65,7 +93,7 @@ class EndpointCatalogueImpl : public EndpointCatalogue
 
     std::map<PeerKey,boost::asio::ip::udp::endpoint> m_localEndpointMap;
 
-    HashTable                      m_hashTable;
+    KademliaHashTable              m_hashTable;
     SearcherMap                    m_searcherMap;
 
 private:
@@ -97,6 +125,8 @@ public:
 
     virtual PeerKey publicKey() override { return m_keyPair.publicKey().array(); }
 
+    // getEndpoint() for local using only
+    //
     std::optional<boost::asio::ip::udp::endpoint> getEndpoint( PeerKey& key ) override
     {
         // find in local map (usually replicators of common drives)
@@ -161,6 +191,7 @@ public:
             cereal::PortableBinaryInputArchive archive(is);
             MyIpResponse response;
             archive( response );
+            
             if ( ! response.verify() )
             {
                 // ignore
@@ -188,20 +219,69 @@ public:
         }
     }
 
-    std::string onGetPeerIpRequest( const std::string& ) override
+    std::string onGetPeerIpRequest( const std::string& requestStr ) override
     {
+        try
+        {
+            std::istringstream is( requestStr, std::ios::binary );
+            cereal::PortableBinaryInputArchive archive(is);
+            PeerIpRequest request;
+            archive( request );
+            
+            
+            // find in Kademlia hash table
+            std::vector<PeerInfo> peers = m_hashTable.onSearchPeerInfo( request.m_peerKey );
+            PeerIpResponse response{ request.m_peerKey, peers };
+
+            std::ostringstream os( std::ios::binary );
+            cereal::PortableBinaryOutputArchive iarchive(os);
+            iarchive( response );
+            return os.str();
+        }
+        catch(...) {
+            __LOG_WARN( "exception in onGetPeerIpRequest" )
+        }
+
         return "";
     }
 
-    void            onGetPeerIpResponse( const std::string& ) override
+    void onGetPeerIpResponse( const std::string& responseStr ) override
     {
+        try
+        {
+            std::istringstream is( responseStr, std::ios::binary );
+            cereal::PortableBinaryInputArchive archive(is);
+            PeerIpResponse response;
+            archive( response );
+            
+            for( auto& peerInfo : response.m_response )
+            {
+                if ( ! peerInfo.Verify() )
+                {
+                    __LOG_WARN( "onGetPeerIpResponse: bad sign" );
+                    return;
+                }
+            }
+            
+            if ( auto it = m_searcherMap.find(response.m_peerKey); it != m_searcherMap.end() )
+            {
+                it->second->onGetPeerIpResponse( response );
+            }
+            else
+            {
+                __LOG( "onGetPeerIpResponse: old response?");
+            }
+        }
+        catch(...) {
+            __LOG_WARN( "exception in onGetPeerIpResponse" )
+        }
     }
     
     void enterToSwarm()
     {
         PeerKey searchedKey = m_keyPair.publicKey().array();
-        //TODO? maybe searchedKey[31] = searchedKey[0] ^ 0x01;
-        searchedKey[0] = searchedKey[0] ^ 0x01;
+        //TODO? maybe searchedKey[0] = searchedKey[0] ^ 0x01;
+        searchedKey[0] = searchedKey[31] ^ 0x01;
         
         PeerIpRequest request{ m_isClient, m_keyPair.publicKey().array(), searchedKey };
         if ( auto session = m_kademliaTransport.lock(); session )

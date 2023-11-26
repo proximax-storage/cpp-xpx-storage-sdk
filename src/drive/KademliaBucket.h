@@ -18,16 +18,9 @@ const size_t BUCKET_SIZE = sizeof(Key)*4;
 class Bucket
 {
     std::vector<PeerInfo> m_nodes;
-    
 public:
     
     Bucket() { m_nodes.reserve( BUCKET_SIZE ); }
-    
-    template <class Archive>
-    void serialize( Archive & ar )
-    {
-        ar( m_nodes );
-    }
     
     bool empty() const { return m_nodes.empty(); }
     
@@ -45,27 +38,27 @@ public:
         return nullptr;
     }
     
-    bool justFindNode( const PeerKey& searchedKey, bool& isFull ) const
-    {
-        isFull = m_nodes.size() >= BUCKET_SIZE;
-        
-        for( auto& nodeInfo : m_nodes )
-        {
-            if ( nodeInfo.m_publicKey == searchedKey )
-                return true;
-        }
-        return false;
-    }
+//    bool justFindNode( const PeerKey& searchedKey, bool& isFull ) const
+//    {
+//        isFull = m_nodes.size() >= BUCKET_SIZE;
+//
+//        for( auto& nodeInfo : m_nodes )
+//        {
+//            if ( nodeInfo.m_publicKey == searchedKey )
+//                return true;
+//        }
+//        return false;
+//    }
     
-    inline bool findNodeInBucket( const PeerKey& searchedKey ) const
-    {
-        for( auto& nodeInfo : m_nodes )
-        {
-            if ( nodeInfo.m_publicKey == searchedKey )
-                return true;
-        }
-        return false;
-    }
+//    inline bool findNodeInBucket( const PeerKey& searchedKey ) const
+//    {
+//        for( auto& nodeInfo : m_nodes )
+//        {
+//            if ( nodeInfo.m_publicKey == searchedKey )
+//                return true;
+//        }
+//        return false;
+//    }
     
 //    inline void tryToAddNodeInfo( const PeerKey& requesterPeerKey, NodeIndex index )
 //    {
@@ -81,15 +74,15 @@ public:
 //        }
 //    }
     
-    inline bool findPeerKey( const PeerKey& searchedPeerKey ) const
-    {
-        for( auto& nodeInfo : m_nodes )
-        {
-            if ( nodeInfo.m_publicKey == searchedPeerKey )
-                return true;
-        }
-        return false;
-    }
+//    inline bool findPeerKey( const PeerKey& searchedPeerKey ) const
+//    {
+//        for( auto& nodeInfo : m_nodes )
+//        {
+//            if ( nodeInfo.m_publicKey == searchedPeerKey )
+//                return true;
+//        }
+//        return false;
+//    }
     
     
 //    inline void addClosestNodes( const PeerKey& searchedPeerKey, ClosestNodes& closestNodes, size_t& addedClosestNodeCounter ) const
