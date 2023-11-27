@@ -114,7 +114,7 @@ public:
     {
         std::erase_if( m_bootstraps, [this]( const auto& item )
         {
-            return m_keyPair.publicKey().array() == item.m_publicKey;
+            return m_keyPair.publicKey() == item.m_publicKey;
         });
 
         for( const auto& nodeInfo : m_bootstraps )

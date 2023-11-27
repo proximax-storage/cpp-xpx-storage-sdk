@@ -58,7 +58,7 @@ public:
         if ( ! m_buckets[bucketIndex].nodes().empty() )
         {
             bucket = &m_buckets[bucketIndex];
-            return;
+            return {};
         }
         
         //TODO? up/down algorithm
