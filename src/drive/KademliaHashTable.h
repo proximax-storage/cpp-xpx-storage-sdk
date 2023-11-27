@@ -12,18 +12,10 @@ namespace sirius { namespace drive { namespace kademlia {
 
 #define USE_CLOSEST_NODES_SET
 
-inline int equalPrefixLength( const PeerKey& a, const PeerKey& b )
-{
-    //TODO?
-    return 0;
-}
-
-
-
 class KademliaHashTable //: public PeerKey, public NodeStatistic
 {
-    PeerKey m_key;
-    std::array<Bucket,BUCKET_SIZE> m_buckets;
+    PeerKey m_myKey;
+    std::array<Bucket,BUCKET_NUMBER> m_buckets;
     
 //#ifdef USE_CLOSEST_NODES_SET
 //    std::set<NodeInfo>  m_candidateSet;
@@ -35,21 +27,23 @@ public:
     
     KademliaHashTable( const PeerKey& key )
     {
-        m_key = key;
+        m_myKey = key;
     }
     
-    const PeerKey& key() const { return m_key; }
+    const PeerKey& key() const { return m_myKey; }
     
+    const std::array<Bucket,BUCKET_NUMBER>& buckets() const { return m_buckets; }
+
     int calcBucketIndex( const PeerKey& candidate ) const
     {
-        return equalPrefixLength( this->m_key, candidate );
+        return equalPrefixLength( m_myKey, candidate );
     }
     
-    std::optional<boost::asio::ip::udp::endpoint> getPeerInfo( const PeerKey& key, Bucket* bucket )
+    std::optional<boost::asio::ip::udp::endpoint> getPeerInfo( const PeerKey& key, size_t& bucketIndex )
     {
-        auto bucketIndex = equalPrefixLength( m_key, key );
+        bucketIndex = equalPrefixLength( m_myKey, key );
         
-        const PeerInfo* info = m_buckets[bucketIndex].getPeerInfo( key );
+        const PeerInfo* info = m_buckets[bucketIndex].getPeer( key );
         if ( info != nullptr )
         {
             return info->endpoint();
@@ -57,7 +51,6 @@ public:
         
         if ( ! m_buckets[bucketIndex].nodes().empty() )
         {
-            bucket = &m_buckets[bucketIndex];
             return {};
         }
         
@@ -66,13 +59,13 @@ public:
         return {};
     }
     
-    // onSearchPeerInfo() is used for request from another peer
+    // onRequestFromAnotherPeer() is used for request from another peer
     //
-    std::vector<PeerInfo> onSearchPeerInfo( const PeerKey& key )
+    std::vector<PeerInfo> onRequestFromAnotherPeer( const PeerKey& searchedKey )
     {
-        auto bucketIndex = 0; //TODO? calcBucketIndex( key );
+        auto bucketIndex = calcBucketIndex( searchedKey );
 
-        const PeerInfo* info = m_buckets[bucketIndex].getPeerInfo( key );
+        const PeerInfo* info = m_buckets[bucketIndex].getPeer( searchedKey );
         if ( info != nullptr )
         {
             return std::vector<PeerInfo>{ *info };
@@ -81,6 +74,12 @@ public:
         //TODO? up/down algorithm
         
         return {};
+    }
+    
+    void addPeerInfo( const PeerInfo& info )
+    {
+        auto bucketIndex = calcBucketIndex( info.m_publicKey );
+        m_buckets[bucketIndex].addPeer( info );
     }
     
 //    bool justFind( const PeerKey& searchedNodeKey, int& bucketIndex, bool& isFull )

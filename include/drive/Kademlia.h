@@ -16,6 +16,16 @@ namespace sirius { namespace drive { namespace kademlia {
 
 using PeerKey       = std::array<uint8_t,32>;
 
+inline PeerKey operator^( const PeerKey& a, const PeerKey& b )
+{
+    PeerKey outKey;
+    for( size_t i=0; i<outKey.size(); i++ )
+    {
+        outKey[i] = a[i] ^ b[i];
+    }
+    return outKey;
+}
+
 //-----------------------------------------------------
 // PeerInfo
 //-----------------------------------------------------
@@ -24,7 +34,7 @@ struct PeerInfo
     PeerKey     m_publicKey;
     std::string m_address;
     uint16_t    m_port;
-    uint64_t    m_time; // uint64_t now = duration_cast(std::chrono::steady_clock::now().time_since_epoch()).count();
+    uint64_t    m_timeInSeconds; // uint64_t now = duration_cast(std::chrono::steady_clock::now().time_since_epoch()).count();
     Signature   m_signature;
     
     //todo for debugging
@@ -36,10 +46,10 @@ struct PeerInfo
       : m_publicKey(peerKey),
         m_address(endpoint.address().to_string()),
         m_port(endpoint.port()),
-        m_time( std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() )
+        m_timeInSeconds( std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() )
     {}
     
-    uint64_t secondsFromNow() const { return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_time; }
+    uint64_t secondsFromNow() const { return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_timeInSeconds; }
     
     template<class Archive>
     void serialize(Archive &arch)
@@ -47,7 +57,7 @@ struct PeerInfo
         arch(m_publicKey);
         arch(m_address);
         arch(m_port);
-        arch(m_time);
+        arch(m_timeInSeconds);
         arch(m_signature);
     }
     
@@ -62,7 +72,7 @@ struct PeerInfo
             utils::RawBuffer{ (const uint8_t*)&m_publicKey[0], sizeof(m_publicKey) },
             utils::RawBuffer{ (const uint8_t*)m_address.c_str(), m_address.size() },
             utils::RawBuffer{ (const uint8_t*)m_port, sizeof(m_port) },
-            utils::RawBuffer{ (const uint8_t*)m_time, sizeof(m_time) },
+            utils::RawBuffer{ (const uint8_t*)m_timeInSeconds, sizeof(m_timeInSeconds) },
         },
         m_signature );
     }
@@ -74,11 +84,15 @@ struct PeerInfo
             utils::RawBuffer{ (const uint8_t*)&m_publicKey[0], sizeof(m_publicKey) },
             utils::RawBuffer{ (const uint8_t*)m_address.c_str(), m_address.size() },
             utils::RawBuffer{ (const uint8_t*)m_port, sizeof(m_port) },
-            utils::RawBuffer{ (const uint8_t*)m_time, sizeof(m_time) },
+            utils::RawBuffer{ (const uint8_t*)m_timeInSeconds, sizeof(m_timeInSeconds) },
         },
         m_signature );
     }
+    
+    bool operator<(const PeerInfo& item) const { return m_publicKey < item.m_publicKey; }
 };
+
+inline bool operator==(const PeerInfo& a,const PeerInfo& b)  { return a.m_publicKey == b.m_publicKey; }
 
 //-----------------------------------------------------
 // Request 'get-my-ip'
@@ -121,7 +135,7 @@ struct MyIpResponse
     MyIpResponse( const crypto::KeyPair& keyPair, const boost::asio::ip::udp::endpoint& queriedEndpoint )
     : m_badPort(false), m_response( keyPair.publicKey().array(), queriedEndpoint )
     {
-        m_response.m_time = std::chrono::steady_clock::now().time_since_epoch().count();
+        m_response.m_timeInSeconds = std::chrono::steady_clock::now().time_since_epoch().count();
         m_response.Sign( keyPair );
     }
     

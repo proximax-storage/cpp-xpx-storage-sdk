@@ -3,6 +3,7 @@
 #include "KademliaBucket.h"
 #include "KademliaHashTable.h"
 #include "drive/Timer.h"
+#include "drive/Utils.h"
 
 #include <cereal/types/vector.hpp>
 #include <cereal/types/array.hpp>
@@ -10,78 +11,26 @@
 #include <cereal/types/optional.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
-
 namespace sirius { namespace drive { namespace kademlia {
 
 using NodeInfo = ReplicatorInfo;
-using namespace sirius::drive;
+using namespace ::sirius::drive;
 
-class PeerSearcher
-{
-    PeerKey                 m_targetPeerKey;
-    std::vector<NodeInfo>   m_candidates;
-    std::set<PeerKey>       m_triedPeers;
+class EndpointCatalogueImpl;
+class PeerSearchInfo;
+void  onGetPeerIpResponseWrap( PeerSearchInfo& searchInfo, PeerIpResponse& response );
 
-    EndpointCatalogue&      m_endpointCatalogue;
-    std::weak_ptr<Session>  m_session;
-    Timer                   m_timer;
-
-    const int PEER_ASWER_LIMIT_MS = 1000;
-
-public:
-
-    PeerSearcher( const PeerKey&                  targetPeerKey,
-               const std::vector<PeerInfo>&     candidates,
-               EndpointCatalogue&               endpointCatalogue,
-               std::weak_ptr<Session>           session )
-    :
-        m_targetPeerKey(targetPeerKey),
-        m_endpointCatalogue(endpointCatalogue),
-        m_session(session)
-    {
-        for( auto& peerInfo : candidates )
-        {
-            m_candidates.emplace_back( NodeInfo{ peerInfo.endpoint(), peerInfo.m_publicKey } );
-        }
-        
-        //TODO? sort m_candidates (back sorting)
-
-        sendNextRequest();
-    }
-    
-    inline void sendNextRequest()
-    {
-        if ( auto session = m_session.lock(); session )
-        {
-            PeerIpRequest request{ session->isClient(), m_targetPeerKey, m_endpointCatalogue.publicKey() };
-            session->sendGetPeerIpRequest( request, m_candidates.back().m_endpoint );
-            m_triedPeers.insert( m_candidates.back().m_publicKey.array() );
-            m_candidates.pop_back();
-
-            m_timer = session->startTimer( PEER_ASWER_LIMIT_MS, [this]{ onTimer(); } );
-        }
-    }
-    
-    void onTimer()
-    {
-        if ( m_candidates.empty() )
-        {
-            __LOG( "onTimer: no candidates" )
-            return;
-        }
-        
-        sendNextRequest();
-    }
-
-    void onGetPeerIpResponse( const PeerIpResponse& response )
-    {
-        //TODO?
-    }
-};
+PeerSearchInfo createPeerSearchInfo(   const PeerKey&                  myPeerKey,
+                                       const PeerKey&                  targetPeerKey,
+                                       size_t                          bucketIndex,
+                                       EndpointCatalogueImpl&          endpointCatalogue,
+                                       std::weak_ptr<Session>          session );
 
 class EndpointCatalogueImpl : public EndpointCatalogue
 {
-    using SearcherMap = std::map<PeerKey,std::unique_ptr<PeerSearcher>>;
+public:
+    
+    using SearcherMap = std::map<PeerKey,std::unique_ptr<PeerSearchInfo>>;
 
     std::weak_ptr<Session>          m_kademliaTransport;
     const crypto::KeyPair&          m_keyPair;
@@ -116,6 +65,7 @@ public:
         {
             return m_keyPair.publicKey() == item.m_publicKey;
         });
+        _SIRIUS_ASSERT( m_bootstraps.size() > 0 );
 
         for( const auto& nodeInfo : m_bootstraps )
         {
@@ -137,19 +87,20 @@ public:
         }
 
         // find in Kademlia hash table
-        Bucket* bucket;
-        if ( auto peerInfo = m_hashTable.getPeerInfo( key, bucket ); peerInfo )
+        size_t bucketIndex;
+        if ( auto peerInfo = m_hashTable.getPeerInfo( key, bucketIndex ); peerInfo )
         {
             return peerInfo;
         }
 
-        // start searching
-        if ( bucket != nullptr )
+        // start searching (skip if already started)
+        if ( auto it = m_searcherMap.find( key ); it == m_searcherMap.end() )
         {
-            if ( auto it = m_searcherMap.find( key ); it == m_searcherMap.end() )
-            {
-                m_searcherMap[key] = std::make_unique<PeerSearcher>( key, bucket->nodes(), *this, m_kademliaTransport );
-            }
+            m_searcherMap[key] = std::make_unique<PeerSearchInfo>( this->m_keyPair.publicKey().array(),
+                                                                  key,
+                                                                  bucketIndex,
+                                                                  *this,
+                                                                  m_kademliaTransport );
         }
         
         // not found yet
@@ -230,7 +181,7 @@ public:
             
             
             // find in Kademlia hash table
-            std::vector<PeerInfo> peers = m_hashTable.onSearchPeerInfo( request.m_peerKey );
+            std::vector<PeerInfo> peers = m_hashTable.onRequestFromAnotherPeer( request.m_peerKey );
             PeerIpResponse response{ request.m_peerKey, peers };
 
             std::ostringstream os( std::ios::binary );
@@ -265,7 +216,7 @@ public:
             
             if ( auto it = m_searcherMap.find(response.m_peerKey); it != m_searcherMap.end() )
             {
-                it->second->onGetPeerIpResponse( response );
+                kademlia::onGetPeerIpResponseWrap( *it->second, response );
             }
             else
             {
@@ -294,7 +245,136 @@ public:
     }
 };
 
+class PeerSearchInfo
+{
+    struct Candidate
+    {
+        boost::asio::ip::udp::endpoint  m_endpoint;
+        PeerKey                         m_key;
+        PeerKey                         m_xorValue;
+        
+        bool operator<( const Candidate& item ) const {
+            return m_xorValue<item.m_xorValue;
+        }
+    };
+    
+    PeerKey                 m_myPeerKey;
+    PeerKey                 m_targetPeerKey;
+    size_t                  m_bucketIndex;
+    std::vector<Candidate>  m_candidates;
+    std::set<PeerKey>       m_triedPeers;
 
+    EndpointCatalogueImpl&  m_endpointCatalogue;
+    std::weak_ptr<Session>  m_session;
+    Timer                   m_timer;
+
+    const int PEER_ASWER_LIMIT_MS = 1000;
+
+public:
+
+    PeerSearchInfo( const PeerSearchInfo& ) = default;
+
+    PeerSearchInfo( const PeerKey&                 myPeerKey,
+                   const PeerKey&                  targetPeerKey,
+                   size_t                          bucketIndex,
+                   EndpointCatalogueImpl&          endpointCatalogue,
+                   std::weak_ptr<Session>          session )
+    :
+        m_myPeerKey(myPeerKey),
+        m_targetPeerKey(targetPeerKey),
+        m_bucketIndex(bucketIndex),
+        m_endpointCatalogue(endpointCatalogue),
+        m_session(session)
+    {
+        for(;;)
+        {
+            for( const auto& peerInfo : m_endpointCatalogue.m_hashTable.buckets()[bucketIndex].nodes() )
+            {
+                m_candidates.emplace_back( Candidate{ peerInfo.endpoint(), peerInfo.m_publicKey, peerInfo.m_publicKey ^ m_myPeerKey } );
+            }
+            if ( m_candidates.empty() )
+            {
+                if ( m_bucketIndex==0 )
+                {
+                    const auto& bootstrapNode = m_endpointCatalogue.m_bootstraps[0];
+                    m_candidates.emplace_back( Candidate{ bootstrapNode.m_endpoint,
+                                                        bootstrapNode.m_publicKey.array(),
+                                                        bootstrapNode.m_publicKey.array() ^ m_myPeerKey } );
+                    break;
+                }
+                m_bucketIndex--;
+            }
+        }
+        
+        std::sort( m_candidates.begin(), m_candidates.end() );
+
+        sendNextRequest();
+    }
+    
+    inline void sendNextRequest()
+    {
+        if ( auto session = m_session.lock(); session )
+        {
+            PeerIpRequest request{ session->isClient(), m_targetPeerKey, m_endpointCatalogue.publicKey() };
+            session->sendGetPeerIpRequest( request, m_candidates.back().m_endpoint );
+            m_triedPeers.insert( m_candidates.back().m_key );
+            m_candidates.pop_back();
+
+            m_timer = session->startTimer( PEER_ASWER_LIMIT_MS, [this]{ onTimer(); } );
+        }
+    }
+    
+    void onTimer()
+    {
+        if ( m_candidates.empty() )
+        {
+            __LOG( "onTimer: no candidates" )
+            return;
+        }
+        
+        sendNextRequest();
+    }
+
+    // Response from another peer
+    void onGetPeerIpResponse( const PeerIpResponse& response )
+    {
+        if ( response.m_response.size() == 1 && response.m_response[0].m_publicKey == m_targetPeerKey )
+        {
+            if ( ! response.m_response[0].Verify() )
+            {
+                __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: bad sign: " << toString(response.m_response[0].m_publicKey) )
+            }
+            
+            if ( isExpired(response.m_response[0].m_timeInSeconds) )
+            {
+                __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: expired: " << toString(response.m_response[0].m_publicKey) )
+            }
+            m_endpointCatalogue.m_hashTable.addPeerInfo( response.m_response[0] );
+        }
+        else
+        {
+            //TODO?
+        }
+    }
+};
+
+PeerSearchInfo createPeerSearchInfo(   const PeerKey&                  myPeerKey,
+                                       const PeerKey&                  targetPeerKey,
+                                       size_t                          bucketIndex,
+                                       EndpointCatalogueImpl&          endpointCatalogue,
+                                       std::weak_ptr<Session>          session )
+{
+    return PeerSearchInfo{ myPeerKey,
+                          targetPeerKey,
+                          bucketIndex,
+                          endpointCatalogue,
+                          session };
+}
+
+inline void onGetPeerIpResponseWrap( PeerSearchInfo& searchInfo, PeerIpResponse& response )
+{
+    searchInfo.onGetPeerIpResponse( response );
+}
 
 } // namespace kademlia
 
@@ -311,6 +391,8 @@ std::unique_ptr<kademlia::EndpointCatalogue> createEndpointCatalogue(
                                                               myPort,
                                                               isClient );
 }
+
+
 
 }}
 
