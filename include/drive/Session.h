@@ -42,6 +42,9 @@ namespace sirius::drive {
 #define FS_TREE_FILE_NAME  "FsTree.bin"
 #define PLAYLIST_FILE_NAME "playlist.m3u8"
 
+#define GET_MY_IP_MSG       "get-my-ip"
+#define GET_PEER_IP_MSG     "get-peer-ip"
+
 // It will be used to inform 'client' about download status
 //
 namespace download_status {

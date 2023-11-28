@@ -77,8 +77,10 @@ public:
         auto it = std::find_if( m_nodes.begin(), m_nodes.end(), [&key=info.m_publicKey] (const auto& item) {
             return key==item.m_publicKey;
         });
-        if (it != m_nodes.end() )
+        
+        if ( it != m_nodes.end() )
         {
+            // peer found
             if ( info.m_timeInSeconds > it->m_timeInSeconds )
             {
                 // refresh
@@ -87,102 +89,13 @@ public:
         }
         else
         {
+            // peer not found
             if ( m_nodes.size() < BUCKET_SIZE )
             {
                 m_nodes.push_back(info);
             }
-            
         }
     }
-
-//    bool justFindNode( const PeerKey& searchedKey, bool& isFull ) const
-//    {
-//        isFull = m_nodes.size() >= BUCKET_SIZE;
-//
-//        for( auto& nodeInfo : m_nodes )
-//        {
-//            if ( nodeInfo.m_publicKey == searchedKey )
-//                return true;
-//        }
-//        return false;
-//    }
-    
-//    inline bool findNodeInBucket( const PeerKey& searchedKey ) const
-//    {
-//        for( auto& nodeInfo : m_nodes )
-//        {
-//            if ( nodeInfo.m_publicKey == searchedKey )
-//                return true;
-//        }
-//        return false;
-//    }
-    
-//    inline void tryToAddNodeInfo( const PeerKey& requesterPeerKey, NodeIndex index )
-//    {
-//        if ( m_nodes.size() < BUCKET_SIZE )
-//        {
-//            for( auto& nodeInfo : m_nodes )
-//            {
-//                if ( nodeInfo.m_publicKey == requesterPeerKey.m_publicKey )
-//                    return;
-//            }
-//
-//            m_nodes.push_back( NodeInfo{ requesterPeerKey.m_publicKey, index } );
-//        }
-//    }
-    
-//    inline bool findPeerKey( const PeerKey& searchedPeerKey ) const
-//    {
-//        for( auto& nodeInfo : m_nodes )
-//        {
-//            if ( nodeInfo.m_publicKey == searchedPeerKey )
-//                return true;
-//        }
-//        return false;
-//    }
-    
-    
-//    inline void addClosestNodes( const PeerKey& searchedPeerKey, ClosestNodes& closestNodes, size_t& addedClosestNodeCounter ) const
-//    {
-//        static auto rng = std::default_random_engine {};
-//#ifdef SORT_CLOSEST_NODES_IN BUCKET
-//        //        std::vector<NodeInfo> nodes(m_nodes);
-//        std::vector<NodeInfo> nodes;
-//        for( const auto& nodeInfo : m_nodes )
-//        {
-//            nodes.emplace_back( NodeInfo{ nodeInfo.m_publicKey ^ searchedPeerKey.m_publicKey, nodeInfo.m_nodeIndex } );
-//        }
-//        //        if ( ! nodes.empty() )
-//        //        {
-//        //            { NodeInfo n = nodes.front(); nodes.erase( nodes.begin() ); nodes.push_back(n); }
-//        //            { NodeInfo n = nodes.front(); nodes.erase( nodes.begin() ); nodes.push_back(n); }
-//        //        }
-//        //        std::shuffle(std::begin(nodes), std::end(nodes), rng);
-//        //        std::sort( nodes.begin(), nodes.end() );
-//        //        std::reverse( nodes.begin(), nodes.end() );
-//        for( const auto& nodeInfo : nodes )
-//        {
-//            if ( addedClosestNodeCounter >= CLOSEST_NODES_NUMBER )
-//            {
-//                return;
-//            }
-//            
-//            addedClosestNodeCounter++;
-//            closestNodes.push_back( nodeInfo.m_nodeIndex );
-//        }
-//#else
-//        for( const auto& nodeInfo : m_nodes )
-//        {
-//            if ( addedClosestNodeCounter >= CLOSEST_NODES_NUMBER )
-//            {
-//                return;
-//            }
-//            
-//            addedClosestNodeCounter++;
-//            closestNodes.push_back( nodeInfo.m_nodeIndex );
-//        }
-//#endif
-//    }
 };
 
 }}}

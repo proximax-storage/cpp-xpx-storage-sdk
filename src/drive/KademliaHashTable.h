@@ -51,11 +51,6 @@ public:
             return info->endpoint();
         }
         
-        if ( ! m_buckets[bucketIndex].nodes().empty() )
-        {
-            return {};
-        }
-        
         return {};
     }
     
@@ -81,12 +76,10 @@ public:
         
         // up
         auto bucketI = bucketIndex;
-        while( result.size() < BUCKET_SIZE)
+        while( result.size() < BUCKET_SIZE && (bucketI > 0) )
         {
-            if ( bucketI == 0 )
-            {
-                break;
-            }
+            bucketI--;
+            
             for( const auto& info : m_buckets[bucketI].nodes() )
             {
                 if( result.size() >= BUCKET_SIZE)
@@ -99,12 +92,10 @@ public:
         
         // down
         bucketI = bucketIndex;
-        while( result.size() < BUCKET_SIZE)
+        while( result.size() < BUCKET_SIZE && (bucketI < BUCKET_NUMBER) )
         {
-            if ( bucketI >= BUCKET_NUMBER )
-            {
-                break;
-            }
+            bucketI++;
+
             for( const auto& info : m_buckets[bucketI].nodes() )
             {
                 if( result.size() >= BUCKET_SIZE)
@@ -114,8 +105,6 @@ public:
                 result.push_back(info);
             }
         }
-        
-        //TODO? down buckets?
         
         return result;
     }

@@ -690,8 +690,10 @@ public:
     {
         //        std::weak_ptr<lt::session_delegate> m_replicator;
         //        DhtRequestPlugin( std::weak_ptr<lt::session_delegate> replicator ) : m_replicator(replicator) {}
-        std::weak_ptr<ReplicatorInt> m_replicator;
-        std::weak_ptr<DhtMessageHandler> m_handler;
+        
+        std::weak_ptr<ReplicatorInt>        m_replicator;
+        std::weak_ptr<DhtMessageHandler>    m_handler;
+        std::weak_ptr<kademlia::Transport>  m_kademliaTransport;
         //DhtRequestPlugin( std::weak_ptr<ReplicatorInt> replicator ) : m_replicator(replicator) {}
         DhtRequestPlugin( std::weak_ptr<DhtMessageHandler> replicator ) : m_handler(replicator) {}
         
@@ -713,7 +715,35 @@ public:
                     return false;
                 }
                 
-                if ( auto handler = m_handler.lock(); handler )
+                if ( query == GET_MY_IP_MSG ) // Our Kademlia message
+                {
+                    auto str = message.dict_find_string_value( "x" );
+                    std::string packet((char*) str.data(), (char*) str.data() + str.size());
+
+                    if ( auto session = m_kademliaTransport.lock(); session )
+                    {
+                        std::string kademliaResponse = session->onGetMyIpRequest( packet, source );
+                        
+                        response["r"]["q"] = std::string( query );
+                        response["r"]["ret"] = kademliaResponse;
+                    }
+                    return true;
+                }
+                else if ( query == GET_PEER_IP_MSG ) // Our Kademlia message
+                {
+                    auto str = message.dict_find_string_value( "x" );
+                    std::string packet((char*) str.data(), (char*) str.data() + str.size());
+
+                    if ( auto session = m_kademliaTransport.lock(); session )
+                    {
+                        std::string kademliaResponse = session->onGetPeerIpRequest( packet, source );
+                        
+                        response["r"]["q"] = std::string( query );
+                        response["r"]["ret"] = kademliaResponse;
+                    }
+                    return true;
+                }
+                else if ( auto handler = m_handler.lock(); handler )
                 {
                     return handler->on_dht_request( query,
                                                    source,
@@ -835,8 +865,30 @@ public:
     
     void handleDhtResponse( lt::bdecode_node response, boost::asio::ip::udp::endpoint endpoint )
     {
+        try
+        {
+            auto rDict = response.dict_find_dict("r");
+            auto query = rDict.dict_find_string_value("q");
+            
+            if ( query == GET_MY_IP_MSG )
+            {
+                lt::string_view response = rDict.dict_find_string_value("ret");
+                m_kademlia->onGetMyIpResponse( std::string( response.begin(), response.end() ) );
+            }
+            else if ( query == GET_PEER_IP_MSG )
+            {
+                lt::string_view response = rDict.dict_find_string_value("ret");
+                m_kademlia->onGetPeerIpResponse( std::string( response.begin(), response.end() ) );
+            }
+        }
+        catch(...)
+        {
+            _LOG_WARN( "Unhandled exception in handleDhtResponse: " )
+        }
+
         if ( auto delegate = m_downloadLimiter.lock(); delegate )
         {
+            
             delegate->handleDhtResponse( response, endpoint );
         }
         //        try
@@ -1537,7 +1589,7 @@ private:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( request );
 
-        sendMessage("get-my-ip", endpoint, os.str() );
+        sendMessage( GET_MY_IP_MSG, endpoint, os.str() );
     }
 
     virtual void sendGetPeerIpRequest( const kademlia::PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override
@@ -1546,25 +1598,28 @@ private:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( request );
 
-        sendMessage("get-peer-ip", endpoint, os.str() );
+        sendMessage( GET_PEER_IP_MSG, endpoint, os.str() );
     }
 
-    virtual void onGetMyIpRequest( const std::string& ) override
+    virtual std::string onGetMyIpRequest( const std::string& request, boost::asio::ip::udp::endpoint requesterEndpoint ) override
     {
+        return m_kademlia->onGetMyIpRequest( request, requesterEndpoint );
     }
 
-    virtual void onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) override
+    virtual std::string onGetPeerIpRequest( const std::string& request, boost::asio::ip::udp::endpoint requesterEndpoint ) override
     {
+        return m_kademlia->onGetPeerIpRequest( request, requesterEndpoint );
     }
 
-    virtual void onGetMyIpResponse( const std::string& ) override
+    virtual void onGetMyIpResponse( const std::string& response ) override
     {
+        m_kademlia->onGetMyIpResponse( response );
     }
 
-    virtual void onGetPeerIpResponse( const std::string& ) override
+    virtual void onGetPeerIpResponse( const std::string&  response ) override
     {
+        m_kademlia->onGetPeerIpResponse( response );
     }
-
 };
 
 //
