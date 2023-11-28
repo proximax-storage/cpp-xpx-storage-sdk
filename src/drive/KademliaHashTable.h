@@ -17,10 +17,10 @@ class KademliaHashTable //: public PeerKey, public NodeStatistic
     PeerKey m_myKey;
     std::array<Bucket,BUCKET_NUMBER> m_buckets;
     
-//#ifdef USE_CLOSEST_NODES_SET
-//    std::set<NodeInfo>  m_candidateSet;
-//    std::set<PeerKey>       m_usedCandidates;
-//#endif
+    //#ifdef USE_CLOSEST_NODES_SET
+    //    std::set<NodeInfo>  m_candidateSet;
+    //    std::set<PeerKey>       m_usedCandidates;
+    //#endif
     
 public:
     KademliaHashTable(){}
@@ -33,12 +33,14 @@ public:
     const PeerKey& key() const { return m_myKey; }
     
     const std::array<Bucket,BUCKET_NUMBER>& buckets() const { return m_buckets; }
-
+    
     int calcBucketIndex( const PeerKey& candidate ) const
     {
         return equalPrefixLength( m_myKey, candidate );
     }
     
+    // onRequestFromAnotherPeer() is used for local requests only
+    //
     std::optional<boost::asio::ip::udp::endpoint> getPeerInfo( const PeerKey& key, size_t& bucketIndex )
     {
         bucketIndex = equalPrefixLength( m_myKey, key );
@@ -54,8 +56,6 @@ public:
             return {};
         }
         
-        //TODO? up/down algorithm
-        
         return {};
     }
     
@@ -63,17 +63,61 @@ public:
     //
     std::vector<PeerInfo> onRequestFromAnotherPeer( const PeerKey& searchedKey )
     {
+        std::vector<PeerInfo> result;
+        
         auto bucketIndex = calcBucketIndex( searchedKey );
-
+        
         const PeerInfo* info = m_buckets[bucketIndex].getPeer( searchedKey );
         if ( info != nullptr )
         {
-            return std::vector<PeerInfo>{ *info };
+            result.push_back( *info );
+            return result;
         }
         
-        //TODO? up/down algorithm
+        for( const auto& info : m_buckets[bucketIndex].nodes() )
+        {
+            result.push_back(info);
+        }
         
-        return {};
+        // up
+        auto bucketI = bucketIndex;
+        while( result.size() < BUCKET_SIZE)
+        {
+            if ( bucketI == 0 )
+            {
+                break;
+            }
+            for( const auto& info : m_buckets[bucketI].nodes() )
+            {
+                if( result.size() >= BUCKET_SIZE)
+                {
+                    break;
+                }
+                result.push_back(info);
+            }
+        }
+        
+        // down
+        bucketI = bucketIndex;
+        while( result.size() < BUCKET_SIZE)
+        {
+            if ( bucketI >= BUCKET_NUMBER )
+            {
+                break;
+            }
+            for( const auto& info : m_buckets[bucketI].nodes() )
+            {
+                if( result.size() >= BUCKET_SIZE)
+                {
+                    break;
+                }
+                result.push_back(info);
+            }
+        }
+        
+        //TODO? down buckets?
+        
+        return result;
     }
     
     void addPeerInfo( const PeerInfo& info )
@@ -81,30 +125,14 @@ public:
         auto bucketIndex = calcBucketIndex( info.m_publicKey );
         m_buckets[bucketIndex].addPeer( info );
     }
-    
-//    bool justFind( const PeerKey& searchedNodeKey, int& bucketIndex, bool& isFull )
-//    {
-//        bucketIndex = calcBucketIndex( searchedNodeKey );
-//
-//        return m_buckets[bucketIndex].justFindNode( searchedNodeKey, isFull );
-//    }
-//
-//    bool justFindNodeInBuckets( const PeerKey& searchedNodeKey )
-//    {
-//        int index = calcBucketIndex( searchedNodeKey );
-//        //LOG( " this: " << this << " b_index: " << index << " key: " << searchedNodeKey.m_key )
-//        return m_buckets[index].findNodeInBucket(searchedNodeKey);
-//    }
-//
-//    size_t nodeCount() const
-//    {
-//        size_t nodeCount = 0;
-//        for( const Bucket& b: m_buckets )
-//        {
-//            nodeCount += b.size();
-//        }
-//        return nodeCount;
-//    }
+
+    bool couldBeAdded( const PeerKey& key )
+    {
+        auto bucketIndex = calcBucketIndex( key );
+
+        return m_buckets[bucketIndex].nodes().size() < BUCKET_NUMBER;
+    }
+        
 };
 
 }}}

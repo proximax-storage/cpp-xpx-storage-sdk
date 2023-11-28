@@ -17,7 +17,7 @@ const size_t    BUCKET_SIZE   = 4;
 const uint64_t  EXPIRED_SEC         = 2*60*60; // 2 hour
 const uint64_t  UPDATE_EXPIRED_SEC  = 60*60;
 
-inline bool isExpired( uint64_t t )
+inline bool isPeerInfoExpired( uint64_t t )
 {
     auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
     return now-t > EXPIRED_SEC;

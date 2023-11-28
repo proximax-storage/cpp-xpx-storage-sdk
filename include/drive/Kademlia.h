@@ -196,7 +196,7 @@ public:
     virtual void sendGetPeerIpRequest( const PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) = 0;
 
     virtual void onGetMyIpRequest( const std::string& ) = 0;
-    virtual void onGetPeerIpRequest( const std::string& ) = 0;
+    virtual void onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
 
     virtual void onGetMyIpResponse( const std::string& ) = 0;
     virtual void onGetPeerIpResponse( const std::string& ) = 0;
@@ -219,7 +219,7 @@ public:
     virtual void            onGetMyIpResponse( const std::string& ) = 0;
 
     // 'get-ip'
-    virtual std::string     onGetPeerIpRequest( const std::string& ) = 0;
+    virtual std::string     onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
     virtual void            onGetPeerIpResponse( const std::string& ) = 0;
 };
 

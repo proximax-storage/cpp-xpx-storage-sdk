@@ -1553,7 +1553,7 @@ private:
     {
     }
 
-    virtual void onGetPeerIpRequest( const std::string& ) override
+    virtual void onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) override
     {
     }
 

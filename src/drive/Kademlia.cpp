@@ -170,7 +170,7 @@ public:
         }
     }
 
-    std::string onGetPeerIpRequest( const std::string& requestStr ) override
+    std::string onGetPeerIpRequest( const std::string& requestStr, boost::asio::ip::udp::endpoint requesterEndpoint ) override
     {
         try
         {
@@ -179,6 +179,13 @@ public:
             PeerIpRequest request;
             archive( request );
             
+            if ( m_hashTable.couldBeAdded( request.m_requesterKey ) )
+            {
+                if ( auto session = m_kademliaTransport.lock(); session )
+                {
+                    session->sendGetPeerIpRequest( PeerIpRequest{ false, request.m_requesterKey, publicKey() }, requesterEndpoint );
+                }
+            }
             
             // find in Kademlia hash table
             std::vector<PeerInfo> peers = m_hashTable.onRequestFromAnotherPeer( request.m_peerKey );
@@ -204,6 +211,11 @@ public:
             cereal::PortableBinaryInputArchive archive(is);
             PeerIpResponse response;
             archive( response );
+            
+            if ( response.m_response.size() == 0 )
+            {
+                return;
+            }
             
             for( auto& peerInfo : response.m_response )
             {
@@ -250,7 +262,7 @@ class PeerSearchInfo
     struct Candidate
     {
         boost::asio::ip::udp::endpoint  m_endpoint;
-        PeerKey                         m_key;
+        PeerKey                         m_publicKey;
         PeerKey                         m_xorValue;
         
         bool operator<( const Candidate& item ) const {
@@ -317,7 +329,7 @@ public:
         {
             PeerIpRequest request{ session->isClient(), m_targetPeerKey, m_endpointCatalogue.publicKey() };
             session->sendGetPeerIpRequest( request, m_candidates.back().m_endpoint );
-            m_triedPeers.insert( m_candidates.back().m_key );
+            m_triedPeers.insert( m_candidates.back().m_publicKey );
             m_candidates.pop_back();
 
             m_timer = session->startTimer( PEER_ASWER_LIMIT_MS, [this]{ onTimer(); } );
@@ -345,24 +357,58 @@ public:
                 __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: bad sign: " << toString(response.m_response[0].m_publicKey) )
             }
             
-            if ( isExpired(response.m_response[0].m_timeInSeconds) )
+            if ( isPeerInfoExpired(response.m_response[0].m_timeInSeconds) )
             {
                 __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: expired: " << toString(response.m_response[0].m_publicKey) )
             }
             m_endpointCatalogue.m_hashTable.addPeerInfo( response.m_response[0] );
+            return;
         }
-        else
+        
+        for( const auto& peerInfo: response.m_response )
         {
-            //TODO?
+            if ( ! peerInfo.Verify() )
+            {
+                __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: bad sign(2): " << toString(peerInfo.m_publicKey) )
+                continue;
+            }
+            
+//?               if ( isPeerInfoExpired(peerInfo.m_timeInSeconds) )
+//                {
+//                    __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: expired(2): " << toString(peerInfo.m_publicKey) )
+//                    continue;
+//                }
+
+            if ( auto it = m_triedPeers.find( peerInfo.m_publicKey ); it != m_triedPeers.end() )
+            {
+                continue;
+            }
+            
+            const auto it = std::find_if( m_candidates.begin(), m_candidates.end(), [&key=peerInfo.m_publicKey](const auto& item)
+            {
+                return item.m_publicKey == key;
+            });
+            if ( it != m_candidates.end() )
+            {
+                continue;
+            }
+            
+            m_candidates.emplace_back( Candidate{ peerInfo.endpoint(),
+                peerInfo.m_publicKey,
+                peerInfo.m_publicKey ^ m_myPeerKey } );
         }
+
+        std::sort( m_candidates.begin(), m_candidates.end() );
+
+        sendNextRequest();
     }
 };
 
-PeerSearchInfo createPeerSearchInfo(   const PeerKey&                  myPeerKey,
-                                       const PeerKey&                  targetPeerKey,
-                                       size_t                          bucketIndex,
-                                       EndpointCatalogueImpl&          endpointCatalogue,
-                                       std::weak_ptr<Session>          session )
+inline PeerSearchInfo createPeerSearchInfo( const PeerKey&                  myPeerKey,
+                                            const PeerKey&                  targetPeerKey,
+                                            size_t                          bucketIndex,
+                                            EndpointCatalogueImpl&          endpointCatalogue,
+                                            std::weak_ptr<Session>          session )
 {
     return PeerSearchInfo{ myPeerKey,
                           targetPeerKey,
