@@ -35,8 +35,6 @@ const size_t REPLICATOR_NUMBER = 200;
 #define REPLICATOR_PORT_0           5000
 #define CLIENT_WORK_FOLDER                fs::path(getenv("HOME")) / "111-kadmlia" / "client_work_folder"
 
-fs::path gClientFolder;
-static fs::path createClientFiles( size_t bigFileSize );
 #define CLIENT_IP_ADDR          "192.168.10.0"
 #define CLIENT_PORT             ":5000"
 
@@ -83,14 +81,14 @@ std::shared_ptr<ClientSession> gClientSession;
 
 // Listen (socket) error handle
 //
-static void clientSessionErrorHandler( const lt::alert* alert )
-{
-    if ( alert->type() == lt::listen_failed_alert::alert_type )
-    {
-        std::cerr << alert->message() << std::endl << std::flush;
-        exit(-1);
-    }
-}
+//static void clientSessionErrorHandler( const lt::alert* alert )
+//{
+//    if ( alert->type() == lt::listen_failed_alert::alert_type )
+//    {
+//        std::cerr << alert->message() << std::endl << std::flush;
+//        exit(-1);
+//    }
+//}
 
 #ifdef __APPLE__
 #pragma mark --MyReplicatorEventHandler--
@@ -227,7 +225,7 @@ int main(int,char**)
 
     auto startTime = std::clock();
 
-    for ( int i=0; i<REPLICATOR_NUMBER; i++ )
+    for ( size_t i=0; i<REPLICATOR_NUMBER; i++ )
     {
         using namespace sirius::crypto;
         using namespace boost::asio::ip;
@@ -247,7 +245,7 @@ int main(int,char**)
     ///
     {
         std::vector<std::thread> threads;
-        for ( int i=0; i<REPLICATOR_NUMBER; i++ )
+        for ( size_t i=0; i<REPLICATOR_NUMBER; i++ )
         {
             threads.emplace_back( [=] {
                 auto replicator = createReplicator( gKeyPairs[i],
@@ -259,6 +257,7 @@ int main(int,char**)
                                                    bootstraps,
                                                    gMyReplicatorEventHandler,
                                                    "replicator1" );
+                gReplicators.push_back(replicator);
             });
         }
         
@@ -271,17 +270,46 @@ int main(int,char**)
     ///
     /// Create client session
     ///
-    gClientFolder  = createClientFiles(1024);
-    gClientSession = createClientSession( clientKeyPair,
-                                          CLIENT_IP_ADDR CLIENT_PORT,
-                                          clientSessionErrorHandler,
-                                          bootstrapEndpoints,
-                                          false,
-                                          "client0" );
+    //gClientFolder  = createClientFiles(1024);
+//    gClientSession = createClientSession( clientKeyPair,
+//                                          CLIENT_IP_ADDR CLIENT_PORT,
+//                                          clientSessionErrorHandler,
+//                                          bootstrapEndpoints,
+//                                          false,
+//                                          "client0" );
 
     EXLOG("");
 
     // Create a lot of drives!
+    
+    const size_t driveNumber = 200;
+    const size_t replicatorNumber = 5; // per one drive
+
+    for( size_t i=0; i<driveNumber; i++ )
+    {
+        // select replicators
+        std::map<size_t,std::shared_ptr<Replicator>> replicators;
+        ReplicatorList replicatorList;
+        while( replicators.size() < replicatorNumber )
+        {
+            size_t rIndex = rand() % gReplicators.size();
+            if ( replicators.find(rIndex) == replicators.end() )
+            {
+                replicators[rIndex] = gReplicators[rIndex];
+                replicatorList.push_back( gKeyPairs[rIndex].publicKey() );
+            }
+        }
+        
+        auto client = randomByteArray<sirius::Key>();
+
+        for( auto& [index,replicator] : replicators )
+        {
+            auto driveRequest = std::unique_ptr<AddDriveRequest>( new AddDriveRequest{1024,0,{},replicatorList,client,{},{} } );
+            
+            auto driveKey = randomByteArray<sirius::Key>();
+            replicator->asyncAddDrive( driveKey, std::move(driveRequest) );
+        }
+    }
 
 
     EXLOG( "" );
@@ -335,264 +363,4 @@ static std::shared_ptr<Replicator> createReplicator(
     replicator->start();
 
     return replicator;
-}
-
-//static void modifyDrive( std::shared_ptr<Replicator>    replicator,
-//                         const sirius::Key&             driveKey,
-//                         const sirius::Key&             clientPublicKey,
-//                         const InfoHash&                clientDataInfoHash,
-//                         const sirius::Hash256&         transactionHash,
-//                         const ReplicatorList&          replicatorList,
-//                         uint64_t                       maxDataSize )
-//{
-//    replicator->asyncModify( DRIVE_PUB_KEY, std::make_unique<ModificationRequest>(ModificationRequest{ clientDataInfoHash, transactionHash, maxDataSize, replicatorList } ));
-//}
-
-//
-// clientDownloadHandler
-//
-//static void clientDownloadHandler( download_status::code code,
-//                                   const InfoHash& infoHash,
-//                                   const std::filesystem::path /*filePath*/,
-//                                   size_t /*downloaded*/,
-//                                   size_t /*fileSize*/,
-//                                   const std::string& /*errorText*/ )
-//{
-//    if ( code == download_status::download_complete )
-//    {
-//        EXLOG( "# Client received FsTree: " << toString(infoHash) );
-//        EXLOG( "# FsTree file path: " << gClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
-//        gFsTree.deserialize( gClientFolder / "fsTree-folder" / FS_TREE_FILE_NAME );
-//
-//        // print FsTree
-//        {
-//            std::lock_guard<std::mutex> autolock( gExLogMutex );
-//            gFsTree.dbgPrint();
-//        }
-//
-//        isDownloadCompleted = true;
-//        clientCondVar.notify_all();
-//    }
-//    else if ( code == download_status::dn_failed )
-//    {
-//        exit(-1);
-//    }
-//}
-
-//
-// clientDownloadFsTree
-//
-//static void clientDownloadFsTree( std::shared_ptr<ClientSession> clientSession, const sirius::Hash256& downloadChannelId )
-//{
-//    InfoHash rootHash = *driveRootHash;
-//    driveRootHash.reset();
-//
-//    isDownloadCompleted = false;
-//
-//    LOG("");
-//    EXLOG( "# Client started FsTree download: " << toString(rootHash) );
-//
-//    clientSession->download( DownloadContext(
-//                                    DownloadContext::fs_tree,
-//                                    clientDownloadHandler,
-//                                    rootHash,
-//                                    downloadChannelId, 0 ),
-//                                    downloadChannelId,
-//                                    gClientFolder / "fsTree-folder",
-//                                    "",
-//                            endpointList);
-//
-//    /// wait the end of file downloading
-//    {
-//        std::unique_lock<std::mutex> lock(clientMutex);
-//        clientCondVar.wait( lock, [] { return isDownloadCompleted; } );
-//    }
-//}
-
-//
-// clientModifyDrive
-//
-//static void clientModifyDrive( const ActionList& actionList,
-//                               const ReplicatorList& replicatorList,
-//                               const sirius::Hash256& transactionHash )
-//{
-//    {
-//        std::lock_guard<std::mutex> autolock( gExLogMutex );
-//        actionList.dbgPrint();
-//    }
-//
-//    // Create empty tmp folder for 'client modify data'
-//    //
-//    auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
-//    fs::remove_all( tmpFolder );
-//    fs::create_directories( tmpFolder );
-//    EXLOG( "# Client tmpFolder: " << tmpFolder );
-//
-//    // start file uploading
-//    uint64_t totalModifySize;
-//    std::error_code ec;
-//    InfoHash hash = gClientSession->addActionListToSession(  actionList, DRIVE_PUB_KEY, replicatorList, tmpFolder, totalModifySize, {}, ec );
-//    if (ec) {
-//        // handle error here
-//    }
-//
-//    // inform replicator
-//    clientModifyHash = hash;
-//
-//    EXLOG( "# Client is waiting the end of replicator update" );
-//}
-
-//
-// clientDownloadFilesHandler
-//
-//int downloadFileCount;
-//int downloadedFileCount;
-//static void clientDownloadFilesHandler( download_status::code code,
-//                                        const InfoHash& infoHash,
-//                                        const std::filesystem::path filePath,
-//                                        size_t downloaded,
-//                                        size_t fileSize,
-//                                        const std::string& errorText )
-//{
-//    if ( code == download_status::download_complete )
-//    {
-//        EXLOG( "@ download_completed: " << infoHash );
-////        LOG( "@ renameAs: " << context.m_renameAs );
-////        LOG( "@ saveFolder: " << context.m_saveFolder );
-//        if ( ++downloadedFileCount == downloadFileCount )
-//        {
-//            EXLOG( "# Downloaded " << filePath << " files" );
-//            isDownloadCompleted = true;
-//            clientCondVar.notify_all();
-//        }
-//    }
-//    else if ( code == download_status::downloading )
-//    {
-//        //LOG( "downloading: " << downloaded << " of " << fileSize );
-//    }
-//    else if ( code == download_status::dn_failed )
-//    {
-//        EXLOG( "# Error in clientDownloadFilesHandler: " << errorText );
-//        exit(-1);
-//    }
-//}
-
-//
-// Client: read files
-//
-//static void clientDownloadFilesR( std::shared_ptr<ClientSession> clientSession, const Folder& folder, const sirius::Hash256& downloadChannelId, int odd )
-//{
-//    int counter = 0;
-//    for( const auto& [name, child]: folder.childs() )
-//    {
-//        if ( counter++%2 == odd )
-//            continue;
-//
-//        if ( isFolder(child) )
-//        {
-//            clientDownloadFilesR( clientSession, getFolder(child), downloadChannelId, odd );
-//        }
-//        else
-//        {
-//            const File& file = getFile(child);
-//            std::string folderName = "root";
-//            if ( folder.name() != "/" )
-//                folderName = folder.name();
-//            EXLOG( "# Client started download file " << hashToFileName( file.hash() ) );
-//            EXLOG( "#  to " << gClientFolder / "downloaded_files" / folderName  / file.name() );
-//            clientSession->download( DownloadContext(
-//                    DownloadContext::file_from_drive,
-//                    clientDownloadFilesHandler,
-//                    file.hash(),
-//                    {}, 0, true,
-//                    gClientFolder / "downloaded_files" / folderName / file.name()
-//                ),
-//                downloadChannelId,
-//                gClientFolder / "downloaded_files", "", endpointList );
-//        }
-//    }
-//}
-//static void clientDownloadFiles( std::shared_ptr<ClientSession> clientSession, int fileNumber, Folder& fsTree, const sirius::Hash256& downloadChannelId, int odd )
-//{
-//    isDownloadCompleted = false;
-//
-//    downloadFileCount = 0;
-//    downloadedFileCount = 0;
-//    fsTree.iterate([](const File& /*file*/) {
-//        downloadFileCount++;
-//        return false;
-//    });
-//
-//    if ( downloadFileCount == 0 )
-//    {
-//        EXLOG( "downloadFileCount == 0" );
-//        return;
-//    }
-//
-//    downloadFileCount = fileNumber;
-////    if ( fileNumber != downloadFileCount )
-////    {
-////        EXLOG( "!ERROR! clientDownloadFiles(): fileNumber != downloadFileCount; " << fileNumber <<"!=" << downloadFileCount );
-////        exit(-1);
-////    }
-//
-//    EXLOG("@ ======================client start downloading=== " << downloadFileCount );
-//
-//    clientDownloadFilesR( clientSession, fsTree, downloadChannelId, odd );
-//
-//    /// wait the end of file downloading
-//    {
-//        std::unique_lock<std::mutex> lock(clientMutex);
-//        clientCondVar.wait( lock, [] { return isDownloadCompleted; } );
-//    }
-//}
-
-
-//
-// createClientFiles
-//
-static fs::path createClientFiles( size_t bigFileSize ) {
-
-    // Create empty tmp folder for testing
-    //
-    auto dataFolder = CLIENT_WORK_FOLDER / "client_files";
-    fs::remove_all( dataFolder.parent_path() );
-    fs::create_directories( dataFolder );
-    //fs::create_directories( dataFolder/"empty_folder" );
-
-    {
-        std::ofstream file( dataFolder / "a.txt" );
-        file.write( "a_txt", 5 );
-    }
-    {
-        fs::path b_bin = dataFolder / "b.bin";
-        fs::create_directories( b_bin.parent_path() );
-        std::vector<uint8_t> data(bigFileSize);
-        //std::generate( data.begin(), data.end(), std::rand );
-        uint8_t counter=0;
-        std::generate( data.begin(), data.end(), [&] { return counter++;} );
-        std::ofstream file( b_bin );
-        file.write( (char*) data.data(), data.size() );
-    }
-    {
-        fs::path b_bin = dataFolder / "bb.bin";
-        fs::create_directories( b_bin.parent_path() );
-        std::vector<uint8_t> data(bigFileSize);
-        //std::generate( data.begin(), data.end(), std::rand );
-        uint8_t counter=11;
-        std::generate( data.begin(), data.end(), [&] { return counter++;} );
-        std::ofstream file( b_bin );
-        file.write( (char*) data.data(), data.size() );
-    }
-    {
-        std::ofstream file( dataFolder / "c.txt" );
-        file.write( "c_txt", 5 );
-    }
-    {
-        std::ofstream file( dataFolder / "d.txt" );
-        file.write( "d_txt", 5 );
-    }
-
-    // Return path to file
-    return dataFolder.parent_path();
 }

@@ -71,8 +71,8 @@ struct PeerInfo
                               {
             utils::RawBuffer{ (const uint8_t*)&m_publicKey[0], sizeof(m_publicKey) },
             utils::RawBuffer{ (const uint8_t*)m_address.c_str(), m_address.size() },
-            utils::RawBuffer{ (const uint8_t*)m_port, sizeof(m_port) },
-            utils::RawBuffer{ (const uint8_t*)m_timeInSeconds, sizeof(m_timeInSeconds) },
+            utils::RawBuffer{ (const uint8_t*)&m_port, sizeof(m_port) },
+            utils::RawBuffer{ (const uint8_t*)&m_timeInSeconds, sizeof(m_timeInSeconds) },
         },
         m_signature );
     }
@@ -83,8 +83,8 @@ struct PeerInfo
                      {
             utils::RawBuffer{ (const uint8_t*)&m_publicKey[0], sizeof(m_publicKey) },
             utils::RawBuffer{ (const uint8_t*)m_address.c_str(), m_address.size() },
-            utils::RawBuffer{ (const uint8_t*)m_port, sizeof(m_port) },
-            utils::RawBuffer{ (const uint8_t*)m_timeInSeconds, sizeof(m_timeInSeconds) },
+            utils::RawBuffer{ (const uint8_t*)&m_port, sizeof(m_port) },
+            utils::RawBuffer{ (const uint8_t*)&m_timeInSeconds, sizeof(m_timeInSeconds) },
         },
         m_signature );
     }

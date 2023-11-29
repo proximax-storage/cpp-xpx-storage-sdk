@@ -40,7 +40,7 @@ public:
     
     std::optional<PeerInfo>         m_myPeerInfo;
 
-    std::map<PeerKey,boost::asio::ip::udp::endpoint> m_localEndpointMap;
+    std::map<PeerKey,std::optional<boost::asio::ip::udp::endpoint>> m_localEndpointMap;
 
     KademliaHashTable              m_hashTable;
     SearcherMap                    m_searcherMap;
@@ -352,15 +352,24 @@ public:
     {
         if ( response.m_response.size() == 1 && response.m_response[0].m_publicKey == m_targetPeerKey )
         {
-            if ( ! response.m_response[0].Verify() )
+            const PeerInfo& peerInfo = response.m_response[0];
+            
+            if ( ! peerInfo.Verify() )
             {
-                __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: bad sign: " << toString(response.m_response[0].m_publicKey) )
+                __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: bad sign: " << toString(peerInfo.m_publicKey) )
+                sendNextRequest();
+                return;
             }
             
-            if ( isPeerInfoExpired(response.m_response[0].m_timeInSeconds) )
+            if ( isPeerInfoExpired(peerInfo.m_timeInSeconds) )
             {
-                __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: expired: " << toString(response.m_response[0].m_publicKey) )
+                __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: expired: " << toString(peerInfo.m_publicKey) )
+                sendNextRequest();
+                return;
             }
+            
+            m_endpointCatalogue.m_localEndpointMap[ peerInfo.m_publicKey ] = peerInfo.endpoint();
+
             m_endpointCatalogue.m_hashTable.addPeerInfo( response.m_response[0] );
             return;
         }

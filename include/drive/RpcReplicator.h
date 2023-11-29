@@ -581,6 +581,7 @@ public:
 
     }
 
+#ifndef SKIP_GRPC
     void setServiceAddress( const std::string& address ) override {
     	rpcCall( RPC_CMD::setServiceAddress, address );
     }
@@ -592,7 +593,8 @@ public:
     void enableMessengerServer() override {
     	rpcCall( RPC_CMD::enableMessengerServer );
     }
-
+#endif
+    
     virtual Hash256     dbgGetRootHash( const DriveKey& driveKey ) override
     {
         //_SIRIUS_ASSERT(0); return m_unusedHash;
