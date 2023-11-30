@@ -11,7 +11,6 @@
 #include "drive/log.h"
 #include "drive/Utils.h"
 #include "crypto/Signer.h"
-#include "EndpointsManager.h"
 #include <sirius_drive/session_delegate.h>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/algorithm/string.hpp>
@@ -63,8 +62,6 @@ protected:
     std::shared_ptr<Session>    m_session;
     const crypto::KeyPair&      m_keyPair;
 
-    EndpointsManager            m_endpointsManager;
-
     TorrentMap                          m_modifyTorrentMap;
     std::map<Hash256, DownloadChannel>  m_downloadChannelMap;
     
@@ -79,7 +76,6 @@ public:
     ClientSession( const crypto::KeyPair& keyPair, const char* dbgOurPeerName )
     :
         m_keyPair(keyPair),
-        m_endpointsManager(keyPair, {}, dbgOurPeerName),
         m_dbgOurPeerName(dbgOurPeerName)
     {}
 
@@ -117,7 +113,7 @@ public:
         endpoint_list endpoints;
         for( const auto& key: replicatorKeys )
         {
-            auto endpoint = m_endpointsManager.getEndpoint( key );
+            auto endpoint = m_session->getEndpoint( key );
             if ( endpoint )
             {
                 endpoints.push_back( *endpoint );
@@ -139,7 +135,7 @@ public:
     
     void setEndpointHandler()
     {
-        m_endpointsManager.setEndpointHandler( [self=weak_from_this()] (const Key& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint) {
+        m_session->setEndpointHandler( [self=weak_from_this()] (const Key& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint) {
             assert( endpoint );
             if ( auto ptr = self.lock(); ptr )
             {
@@ -161,7 +157,7 @@ public:
     {
         if ( ! replicatorEndpoint )
         {
-            replicatorEndpoint = m_endpointsManager.getEndpoint( replicatorKey );
+            replicatorEndpoint = m_session->getEndpoint( replicatorKey );
         }
         if ( ! replicatorEndpoint )
         {
@@ -193,7 +189,7 @@ public:
     {
         if ( ! replicatorEndpoint )
         {
-            replicatorEndpoint = m_endpointsManager.getEndpoint( replicatorKey );
+            replicatorEndpoint = m_session->getEndpoint( replicatorKey );
         }
         if ( ! replicatorEndpoint )
         {
@@ -224,7 +220,7 @@ public:
     {
         for( const auto& key: replicatorKeys )
         {
-            auto endpoint = m_endpointsManager.getEndpoint( key );
+            auto endpoint = m_session->getEndpoint( key );
             if ( endpoint )
             {
                 auto it = std::find_if( endpointList.begin(), endpointList.end(), [&endpoint] (const auto& item) {
@@ -459,7 +455,7 @@ public:
 
     void addReplicatorList( const sirius::drive::ReplicatorList& keys )
     {
-        m_endpointsManager.addEndpointQueries( keys );
+        m_session->startSearchPeerEndpoints( keys );
     }
 
     void setDownloadChannelReplicators( const Hash256& downloadChannelId, const ReplicatorList& replicators )
@@ -686,7 +682,7 @@ protected:
 
     std::optional<boost::asio::ip::udp::endpoint> getEndpoint(const std::array<uint8_t, 32> &key) override
     {
-        return m_endpointsManager.getEndpoint(key);
+        return m_session->getEndpoint(key);
     }
 
 public:
@@ -1130,7 +1126,7 @@ public:
     void
     onEndpointDiscovered( const std::array<uint8_t, 32>& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) override {
         __LOG( "@@@  onEndpointDiscovered: public key: " << toString(key) << " endpoint: " << endpoint->address().to_string() << " : " << endpoint->port())
-        m_endpointsManager.onEndpointDiscovered(key, endpoint);
+        m_session->onEndpointDiscovered(key, endpoint);
     }
 
 protected:
@@ -1179,10 +1175,7 @@ inline std::shared_ptr<ClientSession> createClientSession(  const crypto::KeyPai
     std::shared_ptr<ClientSession> clientSession = std::make_shared<ClientSession>( keyPair, dbgClientName );
     clientSession->m_session = createDefaultSession( address, errorHandler, clientSession, { ReplicatorInfo{bootstraps[0],{}}}, {} );
     clientSession->session()->lt_session().m_dbgOurPeerName = dbgClientName;
-    boost::asio::post(clientSession->session()->lt_session().get_context(), [clientSession] {
-        clientSession->m_endpointsManager.start(clientSession->session());
-        clientSession->setEndpointHandler();
-    });
+    //TODO?
     clientSession->addDownloadChannel(Hash256{});
     return clientSession;
 }

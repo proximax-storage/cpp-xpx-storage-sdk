@@ -31,11 +31,19 @@ const size_t REPLICATOR_NUMBER = 200;
 #define REPLICATOR_ROOT_FOLDER          fs::path(getenv("HOME")) / "111-kadmlia" / "replicator_root"
 #define REPLICATOR_SANDBOX_ROOT_FOLDER  fs::path(getenv("HOME")) / "111-kadmlia" / "sandbox_root"
 
+#ifdef __APPLE__
+#define REPLICATOR_IP_ADDR_TEMPLATE "10.0.0."
+#else
 #define REPLICATOR_IP_ADDR_TEMPLATE "192.168.10."
+#endif
 #define REPLICATOR_PORT_0           5000
 #define CLIENT_WORK_FOLDER                fs::path(getenv("HOME")) / "111-kadmlia" / "client_work_folder"
 
+#ifdef __APPLE__
+#define CLIENT_IP_ADDR          "10.0.0.0"
+#else
 #define CLIENT_IP_ADDR          "192.168.10.0"
+#endif
 #define CLIENT_PORT             ":5000"
 
 std::vector<sirius::crypto::KeyPair>        gKeyPairs;
@@ -210,6 +218,17 @@ std::string generatePrivateKey()
 
 endpoint_list bootstrapEndpoints;
 
+// Listen (socket) error handle
+//
+static void clientSessionErrorHandler( const lt::alert* alert )
+{
+    if ( alert->type() == lt::listen_failed_alert::alert_type )
+    {
+        std::cerr << alert->message() << std::endl << std::flush;
+        exit(-1);
+    }
+}
+
 #ifdef __APPLE__
 #pragma mark --main()--
 #endif
@@ -271,12 +290,12 @@ int main(int,char**)
     /// Create client session
     ///
     //gClientFolder  = createClientFiles(1024);
-//    gClientSession = createClientSession( clientKeyPair,
-//                                          CLIENT_IP_ADDR CLIENT_PORT,
-//                                          clientSessionErrorHandler,
-//                                          bootstrapEndpoints,
-//                                          false,
-//                                          "client0" );
+    gClientSession = createClientSession( clientKeyPair,
+                                          CLIENT_IP_ADDR CLIENT_PORT,
+                                          clientSessionErrorHandler,
+                                          bootstrapEndpoints,
+                                          false,
+                                          "client0" );
 
     EXLOG("");
 

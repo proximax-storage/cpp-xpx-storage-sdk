@@ -216,6 +216,8 @@ public:
         // m_session.apply_settings(p);
         //m_session.pause();
         
+        m_kademlia->stop();
+        
         m_stopping = true;
     }
     
@@ -394,6 +396,33 @@ public:
         return m_stopping;
     }
     
+    virtual void      setEndpointHandler( EndpointHandler endpointHandler ) override
+    {
+        //TODO?
+    }
+
+    virtual void      startSearchPeerEndpoints( const std::vector<Key>& keys ) override
+    {
+        for( const auto& key : keys )
+        {
+            m_kademlia->getEndpoint( key );
+        }
+    }
+
+    virtual void      addClientToLocalEndpointMap( const Key& key ) override
+    {
+        m_kademlia->addClientToLocalEndpointMap( key );
+    }
+
+    virtual void      onEndpointDiscovered( const Key& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) override
+    {
+        m_kademlia->onEndpointDiscovered( key, endpoint );
+    }
+
+    virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const Key& key ) override
+    {
+        return getEndpoint( key );
+    }
     
     virtual void removeTorrentsFromSession( const std::set<lt::torrent_handle>&  torrents,
                                            std::function<void()>                endNotification,

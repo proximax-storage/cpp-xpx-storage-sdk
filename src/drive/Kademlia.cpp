@@ -73,11 +73,29 @@ public:
         }
     }
 
+    virtual void stop() override
+    {
+        //TODO? remove timers
+    }
+
     virtual PeerKey publicKey() override { return m_keyPair.publicKey().array(); }
+
+    void addClientToLocalEndpointMap( const Key& key ) override
+    {
+        m_localEndpointMap[key] = {};
+    }
+
+    virtual void onEndpointDiscovered( const Key& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) override
+    {
+        if ( auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() )
+        {
+            it->second = endpoint;
+        }
+    }
 
     // getEndpoint() for local using only
     //
-    std::optional<boost::asio::ip::udp::endpoint> getEndpoint( PeerKey& key ) override
+    std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const PeerKey& key ) override
     {
         // find in local map (usually replicators of common drives)
         //
@@ -302,7 +320,7 @@ public:
         {
             for( const auto& peerInfo : m_endpointCatalogue.m_hashTable.buckets()[bucketIndex].nodes() )
             {
-                m_candidates.emplace_back( Candidate{ peerInfo.endpoint(), peerInfo.m_publicKey, peerInfo.m_publicKey ^ m_myPeerKey } );
+                m_candidates.emplace_back( Candidate{ peerInfo.endpoint(), peerInfo.m_publicKey, xorValue(peerInfo.m_publicKey, m_myPeerKey) } );
             }
             if ( m_candidates.empty() )
             {
@@ -311,7 +329,7 @@ public:
                     const auto& bootstrapNode = m_endpointCatalogue.m_bootstraps[0];
                     m_candidates.emplace_back( Candidate{ bootstrapNode.m_endpoint,
                                                         bootstrapNode.m_publicKey.array(),
-                                                        bootstrapNode.m_publicKey.array() ^ m_myPeerKey } );
+                                                        xorValue(bootstrapNode.m_publicKey, m_myPeerKey) } );
                     break;
                 }
                 m_bucketIndex--;
@@ -356,14 +374,14 @@ public:
             
             if ( ! peerInfo.Verify() )
             {
-                __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: bad sign: " << toString(peerInfo.m_publicKey) )
+                __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: bad sign: " << peerInfo.m_publicKey )
                 sendNextRequest();
                 return;
             }
             
             if ( isPeerInfoExpired(peerInfo.m_timeInSeconds) )
             {
-                __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: expired: " << toString(peerInfo.m_publicKey) )
+                __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: expired: " << peerInfo.m_publicKey )
                 sendNextRequest();
                 return;
             }
@@ -378,7 +396,7 @@ public:
         {
             if ( ! peerInfo.Verify() )
             {
-                __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: bad sign(2): " << toString(peerInfo.m_publicKey) )
+                __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: bad sign(2): " << peerInfo.m_publicKey )
                 continue;
             }
             

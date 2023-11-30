@@ -14,9 +14,9 @@
 
 namespace sirius { namespace drive { namespace kademlia {
 
-using PeerKey       = std::array<uint8_t,32>;
+using PeerKey = ::sirius::Key;
 
-inline PeerKey operator^( const PeerKey& a, const PeerKey& b )
+inline PeerKey xorValue( const PeerKey& a, const PeerKey& b )
 {
     PeerKey outKey;
     for( size_t i=0; i<outKey.size(); i++ )
@@ -209,10 +209,15 @@ class EndpointCatalogue
 {
 public:
     virtual ~EndpointCatalogue() = default;
-    
+
+    virtual void    stop() = 0;
+
     virtual PeerKey publicKey() = 0;
 
-    virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( PeerKey& key ) =0;
+    virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const PeerKey& key ) =0;
+
+    virtual void            addClientToLocalEndpointMap( const Key& keys ) = 0;
+    virtual void            onEndpointDiscovered( const Key& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) = 0;
 
     // 'get-my-ip'
     virtual std::string     onGetMyIpRequest( const std::string& request, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;

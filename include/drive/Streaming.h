@@ -30,8 +30,6 @@ class EndpointsManager;
         uint64_t                    m_maxSizeBytes; // could be increased
         ReplicatorList              m_replicatorList;
         
-        std::weak_ptr<EndpointsManager>           m_endpointsManager;
-
         template <class Archive> void serialize( Archive & arch )
         {
             arch( m_streamId );

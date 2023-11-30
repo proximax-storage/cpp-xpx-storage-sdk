@@ -137,6 +137,8 @@ enum class LogMode: uint8_t {
     FULL
 };
 
+using EndpointHandler = std::function<void(const Key&,const std::optional<boost::asio::ip::udp::endpoint>&)>;
+
 //
 //
 // It provides the ability to exchange files
@@ -156,6 +158,14 @@ public:
 
     virtual bool      isClient() = 0;
     
+    virtual void      setEndpointHandler( EndpointHandler endpointHandler ) = 0;
+
+    virtual void      startSearchPeerEndpoints( const std::vector<Key>& keys ) = 0;
+    virtual void      addClientToLocalEndpointMap( const Key& keys ) = 0;
+    virtual void      onEndpointDiscovered( const Key& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) = 0;
+    
+    virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const Key& key ) = 0;
+
     // It loads existing file from disk
     virtual lt_handle addTorrentFileToSession( const std::filesystem::path&     torrentFilename,
                                                const std::filesystem::path&     folderWhereFileIsLocated,
