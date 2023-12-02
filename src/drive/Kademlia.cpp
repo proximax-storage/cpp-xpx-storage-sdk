@@ -11,6 +11,13 @@
 #include <cereal/types/optional.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
+#define _KADEMLIA_TEST_
+
+#ifdef _KADEMLIA_TEST_
+inline std::map<sirius::Key,int> gCompletenessMap;
+std::mutex gCompletenessMapMutex;
+#endif
+
 namespace sirius { namespace drive { namespace kademlia {
 
 using NodeInfo = ReplicatorInfo;
@@ -42,8 +49,10 @@ public:
 
     std::map<PeerKey,std::optional<boost::asio::ip::udp::endpoint>> m_localEndpointMap;
 
-    KademliaHashTable              m_hashTable;
-    SearcherMap                    m_searcherMap;
+    KademliaHashTable               m_hashTable;
+    SearcherMap                     m_searcherMap;
+    
+    std::set<const Key>             m_registeredReplicators;
 
 private:
     boost::asio::ip::udp::endpoint  m_myIp;
@@ -256,6 +265,15 @@ public:
         catch(...) {
             __LOG_WARN( "exception in onGetPeerIpResponse" )
         }
+        
+        #ifdef _KADEMLIA_TEST_
+        {
+            std::lock_guard<std::mutex> lock(gCompletenessMapMutex);
+            //for( m_hashTable.buckets());
+        }
+        #endif
+
+
     }
     
     void enterToSwarm()
@@ -272,6 +290,29 @@ public:
                 session->sendGetPeerIpRequest( request, bootstrapNode.m_endpoint );
             }
         }
+    }
+    
+    virtual void    addReplicatorKey( const Key& key ) override
+    {
+        m_registeredReplicators.insert(key);
+    }
+    virtual void    addReplicatorKeys( const std::vector<Key>& keys ) override
+    {
+        for( const auto& key : keys )
+        {
+            m_registeredReplicators.insert(key);
+        }
+    }
+    virtual void    removeReplicatorKey( const Key& key ) override
+    {
+        m_registeredReplicators.erase(key);
+        
+        if ( auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() )
+        {
+            m_localEndpointMap.erase(key);
+        }
+        
+        m_hashTable.removePeerInfo(key);
     }
 };
 

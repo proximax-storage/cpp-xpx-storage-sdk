@@ -220,14 +220,14 @@ endpoint_list bootstrapEndpoints;
 
 // Listen (socket) error handle
 //
-static void clientSessionErrorHandler( const lt::alert* alert )
-{
-    if ( alert->type() == lt::listen_failed_alert::alert_type )
-    {
-        std::cerr << alert->message() << std::endl << std::flush;
-        exit(-1);
-    }
-}
+//static void clientSessionErrorHandler( const lt::alert* alert )
+//{
+//    if ( alert->type() == lt::listen_failed_alert::alert_type )
+//    {
+//        std::cerr << alert->message() << std::endl << std::flush;
+//        exit(-1);
+//    }
+//}
 
 #ifdef __APPLE__
 #pragma mark --main()--
@@ -256,7 +256,7 @@ int main(int,char**)
     std::vector<ReplicatorInfo> bootstraps;
     for ( int i=0; i<5; i++ )
     {
-        bootstraps.emplace_back( ReplicatorInfo{ ReplicatorInfo{ gEndpoints[0], gKeyPairs[0].publicKey()  } } );
+        bootstraps.emplace_back( ReplicatorInfo{ ReplicatorInfo{ gEndpoints[i], gKeyPairs[i].publicKey()  } } );
     }
 
     ///
@@ -290,12 +290,12 @@ int main(int,char**)
     /// Create client session
     ///
     //gClientFolder  = createClientFiles(1024);
-    gClientSession = createClientSession( clientKeyPair,
-                                          CLIENT_IP_ADDR CLIENT_PORT,
-                                          clientSessionErrorHandler,
-                                          bootstrapEndpoints,
-                                          false,
-                                          "client0" );
+//    gClientSession = createClientSession( clientKeyPair,
+//                                          CLIENT_IP_ADDR CLIENT_PORT,
+//                                          clientSessionErrorHandler,
+//                                          bootstrapEndpoints,
+//                                          false,
+//                                          "client0" );
 
     EXLOG("");
 
@@ -330,6 +330,7 @@ int main(int,char**)
         }
     }
 
+    sleep(1000);
 
     EXLOG( "" );
     EXLOG( "total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
@@ -361,9 +362,7 @@ static std::shared_ptr<Replicator> createReplicator(
 
     gDbgRpcChildCrash = true;
 
-    replicator = createRpcReplicator(
-            "127.0.0.1",
-            port,
+    replicator = createDefaultReplicator(
             keyPair,
             std::move( ipAddr ),
             std::to_string(port),

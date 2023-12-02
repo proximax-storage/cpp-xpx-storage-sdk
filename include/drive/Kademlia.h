@@ -226,6 +226,10 @@ public:
     // 'get-ip'
     virtual std::string     onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
     virtual void            onGetPeerIpResponse( const std::string& ) = 0;
+    
+    virtual void            addReplicatorKey( const Key& key ) = 0;
+    virtual void            addReplicatorKeys( const std::vector<Key>& keys ) = 0;
+    virtual void            removeReplicatorKey( const Key& keys ) = 0;
 };
 
 

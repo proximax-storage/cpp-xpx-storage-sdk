@@ -68,6 +68,8 @@ public:
     
     const std::vector<PeerInfo>& nodes() const { return m_nodes; }
 
+    std::vector<PeerInfo>&       nodes() { return m_nodes; }
+
     size_t size() const { return m_nodes.size(); }
 
     const PeerInfo* getPeer( const PeerKey& key ) const

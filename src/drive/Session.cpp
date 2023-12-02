@@ -424,6 +424,21 @@ public:
         return getEndpoint( key );
     }
     
+    virtual void      addReplicatorKeyToKademlia( const Key& key ) override
+    {
+        m_kademlia->addReplicatorKey(key);
+    }
+    
+    virtual void      addReplicatorKeysToKademlia( const std::vector<Key>& keys )
+    {
+        m_kademlia->addReplicatorKeys(keys);
+    }
+    
+    virtual void      removeReplicatorKeyFromKademlia( const Key& keys )
+    {
+        m_kademlia->removeReplicatorKey(keys);
+    }
+
     virtual void removeTorrentsFromSession( const std::set<lt::torrent_handle>&  torrents,
                                            std::function<void()>                endNotification,
                                            bool removeFiles ) override

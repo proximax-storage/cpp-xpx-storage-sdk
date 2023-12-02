@@ -3010,6 +3010,21 @@ public:
         _LOG( "Subscription To " << tag << " Is Requested" )
     }
 #endif //#ifndef SKIP_GRPC
+    
+    virtual void addReplicatorKeyToKademlia( const Key& key ) override
+    {
+        m_session->addReplicatorKeyToKademlia(key);
+    }
+    
+    virtual void addReplicatorKeysToKademlia( const std::vector<Key>& keys ) override
+    {
+        m_session->addReplicatorKeysToKademlia(keys);
+    }
+    
+    virtual void removeReplicatorKeyFromKademlia( const Key& keys ) override
+    {
+        m_session->removeReplicatorKeyFromKademlia(keys);
+    }
 
 };
 

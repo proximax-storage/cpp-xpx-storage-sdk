@@ -122,6 +122,15 @@ public:
         return m_buckets[bucketIndex].nodes().size() < BUCKET_NUMBER;
     }
         
+    void removePeerInfo( const Key& key )
+    {
+        auto bucketIndex = calcBucketIndex( key );
+        auto bucketNodes = m_buckets[bucketIndex].nodes();
+        std::remove_if( bucketNodes.begin(), bucketNodes.end(), [&key] (const auto& peerInfo) {
+            return peerInfo.m_publicKey == key;
+        });
+    }
+
 };
 
 }}}

@@ -352,6 +352,10 @@ public:
     virtual uint64_t    getMinReplicatorsNumber() = 0;
     virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
 
+    virtual void        addReplicatorKeyToKademlia( const Key& key ) = 0;
+    virtual void        addReplicatorKeysToKademlia( const std::vector<Key>& keys ) = 0;
+    virtual void        removeReplicatorKeyFromKademlia( const Key& keys ) = 0;
+
     virtual void        stopReplicator() = 0;
 
     // For RPC support
