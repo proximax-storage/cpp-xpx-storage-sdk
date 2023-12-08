@@ -1,96 +1,101 @@
 cmake_minimum_required(VERSION 3.9)
+
+if(POLICY CMP0074)
+    cmake_policy(SET CMP0074 NEW)
+endif()
+
 project(cpp-xpx-storage-sdk VERSION 1.0.0)
+include(CMakeGlobalSettings.cmake)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_EXTENSIONS ON)
+set(ABSL_PROPAGATE_CXX_STD ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+#set(SKIP_GRPC ON)
 
-#-----------------------------------------------------------------------------
-# required dependencies
-#-----------------------------------------------------------------------------
-
-
-find_package(Threads REQUIRED)
-find_package(Boost 1.71.0 REQUIRED)
-
-
-#-----------------------------------------------------------------------------
-# options and features
-#-----------------------------------------------------------------------------
-
-
-option(XPX_STORAGE_SDK_BUILD_STATIC "Build static version of library." OFF)
-option(XPX_STORAGE_SDK_BUILD_TESTS "Build tests." OFF)
-option(XPX_STORAGE_SDK_BUILD_EXAMPLES "Build examples." OFF)
-
-
-#-----------------------------------------------------------------------------
-# sources
-#-----------------------------------------------------------------------------
-
-file(GLOB_RECURSE sources
-    "include/*.h"
-    "src/*.cpp")
-
-include_directories( SYSTEM "cereal/include" )
-include_directories( PRIVATE "include" )
-
-if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    include_directories( SYSTEM "/usr/local/include/" )
+if (DEFINED SKIP_GRPC)
+    add_compile_definitions(SKIP_GRPC)
 endif()
 
-add_library(xpxstoragesdk SHARED ${sources})
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-set_target_properties(xpxstoragesdk PROPERTIES LINKER_LANGUAGE CXX)
+if(WIN32)
+        set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+        set(BUILD_SHARED_LIBS TRUE)
+endif()
 
-if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+include_directories(include)
 
-    #find_package(Boost REQUIRED)
-    #find_package(openssl REQUIRED)
+### setup boost
+if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
+    SET(Boost_NAMESPACE ${Boost_NAMESPACE} "libboost")
+    SET(Boost_ARCHITECTURE "-x64")
+endif()
 
-#    if( OPENSSL_FOUND )
-#        include_directories(${OPENSSL_INCLUDE_DIRS})
-#        message(STATUS "Using OpenSSL ${OPENSSL_VERSION}")
-#        message( STATUS "${Boost_LIBRARIES}" )
-#    else()
-#        message( SEND_ERROR "OpenSSL not found" )
-#    endif()
+set(Boost_NO_WARN_NEW_VERSIONS 1)
 
-    link_directories(/usr/local/opt/openssl@1.1/lib)
-
-    target_link_libraries(xpxstoragesdk PRIVATE
-        #/usr/local/lib/libtorrent.a
-        /usr/local/lib/libtorrent-rasterbar.dylib.2.0
-        /usr/local/opt/openssl@1.1/lib/libssl.dylib
-        /usr/local/opt/openssl@1.1/lib/libcrypto.dylib
-        "-framework CoreFoundation" "-framework SystemConfiguration"
-        ${Boost_LIBRARIES} )#Threads::Threads)
+if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+    find_package(Boost COMPONENTS atomic system date_time regex timer chrono log thread filesystem program_options random REQUIRED)
+elseif(WIN32)
+    find_package(Boost COMPONENTS atomic system date_time regex timer chrono log log_setup thread filesystem program_options random REQUIRED)
+    set(BOOST_STACKTRACE_BACKTRACE_INCLUDE_FILE "${Bost_INCLUDE_DIR}boost/stacktrace.hpp")
 else()
-    target_link_libraries(xpxstoragesdk libtorrent-rasterbar.so Threads::Threads)
+    find_package(Boost COMPONENTS atomic system date_time regex timer chrono log thread filesystem program_options random stacktrace_backtrace REQUIRED)
+    add_definitions(-DBOOST_STACKTRACE_USE_BACKTRACE)
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DSHOW_BACKTRACE")
+endif()
+include_directories(SYSTEM ${Boost_INCLUDE_DIR})
+
+if (NOT DEFINED SKIP_GRPC)
+    storage_sdk_third_party_lib(cmake/grpc.cmake)
 endif()
 
-#-----------------------------------------------------------------------------
-# tests
-#-----------------------------------------------------------------------------
+include_directories(cereal/include)
+add_subdirectory(libtorrent)
+include_directories(libtorrent/include)
 
-#if (XPX_STORAGE_SDK_BUILD_TESTS)
-#	include(CTest)
-#	enable_testing()
-#	add_subdirectory(tests)
-#endif()
+if (XPX_STORAGE_SDK_BUILD_EMULATOR)
+    add_subdirectory(cpp-xpx-rpclib)
+    include_directories(${PROJECT_SOURCE_DIR}/cpp-xpx-storage-sdk/cpp-xpx-rpclib/include)
+endif()
 
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(CMAKE_VERBOSE_MAKEFILE ON)
+    add_definitions(-DBOOST_ASIO_HAS_STD_INVOKE_RESULT)
 
-#-----------------------------------------------------------------------------
-# examples
-#-----------------------------------------------------------------------------
-#if (XPX_STORAGE_SDK_BUILD_EXAMPLES)
-#	add_executable(get_block ${CMAKE_CURRENT_SOURCE_DIR}/examples/get_block.cpp)
-#	target_link_libraries(get_block
-#                        xpxstoragesdk
-#			CONAN_PKG::rapidjson
-#			CONAN_PKG::boost
-#			CONAN_PKG::OpenSSL)
-#endif()
+    # boost from brew has an issue linking to -licudata
+    # https://stackoverflow.com/questions/65380307/os-x-library-not-found-for-licudata
+    # this needs to be defined before add_library
+    #link_directories(/usr/local/opt/icu4c/lib/)
+    set(CMAKE_CXX_FLAGS "-std=c++20 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk ${CMAKE_CXX_FLAGS}")
+    #set(CMAKE_CXX_FLAGS "-std=c++20 -isysroot  /Library/Developer/CommandLineTools/SDKs/MacOSX12.1.sdk ${CMAKE_CXX_FLAGS}")
+    #set(CMAKE_CXX_FLAGS "-std=c++20 -isysroot  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk ${CMAKE_CXX_FLAGS}")
 
-add_subdirectory(examples)
+#    set(CMAKE_OSX_SYSROOT /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.0.sdk )
+#
+#    set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0")
+
+    #link_directories(/usr/local/opt/openssl@1.1/lib)
+    #include_directories(SYSTEM "/usr/local/include/" "/Library/Developer/CommandLineTools/SDKs/MacOSX12.0.sdk/usr/include/")
+    #include_directories(SYSTEM "/Library/Developer/CommandLineTools/SDKs/MacOSX12.0.sdk/usr/include/")
+
+#    add_subdirectory(examples)
+endif()
+
+if (NOT DEFINED SKIP_GRPC)
+    add_subdirectory(supercontract-server)
+    add_subdirectory(messenger-server)
+endif()
+
+add_subdirectory(src)
+
+if(NOT WIN32)
+    add_subdirectory(replicator-service)
+endif()
+
+if (XPX_STORAGE_SDK_NOT_BUILD_EXAMPLES)
+else()
+    add_subdirectory(examples)
+endif()

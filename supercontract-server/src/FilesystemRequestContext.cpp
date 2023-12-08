@@ -1,0 +1,114 @@
+/*
+*** Copyright 2021 ProximaX Limited. All rights reserved.
+*** Use of this source code is governed by the Apache 2.0
+*** license that can be found in the LICENSE file.
+*/
+
+#include "FilesystemRequestContext.h"
+
+#include <utility>
+#include "drive/ManualModificationsRequests.h"
+#include "FinishRequestRPCTag.h"
+
+namespace sirius::drive::contract
+{
+
+FilesystemRequestContext::FilesystemRequestContext(
+        storageServer::StorageServer::AsyncService& service,
+        grpc::ServerCompletionQueue& completionQueue,
+        std::shared_ptr<bool> serviceIsActive,
+        std::weak_ptr<ModificationsExecutor> executor )
+        : m_service( service )
+        , m_completionQueue( completionQueue )
+        , m_serviceIsActive( std::move( serviceIsActive ))
+        , m_responder( &m_context )
+        , m_executor( std::move( executor ))
+{}
+
+void FilesystemRequestContext::processRequest()
+{
+    if ( !*m_serviceIsActive )
+    {
+        return;
+    }
+
+    auto executor = m_executor.lock();
+
+    if ( !executor )
+    {
+        onCallExecuted( {} );
+        return;
+    }
+
+    FilesystemRequest request;
+    Key driveKey( *reinterpret_cast<const std::array<uint8_t, 32>*>(m_request.drive_key().data()));
+    request.m_callback = [pThis = shared_from_this()]( auto response )
+    {
+        pThis->onCallExecuted( response );
+    };
+    executor->getFilesystem( driveKey, request );
+}
+
+void FilesystemRequestContext::onCallExecuted(
+        const std::optional<FilesystemResponse>& response )
+{
+    if ( !*m_serviceIsActive )
+    {
+        return;
+    }
+
+    if ( m_responseAlreadyGiven )
+    {
+        return;
+    }
+
+    m_responseAlreadyGiven = true;
+
+    storageServer::FilesystemResponse msg;
+    grpc::Status status;
+
+    if ( response )
+    {
+        msg.set_allocated_filesystem( processFolder( response->m_fsTree ));
+    } else
+    {
+        status = grpc::Status::CANCELLED;
+    }
+
+    auto* tag = new FinishRequestRPCTag( shared_from_this());
+    m_responder.Finish( msg, status, tag );
+}
+
+storageServer::Folder* FilesystemRequestContext::processFolder( const Folder& folder )
+{
+    auto* rpcFolder = new storageServer::Folder();
+    rpcFolder->set_name( folder.name());
+    for ( const auto&[name, entry]: folder.childs())
+    {
+        if ( isFile( entry ))
+        {
+            auto* child = processFile( getFile( entry ));
+            storageServer::FileSystemEntry rpcEntry;
+            rpcEntry.set_allocated_file( child );
+            auto* rpcChild = rpcFolder->add_children();
+            *rpcChild = rpcEntry;
+        } else
+        {
+            auto* child = processFolder( getFolder( entry ));
+            storageServer::FileSystemEntry rpcEntry;
+            rpcEntry.set_allocated_folder( child );
+            auto* rpcChild = rpcFolder->add_children();
+            *rpcChild = rpcEntry;
+        }
+    }
+    return rpcFolder;
+}
+
+storageServer::File* FilesystemRequestContext::processFile( const File& file )
+{
+    auto* rpcFile = new storageServer::File();
+    rpcFile->set_name( file.name());
+    return rpcFile;
+}
+
+}

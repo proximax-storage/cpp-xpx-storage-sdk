@@ -1,0 +1,317 @@
+// Copyright 2015 gRPC authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package storageServer;
+
+service StorageServer {
+  rpc SynchronizeStorage(SynchronizeStorageRequest) returns (SynchronizeStorageResponse) {}
+
+  rpc InitiateModifications(InitModificationsRequest) returns (InitModificationsResponse) {}
+
+  rpc InitiateSandboxModifications(InitSandboxRequest) returns (InitSandboxResponse) {}
+
+  rpc ApplySandboxStorageModifications(ApplySandboxModificationsRequest) returns (ApplySandboxModificationsResponse) {}
+
+  rpc EvaluateStorageHash(EvaluateStorageHashRequest) returns (EvaluateStorageHashResponse) {}
+
+  rpc ApplyStorageModifications(ApplyStorageModificationsRequest) returns (ApplyStorageModificationsResponse) {}
+
+  rpc GetFileInfo(FileInfoRequest) returns (FileInfoResponse) {}
+
+  rpc GetActualModificationId(ActualModificationIdRequest) returns (ActualModificationIdResponse) {}
+
+  rpc OpenFile(OpenFileRequest) returns (OpenFileResponse) {}
+
+  rpc ReadFile(ReadFileRequest) returns (ReadFileResponse) {}
+
+  rpc WriteFile(WriteFileRequest) returns (WriteFileResponse) {}
+
+  rpc CloseFile(CloseFileRequest) returns (CloseFileResponse) {}
+
+  rpc FlushFile(FlushFileRequest) returns (FlushFileResponse) {}
+
+  rpc GetFilesystem(FilesystemRequest) returns (FilesystemResponse) {}
+
+  rpc DirectoryIteratorCreate(DirectoryIteratorCreateRequest) returns (DirectoryIteratorCreateResponse) {}
+
+  rpc DirectoryIteratorHasNext(DirectoryIteratorHasNextRequest) returns (DirectoryIteratorHasNextResponse) {}
+
+  rpc DirectoryIteratorNext(DirectoryIteratorNextRequest) returns (DirectoryIteratorNextResponse) {}
+
+  rpc DirectoryIteratorDestroy(DirectoryIteratorDestroyRequest) returns (DirectoryIteratorDestroyResponse) {}
+
+  rpc MoveFilesystemEntry(MoveFilesystemEntryRequest) returns (MoveFilesystemEntryResponse) {}
+
+  rpc RemoveFilesystemEntry(RemoveFilesystemEntryRequest) returns (RemoveFilesystemEntryResponse) {}
+
+  rpc CreateDirectories(CreateDirectoriesRequest) returns (CreateDirectoriesResponse) {}
+
+  rpc PathExist(PathExistRequest) returns (PathExistResponse) {}
+
+  rpc FileSize(FileSizeRequest) returns (FileSizeResponse) {}
+
+  rpc IsFile(IsFileRequest) returns (IsFileResponse) {}
+}
+
+message PathExistRequest {
+  bytes drive_key = 1;
+  string path = 2;
+}
+
+message PathExistResponse {
+  bool exist = 1;
+}
+
+message IsFileRequest {
+  bytes drive_key = 1;
+  string path = 2;
+}
+
+message IsFileResponse {
+  bool is_file = 1;
+}
+
+message SynchronizeStorageRequest {
+  bytes drive_key = 1;
+  bytes modification_identifier = 2;
+  bytes storage_hash = 3;
+}
+
+message SynchronizeStorageResponse {
+  bool status = 1;
+}
+
+message InitModificationsRequest {
+  bytes drive_key = 1;
+  bytes modification_identifier = 2;
+}
+
+message InitModificationsResponse {
+}
+
+message InitSandboxRequest {
+  bytes drive_key = 1;
+  repeated string service_folders = 2;
+}
+
+message InitSandboxResponse {
+}
+
+message ApplySandboxModificationsRequest {
+  bytes drive_key = 1;
+  bool  success = 2;
+}
+
+message ApplySandboxModificationsResponse {
+  bool success = 1;
+  int64 sandbox_size_delta = 2;
+  int64 state_size_delta = 3;
+}
+
+message EvaluateStorageHashRequest {
+  bytes drive_key = 1;
+}
+
+message EvaluateStorageHashResponse {
+  bytes storage_hash = 1;
+  uint64 used_drive_size = 2;
+  uint64 meta_files_size = 3;
+  uint64 file_structure_size = 4;
+}
+
+message ApplyStorageModificationsRequest {
+  bytes drive_key = 1;
+  bool success = 2;
+}
+
+message ApplyStorageModificationsResponse {
+}
+
+message FileInfoRequest {
+  bytes drive_key = 1;
+  string relative_path = 2;
+}
+
+message FileInfoResponse {
+  bool exists = 1;
+  string absolute_path = 2;
+  uint64 size = 3;
+}
+
+message ActualModificationIdRequest {
+  bytes drive_key = 1;
+}
+
+message ActualModificationIdResponse {
+  bytes modification_id = 1;
+}
+
+enum OpenFileMode {
+  READ = 0;
+  WRITE = 1;
+}
+
+message OpenFileRequest {
+  bytes drive_key = 1;
+  string path = 2;
+  OpenFileMode mode = 3;
+}
+
+message OpenFileResponse {
+  bool success = 1;
+  uint64 id = 2;
+}
+
+message ReadFileRequest {
+  bytes drive_key = 1;
+  uint64 file_id = 2;
+  uint64 bytes = 3;
+}
+
+message ReadFileResponse {
+  bool success = 1;
+  bytes buffer = 2;
+}
+
+message WriteFileRequest {
+  bytes drive_key = 1;
+  uint64 file_id = 2;
+  bytes buffer = 3;
+}
+
+message WriteFileResponse {
+  bool success = 1;
+}
+
+message FlushFileRequest {
+  bytes drive_key = 1;
+  uint64 file_id = 2;
+}
+
+message FlushFileResponse {
+  bool success = 1;
+}
+
+message CloseFileRequest {
+  bytes drive_key = 1;
+  uint64 file_id = 2;
+}
+
+message CloseFileResponse {
+  bool success = 1;
+}
+
+message Folder {
+  string name = 1;
+  repeated FileSystemEntry children = 2;
+}
+
+message File {
+  string name = 1;
+}
+
+message FileSystemEntry {
+  oneof child {
+    Folder folder = 1;
+    File file = 2;
+  }
+}
+
+message FilesystemResponse {
+  Folder filesystem = 1;
+}
+
+message FilesystemRequest {
+  bytes drive_key = 1;
+}
+
+message DirectoryIteratorCreateResponse {
+  bool success = 1;
+  uint64 id = 2;
+}
+
+message DirectoryIteratorCreateRequest {
+  bytes drive_key = 1;
+  string path = 2;
+  bool recursive = 3;
+}
+
+message DirectoryIteratorHasNextResponse {
+  bool has_next = 1;
+}
+
+message DirectoryIteratorHasNextRequest {
+  bytes drive_key = 1;
+  uint64 id = 2;
+}
+
+message DirectoryIteratorNextResponse {
+  bool success = 1;
+  string name = 2;
+  uint32 depth = 3;
+}
+
+message DirectoryIteratorNextRequest {
+  bytes drive_key = 1;
+  uint64 id = 2;
+}
+
+message DirectoryIteratorDestroyResponse {
+  bool success = 1;
+}
+
+message DirectoryIteratorDestroyRequest {
+  bytes drive_key = 1;
+  uint64 id = 2;
+}
+
+message MoveFilesystemEntryRequest {
+  bytes drive_key = 1;
+  string src_path = 2;
+  string dst_path = 3;
+}
+
+message MoveFilesystemEntryResponse {
+  bool success = 1;
+}
+
+message RemoveFilesystemEntryRequest {
+  bytes drive_key = 1;
+  string path = 2;
+}
+
+message RemoveFilesystemEntryResponse {
+  bool success = 1;
+}
+
+message CreateDirectoriesRequest {
+  bytes drive_key = 1;
+  string path = 2;
+}
+
+message CreateDirectoriesResponse {
+  bool success = 1;
+}
+
+message FileSizeRequest {
+  bytes drive_key = 1;
+  string path = 2;
+}
+
+message FileSizeResponse {
+  bool success = 1;
+  uint64 size = 2;
+}

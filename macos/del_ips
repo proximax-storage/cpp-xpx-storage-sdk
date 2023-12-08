@@ -1,0 +1,8 @@
+sudo ifconfig en0 -alias 10.0.0.200
+sudo ifconfig en0 -alias 10.0.0.201
+sudo ifconfig en0 -alias 10.0.0.202
+sudo ifconfig en0 -alias 10.0.0.101
+sudo ifconfig en0 -alias 10.0.0.102
+sudo ifconfig en0 -alias 10.0.0.103
+sudo ifconfig en0 -alias 10.0.0.104
+

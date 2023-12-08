@@ -56,3 +56,12 @@ compile_commands.json
 build
 cpp-xpx-storage-sdk.build
 cpp-xpx-storage-sdk.xcodeproj/project.xcworkspace/xcuserdata/alex.xcuserdatad/UserInterfaceState.xcuserstate
+
+bin
+_bin
+
+.idea
+
+CMakeLists.back
+_build
+.vscode

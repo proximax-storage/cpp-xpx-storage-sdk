@@ -1,0 +1,89 @@
+#include "Challenge.h"
+/**
+*** Copyright (c) 2016-present,
+*** Jaguar0625, gimre, BloodyRookie, Tech Bureau, Corp. All rights reserved.
+***
+*** This file is part of Catapult.
+***
+*** Catapult is free software: you can redistribute it and/or modify
+*** it under the terms of the GNU Lesser General Public License as published by
+*** the Free Software Foundation, either version 3 of the License, or
+*** (at your option) any later version.
+***
+*** Catapult is distributed in the hope that it will be useful,
+*** but WITHOUT ANY WARRANTY; without even the implied warranty of
+*** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*** GNU Lesser General Public License for more details.
+***
+*** You should have received a copy of the GNU Lesser General Public License
+*** along with Catapult. If not, see <http://www.gnu.org/licenses/>.
+**/
+
+#include "Challenge.h"
+#include "crypto/KeyPair.h"
+#include "crypto/Signer.h"
+#include "utils/Logging.h"
+#include "utils/RawBuffer.h"
+#include <boost/random/random_device.hpp>
+
+namespace sirius { namespace net {
+
+        namespace {
+            void GenerateRandomChallenge(Challenge& challenge) {
+                boost::random_device generator;
+                std::generate_n(challenge.begin(), challenge.size(), [&generator]() { return static_cast<uint8_t>(generator()); });
+            }
+
+            utils::RawBuffer ToRawBuffer(const ionet::ConnectionSecurityMode& securityMode) {
+                return { reinterpret_cast<const uint8_t*>(&securityMode), sizeof(ionet::ConnectionSecurityMode) };
+            }
+
+            void SignChallenge(const crypto::KeyPair& keyPair, std::initializer_list<const utils::RawBuffer> buffers, Signature& computedSignature) {
+                CATAPULT_LOG(debug) << "preparing challenge response";
+                crypto::Sign(keyPair, buffers, computedSignature);
+                CATAPULT_LOG(trace) << "signature: " << computedSignature;
+            }
+
+            bool VerifyChallenge(const Key& publicKey, std::initializer_list<const utils::RawBuffer> buffers, const Signature& signature) {
+                CATAPULT_LOG(trace) << "verify signature: " << signature;
+                auto isVerified = crypto::Verify(publicKey, buffers, signature);
+                CATAPULT_LOG(debug) << "verify signature result: " << isVerified;
+                return isVerified;
+            }
+        }
+
+        std::shared_ptr<ServerChallengeRequest> GenerateServerChallengeRequest() {
+            auto pRequest = ionet::CreateSharedPacket<ServerChallengeRequest>();
+            GenerateRandomChallenge(pRequest->Challenge);
+            return pRequest;
+        }
+
+        std::shared_ptr<ServerChallengeResponse> GenerateServerChallengeResponse(
+                const ServerChallengeRequest& request,
+                const crypto::KeyPair& keyPair,
+                ionet::ConnectionSecurityMode securityMode) {
+            auto pResponse = ionet::CreateSharedPacket<ServerChallengeResponse>();
+            GenerateRandomChallenge(pResponse->Challenge);
+            SignChallenge(keyPair, { request.Challenge, ToRawBuffer(securityMode) }, pResponse->Signature);
+
+            pResponse->PublicKey = keyPair.publicKey();
+            pResponse->SecurityMode = securityMode;
+            return pResponse;
+        }
+
+        bool VerifyServerChallengeResponse(const ServerChallengeResponse& response, const Challenge& challenge) {
+            return VerifyChallenge(response.PublicKey, { challenge, ToRawBuffer(response.SecurityMode) }, response.Signature);
+        }
+
+        std::shared_ptr<ClientChallengeResponse> GenerateClientChallengeResponse(
+                const ServerChallengeResponse& request,
+                const crypto::KeyPair& keyPair) {
+            auto pResponse = ionet::CreateSharedPacket<ClientChallengeResponse>();
+            SignChallenge(keyPair, { request.Challenge }, pResponse->Signature);
+            return pResponse;
+        }
+
+        bool VerifyClientChallengeResponse(const ClientChallengeResponse& response, const Key& serverPublicKey, const Challenge& challenge) {
+            return VerifyChallenge(serverPublicKey, { challenge }, response.Signature);
+        }
+    }}

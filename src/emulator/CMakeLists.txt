@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.9)
+if (XPX_STORAGE_SDK_BUILD_EMULATOR)
+    set(CMAKE_CXX_STANDARD 20)
+    storage_sdk_shared_library_target(emulator)
+    target_link_libraries(emulator xpx.rpc drive)
+endif()
