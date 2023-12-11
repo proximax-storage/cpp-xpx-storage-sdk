@@ -137,8 +137,6 @@ enum class LogMode: uint8_t {
     FULL
 };
 
-using EndpointHandler = std::function<void(const Key&,const std::optional<boost::asio::ip::udp::endpoint>&)>;
-
 //
 //
 // It provides the ability to exchange files
@@ -167,6 +165,8 @@ public:
     virtual void      addReplicatorKeyToKademlia( const Key& key ) = 0;
     virtual void      addReplicatorKeysToKademlia( const std::vector<Key>& keys ) = 0;
     virtual void      removeReplicatorKeyFromKademlia( const Key& keys ) = 0;
+    virtual void      dbgTestKademlia( const KademliaDbgFunc& dbgFunc ) = 0;
+
 
     virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const Key& key ) = 0;
 
@@ -270,6 +270,7 @@ PLUGIN_API std::shared_ptr<Session> createDefaultSession( boost::asio::io_contex
                                                           std::promise<void>&& bootstrapBarrier );
 
 PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address,
+                                                          const crypto::KeyPair&,
                                                           const LibTorrentErrorHandler&,
                                                           std::weak_ptr<lt::session_delegate>,
                                                           const std::vector<ReplicatorInfo>& bootstraps,

@@ -92,7 +92,7 @@ public:
         
         // down
         bucketI = bucketIndex;
-        while( result.size() < BUCKET_SIZE && (bucketI < BUCKET_NUMBER) )
+        while( result.size() < BUCKET_SIZE && (bucketI < BUCKET_NUMBER-1) )
         {
             bucketI++;
 

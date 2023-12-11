@@ -610,6 +610,9 @@ public:
         //rpcCall m_session->removeReplicatorKeyFromKademlia(keys);
     }
 
+    virtual void        dbgTestKademlia( const KademliaDbgFunc& dbgFunc ) override
+    {
+    }
     
     virtual Hash256     dbgGetRootHash( const DriveKey& driveKey ) override
     {

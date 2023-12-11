@@ -64,6 +64,8 @@ public:
             return;
         }
 
+        _LOG( "getRootHash(): " << getRootHash() )
+        _LOG( "m_drive.m_rootHash: " << m_drive.m_rootHash )
         if ( getRootHash() == m_drive.m_rootHash )
         {
             _LOG( "No need to catch up to " << getRootHash() )

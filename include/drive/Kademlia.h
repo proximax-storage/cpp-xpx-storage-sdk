@@ -12,7 +12,19 @@
 #include <cereal/archives/portable_binary.hpp>
 #include <chrono>
 
-namespace sirius { namespace drive { namespace kademlia {
+namespace sirius { namespace drive {
+
+using EndpointHandler = std::function<void(const Key&,const std::optional<boost::asio::ip::udp::endpoint>&)>;
+
+struct KademliaDbgInfo
+{
+    size_t m_requestCounter = 0;
+    size_t m_peerCounter = 0;
+};
+
+using KademliaDbgFunc = std::function<void(const KademliaDbgInfo&)>;
+
+namespace kademlia {
 
 using PeerKey = ::sirius::Key;
 
@@ -210,9 +222,12 @@ class EndpointCatalogue
 public:
     virtual ~EndpointCatalogue() = default;
 
+    virtual void    start() = 0;
     virtual void    stop() = 0;
 
     virtual PeerKey publicKey() = 0;
+
+    virtual void      setEndpointHandler( ::sirius::drive::EndpointHandler endpointHandler ) = 0;
 
     virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const PeerKey& key ) =0;
 
@@ -225,24 +240,26 @@ public:
 
     // 'get-ip'
     virtual std::string     onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
+    
     virtual void            onGetPeerIpResponse( const std::string& ) = 0;
     
     virtual void            addReplicatorKey( const Key& key ) = 0;
     virtual void            addReplicatorKeys( const std::vector<Key>& keys ) = 0;
     virtual void            removeReplicatorKey( const Key& keys ) = 0;
+    
+    virtual void            dbgTestKademlia( const KademliaDbgFunc& dbgFunc ) = 0;
 };
 
 
 } // namespace kademlia
 
 class Session;
-std::unique_ptr<kademlia::EndpointCatalogue> createEndpointCatalogue(
+std::shared_ptr<kademlia::EndpointCatalogue> createEndpointCatalogue(
                                                     std::weak_ptr<Session>              kademliaTransport,
                                                     const crypto::KeyPair&              keyPair,
                                                     const std::vector<ReplicatorInfo>&  bootstraps,
-                                                    uint8_t                             myPort,
+                                                    uint16_t                            myPort,
                                                     bool                                isClient );
 
 }}
-
 

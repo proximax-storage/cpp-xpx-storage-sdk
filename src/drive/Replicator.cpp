@@ -233,6 +233,7 @@ public:
                                               //m_sesion->setDbgThreadId();
                                               m_dbgThreadId = std::this_thread::get_id();
 
+                                              _LOG( "libtorrentThread started: ");
                                               m_replicatorContext.run();
 #ifdef DEBUG_OFF_CATAPULT
                                               _LOG( "libtorrentThread ended" );
@@ -3024,6 +3025,11 @@ public:
     virtual void removeReplicatorKeyFromKademlia( const Key& keys ) override
     {
         m_session->removeReplicatorKeyFromKademlia(keys);
+    }
+
+    virtual void dbgTestKademlia( const KademliaDbgFunc& dbgFunc ) override
+    {
+        m_session->dbgTestKademlia(dbgFunc);
     }
 
 };

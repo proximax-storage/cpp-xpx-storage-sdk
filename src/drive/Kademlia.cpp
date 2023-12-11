@@ -42,7 +42,7 @@ public:
     std::weak_ptr<Session>          m_kademliaTransport;
     const crypto::KeyPair&          m_keyPair;
     std::vector<NodeInfo>           m_bootstraps;
-    uint8_t                         m_myPort;
+    uint16_t                        m_myPort;
     bool                            m_isClient;
     
     std::optional<PeerInfo>         m_myPeerInfo;
@@ -53,6 +53,8 @@ public:
     SearcherMap                     m_searcherMap;
     
     std::set<const Key>             m_registeredReplicators;
+    
+    std::optional<::sirius::drive::EndpointHandler> m_endpointHandler;
 
 private:
     boost::asio::ip::udp::endpoint  m_myIp;
@@ -62,7 +64,7 @@ public:
     EndpointCatalogueImpl(  std::weak_ptr<Session>        kademliaTransport,
                             const crypto::KeyPair&        keyPair,
                             const std::vector<NodeInfo>&  bootstraps,
-                            uint8_t                       myPort,
+                            uint16_t                      myPort,
                             bool                          isClient )
         :   m_kademliaTransport(kademliaTransport),
             m_keyPair(keyPair),
@@ -79,6 +81,18 @@ public:
         for( const auto& nodeInfo : m_bootstraps )
         {
             m_localEndpointMap[nodeInfo.m_publicKey.array()] = nodeInfo.m_endpoint;
+        }
+    }
+
+    virtual void start() override
+    {
+        for( const auto& bootstrapNodeInfo : m_bootstraps )
+        {
+            if ( auto kademliaTransport = m_kademliaTransport.lock(); kademliaTransport )
+            {
+                MyIpRequest request{m_myPort};
+                kademliaTransport->sendGetMyIpRequest( request, bootstrapNodeInfo.m_endpoint );
+            }
         }
     }
 
@@ -100,6 +114,12 @@ public:
         {
             it->second = endpoint;
         }
+        (*m_endpointHandler)( key, endpoint );
+    }
+    
+    virtual void setEndpointHandler( ::sirius::drive::EndpointHandler endpointHandler ) override
+    {
+        m_endpointHandler = endpointHandler;
     }
 
     // getEndpoint() for local using only
@@ -136,14 +156,15 @@ public:
 
     std::string onGetMyIpRequest( const std::string& request, boost::asio::ip::udp::endpoint requesterEndpoint ) override
     {
+        __LOG( "onGetMyIpRequest: " << requesterEndpoint )
         try
         {
             std::istringstream is( request, std::ios::binary );
             cereal::PortableBinaryInputArchive iarchive(is);
-            uint16_t port;
-            iarchive( port );
+            MyIpRequest request;
+            iarchive( request );
             
-            if ( port == requesterEndpoint.port() )
+            if ( request.m_myPort == requesterEndpoint.port() )
             {
                 MyIpResponse response{ m_keyPair, requesterEndpoint };
                 std::ostringstream os( std::ios::binary );
@@ -153,7 +174,7 @@ public:
             }
             else
             {
-                __LOG_WARN( "onGetMyIpRequest: bad port: " << port << " != " << requesterEndpoint.port() )
+                __LOG_WARN( "onGetMyIpRequest: bad port: " << request.m_myPort << " != " << requesterEndpoint.port() )
             }
         } catch (...) {
             __LOG_WARN( "exception in onGetMyIpRequest" )
@@ -163,6 +184,7 @@ public:
 
     void onGetMyIpResponse( const std::string& responseStr ) override
     {
+        __LOG( "onGetMyIpResponse: " )
         try
         {
             std::istringstream is( responseStr, std::ios::binary );
@@ -199,6 +221,8 @@ public:
 
     std::string onGetPeerIpRequest( const std::string& requestStr, boost::asio::ip::udp::endpoint requesterEndpoint ) override
     {
+        __LOG( "onGetPeerIpRequest: " )
+
         try
         {
             std::istringstream is( requestStr, std::ios::binary );
@@ -232,6 +256,8 @@ public:
 
     void onGetPeerIpResponse( const std::string& responseStr ) override
     {
+        __LOG( "onGetPeerIpResponse: " )
+
         try
         {
             std::istringstream is( responseStr, std::ios::binary );
@@ -314,6 +340,24 @@ public:
         
         m_hashTable.removePeerInfo(key);
     }
+    
+    virtual void dbgTestKademlia( const KademliaDbgFunc& dbgFunc ) override
+    {
+        if ( auto kademliaTransport = m_kademliaTransport.lock(); kademliaTransport )
+        {
+            boost::asio::post( kademliaTransport->lt_session().get_context(), [=, this]() mutable
+            {
+                KademliaDbgInfo dbgInfo;
+                dbgInfo.m_requestCounter = m_searcherMap.size();
+                for( const auto& bucket : m_hashTable.buckets() )
+                {
+                    dbgInfo.m_peerCounter = bucket.nodes().size();
+                }
+                dbgFunc( dbgInfo );
+            });
+        }
+    }
+
 };
 
 class PeerSearchInfo
@@ -339,7 +383,7 @@ class PeerSearchInfo
     std::weak_ptr<Session>  m_session;
     Timer                   m_timer;
 
-    const int PEER_ASWER_LIMIT_MS = 1000;
+    const int PEER_ANSWER_LIMIT_MS = 1000;
 
 public:
 
@@ -391,7 +435,7 @@ public:
             m_triedPeers.insert( m_candidates.back().m_publicKey );
             m_candidates.pop_back();
 
-            m_timer = session->startTimer( PEER_ASWER_LIMIT_MS, [this]{ onTimer(); } );
+            m_timer = session->startTimer( PEER_ANSWER_LIMIT_MS, [this]{ onTimer(); } );
         }
     }
     
@@ -492,14 +536,14 @@ inline void onGetPeerIpResponseWrap( PeerSearchInfo& searchInfo, PeerIpResponse&
 
 } // namespace kademlia
 
-std::unique_ptr<kademlia::EndpointCatalogue> createEndpointCatalogue(
+std::shared_ptr<kademlia::EndpointCatalogue> createEndpointCatalogue(
                                                              std::weak_ptr<Session>             kademliaTransport,
                                                              const crypto::KeyPair&             keyPair,
                                                              const std::vector<ReplicatorInfo>& bootstraps,
-                                                             uint8_t                            myPort,
+                                                             uint16_t                           myPort,
                                                              bool                               isClient )
 {
-    return std::make_unique<kademlia::EndpointCatalogueImpl>( kademliaTransport,
+    return std::make_shared<kademlia::EndpointCatalogueImpl>( kademliaTransport,
                                                               keyPair,
                                                               bootstraps,
                                                               myPort,

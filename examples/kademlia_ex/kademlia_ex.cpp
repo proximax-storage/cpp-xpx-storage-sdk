@@ -298,6 +298,8 @@ int main(int,char**)
 //                                          "client0" );
 
     EXLOG("");
+    
+    sleep(1);
 
     // Create a lot of drives!
     
@@ -328,6 +330,24 @@ int main(int,char**)
             auto driveKey = randomByteArray<sirius::Key>();
             replicator->asyncAddDrive( driveKey, std::move(driveRequest) );
         }
+    }
+
+    for(;;)
+    {
+        sirius::drive::KademliaDbgInfo dbgInfo;
+        std::mutex dbgInfoMutex;
+        
+        for( auto& replicator : gReplicators )
+        {
+            replicator->dbgTestKademlia( [&] (const KademliaDbgInfo& info )
+                                        {
+                std::lock_guard<std::mutex> lock(dbgInfoMutex);
+                dbgInfo.m_requestCounter += info.m_requestCounter;
+                dbgInfo.m_peerCounter += info.m_peerCounter;
+            });
+        }
+        sleep(1);
+        __LOG( "dbg-dbg: " << dbgInfo.m_requestCounter << " " << dbgInfo.m_peerCounter );
     }
 
     sleep(1000);

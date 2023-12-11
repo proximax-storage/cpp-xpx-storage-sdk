@@ -800,7 +800,7 @@ std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&      
                                                            const char*                   dbgClientName )
 {
     std::shared_ptr<DefaultViewerSession> session = std::make_shared<DefaultViewerSession>( keyPair, dbgClientName );
-    session->m_session = createDefaultSession( address, errorHandler, session, { ReplicatorInfo{bootstraps[0],{}}}, session );
+    session->m_session = createDefaultSession( address, keyPair, errorHandler, session, { ReplicatorInfo{bootstraps[0],{}}}, session );
     session->m_session->lt_session().add_extension( std::dynamic_pointer_cast<lt::plugin>( session ) );
     session->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     

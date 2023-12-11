@@ -6,6 +6,7 @@
 
 #include "drive/Session.h"
 #include "ReplicatorInt.h"
+#include "DownloadLimiter.h"
 #include "drive/Utils.h"
 #include "drive/log.h"
 
@@ -94,7 +95,7 @@ struct LtClientData
 class DefaultSession:   public Session,
                         public std::enable_shared_from_this<DefaultSession>
 {
-    std::unique_ptr<kademlia::EndpointCatalogue> m_kademlia;
+    std::shared_ptr<kademlia::EndpointCatalogue> m_kademlia;
     
     const int64_t			m_maxTotalSize = 256LL * 1024LL * 1024LL * 1024LL; // 256GB
     
@@ -141,21 +142,26 @@ public:
     , m_replicator(replicator)
     , m_downloadLimiter(downloadLimiter)
     {
-        if ( auto replicatorPtr = replicator.lock(); replicatorPtr )
+        boost::asio::post( m_session.get_context(), [=, this]() mutable
         {
-            m_kademlia = std::move( createEndpointCatalogue( weak_from_this(), replicatorPtr->keyPair(), bootstraps, m_listeningPort, false ));
-        }
-        else
-        {
-            _SIRIUS_ASSERT( "Cannot lock replicator" );
-        }
-        
+            if ( auto replicatorPtr = replicator.lock(); replicatorPtr )
+            {
+                m_kademlia = createEndpointCatalogue( weak_from_this(), replicatorPtr->keyPair(), bootstraps, uint16_t(m_listeningPort), true );
+                m_kademlia->start();
+            }
+            else
+            {
+                _SIRIUS_ASSERT( "Cannot lock replicator" );
+            }
+            auto plugin = std::make_shared<DhtRequestPlugin>(  m_replicator, weak_from_this() );
+            m_session.add_extension(plugin);
+            m_session.setDelegate( m_downloadLimiter );
+        });
+                          
         _LOG( "DefaultSession: " << address << " : " << toString(m_downloadLimiter.lock()->publicKey()) );
         m_dbgOurPeerName = m_downloadLimiter.lock()->dbgOurPeerName();
         
         m_session.set_alert_notify( [this] { this->alertHandler(); } );
-        m_session.add_extension(std::make_shared<DhtRequestPlugin>(  m_replicator ));
-        m_session.setDelegate( m_downloadLimiter );
         
         _LOG( "DefaultSession created: " );
         _LOG( "DefaultSession created: " << m_addressAndPort );
@@ -175,7 +181,6 @@ public:
         return 0;
     }
     
-    
     virtual int listeningPort() override
     {
         return m_listeningPort;
@@ -184,6 +189,7 @@ public:
     // Constructor for Client
     //
     DefaultSession( std::string                             address,
+                   const crypto::KeyPair&                  keyPair,
                    LibTorrentErrorHandler                  alertHandler,
                    std::weak_ptr<lt::session_delegate>     downloadLimiter,
                    bool                                    useTcpSocket,
@@ -197,12 +203,20 @@ public:
     , m_alertHandler(alertHandler)
     , m_downloadLimiter(downloadLimiter)
     {
-        if ( downloadLimiter.lock() )
-            m_dbgOurPeerName = downloadLimiter.lock()->dbgOurPeerName();
-        
+        boost::asio::post( m_session.get_context(), [&keyPair,bootstraps,dhtMessageHandler, this]() mutable
+        {
+            if ( auto downloadLimiterPtr = m_downloadLimiter.lock(); downloadLimiterPtr )
+            {
+                m_dbgOurPeerName = downloadLimiterPtr->dbgOurPeerName();
+                
+                m_kademlia = std::move( createEndpointCatalogue( weak_from_this(), keyPair, bootstraps, uint16_t(m_listeningPort), false ));
+            }
+            auto plugin = std::make_shared<DhtRequestPlugin>(  dhtMessageHandler, weak_from_this() );
+            m_session.add_extension(plugin);
+            m_session.setDelegate( m_downloadLimiter );
+        });
+                          
         m_session.set_alert_notify( [this] { this->alertHandler(); } );
-        m_session.add_extension(std::make_shared<DhtRequestPlugin>(  dhtMessageHandler ));
-        m_session.setDelegate( m_downloadLimiter );
         
         _LOG( "DefaultSession created: " << m_addressAndPort );
         _LOG( "Client DefaultSession created: m_listeningPort " << m_listeningPort );
@@ -398,7 +412,7 @@ public:
     
     virtual void      setEndpointHandler( EndpointHandler endpointHandler ) override
     {
-        //TODO?
+        m_kademlia->setEndpointHandler( endpointHandler );
     }
 
     virtual void      startSearchPeerEndpoints( const std::vector<Key>& keys ) override
@@ -429,15 +443,21 @@ public:
         m_kademlia->addReplicatorKey(key);
     }
     
-    virtual void      addReplicatorKeysToKademlia( const std::vector<Key>& keys )
+    virtual void      addReplicatorKeysToKademlia( const std::vector<Key>& keys ) override
     {
         m_kademlia->addReplicatorKeys(keys);
     }
     
-    virtual void      removeReplicatorKeyFromKademlia( const Key& keys )
+    virtual void      removeReplicatorKeyFromKademlia( const Key& keys ) override
     {
         m_kademlia->removeReplicatorKey(keys);
     }
+    
+    virtual void     dbgTestKademlia( const KademliaDbgFunc& dbgFunc ) override
+    {
+        m_kademlia->dbgTestKademlia(dbgFunc);
+    }
+
 
     virtual void removeTorrentsFromSession( const std::set<lt::torrent_handle>&  torrents,
                                            std::function<void()>                endNotification,
@@ -732,14 +752,10 @@ public:
     
     struct DhtRequestPlugin : lt::plugin
     {
-        //        std::weak_ptr<lt::session_delegate> m_replicator;
-        //        DhtRequestPlugin( std::weak_ptr<lt::session_delegate> replicator ) : m_replicator(replicator) {}
-        
-        std::weak_ptr<ReplicatorInt>        m_replicator;
         std::weak_ptr<DhtMessageHandler>    m_handler;
-        std::weak_ptr<kademlia::Transport>  m_kademliaTransport;
-        //DhtRequestPlugin( std::weak_ptr<ReplicatorInt> replicator ) : m_replicator(replicator) {}
-        DhtRequestPlugin( std::weak_ptr<DhtMessageHandler> replicator ) : m_handler(replicator) {}
+        std::weak_ptr<sirius::drive::kademlia::Transport>  m_kademliaTransport;
+        
+        DhtRequestPlugin( std::weak_ptr<DhtMessageHandler> replicator, std::weak_ptr<kademlia::Transport> kademliaTransport ) : m_handler(replicator), m_kademliaTransport(kademliaTransport) {}
         
         feature_flags_t implemented_features() override
         {
@@ -1198,7 +1214,10 @@ private:
                         
                     case lt::dht_bootstrap_alert::alert_type: {
                         _LOG( "dht_bootstrap_alert: " << alert->message() )
-                        //m_bootstrapBarrier.set_value();
+                        
+                        // dht_bootstrap_alert emplaced at once at the end of session_impl::start_dht()
+                        // So, kademlia can send dht messages !!!
+                        m_kademlia->start();
                         break;
                     }
                         
@@ -1702,7 +1721,7 @@ InfoHash createTorrentFile( const fs::path& fileOrFolder,
     //dbg////////////////////////////////
     auto entry = entry_info;
     //LOG( "entry[info]:" << entry["info"].to_string() );
-    //LOG( entry.to_string() );
+    __LOG( entry.to_string() );
     auto tInfo = lt::torrent_info(torrentFileBytes, lt::from_span);
     //LOG( "make_magnet_uri:" << lt::make_magnet_uri(tInfo) );
     //dbg////////////////////////////////
@@ -1876,7 +1895,7 @@ InfoHash calculateInfoHash( const std::filesystem::path& pathToFile, const Key& 
 }
 
 //
-// createDefaultLibTorrentSession
+// For Replicator
 //
 
 std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&             context,
@@ -1896,13 +1915,17 @@ std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&         
                                             std::move(bootstrapBarrier) );
 }
 
+//
+// For Client
+//
 std::shared_ptr<Session> createDefaultSession( std::string                          address,
+                                               const crypto::KeyPair&               keyPair,
                                                const LibTorrentErrorHandler&        alertHandler,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
-                                               const std::vector<ReplicatorInfo>& bootstraps,
+                                               const std::vector<ReplicatorInfo>&   bootstraps,
                                                std::weak_ptr<DhtMessageHandler>     dhtMessageHandler )
 {
-    return std::make_shared<DefaultSession>( address, alertHandler, downloadLimiter, false, bootstraps, dhtMessageHandler );
+    return std::make_shared<DefaultSession>( address, keyPair, alertHandler, downloadLimiter, false, bootstraps, dhtMessageHandler );
 }
 
 }
