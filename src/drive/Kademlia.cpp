@@ -11,27 +11,29 @@
 #include <cereal/types/optional.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
-#define _KADEMLIA_TEST_
-
-#ifdef _KADEMLIA_TEST_
-inline std::map<sirius::Key,int> gCompletenessMap;
-std::mutex gCompletenessMapMutex;
-#endif
+//todo?
+#define _KADEMLIA_LOCAL_TEST_
 
 namespace sirius { namespace drive { namespace kademlia {
 
 using NodeInfo = ReplicatorInfo;
 using namespace ::sirius::drive;
 
+const int MAX_ATTEMPT_NUMBER = 3;
+
 class EndpointCatalogueImpl;
 class PeerSearchInfo;
-void  onGetPeerIpResponseWrap( PeerSearchInfo& searchInfo, PeerIpResponse& response );
 
-PeerSearchInfo createPeerSearchInfo(   const PeerKey&                  myPeerKey,
-                                       const PeerKey&                  targetPeerKey,
-                                       size_t                          bucketIndex,
-                                       EndpointCatalogueImpl&          endpointCatalogue,
-                                       std::weak_ptr<Session>          session );
+using DirectEndpoint = std::optional<boost::asio::ip::udp::endpoint>;
+
+bool  onGetPeerIpResponseRedirect( PeerSearchInfo& searchInfo, PeerIpResponse& response );
+
+inline std::unique_ptr<PeerSearchInfo> createPeerSearchInfo( const PeerKey&        myPeerKey,
+                                                   const PeerKey&                  targetPeerKey,
+                                                   size_t                          bucketIndex,
+                                                   DirectEndpoint                  directEndpoint,
+                                                   EndpointCatalogueImpl&          endpointCatalogue,
+                                                   std::weak_ptr<Session>          session );
 
 class EndpointCatalogueImpl : public EndpointCatalogue
 {
@@ -70,8 +72,21 @@ public:
             m_keyPair(keyPair),
             m_bootstraps(bootstraps),
             m_myPort(myPort),
-            m_isClient(isClient)
+            m_isClient(isClient),
+            m_hashTable( keyPair.publicKey() )
     {
+        auto it = std::find_if( m_bootstraps.begin(), m_bootstraps.end(), [this]( const auto& item )
+        {
+            return m_keyPair.publicKey() == item.m_publicKey;
+        });
+                               
+        if ( it != m_bootstraps.end() )
+        {
+            m_myPeerInfo = PeerInfo{ m_keyPair.publicKey(), it->m_endpoint };
+            m_myPeerInfo->Sign( m_keyPair );
+            m_bootstraps.erase( it );
+        }
+        
         std::erase_if( m_bootstraps, [this]( const auto& item )
         {
             return m_keyPair.publicKey() == item.m_publicKey;
@@ -80,7 +95,12 @@ public:
 
         for( const auto& nodeInfo : m_bootstraps )
         {
-            m_localEndpointMap[nodeInfo.m_publicKey.array()] = nodeInfo.m_endpoint;
+            m_localEndpointMap[nodeInfo.m_publicKey] = nodeInfo.m_endpoint;
+        }
+        
+        if ( m_myPeerInfo )
+        {
+            enterToSwarm();
         }
     }
 
@@ -91,6 +111,7 @@ public:
             if ( auto kademliaTransport = m_kademliaTransport.lock(); kademliaTransport )
             {
                 MyIpRequest request{m_myPort};
+
                 kademliaTransport->sendGetMyIpRequest( request, bootstrapNodeInfo.m_endpoint );
             }
         }
@@ -101,7 +122,7 @@ public:
         //TODO? remove timers
     }
 
-    virtual PeerKey publicKey() override { return m_keyPair.publicKey().array(); }
+    virtual PeerKey publicKey() override { return m_keyPair.publicKey(); }
 
     void addClientToLocalEndpointMap( const Key& key ) override
     {
@@ -122,17 +143,23 @@ public:
         m_endpointHandler = endpointHandler;
     }
 
-    // getEndpoint() for local using only
-    //
     std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const PeerKey& key ) override
+    {
+        return queryPeerInfo( key, {} );
+    }
+    
+    std::optional<boost::asio::ip::udp::endpoint> queryPeerInfo( const PeerKey& key, DirectEndpoint directEndpoint )
     {
         // find in local map (usually replicators of common drives)
         //
-        if ( auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() )
+        if ( ! directEndpoint )
         {
-            return it->second;
+            if ( auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() )
+            {
+                return it->second;
+            }
         }
-
+        
         // find in Kademlia hash table
         size_t bucketIndex;
         if ( auto peerInfo = m_hashTable.getPeerInfo( key, bucketIndex ); peerInfo )
@@ -143,11 +170,13 @@ public:
         // start searching (skip if already started)
         if ( auto it = m_searcherMap.find( key ); it == m_searcherMap.end() )
         {
-            m_searcherMap[key] = std::make_unique<PeerSearchInfo>( this->m_keyPair.publicKey().array(),
-                                                                  key,
-                                                                  bucketIndex,
-                                                                  *this,
-                                                                  m_kademliaTransport );
+            //___LOG( "request: " << m_myPort << ": " << key )
+            m_searcherMap[key] = createPeerSearchInfo( this->m_keyPair.publicKey(),
+                                                      key,
+                                                      bucketIndex,
+                                                      directEndpoint,
+                                                      *this,
+                                                      m_kademliaTransport );
         }
         
         // not found yet
@@ -182,7 +211,7 @@ public:
         return "";
     }
 
-    void onGetMyIpResponse( const std::string& responseStr ) override
+    void onGetMyIpResponse( const std::string& responseStr, boost::asio::ip::udp::endpoint responserEndpoint ) override
     {
         __LOG( "onGetMyIpResponse: " )
         try
@@ -206,7 +235,7 @@ public:
             }
 
             bool firstResponse = !m_myPeerInfo.has_value();
-            m_myPeerInfo = PeerInfo{ m_keyPair.publicKey().array(), response.m_response.endpoint() };
+            m_myPeerInfo = PeerInfo{ m_keyPair.publicKey(), response.m_response.endpoint() };
             m_myPeerInfo->Sign( m_keyPair );
             
             if ( firstResponse )
@@ -230,17 +259,48 @@ public:
             PeerIpRequest request;
             archive( request );
             
-            if ( m_hashTable.couldBeAdded( request.m_requesterKey ) )
+            if ( request.m_requesterKey != m_keyPair.publicKey() && m_hashTable.couldBeAdded( request.m_requesterKey ) )
             {
-                if ( auto session = m_kademliaTransport.lock(); session )
-                {
-                    session->sendGetPeerIpRequest( PeerIpRequest{ false, request.m_requesterKey, publicKey() }, requesterEndpoint );
-                }
+                // Query requester peerInfo if it could be added to my hashtable
+                queryPeerInfo( request.m_requesterKey, requesterEndpoint );
             }
             
-            // find in Kademlia hash table
-            std::vector<PeerInfo> peers = m_hashTable.onRequestFromAnotherPeer( request.m_peerKey );
+            std::vector<PeerInfo> peers;
+            
+            // Is it my peer?
+            if ( request.m_peerKey == m_keyPair.publicKey() )
+            {
+                if ( requesterEndpoint.port() == 5003 )
+                {
+                    ___LOG( "<5003 onGetPeerIpRequest: " << m_myPort << " " << request.m_peerKey )
+                }
+
+                if ( !m_myPeerInfo )
+                {
+                    if ( requesterEndpoint.port() == 5003 )
+                    {
+                        ___LOG( "<5003 onGetPeerIpRequest: !m_myPeerInfo " << m_myPort )
+                    }
+                    return "";
+                }
+                if ( requesterEndpoint.port() == 5003 )
+                {
+                    ___LOG("5003 response: " << m_myPort << " responser: " << requesterEndpoint.port() )
+                }
+                peers.push_back(*m_myPeerInfo);
+            }
+            else
+            {
+                // find in Kademlia hash table
+                peers  = m_hashTable.onRequestFromAnotherPeer( request.m_peerKey );
+            }
+            
+            // return response
             PeerIpResponse response{ request.m_peerKey, peers };
+            if ( requesterEndpoint.port() == 5003 )
+            {
+                ___LOG( "5003 PeerIpResponse: " << m_myPort << " tg: " << request.m_peerKey << " requester: " << requesterEndpoint.port() )
+            }
 
             std::ostringstream os( std::ios::binary );
             cereal::PortableBinaryOutputArchive iarchive(os);
@@ -254,34 +314,44 @@ public:
         return "";
     }
 
-    void onGetPeerIpResponse( const std::string& responseStr ) override
+    void onGetPeerIpResponse( const std::string& responseStr, boost::asio::ip::udp::endpoint responserEndpoint ) override
     {
         __LOG( "onGetPeerIpResponse: " )
-
+        
         try
         {
+            // Unpack response
             std::istringstream is( responseStr, std::ios::binary );
             cereal::PortableBinaryInputArchive archive(is);
             PeerIpResponse response;
             archive( response );
             
+            if ( m_myPort == 5003 )
+            {
+                ___LOG("5003 onGetPeerIpResponse (received):" << m_myPort << " responser: " << responserEndpoint.port()  << " target: " << response.m_peerKey )
+            }
+
             if ( response.m_response.size() == 0 )
             {
+                // ignore empty response
+                if ( m_myPort == 5003 )
+                {
+                    ___LOG("5003 empty response!!! (received):" << m_myPort << " responser: " << responserEndpoint.port()  << " target: " << response.m_peerKey )
+                }
                 return;
             }
             
-            for( auto& peerInfo : response.m_response )
-            {
-                if ( ! peerInfo.Verify() )
-                {
-                    __LOG_WARN( "onGetPeerIpResponse: bad sign" );
-                    return;
-                }
-            }
-            
+            // Redirect response to searcher
             if ( auto it = m_searcherMap.find(response.m_peerKey); it != m_searcherMap.end() )
             {
-                kademlia::onGetPeerIpResponseWrap( *it->second, response );
+                if ( ! kademlia::onGetPeerIpResponseRedirect( *it->second, response ) )
+                {
+                    m_searcherMap.erase(it);
+                    if ( m_myPort == 5003 )
+                    {
+                        ___LOG("5003 onGetPeerIpResponse found: " << m_myPort << " responser: " << responserEndpoint.port()  << " " << response.m_peerKey )
+                    }
+                }
             }
             else
             {
@@ -291,28 +361,36 @@ public:
         catch(...) {
             __LOG_WARN( "exception in onGetPeerIpResponse" )
         }
-        
-        #ifdef _KADEMLIA_TEST_
-        {
-            std::lock_guard<std::mutex> lock(gCompletenessMapMutex);
-            //for( m_hashTable.buckets());
-        }
-        #endif
-
-
     }
     
     void enterToSwarm()
     {
-        PeerKey searchedKey = m_keyPair.publicKey().array();
+        // Query peerInfo of bootstraps
+        if ( auto session = m_kademliaTransport.lock(); session )
+        {
+            for( auto nodeInfo: m_bootstraps )
+            {
+                queryPeerInfo( nodeInfo.m_publicKey, nodeInfo.m_endpoint );
+            }
+        }
+
+        //TODO?
+        return;
+        
+        PeerKey searchedKey = m_keyPair.publicKey();
         //TODO? maybe searchedKey[0] = searchedKey[0] ^ 0x01;
         searchedKey[0] = searchedKey[31] ^ 0x01;
         
-        PeerIpRequest request{ m_isClient, m_keyPair.publicKey().array(), searchedKey };
+        PeerIpRequest request{ m_isClient, searchedKey, m_keyPair.publicKey() };
         if ( auto session = m_kademliaTransport.lock(); session )
         {
             for( auto bootstrapNode: m_bootstraps )
             {
+                if ( m_myPort == 5003 )
+                {
+                    ___LOG( "5003 Request(2): " << searchedKey )
+                }
+
                 session->sendGetPeerIpRequest( request, bootstrapNode.m_endpoint );
             }
         }
@@ -341,18 +419,23 @@ public:
         m_hashTable.removePeerInfo(key);
     }
     
-    virtual void dbgTestKademlia( const KademliaDbgFunc& dbgFunc ) override
+    virtual void dbgTestKademlia( KademliaDbgFunc dbgFunc ) override
     {
         if ( auto kademliaTransport = m_kademliaTransport.lock(); kademliaTransport )
         {
             boost::asio::post( kademliaTransport->lt_session().get_context(), [=, this]() mutable
             {
                 KademliaDbgInfo dbgInfo;
-                dbgInfo.m_requestCounter = m_searcherMap.size();
-                for( const auto& bucket : m_hashTable.buckets() )
+                for ( auto& [key,searchInfo] : m_searcherMap )
                 {
-                    dbgInfo.m_peerCounter = bucket.nodes().size();
+                    ___LOG( "m_searcherMap " << m_myPort << ": " << key );
                 }
+//                dbgInfo.m_requestCounter = m_searcherMap.size();
+//                for( const auto& bucket : m_hashTable.buckets() )
+//                {
+//                    dbgInfo.m_peerCounter += bucket.nodes().size();
+//                }
+//                ___LOG( "m_myPort: " << m_myPort << " dbgInfo.m_peerCounter: " << dbgInfo.m_peerCounter );
                 dbgFunc( dbgInfo );
             });
         }
@@ -376,14 +459,19 @@ class PeerSearchInfo
     PeerKey                 m_myPeerKey;
     PeerKey                 m_targetPeerKey;
     size_t                  m_bucketIndex;
-    std::vector<Candidate>  m_candidates;
-    std::set<PeerKey>       m_triedPeers;
+    
+    // It is used when we know peer IP, but we need peerInfo (i.e. for updating peerInfo)
+    DirectEndpoint          m_directEndpoint;
 
     EndpointCatalogueImpl&  m_endpointCatalogue;
     std::weak_ptr<Session>  m_session;
-    Timer                   m_timer;
 
-    const int PEER_ANSWER_LIMIT_MS = 1000;
+    std::vector<Candidate>  m_candidates;
+    std::set<PeerKey>       m_triedPeers;
+    Timer                   m_timer;
+    int                     m_attemptCounter = 0;
+
+    const int PEER_ANSWER_LIMIT_MS = 2000;
 
 public:
 
@@ -392,45 +480,73 @@ public:
     PeerSearchInfo( const PeerKey&                 myPeerKey,
                    const PeerKey&                  targetPeerKey,
                    size_t                          bucketIndex,
+                   DirectEndpoint                  directEndpoint,
                    EndpointCatalogueImpl&          endpointCatalogue,
                    std::weak_ptr<Session>          session )
     :
         m_myPeerKey(myPeerKey),
         m_targetPeerKey(targetPeerKey),
         m_bucketIndex(bucketIndex),
+        m_directEndpoint(directEndpoint),
         m_endpointCatalogue(endpointCatalogue),
         m_session(session)
     {
-        for(;;)
+        if ( m_directEndpoint )
         {
-            for( const auto& peerInfo : m_endpointCatalogue.m_hashTable.buckets()[bucketIndex].nodes() )
+            m_candidates.emplace_back( Candidate{   *m_directEndpoint,
+                                                    targetPeerKey,
+                                                    xorValue(targetPeerKey, m_myPeerKey) } );
+        }
+        else
+        {
+            for(;;)
             {
-                m_candidates.emplace_back( Candidate{ peerInfo.endpoint(), peerInfo.m_publicKey, xorValue(peerInfo.m_publicKey, m_myPeerKey) } );
-            }
-            if ( m_candidates.empty() )
-            {
-                if ( m_bucketIndex==0 )
+                for( const auto& peerInfo : m_endpointCatalogue.m_hashTable.buckets()[bucketIndex].nodes() )
                 {
-                    const auto& bootstrapNode = m_endpointCatalogue.m_bootstraps[0];
-                    m_candidates.emplace_back( Candidate{ bootstrapNode.m_endpoint,
-                                                        bootstrapNode.m_publicKey.array(),
-                                                        xorValue(bootstrapNode.m_publicKey, m_myPeerKey) } );
-                    break;
+                    m_candidates.emplace_back( Candidate{ peerInfo.endpoint(), peerInfo.m_publicKey, xorValue(peerInfo.m_publicKey, m_myPeerKey) } );
                 }
-                m_bucketIndex--;
+                if ( m_candidates.empty() )
+                {
+                    if ( m_bucketIndex==0 )
+                    {
+                        for( const auto& bootstrapNode : m_endpointCatalogue.m_bootstraps )
+                        {
+                            m_candidates.emplace_back( Candidate{   bootstrapNode.m_endpoint,
+                                bootstrapNode.m_publicKey,
+                                xorValue(bootstrapNode.m_publicKey, m_myPeerKey) } );
+                        }
+                        break;
+                    }
+                    m_bucketIndex--;
+                }
             }
+            
+            // Sort candidates
+            std::sort( m_candidates.begin(), m_candidates.end() );
         }
         
-        std::sort( m_candidates.begin(), m_candidates.end() );
-
         sendNextRequest();
     }
-    
+
+    ~PeerSearchInfo()
+    {
+        if ( m_endpointCatalogue.m_myPort == 5003 )
+        {
+            ___LOG("5003 ~PeerSearchInfo: " << m_targetPeerKey << " in: " << m_endpointCatalogue.m_myPort )
+        }
+        m_timer.cancel();
+    }
+
     inline void sendNextRequest()
     {
         if ( auto session = m_session.lock(); session )
         {
             PeerIpRequest request{ session->isClient(), m_targetPeerKey, m_endpointCatalogue.publicKey() };
+            if ( m_endpointCatalogue.m_myPort == 5003 )
+            {
+                assert( m_candidates.back().m_endpoint.port() != m_endpointCatalogue.m_myPort );
+                ___LOG( "5003 Request(3): " << m_targetPeerKey << " to: " << m_candidates.back().m_endpoint.port() )
+            }
             session->sendGetPeerIpRequest( request, m_candidates.back().m_endpoint );
             m_triedPeers.insert( m_candidates.back().m_publicKey );
             m_candidates.pop_back();
@@ -441,18 +557,74 @@ public:
     
     void onTimer()
     {
+        if ( m_endpointCatalogue.m_myPort == 5003 )
+        {
+            ___LOG( "5003 onTimer: " << m_targetPeerKey )
+        }
+
         if ( m_candidates.empty() )
         {
-            __LOG( "onTimer: no candidates" )
-            return;
+            if ( m_attemptCounter++ < MAX_ATTEMPT_NUMBER )
+            {
+                m_triedPeers.clear();
+                
+                for( const auto& bucket : m_endpointCatalogue.m_hashTable.buckets() )
+                {
+                    for( const auto& peerInfo : bucket.nodes() )
+                    {
+                        assert( peerInfo.endpoint().port() != m_endpointCatalogue.m_myPort );
+
+                        m_candidates.emplace_back( Candidate{   peerInfo.endpoint(),
+                            peerInfo.m_publicKey,
+                            xorValue(peerInfo.m_publicKey, m_myPeerKey) } );
+                    }
+                    for( const auto& bootstrapNode : m_endpointCatalogue.m_bootstraps )
+                    {
+                        if ( auto it = std::find_if( m_candidates.begin(), m_candidates.end(), [&](const auto& item) {
+                            return item.m_publicKey == bootstrapNode.m_publicKey; }); it == m_candidates.end() )
+                        {
+                            assert( bootstrapNode.m_endpoint.port() != m_endpointCatalogue.m_myPort );
+                            m_candidates.emplace_back( Candidate{   bootstrapNode.m_endpoint,
+                                bootstrapNode.m_publicKey,
+                                xorValue(bootstrapNode.m_publicKey, m_myPeerKey) } );
+                        }
+                    }
+                }
+                _SIRIUS_ASSERT( ! m_candidates.empty() )
+
+                // Sort candidates
+                std::sort( m_candidates.begin(), m_candidates.end() );
+            }
+            else
+            {
+                __LOG( "onTimer: no candidates" )
+                if ( auto it = m_endpointCatalogue.m_searcherMap.find(m_targetPeerKey); it != m_endpointCatalogue.m_searcherMap.end() )
+                {
+                    m_endpointCatalogue.m_searcherMap.erase(it);
+                }
+                else
+                {
+                    __LOG_WARN("Corrupted m_searcherMap!");
+                }
+                return;
+            }
         }
         
         sendNextRequest();
     }
 
     // Response from another peer
-    void onGetPeerIpResponse( const PeerIpResponse& response )
+    bool onGetPeerIpResponse( const PeerIpResponse& response )
     {
+        if ( m_endpointCatalogue.m_myPort == 5003 )
+        {
+            ___LOG( "on_response: " << m_endpointCatalogue.m_myPort << " " <<response.m_response.size() << " " << response.m_peerKey )
+            if ( response.m_response.size() == 1 )
+            {
+                ___LOG( "on_response: " << response.m_response[0].m_publicKey )
+            }
+        }
+
         if ( response.m_response.size() == 1 && response.m_response[0].m_publicKey == m_targetPeerKey )
         {
             const PeerInfo& peerInfo = response.m_response[0];
@@ -461,24 +633,34 @@ public:
             {
                 __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: bad sign: " << peerInfo.m_publicKey )
                 sendNextRequest();
-                return;
+                return false;
             }
             
             if ( isPeerInfoExpired(peerInfo.m_timeInSeconds) )
             {
                 __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: expired: " << peerInfo.m_publicKey )
                 sendNextRequest();
-                return;
+                return false;
             }
             
             m_endpointCatalogue.m_localEndpointMap[ peerInfo.m_publicKey ] = peerInfo.endpoint();
 
-            m_endpointCatalogue.m_hashTable.addPeerInfo( response.m_response[0] );
-            return;
+            if ( int bucketIndex = m_endpointCatalogue.m_hashTable.addPeerInfoOrUpdate( response.m_response[0] ); bucketIndex >= 0 )
+            {
+                ___LOG( "added: to: " << m_endpointCatalogue.m_myPort << "  key: " << peerInfo.m_publicKey );
+                return true;
+            }
+            
+            return false;
         }
         
         for( const auto& peerInfo: response.m_response )
         {
+            if ( peerInfo.m_publicKey == m_endpointCatalogue.m_keyPair.publicKey() )
+            {
+                continue;
+            }
+            
             if ( ! peerInfo.Verify() )
             {
                 __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: bad sign(2): " << peerInfo.m_publicKey )
@@ -493,6 +675,7 @@ public:
 
             if ( auto it = m_triedPeers.find( peerInfo.m_publicKey ); it != m_triedPeers.end() )
             {
+                // skip already requested candidates
                 continue;
             }
             
@@ -516,22 +699,24 @@ public:
     }
 };
 
-inline PeerSearchInfo createPeerSearchInfo( const PeerKey&                  myPeerKey,
-                                            const PeerKey&                  targetPeerKey,
-                                            size_t                          bucketIndex,
-                                            EndpointCatalogueImpl&          endpointCatalogue,
-                                            std::weak_ptr<Session>          session )
+inline std::unique_ptr<PeerSearchInfo> createPeerSearchInfo( const PeerKey&         myPeerKey,
+                                                    const PeerKey&                  targetPeerKey,
+                                                    size_t                          bucketIndex,
+                                                    DirectEndpoint                  directEndpoint,
+                                                    EndpointCatalogueImpl&          endpointCatalogue,
+                                                    std::weak_ptr<Session>          session )
 {
-    return PeerSearchInfo{ myPeerKey,
+    return std::make_unique<PeerSearchInfo>( myPeerKey,
                           targetPeerKey,
                           bucketIndex,
+                          directEndpoint,
                           endpointCatalogue,
-                          session };
+                          session );
 }
 
-inline void onGetPeerIpResponseWrap( PeerSearchInfo& searchInfo, PeerIpResponse& response )
+inline bool onGetPeerIpResponseRedirect( PeerSearchInfo& searchInfo, PeerIpResponse& response )
 {
-    searchInfo.onGetPeerIpResponse( response );
+    return searchInfo.onGetPeerIpResponse( response );
 }
 
 } // namespace kademlia

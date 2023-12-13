@@ -18,8 +18,8 @@ using EndpointHandler = std::function<void(const Key&,const std::optional<boost:
 
 struct KademliaDbgInfo
 {
-    size_t m_requestCounter = 0;
-    size_t m_peerCounter = 0;
+    std::atomic<size_t> m_requestCounter{0};
+    std::atomic<size_t> m_peerCounter{0};
 };
 
 using KademliaDbgFunc = std::function<void(const KademliaDbgInfo&)>;
@@ -210,8 +210,8 @@ public:
     virtual std::string onGetMyIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
     virtual std::string onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
 
-    virtual void onGetMyIpResponse( const std::string& ) = 0;
-    virtual void onGetPeerIpResponse( const std::string& ) = 0;
+    virtual void onGetMyIpResponse( const std::string&, boost::asio::ip::udp::endpoint responserEndpoint ) = 0;
+    virtual void onGetPeerIpResponse( const std::string&, boost::asio::ip::udp::endpoint responserEndpoint ) = 0;
 };
 
 //-----------------------------------------------------
@@ -227,7 +227,7 @@ public:
 
     virtual PeerKey publicKey() = 0;
 
-    virtual void      setEndpointHandler( ::sirius::drive::EndpointHandler endpointHandler ) = 0;
+    virtual void    setEndpointHandler( ::sirius::drive::EndpointHandler endpointHandler ) = 0;
 
     virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const PeerKey& key ) =0;
 
@@ -236,18 +236,18 @@ public:
 
     // 'get-my-ip'
     virtual std::string     onGetMyIpRequest( const std::string& request, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
-    virtual void            onGetMyIpResponse( const std::string& ) = 0;
+    virtual void            onGetMyIpResponse( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
 
     // 'get-ip'
     virtual std::string     onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
     
-    virtual void            onGetPeerIpResponse( const std::string& ) = 0;
+    virtual void            onGetPeerIpResponse( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
     
     virtual void            addReplicatorKey( const Key& key ) = 0;
     virtual void            addReplicatorKeys( const std::vector<Key>& keys ) = 0;
     virtual void            removeReplicatorKey( const Key& keys ) = 0;
     
-    virtual void            dbgTestKademlia( const KademliaDbgFunc& dbgFunc ) = 0;
+    virtual void            dbgTestKademlia( KademliaDbgFunc dbgFunc ) = 0;
 };
 
 

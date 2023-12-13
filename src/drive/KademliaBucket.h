@@ -43,13 +43,14 @@ size_t equalPrefixLength( PeerKey aKey, PeerKey bKey )
     for( int i=0; i<a.size(); i++ )
     {
         auto xorValue = a[i] ^ b[i];
-        for( int i=0; i<8; i++ )
+        for( int j=0; j<8; j++ )
         {
             if ( xorValue&0x01 )
             {
                 return index;
             }
             xorValue = xorValue>>1;
+            index++;
         }
     }
     
@@ -82,7 +83,7 @@ public:
         return nullptr;
     }
 
-    void addPeer( const PeerInfo& info )
+    bool addPeerOrUpdate( const PeerInfo& info )
     {
         auto it = std::find_if( m_nodes.begin(), m_nodes.end(), [&key=info.m_publicKey] (const auto& item) {
             return key==item.m_publicKey;
@@ -95,6 +96,7 @@ public:
             {
                 // refresh
                 *it = info;
+                return true;
             }
         }
         else
@@ -103,8 +105,10 @@ public:
             if ( m_nodes.size() < BUCKET_SIZE )
             {
                 m_nodes.push_back(info);
+                return true;
             }
         }
+        return false;
     }
 };
 

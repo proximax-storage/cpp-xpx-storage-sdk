@@ -357,7 +357,7 @@ public:
     virtual void        addReplicatorKeyToKademlia( const Key& key ) = 0;
     virtual void        addReplicatorKeysToKademlia( const std::vector<Key>& keys ) = 0;
     virtual void        removeReplicatorKeyFromKademlia( const Key& keys ) = 0;
-    virtual void        dbgTestKademlia( const KademliaDbgFunc& dbgFunc ) = 0;
+    virtual void        dbgTestKademlia( KademliaDbgFunc dbgFunc ) = 0;
 
     virtual void        stopReplicator() = 0;
 

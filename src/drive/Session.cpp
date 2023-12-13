@@ -453,7 +453,7 @@ public:
         m_kademlia->removeReplicatorKey(keys);
     }
     
-    virtual void     dbgTestKademlia( const KademliaDbgFunc& dbgFunc ) override
+    virtual void     dbgTestKademlia( KademliaDbgFunc dbgFunc ) override
     {
         m_kademlia->dbgTestKademlia(dbgFunc);
     }
@@ -753,9 +753,10 @@ public:
     struct DhtRequestPlugin : lt::plugin
     {
         std::weak_ptr<DhtMessageHandler>    m_handler;
-        std::weak_ptr<sirius::drive::kademlia::Transport>  m_kademliaTransport;
+        std::weak_ptr<Session>              m_session;
         
-        DhtRequestPlugin( std::weak_ptr<DhtMessageHandler> replicator, std::weak_ptr<kademlia::Transport> kademliaTransport ) : m_handler(replicator), m_kademliaTransport(kademliaTransport) {}
+        DhtRequestPlugin( std::weak_ptr<DhtMessageHandler> replicator, std::weak_ptr<Session> kademliaTransport )
+            : m_handler(replicator), m_session(kademliaTransport) {}
         
         feature_flags_t implemented_features() override
         {
@@ -780,12 +781,14 @@ public:
                     auto str = message.dict_find_string_value( "x" );
                     std::string packet((char*) str.data(), (char*) str.data() + str.size());
 
-                    if ( auto session = m_kademliaTransport.lock(); session )
+                    if ( auto session = m_session.lock(); session )
                     {
                         std::string kademliaResponse = session->onGetMyIpRequest( packet, source );
                         
-                        response["r"]["q"] = std::string( query );
-                        response["r"]["ret"] = kademliaResponse;
+                        if ( ! kademliaResponse.empty() )
+                        {
+                            session->sendMessage( MY_IP_RESPONSE, source, kademliaResponse );
+                        }
                     }
                     return true;
                 }
@@ -794,12 +797,36 @@ public:
                     auto str = message.dict_find_string_value( "x" );
                     std::string packet((char*) str.data(), (char*) str.data() + str.size());
 
-                    if ( auto session = m_kademliaTransport.lock(); session )
+                    if ( auto session = m_session.lock(); session )
                     {
                         std::string kademliaResponse = session->onGetPeerIpRequest( packet, source );
                         
-                        response["r"]["q"] = std::string( query );
-                        response["r"]["ret"] = kademliaResponse;
+                        if ( ! kademliaResponse.empty() )
+                        {
+                            session->sendMessage( PEER_IP_RESPONSE, source, kademliaResponse );
+                        }
+                    }
+                    return true;
+                }
+                else if ( query == MY_IP_RESPONSE ) // Our Kademlia message
+                {
+                    auto str = message.dict_find_string_value( "x" );
+                    std::string packet((char*) str.data(), (char*) str.data() + str.size());
+
+                    if ( auto session = m_session.lock(); session )
+                    {
+                        session->onGetMyIpResponse( packet, source );
+                    }
+                    return true;
+                }
+                else if ( query == PEER_IP_RESPONSE ) // Our Kademlia message
+                {
+                    auto str = message.dict_find_string_value( "x" );
+                    std::string packet((char*) str.data(), (char*) str.data() + str.size());
+
+                    if ( auto session = m_session.lock(); session )
+                    {
+                        session->onGetPeerIpResponse( packet, source );
                     }
                     return true;
                 }
@@ -865,114 +892,13 @@ public:
         m_session.dht_direct_request( endPoint, entry );
     }
     
-    //    void requestDownloadReceipts( boost::asio::ip::udp::endpoint endPoint,
-    //                                  const std::array<uint8_t,32>& driveKey,
-    //                                  const std::array<uint8_t,32>& downloadChannelHash )// override
-    //    {
-    //        std::vector<uint8_t> message;
-    //        message.insert( message.end(), driveKey.begin(), driveKey.end() );
-    //        message.insert( message.end(), downloadChannelHash.begin(), downloadChannelHash.end() );
-    //
-    //        lt::entry entry;
-    //        entry["q"] = "get_dn_repts";
-    //        entry["x"] = std::string( message.begin(), message.end() );
-    //
-    //        m_session.dht_direct_request( endPoint, entry );
-    //    }
-    
-    
-    
-    void findAddress( const Key& key ) override
-    {
-        auto publicKey = *reinterpret_cast<const std::array<char, 32> *>(key.data());
-        m_session.dht_get_item( publicKey, "epdbg" );
-    }
-    
-    void announceMyIp( const boost::asio::ip::udp::endpoint& endpoint ) override
-    {
-        _LOG( "announceMyIp: " << endpoint )
-        
-        if ( ! isValid(endpoint) )
-        {
-            _LOG_WARN( "Invalid endpoint address" )
-            return;
-        }
-        
-        if ( auto limiter = m_downloadLimiter.lock(); limiter )
-        {
-            //std::string data(reinterpret_cast<const char *>(&endpoint), sizeof(boost::asio::ip::udp::endpoint));
-            std::string data = endpoint.address().to_string() + "?" + std::to_string( endpoint.port() );
-            auto publicKey = *reinterpret_cast<const std::array<char, 32> *>(limiter->publicKey().data());
-            m_session.dht_put_item(publicKey,
-                                   [limiter = m_downloadLimiter, d = std::move(data)]
-                                   (lt::entry &e, std::array<char, 64> &sig, std::int64_t &seq,
-                                    std::string const &salt)
-                                   {
-                if ( auto p = limiter.lock(); p )
-                {
-                    e = d;
-                    std::vector<char> buf;
-                    bencode(std::back_inserter(buf), e);
-                    seq++;
-                    std::array<uint8_t, 64> signature{};
-                    p->signMutableItem(buf, seq, salt, signature);
-                    std::copy(signature.begin(), signature.end(), sig.begin());
-                }
-            },
-                                   "epdbg");
-        }
-    }
-    
     void handleDhtResponse( lt::bdecode_node response, boost::asio::ip::udp::endpoint endpoint )
     {
-        try
-        {
-            auto rDict = response.dict_find_dict("r");
-            auto query = rDict.dict_find_string_value("q");
-            
-            if ( query == GET_MY_IP_MSG )
-            {
-                lt::string_view response = rDict.dict_find_string_value("ret");
-                m_kademlia->onGetMyIpResponse( std::string( response.begin(), response.end() ) );
-            }
-            else if ( query == GET_PEER_IP_MSG )
-            {
-                lt::string_view response = rDict.dict_find_string_value("ret");
-                m_kademlia->onGetPeerIpResponse( std::string( response.begin(), response.end() ) );
-            }
-        }
-        catch(...)
-        {
-            _LOG_WARN( "Unhandled exception in handleDhtResponse: " )
-        }
-
         if ( auto delegate = m_downloadLimiter.lock(); delegate )
         {
-            
+            // ??? (not stable)
             delegate->handleDhtResponse( response, endpoint );
         }
-        //        try
-        //        {
-        //            auto rDict = response.dict_find_dict("r");
-        //            auto query = rDict.dict_find_string_value("q");
-        //            _LOG( "handleDhtResponse: " << query )
-        //            if ( query == "get_dn_rcpts" )
-        //            {
-        //                lt::string_view response = rDict.dict_find_string_value("ret");
-        //                lt::string_view sign = rDict.dict_find_string_value("sign");
-        //                m_replicator.lock()->onSyncRcptReceived( response, sign );
-        //            }
-        //
-        ////            else if ( query == "get-chunks-info" )
-        ////            {
-        ////                lt::string_view response = rDict.dict_find_string_value("ret");
-        ////                lt::string_view sign = rDict.dict_find_string_value("sign");
-        ////                m_replicator.lock()->onSyncRcptReceived( response, sign );
-        ////            }
-        //        }
-        //        catch(...)
-        //        {
-        //        }
     }
     
     virtual Timer startTimer( int milliseconds, std::function<void()> func ) override
@@ -1613,11 +1539,14 @@ private:
                         //                    break;
                         //                }
                         
-                    case lt::dht_pkt_alert::alert_type: {
-                        auto *theAlert = dynamic_cast<lt::dht_pkt_alert *>(alert);
-                        _LOG( "dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
-                        break;
-                    }
+#ifdef __APPLE__
+#pragma mark --dht_pkt_alert
+#endif
+//                    case lt::dht_pkt_alert::alert_type: {
+//                        auto *theAlert = dynamic_cast<lt::dht_pkt_alert *>(alert);
+//                        _LOG( "dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
+//                        break;
+//                    }
                         
                     default: {
                         //                    if ( alert->type() != 52 && alert->type() != 78 && alert->type() != 86
@@ -1674,14 +1603,14 @@ private:
         return m_kademlia->onGetPeerIpRequest( request, requesterEndpoint );
     }
 
-    virtual void onGetMyIpResponse( const std::string& response ) override
+    virtual void onGetMyIpResponse( const std::string& response, boost::asio::ip::udp::endpoint responserEndpoint ) override
     {
-        m_kademlia->onGetMyIpResponse( response );
+        m_kademlia->onGetMyIpResponse( response, responserEndpoint );
     }
 
-    virtual void onGetPeerIpResponse( const std::string&  response ) override
+    virtual void onGetPeerIpResponse( const std::string&  response, boost::asio::ip::udp::endpoint responserEndpoint ) override
     {
-        m_kademlia->onGetPeerIpResponse( response );
+        m_kademlia->onGetPeerIpResponse( response, responserEndpoint );
     }
 };
 

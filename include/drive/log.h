@@ -105,14 +105,23 @@ inline void checkLogFileSize()
 
 
 // _LOG - with m_dbgOurPeerName
-#define _LOG(expr) { \
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        checkLogFileSize(); \
-        std::cout << current_time() << "\t" << m_dbgOurPeerName << ": " << expr << std::endl << std::flush; \
-    }
+#define _LOG(expr) {}
+//#define _LOG(expr) { \
+//        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+//        checkLogFileSize(); \
+//        std::cout << current_time() << "\t" << m_dbgOurPeerName << ": " << expr << std::endl << std::flush; \
+//    }
 
 // __LOG
-#define __LOG(expr) { \
+#define __LOG(expr) {}
+//#define __LOG(expr) { \
+//        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+//        checkLogFileSize(); \
+//        std::cout << current_time() << "\t" << expr << std::endl << std::flush; \
+//    }
+
+// ___LOG
+#define ___LOG(expr) { \
         const std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << current_time() << "\t" << expr << std::endl << std::flush; \
@@ -170,7 +179,9 @@ struct FuncEntry
         std::cout << m_dbgOurPeerName << ": call: " << __PRETTY_FUNCTION__ << std::endl << std::flush; \
     }
 */
-#define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
+
+#define _FUNC_ENTRY ;
+//#define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
 
 #endif
 

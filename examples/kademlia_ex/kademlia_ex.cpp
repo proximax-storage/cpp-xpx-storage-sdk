@@ -25,7 +25,8 @@
 
 bool gBreak_On_Warning = false;
 
-const size_t REPLICATOR_NUMBER = 200;
+const size_t REPLICATOR_NUMBER = 3;
+
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111-kadmlia"
 #define REPLICATOR_ROOT_FOLDER          fs::path(getenv("HOME")) / "111-kadmlia" / "replicator_root"
@@ -200,11 +201,14 @@ MyReplicatorEventHandler gMyReplicatorEventHandler;
 ///
 /// Create replicators
 ///
+std::random_device   dev;
+std::mt19937         rng(0);
+
 std::string generatePrivateKey()
 {
-    std::random_device   dev;
-    std::seed_seq        seed({dev(), dev(), dev(), dev()});
-    std::mt19937         rng(seed);
+    //std::random_device   dev;
+    //std::seed_seq        seed({dev(), dev(), dev(), dev()});
+    //std::mt19937         rng(seed);
 
     std::array<uint8_t,32> buffer{};
 
@@ -242,7 +246,7 @@ int main(int,char**)
 
     fs::remove_all( ROOT_TEST_FOLDER );
 
-    auto startTime = std::clock();
+    __attribute__((unused)) auto startTime = std::clock();
 
     for ( size_t i=0; i<REPLICATOR_NUMBER; i++ )
     {
@@ -250,11 +254,12 @@ int main(int,char**)
         using namespace boost::asio::ip;
         gKeyPairs.push_back( KeyPair::FromPrivate(PrivateKey::FromString( generatePrivateKey() )) );
         gEndpoints.push_back( udp::endpoint{ make_address( REPLICATOR_IP_ADDR_TEMPLATE + std::to_string(i+1)), uint16_t(REPLICATOR_PORT_0+i+1) }  );
+        ___LOG( "replicator_" << i << ": port: " << (REPLICATOR_PORT_0+i+1) << " " << gKeyPairs.back().publicKey() )
     }
 
 
     std::vector<ReplicatorInfo> bootstraps;
-    for ( int i=0; i<5; i++ )
+    for ( int i=0; i<2; i++ )
     {
         bootstraps.emplace_back( ReplicatorInfo{ ReplicatorInfo{ gEndpoints[i], gKeyPairs[i].publicKey()  } } );
     }
@@ -263,10 +268,10 @@ int main(int,char**)
     /// Create replicators
     ///
     {
-        std::vector<std::thread> threads;
+        //std::vector<std::thread> threads;
         for ( size_t i=0; i<REPLICATOR_NUMBER; i++ )
         {
-            threads.emplace_back( [=] {
+            //threads.emplace_back( [=] {
                 auto replicator = createReplicator( gKeyPairs[i],
                                                    gEndpoints[i].address().to_string(),
                                                    gEndpoints[i].port(),
@@ -275,15 +280,15 @@ int main(int,char**)
                                                    false,
                                                    bootstraps,
                                                    gMyReplicatorEventHandler,
-                                                   "replicator1" );
+                                                   "replicator_" + std::to_string(i) );
                 gReplicators.push_back(replicator);
-            });
+            //});
         }
         
-        for( auto& t : threads )
-        {
-            t.join();
-        }
+//        for( auto& t : threads )
+//        {
+//            t.join();
+//        }
     }
     
     ///
@@ -304,7 +309,8 @@ int main(int,char**)
     // Create a lot of drives!
     
     const size_t driveNumber = 200;
-    const size_t replicatorNumber = 5; // per one drive
+    //TODO?
+    const size_t replicatorNumber = 2; // per one drive
 
     for( size_t i=0; i<driveNumber; i++ )
     {
@@ -334,6 +340,8 @@ int main(int,char**)
 
     for(;;)
     {
+        sleep(1);
+
         sirius::drive::KademliaDbgInfo dbgInfo;
         std::mutex dbgInfoMutex;
         
@@ -341,13 +349,13 @@ int main(int,char**)
         {
             replicator->dbgTestKademlia( [&] (const KademliaDbgInfo& info )
                                         {
-                std::lock_guard<std::mutex> lock(dbgInfoMutex);
-                dbgInfo.m_requestCounter += info.m_requestCounter;
-                dbgInfo.m_peerCounter += info.m_peerCounter;
+                //std::lock_guard<std::mutex> lock(dbgInfoMutex);
+                dbgInfo.m_requestCounter.fetch_add( info.m_requestCounter, std::memory_order_relaxed );
+                dbgInfo.m_peerCounter.fetch_add( info.m_peerCounter, std::memory_order_relaxed );
             });
         }
-        sleep(1);
-        __LOG( "dbg-dbg: " << dbgInfo.m_requestCounter << " " << dbgInfo.m_peerCounter );
+        sleep(2);
+        ___LOG( "dbg-dbg: " << dbgInfo.m_requestCounter << " " << dbgInfo.m_peerCounter );
     }
 
     sleep(1000);
@@ -376,7 +384,7 @@ static std::shared_ptr<Replicator> createReplicator(
         MyReplicatorEventHandler&           handler,
         const std::string&                  dbgReplicatorName )
 {
-    EXLOG( "creating: " << dbgReplicatorName << " with key: " <<  int(keyPair.publicKey().array()[0]) );
+    __LOG( "creating: " << dbgReplicatorName << " with key: " <<  int(keyPair.publicKey().array()[0]) );
 
     std::shared_ptr<Replicator> replicator;
 

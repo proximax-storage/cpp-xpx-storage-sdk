@@ -44,6 +44,8 @@ namespace sirius::drive {
 
 #define GET_MY_IP_MSG       "get-my-ip"
 #define GET_PEER_IP_MSG     "get-peer-ip"
+#define MY_IP_RESPONSE      "my-ip-response"
+#define PEER_IP_RESPONSE    "peer-ip-response"
 
 // It will be used to inform 'client' about download status
 //
@@ -165,7 +167,7 @@ public:
     virtual void      addReplicatorKeyToKademlia( const Key& key ) = 0;
     virtual void      addReplicatorKeysToKademlia( const std::vector<Key>& keys ) = 0;
     virtual void      removeReplicatorKeyFromKademlia( const Key& keys ) = 0;
-    virtual void      dbgTestKademlia( const KademliaDbgFunc& dbgFunc ) = 0;
+    virtual void      dbgTestKademlia( KademliaDbgFunc dbgFunc ) = 0;
 
 
     virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const Key& key ) = 0;
@@ -204,12 +206,8 @@ public:
     // (It prevents call of downloadHandler)
     virtual void      removeDownloadContext( lt::torrent_handle ) = 0;
 
-    //virtual void      sendMessage( boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
     virtual void      sendMessage( const std::string& query, boost::asio::ip::udp::endpoint, const std::vector<uint8_t>&, const Signature* signature = nullptr ) = 0;
     virtual void      sendMessage(const std::string& query, boost::asio::ip::udp::endpoint, const std::string& ) = 0;
-    
-    virtual void      findAddress( const Key& key ) = 0;
-    virtual void      announceMyIp( const boost::asio::ip::udp::endpoint& endpoint ) = 0;
     
     virtual void      onTorrentDeleted( lt::torrent_handle handle ) = 0;
 

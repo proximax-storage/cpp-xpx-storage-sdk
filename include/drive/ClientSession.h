@@ -1061,35 +1061,35 @@ protected:
                                                    bool                        isModificationFinished,
                                                    const std::string&          error    )
     {
-        __LOG( "@@@ -------------------------------------------------------------------" );
-        __LOG( "@@@ Modification Status: " << modificationHash );
-        __LOG( "@@@  replicatorKey:     " << replicatorKey );
-        if ( ! error.empty() )
-        {
-            __LOG( "@@@  error:          " << error );
-        }
-        else
-        {
-            __LOG( "@@@  driveKey:          " << toString(msg.m_driveKey) );
-            if ( !currentTask.empty() )
-            {
-                __LOG( "@@@  currentTask:       " << currentTask );
-            }
-            if ( isModificationQueued )
-            {
-                __LOG( "@@@  modification is queued" );
-            }
-            if ( isModificationFinished )
-            {
-                __LOG( "@@@  modification is finished" );
-            }
-            for( auto [hash,sizes]: msg.m_modifyTrafficMap )
-            {
-                __LOG( "@@@   received:  " << sizes.m_receivedSize << " from: " << toString(hash) );
-                __LOG( "@@@    uploaded: " << sizes.m_requestedSize << " to: " << toString(hash) );
-            }
-        }
-        __LOG( "@@@ -------------------------------------------------------------------" );
+//        __LOG( "@@@ -------------------------------------------------------------------" );
+//        __LOG( "@@@ Modification Status: " << modificationHash );
+//        __LOG( "@@@  replicatorKey:     " << replicatorKey );
+//        if ( ! error.empty() )
+//        {
+//            __LOG( "@@@  error:          " << error );
+//        }
+//        else
+//        {
+//            __LOG( "@@@  driveKey:          " << toString(msg.m_driveKey) );
+//            if ( !currentTask.empty() )
+//            {
+//                __LOG( "@@@  currentTask:       " << currentTask );
+//            }
+//            if ( isModificationQueued )
+//            {
+//                __LOG( "@@@  modification is queued" );
+//            }
+//            if ( isModificationFinished )
+//            {
+//                __LOG( "@@@  modification is finished" );
+//            }
+//            for( auto [hash,sizes]: msg.m_modifyTrafficMap )
+//            {
+//                __LOG( "@@@   received:  " << sizes.m_receivedSize << " from: " << toString(hash) );
+//                __LOG( "@@@    uploaded: " << sizes.m_requestedSize << " to: " << toString(hash) );
+//            }
+//        }
+//        __LOG( "@@@ -------------------------------------------------------------------" );
     }
     
     static void defaultChannelStatusResponseHandler( const ReplicatorKey&         replicatorKey,
@@ -1097,27 +1097,27 @@ protected:
                                                      const DownloadChannelInfo&   msg,
                                                      const std::string&           error )
     {
-        __LOG( "@@@ -------------------------------------------------------------------" );
-        __LOG( "@@@ Download Channel Status: " << channelId << " from: " << replicatorKey );
-        __LOG( "@@@  driveKey:            " << toString(msg.m_driveKey) );
-        __LOG( "@@@  prepaidDownloadSize: " << msg.m_prepaidDownloadSize );
-        __LOG( "@@@  totalReceiptsSize:   " << msg.m_totalReceiptsSize );
-        
-        for( const auto& [clientKey,sizes]: msg.m_sentClientMap )
-        {
-            __LOG( "@@@   sentSize: " << sizes.m_sentSize << " to client:   " << clientKey );
-        }
-        for( const auto& [replicatorKey2,uploadInfo]: msg.m_replicatorUploadRequestMap )
-        {
-            if ( replicatorKey2 == replicatorKey )
-            {
-                for( const auto& [clientKey,sizes]: uploadInfo.m_clientMap )
-                {
-                    __LOG( "@@@   acceptedSize/notAccepted: " << sizes.m_acceptedSize << "/" << sizes.m_notAcceptedSize << " replicatorKey:   " << replicatorKey );
-                }
-            }
-        }
-        __LOG( "@@@ -------------------------------------------------------------------" );
+//        __LOG( "@@@ -------------------------------------------------------------------" );
+//        __LOG( "@@@ Download Channel Status: " << channelId << " from: " << replicatorKey );
+//        __LOG( "@@@  driveKey:            " << toString(msg.m_driveKey) );
+//        __LOG( "@@@  prepaidDownloadSize: " << msg.m_prepaidDownloadSize );
+//        __LOG( "@@@  totalReceiptsSize:   " << msg.m_totalReceiptsSize );
+//
+//        for( const auto& [clientKey,sizes]: msg.m_sentClientMap )
+//        {
+//            __LOG( "@@@   sentSize: " << sizes.m_sentSize << " to client:   " << clientKey );
+//        }
+//        for( const auto& [replicatorKey2,uploadInfo]: msg.m_replicatorUploadRequestMap )
+//        {
+//            if ( replicatorKey2 == replicatorKey )
+//            {
+//                for( const auto& [clientKey,sizes]: uploadInfo.m_clientMap )
+//                {
+//                    __LOG( "@@@   acceptedSize/notAccepted: " << sizes.m_acceptedSize << "/" << sizes.m_notAcceptedSize << " replicatorKey:   " << replicatorKey );
+//                }
+//            }
+//        }
+//        __LOG( "@@@ -------------------------------------------------------------------" );
     }
 
 

@@ -23,11 +23,10 @@ class KademliaHashTable //: public PeerKey, public NodeStatistic
     //#endif
     
 public:
-    KademliaHashTable(){}
+//    KademliaHashTable(){}
     
-    KademliaHashTable( const PeerKey& key )
-    {
-        m_myKey = key;
+    KademliaHashTable( const PeerKey& key ) : m_myKey(key) {
+        
     }
     
     const PeerKey& key() const { return m_myKey; }
@@ -109,10 +108,15 @@ public:
         return result;
     }
     
-    void addPeerInfo( const PeerInfo& info )
+    int addPeerInfoOrUpdate( const PeerInfo& info )
     {
         auto bucketIndex = calcBucketIndex( info.m_publicKey );
-        m_buckets[bucketIndex].addPeer( info );
+        //___LOG( "bucketIndex: " << bucketIndex << " " << info.m_publicKey << " " << m_myKey )
+        if ( ! m_buckets[bucketIndex].addPeerOrUpdate( info ) )
+        {
+            return -1;
+        }
+        return bucketIndex;
     }
 
     bool couldBeAdded( const PeerKey& key )

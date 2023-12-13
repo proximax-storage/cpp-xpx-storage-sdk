@@ -3027,7 +3027,7 @@ public:
         m_session->removeReplicatorKeyFromKademlia(keys);
     }
 
-    virtual void dbgTestKademlia( const KademliaDbgFunc& dbgFunc ) override
+    virtual void dbgTestKademlia( KademliaDbgFunc dbgFunc ) override
     {
         m_session->dbgTestKademlia(dbgFunc);
     }
