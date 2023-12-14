@@ -282,6 +282,7 @@ int main(int,char**)
                                                    gMyReplicatorEventHandler,
                                                    "replicator_" + std::to_string(i) );
                 gReplicators.push_back(replicator);
+                //sleep(10);
             //});
         }
         

@@ -163,14 +163,14 @@ public:
     // Interface with Kademlia
     virtual void      startSearchPeerEndpoints( const std::vector<Key>& keys ) = 0;
     virtual void      addClientToLocalEndpointMap( const Key& keys ) = 0;
-    virtual void      onEndpointDiscovered( const Key& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) = 0;
+    virtual void      onEndpointDiscovered( const Key& key, const OptionalEndpoint& endpoint ) = 0;
     virtual void      addReplicatorKeyToKademlia( const Key& key ) = 0;
     virtual void      addReplicatorKeysToKademlia( const std::vector<Key>& keys ) = 0;
     virtual void      removeReplicatorKeyFromKademlia( const Key& keys ) = 0;
     virtual void      dbgTestKademlia( KademliaDbgFunc dbgFunc ) = 0;
 
 
-    virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const Key& key ) = 0;
+    virtual OptionalEndpoint getEndpoint( const Key& key ) = 0;
 
     // It loads existing file from disk
     virtual lt_handle addTorrentFileToSession( const std::filesystem::path&     torrentFilename,

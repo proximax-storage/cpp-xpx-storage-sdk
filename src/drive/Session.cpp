@@ -147,7 +147,6 @@ public:
             if ( auto replicatorPtr = replicator.lock(); replicatorPtr )
             {
                 m_kademlia = createEndpointCatalogue( weak_from_this(), replicatorPtr->keyPair(), bootstraps, uint16_t(m_listeningPort), true );
-                m_kademlia->start();
             }
             else
             {
@@ -230,7 +229,7 @@ public:
         // m_session.apply_settings(p);
         //m_session.pause();
         
-        m_kademlia->stop();
+        m_kademlia->stopTimers();
         
         m_stopping = true;
     }
@@ -1114,6 +1113,11 @@ private:
                         //                    break;
                         //                }
                         
+                        //                    case lt::log_alert::alert_type: {
+                        //                        ___LOG(  m_listeningPort << " : log_alert: " << alert->message())
+                        //                        break;
+                        //                    }
+                                                
                     case lt::peer_log_alert::alert_type: {
                         if ( m_logMode == LogMode::PEER )
                         {
@@ -1133,19 +1137,12 @@ private:
                         break;
                     }
                         
-                    case lt::log_alert::alert_type: {
-                        _LOG(  ": session_log_alert: " << alert->message())
-                        break;
-                    }
-                        
-                    case lt::dht_bootstrap_alert::alert_type: {
-                        _LOG( "dht_bootstrap_alert: " << alert->message() )
-                        
-                        // dht_bootstrap_alert emplaced at once at the end of session_impl::start_dht()
-                        // So, kademlia can send dht messages !!!
-                        m_kademlia->start();
-                        break;
-                    }
+//                    case lt::dht_bootstrap_alert::alert_type: {
+//                        ___LOG( m_listeningPort << " : dht_bootstrap_alert: " << alert->message() )
+//
+//                        //m_kademlia->start();
+//                        break;
+//                    }
                         
                     case lt::external_ip_alert::alert_type: {
                         auto* theAlert = dynamic_cast<lt::external_ip_alert*>(alert);
@@ -1544,7 +1541,7 @@ private:
 #endif
 //                    case lt::dht_pkt_alert::alert_type: {
 //                        auto *theAlert = dynamic_cast<lt::dht_pkt_alert *>(alert);
-//                        _LOG( "dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
+//                        ___LOG( m_listeningPort << " : dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
 //                        break;
 //                    }
                         

@@ -92,7 +92,7 @@ public:
         if ( it != m_nodes.end() )
         {
             // peer found
-            if ( info.m_timeInSeconds > it->m_timeInSeconds )
+            if ( info.m_creationTimeInSeconds > it->m_creationTimeInSeconds )
             {
                 // refresh
                 *it = info;

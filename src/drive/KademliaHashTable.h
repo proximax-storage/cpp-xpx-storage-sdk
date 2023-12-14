@@ -40,7 +40,7 @@ public:
     
     // onRequestFromAnotherPeer() is used for local requests only
     //
-    std::optional<boost::asio::ip::udp::endpoint> getPeerInfo( const PeerKey& key, size_t& bucketIndex )
+    OptionalEndpoint getPeerInfo( const PeerKey& key, size_t& bucketIndex )
     {
         bucketIndex = equalPrefixLength( m_myKey, key );
         

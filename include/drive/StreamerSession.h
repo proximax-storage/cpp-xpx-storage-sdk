@@ -96,7 +96,7 @@ public:
         }
     }
     
-    std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const Key& key )
+    OptionalEndpoint getEndpoint( const Key& key )
     {
         return m_session->getEndpoint( key );
     }

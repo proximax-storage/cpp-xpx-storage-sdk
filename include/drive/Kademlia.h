@@ -14,15 +14,16 @@
 
 namespace sirius { namespace drive {
 
-using EndpointHandler = std::function<void(const Key&,const std::optional<boost::asio::ip::udp::endpoint>&)>;
+using EndpointHandler = std::function<void(const Key&,const OptionalEndpoint&)>;
 
+//TODO?
 struct KademliaDbgInfo
 {
     std::atomic<size_t> m_requestCounter{0};
     std::atomic<size_t> m_peerCounter{0};
 };
-
 using KademliaDbgFunc = std::function<void(const KademliaDbgInfo&)>;
+
 
 namespace kademlia {
 
@@ -46,7 +47,7 @@ struct PeerInfo
     PeerKey     m_publicKey;
     std::string m_address;
     uint16_t    m_port;
-    uint64_t    m_timeInSeconds; // uint64_t now = duration_cast(std::chrono::steady_clock::now().time_since_epoch()).count();
+    uint64_t    m_creationTimeInSeconds; // uint64_t now = duration_cast(std::chrono::steady_clock::now().time_since_epoch()).count();
     Signature   m_signature;
     
     //todo for debugging
@@ -58,10 +59,10 @@ struct PeerInfo
       : m_publicKey(peerKey),
         m_address(endpoint.address().to_string()),
         m_port(endpoint.port()),
-        m_timeInSeconds( std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() )
+        m_creationTimeInSeconds( std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() )
     {}
     
-    uint64_t secondsFromNow() const { return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_timeInSeconds; }
+    uint64_t secondsFromNow() const { return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_creationTimeInSeconds; }
     
     template<class Archive>
     void serialize(Archive &arch)
@@ -69,12 +70,18 @@ struct PeerInfo
         arch(m_publicKey);
         arch(m_address);
         arch(m_port);
-        arch(m_timeInSeconds);
+        arch(m_creationTimeInSeconds);
         arch(m_signature);
     }
     
     boost::asio::ip::udp::endpoint endpoint() const {
         return boost::asio::ip::udp::endpoint{ boost::asio::ip::make_address(m_address), uint16_t(m_port) };
+    }
+    
+    void updateCreationTime( const crypto::KeyPair& keyPair )
+    {
+        m_creationTimeInSeconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        Sign( keyPair );
     }
     
     bool Verify() const
@@ -84,7 +91,7 @@ struct PeerInfo
             utils::RawBuffer{ (const uint8_t*)&m_publicKey[0], sizeof(m_publicKey) },
             utils::RawBuffer{ (const uint8_t*)m_address.c_str(), m_address.size() },
             utils::RawBuffer{ (const uint8_t*)&m_port, sizeof(m_port) },
-            utils::RawBuffer{ (const uint8_t*)&m_timeInSeconds, sizeof(m_timeInSeconds) },
+            utils::RawBuffer{ (const uint8_t*)&m_creationTimeInSeconds, sizeof(m_creationTimeInSeconds) },
         },
         m_signature );
     }
@@ -96,7 +103,7 @@ struct PeerInfo
             utils::RawBuffer{ (const uint8_t*)&m_publicKey[0], sizeof(m_publicKey) },
             utils::RawBuffer{ (const uint8_t*)m_address.c_str(), m_address.size() },
             utils::RawBuffer{ (const uint8_t*)&m_port, sizeof(m_port) },
-            utils::RawBuffer{ (const uint8_t*)&m_timeInSeconds, sizeof(m_timeInSeconds) },
+            utils::RawBuffer{ (const uint8_t*)&m_creationTimeInSeconds, sizeof(m_creationTimeInSeconds) },
         },
         m_signature );
     }
@@ -147,7 +154,7 @@ struct MyIpResponse
     MyIpResponse( const crypto::KeyPair& keyPair, const boost::asio::ip::udp::endpoint& queriedEndpoint )
     : m_badPort(false), m_response( keyPair.publicKey().array(), queriedEndpoint )
     {
-        m_response.m_timeInSeconds = std::chrono::steady_clock::now().time_since_epoch().count();
+        m_response.m_creationTimeInSeconds = std::chrono::steady_clock::now().time_since_epoch().count();
         m_response.Sign( keyPair );
     }
     
@@ -222,17 +229,16 @@ class EndpointCatalogue
 public:
     virtual ~EndpointCatalogue() = default;
 
-    virtual void    start() = 0;
-    virtual void    stop() = 0;
+    virtual void    stopTimers() = 0;
 
     virtual PeerKey publicKey() = 0;
 
     virtual void    setEndpointHandler( ::sirius::drive::EndpointHandler endpointHandler ) = 0;
 
-    virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const PeerKey& key ) =0;
+    virtual OptionalEndpoint getEndpoint( const PeerKey& key ) =0;
 
     virtual void            addClientToLocalEndpointMap( const Key& keys ) = 0;
-    virtual void            onEndpointDiscovered( const Key& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) = 0;
+    virtual void            onEndpointDiscovered( const Key& key, const OptionalEndpoint& endpoint ) = 0;
 
     // 'get-my-ip'
     virtual std::string     onGetMyIpRequest( const std::string& request, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;

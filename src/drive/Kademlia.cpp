@@ -1,3 +1,12 @@
+//TODO
+// - Filter by m_registeredReplicators (with queue of unknowns/leading ones)
+// - client skip requests and ???
+// - simultaneous requesting
+// - update timer -> sendGetPeerIpRequest(of myIp)
+// ___LOG
+// //TODO?
+
+
 #include "drive/Session.h"
 #include "drive/Kademlia.h"
 #include "KademliaBucket.h"
@@ -14,6 +23,9 @@
 //todo?
 #define _KADEMLIA_LOCAL_TEST_
 
+const int PEER_ANSWER_LIMIT_MS = 2000;
+
+
 namespace sirius { namespace drive { namespace kademlia {
 
 using NodeInfo = ReplicatorInfo;
@@ -24,14 +36,14 @@ const int MAX_ATTEMPT_NUMBER = 3;
 class EndpointCatalogueImpl;
 class PeerSearchInfo;
 
-using DirectEndpoint = std::optional<boost::asio::ip::udp::endpoint>;
+using OptionalEndpoint = OptionalEndpoint;
 
 bool  onGetPeerIpResponseRedirect( PeerSearchInfo& searchInfo, PeerIpResponse& response );
 
 inline std::unique_ptr<PeerSearchInfo> createPeerSearchInfo( const PeerKey&        myPeerKey,
                                                    const PeerKey&                  targetPeerKey,
                                                    size_t                          bucketIndex,
-                                                   DirectEndpoint                  directEndpoint,
+                                                   OptionalEndpoint                directEndpoint,
                                                    EndpointCatalogueImpl&          endpointCatalogue,
                                                    std::weak_ptr<Session>          session );
 
@@ -48,8 +60,9 @@ public:
     bool                            m_isClient;
     
     std::optional<PeerInfo>         m_myPeerInfo;
-
-    std::map<PeerKey,std::optional<boost::asio::ip::udp::endpoint>> m_localEndpointMap;
+    Timer                           m_myPeerInfoTimer;
+    
+    std::map<PeerKey,OptionalEndpoint> m_localEndpointMap;
 
     KademliaHashTable               m_hashTable;
     SearcherMap                     m_searcherMap;
@@ -59,7 +72,7 @@ public:
     std::optional<::sirius::drive::EndpointHandler> m_endpointHandler;
 
 private:
-    boost::asio::ip::udp::endpoint  m_myIp;
+    OptionalEndpoint                m_myEndpoint;
 
 public:
 
@@ -82,8 +95,9 @@ public:
                                
         if ( it != m_bootstraps.end() )
         {
-            m_myPeerInfo = PeerInfo{ m_keyPair.publicKey(), it->m_endpoint };
-            m_myPeerInfo->Sign( m_keyPair );
+//            m_myPeerInfo = PeerInfo{ m_keyPair.publicKey(), it->m_endpoint };
+//            m_myPeerInfo->Sign( m_keyPair );
+            m_myEndpoint = it->m_endpoint;
             m_bootstraps.erase( it );
         }
         
@@ -98,28 +112,60 @@ public:
             m_localEndpointMap[nodeInfo.m_publicKey] = nodeInfo.m_endpoint;
         }
         
-        if ( m_myPeerInfo )
+        // make some delay (for starting dht)
+        if ( auto session = m_kademliaTransport.lock(); session )
         {
-            enterToSwarm();
+            start();
         }
     }
-
-    virtual void start() override
+    
+    ~EndpointCatalogueImpl()
     {
+        m_myPeerInfoTimer.cancel();
+    }
+
+    void start()
+    {
+        ___LOG( m_myPort << " : start: " << "  " << m_bootstraps.size() )
         for( const auto& bootstrapNodeInfo : m_bootstraps )
         {
             if ( auto kademliaTransport = m_kademliaTransport.lock(); kademliaTransport )
             {
                 MyIpRequest request{m_myPort};
-
+                
                 kademliaTransport->sendGetMyIpRequest( request, bootstrapNodeInfo.m_endpoint );
             }
         }
+        
+        if ( auto session = m_kademliaTransport.lock(); session )
+        {
+            m_myPeerInfoTimer = session->startTimer( PEER_ANSWER_LIMIT_MS, [this]{ onMyPeerInfoTimer(); } );
+        }
+    }
+    
+    void onMyPeerInfoTimer()
+    {
+        ___LOG( m_myPort << " : onMyPeerInfoTimer:" )
+        
+        // Try again
+        for( const auto& bootstrapNodeInfo : m_bootstraps )
+        {
+            if ( auto kademliaTransport = m_kademliaTransport.lock(); kademliaTransport )
+            {
+                MyIpRequest request{m_myPort};
+                
+                kademliaTransport->sendGetMyIpRequest( request, bootstrapNodeInfo.m_endpoint );
+            }
+        }
+        if ( auto session = m_kademliaTransport.lock(); session )
+        {
+            m_myPeerInfoTimer = session->startTimer( PEER_ANSWER_LIMIT_MS, [this]{ onMyPeerInfoTimer(); } );
+        }
     }
 
-    virtual void stop() override
+    virtual void stopTimers() override
     {
-        //TODO? remove timers
+        m_myPeerInfoTimer.cancel();
     }
 
     virtual PeerKey publicKey() override { return m_keyPair.publicKey(); }
@@ -129,7 +175,7 @@ public:
         m_localEndpointMap[key] = {};
     }
 
-    virtual void onEndpointDiscovered( const Key& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) override
+    virtual void onEndpointDiscovered( const Key& key, const OptionalEndpoint& endpoint ) override
     {
         if ( auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() )
         {
@@ -143,12 +189,12 @@ public:
         m_endpointHandler = endpointHandler;
     }
 
-    std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const PeerKey& key ) override
+    OptionalEndpoint getEndpoint( const PeerKey& key ) override
     {
         return queryPeerInfo( key, {} );
     }
     
-    std::optional<boost::asio::ip::udp::endpoint> queryPeerInfo( const PeerKey& key, DirectEndpoint directEndpoint )
+    OptionalEndpoint queryPeerInfo( const PeerKey& key, OptionalEndpoint directEndpoint )
     {
         // find in local map (usually replicators of common drives)
         //
@@ -185,7 +231,7 @@ public:
 
     std::string onGetMyIpRequest( const std::string& request, boost::asio::ip::udp::endpoint requesterEndpoint ) override
     {
-        __LOG( "onGetMyIpRequest: " << requesterEndpoint )
+        ___LOG( "onGetMyIpRequest: from: " << requesterEndpoint << " to: " << m_myPort )
         try
         {
             std::istringstream is( request, std::ios::binary );
@@ -237,6 +283,17 @@ public:
             bool firstResponse = !m_myPeerInfo.has_value();
             m_myPeerInfo = PeerInfo{ m_keyPair.publicKey(), response.m_response.endpoint() };
             m_myPeerInfo->Sign( m_keyPair );
+            m_myPeerInfoTimer.cancel();
+            
+            if ( m_myEndpoint && response.m_response.endpoint().port() != m_myEndpoint->port() )
+            {
+                __LOG_WARN( "Invalid replicators.json! wrong my port number! (invalid bootstrap list): " << response.m_response.endpoint() << " vs " << *m_myEndpoint )
+            }
+            
+            if ( m_myEndpoint && response.m_response.endpoint().address() != m_myEndpoint->address() )
+            {
+                __LOG_WARN( "Invalid replicators.json! wrong my address number! (invalid bootstrap list): " << response.m_response.endpoint() << " vs " << *m_myEndpoint )
+            }
             
             if ( firstResponse )
             {
@@ -283,10 +340,12 @@ public:
                     }
                     return "";
                 }
+                
                 if ( requesterEndpoint.port() == 5003 )
                 {
                     ___LOG("5003 response: " << m_myPort << " responser: " << requesterEndpoint.port() )
                 }
+                m_myPeerInfo->updateCreationTime( m_keyPair );
                 peers.push_back(*m_myPeerInfo);
             }
             else
@@ -461,7 +520,7 @@ class PeerSearchInfo
     size_t                  m_bucketIndex;
     
     // It is used when we know peer IP, but we need peerInfo (i.e. for updating peerInfo)
-    DirectEndpoint          m_directEndpoint;
+    OptionalEndpoint        m_directEndpoint;
 
     EndpointCatalogueImpl&  m_endpointCatalogue;
     std::weak_ptr<Session>  m_session;
@@ -471,8 +530,6 @@ class PeerSearchInfo
     Timer                   m_timer;
     int                     m_attemptCounter = 0;
 
-    const int PEER_ANSWER_LIMIT_MS = 2000;
-
 public:
 
     PeerSearchInfo( const PeerSearchInfo& ) = default;
@@ -480,7 +537,7 @@ public:
     PeerSearchInfo( const PeerKey&                 myPeerKey,
                    const PeerKey&                  targetPeerKey,
                    size_t                          bucketIndex,
-                   DirectEndpoint                  directEndpoint,
+                   OptionalEndpoint                directEndpoint,
                    EndpointCatalogueImpl&          endpointCatalogue,
                    std::weak_ptr<Session>          session )
     :
@@ -636,7 +693,7 @@ public:
                 return false;
             }
             
-            if ( isPeerInfoExpired(peerInfo.m_timeInSeconds) )
+            if ( isPeerInfoExpired(peerInfo.m_creationTimeInSeconds) )
             {
                 __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: expired: " << peerInfo.m_publicKey )
                 sendNextRequest();
@@ -702,7 +759,7 @@ public:
 inline std::unique_ptr<PeerSearchInfo> createPeerSearchInfo( const PeerKey&         myPeerKey,
                                                     const PeerKey&                  targetPeerKey,
                                                     size_t                          bucketIndex,
-                                                    DirectEndpoint                  directEndpoint,
+                                                    OptionalEndpoint                directEndpoint,
                                                     EndpointCatalogueImpl&          endpointCatalogue,
                                                     std::weak_ptr<Session>          session )
 {

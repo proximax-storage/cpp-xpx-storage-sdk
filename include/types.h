@@ -61,6 +61,8 @@ namespace sirius {
 
     namespace drive {
 
+        using OptionalEndpoint = std::optional<boost::asio::ip::udp::endpoint>;
+
         // InfoHash
         using InfoHash  = Hash256;// std::array<uint8_t,32>;
     
