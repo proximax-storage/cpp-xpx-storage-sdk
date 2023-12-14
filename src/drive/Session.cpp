@@ -101,9 +101,10 @@ class DefaultSession:   public Session,
     
     bool                    m_ownerIsReplicator = true;
     
-    std::string             m_addressAndPort;
-    int                     m_listeningPort;
-    lt::session             m_session;
+    std::string                     m_addressAndPort;
+    int                             m_listeningPort;
+    std::weak_ptr<ReplicatorInt>    m_replicator;
+    lt::session                     m_session;
     
     // It will be called on socket listening error
     LibTorrentErrorHandler  m_alertHandler;
@@ -111,7 +112,6 @@ class DefaultSession:   public Session,
     using TorrentDeletedHandler = std::optional<std::function<void( lt::torrent_handle )>>;
     TorrentDeletedHandler m_torrentDeletedHandler;
     
-    std::weak_ptr<ReplicatorInt>        m_replicator;
     std::weak_ptr<lt::session_delegate> m_downloadLimiter;
     
     std::string                         m_dbgOurPeerName = "";
@@ -137,9 +137,9 @@ public:
     : m_ownerIsReplicator(true)
     , m_addressAndPort(address)
     , m_listeningPort(extractListeningPort())
+    , m_replicator(replicator)
     , m_session( lt::session_params{ generateSessionSettings( false, bootstraps) }, context, {})
     , m_alertHandler(alertHandler)
-    , m_replicator(replicator)
     , m_downloadLimiter(downloadLimiter)
     {
         boost::asio::post( m_session.get_context(), [=, this]() mutable
@@ -375,7 +375,10 @@ public:
         std::ostringstream bootstrapsBuilder;
         for ( const auto& bootstrap: bootstraps )
         {
-            bootstrapsBuilder << bootstrap.m_endpoint.address().to_string() << ":" << std::to_string(bootstrap.m_endpoint.port()) << ",";
+            if ( bootstrap.m_publicKey != this->m_replicator.lock()->keyPair().publicKey() )
+            {
+                bootstrapsBuilder << bootstrap.m_endpoint.address().to_string() << ":" << std::to_string(bootstrap.m_endpoint.port()) << ",";
+            }
         }
         
         std::string bootstrapList = bootstrapsBuilder.str();
@@ -1137,12 +1140,10 @@ private:
                         break;
                     }
                         
-//                    case lt::dht_bootstrap_alert::alert_type: {
-//                        ___LOG( m_listeningPort << " : dht_bootstrap_alert: " << alert->message() )
-//
-//                        //m_kademlia->start();
-//                        break;
-//                    }
+                    case lt::dht_bootstrap_alert::alert_type: {
+                        ___LOG( m_listeningPort << " : dht_bootstrap_alert: " << alert->message() )
+                        break;
+                    }
                         
                     case lt::external_ip_alert::alert_type: {
                         auto* theAlert = dynamic_cast<lt::external_ip_alert*>(alert);
