@@ -346,7 +346,7 @@ public:
             std::vector<PeerInfo> peers;
             
             // Is it my peer?
-            ___LOG( "request.m_targetKey: " << m_myPort << " from: " << requesterEndpoint.port() << " " << request.m_targetKey )
+            //___LOG( "request.m_targetKey: " << m_myPort << " from: " << requesterEndpoint.port() << " " << request.m_targetKey )
             if ( request.m_targetKey == m_keyPair.publicKey() )
             {
 //                if ( requesterEndpoint.port() == 5003 )
@@ -741,8 +741,6 @@ public:
         std::sort( m_candidates.begin(), m_candidates.end() );
 
         sendNextRequest();
-        
-        return false;
     }
 };
 

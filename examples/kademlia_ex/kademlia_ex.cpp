@@ -343,7 +343,7 @@ int main(int,char**)
 
     sleep(3);
 
-    for(int i=0; i<2; i++)
+    for(int i=0; i<5; i++)
     {
         sirius::drive::KademliaDbgInfo dbgInfo;
         std::mutex dbgInfoMutex;
