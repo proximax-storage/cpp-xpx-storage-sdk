@@ -171,6 +171,7 @@ public:
 
 
     virtual OptionalEndpoint getEndpoint( const Key& key ) = 0;
+    virtual const kademlia::PeerInfo*  getPeerInfo( const Key& key ) = 0;
 
     // It loads existing file from disk
     virtual lt_handle addTorrentFileToSession( const std::filesystem::path&     torrentFilename,

@@ -50,10 +50,7 @@ struct PeerInfo
     uint64_t    m_creationTimeInSeconds; // uint64_t now = duration_cast(std::chrono::steady_clock::now().time_since_epoch()).count();
     Signature   m_signature;
     
-    //todo for debugging
     PeerInfo() = default;
-
-    //PeerInfo( const PeerKey& peerKey ) : m_peerKey(peerKey) {}
 
     PeerInfo( const PeerKey& peerKey, const boost::asio::ip::udp::endpoint& endpoint )
       : m_publicKey(peerKey),
@@ -169,13 +166,13 @@ struct MyIpResponse
 struct PeerIpRequest
 {
     bool m_requesterIsClient = false;
-    PeerKey m_peerKey;
+    PeerKey m_targetKey;
     PeerKey m_requesterKey;
 
     template<class Archive>
     void serialize(Archive &arch)
     {
-        arch(m_peerKey);
+        arch(m_targetKey);
         arch(m_requesterKey);
     }
 };
@@ -188,14 +185,14 @@ struct PeerIpResponse
     // if found then 'm_response' has single PeerInfo where m_response.m_peerKey == m_peerKey
 //    bool                    m_found;
     
-    PeerKey                 m_peerKey;
+    PeerKey                 m_targetKey;
     std::vector<PeerInfo>   m_response;
     
     template<class Archive>
     void serialize(Archive &arch)
     {
         //arch(m_found);
-        arch(m_peerKey);
+        arch(m_targetKey);
         arch(m_response);
     }
 };
@@ -236,6 +233,8 @@ public:
     virtual void    setEndpointHandler( ::sirius::drive::EndpointHandler endpointHandler ) = 0;
 
     virtual OptionalEndpoint getEndpoint( const PeerKey& key ) =0;
+
+    virtual const PeerInfo* getPeerInfo( const PeerKey& key ) =0;
 
     virtual void            addClientToLocalEndpointMap( const Key& keys ) = 0;
     virtual void            onEndpointDiscovered( const Key& key, const OptionalEndpoint& endpoint ) = 0;

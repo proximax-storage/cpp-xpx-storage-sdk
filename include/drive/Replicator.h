@@ -358,6 +358,9 @@ public:
     virtual void        addReplicatorKeysToKademlia( const std::vector<Key>& keys ) = 0;
     virtual void        removeReplicatorKeyFromKademlia( const Key& keys ) = 0;
     virtual void        dbgTestKademlia( KademliaDbgFunc dbgFunc ) = 0;
+    virtual void        dbgTestKademlia2( ReplicatorList& outReplicatorList ) {}
+    virtual OptionalEndpoint dbgGetEndpoint( const Key& key ) { return {}; }
+
 
     virtual void        stopReplicator() = 0;
 

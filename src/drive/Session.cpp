@@ -437,9 +437,14 @@ public:
 
     virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const Key& key ) override
     {
-        return getEndpoint( key );
+        return m_kademlia->getEndpoint( key );
     }
     
+    virtual const kademlia::PeerInfo*  getPeerInfo( const Key& key ) override
+    {
+        return m_kademlia->getPeerInfo( key );
+    }
+
     virtual void      addReplicatorKeyToKademlia( const Key& key ) override
     {
         m_kademlia->addReplicatorKey(key);

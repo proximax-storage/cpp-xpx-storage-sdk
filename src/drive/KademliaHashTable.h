@@ -40,17 +40,11 @@ public:
     
     // onRequestFromAnotherPeer() is used for local requests only
     //
-    OptionalEndpoint getPeerInfo( const PeerKey& key, size_t& bucketIndex )
+    const PeerInfo* getPeerInfo( const PeerKey& key, size_t& bucketIndex )
     {
         bucketIndex = equalPrefixLength( m_myKey, key );
         
-        const PeerInfo* info = m_buckets[bucketIndex].getPeer( key );
-        if ( info != nullptr )
-        {
-            return info->endpoint();
-        }
-        
-        return {};
+        return m_buckets[bucketIndex].getPeer( key );
     }
     
     // onRequestFromAnotherPeer() is used for request from another peer
@@ -110,6 +104,11 @@ public:
     
     int addPeerInfoOrUpdate( const PeerInfo& info )
     {
+        if ( info.m_publicKey == m_myKey )
+        {
+            return -1;
+        }
+        
         auto bucketIndex = calcBucketIndex( info.m_publicKey );
         //___LOG( "bucketIndex: " << bucketIndex << " " << info.m_publicKey << " " << m_myKey )
         if ( ! m_buckets[bucketIndex].addPeerOrUpdate( info ) )
@@ -121,9 +120,15 @@ public:
 
     bool couldBeAdded( const PeerKey& key )
     {
-        auto bucketIndex = calcBucketIndex( key );
-
-        return m_buckets[bucketIndex].nodes().size() < BUCKET_NUMBER;
+        size_t bucketIndex;
+        if ( ! getPeerInfo( key, bucketIndex ) )
+        {
+            if ( m_buckets[bucketIndex].nodes().size() < BUCKET_NUMBER )
+            {
+                return true;
+            }
+        }
+        return false;
     }
         
     void removePeerInfo( const Key& key )

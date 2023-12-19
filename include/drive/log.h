@@ -97,7 +97,7 @@ inline void checkLogFileSize()
 #define LOG(expr)
 /*
 #define LOG(expr) { \
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << current_time() << "\t" << expr << std::endl << std::flush; \
     }
@@ -107,7 +107,7 @@ inline void checkLogFileSize()
 // _LOG - with m_dbgOurPeerName
 #define _LOG(expr) {}
 //#define _LOG(expr) { \
-//        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+//        std::lock_guard<std::mutex> autolock( gLogMutex ); \
 //        checkLogFileSize(); \
 //        std::cout << current_time() << "\t" << m_dbgOurPeerName << ": " << expr << std::endl << std::flush; \
 //    }
@@ -115,35 +115,35 @@ inline void checkLogFileSize()
 // __LOG
 #define __LOG(expr) {}
 //#define __LOG(expr) { \
-//        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+//        std::lock_guard<std::mutex> autolock( gLogMutex ); \
 //        checkLogFileSize(); \
 //        std::cout << current_time() << "\t" << expr << std::endl << std::flush; \
 //    }
 
 // ___LOG
 #define ___LOG(expr) { \
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << current_time() << "\t" << expr << std::endl << std::flush; \
     }
 
 // _LOG_WARN - with m_dbgOurPeerName
 #define _LOG_WARN(expr) { \
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << current_time() << "\t" << m_dbgOurPeerName << ": WARNING!!! in " << __FUNCTION__ << "() " << expr << std::endl << std::flush; \
         if ( gBreakOnWarning ) { assert(0); } \
     }
 
 #define __LOG_WARN(expr) { \
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << ": WARNING!!! in " << __FUNCTION__ << "() " << current_time() << "\t" << expr << std::endl << std::flush; \
         if ( gBreakOnWarning ) { assert(0); } \
     }
 
 #define _LOG_ERR(expr) { \
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< current_time() << "\t" << expr << "\n" << std::flush; \
         if ( gBreakOnError ) { assert(0); } \
@@ -161,7 +161,7 @@ struct FuncEntry
     
     FuncEntry( const std::string& PRETTY_FUNCTION, const std::string& dbgOurPeerName ) : m_PRETTY_FUNCTION(PRETTY_FUNCTION), m_dbgOurPeerName(dbgOurPeerName)
     {
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
         std::cout << m_dbgOurPeerName << ": call: " << gIndentString+sizeof(gIndentString)-gCallLevel-1 << "->" << m_PRETTY_FUNCTION << std::endl << std::flush; \
         gCallLevel+=2;
     }
@@ -169,13 +169,13 @@ struct FuncEntry
     ~FuncEntry()
     {
         gCallLevel-=2;
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
         std::cout << m_dbgOurPeerName << ": call: " << gIndentString+sizeof(gIndentString)-gCallLevel-1 << "<-" << m_PRETTY_FUNCTION << std::endl << std::flush; \
     }
 };
 /*
 #define _FUNC_ENTRY { \
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
         std::cout << m_dbgOurPeerName << ": call: " << __PRETTY_FUNCTION__ << std::endl << std::flush; \
     }
 */
@@ -187,7 +187,7 @@ struct FuncEntry
 
 #define SIRIUS_ASSERT(expr) { \
     if (!(expr)) {\
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
         if (0) \
         std::cerr << m_dbgOurPeerName << ": " << __FILE__ << ":" << __LINE__ << " failed: " << current_time() << "\t" << #expr << "\n" << std::flush; \
         else \
@@ -198,7 +198,7 @@ struct FuncEntry
 
 #define _SIRIUS_ASSERT(expr) { \
     if (!(expr)) {\
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
         std::cerr << __FILE__ << ":" << __LINE__ << " failed: " << current_time() << "\t" << #expr << "\n" << std::flush; \
         std::cerr << "failed assert!!!: " << current_time() << "\t" << #expr << "\n" << std::flush; \
         assert(0); \

@@ -25,7 +25,7 @@
 
 bool gBreak_On_Warning = false;
 
-const size_t REPLICATOR_NUMBER = 3;
+const size_t REPLICATOR_NUMBER = 7;
 
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111-kadmlia"
@@ -311,7 +311,7 @@ int main(int,char**)
     
     const size_t driveNumber = 200;
     //TODO?
-    const size_t replicatorNumber = 2; // per one drive
+    const size_t replicatorNumber = 3; // per one drive
 
     for( size_t i=0; i<driveNumber; i++ )
     {
@@ -336,13 +336,15 @@ int main(int,char**)
             
             auto driveKey = randomByteArray<sirius::Key>();
             replicator->asyncAddDrive( driveKey, std::move(driveRequest) );
+            
+            //___LOG( "dr_added: " << index << ";" )
         }
     }
 
-    for(;;)
-    {
-        sleep(1);
+    sleep(3);
 
+    for(int i=0; i<2; i++)
+    {
         sirius::drive::KademliaDbgInfo dbgInfo;
         std::mutex dbgInfoMutex;
         
@@ -356,10 +358,22 @@ int main(int,char**)
             });
         }
         sleep(2);
-        ___LOG( "dbg-dbg: " << dbgInfo.m_requestCounter << " " << dbgInfo.m_peerCounter );
+        ___LOG( " dbg-dbg: " << i );
     }
 
-    sleep(1000);
+    for ( size_t i=0; i<REPLICATOR_NUMBER; i++ )
+//    for ( size_t i=0; i<1; i++ )
+    {
+        ReplicatorList rList;
+        ___LOG( "dbgTestKademlia2: --------------------------- i=" << i );
+        gReplicators[i]->dbgTestKademlia2( rList );
+        sleep(3);
+    }
+    
+    for(;;)
+    {
+        sleep(1000);
+    }
 
     EXLOG( "" );
     EXLOG( "total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );

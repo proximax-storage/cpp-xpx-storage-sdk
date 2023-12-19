@@ -3032,6 +3032,42 @@ public:
         m_session->dbgTestKademlia(dbgFunc);
     }
 
+    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList )
+    {
+        boost::asio::post( m_session->lt_session().get_context(), [outReplicatorList=outReplicatorList,this]() mutable {
+            for( auto& [key,drive] : m_driveMap )
+            {
+                drive->dbgTestKademlia2( outReplicatorList );
+            }
+            int counter = 0;
+            ___LOG( m_port << " dbgTestKademlia2?: " << outReplicatorList.size() );
+            for( auto& key : outReplicatorList )
+            {
+                int port = -1;
+                if ( ! dbgGetEndpoint(key,port).has_value() )
+                {
+                    ___LOG( m_port << " dbgTestKademlia2: --- " << port << " " << key );
+                    counter++;
+                }
+            }
+            ___LOG( m_port << " dbgTestKademlia2: === " << counter << " of: " << outReplicatorList.size() );
+        } );
+    }
+
+    virtual OptionalEndpoint dbgGetEndpoint( const Key& key, int& port )
+    {
+        auto* info = m_session->getPeerInfo(key);
+        if ( info != nullptr )
+        {
+            return info->endpoint();
+        }
+        if ( auto ep = m_session->getEndpoint(key); ep )
+        {
+            port = ep->port();
+        }
+        return {};
+    }
+
 };
 
 std::shared_ptr<Replicator> createDefaultReplicator(

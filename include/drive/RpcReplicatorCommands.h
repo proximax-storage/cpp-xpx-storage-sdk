@@ -17,7 +17,7 @@
 
  // __LOG
  #define __LOG(expr) { \
-        const std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
         std::cout << expr << std::endl << std::flush; \
     }
  */
