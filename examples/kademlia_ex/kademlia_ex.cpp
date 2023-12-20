@@ -25,7 +25,7 @@
 
 bool gBreak_On_Warning = false;
 
-const size_t REPLICATOR_NUMBER = 7;
+const size_t REPLICATOR_NUMBER = 199;
 
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111-kadmlia"
@@ -309,9 +309,9 @@ int main(int,char**)
 
     // Create a lot of drives!
     
-    const size_t driveNumber = 200;
+    const size_t driveNumber = 100;
     //TODO?
-    const size_t replicatorNumber = 3; // per one drive
+    const size_t replicatorNumber = 5; // per one drive
 
     for( size_t i=0; i<driveNumber; i++ )
     {
@@ -367,7 +367,7 @@ int main(int,char**)
         ReplicatorList rList;
         ___LOG( "dbgTestKademlia2: --------------------------- i=" << i );
         gReplicators[i]->dbgTestKademlia2( rList );
-        sleep(3);
+        sleep(1);
     }
     
 //    for ( size_t i=0; i<REPLICATOR_NUMBER; i++ )

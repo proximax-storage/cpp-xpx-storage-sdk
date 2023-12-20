@@ -427,7 +427,10 @@ public:
                 m_localEndpointMap[peerInfo.m_publicKey] = peerInfo.endpoint();
                 
                 // try add to kademlia
-                m_hashTable.addPeerInfoOrUpdate( peerInfo );
+                if ( int bucketIndex = m_hashTable.addPeerInfoOrUpdate( peerInfo ); bucketIndex < 0 )
+                {
+                    ___LOG( "bucket full: " << m_myPort << " bucketIndex: " << -bucketIndex-1 )
+                }
                 
                 if ( auto it = m_searcherMap.find(peerInfo.m_publicKey); it != m_searcherMap.end() )
                 {

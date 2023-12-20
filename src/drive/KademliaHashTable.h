@@ -113,7 +113,7 @@ public:
         //___LOG( "bucketIndex: " << bucketIndex << " " << info.m_publicKey << " " << m_myKey )
         if ( ! m_buckets[bucketIndex].addPeerOrUpdate( info ) )
         {
-            return -1;
+            return -bucketIndex-1;
         }
         return bucketIndex;
     }
