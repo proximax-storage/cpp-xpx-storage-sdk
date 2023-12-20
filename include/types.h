@@ -12,6 +12,7 @@
 #include <array>
 #include <set>
 #include <functional>
+#include <optional>
 #include <boost/asio/ip/udp.hpp>
 
 
