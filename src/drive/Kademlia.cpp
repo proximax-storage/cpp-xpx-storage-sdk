@@ -61,7 +61,7 @@ public:
     KademliaHashTable               m_hashTable;
     SearcherMap                     m_searcherMap;
     
-    std::set<const Key>             m_registeredReplicators;
+    std::set<Key>                   m_registeredReplicators;
     
     std::optional<::sirius::drive::EndpointHandler> m_endpointHandler;
 
