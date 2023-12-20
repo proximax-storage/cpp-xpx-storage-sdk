@@ -3050,7 +3050,7 @@ public:
                     counter++;
                 }
             }
-            ___LOG( m_port << " dbgTestKademlia2: === " << counter << " of: " << outReplicatorList.size() );
+            ___LOG( m_port << " =========================== dbgTestKademlia2: " << counter << " of: " << outReplicatorList.size() );
         } );
     }
 

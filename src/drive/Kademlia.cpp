@@ -429,7 +429,7 @@ public:
                 // try add to kademlia
                 m_hashTable.addPeerInfoOrUpdate( peerInfo );
                 
-                if ( auto it = m_searcherMap.find(response.m_targetKey); it != m_searcherMap.end() )
+                if ( auto it = m_searcherMap.find(peerInfo.m_publicKey); it != m_searcherMap.end() )
                 {
                     m_searcherMap.erase(it);
                 }
@@ -608,10 +608,6 @@ public:
 
     ~PeerSearchInfo()
     {
-//        if ( m_endpointCatalogue.m_myPort == 5003 )
-//        {
-//            ___LOG("5003 ~PeerSearchInfo: " << m_targetPeerKey << " in: " << m_endpointCatalogue.m_myPort )
-//        }
         m_timer.cancel();
     }
 
@@ -635,11 +631,6 @@ public:
     
     void onTimer()
     {
-//        if ( m_endpointCatalogue.m_myPort == 5003 )
-//        {
-//            ___LOG( "5003 onTimer: " << m_targetPeerKey )
-//        }
-
         if ( m_candidates.empty() )
         {
             if ( m_attemptCounter++ < MAX_ATTEMPT_NUMBER )

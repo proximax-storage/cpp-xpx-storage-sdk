@@ -370,6 +370,13 @@ int main(int,char**)
         sleep(3);
     }
     
+//    for ( size_t i=0; i<REPLICATOR_NUMBER; i++ )
+//    {
+//        ReplicatorList rList;
+//        gReplicators[i]->dbgTestKademlia2( rList );
+//        sleep(3);
+//    }
+    
     for(;;)
     {
         sleep(1000);

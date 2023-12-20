@@ -96,8 +96,8 @@ public:
             {
                 // refresh
                 *it = info;
-                return true;
             }
+            return true;
         }
         else
         {
