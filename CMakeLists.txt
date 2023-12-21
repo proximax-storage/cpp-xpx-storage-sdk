@@ -13,11 +13,18 @@ set(CMAKE_CXX_EXTENSIONS ON)
 set(ABSL_PROPAGATE_CXX_STD ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+
 #//TODO? SKIP_GRPC
 set(SKIP_GRPC ON)
 
 if (DEFINED SKIP_GRPC)
     add_compile_definitions(SKIP_GRPC)
+
+    if(MSVC)
+        #add_compile_options(/bigobj /W3 /WX)
+    else()
+        add_compile_options(-Werror=return-type)
+    endif()
 endif()
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)

@@ -25,7 +25,7 @@
 
 bool gBreak_On_Warning = false;
 
-const size_t REPLICATOR_NUMBER = 199;
+const size_t REPLICATOR_NUMBER = 170;
 
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111-kadmlia"
@@ -305,7 +305,7 @@ int main(int,char**)
 
     EXLOG("");
     
-    sleep(1);
+    sleep(10);
 
     // Create a lot of drives!
     
@@ -341,35 +341,28 @@ int main(int,char**)
         }
     }
 
-    sleep(3);
+    sleep(60);
 
-    for(int i=0; i<5; i++)
+    for(int i=0; i<1; i++)
     {
-        sirius::drive::KademliaDbgInfo dbgInfo;
-        std::mutex dbgInfoMutex;
+        //sirius::drive::KademliaDbgInfo dbgInfo;
         
         for( auto& replicator : gReplicators )
         {
-            replicator->dbgTestKademlia( [&] (const KademliaDbgInfo& info )
-                                        {
-                //std::lock_guard<std::mutex> lock(dbgInfoMutex);
-                dbgInfo.m_requestCounter.fetch_add( info.m_requestCounter, std::memory_order_relaxed );
-                dbgInfo.m_peerCounter.fetch_add( info.m_peerCounter, std::memory_order_relaxed );
-            });
+            replicator->dbgTestKademlia( [&] (const KademliaDbgInfo& info ) {} );
         }
         sleep(2);
         ___LOG( " dbg-dbg: " << i );
     }
 
     for ( size_t i=0; i<REPLICATOR_NUMBER; i++ )
-//    for ( size_t i=0; i<1; i++ )
     {
         ReplicatorList rList;
         ___LOG( "dbgTestKademlia2: --------------------------- i=" << i );
         gReplicators[i]->dbgTestKademlia2( rList );
-        sleep(1);
+        sleep(3);
     }
-    
+
 //    for ( size_t i=0; i<REPLICATOR_NUMBER; i++ )
 //    {
 //        ReplicatorList rList;

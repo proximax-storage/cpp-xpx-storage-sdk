@@ -3040,13 +3040,12 @@ public:
                 drive->dbgTestKademlia2( outReplicatorList );
             }
             int counter = 0;
-            ___LOG( m_port << " dbgTestKademlia2?: " << outReplicatorList.size() );
             for( auto& key : outReplicatorList )
             {
                 int port = -1;
                 if ( ! dbgGetEndpoint(key,port).has_value() )
                 {
-                    ___LOG( m_port << " dbgTestKademlia2: --- " << port << " " << key );
+                    ___LOG( m_port << " ????????????????? dbgTestKademlia2: " << port << " " << key );
                     counter++;
                 }
             }
@@ -3056,17 +3055,27 @@ public:
 
     virtual OptionalEndpoint dbgGetEndpoint( const Key& key, int& port )
     {
-        auto* info = m_session->getPeerInfo(key);
-        if ( info != nullptr )
-        {
-            return info->endpoint();
-        }
         if ( auto ep = m_session->getEndpoint(key); ep )
         {
             port = ep->port();
+            return ep;
         }
         return {};
     }
+
+//    virtual OptionalEndpoint dbgGetEndpoint( const Key& key, int& port )
+//    {
+//        auto* info = m_session->getPeerInfo(key);
+//        if ( info != nullptr )
+//        {
+//            return info->endpoint();
+//        }
+//        if ( auto ep = m_session->getEndpoint(key); ep )
+//        {
+//            port = ep->port();
+//        }
+//        return {};
+//    }
 
 };
 
