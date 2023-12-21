@@ -373,11 +373,20 @@ public:
         settingsPack.set_bool( lt::settings_pack::dht_ignore_dark_internet, false );
         
         std::ostringstream bootstrapsBuilder;
-        for ( const auto& bootstrap: bootstraps )
         {
-            if ( bootstrap.m_publicKey != this->m_replicator.lock()->keyPair().publicKey() )
+            for ( const auto& bootstrap: bootstraps )
             {
-                bootstrapsBuilder << bootstrap.m_endpoint.address().to_string() << ":" << std::to_string(bootstrap.m_endpoint.port()) << ",";
+                if ( auto replicator = m_replicator.lock(); replicator )
+                {
+                    if ( bootstrap.m_publicKey != replicator->keyPair().publicKey() )
+                    {
+                        bootstrapsBuilder << bootstrap.m_endpoint.address().to_string() << ":" << std::to_string(bootstrap.m_endpoint.port()) << ",";
+                    }
+                    else
+                    {
+                        bootstrapsBuilder << bootstrap.m_endpoint.address().to_string() << ":" << std::to_string(bootstrap.m_endpoint.port()) << ",";
+                    }
+                }
             }
         }
         
