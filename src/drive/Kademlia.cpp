@@ -82,23 +82,27 @@ public:
             m_isClient(isClient),
             m_hashTable( keyPair.publicKey() )
     {
-        auto it = std::find_if( m_bootstraps.begin(), m_bootstraps.end(), [this]( const auto& item )
+        if ( ! m_isClient )
         {
-            return m_keyPair.publicKey() == item.m_publicKey;
-        });
-                               
-        if ( it != m_bootstraps.end() )
-        {
-            m_myPeerInfo = PeerInfo{ m_keyPair.publicKey(), it->m_endpoint };
-            m_myPeerInfo->Sign( m_keyPair );
-            m_myEndpoint = it->m_endpoint;
-            m_bootstraps.erase( it );
+            auto it = std::find_if( m_bootstraps.begin(), m_bootstraps.end(), [this]( const auto& item )
+                                   {
+                return m_keyPair.publicKey() == item.m_publicKey;
+            });
+            
+            if ( it != m_bootstraps.end() )
+            {
+                m_myPeerInfo = PeerInfo{ m_keyPair.publicKey(), it->m_endpoint };
+                m_myPeerInfo->Sign( m_keyPair );
+                m_myEndpoint = it->m_endpoint;
+                m_bootstraps.erase( it );
+            }
+            
+            std::erase_if( m_bootstraps, [this]( const auto& item )
+                          {
+                return m_keyPair.publicKey() == item.m_publicKey;
+            });
         }
         
-        std::erase_if( m_bootstraps, [this]( const auto& item )
-        {
-            return m_keyPair.publicKey() == item.m_publicKey;
-        });
         _SIRIUS_ASSERT( m_bootstraps.size() > 0 );
 
         for( const auto& nodeInfo : m_bootstraps )
@@ -109,7 +113,10 @@ public:
         // make some delay (for starting dht)
         if ( auto session = m_kademliaTransport.lock(); session )
         {
-            start();
+            boost::asio::post( session->lt_session().get_context(), [this]() mutable
+                              {
+                start();
+            });
         }
     }
     
@@ -120,6 +127,12 @@ public:
 
     void start()
     {
+        if ( m_isClient )
+        {
+            enterToSwarm();
+            return;
+        }
+        
         if ( m_myPeerInfo )
         {
             return;
@@ -660,7 +673,7 @@ public:
     {
         if ( m_candidates.empty() )
         {
-            ___LOG( "m_candidates.empty(): " << m_endpointCatalogue.m_myPort << " of: " << m_targetPeerKey )
+            //___LOG( "m_candidates.empty(): " << m_endpointCatalogue.m_myPort << " of: " << m_targetPeerKey )
             if ( m_attemptCounter++ < MAX_ATTEMPT_NUMBER )
             {
                 m_triedPeers.clear();
