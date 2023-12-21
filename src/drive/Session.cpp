@@ -382,10 +382,10 @@ public:
                     {
                         bootstrapsBuilder << bootstrap.m_endpoint.address().to_string() << ":" << std::to_string(bootstrap.m_endpoint.port()) << ",";
                     }
-                    else
-                    {
-                        bootstrapsBuilder << bootstrap.m_endpoint.address().to_string() << ":" << std::to_string(bootstrap.m_endpoint.port()) << ",";
-                    }
+                }
+                else
+                {
+                    bootstrapsBuilder << bootstrap.m_endpoint.address().to_string() << ":" << std::to_string(bootstrap.m_endpoint.port()) << ",";
                 }
             }
         }
