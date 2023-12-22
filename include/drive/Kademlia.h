@@ -210,6 +210,7 @@ public:
     //
     virtual void sendGetMyIpRequest( const MyIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) = 0;
     virtual void sendGetPeerIpRequest( const PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) = 0;
+    virtual void sendDirectPeerInfo( const PeerIpResponse& response, boost::asio::ip::udp::endpoint endpoint ) = 0;
 
     virtual std::string onGetMyIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
     virtual std::string onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
@@ -234,7 +235,7 @@ public:
 
     virtual OptionalEndpoint getEndpoint( const PeerKey& key ) =0;
 
-    virtual const PeerInfo* getPeerInfo( const PeerKey& key, bool startSearchIfNotExist = true ) =0;
+    virtual const PeerInfo* getPeerInfo( const PeerKey& key ) =0;
 
     virtual void            addClientToLocalEndpointMap( const Key& keys ) = 0;
     virtual void            onEndpointDiscovered( const Key& key, const OptionalEndpoint& endpoint ) = 0;

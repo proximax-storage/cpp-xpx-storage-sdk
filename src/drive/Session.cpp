@@ -1554,11 +1554,11 @@ private:
 #ifdef __APPLE__
 #pragma mark --dht_pkt_alert
 #endif
-//                    case lt::dht_pkt_alert::alert_type: {
-//                        auto *theAlert = dynamic_cast<lt::dht_pkt_alert *>(alert);
-//                        ___LOG( m_listeningPort << " : dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
-//                        break;
-//                    }
+                    case lt::dht_pkt_alert::alert_type: {
+                        auto *theAlert = dynamic_cast<lt::dht_pkt_alert *>(alert);
+                        ___LOG( m_listeningPort << " : dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
+                        break;
+                    }
                         
                     default: {
                         //                    if ( alert->type() != 52 && alert->type() != 78 && alert->type() != 86
@@ -1604,6 +1604,16 @@ private:
 
         sendMessage( GET_PEER_IP_MSG, endpoint, os.str() );
     }
+    
+    virtual void sendDirectPeerInfo( const kademlia::PeerIpResponse& response, boost::asio::ip::udp::endpoint endpoint ) override
+    {
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( response );
+
+        sendMessage( PEER_IP_RESPONSE, endpoint, os.str() );
+    }
+
 
     virtual std::string onGetMyIpRequest( const std::string& request, boost::asio::ip::udp::endpoint requesterEndpoint ) override
     {

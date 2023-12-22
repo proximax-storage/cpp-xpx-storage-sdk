@@ -25,7 +25,7 @@
 
 bool gBreak_On_Warning = false;
 
-const size_t REPLICATOR_NUMBER = 5;
+const size_t REPLICATOR_NUMBER = 170;
 
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111-kadmlia"
@@ -309,7 +309,7 @@ int main(int,char**)
 
     // Create a lot of drives!
     
-    const size_t driveNumber = 1;//100;
+    const size_t driveNumber = 100;
     //TODO?
     const size_t replicatorNumber = 5; // per one drive
 

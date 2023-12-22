@@ -99,57 +99,60 @@ inline void checkLogFileSize()
 #define LOG(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
-        std::cout << current_time() << "\t" << expr << std::endl << std::flush; \
+        std::cout << current_time() << " " << expr << std::endl << std::flush; \
     }
 */
 
 
 // _LOG - with m_dbgOurPeerName
-#define _LOG(expr) {}
-/*
+//#define _LOG(expr) {}
+
 #define _LOG(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
-        std::cout << current_time() << "\t" << m_dbgOurPeerName << ": " << expr << std::endl << std::flush; \
+        std::cout << current_time() << " " << m_dbgOurPeerName << ": " << expr << std::endl << std::flush; \
     }
-*/
+
 
 // __LOG
-#define __LOG(expr) {}
-/*
+//#define __LOG(expr) {}
+
 #define __LOG(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
-        std::cout << current_time() << "\t" << expr << std::endl << std::flush; \
+        std::cout << current_time() << " " << expr << std::endl << std::flush; \
     }
-*/
+
 
 // ___LOG
-#define ___LOG(expr) { \
+#define ___LOG(expr) {}
+/*
+ #define ___LOG(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
-        std::cout << current_time() << "\t" << expr << std::endl << std::flush; \
+        std::cout << current_time() << " " << expr << std::endl << std::flush; \
     }
+*/
 
 // _LOG_WARN - with m_dbgOurPeerName
 #define _LOG_WARN(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
-        std::cout << current_time() << "\t" << m_dbgOurPeerName << ": WARNING!!! in " << __FUNCTION__ << "() " << expr << std::endl << std::flush; \
+        std::cout << current_time() << " " << m_dbgOurPeerName << ": WARNING!!! in " << __FUNCTION__ << "() " << expr << std::endl << std::flush; \
         if ( gBreakOnWarning ) { assert(0); } \
     }
 
 #define __LOG_WARN(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
-        std::cout << ": WARNING!!! in " << __FUNCTION__ << "() " << current_time() << "\t" << expr << std::endl << std::flush; \
+        std::cout << ": WARNING!!! in " << __FUNCTION__ << "() " << current_time() << " " << expr << std::endl << std::flush; \
         if ( gBreakOnWarning ) { assert(0); } \
     }
 
 #define _LOG_ERR(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
-        std::cout << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< current_time() << "\t" << expr << "\n" << std::flush; \
+        std::cout << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< current_time() << " " << expr << "\n" << std::flush; \
         if ( gBreakOnError ) { assert(0); } \
     }
 
@@ -193,9 +196,9 @@ struct FuncEntry
     if (!(expr)) {\
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         if (0) \
-        std::cerr << m_dbgOurPeerName << ": " << __FILE__ << ":" << __LINE__ << " failed: " << current_time() << "\t" << #expr << "\n" << std::flush; \
+        std::cerr << m_dbgOurPeerName << ": " << __FILE__ << ":" << __LINE__ << " failed: " << current_time() << " " << #expr << "\n" << std::flush; \
         else \
-        std::cerr << m_dbgOurPeerName << ": failed assert: " << current_time() << "\t" << #expr << "\n" << std::flush; \
+        std::cerr << m_dbgOurPeerName << ": failed assert: " << current_time() << " " << #expr << "\n" << std::flush; \
         assert(0); \
     }\
 }
@@ -203,8 +206,8 @@ struct FuncEntry
 #define _SIRIUS_ASSERT(expr) { \
     if (!(expr)) {\
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        std::cerr << __FILE__ << ":" << __LINE__ << " failed: " << current_time() << "\t" << #expr << "\n" << std::flush; \
-        std::cerr << "failed assert!!!: " << current_time() << "\t" << #expr << "\n" << std::flush; \
+        std::cerr << __FILE__ << ":" << __LINE__ << " failed: " << current_time() << " " << #expr << "\n" << std::flush; \
+        std::cerr << "failed assert!!!: " << current_time() << " " << #expr << "\n" << std::flush; \
         assert(0); \
     }\
 }

@@ -38,13 +38,16 @@ public:
         return equalPrefixLength( m_myKey, candidate );
     }
     
-    // onRequestFromAnotherPeer() is used for local requests only
-    //
     const PeerInfo* getPeerInfo( const PeerKey& key, size_t& bucketIndex )
     {
         bucketIndex = equalPrefixLength( m_myKey, key );
         
         return m_buckets[bucketIndex].getPeer( key );
+    }
+    
+    size_t calcBucketIndex( const PeerKey& key )
+    {
+        return equalPrefixLength( m_myKey, key );
     }
     
     // onRequestFromAnotherPeer() is used for request from another peer
