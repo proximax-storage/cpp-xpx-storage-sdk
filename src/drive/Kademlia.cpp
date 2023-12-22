@@ -105,6 +105,7 @@ public:
 
         for( const auto& nodeInfo : m_bootstraps )
         {
+            ___LOG( "bootstrap: " << m_myPort << " " << nodeInfo.m_endpoint << " "  << nodeInfo.m_publicKey )
             m_localEndpointMap[nodeInfo.m_publicKey] = nodeInfo.m_endpoint;
         }
         
@@ -115,6 +116,22 @@ public:
             {
                 start();
             });
+        }
+        
+        if ( m_isBootstrap )
+        {
+            if ( auto session = m_kademliaTransport.lock(); session )
+            {
+                boost::asio::post( session->lt_session().get_context(), [this]() mutable
+                                  {
+                    for( const auto& nodeInfo : m_bootstraps )
+                    {
+                        ___LOG( "m_isBootstrap:" << m_myPort  << " of: " << nodeInfo.m_publicKey )
+                        sendDirectRequest( nodeInfo.m_publicKey, nodeInfo.m_endpoint );
+                    }
+                    enterToSwarm();
+                });
+            }
         }
     }
     
@@ -344,7 +361,7 @@ public:
             }
             
             // start Kademlia
-            if ( firstResponse || m_isBootstrap )
+            if ( firstResponse && ! m_isBootstrap )
             {
                 enterToSwarm();
             }
@@ -372,7 +389,7 @@ public:
 
     std::string onGetPeerIpRequest( const std::string& requestStr, boost::asio::ip::udp::endpoint requesterEndpoint ) override
     {
-        ___LOG( "onGetPeerIpRequest: " )
+        ___LOG( "onGetPeerIpRequest: " << m_myPort << " from: " << requesterEndpoint.port() )
 
         if ( m_isClient )
         {
@@ -448,10 +465,14 @@ public:
 
     void sendDirectRequest( const Key& targetKey, boost::asio::ip::udp::endpoint endpoint )
     {
+        ___LOG( "m_isBootstrap(2):" << m_myPort  << " of: " << targetKey )
+
         if ( auto session = m_kademliaTransport.lock(); session )
         {
+            ___LOG( "m_isBootstrap(3):" << m_myPort  << " of: " << targetKey )
             PeerIpRequest request2{ session->isClient(),  targetKey, m_keyPair.publicKey() };
-            ___LOG( "sendGetPeerIpRequest: (direct): to: " << endpoint.port() << " myPort: " << m_myPort  << " of: " << targetKey )
+            ___LOG( "m_isBootstrap(4):" << m_myPort  << " of: " << targetKey )
+            ___LOG( "sendGetPeerIpRequest: (direct): to: " << endpoint.port() << " myPort: " << m_myPort  << " of: " << request2.m_targetKey )
             session->sendGetPeerIpRequest( request2, endpoint );
         }
     }
@@ -466,7 +487,7 @@ public:
             PeerIpResponse response;
             archive( response );
             
-            ___LOG( "onGetPeerIpResponse: from: " << responserEndpoint.port() << " myPort: " << m_myPort << " of: " << response.m_targetKey )
+            ___LOG( "onGetPeerIpResponse: from: " << responserEndpoint.port() << " myPort: " << m_myPort << " of: " << response.m_targetKey << " " << response.m_response.size() )
 
             //
             // At first we add all peerInfo from response to our DHT

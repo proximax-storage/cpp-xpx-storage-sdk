@@ -25,7 +25,7 @@
 
 bool gBreak_On_Warning = false;
 
-const size_t REPLICATOR_NUMBER = 170;
+const size_t REPLICATOR_NUMBER = 5; //170;
 
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111-kadmlia"

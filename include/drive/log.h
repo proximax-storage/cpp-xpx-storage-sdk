@@ -113,7 +113,6 @@ inline void checkLogFileSize()
         std::cout << current_time() << " " << m_dbgOurPeerName << ": " << expr << std::endl << std::flush; \
     }
 
-
 // __LOG
 //#define __LOG(expr) {}
 
@@ -125,14 +124,14 @@ inline void checkLogFileSize()
 
 
 // ___LOG
-#define ___LOG(expr) {}
-/*
+//#define ___LOG(expr) {}
+
  #define ___LOG(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << current_time() << " " << expr << std::endl << std::flush; \
     }
-*/
+
 
 // _LOG_WARN - with m_dbgOurPeerName
 #define _LOG_WARN(expr) { \
