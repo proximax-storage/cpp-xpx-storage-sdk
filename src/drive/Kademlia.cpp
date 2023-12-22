@@ -51,8 +51,9 @@ public:
     const crypto::KeyPair&          m_keyPair;
     std::vector<NodeInfo>           m_bootstraps;
     uint16_t                        m_myPort;
+    bool                            m_isBootstrap = false;
     bool                            m_isClient;
-    
+
     std::optional<PeerInfo>         m_myPeerInfo;
     Timer                           m_myPeerInfoTimer;
     
@@ -95,12 +96,8 @@ public:
                 m_myPeerInfo->Sign( m_keyPair );
                 m_myEndpoint = it->m_endpoint;
                 m_bootstraps.erase( it );
+                m_isBootstrap = true;
             }
-            
-            std::erase_if( m_bootstraps, [this]( const auto& item )
-                          {
-                return m_keyPair.publicKey() == item.m_publicKey;
-            });
         }
         
         _SIRIUS_ASSERT( m_bootstraps.size() > 0 );
@@ -114,8 +111,8 @@ public:
         if ( auto session = m_kademliaTransport.lock(); session )
         {
             boost::asio::post( session->lt_session().get_context(), [this]() mutable
-                              {
-                start();
+            {
+                startKademlia();
             });
         }
     }
@@ -125,16 +122,11 @@ public:
         m_myPeerInfoTimer.cancel();
     }
 
-    void start()
+    void startKademlia()
     {
         if ( m_isClient )
         {
             enterToSwarm();
-            return;
-        }
-        
-        if ( m_myPeerInfo )
-        {
             return;
         }
         
@@ -219,7 +211,7 @@ public:
         return {};
     }
     
-    const PeerInfo* getPeerInfo( const PeerKey& key ) override
+    const PeerInfo* getPeerInfo( const PeerKey& key, bool startSearchIfNotExist = true ) override
     {
         if ( key == m_keyPair.publicKey() )
         {
@@ -238,13 +230,18 @@ public:
             return peerInfo;
         }
 
-        // start searching (skip if already started)
-        if ( auto it = m_searcherMap.find( key ); it == m_searcherMap.end() )
+        // start searching (skip if already started or it saved to local map)
+        //if ( m_hashTable.couldBeAdded( key ) || m_localEndpointMap.find(key) == m_localEndpointMap.end() )
+        if ( startSearchIfNotExist )
         {
-            m_searcherMap[key] = createPeerSearchInfo( key,
-                                                       bucketIndex,
-                                                       *this,
-                                                       m_kademliaTransport );
+            ___LOG( " couldBeAdded: " << m_myPort << " of: " << key << " " << (m_localEndpointMap.find(key)!=m_localEndpointMap.end() ))
+            if ( auto it = m_searcherMap.find( key ); it == m_searcherMap.end() )
+            {
+                m_searcherMap[key] = createPeerSearchInfo( key,
+                                                          bucketIndex,
+                                                          *this,
+                                                          m_kademliaTransport );
+            }
         }
         
         // so far not found
@@ -308,6 +305,7 @@ public:
                 return;
             }
             
+            // in local subnetworks global address (and port) could be changed to logical
             if ( m_myPort != response.m_response.m_port )
             {
                 __LOG_WARN( "ignore bad MyIpResponse" )
@@ -319,17 +317,20 @@ public:
             m_myPeerInfo->Sign( m_keyPair );
             m_myPeerInfoTimer.cancel();
             
-            if ( m_myEndpoint && response.m_response.endpoint().port() != m_myEndpoint->port() )
+            if ( m_myEndpoint &&
+                (response.m_response.endpoint().port() != m_myEndpoint->port() || response.m_response.endpoint().address() != m_myEndpoint->address()) )
             {
-                __LOG_WARN( "Invalid replicators.json! wrong my port number! (invalid bootstrap list): " << response.m_response.endpoint() << " vs " << *m_myEndpoint )
+                if ( m_isBootstrap )
+                {
+                    __LOG_WARN( "Invalid replicators.json! wrong my port number! (invalid bootstrap list): " << response.m_response.endpoint() << " vs " << *m_myEndpoint )
+                }
+                else
+                {
+                    __LOG_WARN( "Unexpected error in related to 'MyIpResponse': " << response.m_response.endpoint() << " vs " << *m_myEndpoint )
+                }
             }
             
-            if ( m_myEndpoint && response.m_response.endpoint().address() != m_myEndpoint->address() )
-            {
-                __LOG_WARN( "Invalid replicators.json! wrong my address number! (invalid bootstrap list): " << response.m_response.endpoint() << " vs " << *m_myEndpoint )
-            }
-            
-            if ( firstResponse )
+            if ( firstResponse || m_isBootstrap )
             {
                 enterToSwarm();
             }
@@ -359,7 +360,7 @@ public:
             ___LOG( "onGetPeerIpRequest: " << m_myPort << " from: " << requesterEndpoint.port() << " of: " << request.m_targetKey )
 
             // Query requester peerInfo if it could be added to my hashtable
-            if ( request.m_requesterKey != m_keyPair.publicKey() && m_hashTable.couldBeAdded( request.m_requesterKey ) )
+            if ( !request.m_requesterIsClient && request.m_requesterKey != m_keyPair.publicKey() && m_hashTable.couldBeAdded( request.m_requesterKey ) )
             {
                 size_t bucketIndex;
                 const auto* peerInfo = m_hashTable.getPeerInfo( request.m_requesterKey, bucketIndex );
@@ -371,7 +372,7 @@ public:
             
             std::vector<PeerInfo> peers;
             
-            // Is it my peer?
+            // Is target peer my peer?
             //___LOG( "request.m_targetKey: " << m_myPort << " from: " << requesterEndpoint.port() << " " << request.m_targetKey )
             if ( request.m_targetKey == m_keyPair.publicKey() )
             {
@@ -420,14 +421,13 @@ public:
         if ( auto session = m_kademliaTransport.lock(); session )
         {
             PeerIpRequest request2{ session->isClient(),  targetKey, m_keyPair.publicKey() };
-            ___LOG( "sendGetPeerIpRequest: (direct):" << m_myPort << " to: " << endpoint.port() << " of: " << targetKey )
+            ___LOG( "sendGetPeerIpRequest: (direct): to: " << endpoint.port() << " myPort: " << m_myPort  << " of: " << targetKey )
             session->sendGetPeerIpRequest( request2, endpoint );
         }
     }
     
     void onGetPeerIpResponse( const std::string& responseStr, boost::asio::ip::udp::endpoint responserEndpoint ) override
     {
-        ___LOG( "onGetPeerIpResponse: " << m_myPort << " from: " << responserEndpoint.port() )
         try
         {
             // Unpack response
@@ -436,6 +436,8 @@ public:
             PeerIpResponse response;
             archive( response );
             
+            ___LOG( "onGetPeerIpResponse: from: " << responserEndpoint.port() << " myPort: " << m_myPort << " of: " << response.m_targetKey )
+
             //
             // At first we add all peerInfo from response to our DHT
             //
@@ -453,26 +455,29 @@ public:
                     continue;
                 }
                 
+                bool peerInfoIsNew = m_localEndpointMap.find(peerInfo.m_publicKey) == m_localEndpointMap.end();
+                
                 // add to local map
                 m_localEndpointMap[peerInfo.m_publicKey] = peerInfo.endpoint();
-                
+                ___LOG( " added to local map: " << m_myPort << " of: " << peerInfo.m_publicKey << " " << (m_localEndpointMap.find(peerInfo.m_publicKey)!=m_localEndpointMap.end() ))
+
                 // try add to kademlia
                 if ( int bucketIndex = m_hashTable.addPeerInfoOrUpdate( peerInfo ); bucketIndex >= 0 )
                 {
                     //___LOG( "bucket full: " << m_myPort << " bucketIndex: " << -bucketIndex-1 )
                     ___LOG( " (direct?) added: " << m_myPort << " of: " << peerInfo.m_publicKey )
                 }
-                
-                if ( auto it = m_searcherMap.find(peerInfo.m_publicKey); it != m_searcherMap.end() )
+
+                if ( auto it = m_searcherMap.find(peerInfo.m_publicKey); it != m_searcherMap.end() && ! peerInfoIsNew )
                 {
-                    ___LOG( " added: " << m_myPort << " of: " << peerInfo.m_publicKey )
+                    ___LOG( " added: " << m_myPort << " of: " << peerInfo.m_publicKey << " " << (m_localEndpointMap.find(peerInfo.m_publicKey)!=m_localEndpointMap.end() ))
                     m_searcherMap.erase(it);
-                    
-                    if ( response.m_targetKey == peerInfo.m_publicKey )
+
+                    if ( response.m_targetKey == peerInfo.m_publicKey && peerInfoIsNew )
                     {
                         // Let 'target' will know our peerInfo
                         // (after 'target' received this request it will send request to me)
-                        // (it is not direct request, because 'it != m_searcherMap.end()' )
+                        // (responses for direct request are skipped, because 'it != m_searcherMap.end()' )
                         sendDirectRequest( response.m_targetKey, peerInfo.endpoint() );
                     }
                 }
@@ -648,6 +653,7 @@ public:
 
     ~PeerSearchInfo()
     {
+        ___LOG( "~PeerSearchInfo: " << m_endpointCatalogue.m_myPort << " of: " << m_targetPeerKey )
         m_timer.cancel();
     }
 
@@ -659,7 +665,7 @@ public:
             
             if ( ! m_candidates.empty() )
             {
-                //___LOG( "sendGetPeerIpRequest: " << m_endpointCatalogue.m_myPort << " to: " << m_candidates.back().m_endpoint.port() << " of: " << m_targetPeerKey )
+                ___LOG( "sendGetPeerIpRequest: to: " << m_candidates.back().m_endpoint.port() << " myPort: " << m_endpointCatalogue.m_myPort << " of: " << m_targetPeerKey )
                 session->sendGetPeerIpRequest( request, m_candidates.back().m_endpoint );
                 m_triedPeers.insert( m_candidates.back().m_publicKey );
                 m_candidates.pop_back();

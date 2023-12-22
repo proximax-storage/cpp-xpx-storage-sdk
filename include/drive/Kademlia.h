@@ -234,7 +234,7 @@ public:
 
     virtual OptionalEndpoint getEndpoint( const PeerKey& key ) =0;
 
-    virtual const PeerInfo* getPeerInfo( const PeerKey& key ) =0;
+    virtual const PeerInfo* getPeerInfo( const PeerKey& key, bool startSearchIfNotExist = true ) =0;
 
     virtual void            addClientToLocalEndpointMap( const Key& keys ) = 0;
     virtual void            onEndpointDiscovered( const Key& key, const OptionalEndpoint& endpoint ) = 0;
