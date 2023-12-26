@@ -172,6 +172,7 @@ struct PeerIpRequest
     template<class Archive>
     void serialize(Archive &arch)
     {
+        arch(m_requesterIsClient);
         arch(m_targetKey);
         arch(m_requesterKey);
     }

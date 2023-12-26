@@ -57,11 +57,11 @@ const char* RPC_REPLICATOR_NAME = "";//replicator1";
 //#define REPLICATOR_IP_ADDR_3    "192.168.2.103"
 //#define REPLICATOR_PORT_3       5003
 
-#define CLIENT_IP_ADDR          "10.0.0.200"
+#define CLIENT_IP_ADDR          "10.0.0.20"
 #define CLIENT_PORT             ":2000"
-#define CLIENT_IP_ADDR1         "10.0.0.201"
+#define CLIENT_IP_ADDR1         "10.0.0.21"
 #define CLIENT_PORT1            ":2001"
-#define CLIENT_IP_ADDR2         "10.0.0.202"
+#define CLIENT_IP_ADDR2         "10.0.0.22"
 #define CLIENT_PORT2            ":2002"
 
 #define REPLICATOR_IP_ADDR      "10.0.0.101"
@@ -115,7 +115,7 @@ using namespace sirius::drive;
 inline std::mutex gExLogMutex;
 
 #define EXLOG(expr) { \
-__LOG( "+++ exlog: " << expr << std::endl << std::flush); \
+___LOG( "+++ exlog: " << expr << std::endl << std::flush); \
 }
 
 // Replicators
@@ -256,7 +256,7 @@ public:
                 EXLOG( "download opinion of: " << gReplicatorMap[opinion.m_replicatorKey]->dbgReplicatorName() );
                 for( const auto& downloadInfo : opinion.m_downloadLayout )
                 {
-                    EXLOG( "  key: " << (int)downloadInfo.m_key[0] << ": " << downloadInfo.m_uploadedBytes );
+                    ___LOG( "  key: " << (int)downloadInfo.m_key[0] << ": " << downloadInfo.m_uploadedBytes );
                 }
             }
         }
@@ -503,7 +503,10 @@ int main(int,char**)
     ///
 
     std::vector<ReplicatorInfo> bootstraps = { { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 },
-                                                 replicatorKeyPair_2.publicKey() } };
+                                                 replicatorKeyPair_2.publicKey() },
+        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_3), REPLICATOR_PORT_3 },
+                                                     replicatorKeyPair_3.publicKey() },
+    };
 //    std::vector<ReplicatorInfo> bootstraps = {
 //        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR), REPLICATOR_PORT },     replicatorKeyPair.publicKey() },
 //        { { boost::asio::ip::make_address(REPLICATOR_IP_ADDR_2), REPLICATOR_PORT_2 }, replicatorKeyPair_2.publicKey() },

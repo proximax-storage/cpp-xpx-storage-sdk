@@ -223,7 +223,10 @@ public:
         {
             it->second = endpoint;
         }
-        (*m_endpointHandler)( key, endpoint );
+        if ( m_endpointHandler )
+        {
+            (*m_endpointHandler)( key, endpoint );
+        }
     }
     
     virtual void setEndpointHandler( ::sirius::drive::EndpointHandler endpointHandler ) override
@@ -471,7 +474,7 @@ public:
 
     void sendDirectRequest( const Key& targetKey, boost::asio::ip::udp::endpoint endpoint )
     {
-        ___LOG( "sendDirectRequest: " << m_myPort  << " of: " << targetKey )
+        ___LOG( "sendDirectRequest: to: " << endpoint.port() << " myPort: " << m_myPort  << " of: " << targetKey )
         if ( auto session = m_kademliaTransport.lock(); session )
         {
             PeerIpRequest request2{ session->isClient(),  targetKey, m_keyPair.publicKey() };
@@ -694,7 +697,7 @@ public:
         if ( auto session = m_session.lock(); session )
         {
             PeerIpRequest request{ session->isClient(), m_targetPeerKey, m_myPeerKey };
-            
+         
             if ( ! m_candidates.empty() )
             {
                 ___LOG( "sendGetPeerIpRequest: to: " << m_candidates.back().m_endpoint.port() << " myPort: " << m_endpointCatalogue.m_myPort << " of: " << m_targetPeerKey )

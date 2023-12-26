@@ -236,7 +236,7 @@ public:
     
     virtual bool      isClient() override
     {
-        return m_replicator.expired();
+        return ! m_ownerIsReplicator;
     }
 
     
