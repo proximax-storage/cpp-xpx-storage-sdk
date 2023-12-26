@@ -1556,7 +1556,7 @@ private:
 #endif
                     case lt::dht_pkt_alert::alert_type: {
                         auto *theAlert = dynamic_cast<lt::dht_pkt_alert *>(alert);
-                        ___LOG( m_listeningPort << " : dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
+                        __LOG( m_listeningPort << " : dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
                         break;
                     }
                         

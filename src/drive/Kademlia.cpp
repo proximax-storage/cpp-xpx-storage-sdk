@@ -28,7 +28,7 @@ namespace sirius { namespace drive { namespace kademlia {
 using NodeInfo = ReplicatorInfo;
 using namespace ::sirius::drive;
 
-const int PEER_ANSWER_LIMIT_MS = 2000;
+const int PEER_ANSWER_LIMIT_MS = 1000;
 const int MAX_ATTEMPT_NUMBER = 300;
 
 class EndpointCatalogueImpl;
@@ -105,7 +105,7 @@ public:
 
         for( const auto& nodeInfo : m_bootstraps )
         {
-            ___LOG( "bootstrap: " << m_myPort << " " << nodeInfo.m_endpoint << " "  << nodeInfo.m_publicKey )
+            //___LOG( "bootstrap: " << m_myPort << " " << nodeInfo.m_endpoint << " "  << nodeInfo.m_publicKey )
             m_localEndpointMap[nodeInfo.m_publicKey] = nodeInfo.m_endpoint;
         }
         
@@ -118,21 +118,21 @@ public:
             });
         }
         
-        if ( m_isBootstrap )
-        {
-            if ( auto session = m_kademliaTransport.lock(); session )
-            {
-                boost::asio::post( session->lt_session().get_context(), [this]() mutable
-                                  {
-                    for( const auto& nodeInfo : m_bootstraps )
-                    {
-                        ___LOG( "m_isBootstrap:" << m_myPort  << " of: " << nodeInfo.m_publicKey )
-                        sendDirectRequest( nodeInfo.m_publicKey, nodeInfo.m_endpoint );
-                    }
-                    enterToSwarm();
-                });
-            }
-        }
+//        if ( m_isBootstrap )
+//        {
+//            if ( auto session = m_kademliaTransport.lock(); session )
+//            {
+//                boost::asio::post( session->lt_session().get_context(), [this]() mutable
+//                                  {
+//                    for( const auto& nodeInfo : m_bootstraps )
+//                    {
+//                        ___LOG( "m_isBootstrap:" << m_myPort  << " of: " << nodeInfo.m_publicKey )
+//                        sendDirectRequest( nodeInfo.m_publicKey, nodeInfo.m_endpoint );
+//                    }
+//                    enterToSwarm();
+//                });
+//            }
+//        }
     }
     
     ~EndpointCatalogueImpl()
@@ -161,9 +161,29 @@ public:
         
         if ( auto session = m_kademliaTransport.lock(); session )
         {
+            ___LOG( m_myPort << " : start: m_myPeerInfoTimer" )
             m_myPeerInfoTimer = session->startTimer( PEER_ANSWER_LIMIT_MS, [this]{ onMyPeerInfoTimer(); } );
         }
     }
+    
+    void enterToSwarm()
+    {
+        // Query peerInfo of bootstraps
+        for( auto bootstrapNodeInfo: m_bootstraps )
+        {
+            size_t bucketIndex = m_hashTable.calcBucketIndex( bootstrapNodeInfo.m_publicKey );
+            startSearchPeerInfo( bootstrapNodeInfo.m_publicKey, bucketIndex );
+        }
+
+        PeerKey searchedKey = m_keyPair.publicKey();
+        //TODO? maybe searchedKey[0] = searchedKey[0] ^ 0x01;
+        searchedKey[31] = searchedKey[31] ^ 0x01;
+        
+        size_t bucketIndex = m_hashTable.calcBucketIndex( searchedKey );
+        startSearchPeerInfo( searchedKey, bucketIndex, true );
+    }
+
+
     
     void onMyPeerInfoTimer()
     {
@@ -340,6 +360,7 @@ public:
                 return;
             }
 
+            ___LOG( "onGetMyIpResponse: " << m_myPort << " " << response.m_response.endpoint() )
             bool firstResponse = !m_myPeerInfo.has_value();
             m_myPeerInfo = PeerInfo{ m_keyPair.publicKey(), response.m_response.endpoint() };
             m_myPeerInfo->Sign( m_keyPair );
@@ -361,7 +382,7 @@ public:
             }
             
             // start Kademlia
-            if ( firstResponse && ! m_isBootstrap )
+            if ( firstResponse || m_isBootstrap )
             {
                 enterToSwarm();
             }
@@ -371,22 +392,6 @@ public:
         }
     }
     
-    void enterToSwarm()
-    {
-        // Query peerInfo of bootstraps
-        for( auto bootstrapNodeInfo: m_bootstraps )
-        {
-            getEndpoint( bootstrapNodeInfo.m_publicKey );
-        }
-
-        PeerKey searchedKey = m_keyPair.publicKey();
-        //TODO? maybe searchedKey[0] = searchedKey[0] ^ 0x01;
-        searchedKey[31] = searchedKey[31] ^ 0x01;
-        
-        size_t bucketIndex = m_hashTable.calcBucketIndex( searchedKey );
-        startSearchPeerInfo( searchedKey, bucketIndex, true );
-    }
-
     std::string onGetPeerIpRequest( const std::string& requestStr, boost::asio::ip::udp::endpoint requesterEndpoint ) override
     {
         ___LOG( "onGetPeerIpRequest: " << m_myPort << " from: " << requesterEndpoint.port() )
@@ -417,6 +422,7 @@ public:
                         const auto* peerInfo = m_hashTable.getPeerInfo( request.m_requesterKey, bucketIndex );
                         if ( peerInfo == nullptr || isPeerInfoExpired( peerInfo->m_creationTimeInSeconds) )
                         {
+                            ___LOG( "sendDirectRequest: " << " (from: " << requesterEndpoint.port() << ") " << m_myPort << " of: " << request.m_requesterKey )
                             sendDirectRequest( request.m_requesterKey, requesterEndpoint );
                         }
                     }
@@ -465,14 +471,10 @@ public:
 
     void sendDirectRequest( const Key& targetKey, boost::asio::ip::udp::endpoint endpoint )
     {
-        ___LOG( "m_isBootstrap(2):" << m_myPort  << " of: " << targetKey )
-
+        ___LOG( "sendDirectRequest: " << m_myPort  << " of: " << targetKey )
         if ( auto session = m_kademliaTransport.lock(); session )
         {
-            ___LOG( "m_isBootstrap(3):" << m_myPort  << " of: " << targetKey )
             PeerIpRequest request2{ session->isClient(),  targetKey, m_keyPair.publicKey() };
-            ___LOG( "m_isBootstrap(4):" << m_myPort  << " of: " << targetKey )
-            ___LOG( "sendGetPeerIpRequest: (direct): to: " << endpoint.port() << " myPort: " << m_myPort  << " of: " << request2.m_targetKey )
             session->sendGetPeerIpRequest( request2, endpoint );
         }
     }
@@ -587,8 +589,6 @@ public:
         {
             boost::asio::post( kademliaTransport->lt_session().get_context(), [=, this]() mutable
             {
-//                KademliaDbgInfo dbgInfo;
-//                dbgFunc( dbgInfo );
                 for ( auto& [key,searchInfo] : m_searcherMap )
                 {
                     ___LOG( "m_searcherMap " << m_myPort << ": " << m_searcherMap.size() << ": " << key );
@@ -598,10 +598,6 @@ public:
                 {
                     ___LOG( "! m_myPeerInfo " << m_myPort )
                 }
-                //if ( ! m_searcherMap.empty() )
-//                {
-//                    ___LOG( "m_searcherMap " << m_myPort << ": " << m_searcherMap.size() );
-//                }
             });
         }
     }
@@ -826,21 +822,6 @@ public:
 
         std::sort( m_candidates.begin(), m_candidates.end() );
         
-//        if ( m_candidates.size() > 5 )
-//        {
-//            static std::mutex m;
-//            m.lock();
-//            ___LOG( "m_targetPeerKey: " << m_targetPeerKey );
-//            ___LOG( "m_myPeerKey: " << m_myPeerKey );
-//            for( auto& c : m_candidates )
-//            {
-//                ___LOG( "candidate: " << c.m_xorValue << " " << c.m_publicKey )
-//            }
-//            ___LOG( "m_targetPeerKey: " << m_targetPeerKey );
-//            ___LOG( "m_myPeerKey: " << xorValue( m_myPeerKey, m_targetPeerKey ) );
-//            ___LOG( "m_targetPeerKey: " << m_targetPeerKey );
-//        }
-
         sendNextRequest();
     }
 };

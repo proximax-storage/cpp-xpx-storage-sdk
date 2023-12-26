@@ -3060,6 +3060,10 @@ public:
             port = ep->port();
             return ep;
         }
+//        if ( auto info = m_session->getPeerInfo(key); info != nullptr )
+//        {
+//            return info->endpoint();
+//        }
         return {};
     }
 
