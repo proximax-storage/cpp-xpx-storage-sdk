@@ -856,11 +856,11 @@ public:
             }
             catch( std::runtime_error& ex )
             {
-                __LOG( "!!!ERROR!!!: unhandled exception: " << ex.what() );
+                _LOG_ERR( "!!!ERROR!!!: unhandled exception: " << ex.what() );
             }
             catch(...)
             {
-                __LOG( "!!!ERROR!!!: unhandled exception: in on_dht_request()" );
+                _LOG_ERR( "!!!ERROR!!!: unhandled exception: in on_dht_request()" );
             }
             
             return false;
@@ -1573,12 +1573,12 @@ private:
         }
         catch(std::runtime_error& ex)
         {
-            _LOG( "!!!ERROR!!!: unhandled exception: " << ex.what() );
-            _LOG( "!!!ERROR!!!: unhandled exception in alertHandler()");
+            _LOG_ERR( "!!!ERROR!!!: unhandled exception: " << ex.what() );
+            _LOG_ERR( "!!!ERROR!!!: unhandled exception in alertHandler()");
         }
         catch(...)
         {
-            _LOG( "!!!ERROR!!!: unhandled exception in alertHandler()");
+            _LOG_ERR( "!!!ERROR!!!: unhandled exception in alertHandler()");
         }
         
     }

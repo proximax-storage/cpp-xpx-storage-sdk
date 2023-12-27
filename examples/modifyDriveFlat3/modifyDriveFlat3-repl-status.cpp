@@ -26,7 +26,7 @@
 const bool testLateReplicator = false;
 const bool gRestartReplicators = false;
 const bool testSmallModifyDataSize = false;
-bool gBreak_On_Warning = false;
+bool gBreak_On_Warning = true;
 
 #define RPC_PORT 5357
 const char* RPC_REPLICATOR_NAME = "";//replicator1";
