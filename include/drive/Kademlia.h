@@ -29,6 +29,29 @@ namespace kademlia {
 
 using PeerKey = ::sirius::Key;
 
+struct TargetKey
+{
+    PeerKey m_key;
+
+    constexpr bool operator<(const TargetKey& rhs) const {
+        return m_key < rhs.m_key;
+    }
+
+    friend std::ostream& operator<< (std::ostream& stream, const TargetKey& key) { stream << key.m_key; return stream; }
+};
+
+struct RequesterKey
+{
+    PeerKey m_key;
+    
+    constexpr bool operator<(const RequesterKey& rhs) const {
+        return m_key < rhs.m_key;
+    }
+
+    friend std::ostream& operator<< (std::ostream& stream, const RequesterKey& key) { stream << key.m_key; return stream; }
+};
+
+
 inline PeerKey xorValue( const PeerKey& a, const PeerKey& b )
 {
     PeerKey outKey;
@@ -165,16 +188,22 @@ struct MyIpResponse
 //-----------------------------------------------------
 struct PeerIpRequest
 {
-    bool m_requesterIsClient = false;
-    PeerKey m_targetKey;
-    PeerKey m_requesterKey;
+    PeerIpRequest() = default;
+
+    explicit PeerIpRequest( bool requesterIsClient, const TargetKey& targetKey, const RequesterKey& requesterKey )
+        : m_requesterIsClient(requesterIsClient), m_targetKey(targetKey), m_requesterKey( requesterKey )
+    {}
+
+    bool         m_requesterIsClient = false;;
+    TargetKey    m_targetKey;
+    RequesterKey m_requesterKey;
 
     template<class Archive>
     void serialize(Archive &arch)
     {
         arch(m_requesterIsClient);
-        arch(m_targetKey);
-        arch(m_requesterKey);
+        arch(m_targetKey.m_key);
+        arch(m_requesterKey.m_key);
     }
 };
 
@@ -183,17 +212,20 @@ struct PeerIpRequest
 //-----------------------------------------------------
 struct PeerIpResponse
 {
-    // if found then 'm_response' has single PeerInfo where m_response.m_peerKey == m_peerKey
-//    bool                    m_found;
+    PeerIpResponse() = default;
     
-    PeerKey                 m_targetKey;
+    explicit PeerIpResponse( const TargetKey& targetKey, std::vector<PeerInfo>&& response )
+        : m_targetKey(targetKey), m_response( std::move(response))
+    {}
+    
+    TargetKey               m_targetKey;
     std::vector<PeerInfo>   m_response;
     
     template<class Archive>
     void serialize(Archive &arch)
     {
         //arch(m_found);
-        arch(m_targetKey);
+        arch(m_targetKey.m_key);
         arch(m_response);
     }
 };

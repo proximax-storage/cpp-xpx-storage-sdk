@@ -52,7 +52,7 @@ public:
     
     // onRequestFromAnotherPeer() is used for request from another peer
     //
-    std::vector<PeerInfo> onRequestFromAnotherPeer( const PeerKey& searchedKey )
+    std::vector<PeerInfo> findClosestNodes( const PeerKey& searchedKey )
     {
         std::vector<PeerInfo> result;
         

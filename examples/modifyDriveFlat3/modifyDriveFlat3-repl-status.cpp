@@ -559,7 +559,7 @@ int main(int,char**)
     //sleep(1);
     gClientSession->addDownloadChannel(downloadChannelHash1);
     gClientSession->setDownloadChannelReplicators(downloadChannelHash1, replicatorList);
-    clientDownloadFsTree( gClientSession, downloadChannelHash1 );
+//    clientDownloadFsTree( gClientSession, downloadChannelHash1 );
 
     /// Client: request to modify drive (1)
     ///
