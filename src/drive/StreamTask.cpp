@@ -8,7 +8,6 @@
 #include "DriveTaskBase.h"
 #include "drive/FsTree.h"
 #include "drive/FlatDrive.h"
-#include "drive/EndpointsManager.h"
 #include "DriveParams.h"
 #include "ModifyApprovalTaskBase.h"
 
@@ -277,12 +276,13 @@ public:
         DBG_MAIN_THREAD
 
         _LOG( "get-chunk-info: " << chunkIndex )
-        
+
+
         if ( ! m_streamerEndpoint )
         {
-            if ( auto epManager = m_request->m_endpointsManager.lock(); epManager )
+            if ( auto session = m_drive.m_session.lock(); session )
             {
-                m_streamerEndpoint = epManager->getEndpoint( m_request->m_streamerKey );
+                m_streamerEndpoint = session->getEndpoint( m_request->m_streamerKey.array() );
 
                 if ( ! m_streamerEndpoint )
                 {
@@ -292,11 +292,11 @@ public:
             }
             else
             {
-                _LOG_WARN( "cannot lock m_endpointsManager" )
+                _LOG_WARN( "cannot lock m_drive.m_session" )
                 return;
             }
         }
-        
+
         if ( auto session = m_drive.m_session.lock(); session )
         {
             std::ostringstream os( std::ios::binary );

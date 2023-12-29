@@ -1,0 +1,9 @@
+i=201
+
+while [[ $i -gt 0 ]]
+do
+    echo $i
+    sudo ifconfig lo0 alias 10.0.0.$i/24 up
+    i=$(($i-1))
+done
+

@@ -23,11 +23,10 @@ class KademliaHashTable //: public PeerKey, public NodeStatistic
     //#endif
     
 public:
-    KademliaHashTable(){}
+//    KademliaHashTable(){}
     
-    KademliaHashTable( const PeerKey& key )
-    {
-        m_myKey = key;
+    KademliaHashTable( const PeerKey& key ) : m_myKey(key) {
+        
     }
     
     const PeerKey& key() const { return m_myKey; }
@@ -39,29 +38,21 @@ public:
         return equalPrefixLength( m_myKey, candidate );
     }
     
-    // onRequestFromAnotherPeer() is used for local requests only
-    //
-    std::optional<boost::asio::ip::udp::endpoint> getPeerInfo( const PeerKey& key, size_t& bucketIndex )
+    const PeerInfo* getPeerInfo( const PeerKey& key, size_t& bucketIndex )
     {
         bucketIndex = equalPrefixLength( m_myKey, key );
         
-        const PeerInfo* info = m_buckets[bucketIndex].getPeer( key );
-        if ( info != nullptr )
-        {
-            return info->endpoint();
-        }
-        
-        if ( ! m_buckets[bucketIndex].nodes().empty() )
-        {
-            return {};
-        }
-        
-        return {};
+        return m_buckets[bucketIndex].getPeer( key );
+    }
+    
+    size_t calcBucketIndex( const PeerKey& key )
+    {
+        return equalPrefixLength( m_myKey, key );
     }
     
     // onRequestFromAnotherPeer() is used for request from another peer
     //
-    std::vector<PeerInfo> onRequestFromAnotherPeer( const PeerKey& searchedKey )
+    std::vector<PeerInfo> findClosestNodes( const PeerKey& searchedKey )
     {
         std::vector<PeerInfo> result;
         
@@ -81,12 +72,10 @@ public:
         
         // up
         auto bucketI = bucketIndex;
-        while( result.size() < BUCKET_SIZE)
+        while( result.size() < BUCKET_SIZE && (bucketI > 0) )
         {
-            if ( bucketI == 0 )
-            {
-                break;
-            }
+            bucketI--;
+            
             for( const auto& info : m_buckets[bucketI].nodes() )
             {
                 if( result.size() >= BUCKET_SIZE)
@@ -99,12 +88,10 @@ public:
         
         // down
         bucketI = bucketIndex;
-        while( result.size() < BUCKET_SIZE)
+        while( result.size() < BUCKET_SIZE && (bucketI < BUCKET_NUMBER-1) )
         {
-            if ( bucketI >= BUCKET_NUMBER )
-            {
-                break;
-            }
+            bucketI++;
+
             for( const auto& info : m_buckets[bucketI].nodes() )
             {
                 if( result.size() >= BUCKET_SIZE)
@@ -115,24 +102,47 @@ public:
             }
         }
         
-        //TODO? down buckets?
-        
         return result;
     }
     
-    void addPeerInfo( const PeerInfo& info )
+    int addPeerInfoOrUpdate( const PeerInfo& info )
     {
+        if ( info.m_publicKey == m_myKey )
+        {
+            return -1;
+        }
+        
         auto bucketIndex = calcBucketIndex( info.m_publicKey );
-        m_buckets[bucketIndex].addPeer( info );
+        //___LOG( "bucketIndex: " << bucketIndex << " " << info.m_publicKey << " " << m_myKey )
+        if ( ! m_buckets[bucketIndex].addPeerOrUpdate( info ) )
+        {
+            return -bucketIndex-1;
+        }
+        return bucketIndex;
     }
 
     bool couldBeAdded( const PeerKey& key )
     {
-        auto bucketIndex = calcBucketIndex( key );
-
-        return m_buckets[bucketIndex].nodes().size() < BUCKET_NUMBER;
+        size_t bucketIndex;
+        if ( ! getPeerInfo( key, bucketIndex ) )
+        {
+            if ( m_buckets[bucketIndex].nodes().size() < BUCKET_NUMBER )
+            {
+                return true;
+            }
+        }
+        return false;
     }
         
+    void removePeerInfo( const Key& key )
+    {
+        auto bucketIndex = calcBucketIndex( key );
+        auto bucketNodes = m_buckets[bucketIndex].nodes();
+        std::remove_if( bucketNodes.begin(), bucketNodes.end(), [&key] (const auto& peerInfo) {
+            return peerInfo.m_publicKey == key;
+        });
+    }
+
 };
 
 }}}

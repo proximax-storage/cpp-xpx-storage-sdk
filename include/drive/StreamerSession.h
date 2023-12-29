@@ -96,9 +96,9 @@ public:
         }
     }
     
-    std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const Key& key )
+    OptionalEndpoint getEndpoint( const Key& key )
     {
-        return m_endpointsManager.getEndpoint( key );
+        return m_session->getEndpoint( key );
     }
     
     void initStream( const Hash256&          streamId,
@@ -493,7 +493,7 @@ public:
     {
         for( auto& replicatorInfo : replicators )
         {
-            m_endpointsManager.onEndpointDiscovered( replicatorInfo.m_publicKey, replicatorInfo.m_endpoint );
+            m_session->onEndpointDiscovered( replicatorInfo.m_publicKey, replicatorInfo.m_endpoint );
         }
     }
 };
@@ -506,14 +506,11 @@ inline std::shared_ptr<StreamerSession> createStreamerSession( const crypto::Key
                                                                const char*                   dbgClientName = "" )
 {
     std::shared_ptr<StreamerSession> session = std::make_shared<StreamerSession>( keyPair, dbgClientName );
-    session->m_session = createDefaultSession( address, errorHandler, session, { ReplicatorInfo{bootstraps[0],{}}}, session );
+    session->m_session = createDefaultSession( address, keyPair, errorHandler, session, { ReplicatorInfo{bootstraps[0],{}}}, session );
     session->m_session->lt_session().add_extension( std::dynamic_pointer_cast<lt::plugin>( session ) );
     session->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     
-    boost::asio::post(session->session()->lt_session().get_context(), [session] {
-        session->m_endpointsManager.start(session->session());
-        session->setEndpointHandler();
-    });
+    //TODO?
     session->addDownloadChannel(Hash256{});
 
     return session;

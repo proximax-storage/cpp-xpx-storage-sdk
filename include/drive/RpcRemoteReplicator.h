@@ -383,6 +383,10 @@ public:
                 iarchive(signalIndex);
 
                 RPC_LOG( "signalIndex: " << signalIndex )
+                
+                //
+                // emulate signal for testing servive crash
+                //
                 switch( signalIndex )
                 {
                     case 0:
@@ -398,8 +402,8 @@ public:
                     }
                     case 2:
                     {
-                        int * p = (int*)0x0;
-                        __LOG( "*p: " << *p )
+//                        int * p = (int*)0x0;
+//                        __LOG( "*p: " << *p )
                         break;
                     }
                     case 3:

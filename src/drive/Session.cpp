@@ -6,6 +6,7 @@
 
 #include "drive/Session.h"
 #include "ReplicatorInt.h"
+#include "DownloadLimiter.h"
 #include "drive/Utils.h"
 #include "drive/log.h"
 
@@ -94,15 +95,16 @@ struct LtClientData
 class DefaultSession:   public Session,
                         public std::enable_shared_from_this<DefaultSession>
 {
-    std::unique_ptr<kademlia::EndpointCatalogue> m_kademlia;
+    std::shared_ptr<kademlia::EndpointCatalogue> m_kademlia;
     
     const int64_t			m_maxTotalSize = 256LL * 1024LL * 1024LL * 1024LL; // 256GB
     
     bool                    m_ownerIsReplicator = true;
     
-    std::string             m_addressAndPort;
-    int                     m_listeningPort;
-    lt::session             m_session;
+    std::string                     m_addressAndPort;
+    int                             m_listeningPort;
+    std::weak_ptr<ReplicatorInt>    m_replicator;
+    lt::session                     m_session;
     
     // It will be called on socket listening error
     LibTorrentErrorHandler  m_alertHandler;
@@ -110,7 +112,6 @@ class DefaultSession:   public Session,
     using TorrentDeletedHandler = std::optional<std::function<void( lt::torrent_handle )>>;
     TorrentDeletedHandler m_torrentDeletedHandler;
     
-    std::weak_ptr<ReplicatorInt>        m_replicator;
     std::weak_ptr<lt::session_delegate> m_downloadLimiter;
     
     std::string                         m_dbgOurPeerName = "";
@@ -136,26 +137,30 @@ public:
     : m_ownerIsReplicator(true)
     , m_addressAndPort(address)
     , m_listeningPort(extractListeningPort())
+    , m_replicator(replicator)
     , m_session( lt::session_params{ generateSessionSettings( false, bootstraps) }, context, {})
     , m_alertHandler(alertHandler)
-    , m_replicator(replicator)
     , m_downloadLimiter(downloadLimiter)
     {
-        if ( auto replicatorPtr = replicator.lock(); replicatorPtr )
+        boost::asio::post( m_session.get_context(), [=, this]() mutable
         {
-            m_kademlia = std::move( createEndpointCatalogue( weak_from_this(), replicatorPtr->keyPair(), bootstraps, m_listeningPort, false ));
-        }
-        else
-        {
-            _SIRIUS_ASSERT( "Cannot lock replicator" );
-        }
-        
+            if ( auto replicatorPtr = replicator.lock(); replicatorPtr )
+            {
+                m_kademlia = createEndpointCatalogue( weak_from_this(), replicatorPtr->keyPair(), bootstraps, uint16_t(m_listeningPort), false );
+            }
+            else
+            {
+                _SIRIUS_ASSERT( "Cannot lock replicator" );
+            }
+            auto plugin = std::make_shared<DhtRequestPlugin>(  m_replicator, weak_from_this() );
+            m_session.add_extension(plugin);
+            m_session.setDelegate( m_downloadLimiter );
+        });
+                          
         _LOG( "DefaultSession: " << address << " : " << toString(m_downloadLimiter.lock()->publicKey()) );
         m_dbgOurPeerName = m_downloadLimiter.lock()->dbgOurPeerName();
         
         m_session.set_alert_notify( [this] { this->alertHandler(); } );
-        m_session.add_extension(std::make_shared<DhtRequestPlugin>(  m_replicator ));
-        m_session.setDelegate( m_downloadLimiter );
         
         _LOG( "DefaultSession created: " );
         _LOG( "DefaultSession created: " << m_addressAndPort );
@@ -175,7 +180,6 @@ public:
         return 0;
     }
     
-    
     virtual int listeningPort() override
     {
         return m_listeningPort;
@@ -184,6 +188,7 @@ public:
     // Constructor for Client
     //
     DefaultSession( std::string                             address,
+                   const crypto::KeyPair&                  keyPair,
                    LibTorrentErrorHandler                  alertHandler,
                    std::weak_ptr<lt::session_delegate>     downloadLimiter,
                    bool                                    useTcpSocket,
@@ -197,12 +202,20 @@ public:
     , m_alertHandler(alertHandler)
     , m_downloadLimiter(downloadLimiter)
     {
-        if ( downloadLimiter.lock() )
-            m_dbgOurPeerName = downloadLimiter.lock()->dbgOurPeerName();
-        
+        boost::asio::post( m_session.get_context(), [&keyPair,bootstraps,dhtMessageHandler, this]() mutable
+        {
+            if ( auto downloadLimiterPtr = m_downloadLimiter.lock(); downloadLimiterPtr )
+            {
+                m_dbgOurPeerName = downloadLimiterPtr->dbgOurPeerName();
+                
+                m_kademlia = std::move( createEndpointCatalogue( weak_from_this(), keyPair, bootstraps, uint16_t(m_listeningPort), true ));
+            }
+            auto plugin = std::make_shared<DhtRequestPlugin>(  dhtMessageHandler, weak_from_this() );
+            m_session.add_extension(plugin);
+            m_session.setDelegate( m_downloadLimiter );
+        });
+                          
         m_session.set_alert_notify( [this] { this->alertHandler(); } );
-        m_session.add_extension(std::make_shared<DhtRequestPlugin>(  dhtMessageHandler ));
-        m_session.setDelegate( m_downloadLimiter );
         
         _LOG( "DefaultSession created: " << m_addressAndPort );
         _LOG( "Client DefaultSession created: m_listeningPort " << m_listeningPort );
@@ -216,12 +229,14 @@ public:
         // m_session.apply_settings(p);
         //m_session.pause();
         
+        m_kademlia->stopTimers();
+        
         m_stopping = true;
     }
     
     virtual bool      isClient() override
     {
-        return m_replicator.expired();
+        return ! m_ownerIsReplicator;
     }
 
     
@@ -358,9 +373,21 @@ public:
         settingsPack.set_bool( lt::settings_pack::dht_ignore_dark_internet, false );
         
         std::ostringstream bootstrapsBuilder;
-        for ( const auto& bootstrap: bootstraps )
         {
-            bootstrapsBuilder << bootstrap.m_endpoint.address().to_string() << ":" << std::to_string(bootstrap.m_endpoint.port()) << ",";
+            for ( const auto& bootstrap: bootstraps )
+            {
+                if ( auto replicator = m_replicator.lock(); replicator )
+                {
+                    if ( bootstrap.m_publicKey != replicator->keyPair().publicKey() )
+                    {
+                        bootstrapsBuilder << bootstrap.m_endpoint.address().to_string() << ":" << std::to_string(bootstrap.m_endpoint.port()) << ",";
+                    }
+                }
+                else
+                {
+                    bootstrapsBuilder << bootstrap.m_endpoint.address().to_string() << ":" << std::to_string(bootstrap.m_endpoint.port()) << ",";
+                }
+            }
         }
         
         std::string bootstrapList = bootstrapsBuilder.str();
@@ -394,7 +421,60 @@ public:
         return m_stopping;
     }
     
+    virtual void      setEndpointHandler( EndpointHandler endpointHandler ) override
+    {
+        m_kademlia->setEndpointHandler( endpointHandler );
+    }
+
+    virtual void      startSearchPeerEndpoints( const std::vector<Key>& keys ) override
+    {
+        for( const auto& key : keys )
+        {
+            m_kademlia->getEndpoint( key );
+        }
+    }
+
+    virtual void      addClientToLocalEndpointMap( const Key& key ) override
+    {
+        m_kademlia->addClientToLocalEndpointMap( key );
+    }
+
+    virtual void      onEndpointDiscovered( const Key& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) override
+    {
+        m_kademlia->onEndpointDiscovered( key, endpoint );
+    }
+
+    virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const Key& key ) override
+    {
+        return m_kademlia->getEndpoint( key );
+    }
     
+    virtual const kademlia::PeerInfo*  getPeerInfo( const Key& key ) override
+    {
+        return m_kademlia->getPeerInfo( key );
+    }
+
+    virtual void      addReplicatorKeyToKademlia( const Key& key ) override
+    {
+        m_kademlia->addReplicatorKey(key);
+    }
+    
+    virtual void      addReplicatorKeysToKademlia( const std::vector<Key>& keys ) override
+    {
+        m_kademlia->addReplicatorKeys(keys);
+    }
+    
+    virtual void      removeReplicatorKeyFromKademlia( const Key& keys ) override
+    {
+        m_kademlia->removeReplicatorKey(keys);
+    }
+    
+    virtual void     dbgTestKademlia( KademliaDbgFunc dbgFunc ) override
+    {
+        m_kademlia->dbgTestKademlia(dbgFunc);
+    }
+
+
     virtual void removeTorrentsFromSession( const std::set<lt::torrent_handle>&  torrents,
                                            std::function<void()>                endNotification,
                                            bool removeFiles ) override
@@ -688,12 +768,11 @@ public:
     
     struct DhtRequestPlugin : lt::plugin
     {
-        //        std::weak_ptr<lt::session_delegate> m_replicator;
-        //        DhtRequestPlugin( std::weak_ptr<lt::session_delegate> replicator ) : m_replicator(replicator) {}
-        std::weak_ptr<ReplicatorInt> m_replicator;
-        std::weak_ptr<DhtMessageHandler> m_handler;
-        //DhtRequestPlugin( std::weak_ptr<ReplicatorInt> replicator ) : m_replicator(replicator) {}
-        DhtRequestPlugin( std::weak_ptr<DhtMessageHandler> replicator ) : m_handler(replicator) {}
+        std::weak_ptr<DhtMessageHandler>    m_handler;
+        std::weak_ptr<Session>              m_session;
+        
+        DhtRequestPlugin( std::weak_ptr<DhtMessageHandler> replicator, std::weak_ptr<Session> kademliaTransport )
+            : m_handler(replicator), m_session(kademliaTransport) {}
         
         feature_flags_t implemented_features() override
         {
@@ -713,7 +792,61 @@ public:
                     return false;
                 }
                 
-                if ( auto handler = m_handler.lock(); handler )
+                if ( query == GET_MY_IP_MSG ) // Our Kademlia message
+                {
+                    auto str = message.dict_find_string_value( "x" );
+                    std::string packet((char*) str.data(), (char*) str.data() + str.size());
+
+                    if ( auto session = m_session.lock(); session )
+                    {
+                        std::string kademliaResponse = session->onGetMyIpRequest( packet, source );
+                        
+                        if ( ! kademliaResponse.empty() )
+                        {
+                            session->sendMessage( MY_IP_RESPONSE, source, kademliaResponse );
+                        }
+                    }
+                    return true;
+                }
+                else if ( query == GET_PEER_IP_MSG ) // Our Kademlia message
+                {
+                    auto str = message.dict_find_string_value( "x" );
+                    std::string packet((char*) str.data(), (char*) str.data() + str.size());
+
+                    if ( auto session = m_session.lock(); session )
+                    {
+                        std::string kademliaResponse = session->onGetPeerIpRequest( packet, source );
+                        
+                        if ( ! kademliaResponse.empty() )
+                        {
+                            session->sendMessage( PEER_IP_RESPONSE, source, kademliaResponse );
+                        }
+                    }
+                    return true;
+                }
+                else if ( query == MY_IP_RESPONSE ) // Our Kademlia message
+                {
+                    auto str = message.dict_find_string_value( "x" );
+                    std::string packet((char*) str.data(), (char*) str.data() + str.size());
+
+                    if ( auto session = m_session.lock(); session )
+                    {
+                        session->onGetMyIpResponse( packet, source );
+                    }
+                    return true;
+                }
+                else if ( query == PEER_IP_RESPONSE ) // Our Kademlia message
+                {
+                    auto str = message.dict_find_string_value( "x" );
+                    std::string packet((char*) str.data(), (char*) str.data() + str.size());
+
+                    if ( auto session = m_session.lock(); session )
+                    {
+                        session->onGetPeerIpResponse( packet, source );
+                    }
+                    return true;
+                }
+                else if ( auto handler = m_handler.lock(); handler )
                 {
                     return handler->on_dht_request( query,
                                                    source,
@@ -723,11 +856,11 @@ public:
             }
             catch( std::runtime_error& ex )
             {
-                __LOG( "!!!ERROR!!!: unhandled exception: " << ex.what() );
+                _LOG_ERR( "!!!ERROR!!!: unhandled exception: " << ex.what() );
             }
             catch(...)
             {
-                __LOG( "!!!ERROR!!!: unhandled exception: in on_dht_request()" );
+                _LOG_ERR( "!!!ERROR!!!: unhandled exception: in on_dht_request()" );
             }
             
             return false;
@@ -775,92 +908,13 @@ public:
         m_session.dht_direct_request( endPoint, entry );
     }
     
-    //    void requestDownloadReceipts( boost::asio::ip::udp::endpoint endPoint,
-    //                                  const std::array<uint8_t,32>& driveKey,
-    //                                  const std::array<uint8_t,32>& downloadChannelHash )// override
-    //    {
-    //        std::vector<uint8_t> message;
-    //        message.insert( message.end(), driveKey.begin(), driveKey.end() );
-    //        message.insert( message.end(), downloadChannelHash.begin(), downloadChannelHash.end() );
-    //
-    //        lt::entry entry;
-    //        entry["q"] = "get_dn_repts";
-    //        entry["x"] = std::string( message.begin(), message.end() );
-    //
-    //        m_session.dht_direct_request( endPoint, entry );
-    //    }
-    
-    
-    
-    void findAddress( const Key& key ) override
-    {
-        auto publicKey = *reinterpret_cast<const std::array<char, 32> *>(key.data());
-        m_session.dht_get_item( publicKey, "epdbg" );
-    }
-    
-    void announceMyIp( const boost::asio::ip::udp::endpoint& endpoint ) override
-    {
-        _LOG( "announceMyIp: " << endpoint )
-        
-        if ( ! isValid(endpoint) )
-        {
-            _LOG_WARN( "Invalid endpoint address" )
-            return;
-        }
-        
-        if ( auto limiter = m_downloadLimiter.lock(); limiter )
-        {
-            //std::string data(reinterpret_cast<const char *>(&endpoint), sizeof(boost::asio::ip::udp::endpoint));
-            std::string data = endpoint.address().to_string() + "?" + std::to_string( endpoint.port() );
-            auto publicKey = *reinterpret_cast<const std::array<char, 32> *>(limiter->publicKey().data());
-            m_session.dht_put_item(publicKey,
-                                   [limiter = m_downloadLimiter, d = std::move(data)]
-                                   (lt::entry &e, std::array<char, 64> &sig, std::int64_t &seq,
-                                    std::string const &salt)
-                                   {
-                if ( auto p = limiter.lock(); p )
-                {
-                    e = d;
-                    std::vector<char> buf;
-                    bencode(std::back_inserter(buf), e);
-                    seq++;
-                    std::array<uint8_t, 64> signature{};
-                    p->signMutableItem(buf, seq, salt, signature);
-                    std::copy(signature.begin(), signature.end(), sig.begin());
-                }
-            },
-                                   "epdbg");
-        }
-    }
-    
     void handleDhtResponse( lt::bdecode_node response, boost::asio::ip::udp::endpoint endpoint )
     {
         if ( auto delegate = m_downloadLimiter.lock(); delegate )
         {
+            // ??? (not stable)
             delegate->handleDhtResponse( response, endpoint );
         }
-        //        try
-        //        {
-        //            auto rDict = response.dict_find_dict("r");
-        //            auto query = rDict.dict_find_string_value("q");
-        //            _LOG( "handleDhtResponse: " << query )
-        //            if ( query == "get_dn_rcpts" )
-        //            {
-        //                lt::string_view response = rDict.dict_find_string_value("ret");
-        //                lt::string_view sign = rDict.dict_find_string_value("sign");
-        //                m_replicator.lock()->onSyncRcptReceived( response, sign );
-        //            }
-        //
-        ////            else if ( query == "get-chunks-info" )
-        ////            {
-        ////                lt::string_view response = rDict.dict_find_string_value("ret");
-        ////                lt::string_view sign = rDict.dict_find_string_value("sign");
-        ////                m_replicator.lock()->onSyncRcptReceived( response, sign );
-        ////            }
-        //        }
-        //        catch(...)
-        //        {
-        //        }
     }
     
     virtual Timer startTimer( int milliseconds, std::function<void()> func ) override
@@ -1076,6 +1130,11 @@ private:
                         //                    break;
                         //                }
                         
+                        //                    case lt::log_alert::alert_type: {
+                        //                        ___LOG(  m_listeningPort << " : log_alert: " << alert->message())
+                        //                        break;
+                        //                    }
+                                                
                     case lt::peer_log_alert::alert_type: {
                         if ( m_logMode == LogMode::PEER )
                         {
@@ -1095,14 +1154,8 @@ private:
                         break;
                     }
                         
-                    case lt::log_alert::alert_type: {
-                        _LOG(  ": session_log_alert: " << alert->message())
-                        break;
-                    }
-                        
                     case lt::dht_bootstrap_alert::alert_type: {
-                        _LOG( "dht_bootstrap_alert: " << alert->message() )
-                        //m_bootstrapBarrier.set_value();
+                        ___LOG( m_listeningPort << " : dht_bootstrap_alert: " << alert->message() )
                         break;
                     }
                         
@@ -1498,9 +1551,12 @@ private:
                         //                    break;
                         //                }
                         
+#ifdef __APPLE__
+#pragma mark --dht_pkt_alert
+#endif
                     case lt::dht_pkt_alert::alert_type: {
                         auto *theAlert = dynamic_cast<lt::dht_pkt_alert *>(alert);
-                        _LOG( "dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
+                        __LOG( m_listeningPort << " : dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
                         break;
                     }
                         
@@ -1517,12 +1573,12 @@ private:
         }
         catch(std::runtime_error& ex)
         {
-            _LOG( "!!!ERROR!!!: unhandled exception: " << ex.what() );
-            _LOG( "!!!ERROR!!!: unhandled exception in alertHandler()");
+            _LOG_ERR( "!!!ERROR!!!: unhandled exception: " << ex.what() );
+            _LOG_ERR( "!!!ERROR!!!: unhandled exception in alertHandler()");
         }
         catch(...)
         {
-            _LOG( "!!!ERROR!!!: unhandled exception in alertHandler()");
+            _LOG_ERR( "!!!ERROR!!!: unhandled exception in alertHandler()");
         }
         
     }
@@ -1537,7 +1593,7 @@ private:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( request );
 
-        sendMessage("get-my-ip", endpoint, os.str() );
+        sendMessage( GET_MY_IP_MSG, endpoint, os.str() );
     }
 
     virtual void sendGetPeerIpRequest( const kademlia::PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override
@@ -1546,25 +1602,38 @@ private:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( request );
 
-        sendMessage("get-peer-ip", endpoint, os.str() );
+        sendMessage( GET_PEER_IP_MSG, endpoint, os.str() );
     }
-
-    virtual void onGetMyIpRequest( const std::string& ) override
+    
+    virtual void sendDirectPeerInfo( const kademlia::PeerIpResponse& response, boost::asio::ip::udp::endpoint endpoint ) override
     {
+        std::ostringstream os( std::ios::binary );
+        cereal::PortableBinaryOutputArchive archive( os );
+        archive( response );
+
+        sendMessage( PEER_IP_RESPONSE, endpoint, os.str() );
     }
 
-    virtual void onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) override
+
+    virtual std::string onGetMyIpRequest( const std::string& request, boost::asio::ip::udp::endpoint requesterEndpoint ) override
     {
+        return m_kademlia->onGetMyIpRequest( request, requesterEndpoint );
     }
 
-    virtual void onGetMyIpResponse( const std::string& ) override
+    virtual std::string onGetPeerIpRequest( const std::string& request, boost::asio::ip::udp::endpoint requesterEndpoint ) override
     {
+        return m_kademlia->onGetPeerIpRequest( request, requesterEndpoint );
     }
 
-    virtual void onGetPeerIpResponse( const std::string& ) override
+    virtual void onGetMyIpResponse( const std::string& response, boost::asio::ip::udp::endpoint responserEndpoint ) override
     {
+        m_kademlia->onGetMyIpResponse( response, responserEndpoint );
     }
 
+    virtual void onGetPeerIpResponse( const std::string&  response, boost::asio::ip::udp::endpoint responserEndpoint ) override
+    {
+        m_kademlia->onGetPeerIpResponse( response, responserEndpoint );
+    }
 };
 
 //
@@ -1603,7 +1672,7 @@ InfoHash createTorrentFile( const fs::path& fileOrFolder,
     //dbg////////////////////////////////
     auto entry = entry_info;
     //LOG( "entry[info]:" << entry["info"].to_string() );
-    //LOG( entry.to_string() );
+    __LOG( entry.to_string() );
     auto tInfo = lt::torrent_info(torrentFileBytes, lt::from_span);
     //LOG( "make_magnet_uri:" << lt::make_magnet_uri(tInfo) );
     //dbg////////////////////////////////
@@ -1777,7 +1846,7 @@ InfoHash calculateInfoHash( const std::filesystem::path& pathToFile, const Key& 
 }
 
 //
-// createDefaultLibTorrentSession
+// For Replicator
 //
 
 std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&             context,
@@ -1797,13 +1866,17 @@ std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&         
                                             std::move(bootstrapBarrier) );
 }
 
+//
+// For Client
+//
 std::shared_ptr<Session> createDefaultSession( std::string                          address,
+                                               const crypto::KeyPair&               keyPair,
                                                const LibTorrentErrorHandler&        alertHandler,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
-                                               const std::vector<ReplicatorInfo>& bootstraps,
+                                               const std::vector<ReplicatorInfo>&   bootstraps,
                                                std::weak_ptr<DhtMessageHandler>     dhtMessageHandler )
 {
-    return std::make_shared<DefaultSession>( address, alertHandler, downloadLimiter, false, bootstraps, dhtMessageHandler );
+    return std::make_shared<DefaultSession>( address, keyPair, alertHandler, downloadLimiter, false, bootstraps, dhtMessageHandler );
 }
 
 }

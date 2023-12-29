@@ -42,6 +42,11 @@ namespace sirius::drive {
 #define FS_TREE_FILE_NAME  "FsTree.bin"
 #define PLAYLIST_FILE_NAME "playlist.m3u8"
 
+#define GET_MY_IP_MSG       "get-my-ip"
+#define GET_PEER_IP_MSG     "get-peer-ip"
+#define MY_IP_RESPONSE      "my-ip-response"
+#define PEER_IP_RESPONSE    "peer-ip-response"
+
 // It will be used to inform 'client' about download status
 //
 namespace download_status {
@@ -153,6 +158,21 @@ public:
 
     virtual bool      isClient() = 0;
     
+    virtual void      setEndpointHandler( EndpointHandler endpointHandler ) = 0;
+
+    // Interface with Kademlia
+    virtual void      startSearchPeerEndpoints( const std::vector<Key>& keys ) = 0;
+    virtual void      addClientToLocalEndpointMap( const Key& keys ) = 0;
+    virtual void      onEndpointDiscovered( const Key& key, const OptionalEndpoint& endpoint ) = 0;
+    virtual void      addReplicatorKeyToKademlia( const Key& key ) = 0;
+    virtual void      addReplicatorKeysToKademlia( const std::vector<Key>& keys ) = 0;
+    virtual void      removeReplicatorKeyFromKademlia( const Key& keys ) = 0;
+    virtual void      dbgTestKademlia( KademliaDbgFunc dbgFunc ) = 0;
+
+
+    virtual OptionalEndpoint getEndpoint( const Key& key ) = 0;
+    virtual const kademlia::PeerInfo*  getPeerInfo( const Key& key ) = 0;
+
     // It loads existing file from disk
     virtual lt_handle addTorrentFileToSession( const std::filesystem::path&     torrentFilename,
                                                const std::filesystem::path&     folderWhereFileIsLocated,
@@ -187,12 +207,8 @@ public:
     // (It prevents call of downloadHandler)
     virtual void      removeDownloadContext( lt::torrent_handle ) = 0;
 
-    //virtual void      sendMessage( boost::asio::ip::udp::endpoint, const std::vector<uint8_t>& ) = 0;
     virtual void      sendMessage( const std::string& query, boost::asio::ip::udp::endpoint, const std::vector<uint8_t>&, const Signature* signature = nullptr ) = 0;
     virtual void      sendMessage(const std::string& query, boost::asio::ip::udp::endpoint, const std::string& ) = 0;
-    
-    virtual void      findAddress( const Key& key ) = 0;
-    virtual void      announceMyIp( const boost::asio::ip::udp::endpoint& endpoint ) = 0;
     
     virtual void      onTorrentDeleted( lt::torrent_handle handle ) = 0;
 
@@ -253,6 +269,7 @@ PLUGIN_API std::shared_ptr<Session> createDefaultSession( boost::asio::io_contex
                                                           std::promise<void>&& bootstrapBarrier );
 
 PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address,
+                                                          const crypto::KeyPair&,
                                                           const LibTorrentErrorHandler&,
                                                           std::weak_ptr<lt::session_delegate>,
                                                           const std::vector<ReplicatorInfo>& bootstraps,

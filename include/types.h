@@ -12,6 +12,7 @@
 #include <array>
 #include <set>
 #include <functional>
+#include <optional>
 #include <boost/asio/ip/udp.hpp>
 
 
@@ -60,6 +61,8 @@ namespace sirius {
 	}
 
     namespace drive {
+
+        using OptionalEndpoint = std::optional<boost::asio::ip::udp::endpoint>;
 
         // InfoHash
         using InfoHash  = Hash256;// std::array<uint8_t,32>;

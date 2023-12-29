@@ -12,11 +12,47 @@
 #include <cereal/archives/portable_binary.hpp>
 #include <chrono>
 
-namespace sirius { namespace drive { namespace kademlia {
+namespace sirius { namespace drive {
 
-using PeerKey       = std::array<uint8_t,32>;
+using EndpointHandler = std::function<void(const Key&,const OptionalEndpoint&)>;
 
-inline PeerKey operator^( const PeerKey& a, const PeerKey& b )
+//TODO?
+struct KademliaDbgInfo
+{
+    std::atomic<size_t> m_requestCounter{0};
+    std::atomic<size_t> m_peerCounter{0};
+};
+using KademliaDbgFunc = std::function<void(const KademliaDbgInfo&)>;
+
+
+namespace kademlia {
+
+using PeerKey = ::sirius::Key;
+
+struct TargetKey
+{
+    PeerKey m_key;
+
+    constexpr bool operator<(const TargetKey& rhs) const {
+        return m_key < rhs.m_key;
+    }
+
+    friend std::ostream& operator<< (std::ostream& stream, const TargetKey& key) { stream << key.m_key; return stream; }
+};
+
+struct RequesterKey
+{
+    PeerKey m_key;
+    
+    constexpr bool operator<(const RequesterKey& rhs) const {
+        return m_key < rhs.m_key;
+    }
+
+    friend std::ostream& operator<< (std::ostream& stream, const RequesterKey& key) { stream << key.m_key; return stream; }
+};
+
+
+inline PeerKey xorValue( const PeerKey& a, const PeerKey& b )
 {
     PeerKey outKey;
     for( size_t i=0; i<outKey.size(); i++ )
@@ -34,22 +70,19 @@ struct PeerInfo
     PeerKey     m_publicKey;
     std::string m_address;
     uint16_t    m_port;
-    uint64_t    m_timeInSeconds; // uint64_t now = duration_cast(std::chrono::steady_clock::now().time_since_epoch()).count();
+    uint64_t    m_creationTimeInSeconds; // uint64_t now = duration_cast(std::chrono::steady_clock::now().time_since_epoch()).count();
     Signature   m_signature;
     
-    //todo for debugging
     PeerInfo() = default;
-
-    //PeerInfo( const PeerKey& peerKey ) : m_peerKey(peerKey) {}
 
     PeerInfo( const PeerKey& peerKey, const boost::asio::ip::udp::endpoint& endpoint )
       : m_publicKey(peerKey),
         m_address(endpoint.address().to_string()),
         m_port(endpoint.port()),
-        m_timeInSeconds( std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() )
+        m_creationTimeInSeconds( std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() )
     {}
     
-    uint64_t secondsFromNow() const { return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_timeInSeconds; }
+    uint64_t secondsFromNow() const { return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_creationTimeInSeconds; }
     
     template<class Archive>
     void serialize(Archive &arch)
@@ -57,12 +90,18 @@ struct PeerInfo
         arch(m_publicKey);
         arch(m_address);
         arch(m_port);
-        arch(m_timeInSeconds);
+        arch(m_creationTimeInSeconds);
         arch(m_signature);
     }
     
     boost::asio::ip::udp::endpoint endpoint() const {
         return boost::asio::ip::udp::endpoint{ boost::asio::ip::make_address(m_address), uint16_t(m_port) };
+    }
+    
+    void updateCreationTime( const crypto::KeyPair& keyPair )
+    {
+        m_creationTimeInSeconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        Sign( keyPair );
     }
     
     bool Verify() const
@@ -71,8 +110,8 @@ struct PeerInfo
                               {
             utils::RawBuffer{ (const uint8_t*)&m_publicKey[0], sizeof(m_publicKey) },
             utils::RawBuffer{ (const uint8_t*)m_address.c_str(), m_address.size() },
-            utils::RawBuffer{ (const uint8_t*)m_port, sizeof(m_port) },
-            utils::RawBuffer{ (const uint8_t*)m_timeInSeconds, sizeof(m_timeInSeconds) },
+            utils::RawBuffer{ (const uint8_t*)&m_port, sizeof(m_port) },
+            utils::RawBuffer{ (const uint8_t*)&m_creationTimeInSeconds, sizeof(m_creationTimeInSeconds) },
         },
         m_signature );
     }
@@ -83,8 +122,8 @@ struct PeerInfo
                      {
             utils::RawBuffer{ (const uint8_t*)&m_publicKey[0], sizeof(m_publicKey) },
             utils::RawBuffer{ (const uint8_t*)m_address.c_str(), m_address.size() },
-            utils::RawBuffer{ (const uint8_t*)m_port, sizeof(m_port) },
-            utils::RawBuffer{ (const uint8_t*)m_timeInSeconds, sizeof(m_timeInSeconds) },
+            utils::RawBuffer{ (const uint8_t*)&m_port, sizeof(m_port) },
+            utils::RawBuffer{ (const uint8_t*)&m_creationTimeInSeconds, sizeof(m_creationTimeInSeconds) },
         },
         m_signature );
     }
@@ -135,7 +174,7 @@ struct MyIpResponse
     MyIpResponse( const crypto::KeyPair& keyPair, const boost::asio::ip::udp::endpoint& queriedEndpoint )
     : m_badPort(false), m_response( keyPair.publicKey().array(), queriedEndpoint )
     {
-        m_response.m_timeInSeconds = std::chrono::steady_clock::now().time_since_epoch().count();
+        m_response.m_creationTimeInSeconds = std::chrono::steady_clock::now().time_since_epoch().count();
         m_response.Sign( keyPair );
     }
     
@@ -149,15 +188,22 @@ struct MyIpResponse
 //-----------------------------------------------------
 struct PeerIpRequest
 {
-    bool m_requesterIsClient = false;
-    PeerKey m_peerKey;
-    PeerKey m_requesterKey;
+    PeerIpRequest() = default;
+
+    explicit PeerIpRequest( bool requesterIsClient, const TargetKey& targetKey, const RequesterKey& requesterKey )
+        : m_requesterIsClient(requesterIsClient), m_targetKey(targetKey), m_requesterKey( requesterKey )
+    {}
+
+    bool         m_requesterIsClient = false;;
+    TargetKey    m_targetKey;
+    RequesterKey m_requesterKey;
 
     template<class Archive>
     void serialize(Archive &arch)
     {
-        arch(m_peerKey);
-        arch(m_requesterKey);
+        arch(m_requesterIsClient);
+        arch(m_targetKey.m_key);
+        arch(m_requesterKey.m_key);
     }
 };
 
@@ -166,17 +212,20 @@ struct PeerIpRequest
 //-----------------------------------------------------
 struct PeerIpResponse
 {
-    // if found then 'm_response' has single PeerInfo where m_response.m_peerKey == m_peerKey
-//    bool                    m_found;
+    PeerIpResponse() = default;
     
-    PeerKey                 m_peerKey;
+    explicit PeerIpResponse( const TargetKey& targetKey, std::vector<PeerInfo>&& response )
+        : m_targetKey(targetKey), m_response( std::move(response))
+    {}
+    
+    TargetKey               m_targetKey;
     std::vector<PeerInfo>   m_response;
     
     template<class Archive>
     void serialize(Archive &arch)
     {
         //arch(m_found);
-        arch(m_peerKey);
+        arch(m_targetKey.m_key);
         arch(m_response);
     }
 };
@@ -194,12 +243,13 @@ public:
     //
     virtual void sendGetMyIpRequest( const MyIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) = 0;
     virtual void sendGetPeerIpRequest( const PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) = 0;
+    virtual void sendDirectPeerInfo( const PeerIpResponse& response, boost::asio::ip::udp::endpoint endpoint ) = 0;
 
-    virtual void onGetMyIpRequest( const std::string& ) = 0;
-    virtual void onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
+    virtual std::string onGetMyIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
+    virtual std::string onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
 
-    virtual void onGetMyIpResponse( const std::string& ) = 0;
-    virtual void onGetPeerIpResponse( const std::string& ) = 0;
+    virtual void onGetMyIpResponse( const std::string&, boost::asio::ip::udp::endpoint responserEndpoint ) = 0;
+    virtual void onGetPeerIpResponse( const std::string&, boost::asio::ip::udp::endpoint responserEndpoint ) = 0;
 };
 
 //-----------------------------------------------------
@@ -209,31 +259,46 @@ class EndpointCatalogue
 {
 public:
     virtual ~EndpointCatalogue() = default;
-    
+
+    virtual void    stopTimers() = 0;
+
     virtual PeerKey publicKey() = 0;
 
-    virtual std::optional<boost::asio::ip::udp::endpoint> getEndpoint( PeerKey& key ) =0;
+    virtual void    setEndpointHandler( ::sirius::drive::EndpointHandler endpointHandler ) = 0;
+
+    virtual OptionalEndpoint getEndpoint( const PeerKey& key ) =0;
+
+    virtual const PeerInfo* getPeerInfo( const PeerKey& key ) =0;
+
+    virtual void            addClientToLocalEndpointMap( const Key& keys ) = 0;
+    virtual void            onEndpointDiscovered( const Key& key, const OptionalEndpoint& endpoint ) = 0;
 
     // 'get-my-ip'
     virtual std::string     onGetMyIpRequest( const std::string& request, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
-    virtual void            onGetMyIpResponse( const std::string& ) = 0;
+    virtual void            onGetMyIpResponse( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
 
     // 'get-ip'
     virtual std::string     onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
-    virtual void            onGetPeerIpResponse( const std::string& ) = 0;
+    
+    virtual void            onGetPeerIpResponse( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
+    
+    virtual void            addReplicatorKey( const Key& key ) = 0;
+    virtual void            addReplicatorKeys( const std::vector<Key>& keys ) = 0;
+    virtual void            removeReplicatorKey( const Key& keys ) = 0;
+    
+    virtual void            dbgTestKademlia( KademliaDbgFunc dbgFunc ) = 0;
 };
 
 
 } // namespace kademlia
 
 class Session;
-std::unique_ptr<kademlia::EndpointCatalogue> createEndpointCatalogue(
+std::shared_ptr<kademlia::EndpointCatalogue> createEndpointCatalogue(
                                                     std::weak_ptr<Session>              kademliaTransport,
                                                     const crypto::KeyPair&              keyPair,
                                                     const std::vector<ReplicatorInfo>&  bootstraps,
-                                                    uint8_t                             myPort,
+                                                    uint16_t                            myPort,
                                                     bool                                isClient );
 
 }}
-
 

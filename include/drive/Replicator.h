@@ -14,6 +14,8 @@
 #include "drive/ModificationsExecutor.h"
 #include "crypto/Signer.h"
 #include "drive/RcptMessage.h"
+#include "Kademlia.h"
+
 
 #include <boost/asio/high_resolution_timer.hpp>
 //#include <libtorrent/torrent_handle.hpp>
@@ -351,6 +353,14 @@ public:
     virtual void        setMinReplicatorsNumber( uint64_t number ) = 0;
     virtual uint64_t    getMinReplicatorsNumber() = 0;
     virtual void        setSessionSettings(const lt::settings_pack&, bool localNodes) = 0;
+
+    virtual void        addReplicatorKeyToKademlia( const Key& key ) = 0;
+    virtual void        addReplicatorKeysToKademlia( const std::vector<Key>& keys ) = 0;
+    virtual void        removeReplicatorKeyFromKademlia( const Key& keys ) = 0;
+    virtual void        dbgTestKademlia( KademliaDbgFunc dbgFunc ) = 0;
+    virtual void        dbgTestKademlia2( ReplicatorList& outReplicatorList ) {}
+    virtual OptionalEndpoint dbgGetEndpoint( const Key& key ) { return {}; }
+
 
     virtual void        stopReplicator() = 0;
 

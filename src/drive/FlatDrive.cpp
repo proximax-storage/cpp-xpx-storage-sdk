@@ -943,7 +943,7 @@ public:
             runNextTask();
         } else
         {
-            m_task->onDriveClose( *request );
+            m_task->onDriveClose( *m_closeDriveRequest );
         }
     }
 
@@ -1242,6 +1242,20 @@ public:
         return {};
     }
     //-----------------------------------------------------------------------------
+    
+    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList )
+    {
+        for( auto& key : m_allReplicators )
+        {
+            auto it = std::find_if( outReplicatorList.begin(), outReplicatorList.end(), [&] (const auto& item) {
+                return item == key;
+            });
+            if ( it == outReplicatorList.end() )
+            {
+                outReplicatorList.push_back(key);
+            }
+        }
+    }
 };
 
 

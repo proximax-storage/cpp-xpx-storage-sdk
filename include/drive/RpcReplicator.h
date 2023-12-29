@@ -581,6 +581,7 @@ public:
 
     }
 
+#ifndef SKIP_GRPC
     void setServiceAddress( const std::string& address ) override {
     	rpcCall( RPC_CMD::setServiceAddress, address );
     }
@@ -592,7 +593,27 @@ public:
     void enableMessengerServer() override {
     	rpcCall( RPC_CMD::enableMessengerServer );
     }
+#endif
+    
+    virtual void addReplicatorKeyToKademlia( const Key& key ) override
+    {
+        //rpcCall m_session->addReplicatorKeyToKademlia(key);
+    }
+    
+    virtual void addReplicatorKeysToKademlia( const std::vector<Key>& keys ) override
+    {
+        //rpcCall m_session->addReplicatorKeysToKademlia(keys);
+    }
+    
+    virtual void removeReplicatorKeyFromKademlia( const Key& keys ) override
+    {
+        //rpcCall m_session->removeReplicatorKeyFromKademlia(keys);
+    }
 
+    virtual void        dbgTestKademlia( KademliaDbgFunc dbgFunc ) override
+    {
+    }
+    
     virtual Hash256     dbgGetRootHash( const DriveKey& driveKey ) override
     {
         //_SIRIUS_ASSERT(0); return m_unusedHash;

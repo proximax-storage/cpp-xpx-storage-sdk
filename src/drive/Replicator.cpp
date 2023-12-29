@@ -11,7 +11,6 @@
 #include "drive/Utils.h"
 #include "drive/Session.h"
 #include "DownloadLimiter.h"
-#include "drive/EndpointsManager.h"
 #include "RcptSyncronizer.h"
 #include "BackgroundExecutor.h"
 
@@ -78,7 +77,6 @@ private:
     ReplicatorEventHandler& m_eventHandler;
     DbgReplicatorEventHandler* m_dbgEventHandler;
 
-    std::shared_ptr<EndpointsManager> m_endpointsManager;
     RcptSyncronizer m_dnOpinionSyncronizer;
     std::vector<ReplicatorInfo>       m_bootstraps;
 
@@ -119,7 +117,6 @@ public:
         m_useTcpSocket( useTcpSocket ),
         m_eventHandler( handler ),
         m_dbgEventHandler( dbgEventHandler ),
-        m_endpointsManager( std::make_shared<EndpointsManager>(m_keyPair, bootstraps, m_dbgOurPeerName) ),
         m_bootstraps(bootstraps),
         m_dnOpinionSyncronizer( *this, m_dbgOurPeerName )
     {
@@ -172,7 +169,7 @@ public:
             }
         }
 
-        m_endpointsManager->stop();
+        //TODO? m_endpointsManager->stop();
     }
 
     void stopReplicator() override {
@@ -236,6 +233,7 @@ public:
                                               //m_sesion->setDbgThreadId();
                                               m_dbgThreadId = std::this_thread::get_id();
 
+                                              _LOG( "libtorrentThread started: ");
                                               m_replicatorContext.run();
 #ifdef DEBUG_OFF_CATAPULT
                                               _LOG( "libtorrentThread ended" );
@@ -248,8 +246,6 @@ public:
         {
 
             DBG_MAIN_THREAD
-
-            m_endpointsManager->start( m_session );
 
 #ifndef SKIP_GRPC
             if ( !m_services.empty() )
@@ -367,8 +363,8 @@ public:
 
             m_driveMap[driveKey] = drive;
 
-            m_endpointsManager->addEndpointQueries( driveRequest->m_fullReplicatorList );
-            m_endpointsManager->addEndpointQuery( driveRequest->m_client, false );
+            m_session->startSearchPeerEndpoints( driveRequest->m_fullReplicatorList );
+            m_session->addClientToLocalEndpointMap( driveRequest->m_client );
 
             // Notify
             if ( m_dbgEventHandler )
@@ -422,7 +418,9 @@ public:
                         break;
                     }
                 }
-                m_endpointsManager->addEndpointQueries( *replicatorKeys );
+
+                m_session->startSearchPeerEndpoints( *replicatorKeys );
+
                 drive->setReplicators( std::move( replicatorKeys ));
             } else
             {
@@ -663,7 +661,6 @@ public:
 
             if ( const auto drive = getDrive( driveKey ); drive )
             {
-                request->m_endpointsManager = m_endpointsManager;
                 drive->startStream( std::move( request ));
                 return;
             }
@@ -835,57 +832,19 @@ public:
         }
     }
 
+    // 
     void onEndpointDiscovered( const std::array<uint8_t, 32>& key,
                                const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) override
     {
         //DBG_MAIN_THREAD
 
         _LOG ( "onEndpointDiscovered. public key: " << toString(key) << " endpoint: " << endpoint.value().address().to_string() << " : " << endpoint.value().port())
-        m_endpointsManager->onEndpointDiscovered( key, endpoint );
-    }
-
-    void processHandshake( const DhtHandshake& info, const std::optional<boost::asio::ip::udp::endpoint>& endpoint )
-    {
-        if ( info.m_toPublicKey != m_keyPair.publicKey().array())
-        {
-            return;
-        }
-
-        if ( !info.Verify())
-        {
-            return;
-        }
-
-        _LOG ( "Received Handshake from: " << toString(info.m_fromPublicKey) << " endpoint: " << endpoint.value().address().to_string() << " : " << endpoint.value().port())
-        onEndpointDiscovered(info.m_fromPublicKey, endpoint);
-    }
-
-    void
-    processEndpointRequest( const ExternalEndpointRequest& request, const boost::asio::ip::udp::endpoint& endpoint )
-    {
-        if ( m_keyPair.publicKey() == request.m_requestTo )
-        {
-            ExternalEndpointResponse response;
-            response.m_requestTo = request.m_requestTo;
-            response.m_challenge = request.m_challenge;
-            response.m_endpoint = *reinterpret_cast<const std::array<uint8_t, sizeof( boost::asio::ip::udp::endpoint )>*>(&endpoint);
-            response.Sign( m_keyPair );
-
-            std::ostringstream os( std::ios::binary );
-            cereal::PortableBinaryOutputArchive archive( os );
-            archive( response );
-
-            m_session->sendMessage( "endpoint_response", {endpoint.address(), endpoint.port()}, os.str());
-        }
-        else
-        {
-            _LOG( "m_keyPair.publicKey() == request.m_requestTo: " << m_keyPair.publicKey() << " " << toString(request.m_requestTo).c_str() )
-        }
+        m_session->onEndpointDiscovered( key, endpoint );
     }
 
     std::optional<boost::asio::ip::udp::endpoint> getEndpoint( const std::array<uint8_t, 32>& key ) override
     {
-        return m_endpointsManager->getEndpoint( key );
+        return m_session->getEndpoint( key );
     }
 
     virtual void asyncOnDownloadOpinionReceived( mobj<DownloadApprovalTransactionInfo>&& anOpinion ) override
@@ -1488,7 +1447,7 @@ public:
             return;
         }
 
-        auto endpointTo = m_endpointsManager->getEndpoint( replicatorKey );
+        auto endpointTo = getEndpoint( replicatorKey.array() );
         if ( endpointTo )
         {
             m_session->sendMessage( query, {endpointTo->address(), endpointTo->port()}, message );
@@ -1511,7 +1470,7 @@ public:
             return;
         }
 
-        auto endpointTo = m_endpointsManager->getEndpoint( replicatorKey );
+        auto endpointTo = getEndpoint( replicatorKey.array() );
         if ( endpointTo )
         {
             //__LOG( "*** sendMessage: " << query << " to: " << *endpointTo << " " << int(replicatorKey[0]) );
@@ -1533,7 +1492,7 @@ public:
             return;
         }
 
-        auto endpointTo = m_endpointsManager->getEndpoint( replicatorKey );
+        auto endpointTo = getEndpoint( replicatorKey.array() );
         if ( endpointTo )
         {
             Signature signature;
@@ -1616,52 +1575,8 @@ public:
                 {_LOG_WARN( "execption occured" )}
 
                 return;
-            } else if ( query == "handshake" )
-            {
-                try
-                {
-                    std::istringstream is( message, std::ios::binary );
-                    cereal::PortableBinaryInputArchive iarchive( is );
-                    DhtHandshake handshake;
-                    iarchive( handshake );
-
-                    processHandshake( handshake, std::make_optional<boost::asio::ip::udp::endpoint>(source.address(), source.port()) );
-                }
-                catch ( ... )
-                {_LOG_WARN( "execption occured" )}
-
-                return;
-            } else if ( query == "endpoint_request" )
-            {
-                try
-                {
-                    std::istringstream is( message, std::ios::binary );
-                    cereal::PortableBinaryInputArchive iarchive( is );
-                    ExternalEndpointRequest request;
-                    iarchive( request );
-
-                    processEndpointRequest( request, {source.address(), source.port()} );
-                }
-                catch ( ... )
-                {_LOG_WARN( "execption occured" )}
-
-                return;
-            } else if ( query == "endpoint_response" )
-            {
-                try
-                {
-                    std::istringstream is( message, std::ios::binary );
-                    cereal::PortableBinaryInputArchive iarchive( is );
-                    ExternalEndpointResponse response;
-                    iarchive( response );
-
-                    m_endpointsManager->onMyEndpointResponse( response );
-                }
-                catch ( ... )
-                {_LOG_WARN( "execption occured" )}
-
-                return;
-            } else if ( query == "chunk-info" )
+            }
+            else if ( query == "chunk-info" )
             {
                 try
                 {
@@ -1977,8 +1892,7 @@ public:
         //_LOG( "query: " << query );
 
         const std::set<lt::string_view> supportedQueries =
-                {"opinion", "dn_opinion", "code_verify", "verify_opinion", "handshake", "endpoint_request",
-                 "endpoint_response",
+                {"opinion", "dn_opinion", "code_verify", "verify_opinion",
                  "chunk-info" //, "finish-stream"
                 };
         if ( supportedQueries.contains( query )
@@ -2371,8 +2285,8 @@ public:
 
             m_driveMap[driveKey] = drive;
 
-            m_endpointsManager->addEndpointQueries( driveRequest.m_fullReplicatorList );
-            m_endpointsManager->addEndpointQuery( driveRequest.m_client, false );
+            m_session->startSearchPeerEndpoints( driveRequest.m_fullReplicatorList );
+            m_session->addClientToLocalEndpointMap( driveRequest.m_client );
 
             std::cout << "added virtualDrive " << driveKey;
         } );//post
@@ -3097,6 +3011,75 @@ public:
         _LOG( "Subscription To " << tag << " Is Requested" )
     }
 #endif //#ifndef SKIP_GRPC
+    
+    virtual void addReplicatorKeyToKademlia( const Key& key ) override
+    {
+        m_session->addReplicatorKeyToKademlia(key);
+    }
+    
+    virtual void addReplicatorKeysToKademlia( const std::vector<Key>& keys ) override
+    {
+        m_session->addReplicatorKeysToKademlia(keys);
+    }
+    
+    virtual void removeReplicatorKeyFromKademlia( const Key& keys ) override
+    {
+        m_session->removeReplicatorKeyFromKademlia(keys);
+    }
+
+    virtual void dbgTestKademlia( KademliaDbgFunc dbgFunc ) override
+    {
+        m_session->dbgTestKademlia(dbgFunc);
+    }
+
+    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList )
+    {
+        boost::asio::post( m_session->lt_session().get_context(), [outReplicatorList=outReplicatorList,this]() mutable {
+            for( auto& [key,drive] : m_driveMap )
+            {
+                drive->dbgTestKademlia2( outReplicatorList );
+            }
+            int counter = 0;
+            for( auto& key : outReplicatorList )
+            {
+                int port = -1;
+                if ( ! dbgGetEndpoint(key,port).has_value() )
+                {
+                    ___LOG( m_port << " ????????????????? dbgTestKademlia2: " << port << " " << key );
+                    counter++;
+                }
+            }
+            ___LOG( m_port << " =========================== dbgTestKademlia2: " << counter << " of: " << outReplicatorList.size() );
+        } );
+    }
+
+    virtual OptionalEndpoint dbgGetEndpoint( const Key& key, int& port )
+    {
+        if ( auto ep = m_session->getEndpoint(key); ep )
+        {
+            port = ep->port();
+            return ep;
+        }
+//        if ( auto info = m_session->getPeerInfo(key); info != nullptr )
+//        {
+//            return info->endpoint();
+//        }
+        return {};
+    }
+
+//    virtual OptionalEndpoint dbgGetEndpoint( const Key& key, int& port )
+//    {
+//        auto* info = m_session->getPeerInfo(key);
+//        if ( info != nullptr )
+//        {
+//            return info->endpoint();
+//        }
+//        if ( auto ep = m_session->getEndpoint(key); ep )
+//        {
+//            port = ep->port();
+//        }
+//        return {};
+//    }
 
 };
 
