@@ -48,7 +48,7 @@ public:
     
     using SearcherMap = std::map<TargetKey,std::unique_ptr<PeerSearchInfo>>;
 
-    std::weak_ptr<Session>          m_kademliaTransport;
+    std::weak_ptr<kademlia::Transport>          m_kademliaTransport;
     const crypto::KeyPair&          m_keyPair;
     std::vector<NodeInfo>           m_bootstraps;
     uint16_t                        m_myPort;
@@ -72,7 +72,7 @@ private:
 
 public:
 
-    EndpointCatalogueImpl(  std::weak_ptr<Session>        kademliaTransport,
+    EndpointCatalogueImpl(  std::weak_ptr<kademlia::Transport>        kademliaTransport,
                             const crypto::KeyPair&        keyPair,
                             const std::vector<NodeInfo>&  bootstraps,
                             uint16_t                      myPort,
@@ -849,7 +849,7 @@ inline std::unique_ptr<PeerSearchInfo> createPeerSearchInfo(    const TargetKey&
 } // namespace kademlia
 
 std::shared_ptr<kademlia::EndpointCatalogue> createEndpointCatalogue(
-                                                             std::weak_ptr<Session>             kademliaTransport,
+                                                             std::weak_ptr<kademlia::Transport>             kademliaTransport,
                                                              const crypto::KeyPair&             keyPair,
                                                              const std::vector<ReplicatorInfo>& bootstraps,
                                                              uint16_t                           myPort,

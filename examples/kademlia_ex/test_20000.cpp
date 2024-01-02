@@ -74,7 +74,7 @@ std::string generatePrivateKey()
 }
 
 
-class TestNode
+class TestNode // replicator
 {
     std::shared_ptr<kademlia::EndpointCatalogue> m_kademlia;
     std::set<kademlia::PeerKey>                  m_interestingPeerKeys;
@@ -90,11 +90,19 @@ public:
         m_endpoint(theEndpoint)
     {
     }
-    
+
+    void init(std::weak_ptr<kademlia::Transport>              kademliaTransport,
+              const sirius::crypto::KeyPair&              keyPair,
+              const std::vector<ReplicatorInfo>&  bootstraps)
+    {
+        m_kademlia = createEndpointCatalogue(kademliaTransport, keyPair, bootstraps, m_endpoint.port(), false);
+    }
+
     void addInterestingPeerKey( kademlia::PeerKey& peerKey )
     {
         m_interestingPeerKeys.insert( peerKey );
         // start find ip
+        m_kademlia->getEndpoint(peerKey);
     }
 };
 
@@ -109,7 +117,6 @@ class TestKademliaTransport : public kademlia::Transport
     size_t m_messageCounter = 0;
     
 public:
-
     TestKademliaTransport( std::vector<std::shared_ptr<TestNode>>& nodes )
     {
         for( auto& node : nodes )
@@ -128,14 +135,15 @@ int main(int,char**)
     gBreakOnWarning = gBreak_On_Warning;
 
     __attribute__((unused)) auto startTime = std::clock();
-
+    // create Kademlia
+    auto kademlia = std::make_shared<TestKademliaTransport>();
 
     // create nodes
     for ( size_t i=0; i<NODE_NUMBER; i++ )
     {
         endpoint theEndpoint = boost::asio::ip::udp::endpoint{ boost::asio::ip::make_address( "127.0.0.1"), uint16_t(i) };
            
-        gTestNodes.push_back( std::make_shared<TestNode>(theEndpoint) );
+        gTestNodes.push_back( std::make_shared<TestNode>(theEndpoint, gTestNodes) );
 
         ___LOG( "node_" << i << ": port: " << i << " key: " << gTestNodes.back()->m_keyPair.publicKey() )
     }
@@ -146,9 +154,14 @@ int main(int,char**)
     for ( int i=0; i<5; i++ )
     {
         bootstraps.emplace_back( ReplicatorInfo{ gTestNodes[i]->m_endpoint, gTestNodes[i]->m_keyPair.publicKey()  } );
+        ___LOG( "boostarap_" << i << ": port: " << bootstraps[i].m_endpoint.port() << ", address: "
+            << bootstraps[i].m_endpoint.address() << ", public key: " << bootstraps[i].m_publicKey);
     }
 
-    EXLOG("");
+
+
+    //EXLOG("");
+
     
     sleep(10);
 
@@ -185,7 +198,7 @@ int main(int,char**)
 //        }
 //    }
 
-    sleep(60);
+// sleep(60);
 
 
     EXLOG( "" );
