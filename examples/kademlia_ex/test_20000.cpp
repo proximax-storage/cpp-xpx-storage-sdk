@@ -28,7 +28,7 @@ bool gBreak_On_Warning = true;
 const size_t NODE_NUMBER = 10; // 20000
 const size_t BOOTSTRAP_NUMBER = 2; // 20
 
-
+#include "../../src/drive/Kademlia.cpp"
 
 //std::vector<sirius::crypto::KeyPair>        gKeyPairs;
 //std::vector<boost::asio::ip::udp::endpoint> gEndpoints;
@@ -40,6 +40,7 @@ const size_t BOOTSTRAP_NUMBER = 2; // 20
 namespace fs = std::filesystem;
 
 using namespace sirius::drive;
+using namespace sirius::drive::kademlia;
 
 inline std::mutex gExLogMutex;
 
@@ -89,13 +90,18 @@ public:
         m_keyPair( sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( generatePrivateKey() )) ),
         m_endpoint(theEndpoint)
     {
+        m_keyPair = sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( generatePrivateKey() ));
     }
 
-    void init(std::weak_ptr<kademlia::Transport>              kademliaTransport,
-              const sirius::crypto::KeyPair&              keyPair,
+    void init(std::weak_ptr<kademlia::Transport>  kademliaTransport,
               const std::vector<ReplicatorInfo>&  bootstraps)
     {
-        m_kademlia = createEndpointCatalogue(kademliaTransport, keyPair, bootstraps, m_endpoint.port(), false);
+        //std::__1::vector<sirius::drive::ReplicatorInfo, std::__1::allocator<sirius::drive::ReplicatorInfo>> const&, unsigned short, bool
+        m_kademlia = createEndpointCatalogue( (std::weak_ptr<sirius::drive::kademlia::Transport>) kademliaTransport,
+                                             (sirius::crypto::KeyPair const&) m_keyPair,
+                                             (const std::vector<sirius::drive::ReplicatorInfo>&) bootstraps,
+                                             (unsigned short) m_endpoint.port(),
+                                             false );
     }
 
     void addInterestingPeerKey( kademlia::PeerKey& peerKey )
@@ -124,6 +130,30 @@ public:
             m_map[node->m_endpoint] = node;
         }
     }
+    
+    
+    virtual void sendGetMyIpRequest( const kademlia::MyIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override {}
+    virtual void sendGetPeerIpRequest( const kademlia::PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override {}
+    virtual void sendDirectPeerInfo( const kademlia::PeerIpResponse& response, boost::asio::ip::udp::endpoint endpoint ) override {}
+    
+    virtual std::string onGetMyIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) override
+    {
+        return "";
+    }
+    virtual std::string onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) override
+    {
+        return "";
+    }
+
+    virtual void onGetMyIpResponse( const std::string&, boost::asio::ip::udp::endpoint responserEndpoint ) override {}
+    virtual void onGetPeerIpResponse( const std::string&, boost::asio::ip::udp::endpoint responserEndpoint ) override {}
+    
+    virtual boost::asio::io_context& getContext() override { return m_context; }
+    virtual Timer     startTimer( int milliseconds, std::function<void()> func ) override
+    {
+        return Timer{ getContext(), milliseconds, std::move( func ) };
+    }
+
 };
 
 
@@ -135,15 +165,13 @@ int main(int,char**)
     gBreakOnWarning = gBreak_On_Warning;
 
     __attribute__((unused)) auto startTime = std::clock();
-    // create Kademlia
-    auto kademlia = std::make_shared<TestKademliaTransport>();
 
     // create nodes
     for ( size_t i=0; i<NODE_NUMBER; i++ )
     {
         endpoint theEndpoint = boost::asio::ip::udp::endpoint{ boost::asio::ip::make_address( "127.0.0.1"), uint16_t(i) };
            
-        gTestNodes.push_back( std::make_shared<TestNode>(theEndpoint, gTestNodes) );
+        gTestNodes.push_back( std::make_shared<TestNode>(theEndpoint) );
 
         ___LOG( "node_" << i << ": port: " << i << " key: " << gTestNodes.back()->m_keyPair.publicKey() )
     }
@@ -157,7 +185,15 @@ int main(int,char**)
         ___LOG( "boostarap_" << i << ": port: " << bootstraps[i].m_endpoint.port() << ", address: "
             << bootstraps[i].m_endpoint.address() << ", public key: " << bootstraps[i].m_publicKey);
     }
-
+    
+    // create KademliaTransport
+    auto kademliaTransport = std::make_shared<TestKademliaTransport>( gTestNodes );
+    
+    // init node
+    for ( auto& node : gTestNodes )
+    {
+        node->init( kademliaTransport, bootstraps );
+    }
 
 
     //EXLOG("");

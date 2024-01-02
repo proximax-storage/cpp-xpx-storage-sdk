@@ -40,7 +40,7 @@ size_t equalPrefixLength( PeerKey aKey, PeerKey bKey )
     PeerKey64& b = reinterpret_cast<PeerKey64&>(bKey);
 
     size_t index = 0;
-    for( int i=0; i<a.size(); i++ )
+    for( size_t i=0; i<a.size(); i++ )
     {
         auto xorValue = a[i] ^ b[i];
         for( int j=0; j<8; j++ )

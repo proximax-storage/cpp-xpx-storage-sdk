@@ -246,6 +246,11 @@ public:
         return m_session;
     }
     
+    virtual boost::asio::io_context& getContext() override
+    {
+        return m_session.get_context();
+    }
+
     virtual void setTorrentDeletedHandler( std::function<void(lt::torrent_handle)> handler ) override
     {
         m_torrentDeletedHandler = handler;
@@ -932,12 +937,6 @@ public:
     {
         _LOG( "Set Log Mode: " << static_cast<uint8_t>(mode) );
         m_logMode = mode;
-    }
-    
-public:
-    boost::asio::io_context& getContext() override
-    {
-        return m_session.get_context();
     }
     
 private:

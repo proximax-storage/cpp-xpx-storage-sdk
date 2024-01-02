@@ -35,7 +35,7 @@ public:
     
     int calcBucketIndex( const PeerKey& candidate ) const
     {
-        return equalPrefixLength( m_myKey, candidate );
+        return (int) equalPrefixLength( m_myKey, candidate );
     }
     
     const PeerInfo* getPeerInfo( const PeerKey& key, size_t& bucketIndex )
@@ -112,7 +112,7 @@ public:
             return -1;
         }
         
-        auto bucketIndex = calcBucketIndex( info.m_publicKey );
+        auto bucketIndex = (int)calcBucketIndex( info.m_publicKey );
         //___LOG( "bucketIndex: " << bucketIndex << " " << info.m_publicKey << " " << m_myKey )
         if ( ! m_buckets[bucketIndex].addPeerOrUpdate( info ) )
         {

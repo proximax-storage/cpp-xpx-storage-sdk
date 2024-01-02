@@ -39,7 +39,7 @@ void  addCandidatesToSearcher( PeerSearchInfo& searchInfo, PeerIpResponse& respo
 inline std::unique_ptr<PeerSearchInfo> createPeerSearchInfo(   const TargetKey&                targetPeerKey,
                                                                size_t                          bucketIndex,
                                                                EndpointCatalogueImpl&          endpointCatalogue,
-                                                               std::weak_ptr<Session>          session,
+                                                               std::weak_ptr<Transport>        session,
                                                                bool                            enterToSwarm = false );
 
 class EndpointCatalogueImpl : public EndpointCatalogue
@@ -48,7 +48,8 @@ public:
     
     using SearcherMap = std::map<TargetKey,std::unique_ptr<PeerSearchInfo>>;
 
-    std::weak_ptr<kademlia::Transport>          m_kademliaTransport;
+    std::weak_ptr<kademlia::Transport> m_kademliaTransport;
+    
     const crypto::KeyPair&          m_keyPair;
     std::vector<NodeInfo>           m_bootstraps;
     uint16_t                        m_myPort;
@@ -72,11 +73,11 @@ private:
 
 public:
 
-    EndpointCatalogueImpl(  std::weak_ptr<kademlia::Transport>        kademliaTransport,
-                            const crypto::KeyPair&        keyPair,
-                            const std::vector<NodeInfo>&  bootstraps,
-                            uint16_t                      myPort,
-                            bool                          isClient )
+    EndpointCatalogueImpl(  std::weak_ptr<kademlia::Transport>  kademliaTransport,
+                            const crypto::KeyPair&              keyPair,
+                            const std::vector<NodeInfo>&        bootstraps,
+                            uint16_t                            myPort,
+                            bool                                isClient )
         :   m_kademliaTransport(kademliaTransport),
             m_keyPair(keyPair),
             m_bootstraps(bootstraps),
@@ -112,7 +113,7 @@ public:
         // make some delay (for starting dht)
         if ( auto session = m_kademliaTransport.lock(); session )
         {
-            boost::asio::post( session->lt_session().get_context(), [this]() mutable
+            boost::asio::post( session->getContext(), [this]() mutable
             {
                 start();
             });
@@ -477,7 +478,7 @@ public:
         ___LOG( "sendDirectRequest: to: " << endpoint.port() << " myPort: " << m_myPort  << " of: " << targetKey )
         if ( auto session = m_kademliaTransport.lock(); session )
         {
-            PeerIpRequest request2{ session->isClient(), TargetKey{targetKey}, RequesterKey{m_keyPair.publicKey()} };
+            PeerIpRequest request2{ m_isClient, TargetKey{targetKey}, RequesterKey{m_keyPair.publicKey()} };
             session->sendGetPeerIpRequest( request2, endpoint );
         }
     }
@@ -588,7 +589,7 @@ public:
     {
         if ( auto kademliaTransport = m_kademliaTransport.lock(); kademliaTransport )
         {
-            boost::asio::post( kademliaTransport->lt_session().get_context(), [=, this]() mutable
+            boost::asio::post( kademliaTransport->getContext(), [=, this]() mutable
             {
                 for ( auto& [key,searchInfo] : m_searcherMap )
                 {
@@ -621,9 +622,9 @@ class PeerSearchInfo
     const TargetKey         m_targetPeerKey;
     const PeerKey           m_myPeerKey;
     
-    EndpointCatalogueImpl&  m_endpointCatalogue;
-    std::weak_ptr<Session>  m_session;
-    bool                    m_enterToSwarm;
+    EndpointCatalogueImpl&   m_endpointCatalogue;
+    std::weak_ptr<Transport> m_session;
+    bool                     m_enterToSwarm;
 
     std::vector<Candidate>  m_candidates;
     std::set<PeerKey>       m_triedPeers;
@@ -632,12 +633,12 @@ class PeerSearchInfo
 
 public:
 
-    PeerSearchInfo( const PeerSearchInfo& ) = default;
+    //PeerSearchInfo( const PeerSearchInfo& ) = default;
 
     PeerSearchInfo( const TargetKey&                targetPeerKey,
                     int                             bucketIndex,
                     EndpointCatalogueImpl&          endpointCatalogue,
-                    std::weak_ptr<Session>          session,
+                    std::weak_ptr<Transport>        session,
                     bool                            enterToSwarm )
     :
         m_targetPeerKey(targetPeerKey),
@@ -694,7 +695,7 @@ public:
     {
         if ( auto session = m_session.lock(); session )
         {
-            PeerIpRequest request{ session->isClient(), m_targetPeerKey, RequesterKey{m_myPeerKey} };
+            PeerIpRequest request{ m_endpointCatalogue.m_isClient, m_targetPeerKey, RequesterKey{m_myPeerKey} };
          
             if ( ! m_candidates.empty() )
             {
@@ -836,7 +837,7 @@ inline void addCandidatesToSearcher( PeerSearchInfo& searchInfo, PeerIpResponse&
 inline std::unique_ptr<PeerSearchInfo> createPeerSearchInfo(    const TargetKey&                targetPeerKey,
                                                                 size_t                          bucketIndex,
                                                                 EndpointCatalogueImpl&          endpointCatalogue,
-                                                                std::weak_ptr<Session>          session,
+                                                                std::weak_ptr<Transport>        session,
                                                                 bool                            enterToSwarm )
 {
     return std::make_unique<PeerSearchInfo>(  targetPeerKey,
