@@ -74,11 +74,28 @@ std::string generatePrivateKey()
     return sirius::drive::toString( buffer );
 }
 
+class TestNode;
 
-class TestNode // replicator
+struct TestContext
 {
+    boost::asio::io_context                      m_context;
+    std::map<endpoint,std::shared_ptr<TestNode>> m_map;
+
+    size_t m_messageCounter = 0;
+    
+public:
+    TestContext( std::vector<std::shared_ptr<TestNode>>& nodes );
+};
+
+
+
+class TestNode : public std::enable_shared_from_this<TestNode>, public kademlia::Transport // replicator
+{
+    TestContext*                                 m_testContext = nullptr;
+    
     std::shared_ptr<kademlia::EndpointCatalogue> m_kademlia;
     std::set<kademlia::PeerKey>                  m_interestingPeerKeys;
+
 public:
     sirius::crypto::KeyPair m_keyPair;
     endpoint                m_endpoint;
@@ -93,11 +110,11 @@ public:
         m_keyPair = sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( generatePrivateKey() ));
     }
 
-    void init(std::weak_ptr<kademlia::Transport>  kademliaTransport,
-              const std::vector<ReplicatorInfo>&  bootstraps)
+    void init(  TestContext*                        testContext,
+                const std::vector<ReplicatorInfo>&  bootstraps )
     {
         //std::__1::vector<sirius::drive::ReplicatorInfo, std::__1::allocator<sirius::drive::ReplicatorInfo>> const&, unsigned short, bool
-        m_kademlia = createEndpointCatalogue( (std::weak_ptr<sirius::drive::kademlia::Transport>) kademliaTransport,
+        m_kademlia = createEndpointCatalogue( (std::weak_ptr<sirius::drive::kademlia::Transport>) shared_from_this(),
                                              (sirius::crypto::KeyPair const&) m_keyPair,
                                              (const std::vector<sirius::drive::ReplicatorInfo>&) bootstraps,
                                              (unsigned short) m_endpoint.port(),
@@ -110,29 +127,23 @@ public:
         // start find ip
         m_kademlia->getEndpoint(peerKey);
     }
-};
 
-std::vector<std::shared_ptr<TestNode>> gTestNodes;
-
-
-class TestKademliaTransport : public kademlia::Transport
-{
-    boost::asio::io_context                      m_context;
-    std::map<endpoint,std::shared_ptr<TestNode>> m_map;
-
-    size_t m_messageCounter = 0;
+    //
+    //-----------------------------------------------------------------------------------------------------------
+    //
     
-public:
-    TestKademliaTransport( std::vector<std::shared_ptr<TestNode>>& nodes )
+    virtual void sendGetMyIpRequest( const kademlia::MyIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override
     {
-        for( auto& node : nodes )
+        boost::asio::post( getContext(), [=,this]() //mutable
         {
-            m_map[node->m_endpoint] = node;
-        }
+            std::ostringstream os( std::ios::binary );
+            cereal::PortableBinaryOutputArchive archive( os );
+            archive( request );
+
+            m_testContext->m_map[endpoint]->onGetPeerIpRequest( os.str(), this->m_endpoint );
+        });
     }
     
-    
-    virtual void sendGetMyIpRequest( const kademlia::MyIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override {}
     virtual void sendGetPeerIpRequest( const kademlia::PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override {}
     virtual void sendDirectPeerInfo( const kademlia::PeerIpResponse& response, boost::asio::ip::udp::endpoint endpoint ) override {}
     
@@ -148,7 +159,7 @@ public:
     virtual void onGetMyIpResponse( const std::string&, boost::asio::ip::udp::endpoint responserEndpoint ) override {}
     virtual void onGetPeerIpResponse( const std::string&, boost::asio::ip::udp::endpoint responserEndpoint ) override {}
     
-    virtual boost::asio::io_context& getContext() override { return m_context; }
+    virtual boost::asio::io_context& getContext() override { return m_testContext->m_context; }
     virtual Timer     startTimer( int milliseconds, std::function<void()> func ) override
     {
         return Timer{ getContext(), milliseconds, std::move( func ) };
@@ -156,6 +167,16 @@ public:
 
 };
 
+std::vector<std::shared_ptr<TestNode>> gTestNodes;
+
+
+TestContext::TestContext( std::vector<std::shared_ptr<TestNode>>& nodes )
+{
+    for( auto& node : nodes )
+    {
+        m_map[node->m_endpoint] = node;
+    }
+}
 
 //
 // main
@@ -187,12 +208,12 @@ int main(int,char**)
     }
     
     // create KademliaTransport
-    auto kademliaTransport = std::make_shared<TestKademliaTransport>( gTestNodes );
+    TestContext testContext( gTestNodes );
     
     // init node
     for ( auto& node : gTestNodes )
     {
-        node->init( kademliaTransport, bootstraps );
+        node->init( &testContext, bootstraps );
     }
 
 
@@ -236,6 +257,7 @@ int main(int,char**)
 
 // sleep(60);
 
+    testContext.m_context.run();
 
     EXLOG( "" );
     EXLOG( "total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
