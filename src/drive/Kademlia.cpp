@@ -521,7 +521,8 @@ public:
                     continue;
                 }
 
-                if ( isPeerInfoExpired(peerInfo.m_creationTimeInSeconds) )
+                //TODO? - && !m_isClient
+                if ( isPeerInfoExpired(peerInfo.m_creationTimeInSeconds) && !m_isClient )
                 {
                     __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: expired: " << peerInfo.m_publicKey )
                     continue;
@@ -743,7 +744,8 @@ public:
                 {
                     for( const auto& peerInfo : bucket.nodes() )
                     {
-                        assert( peerInfo.endpoint().port() != m_endpointCatalogue.m_myPort );
+                        //TODO?
+                        //assert( peerInfo.endpoint().port() != m_endpointCatalogue.m_myPort );
 
                         m_candidates.emplace_back( Candidate{   peerInfo.endpoint(),
                             peerInfo.m_publicKey,
@@ -754,7 +756,8 @@ public:
                         if ( auto it = std::find_if( m_candidates.begin(), m_candidates.end(), [&](const auto& item) {
                             return item.m_publicKey == bootstrapNode.m_publicKey; }); it == m_candidates.end() )
                         {
-                            assert( bootstrapNode.m_endpoint.port() != m_endpointCatalogue.m_myPort );
+                            //TODO?
+                            //assert( bootstrapNode.m_endpoint.port() != m_endpointCatalogue.m_myPort );
                             m_candidates.emplace_back( Candidate{   bootstrapNode.m_endpoint,
                                 bootstrapNode.m_publicKey,
                                 xorValue(bootstrapNode.m_publicKey, m_targetPeerKey.m_key) } );
