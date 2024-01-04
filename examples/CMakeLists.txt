@@ -22,7 +22,7 @@ add_subdirectory(kademlia_ex)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 #    add_subdirectory(streamExample)
-    add_subdirectory(modifyDriveFlat3)
+#    add_subdirectory(modifyDriveFlat3)
 #    if (NOT DEFINED SKIP_GRPC)
 #        add_subdirectory(supercontract-tests)
 #    endif()

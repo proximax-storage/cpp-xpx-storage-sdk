@@ -2,7 +2,7 @@
 // - Filter by m_registeredReplicators (with queue of unknowns/leading ones)
 // - client skip requests and ???
 // - simultaneous requesting
-// - update timer -> sendGetPeerIpRequest(of myIp)
+// - update timer -> sendGetPeerIpRequest(of myIp xor 1)
 // ___LOG
 // //TODO?
 
@@ -58,7 +58,8 @@ public:
 
     std::optional<PeerInfo>         m_myPeerInfo;
     Timer                           m_myPeerInfoTimer;
-    
+    Timer                           m_updateKademliaTimer;
+
     std::map<PeerKey,OptionalEndpoint> m_localEndpointMap;
 
     KademliaHashTable               m_hashTable;
@@ -99,6 +100,13 @@ public:
                 m_myEndpoint = it->m_endpoint;
                 m_bootstraps.erase( it );
                 m_isBootstrap = true;
+                if ( auto session = m_kademliaTransport.lock(); session )
+                {
+                    boost::asio::post( session->getContext(), [this]() mutable
+                    {
+                        enterToSwarm();
+                    });
+                }
             }
         }
         
@@ -118,28 +126,20 @@ public:
                 start();
             });
         }
-        
-//        if ( m_isBootstrap )
-//        {
-//            if ( auto session = m_kademliaTransport.lock(); session )
-//            {
-//                boost::asio::post( session->lt_session().get_context(), [this]() mutable
-//                                  {
-//                    for( const auto& nodeInfo : m_bootstraps )
-//                    {
-//                        ___LOG( "m_isBootstrap:" << m_myPort  << " of: " << nodeInfo.m_publicKey )
-//                        sendDirectRequest( nodeInfo.m_publicKey, nodeInfo.m_endpoint );
-//                    }
-//                    enterToSwarm();
-//                });
-//            }
-//        }
     }
     
     ~EndpointCatalogueImpl()
     {
-        m_myPeerInfoTimer.cancel();
+        stopTimers();
     }
+
+    virtual void stopTimers() override
+    {
+        m_myPeerInfoTimer.cancel();
+        m_updateKademliaTimer.cancel();
+    }
+
+    virtual PeerKey publicKey() override { return m_keyPair.publicKey(); }
 
     void start()
     {
@@ -166,7 +166,30 @@ public:
             m_myPeerInfoTimer = session->startTimer( PEER_ANSWER_LIMIT_MS, [this]{ onMyPeerInfoTimer(); } );
         }
     }
-    
+
+    void updateKademlia()
+    {
+        if ( auto session = m_kademliaTransport.lock(); session )
+        {
+            m_myPeerInfoTimer = session->startTimer( PEER_UPDATE_SEC, [this]
+            {
+                for( auto& bucket : m_hashTable.buckets() )
+                {
+                    bucket.removeExpiredNodes();
+                    
+                    for( const auto& peerInfo : bucket.nodes() )
+                    {
+                        if ( shouldPeerInfoBeUpdated( peerInfo.m_creationTimeInSeconds ) )
+                        {
+                            sendDirectRequest( peerInfo.m_publicKey, peerInfo.endpoint() );
+                        }
+                    }
+                }
+                updateKademlia();
+            });
+        }
+    }
+
     void enterToSwarm()
     {
         // Query peerInfo of bootstraps
@@ -183,8 +206,6 @@ public:
         size_t bucketIndex = m_hashTable.calcBucketIndex( searchedKey );
         startSearchPeerInfo( TargetKey{searchedKey}, bucketIndex, true );
     }
-
-
     
     void onMyPeerInfoTimer()
     {
@@ -206,18 +227,12 @@ public:
         }
     }
 
-    virtual void stopTimers() override
-    {
-        m_myPeerInfoTimer.cancel();
-    }
-
-    virtual PeerKey publicKey() override { return m_keyPair.publicKey(); }
-
     void addClientToLocalEndpointMap( const Key& key ) override
     {
         m_localEndpointMap[key] = {};
     }
 
+    // On some (signed) endpoint discovered
     virtual void onEndpointDiscovered( const Key& key, const OptionalEndpoint& endpoint ) override
     {
         if ( auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() )
@@ -386,7 +401,7 @@ public:
             }
             
             // start Kademlia
-            if ( firstResponse || m_isBootstrap )
+            if ( firstResponse )
             {
                 enterToSwarm();
             }

@@ -420,6 +420,7 @@ public:
     virtual void endSession() override {
         m_stopping = true;
         _LOG( "stop session" )
+        m_kademlia->stopTimers();
     }
     
     virtual bool isEnding() override {

@@ -31,6 +31,8 @@ public:
     
     const PeerKey& key() const { return m_myKey; }
     
+          std::array<Bucket,BUCKET_NUMBER>& buckets()       { return m_buckets; }
+    
     const std::array<Bucket,BUCKET_NUMBER>& buckets() const { return m_buckets; }
     
     int calcBucketIndex( const PeerKey& candidate ) const
