@@ -168,8 +168,6 @@ public:
                 opinion.m_opinionShareTimer.cancel();
             }
         }
-
-        //TODO? m_endpointsManager->stop();
     }
 
     void stopReplicator() override {

@@ -237,19 +237,22 @@ class Transport
 {
 public:
     virtual ~Transport() = default;
-
+    
     //
     // Requests
     //
     virtual void sendGetMyIpRequest( const MyIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) = 0;
     virtual void sendGetPeerIpRequest( const PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) = 0;
     virtual void sendDirectPeerInfo( const PeerIpResponse& response, boost::asio::ip::udp::endpoint endpoint ) = 0;
-
+    
     virtual std::string onGetMyIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
     virtual std::string onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
-
+    
     virtual void onGetMyIpResponse( const std::string&, boost::asio::ip::udp::endpoint responserEndpoint ) = 0;
     virtual void onGetPeerIpResponse( const std::string&, boost::asio::ip::udp::endpoint responserEndpoint ) = 0;
+    
+    virtual boost::asio::io_context& getContext() = 0;
+    virtual Timer     startTimer( int milliseconds, std::function<void()> func ) = 0;
 };
 
 //-----------------------------------------------------
@@ -294,7 +297,7 @@ public:
 
 class Session;
 std::shared_ptr<kademlia::EndpointCatalogue> createEndpointCatalogue(
-                                                    std::weak_ptr<Session>              kademliaTransport,
+                                                    std::weak_ptr<kademlia::Transport>  kademliaTransport,
                                                     const crypto::KeyPair&              keyPair,
                                                     const std::vector<ReplicatorInfo>&  bootstraps,
                                                     uint16_t                            myPort,

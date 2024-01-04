@@ -20,7 +20,7 @@ const size_t    BUCKET_SIZE   = 4;
 //const
 inline uint64_t  CHECK_EXPIRED_SEC   = 15*60;
 //const
-inline uint64_t  PEER_UPDATE_SEC     = 60*60;
+inline uint64_t  PEER_UPDATE_SEC     = 40*60;
 //const
 inline uint64_t  EXPIRED_SEC         = 2*60*60;
 
@@ -29,6 +29,12 @@ inline bool isPeerInfoExpired( uint64_t t )
 {
     auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
     return now-t > EXPIRED_SEC;
+}
+
+inline bool shouldPeerInfoBeUpdated( uint64_t t )
+{
+    auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    return now-t > PEER_UPDATE_SEC;
 }
 
 size_t equalPrefixLength( PeerKey aKey, PeerKey bKey )
@@ -40,7 +46,7 @@ size_t equalPrefixLength( PeerKey aKey, PeerKey bKey )
     PeerKey64& b = reinterpret_cast<PeerKey64&>(bKey);
 
     size_t index = 0;
-    for( int i=0; i<a.size(); i++ )
+    for( size_t i=0; i<a.size(); i++ )
     {
         auto xorValue = a[i] ^ b[i];
         for( int j=0; j<8; j++ )
@@ -67,9 +73,17 @@ public:
     
     bool empty() const { return m_nodes.empty(); }
     
+    std::vector<PeerInfo>&       nodes() { return m_nodes; }
+
     const std::vector<PeerInfo>& nodes() const { return m_nodes; }
 
-    std::vector<PeerInfo>&       nodes() { return m_nodes; }
+    void removeExpiredNodes()
+    {
+        std::erase_if( m_nodes, [] (auto& peerInfo)
+        {
+            return isPeerInfoExpired( peerInfo.m_creationTimeInSeconds );
+        });
+    }
 
     size_t size() const { return m_nodes.size(); }
 
