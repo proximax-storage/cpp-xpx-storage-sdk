@@ -1585,9 +1585,9 @@ public:
 
                     if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end())
                     {
-                    auto chunkInfo = std::make_unique<ChunkInfo>();
+                        auto chunkInfo = std::make_unique<ChunkInfo>();
                         iarchive( *chunkInfo );
-                    SIRIUS_ASSERT( chunkInfo )
+                        SIRIUS_ASSERT( chunkInfo )
 
                         driveIt->second->acceptChunkInfoMessage( std::move( chunkInfo ), source );
                     } else

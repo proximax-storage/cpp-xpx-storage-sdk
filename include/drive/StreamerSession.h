@@ -365,6 +365,10 @@ public:
                     _LOG_ERR( "invalid message 'get-chunk-info'" );
                 }
             }
+            else
+            {
+                _LOG_WARN( "unknown request get-chunk-info ?")
+            }
         }
         
         return false;

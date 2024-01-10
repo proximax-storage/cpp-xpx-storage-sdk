@@ -332,18 +332,16 @@ public:
             MyIpRequest request;
             iarchive( request );
             
-            if ( request.m_myPort == requesterEndpoint.port() )
-            {
-                MyIpResponse response{ m_keyPair, requesterEndpoint };
-                std::ostringstream os( std::ios::binary );
-                cereal::PortableBinaryOutputArchive iarchive(os);
-                iarchive( response );
-                return os.str();
-            }
-            else
+            if ( request.m_myPort != requesterEndpoint.port() )
             {
                 __LOG_WARN( "onGetMyIpRequest: bad port: " << request.m_myPort << " != " << requesterEndpoint.port() )
             }
+
+            MyIpResponse response{ m_keyPair, requesterEndpoint };
+            std::ostringstream os( std::ios::binary );
+            cereal::PortableBinaryOutputArchive oarchive(os);
+            oarchive( response );
+            return os.str();
         } catch (...) {
             __LOG_WARN( "exception in onGetMyIpRequest" )
         }
@@ -372,33 +370,39 @@ public:
                 return;
             }
             
+            // check response faults (for bootstraps)
+            //
+            if ( m_isBootstrap )
+            {
+                _SIRIUS_ASSERT( m_myEndpoint )
+                if ( response.m_response.endpoint().port() != m_myEndpoint->port() || response.m_response.endpoint().address() != m_myEndpoint->address() )
+                {
+                    __LOG_WARN( "Invalid replicators.json? (invalid bootstrap list): " << response.m_response.endpoint() << " vs " << *m_myEndpoint )
+                }
+            }
+            
+            ___LOG( "onGetMyIpResponse: " << m_myPort << " " << response.m_response.endpoint() )
+            bool firstResponse = !m_myPeerInfo.has_value();
+
+            //TODO?
             // in local subnetworks global address (and port) could be changed to logical
             if ( m_myPort != response.m_response.m_port )
             {
-                __LOG_WARN( "ignore bad MyIpResponse" )
-                return;
+                __LOG_WARN( "Bad MyIpResponse: m_myPort("<< m_myPort << ") != response.m_response.m_port("<<response.m_response.m_port<<")" )
+                if ( m_myPeerInfo )
+                {
+                    if ( m_isBootstrap )
+                    {
+                        m_myPeerInfoTimer.cancel();
+                    }
+                    return;
+                }
             }
 
-            ___LOG( "onGetMyIpResponse: " << m_myPort << " " << response.m_response.endpoint() )
-            bool firstResponse = !m_myPeerInfo.has_value();
-            m_myPeerInfo = PeerInfo{ m_keyPair.publicKey(), response.m_response.endpoint() };
+            auto endpoint = boost::asio::ip::udp::endpoint{ boost::asio::ip::make_address(response.m_response.m_address), uint16_t(m_myPort) };
+            m_myPeerInfo = PeerInfo{ m_keyPair.publicKey(), endpoint };
             m_myPeerInfo->Sign( m_keyPair );
             m_myPeerInfoTimer.cancel();
-            
-            // check response faults
-            //
-            if ( m_myEndpoint &&
-                (response.m_response.endpoint().port() != m_myEndpoint->port() || response.m_response.endpoint().address() != m_myEndpoint->address()) )
-            {
-                if ( m_isBootstrap )
-                {
-                    __LOG_WARN( "Invalid replicators.json! wrong my port number! (invalid bootstrap list): " << response.m_response.endpoint() << " vs " << *m_myEndpoint )
-                }
-                else
-                {
-                    __LOG_WARN( "Unexpected error in related to 'MyIpResponse': " << response.m_response.endpoint() << " vs " << *m_myEndpoint )
-                }
-            }
             
             // start Kademlia
             if ( firstResponse )
