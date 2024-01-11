@@ -241,7 +241,7 @@ public:
             return;
         }
         
-        //m_streamerEndpoint = sender;
+        m_streamerEndpoint = sender;
 
         if ( chunkInfo->m_chunkIndex < m_chunkInfoList.size() )
         {
