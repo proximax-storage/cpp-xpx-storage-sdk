@@ -187,8 +187,8 @@ struct FuncEntry
     }
 */
 
-#define _FUNC_ENTRY ;
-//#define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
+//#define _FUNC_ENTRY ;
+#define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
 
 #endif
 
