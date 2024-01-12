@@ -25,7 +25,7 @@
 
 bool gBreak_On_Warning = true;
 
-const size_t NODE_NUMBER = 10; // 20000
+const size_t NODE_NUMBER = 150; // 20000
 const size_t BOOTSTRAP_NUMBER = 5; // 20
 
 #include "../../src/drive/Kademlia.cpp"
@@ -168,7 +168,10 @@ public:
     {
         boost::asio::post( getContext(), [=,this]() //mutable
         {
-            m_testContext->m_map[endpoint]->sendDirectPeerInfo( response, this->m_endpoint );
+            std::ostringstream os( std::ios::binary );
+            cereal::PortableBinaryOutputArchive archive( os );
+            archive( response );
+            m_kademlia->onGetPeerIpResponse( os.str(), endpoint );
             ++m_counterPeerSearch;
         });
     }
@@ -288,68 +291,42 @@ int main(int,char**)
         }
 
     }
+    
+    auto printStatistic = [&]() //mutable
+    {
+        double cntMyMessagesTotal = 0;
+        double cntPeerMessagesTotal = 0;
+        int cntFound = 0;
+        int cntNotFound = 0;
+        for (auto &node: gTestNodes) {
+            for (auto &key: node->m_interestingPeerKeys) {
+                if (node->m_kademlia->dbgGetEndpointLocal(key)) {
+                    ++cntFound;
+                } else {
+                    ++cntNotFound;
+                }
+            }
+            cntMyMessagesTotal += node->m_counterMySearch;
+            cntPeerMessagesTotal += node->m_counterPeerSearch;
+
+        }
+        ___LOG("FILTER " << " found " << cntFound << " out of " << cntFound + cntNotFound
+                         << "; MyMessages " << cntMyMessagesTotal / gTestNodes.size()
+                         << "; PeerMessages " << cntPeerMessagesTotal / gTestNodes.size());
+        ___LOG("--------------------------------FILTER");
+    };
+    
     std::thread([&] {
         testContext.m_context.run();
+        printStatistic();
+        ___LOG( "FILTER Ended" );
     }).detach();
 
     for(;;)
     {
-        sleep(1);
-        boost::asio::post( testContext.m_context, [&]() //mutable
-        {
-            double cntMyMessagesTotal = 0;
-            double cntPeerMessagesTotal = 0;
-            int cntFound = 0;
-            int cntNotFound = 0;
-            for (auto &node: gTestNodes) {
-                for (auto &key: node->m_interestingPeerKeys) {
-                    if (node->m_kademlia->dbgGetEndpointLocal(key)) {
-                        ++cntFound;
-                    } else {
-                        ++cntNotFound;
-                    }
-                }
-                cntMyMessagesTotal += node->m_counterMySearch;
-                cntPeerMessagesTotal += node->m_counterPeerSearch;
-
-            }
-            ___LOG("FILTER " << " found " << cntFound << " out of " << cntFound + cntNotFound
-                             << "; MyMessages " << cntMyMessagesTotal / gTestNodes.size()
-                             << "; PeerMessages " << cntPeerMessagesTotal / gTestNodes.size());
-            ___LOG("--------------------------------FILTER");
-        });
+        sleep(10);
+        boost::asio::post( testContext.m_context, printStatistic );
     }
-
-
-//    boost::asio::post( testContext.m_context, [&] {
-//    size_t i = 0;
-//    size_t check = 0;
-//    for ( auto& node : gTestNodes ) {
-//        ___LOG(node->m_messageCounter << "  - " << i);
-//        if(node->m_keysToFind == node->m_interestingPeerKeys) {
-//            ++check;
-//            //___LOG(node->m_keyPair.publicKey() << " SUCCESS  - " << i);
-//        } else {
-//            ___LOG(node->m_keyPair.publicKey() << " FAILURE: " << node->m_keysToFind.size() << " expected, " << node->m_interestingPeerKeys.size() << " found");
-//            ___LOG("m_keysToFind");
-//            for(auto e : node->m_keysToFind) {
-//                ___LOG(e);
-//            }
-//            ___LOG("m_interestingPeerKeys");
-//            for(auto e : node->m_interestingPeerKeys) {
-//                ___LOG(e);
-//            }
-//        }
-//        ++i;
-//    }
-//    if(i == check) {
-//        ___LOG("-------------------------All Found");
-//    }
-//    });
-    
-    __attribute__((unused)) const size_t driveNumber = 100;
-    __attribute__((unused)) const size_t replicatorNumber = 5; // per one drive
-
 
 
     EXLOG( "" );
