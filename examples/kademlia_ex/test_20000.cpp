@@ -26,7 +26,7 @@
 bool gBreak_On_Warning = true;
 
 const size_t NODE_NUMBER = 10; // 20000
-const size_t BOOTSTRAP_NUMBER = 2; // 20
+const size_t BOOTSTRAP_NUMBER = 5; // 20
 
 #include "../../src/drive/Kademlia.cpp"
 
@@ -80,8 +80,6 @@ struct TestContext
 {
     boost::asio::io_context                      m_context;
     std::map<endpoint,std::shared_ptr<TestNode>> m_map;
-
-    size_t m_messageCounter = 0;
     
 public:
     TestContext( std::vector<std::shared_ptr<TestNode>>& nodes );
@@ -92,27 +90,33 @@ public:
 class TestNode : public std::enable_shared_from_this<TestNode>, public kademlia::Transport // replicator
 {
     TestContext*                                 m_testContext = nullptr;
-    
-    std::shared_ptr<kademlia::EndpointCatalogue> m_kademlia;
-    std::set<kademlia::PeerKey>                  m_interestingPeerKeys;
+    //std::set<kademlia::PeerKey>                  m_interestingPeerKeys;
+    //std::shared_ptr<kademlia::EndpointCatalogue> m_kademlia;
+
 
 public:
-    sirius::crypto::KeyPair m_keyPair;
-    endpoint                m_endpoint;
-
+    std::shared_ptr<kademlia::EndpointCatalogue> m_kademlia;
+    std::set<kademlia::PeerKey>              m_interestingPeerKeys;
+    sirius::crypto::KeyPair                  m_keyPair;
+    endpoint                                 m_endpoint;
+    size_t m_counterMySearch = 0;
+    size_t m_counterPeerSearch = 0;
 public:
     
     TestNode( endpoint theEndpoint )
     :
+
         m_keyPair( sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( generatePrivateKey() )) ),
         m_endpoint(theEndpoint)
     {
+    // TODO remove the line below - ?
         m_keyPair = sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( generatePrivateKey() ));
     }
 
-    void init(  TestContext*                        testContext,
+    void init(  TestContext&                        testContext,
                 const std::vector<ReplicatorInfo>&  bootstraps )
     {
+        m_testContext = &testContext;
         //std::__1::vector<sirius::drive::ReplicatorInfo, std::__1::allocator<sirius::drive::ReplicatorInfo>> const&, unsigned short, bool
         m_kademlia = createEndpointCatalogue( (std::weak_ptr<sirius::drive::kademlia::Transport>) shared_from_this(),
                                              (sirius::crypto::KeyPair const&) m_keyPair,
@@ -125,7 +129,8 @@ public:
     {
         m_interestingPeerKeys.insert( peerKey );
         // start find ip
-        m_kademlia->getEndpoint(peerKey);
+        m_kademlia->getEndpoint(peerKey); // dbgGetEndpoint = same but without search process
+        //m_kademlia->dbgGetEndpointLocal(peerKey);
     }
 
     //
@@ -140,24 +145,68 @@ public:
             cereal::PortableBinaryOutputArchive archive( os );
             archive( request );
 
-            m_testContext->m_map[endpoint]->onGetPeerIpRequest( os.str(), this->m_endpoint );
+            m_testContext->m_map[endpoint]->onGetMyIpRequest( os.str(), this->m_endpoint );
+            ++m_counterMySearch;
         });
     }
     
-    virtual void sendGetPeerIpRequest( const kademlia::PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override {}
-    virtual void sendDirectPeerInfo( const kademlia::PeerIpResponse& response, boost::asio::ip::udp::endpoint endpoint ) override {}
-    
-    virtual std::string onGetMyIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) override
+    virtual void sendGetPeerIpRequest( const kademlia::PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override
     {
+        boost::asio::post( getContext(), [=,this]() //mutable
+        {
+            std::ostringstream os( std::ios::binary );
+            cereal::PortableBinaryOutputArchive archive( os );
+            archive( request );
+
+            m_testContext->m_map[endpoint]->onGetPeerIpRequest( os.str(), this->m_endpoint );
+            ++m_counterPeerSearch;
+        });
+    }
+
+    // когда не спрашивали PeerInfo, а он уведомил для уменьшения трафика
+    virtual void sendDirectPeerInfo( const kademlia::PeerIpResponse& response, boost::asio::ip::udp::endpoint endpoint ) override
+    {
+        boost::asio::post( getContext(), [=,this]() //mutable
+        {
+            m_testContext->m_map[endpoint]->sendDirectPeerInfo( response, this->m_endpoint );
+            ++m_counterPeerSearch;
+        });
+    }
+    
+    virtual std::string onGetMyIpRequest( const std::string& requestStr, boost::asio::ip::udp::endpoint requesterEndpoint ) override
+    {
+        boost::asio::post( getContext(), [=,this]() //mutable
+        {
+            std::string searchResult = m_kademlia->onGetMyIpRequest(requestStr, requesterEndpoint);
+            m_testContext->m_map[requesterEndpoint]->onGetMyIpResponse(searchResult, this->m_endpoint);
+        });
         return "";
     }
-    virtual std::string onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) override
+    virtual std::string onGetPeerIpRequest( const std::string& requestStr, boost::asio::ip::udp::endpoint requesterEndpoint ) override
     {
+        boost::asio::post( getContext(), [=,this]() //mutable
+        {
+            std::string searchResult = m_kademlia->onGetPeerIpRequest(requestStr, requesterEndpoint);
+            m_testContext->m_map[requesterEndpoint]->onGetPeerIpResponse(searchResult, this->m_endpoint);
+        });
         return "";
     }
 
-    virtual void onGetMyIpResponse( const std::string&, boost::asio::ip::udp::endpoint responserEndpoint ) override {}
-    virtual void onGetPeerIpResponse( const std::string&, boost::asio::ip::udp::endpoint responserEndpoint ) override {}
+    virtual void onGetMyIpResponse( const std::string& response, boost::asio::ip::udp::endpoint responserEndpoint ) override
+    {
+        boost::asio::post( getContext(), [=,this]() //mutable
+        {
+            m_kademlia->onGetMyIpResponse(response, responserEndpoint);
+        });
+
+    }
+    virtual void onGetPeerIpResponse( const std::string& response, boost::asio::ip::udp::endpoint responserEndpoint ) override
+    {
+        boost::asio::post( getContext(), [=,this]() //mutable
+        {
+            m_kademlia->onGetPeerIpResponse(response, responserEndpoint);
+        });
+    }
     
     virtual boost::asio::io_context& getContext() override { return m_testContext->m_context; }
     virtual Timer     startTimer( int milliseconds, std::function<void()> func ) override
@@ -169,13 +218,17 @@ public:
 
 std::vector<std::shared_ptr<TestNode>> gTestNodes;
 
-
 TestContext::TestContext( std::vector<std::shared_ptr<TestNode>>& nodes )
 {
     for( auto& node : nodes )
     {
         m_map[node->m_endpoint] = node;
     }
+}
+
+sirius::utils::ByteArray<32, sirius::Key_tag> pickRandomPeer()
+{
+    return gTestNodes[rand() % gTestNodes.size()]->m_keyPair.publicKey();
 }
 
 //
@@ -188,7 +241,7 @@ int main(int,char**)
     __attribute__((unused)) auto startTime = std::clock();
 
     // create nodes
-    for ( size_t i=0; i<NODE_NUMBER; i++ )
+    for ( size_t i = 0; i < NODE_NUMBER; i++ )
     {
         endpoint theEndpoint = boost::asio::ip::udp::endpoint{ boost::asio::ip::make_address( "127.0.0.1"), uint16_t(i) };
            
@@ -200,7 +253,7 @@ int main(int,char**)
 
     // create bootstraps
     std::vector<ReplicatorInfo> bootstraps;
-    for ( int i=0; i<5; i++ )
+    for ( size_t i = 0; i < BOOTSTRAP_NUMBER; i++ )
     {
         bootstraps.emplace_back( ReplicatorInfo{ gTestNodes[i]->m_endpoint, gTestNodes[i]->m_keyPair.publicKey()  } );
         ___LOG( "boostarap_" << i << ": port: " << bootstraps[i].m_endpoint.port() << ", address: "
@@ -213,51 +266,91 @@ int main(int,char**)
     // init node
     for ( auto& node : gTestNodes )
     {
-        node->init( &testContext, bootstraps );
+        node->init( testContext, bootstraps );
+    }
+
+    // test addInterestingPeerKey()
+    for ( auto& node : gTestNodes )
+    {
+        std::vector<kademlia::PeerKey> keysToFind;
+        while (keysToFind.size() < (gTestNodes.size()/3))
+        {
+            auto keyToFind = pickRandomPeer();
+            while (keyToFind == node->m_keyPair.publicKey()) {
+                keyToFind = pickRandomPeer();
+            }
+            keysToFind.push_back(keyToFind);
+        }
+
+        for(auto keyToFind : keysToFind)
+        {
+            node->addInterestingPeerKey(keyToFind);
+        }
+
+    }
+    std::thread([&] {
+        testContext.m_context.run();
+    }).detach();
+
+    for(;;)
+    {
+        sleep(1);
+        boost::asio::post( testContext.m_context, [&]() //mutable
+        {
+            double cntMyMessagesTotal = 0;
+            double cntPeerMessagesTotal = 0;
+            int cntFound = 0;
+            int cntNotFound = 0;
+            for (auto &node: gTestNodes) {
+                for (auto &key: node->m_interestingPeerKeys) {
+                    if (node->m_kademlia->dbgGetEndpointLocal(key)) {
+                        ++cntFound;
+                    } else {
+                        ++cntNotFound;
+                    }
+                }
+                cntMyMessagesTotal += node->m_counterMySearch;
+                cntPeerMessagesTotal += node->m_counterPeerSearch;
+
+            }
+            ___LOG("FILTER " << " found " << cntFound << " out of " << cntFound + cntNotFound
+                             << "; MyMessages " << cntMyMessagesTotal / gTestNodes.size()
+                             << "; PeerMessages " << cntPeerMessagesTotal / gTestNodes.size());
+            ___LOG("--------------------------------FILTER");
+        });
     }
 
 
-    //EXLOG("");
-
-    
-    sleep(10);
-
-    // Create a lot of drives!
+//    boost::asio::post( testContext.m_context, [&] {
+//    size_t i = 0;
+//    size_t check = 0;
+//    for ( auto& node : gTestNodes ) {
+//        ___LOG(node->m_messageCounter << "  - " << i);
+//        if(node->m_keysToFind == node->m_interestingPeerKeys) {
+//            ++check;
+//            //___LOG(node->m_keyPair.publicKey() << " SUCCESS  - " << i);
+//        } else {
+//            ___LOG(node->m_keyPair.publicKey() << " FAILURE: " << node->m_keysToFind.size() << " expected, " << node->m_interestingPeerKeys.size() << " found");
+//            ___LOG("m_keysToFind");
+//            for(auto e : node->m_keysToFind) {
+//                ___LOG(e);
+//            }
+//            ___LOG("m_interestingPeerKeys");
+//            for(auto e : node->m_interestingPeerKeys) {
+//                ___LOG(e);
+//            }
+//        }
+//        ++i;
+//    }
+//    if(i == check) {
+//        ___LOG("-------------------------All Found");
+//    }
+//    });
     
     __attribute__((unused)) const size_t driveNumber = 100;
     __attribute__((unused)) const size_t replicatorNumber = 5; // per one drive
 
-//    for( size_t i=0; i<driveNumber; i++ )
-//    {
-//        // select replicators
-//        std::map<size_t,std::shared_ptr<Replicator>> replicators;
-//        ReplicatorList replicatorList;
-//        while( replicators.size() < replicatorNumber )
-//        {
-//            size_t rIndex = rand() % gReplicators.size();
-//            if ( replicators.find(rIndex) == replicators.end() )
-//            {
-//                replicators[rIndex] = gReplicators[rIndex];
-//                replicatorList.push_back( gKeyPairs[rIndex].publicKey() );
-//            }
-//        }
-//
-//        auto client = randomByteArray<sirius::Key>();
-//
-//        for( auto& [index,replicator] : replicators )
-//        {
-//            auto driveRequest = std::unique_ptr<AddDriveRequest>( new AddDriveRequest{1024,0,{},replicatorList,client,{},{} } );
-//
-//            auto driveKey = randomByteArray<sirius::Key>();
-//            replicator->asyncAddDrive( driveKey, std::move(driveRequest) );
-//
-//            //___LOG( "dr_added: " << index << ";" )
-//        }
-//    }
 
-// sleep(60);
-
-    testContext.m_context.run();
 
     EXLOG( "" );
     EXLOG( "total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );

@@ -279,7 +279,32 @@ public:
         __LOG( "getEndpoint {no-endpoint}: " << key )
         return {};
     }
-    
+
+    OptionalEndpoint dbgGetEndpointLocal(const PeerKey& key ) override
+    {
+        // find in local map (usually replicators of common drives)
+        if (auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() && it->second)
+        {
+            __LOG("dbgGetEndpointLocal: " << key << " " << it->second.value())
+            return it->second;
+        }
+        else return {};
+    }
+
+    OptionalEndpoint dbgGetEndpointHashTable(const PeerKey& key ) override
+    {
+        // find in Kademlia hash table
+        size_t bucketIndex;
+        const auto *peerInfo = m_hashTable.getPeerInfo(key, bucketIndex);
+        if ( peerInfo == nullptr) {
+            throw std::runtime_error("Error: peerInfo empty!");
+        }
+        else {
+            __LOG("dbgGetEndpointHashTable: " << key << " " << peerInfo->endpoint())
+            return peerInfo->endpoint();
+        }
+    }
+
     void startSearchPeerInfo( const TargetKey& key, size_t bucketIndex, bool enterToSwarm = false )
     {
         if ( auto it = m_searcherMap.find( key ); it == m_searcherMap.end() )
@@ -864,12 +889,11 @@ inline std::unique_ptr<PeerSearchInfo> createPeerSearchInfo(    const TargetKey&
 
 } // namespace kademlia
 
-std::shared_ptr<kademlia::EndpointCatalogue> createEndpointCatalogue(
-                                                             std::weak_ptr<kademlia::Transport>             kademliaTransport,
-                                                             const crypto::KeyPair&             keyPair,
-                                                             const std::vector<ReplicatorInfo>& bootstraps,
-                                                             uint16_t                           myPort,
-                                                             bool                               isClient )
+std::shared_ptr<kademlia::EndpointCatalogue> createEndpointCatalogue( std::weak_ptr<kademlia::Transport>        kademliaTransport,
+                                                                      const crypto::KeyPair&                    keyPair,
+                                                                      const std::vector<ReplicatorInfo>&        bootstraps,
+                                                                      uint16_t                                  myPort,
+                                                                      bool                                      isClient )
 {
     return std::make_shared<kademlia::EndpointCatalogueImpl>( kademliaTransport,
                                                               keyPair,
