@@ -171,7 +171,7 @@ public:
     {
         if ( auto session = m_kademliaTransport.lock(); session )
         {
-            m_myPeerInfoTimer = session->startTimer( PEER_UPDATE_SEC, [this]
+            m_myPeerInfoTimer = session->startTimer( int(PEER_UPDATE_SEC), [this]
             {
                 for( auto& bucket : m_hashTable.buckets() )
                 {

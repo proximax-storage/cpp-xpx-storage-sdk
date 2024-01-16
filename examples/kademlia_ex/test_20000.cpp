@@ -241,7 +241,7 @@ sirius::utils::ByteArray<32, sirius::Key_tag> pickRandomPeer()
 int c = 0;
 int main(int,char**)
 {
-    gBreakOnWarning = gBreak_On_Warning;
+    gBreakOnWarning = false;
 
     __attribute__((unused)) auto startTime = std::clock();
 
