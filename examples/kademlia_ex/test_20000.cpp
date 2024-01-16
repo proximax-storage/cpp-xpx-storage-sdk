@@ -25,7 +25,7 @@
 
 bool gBreak_On_Warning = true;
 
-const size_t NODE_NUMBER = 150; // 20000
+const size_t NODE_NUMBER = 130; // 20000
 const size_t BOOTSTRAP_NUMBER = 5; // 20
 
 #include "../../src/drive/Kademlia.cpp"
@@ -237,6 +237,8 @@ sirius::utils::ByteArray<32, sirius::Key_tag> pickRandomPeer()
 //
 // main
 //
+
+int c = 0;
 int main(int,char**)
 {
     gBreakOnWarning = gBreak_On_Warning;
@@ -291,9 +293,10 @@ int main(int,char**)
         }
 
     }
-    
+
     auto printStatistic = [&]() //mutable
     {
+        c++;
         double cntMyMessagesTotal = 0;
         double cntPeerMessagesTotal = 0;
         int cntFound = 0;
@@ -310,13 +313,18 @@ int main(int,char**)
             cntPeerMessagesTotal += node->m_counterPeerSearch;
 
         }
-        ___LOG("FILTER " << " found " << cntFound << " out of " << cntFound + cntNotFound
-                         << "; MyMessages " << cntMyMessagesTotal / gTestNodes.size()
-                         << "; PeerMessages " << cntPeerMessagesTotal / gTestNodes.size());
-        ___LOG("--------------------------------FILTER");
+        //if(cntFound == cntFound + cntNotFound) {
+            ___LOG("FILTER " << " found " << cntFound << " out of " << cntFound + cntNotFound
+                             << "; MyMessages " << cntMyMessagesTotal / gTestNodes.size()
+                             << "; PeerMessages " << cntPeerMessagesTotal / gTestNodes.size());
+            ___LOG("iteration " << c << "--------------------------------FILTER");
+            EXLOG( "FILTER total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
+        //}
     };
-    
-    std::thread([&] {
+
+
+
+    std::thread([&]() {
         testContext.m_context.run();
         printStatistic();
         ___LOG( "FILTER Ended" );
