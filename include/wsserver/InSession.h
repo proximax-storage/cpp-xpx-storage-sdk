@@ -1,0 +1,85 @@
+#include <boost/beast/core.hpp>
+#include <boost/beast/websocket.hpp>
+#include <boost/asio/strand.hpp>
+
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/beast/core/buffers_to_string.hpp>
+
+#include <algorithm>
+#include <cstdlib>
+#include <functional>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <thread>
+#include <vector>
+#include <set>
+#include <fstream>
+
+#include "FilePath.h"
+
+namespace beast = boost::beast;         // from <boost/beast.hpp>
+namespace http = beast::http;           // from <boost/beast/http.hpp>
+namespace websocket = beast::websocket; // from <boost/beast/websocket.hpp>
+namespace net = boost::asio;            // from <boost/asio.hpp>
+using tcp = boost::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
+namespace pt = boost::property_tree;    // from <boost/property_tree>
+
+// Initialize InSession when server accepts incoming connection from servers and clients
+class InSession : public std::enable_shared_from_this<InSession> 
+{
+    websocket::stream<beast::tcp_stream> ws;
+    beast::flat_buffer buffer;
+    net::io_context::strand& strand;
+
+public:
+    // Take ownership of the socket
+    explicit
+    InSession(tcp::socket&& socket, net::io_context::strand& strand)
+        : ws(std::move(socket))
+        , strand(strand)
+    {
+    }
+
+    // Start the asynchronous operation
+    void run();
+    void onAccept(beast::error_code ec);
+    void doRead();
+    void onRead(beast::error_code ec, std::size_t bytes_transferred);
+    void onWrite(beast::error_code ec, std::size_t bytes_transferred);
+    void onWriteClose(beast::error_code ec, std::size_t bytes_transferred);
+    void doClose();
+    void onClose(beast::error_code ec);
+    void sendMessage(pt::ptree* json, bool is_close);
+    void recvData(pt::ptree* json);
+    void recvDataChunk(pt::ptree* json);
+    void sendData(pt::ptree* json);
+    void sendDataAck(pt::ptree* json);
+    void deleteData(pt::ptree* json);
+
+    void broadcastToAll(pt::ptree* json, bool is_close);
+    void broadcastToClients(pt::ptree* json, bool is_close);
+    void broadcastToServers(pt::ptree* json, bool is_close);
+    void requestToAll(pt::ptree* json);
+    void requestToClients(pt::ptree* json);
+    void requestToServers(pt::ptree* json);
+
+    void connectToServer(const char* host, const char* port, FilePath filePath);
+    
+    // store connected sessions
+    static std::set<std::shared_ptr<InSession>> incoming_sessions;
+    static std::set<std::shared_ptr<InSession>> incoming_sessions_client;
+    static std::set<std::shared_ptr<InSession>> incoming_sessions_server;
+
+private:
+    void handleJson(pt::ptree* parsed_pt);
+
+    std::unordered_map<std::string, std::string>  recv_directory;
+    std::unordered_map<std::string, int> recv_numOfDataPieces;
+    std::unordered_map<std::string, int> recv_dataCounter;
+    
+    std::unordered_map<std::string, int> send_numOfDataPieces;
+    const std::size_t send_DataPieceSize = 1024 * 1000;
+    std::unordered_map<std::string, int> send_dataCounter;
+};
