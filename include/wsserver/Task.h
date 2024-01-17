@@ -1,3 +1,6 @@
+/*
+    Task codes used in each json when sending & receiving message or data via websocket server
+*/
 enum Task {
     DOWNLOAD_START,
     DOWNLOAD_INFO,

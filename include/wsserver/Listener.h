@@ -82,6 +82,7 @@ namespace sirius { namespace wsserver {
         void run();
         
     private:
+        // Accepts incoming connections from client
         void doAccept();
         void onAccept(beast::error_code ec, tcp::socket socket);
     };

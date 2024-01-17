@@ -43,22 +43,39 @@ public:
     // Start the asynchronous operation
     void run();
     void onAccept(beast::error_code ec);
+
+    // Read json sent by client
     void doRead();
     void onRead(beast::error_code ec, std::size_t bytes_transferred);
+
+    // Send json to client
     void onWrite(beast::error_code ec, std::size_t bytes_transferred);
     void onWriteClose(beast::error_code ec, std::size_t bytes_transferred);
+
+    // Close connection
     void doClose();
     void onClose(beast::error_code ec);
+
+    // Send message to client
     void sendMessage(pt::ptree* json, bool is_close);
+
+    // (Client upload) Receive data from client
     void recvData(pt::ptree* json);
     void recvDataChunk(pt::ptree* json);
+
+    // (Client download) Send data to client
     void sendData(pt::ptree* json);
     void sendDataAck(pt::ptree* json);
+
+    // Delete data
     void deleteData(pt::ptree* json);
 
+    // Broadcast message (only send)
     void broadcastToAll(pt::ptree* json, bool is_close);
     void broadcastToClients(pt::ptree* json, bool is_close);
     void broadcastToServers(pt::ptree* json, bool is_close);
+
+    // Request message (send and wait for receive)
     void requestToAll(pt::ptree* json);
     void requestToClients(pt::ptree* json);
     void requestToServers(pt::ptree* json);
@@ -71,10 +88,12 @@ public:
 private:
     void handleJson(pt::ptree* parsed_pt);
 
+    // Used for client uploads
     std::unordered_map<std::string, std::string>  recv_directory;
     std::unordered_map<std::string, int> recv_numOfDataPieces;
     std::unordered_map<std::string, int> recv_dataCounter;
     
+    // Used for client downloads
     std::unordered_map<std::string, int> send_numOfDataPieces;
     const std::size_t send_DataPieceSize = 1024 * 1000;
     std::unordered_map<std::string, int> send_dataCounter;
