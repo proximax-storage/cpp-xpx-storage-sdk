@@ -1,5 +1,4 @@
 #include "wsserver/InSession.h"
-#include "wsserver/OutSession.h"
 #include "wsserver/Utils.h"
 #include "wsserver/Task.h"
 #include "wsserver/Base64.h"
@@ -403,13 +402,6 @@ void InSession::requestToServers(pt::ptree* json)
         session->sendMessage(json, false);
         session->doRead();
     }
-}
-
-void InSession::connectToServer(const char* host, const char* port, FilePath filePath)
-{
-    net::io_context ioc;
-    std::make_shared<OutSession>(ioc)->run(host, port, filePath);
-    ioc.run();
 }
 
 // Handles JSON receive by doRead()

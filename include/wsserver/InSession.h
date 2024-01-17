@@ -17,8 +17,6 @@
 #include <set>
 #include <fstream>
 
-#include "FilePath.h"
-
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http = beast::http;           // from <boost/beast/http.hpp>
 namespace websocket = beast::websocket; // from <boost/beast/websocket.hpp>
@@ -64,8 +62,6 @@ public:
     void requestToAll(pt::ptree* json);
     void requestToClients(pt::ptree* json);
     void requestToServers(pt::ptree* json);
-
-    void connectToServer(const char* host, const char* port, FilePath filePath);
     
     // store connected sessions
     static std::set<std::shared_ptr<InSession>> incoming_sessions;
