@@ -525,6 +525,9 @@ public:
             PeerIpRequest request2{ m_isClient, TargetKey{targetKey}, RequesterKey{m_keyPair.publicKey()} };
             session->sendGetPeerIpRequest( request2, endpoint );
         }
+        else{
+            ___LOG("not session!!");
+        }
     }
     
     void onGetPeerIpResponse( const std::string& responseStr, boost::asio::ip::udp::endpoint responserEndpoint ) override

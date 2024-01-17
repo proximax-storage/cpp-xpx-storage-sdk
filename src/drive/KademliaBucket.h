@@ -18,11 +18,11 @@ const size_t    BUCKET_SIZE   = 4;
 // If time is exceed 1 hour (PEER_UPDATE_SEC), "get-peer-info" mesage will be send to this peer
 // If time is exceed 2 hour (EXPIRED_SEC), peer-info will be removed
 //const
-inline uint64_t  CHECK_EXPIRED_SEC   = (15*1)/2; // 15*60
+inline uint64_t  CHECK_EXPIRED_SEC   = (15*60); // 15*60
 //const
-inline uint64_t  PEER_UPDATE_SEC     = (40*1)/2;
+inline uint64_t  PEER_UPDATE_SEC     = (40*60);
 //const
-inline uint64_t  EXPIRED_SEC         = (2*60*1)/2;
+inline uint64_t  EXPIRED_SEC         = (2*60*60);
 
 
 inline bool isPeerInfoExpired( uint64_t t )

@@ -25,7 +25,7 @@
 
 bool gBreak_On_Warning = true;
 
-const size_t NODE_NUMBER = 130; // 20000
+const size_t NODE_NUMBER = 100*1; // 20000
 const size_t BOOTSTRAP_NUMBER = 5; // 20
 
 #include "../../src/drive/Kademlia.cpp"
@@ -110,7 +110,7 @@ public:
         m_endpoint(theEndpoint)
     {
     // TODO remove the line below - ?
-        m_keyPair = sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( generatePrivateKey() ));
+        //m_keyPair = sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( generatePrivateKey() ));
     }
 
     void init(  TestContext&                        testContext,
@@ -246,7 +246,7 @@ int main(int,char**)
     __attribute__((unused)) auto startTime = std::clock();
 
     // create nodes
-    for ( size_t i = 0; i < NODE_NUMBER; i++ )
+    for ( size_t i = 0; i < NODE_NUMBER - 1; i++ )
     {
         endpoint theEndpoint = boost::asio::ip::udp::endpoint{ boost::asio::ip::make_address( "127.0.0.1"), uint16_t(i) };
            
@@ -294,6 +294,59 @@ int main(int,char**)
 
     }
 
+    auto printOne = [&](std::shared_ptr<TestNode> node) {
+        ___LOG("printOne");
+        double cntMyMessagesTotal = 0;
+        double cntPeerMessagesTotal = 0;
+        int cntFound = 0;
+        int cntNotFound = 0;
+        while(cntFound < cntFound + cntNotFound)
+        {
+            sleep(10);
+            for (auto &key: node->m_interestingPeerKeys) {
+                if (node->m_kademlia->dbgGetEndpointLocal(key)) {
+                    ++cntFound;
+                } else {
+                    ++cntNotFound;
+                }
+            }
+            cntMyMessagesTotal += node->m_counterMySearch;
+            cntPeerMessagesTotal += node->m_counterPeerSearch;
+            if(cntFound == cntFound + cntNotFound) {
+                ___LOG("printOne " << " found " << cntFound << " out of " << cntFound + cntNotFound
+                                        << "; MyMessages " << cntMyMessagesTotal / gTestNodes.size()
+                                        << "; PeerMessages " << cntPeerMessagesTotal / gTestNodes.size());
+                ___LOG("printOne iteration !!!!!! " << c << "--------------------------------FILTER");
+                EXLOG( "printOne !!!!!! total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
+            }
+        }
+    };
+
+    auto addLastNode = [&]()
+    {
+        endpoint theEndpoint = boost::asio::ip::udp::endpoint{ boost::asio::ip::make_address( "127.0.0.1"), uint16_t(NODE_NUMBER-1) };
+        auto node = std::make_shared<TestNode>(theEndpoint);
+        gTestNodes.push_back( node );
+        testContext.m_map[node->m_endpoint] = node;
+        ___LOG( "node_" << NODE_NUMBER-1 << ": port: " << NODE_NUMBER << " key: " << gTestNodes.back()->m_keyPair.publicKey() )
+        node->init( testContext, bootstraps );
+
+        std::vector<kademlia::PeerKey> keysToFind;
+        while (keysToFind.size() < (gTestNodes.size()/3)) {
+            auto keyToFind = pickRandomPeer();
+            while (keyToFind == node->m_keyPair.publicKey()) {
+                keyToFind = pickRandomPeer();
+            }
+            keysToFind.push_back(keyToFind);
+        }
+        ___LOG("addLastNode");
+        for(auto keyToFind : keysToFind) {
+            node->addInterestingPeerKey(keyToFind);
+            ___LOG("addLastNode " << keyToFind);
+        }
+        boost::asio::post(testContext.m_context, std::bind(printOne, node));
+    };
+
     auto printStatistic = [&]() //mutable
     {
         c++;
@@ -313,16 +366,14 @@ int main(int,char**)
             cntPeerMessagesTotal += node->m_counterPeerSearch;
 
         }
-        //if(cntFound == cntFound + cntNotFound) {
+
             ___LOG("FILTER " << " found " << cntFound << " out of " << cntFound + cntNotFound
                              << "; MyMessages " << cntMyMessagesTotal / gTestNodes.size()
                              << "; PeerMessages " << cntPeerMessagesTotal / gTestNodes.size());
             ___LOG("iteration " << c << "--------------------------------FILTER");
             EXLOG( "FILTER total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
-        //}
+
     };
-
-
 
     std::thread([&]() {
         testContext.m_context.run();
@@ -330,12 +381,18 @@ int main(int,char**)
         ___LOG( "FILTER Ended" );
     }).detach();
 
-    for(;;)
+    while(!testContext.m_context.stopped())
     {
         sleep(10);
         boost::asio::post( testContext.m_context, printStatistic );
     }
-
+    boost::asio::post(testContext.m_context, addLastNode);
+    std::thread([&]() {
+        testContext.m_context.run();
+        printStatistic();
+        ___LOG( "FILTER Ended" );
+    }).detach();
+    //boost::asio::post( testContext.m_context, addLastNode );
 
     EXLOG( "" );
     EXLOG( "total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
