@@ -1,5 +1,5 @@
 #include "wsserver/Listener.h"
-#include "wsserver/InSession.h"
+#include "wsserver/Session.h"
 
 namespace sirius { namespace wsserver {
     void Listener::run()
@@ -26,7 +26,7 @@ namespace sirius { namespace wsserver {
         else
         {
             // Create the Session and run it
-            std::make_shared<InSession>(std::move(socket), strand)->run();
+            std::make_shared<Session>(std::move(socket), strand)->run();
         }
 
         // Accept another connection

@@ -1,4 +1,4 @@
-#include "wsserver/InSession.h"
+#include "wsserver/Session.h"
 #include "wsserver/Utils.h"
 #include "wsserver/Task.h"
 #include "wsserver/Base64.h"
@@ -7,11 +7,11 @@
 
 namespace fs = std::filesystem;
 
-std::set<std::shared_ptr<InSession>> InSession::incoming_sessions;
-std::set<std::shared_ptr<InSession>> InSession::incoming_sessions_client;
-std::set<std::shared_ptr<InSession>> InSession::incoming_sessions_server;
+std::set<std::shared_ptr<Session>> Session::incoming_sessions;
+std::set<std::shared_ptr<Session>> Session::incoming_sessions_client;
+std::set<std::shared_ptr<Session>> Session::incoming_sessions_server;
 
-void InSession::run()
+void Session::run()
 {
     // Set suggested timeout settings for the websocket
     ws.set_option(
@@ -30,11 +30,11 @@ void InSession::run()
     // Accept the websocket handshake
     ws.async_accept(
         beast::bind_front_handler(
-            &InSession::onAccept,
+            &Session::onAccept,
             shared_from_this()));
 }
 
-void InSession::onAccept(beast::error_code ec)
+void Session::onAccept(beast::error_code ec)
 {
     if(ec)
         return fail(ec, "accept");
@@ -51,17 +51,17 @@ void InSession::onAccept(beast::error_code ec)
     doRead();
 }
 
-void InSession::doRead()
+void Session::doRead()
 {
     // Read a message into our buffer
     ws.async_read(
         buffer,
         beast::bind_front_handler(
-            &InSession::onRead,
+            &Session::onRead,
             shared_from_this()));
 }
 
-void InSession::onRead(beast::error_code ec, std::size_t bytes_transferred)
+void Session::onRead(beast::error_code ec, std::size_t bytes_transferred)
 {
     boost::ignore_unused(bytes_transferred);
 
@@ -96,7 +96,7 @@ void InSession::onRead(beast::error_code ec, std::size_t bytes_transferred)
     }
 }
 
-void InSession::onWrite(beast::error_code ec, std::size_t bytes_transferred)
+void Session::onWrite(beast::error_code ec, std::size_t bytes_transferred)
 {
     boost::ignore_unused(bytes_transferred);
 
@@ -104,7 +104,7 @@ void InSession::onWrite(beast::error_code ec, std::size_t bytes_transferred)
         fail(ec, "write");
 }
 
-void InSession::onWriteClose(beast::error_code ec, std::size_t bytes_transferred)
+void Session::onWriteClose(beast::error_code ec, std::size_t bytes_transferred)
 {
     boost::ignore_unused(bytes_transferred);
 
@@ -117,14 +117,14 @@ void InSession::onWriteClose(beast::error_code ec, std::size_t bytes_transferred
     doClose();
 }
 
-void InSession::doClose()
+void Session::doClose()
 {
     ws.async_close(websocket::close_code::normal,
         beast::bind_front_handler(
-            &InSession::onClose,
+            &Session::onClose,
             shared_from_this()));
 }
-void InSession::onClose(beast::error_code ec) 
+void Session::onClose(beast::error_code ec) 
 {
     if (ec) {
         fail(ec, "close");
@@ -138,7 +138,7 @@ void InSession::onClose(beast::error_code ec)
 }
 
 // Send message to a client
-void InSession::sendMessage(pt::ptree* json, bool is_close) 
+void Session::sendMessage(pt::ptree* json, bool is_close) 
 {
     std::ostringstream message;
     write_json(message, *json, false);
@@ -146,11 +146,11 @@ void InSession::sendMessage(pt::ptree* json, bool is_close)
     ws.async_write(
         net::buffer(message.str()),
         beast::bind_front_handler(
-            is_close ? &InSession::onWriteClose : &InSession::onWrite,
+            is_close ? &Session::onWriteClose : &Session::onWrite,
             shared_from_this()));
 }
 
-void InSession::recvData(pt::ptree* json)
+void Session::recvData(pt::ptree* json)
 {
     std::string uid = (*json).get<std::string>("uid");
     recv_directory[uid] = "saved-data/" 
@@ -183,7 +183,7 @@ void InSession::recvData(pt::ptree* json)
     doRead();
 }
 
-void InSession::recvDataChunk(pt::ptree* json) {
+void Session::recvDataChunk(pt::ptree* json) {
     std::string uid = (*json).get<std::string>("uid");
 
     std::cout << recv_dataCounter[uid] << std::endl;
@@ -225,7 +225,7 @@ void InSession::recvDataChunk(pt::ptree* json) {
     doRead(); 
 }
 
-void InSession::sendData(pt::ptree* json) {
+void Session::sendData(pt::ptree* json) {
     std::string fileName = (*json).get<std::string>("fileName");
     std::string filePath = "get-data/" 
         + (*json).get<std::string>("drive") 
@@ -306,7 +306,7 @@ void InSession::sendData(pt::ptree* json) {
     doRead();
 }
 
-void InSession::sendDataAck(pt::ptree* json) {
+void Session::sendDataAck(pt::ptree* json) {
     std::string uid = (*json).get<std::string>("uid");
 
     auto it = send_numOfDataPieces.find(uid);
@@ -321,7 +321,7 @@ void InSession::sendDataAck(pt::ptree* json) {
     }
 }
 
-void InSession::deleteData(pt::ptree* json) {
+void Session::deleteData(pt::ptree* json) {
     std::string deleteFilePath = "saved-data/" 
         + (*json).get<std::string>("drive") 
         + (*json).get<std::string>("directory") 
@@ -353,8 +353,8 @@ void InSession::deleteData(pt::ptree* json) {
     doRead();
 };
 
-// Broadcast message to all InSession
-void InSession::broadcastToAll(pt::ptree* json, bool is_close) 
+// Broadcast message to all Session
+void Session::broadcastToAll(pt::ptree* json, bool is_close) 
 {
     for (const auto& session : incoming_sessions) {
         session->sendMessage(json, is_close);
@@ -362,7 +362,7 @@ void InSession::broadcastToAll(pt::ptree* json, bool is_close)
 }
 
 // Broadcast message to all clients
-void InSession::broadcastToClients(pt::ptree* json, bool is_close) 
+void Session::broadcastToClients(pt::ptree* json, bool is_close) 
 {
     for (const auto& session : incoming_sessions_client) {
         session->sendMessage(json, is_close);
@@ -370,15 +370,15 @@ void InSession::broadcastToClients(pt::ptree* json, bool is_close)
 }
 
 // Broadcast message to all clients
-void InSession::broadcastToServers(pt::ptree* json, bool is_close) 
+void Session::broadcastToServers(pt::ptree* json, bool is_close) 
 {
     for (const auto& session : incoming_sessions_server) {
         session->sendMessage(json, is_close);
     }
 }
 
-// Make a request to all InSession
-void InSession::requestToAll(pt::ptree* json) 
+// Make a request to all Session
+void Session::requestToAll(pt::ptree* json) 
 {
     for (const auto& session : incoming_sessions) {
         session->sendMessage(json, false);
@@ -387,7 +387,7 @@ void InSession::requestToAll(pt::ptree* json)
 }
 
 // Make a request to all clients
-void InSession::requestToClients(pt::ptree* json) 
+void Session::requestToClients(pt::ptree* json) 
 {
     for (const auto& session : incoming_sessions_client) {
         session->sendMessage(json, false);
@@ -396,7 +396,7 @@ void InSession::requestToClients(pt::ptree* json)
 }
 
 // Make a request to all clients
-void InSession::requestToServers(pt::ptree* json) 
+void Session::requestToServers(pt::ptree* json) 
 {
     for (const auto& session : incoming_sessions_server) {
         session->sendMessage(json, false);
@@ -405,7 +405,7 @@ void InSession::requestToServers(pt::ptree* json)
 }
 
 // Handles JSON receive by doRead()
-void InSession::handleJson(pt::ptree* parsed_pt)
+void Session::handleJson(pt::ptree* parsed_pt)
 {
     bool isClient = (*parsed_pt).get<bool>("isClient");
     int task = (*parsed_pt).get<int>("task");

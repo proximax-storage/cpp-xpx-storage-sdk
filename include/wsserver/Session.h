@@ -24,8 +24,8 @@ namespace net = boost::asio;            // from <boost/asio.hpp>
 using tcp = boost::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
 namespace pt = boost::property_tree;    // from <boost/property_tree>
 
-// Initialize InSession when server accepts incoming connection from servers and clients
-class InSession : public std::enable_shared_from_this<InSession> 
+// Initialize Session when server accepts incoming connection from servers and clients
+class Session : public std::enable_shared_from_this<Session> 
 {
     websocket::stream<beast::tcp_stream> ws;
     beast::flat_buffer buffer;
@@ -34,7 +34,7 @@ class InSession : public std::enable_shared_from_this<InSession>
 public:
     // Take ownership of the socket
     explicit
-    InSession(tcp::socket&& socket, net::io_context::strand& strand)
+    Session(tcp::socket&& socket, net::io_context::strand& strand)
         : ws(std::move(socket))
         , strand(strand)
     {
@@ -64,9 +64,9 @@ public:
     void requestToServers(pt::ptree* json);
     
     // store connected sessions
-    static std::set<std::shared_ptr<InSession>> incoming_sessions;
-    static std::set<std::shared_ptr<InSession>> incoming_sessions_client;
-    static std::set<std::shared_ptr<InSession>> incoming_sessions_server;
+    static std::set<std::shared_ptr<Session>> incoming_sessions;
+    static std::set<std::shared_ptr<Session>> incoming_sessions_client;
+    static std::set<std::shared_ptr<Session>> incoming_sessions_server;
 
 private:
     void handleJson(pt::ptree* parsed_pt);
