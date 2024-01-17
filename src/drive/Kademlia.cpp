@@ -192,6 +192,11 @@ public:
 
     void enterToSwarm()
     {
+        if ( m_isClient )
+        {
+            return;
+        }
+        
         // Query peerInfo of bootstraps
         for( auto bootstrapNodeInfo: m_bootstraps )
         {

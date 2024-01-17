@@ -64,6 +64,8 @@ namespace sirius {
 
         using OptionalEndpoint = std::optional<boost::asio::ip::udp::endpoint>;
 
+        using StreamingStatusHandler = std::function<void(const std::string&)>;
+
         // InfoHash
         using InfoHash  = Hash256;// std::array<uint8_t,32>;
     

@@ -135,6 +135,9 @@ public:
 
     void run() override
     {
+        _LOG( "StreamTask::run: m_request->m_streamId: " << m_request->m_streamId )
+        _LOG( "StreamTask::run: m_request->m_streamerKey: " << m_request->m_streamerKey )
+        _LOG( "StreamTask::run: m_request->m_folder: " << m_request->m_folder )
     }
 
     const Hash256& getModificationTransactionHash() override
@@ -231,7 +234,7 @@ public:
 
         if ( chunkInfo->m_streamId != m_request->m_streamId.array() )
         {
-            _LOG_WARN( "ignore unkown stream" )
+            _LOG_WARN( "ignore unkown stream: " << toString(chunkInfo->m_streamId) << " vs. " << m_request->m_streamId )
             return;
         }
         
