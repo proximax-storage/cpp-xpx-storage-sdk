@@ -17,14 +17,14 @@
 #include <set>
 #include <fstream>
 
+#include "wsserver/Utils.h"
+
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http = beast::http;           // from <boost/beast/http.hpp>
 namespace websocket = beast::websocket; // from <boost/beast/websocket.hpp>
 namespace net = boost::asio;            // from <boost/asio.hpp>
 using tcp = boost::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
 namespace pt = boost::property_tree;    // from <boost/property_tree>
-
-void fail(beast::error_code ec, char const* what);
 
 namespace sirius { namespace wsserver {
     // Accepts incoming connections and launches the Sessions
