@@ -376,6 +376,7 @@ void OutSession::handleJson(pt::ptree* parsed_pt)
             break;
         case MESSAGE_ACK:
             doRead();
+            break;
         case CLOSE:
             (*parsed_pt).put("isClient", false);
             (*parsed_pt).put("task", CLOSE_ACK);
@@ -387,5 +388,6 @@ void OutSession::handleJson(pt::ptree* parsed_pt)
             break;
         default:
             doClose();
+            break;
     }
 }
