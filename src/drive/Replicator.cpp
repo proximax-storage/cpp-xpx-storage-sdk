@@ -636,34 +636,13 @@ public:
                 return;
             }
 
-            std::shared_ptr<sirius::drive::FlatDrive> pDrive;
-            {
-                if ( auto drive = getDrive( driveKey ); drive )
-                {
-                    pDrive = drive;
-                } else
-                {
-                    _LOG( "asyncModify(): drive not found: " << driveKey );
-                    return;
-                }
-            }
-
-//            for( auto it = modifyRequest->m_replicatorList.begin();  it != modifyRequest->m_replicatorList.end(); it++ )
-//            {
-//                if ( *it == publicKey() )
-//                {
-//                    modifyRequest->m_replicatorList.erase( it );
-//                    break;
-//                }
-//            }
-
-            if ( const auto drive = getDrive( driveKey ); drive )
+            if ( auto drive = getDrive( driveKey ); drive )
             {
                 drive->startStream( std::move( request ));
-                return;
+            } else
+            {
+                _LOG( "asyncModify(): drive not found: " << driveKey );
             }
-
-            _LOG( "unknown drive: " << driveKey );
         } );//post
     }
 

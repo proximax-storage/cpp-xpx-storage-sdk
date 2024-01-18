@@ -51,7 +51,7 @@ protected:
 
     const std::string       m_dbgOurPeerName;
     
-    std::mutex              m_chunkMutex;
+//    std::mutex              m_chunkMutex;
     
     boost::asio::io_context                                                     m_bgContext;
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type>    m_bgWork;
@@ -84,6 +84,8 @@ public:
     
     void planNextTick()
     {
+        // BG THREAD
+        
         m_tickTimer.expires_after( std::chrono::milliseconds( 1000 ) );
         m_tickTimer.async_wait( [this] ( boost::system::error_code const& e )
         {
@@ -267,29 +269,29 @@ public:
         m_finishBackCall( { infoHash, streamSize } );
     }
     
-    void addChunkToStream( const std::vector<uint8_t>& chunk, uint32_t durationMs, InfoHash* dbgInfoHash = nullptr )
-    {
-        if ( ! m_streamId )
-        {
-            _LOG_ERR( "m_streamId is not set" );
-            return;
-        }
-        
-        fs::path tmp = m_mediaFolder / ("newChunk" + std::to_string(m_lastChunkIndex));
-        
-        {
-            std::ofstream fileStream( tmp, std::ios::binary );
-            fileStream.write( (char*) chunk.data(), chunk.size() );
-        }
-
-        addMediaToStream( tmp, durationMs, dbgInfoHash );
-    }
+//    void addChunkToStream( const std::vector<uint8_t>& chunk, uint32_t durationMs, InfoHash* dbgInfoHash = nullptr )
+//    {
+//        if ( ! m_streamId )
+//        {
+//            _LOG_ERR( "m_streamId is not set" );
+//            return;
+//        }
+//
+//        fs::path tmp = m_mediaFolder / ("newChunk" + std::to_string(m_lastChunkIndex));
+//
+//        {
+//            std::ofstream fileStream( tmp, std::ios::binary );
+//            fileStream.write( (char*) chunk.data(), chunk.size() );
+//        }
+//
+//        addMediaToStream( tmp, durationMs, dbgInfoHash );
+//    }
 
     void addMediaToStream( const fs::path& tmp, uint32_t durationMs, InfoHash* dbgInfoHash = nullptr )
     {
         _LOG( "addMediaToStream: " << tmp );
         
-        std::lock_guard<std::mutex> lock( m_chunkMutex );
+//        std::lock_guard<std::mutex> lock( m_chunkMutex );
         
         uint64_t chunkSize = fs::file_size( tmp );
         
@@ -365,7 +367,7 @@ public:
     {
         _LOG( "sendSingleChunkInfo: " << index )
         
-        std::lock_guard<std::mutex> lock( m_chunkMutex );
+        //std::lock_guard<std::mutex> lock( m_chunkMutex );
 
         if ( auto it = m_chunkInfoMap.find( index ); it != m_chunkInfoMap.end() )
         {
@@ -417,6 +419,8 @@ public:
 
     void onTick()
     {
+        // BG THREAD
+
         if ( ! m_streamId )
         {
             return;
@@ -440,6 +444,8 @@ public:
     
     std::string parseM3u8Playlist()
     {
+        // BG THREAD
+
         // copy file (it could be chaged)
         std::ifstream fin( m_m3u8Playlist );
         std::stringstream fPlaylist;
@@ -532,7 +538,12 @@ public:
                 
                 if ( m_chunkInfoMap.find( chunkIndex ) == m_chunkInfoMap.end() )
                 {
-                    addMediaToStream( m_mediaFolder / line, duration*1000000  );
+                    // BG THREAD
+                    boost::asio::post( m_session->lt_session().get_context(), [=,this]
+                    {
+                        // LT THREAD
+                        addMediaToStream( m_mediaFolder / line, duration*1000000  );
+                    });
                 }
                 mediaIndex++;
                 for( auto& [key,value] : m_chunkInfoMap )

@@ -1672,7 +1672,7 @@ InfoHash createTorrentFile( const fs::path& fileOrFolder,
     //dbg////////////////////////////////
     auto entry = entry_info;
     //LOG( "entry[info]:" << entry["info"].to_string() );
-    __LOG( entry.to_string() );
+    //__LOG( entry.to_string() );
     auto tInfo = lt::torrent_info(torrentFileBytes, lt::from_span);
     //LOG( "make_magnet_uri:" << lt::make_magnet_uri(tInfo) );
     //dbg////////////////////////////////

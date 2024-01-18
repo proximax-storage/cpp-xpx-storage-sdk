@@ -123,14 +123,14 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_sandboxCalculated & !m_modifyApproveTxReceived )
-        {
+        //if ( m_sandboxCalculated && ! m_modifyApproveTxReceived )
+        //{
             finishTask();
-        }
-        else
-        {
-            // We will wait the end of current task, that will call m_drive.runNextTask()
-        }
+//        }
+//        else
+//        {
+//            // We will wait the end of current task, that will call m_drive.runNextTask()
+//        }
     }
 
     void run() override
