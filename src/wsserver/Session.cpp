@@ -8,8 +8,6 @@
 namespace fs = std::filesystem;
 
 std::set<std::shared_ptr<Session>> Session::incoming_sessions;
-std::set<std::shared_ptr<Session>> Session::incoming_sessions_client;
-std::set<std::shared_ptr<Session>> Session::incoming_sessions_server;
 
 void Session::run()
 {
@@ -133,8 +131,6 @@ void Session::onClose(beast::error_code ec)
     }
 
     incoming_sessions.erase(shared_from_this());
-    incoming_sessions_client.erase(shared_from_this());
-    incoming_sessions_server.erase(shared_from_this());
 }
 
 // Send message to a client
@@ -194,8 +190,6 @@ void Session::recvDataChunk(pt::ptree* json) {
 
     if (recv_dataCounter[uid] + 1 == recv_numOfDataPieces[uid]) {
         pt::ptree done;
-        done.put("isClient", false);
-        done.put("serverRecv", true);
         done.put("task", Task::UPLOAD_ACK);
         done.put("uid", uid);
 
@@ -239,7 +233,6 @@ void Session::sendData(pt::ptree* json) {
         send_numOfDataPieces[uid]++;
     }
 
-    (*json).put("isClient", false);
     (*json).put("task", Task::DOWNLOAD_INFO);
     (*json).put("dataSize", std::filesystem::file_size(filePath));
     (*json).put("dataPieceSize", send_DataPieceSize);
@@ -277,7 +270,6 @@ void Session::sendData(pt::ptree* json) {
                     std::string bin_data = base64_encode(ss.str());
                     
                     pt::ptree data;
-                    data.put("isClient", false);
                     data.put("task", Task::DOWNLOAD_DATA);
                     data.put("data", bin_data);
                     data.put("dataPieceNum", send_dataCounter[uid]);
@@ -342,7 +334,6 @@ void Session::deleteData(pt::ptree* json) {
         (*json).put("task", Task::DELETE_DATA_FAILURE);
     }
 
-    (*json).put("isClient", false);
     std::ostringstream deleteData_stream;
     write_json(deleteData_stream, *json, false);
 
@@ -361,22 +352,6 @@ void Session::broadcastToAll(pt::ptree* json, bool is_close)
     }
 }
 
-// Broadcast message to all clients
-void Session::broadcastToClients(pt::ptree* json, bool is_close) 
-{
-    for (const auto& session : incoming_sessions_client) {
-        session->sendMessage(json, is_close);
-    }
-}
-
-// Broadcast message to all clients
-void Session::broadcastToServers(pt::ptree* json, bool is_close) 
-{
-    for (const auto& session : incoming_sessions_server) {
-        session->sendMessage(json, is_close);
-    }
-}
-
 // Make a request to all Session
 void Session::requestToAll(pt::ptree* json) 
 {
@@ -386,161 +361,73 @@ void Session::requestToAll(pt::ptree* json)
     }
 }
 
-// Make a request to all clients
-void Session::requestToClients(pt::ptree* json) 
-{
-    for (const auto& session : incoming_sessions_client) {
-        session->sendMessage(json, false);
-        session->doRead();
-    }
-}
-
-// Make a request to all clients
-void Session::requestToServers(pt::ptree* json) 
-{
-    for (const auto& session : incoming_sessions_server) {
-        session->sendMessage(json, false);
-        session->doRead();
-    }
-}
-
 // Handles JSON receive by doRead()
 void Session::handleJson(pt::ptree* parsed_pt)
 {
-    bool isClient = (*parsed_pt).get<bool>("isClient");
     int task = (*parsed_pt).get<int>("task");
     std::ostringstream json_output;
     std::ostringstream print;
     pt::ptree close;
 
-    if (isClient) {
-        std::cout << "Receive from a client" << std::endl;
-        incoming_sessions_client.insert(shared_from_this());
+    std::cout << "Sessions:\n";
+    for (const auto& sess : incoming_sessions) {
+        std::cout << "Session ID: " << sess.get() << "\n";
+    }
 
-        std::cout << "Client Sessions:\n";
-        for (const auto& sess : incoming_sessions_client) {
-            std::cout << "Session ID: " << sess.get() << "\n";
-        }
-
-        net::io_context ioc;
-        
-        switch (task) {
-            case DOWNLOAD_START:
-                write_json(print, *parsed_pt);
-                std::cout << print.str() << std::endl;
-                sendData(parsed_pt);
-                break;
-            case DOWNLOAD_FAILURE:
-                write_json(print, *parsed_pt);
-                std::cout << print.str() << std::endl;
-                sendData(parsed_pt);    
-                break;
-            case DOWNLOAD_ACK:
-                sendDataAck(parsed_pt);
-                doRead();
-                break;
-            case UPLOAD_START:
-                write_json(print, *parsed_pt);
-                std::cout << print.str() << std::endl;
-                recvData(parsed_pt);
-                break;
-            case UPLOAD_DATA:
-                recvDataChunk(parsed_pt);
-                break;
-            case UPLOAD_FAILURE:
-                write_json(print, *parsed_pt);
-                std::cout << print.str() << std::endl;
-                recvData(parsed_pt);
-                break;
-            case DELETE_DATA:
-                write_json(print, *parsed_pt);
-                std::cout << print.str() << std::endl;
-                deleteData(parsed_pt);
-                break;
-            case MESSAGE:
-                write_json(print, *parsed_pt);
-                std::cout << print.str() << std::endl;
-                (*parsed_pt).put("serverRecv", true);
-                (*parsed_pt).put("task", MESSAGE_ACK);
-                write_json(json_output, *parsed_pt, false);
-                sendMessage(parsed_pt, false);
-                doRead();
-                break;
-            case CLOSE:
-                write_json(print, *parsed_pt);
-                std::cout << print.str() << std::endl;
-                close.put("isClient", false);
-                close.put("task", CLOSE_ACK);
-                close.put("serverRecv", true);
-                sendMessage(&close, true);
-                break;
-            case CLOSE_ACK:
-                doClose();
-                break;
-            default:
-                doClose();
-        }
-    } else {
-        std::cout << "Receive from a server" << std::endl;
-        incoming_sessions_server.insert(shared_from_this());
-
-        std::cout << "Server Sessions:\n";
-        for (const auto& sess : incoming_sessions_server) {
-            std::cout << "Session ID: " << sess.get() << "\n";
-        }
-
-        switch (task) {
-            case DOWNLOAD_START:
-                write_json(print, *parsed_pt);
-                std::cout << print.str() << std::endl;
-                sendData(parsed_pt);
-                break;
-            case DOWNLOAD_ACK:
-                sendDataAck(parsed_pt);
-                doRead();
-                break;
-            case DOWNLOAD_FAILURE:
-                write_json(print, *parsed_pt);
-                std::cout << print.str() << std::endl;
-                sendData(parsed_pt);
-                break;
-            case UPLOAD_START:
-                write_json(print, *parsed_pt);
-                std::cout << print.str() << std::endl;
-                recvData(parsed_pt);
-                break;
-            case UPLOAD_DATA:
-                recvDataChunk(parsed_pt);
-                break;
-            case UPLOAD_FAILURE:
-                write_json(print, *parsed_pt);
-                std::cout << print.str() << std::endl;
-                recvData(parsed_pt);
-                break;
-            case MESSAGE:
-                write_json(print, *parsed_pt);
-                std::cout << print.str() << std::endl;
-                (*parsed_pt).put("serverRecv", true);
-                (*parsed_pt).put("task", MESSAGE_ACK);
-                write_json(json_output, *parsed_pt, false);
-                sendMessage(parsed_pt, false);
-                doRead();
-                break;
-            case CLOSE:
-                write_json(print, *parsed_pt);
-                std::cout << print.str() << std::endl;
-                close.put("isClient", false);
-                close.put("task", CLOSE_ACK);
-                close.put("serverRecv", true);
-                sendMessage(&close, true);
-                break;
-            case CLOSE_ACK:
-                doClose();
-                break;
-            default:
-                doClose();
-        }
-
+    std::cout << "Current Session ID: " << shared_from_this().get() << std::endl;
+    
+    switch (task) {
+        case DOWNLOAD_START:
+            write_json(print, *parsed_pt);
+            std::cout << print.str() << std::endl;
+            sendData(parsed_pt);
+            break;
+        case DOWNLOAD_FAILURE:
+            write_json(print, *parsed_pt);
+            std::cout << print.str() << std::endl;
+            sendData(parsed_pt);    
+            break;
+        case DOWNLOAD_ACK:
+            sendDataAck(parsed_pt);
+            doRead();
+            break;
+        case UPLOAD_START:
+            write_json(print, *parsed_pt);
+            std::cout << print.str() << std::endl;
+            recvData(parsed_pt);
+            break;
+        case UPLOAD_DATA:
+            recvDataChunk(parsed_pt);
+            break;
+        case UPLOAD_FAILURE:
+            write_json(print, *parsed_pt);
+            std::cout << print.str() << std::endl;
+            recvData(parsed_pt);
+            break;
+        case DELETE_DATA:
+            write_json(print, *parsed_pt);
+            std::cout << print.str() << std::endl;
+            deleteData(parsed_pt);
+            break;
+        case MESSAGE:
+            write_json(print, *parsed_pt);
+            std::cout << print.str() << std::endl;
+            (*parsed_pt).put("task", MESSAGE_ACK);
+            write_json(json_output, *parsed_pt, false);
+            sendMessage(parsed_pt, false);
+            doRead();
+            break;
+        case CLOSE:
+            write_json(print, *parsed_pt);
+            std::cout << print.str() << std::endl;
+            close.put("task", CLOSE_ACK);
+            sendMessage(&close, true);
+            break;
+        case CLOSE_ACK:
+            doClose();
+            break;
+        default:
+            doClose();
     }
     
     return;
