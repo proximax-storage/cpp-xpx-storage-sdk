@@ -85,11 +85,35 @@ public:
 
 protected:
 
+	void synchronizationIsCompleted() override
+	{
+		DBG_MAIN_THREAD
+
+		// Ignore cumulative uploads approval, skip right to modifyIsCompleted().
+		modifyIsCompleted();
+	}
+
     void finishTask() override
     {
         m_request->m_callback( SynchronizationResponse{m_taskIsExecuted} );
         sirius::drive::UpdateDriveTaskBase::finishTask();
     }
+
+private:
+
+	void prepareForSandboxSynchronization() override {
+		_LOG( "Preparing for sandbox synchronization from Manual Synchronization task." )
+		_LOG( "Skipping to myOpinionIsCreated()" )
+		m_drive.executeOnBackgroundThread( [this]
+										   {
+											 DBG_BG_THREAD
+
+											 m_drive.executeOnSessionThread( [this]
+																			 {
+																			   myOpinionIsCreated();
+																			 } );
+										   } );
+	};
 };
 
 std::unique_ptr<DriveTaskBase> createManualSynchronizationTask( mobj <SynchronizationRequest>&& request,

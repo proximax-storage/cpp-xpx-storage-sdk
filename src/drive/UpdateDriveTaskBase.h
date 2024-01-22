@@ -95,14 +95,10 @@ protected:
                     *m_sandboxRootHash );
         }
 
-        /// (???) replace with replicators of the shard
-        m_opinionController.updateCumulativeUploads( getModificationTransactionHash(), m_drive.getDonatorShard(), getToBeApprovedDownloadSize(), [this]
-        {
-            onCumulativeUploadsUpdated();
-        } );
+		prepareForSandboxSynchronization();
     }
 
-    void synchronizationIsCompleted()
+    virtual void synchronizationIsCompleted()
     {
         DBG_MAIN_THREAD
 
@@ -357,6 +353,12 @@ protected:
     }
 
 private:
+	virtual void prepareForSandboxSynchronization() {
+		m_opinionController.updateCumulativeUploads( getModificationTransactionHash(), m_drive.getDonatorShard(), getToBeApprovedDownloadSize(), [this]
+		{
+			onCumulativeUploadsUpdated();
+		} );
+	};
 
     virtual void continueSynchronizingDriveWithSandbox() = 0;
 
