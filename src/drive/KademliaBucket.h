@@ -12,7 +12,7 @@ namespace sirius { namespace drive { namespace kademlia {
 
 
 const size_t    BUCKET_NUMBER = sizeof(Key)*8; // 32*8
-const size_t    BUCKET_SIZE   = 4;
+const size_t    BUCKET_SIZE   = 6;
 
 // Every 15 minutes (CHECK_EXPIRED_SEC) will be checked all peerInfo
 // If time is exceed 1 hour (PEER_UPDATE_SEC), "get-peer-info" mesage will be send to this peer
@@ -23,6 +23,8 @@ inline uint64_t  CHECK_EXPIRED_SEC   = (15*60); // 15*60
 inline uint64_t  PEER_UPDATE_SEC     = (40*60);
 //const
 inline uint64_t  EXPIRED_SEC         = (2*60*60);
+
+inline bool      gDoNotSkipVerification  = true;
 
 
 inline bool isPeerInfoExpired( uint64_t t )

@@ -25,7 +25,7 @@
 
 bool gBreak_On_Warning = true;
 
-const size_t NODE_NUMBER = 600*1; // 20000
+const size_t NODE_NUMBER = 1000*1; // 20000
 const size_t BOOTSTRAP_NUMBER = 5; // 20
 const size_t MAX_INTERESTING_NODES = 30;
 
@@ -241,6 +241,13 @@ int c = 0;
 int main(int,char**)
 {
     gBreakOnWarning = false;
+    
+    // Skip verifications for this test
+    gDoNotSkipVerification = false;
+
+    CHECK_EXPIRED_SEC   = (15*60)*10; // 15*60
+    PEER_UPDATE_SEC     = (40*60)*10;
+    EXPIRED_SEC         = (2*60*60)*10;
 
     __attribute__((unused)) auto startTime = std::clock();
 

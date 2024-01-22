@@ -547,10 +547,13 @@ public:
             //
             for( const auto& peerInfo : response.m_response )
             {
-                if ( ! peerInfo.Verify() )
+                if ( gDoNotSkipVerification )
                 {
-                    __LOG_WARN( "! peerInfo.Verify()" )
-                    continue;
+                    if ( ! peerInfo.Verify() )
+                    {
+                        __LOG_WARN( "! peerInfo.Verify()" )
+                        continue;
+                    }
                 }
 
                 //TODO? - && !m_isClient
@@ -574,6 +577,8 @@ public:
 
                 if ( auto it = m_searcherMap.find( TargetKey{peerInfo.m_publicKey} ); it != m_searcherMap.end()  )
                 {
+                    // Peer is found!
+                    //
                     ___LOG( " added: " << m_myPort << " of: " << peerInfo.m_publicKey << " " << (m_localEndpointMap.find(peerInfo.m_publicKey)!=m_localEndpointMap.end() ))
                     m_searcherMap.erase(it);
 
@@ -840,10 +845,13 @@ public:
                 continue;
             }
             
-            if ( ! peerInfo.Verify() )
+            if ( gDoNotSkipVerification )
             {
-                __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: bad sign(2): " << peerInfo.m_publicKey )
-                continue;
+                if ( ! peerInfo.Verify() )
+                {
+                    __LOG_WARN( "PeerSearchInfo::onGetPeerIpResponse: bad sign(2): " << peerInfo.m_publicKey )
+                    continue;
+                }
             }
             
 //?               if ( isPeerInfoExpired(peerInfo.m_timeInSeconds) )
