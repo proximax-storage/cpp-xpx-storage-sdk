@@ -41,6 +41,8 @@ protected:
     fs::path                m_chunkFolder;
     fs::path                m_torrentFolder;
     
+    StreamingStatusHandler  m_streamingStatusHandler = {};
+    
     using ChunkInfoMap = std::map<uint32_t,ChunkInfo>;
     ChunkInfoMap            m_chunkInfoMap;
     uint32_t                m_firstChunkIndex = 0;
@@ -49,16 +51,23 @@ protected:
 
     const std::string       m_dbgOurPeerName;
     
-    std::mutex              m_chunkMutex;
+//    std::mutex              m_chunkMutex;
     
     boost::asio::io_context                                                     m_bgContext;
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type>    m_bgWork;
     std::thread                                                                 m_bgThread;
     boost::asio::high_resolution_timer                                          m_tickTimer;
     
-    int m_startSequenceNumber = -1;
-    int m_lastSequenceNumber = -1;
+    int  m_startSequenceNumber = -1;
+    int  m_lastSequenceNumber = -1;
+    
+    bool     m_isCanceled      = false;
 
+    bool     m_isFinished      = false;
+    uint64_t m_startTimeSecods = 0;
+    uint64_t m_endTimeSecods   = std::numeric_limits<uint64_t>::max();
+
+    std::function<void(const sirius::drive::FinishStreamInfo&)> m_finishBackCall;
 
 public:
     StreamerSession( const crypto::KeyPair& keyPair, const char* dbgOurPeerName )
@@ -75,6 +84,8 @@ public:
     
     void planNextTick()
     {
+        // BG THREAD
+        
         m_tickTimer.expires_after( std::chrono::milliseconds( 1000 ) );
         m_tickTimer.async_wait( [this] ( boost::system::error_code const& e )
         {
@@ -106,26 +117,41 @@ public:
                      const fs::path&         m3u8Playlist,
                      const fs::path&         chunksFolder,
                      const fs::path&         torrentsFolder,
+                     StreamingStatusHandler  streamingStatusHandler,
                      const endpoint_list&    endPointList )
     {
         SIRIUS_ASSERT( ! m_streamId )
         SIRIUS_ASSERT( endPointList.size() > 0 )
+        
+        _LOG( "initStream: streamId: " << streamId )
+        _LOG( "initStream: driveKey: " << driveKey )
+        _LOG( "initStream: m3u8Playlist: " << m3u8Playlist )
+        _LOG( "initStream: chunksFolder: " << chunksFolder )
+        _LOG( "initStream: torrentsFolder: " << torrentsFolder )
+        _LOG( "initStream: endPointList.size(): " << endPointList.size() )
 
         m_streamId = streamId;
         m_driveKey = driveKey;
         m_chunkInfoMap.clear();
+        m_isFinished = false;
+        m_isCanceled = false;
+        
+        m_startTimeSecods = 0;
+        m_endTimeSecods   = std::numeric_limits<uint64_t>::max();
+        m_finishBackCall  = [](auto) {};
 
         for( const auto& endpoint : endPointList )
         {
             m_endPointList.emplace( endpoint.address(), endpoint.port() );
         }
-        
+
         m_totalChunkBytes = 0;
 
         m_m3u8Playlist  = m3u8Playlist;
         m_mediaFolder   = fs::path(m3u8Playlist).parent_path();
         m_chunkFolder   = chunksFolder;
         m_torrentFolder = torrentsFolder;
+        m_streamingStatusHandler = streamingStatusHandler;
 
         fs::create_directories( m_chunkFolder );
         fs::create_directories( m_torrentFolder );
@@ -133,10 +159,25 @@ public:
     
     void cancelStream()
     {
+        m_isCanceled = true;
+    }
+    
+    void doCancelStream()
+    {
         m_streamId.reset();
     }
     
-    FinishStreamInfo finishStream( uint64_t startTimeSecods = 0, uint64_t endTimeSecods = std::numeric_limits<uint64_t>::max() )
+    void finishStream( std::function<void(const sirius::drive::FinishStreamInfo&)> backCall,
+                       uint64_t startTimeSecods = 0,
+                       uint64_t endTimeSecods   = std::numeric_limits<uint64_t>::max() )
+    {
+        m_finishBackCall  = backCall;
+        m_startTimeSecods = startTimeSecods;
+        m_endTimeSecods   = endTimeSecods;
+        m_isFinished      = true;
+    }
+    
+    void doFinishStream( std::function<void(const sirius::drive::FinishStreamInfo&)> backCall )
     {
         if ( ! m_streamId )
         {
@@ -152,8 +193,8 @@ public:
             auto chunkInfoIt = m_chunkInfoMap.find(i);
             SIRIUS_ASSERT( chunkInfoIt != m_chunkInfoMap.end() )
             
-            if ( (timeMks + chunkInfoIt->second.m_durationMks < startTimeSecods*1000000)
-                || (timeMks > endTimeSecods*1000000) )
+            if ( (timeMks + chunkInfoIt->second.m_durationMks < m_startTimeSecods*1000000)
+                || (timeMks > m_endTimeSecods*1000000) )
             {
                 finishStreamInfo.emplace_back( FinishStreamChunkInfo{ i, chunkInfoIt->second.m_chunkInfoHash,
                                                                 chunkInfoIt->second.m_durationMks,
@@ -225,32 +266,32 @@ public:
 //        }
         
         m_streamId.reset();
-        return { infoHash, streamSize };
+        m_finishBackCall( { infoHash, streamSize } );
     }
     
-    void addChunkToStream( const std::vector<uint8_t>& chunk, uint32_t durationMs, InfoHash* dbgInfoHash = nullptr )
-    {
-        if ( ! m_streamId )
-        {
-            _LOG_ERR( "m_streamId is not set" );
-            return;
-        }
-        
-        fs::path tmp = m_mediaFolder / ("newChunk" + std::to_string(m_lastChunkIndex));
-        
-        {
-            std::ofstream fileStream( tmp, std::ios::binary );
-            fileStream.write( (char*) chunk.data(), chunk.size() );
-        }
-
-        addMediaToStream( tmp, durationMs, dbgInfoHash );
-    }
+//    void addChunkToStream( const std::vector<uint8_t>& chunk, uint32_t durationMs, InfoHash* dbgInfoHash = nullptr )
+//    {
+//        if ( ! m_streamId )
+//        {
+//            _LOG_ERR( "m_streamId is not set" );
+//            return;
+//        }
+//
+//        fs::path tmp = m_mediaFolder / ("newChunk" + std::to_string(m_lastChunkIndex));
+//
+//        {
+//            std::ofstream fileStream( tmp, std::ios::binary );
+//            fileStream.write( (char*) chunk.data(), chunk.size() );
+//        }
+//
+//        addMediaToStream( tmp, durationMs, dbgInfoHash );
+//    }
 
     void addMediaToStream( const fs::path& tmp, uint32_t durationMs, InfoHash* dbgInfoHash = nullptr )
     {
         _LOG( "addMediaToStream: " << tmp );
         
-        std::lock_guard<std::mutex> lock( m_chunkMutex );
+//        std::lock_guard<std::mutex> lock( m_chunkMutex );
         
         uint64_t chunkSize = fs::file_size( tmp );
         
@@ -303,6 +344,8 @@ public:
         m_lastChunkIndex++;
         SIRIUS_ASSERT( ok )
 
+        m_streamingStatusHandler( std::to_string(m_totalChunkBytes/1024) + " KB (" + std::to_string(m_chunkInfoMap.size()) + " chunks)" );
+
         auto& chunkInfo = it->second;
         chunkInfo.Sign( m_keyPair );
         std::ostringstream os( std::ios::binary );
@@ -324,7 +367,7 @@ public:
     {
         _LOG( "sendSingleChunkInfo: " << index )
         
-        std::lock_guard<std::mutex> lock( m_chunkMutex );
+        //std::lock_guard<std::mutex> lock( m_chunkMutex );
 
         if ( auto it = m_chunkInfoMap.find( index ); it != m_chunkInfoMap.end() )
         {
@@ -365,6 +408,10 @@ public:
                     _LOG_ERR( "invalid message 'get-chunk-info'" );
                 }
             }
+            else
+            {
+                _LOG_WARN( "unknown request get-chunk-info ?")
+            }
         }
         
         return false;
@@ -372,8 +419,22 @@ public:
 
     void onTick()
     {
+        // BG THREAD
+
         if ( ! m_streamId )
         {
+            return;
+        }
+        
+        if ( m_isFinished )
+        {
+            doFinishStream( m_finishBackCall );
+            return;
+        }
+        
+        if ( m_isCanceled )
+        {
+            doCancelStream();
             return;
         }
         
@@ -383,6 +444,8 @@ public:
     
     std::string parseM3u8Playlist()
     {
+        // BG THREAD
+
         // copy file (it could be chaged)
         std::ifstream fin( m_m3u8Playlist );
         std::stringstream fPlaylist;
@@ -475,7 +538,12 @@ public:
                 
                 if ( m_chunkInfoMap.find( chunkIndex ) == m_chunkInfoMap.end() )
                 {
-                    addMediaToStream( m_mediaFolder / line, duration*1000000  );
+                    // BG THREAD
+                    boost::asio::post( m_session->lt_session().get_context(), [=,this]
+                    {
+                        // LT THREAD
+                        addMediaToStream( m_mediaFolder / line, duration*1000000  );
+                    });
                 }
                 mediaIndex++;
                 for( auto& [key,value] : m_chunkInfoMap )

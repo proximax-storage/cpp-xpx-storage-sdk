@@ -123,18 +123,21 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_sandboxCalculated & !m_modifyApproveTxReceived )
-        {
+        //if ( m_sandboxCalculated && ! m_modifyApproveTxReceived )
+        //{
             finishTask();
-        }
-        else
-        {
-            // We will wait the end of current task, that will call m_drive.runNextTask()
-        }
+//        }
+//        else
+//        {
+//            // We will wait the end of current task, that will call m_drive.runNextTask()
+//        }
     }
 
     void run() override
     {
+        _LOG( "StreamTask::run: m_request->m_streamId: " << m_request->m_streamId )
+        _LOG( "StreamTask::run: m_request->m_streamerKey: " << m_request->m_streamerKey )
+        _LOG( "StreamTask::run: m_request->m_folder: " << m_request->m_folder )
     }
 
     const Hash256& getModificationTransactionHash() override
@@ -225,12 +228,13 @@ public:
         DBG_MAIN_THREAD
         
         SIRIUS_ASSERT( chunkInfo )
+        _LOG( "acceptChunkInfoMessage chunk-info: index=" << chunkInfo->m_chunkIndex << " " << toString(chunkInfo->m_chunkInfoHash) )
         
         std::lock_guard<std::mutex> lock(m_mutex);
 
         if ( chunkInfo->m_streamId != m_request->m_streamId.array() )
         {
-            _LOG_WARN( "ignore unkown stream" )
+            _LOG_WARN( "ignore unkown stream: " << toString(chunkInfo->m_streamId) << " vs. " << m_request->m_streamId )
             return;
         }
         
@@ -240,7 +244,7 @@ public:
             return;
         }
         
-        //m_streamerEndpoint = sender;
+        m_streamerEndpoint = sender;
 
         if ( chunkInfo->m_chunkIndex < m_chunkInfoList.size() )
         {
@@ -313,6 +317,7 @@ public:
         
         if ( m_downloadingLtHandle )
         {
+            _LOG( "tryDownloadNextChunk: wait the end of current downloading (1)" )
             // wait the end of current downloading
             return;
         }
@@ -323,6 +328,7 @@ public:
             if ( m_downloadingLtHandle )
             {
                 // wait the end of current downloading
+                _LOG( "tryDownloadNextChunk: wait the end of current downloading (2)" )
                 return;
             }
 
@@ -338,6 +344,7 @@ public:
                 if ( m_chunkInfoList.begin()->get() == nullptr )
                 {
                     // 1-st ChunkInfo is not received
+                    _LOG( "1-st ChunkInfo is not received" )
                     requestMissingChunkInfo( 0 );
                     return;
                 }
@@ -351,18 +358,22 @@ public:
                 if ( next == m_chunkInfoList.end() )
                 {
                     // so far, we have nothing to download
+                    _LOG( "so far, we have nothing to download" )
                     return;
                 }
 
                 if ( next->get() == nullptr )
                 {
                     // send request to streamer about missing info
+                    _LOG("send request to streamer about missing info")
                     requestMissingChunkInfo( m_downloadingChunkInfoIt->get()->m_chunkIndex+1 );
                     return;
                 }
 
                 m_downloadingChunkInfoIt = next;
             }
+            
+            _LOG("m_downloadingChunkInfoIt: chunkIndex: " << m_downloadingChunkInfoIt->get()->m_chunkIndex << " " << toString(m_downloadingChunkInfoIt->get()->m_chunkInfoHash) )
 
             // start downloading chunk
             //
@@ -372,6 +383,7 @@ public:
                 
                 if ( auto it = m_drive.m_torrentHandleMap.find( chunkInfoHash ); it != m_drive.m_torrentHandleMap.end())
                 {
+                    _LOG( "already downloaded?" )
                     SIRIUS_ASSERT( it->second.m_ltHandle.is_valid() )
                     tryDownloadNextChunk();
                     return;

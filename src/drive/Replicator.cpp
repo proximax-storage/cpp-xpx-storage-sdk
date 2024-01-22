@@ -636,34 +636,13 @@ public:
                 return;
             }
 
-            std::shared_ptr<sirius::drive::FlatDrive> pDrive;
-            {
-                if ( auto drive = getDrive( driveKey ); drive )
-                {
-                    pDrive = drive;
-                } else
-                {
-                    _LOG( "asyncModify(): drive not found: " << driveKey );
-                    return;
-                }
-            }
-
-//            for( auto it = modifyRequest->m_replicatorList.begin();  it != modifyRequest->m_replicatorList.end(); it++ )
-//            {
-//                if ( *it == publicKey() )
-//                {
-//                    modifyRequest->m_replicatorList.erase( it );
-//                    break;
-//                }
-//            }
-
-            if ( const auto drive = getDrive( driveKey ); drive )
+            if ( auto drive = getDrive( driveKey ); drive )
             {
                 drive->startStream( std::move( request ));
-                return;
+            } else
+            {
+                _LOG( "asyncModify(): drive not found: " << driveKey );
             }
-
-            _LOG( "unknown drive: " << driveKey );
         } );//post
     }
 
@@ -1585,9 +1564,9 @@ public:
 
                     if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end())
                     {
-                    auto chunkInfo = std::make_unique<ChunkInfo>();
+                        auto chunkInfo = std::make_unique<ChunkInfo>();
                         iarchive( *chunkInfo );
-                    SIRIUS_ASSERT( chunkInfo )
+                        SIRIUS_ASSERT( chunkInfo )
 
                         driveIt->second->acceptChunkInfoMessage( std::move( chunkInfo ), source );
                     } else

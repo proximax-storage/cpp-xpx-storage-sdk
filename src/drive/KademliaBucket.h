@@ -27,8 +27,10 @@ inline uint64_t  EXPIRED_SEC         = 2*60*60;
 
 inline bool isPeerInfoExpired( uint64_t t )
 {
-    auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-    return now-t > EXPIRED_SEC;
+    uint64_t now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    //TODO? check staing logs!!! ??? 20185094 > 49200191+7200
+    ___LOG( "isPeerInfoExpired: " << now << " > " << t << "+" << EXPIRED_SEC )
+    return now > t+EXPIRED_SEC;
 }
 
 inline bool shouldPeerInfoBeUpdated( uint64_t t )
