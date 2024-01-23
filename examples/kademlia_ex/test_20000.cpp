@@ -323,7 +323,7 @@ int main(int,char**)
         node->init( testContext, bootstraps );
 
         std::vector<kademlia::PeerKey> keysToFind;
-        while (keysToFind.size() < (gTestNodes.size()/3)) {
+        while (keysToFind.size() < MAX_INTERESTING_NODES) {
             auto keyToFind = pickRandomPeer();
             while (keyToFind == node->m_keyPair.publicKey()) {
                 keyToFind = pickRandomPeer();
@@ -361,11 +361,6 @@ int main(int,char**)
                              << "; PeerMessages " << cntPeerMessagesTotal / gTestNodes.size());
             ___LOG("iteration " << c << "--------------------------------FILTER");
             EXLOG( "FILTER total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
-        
-        if ( cntFound == cntFound + cntNotFound )
-        {
-            addLastNode();
-        }
     };
 
     ___LOG("FILTER Start: " << gTestNodes.size() );
@@ -373,9 +368,11 @@ int main(int,char**)
            std::thread([&]() {
         testContext.m_context.run();
         printStatistic();
-        
+        addLastNode();
+
         testContext.m_context.restart();
         testContext.m_context.run();
+        printStatistic();
         printOne( gTestNodes.back() );
         
         ___LOG( "FILTER Ended" );

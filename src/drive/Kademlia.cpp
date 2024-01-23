@@ -195,8 +195,9 @@ public:
         // Query peerInfo of bootstraps
         for( auto bootstrapNodeInfo: m_bootstraps )
         {
+            // Request signed PeerInfo of bootstraps
             size_t bucketIndex = m_hashTable.calcBucketIndex( bootstrapNodeInfo.m_publicKey );
-            startSearchPeerInfo( TargetKey{bootstrapNodeInfo.m_publicKey}, bucketIndex );
+            startSearchPeerInfo( TargetKey{bootstrapNodeInfo.m_publicKey}, bucketIndex, true );
         }
 
         PeerKey searchedKey = m_keyPair.publicKey();
@@ -305,7 +306,7 @@ public:
         }
     }
 
-    void startSearchPeerInfo( const TargetKey& key, size_t bucketIndex, bool enterToSwarm = false )
+    void startSearchPeerInfo( const TargetKey& key, size_t bucketIndex, bool enteringToSwarm = false )
     {
         if ( auto it = m_searcherMap.find( key ); it == m_searcherMap.end() )
         {
@@ -313,7 +314,7 @@ public:
                                                       bucketIndex,
                                                       *this,
                                                       m_kademliaTransport,
-                                                      enterToSwarm );
+                                                      enteringToSwarm );
         }
     }
 
@@ -601,8 +602,10 @@ public:
             //
             if ( ! response.m_response.empty() )
             {
-                if ( response.m_response.size() != 1 || response.m_response[0].m_publicKey != response.m_targetKey.m_key )
+                if ( response.m_response.size() != 1 )
                 {
+                    _SIRIUS_ASSERT( response.m_response[0].m_publicKey != response.m_targetKey.m_key );
+                    
                     if ( auto it = m_searcherMap.find(response.m_targetKey); it != m_searcherMap.end() )
                     {
                         addCandidatesToSearcher( *it->second, response );
@@ -692,13 +695,13 @@ public:
                     int                             bucketIndex,
                     EndpointCatalogueImpl&          endpointCatalogue,
                     std::weak_ptr<Transport>        session,
-                    bool                            enterToSwarm )
+                    bool                            enteringToSwarm )
     :
         m_targetPeerKey(targetPeerKey),
         m_myPeerKey(endpointCatalogue.m_keyPair.publicKey()),
         m_endpointCatalogue(endpointCatalogue),
         m_session(session),
-        m_enterToSwarm(enterToSwarm)
+        m_enterToSwarm(enteringToSwarm)
     {
         ___LOG("search start: " << m_endpointCatalogue.m_myPort << " of: " << m_targetPeerKey )
 
@@ -735,7 +738,7 @@ public:
         // Sort candidates
         std::sort( m_candidates.begin(), m_candidates.end() );
         
-        sendNextRequest();
+        sendNextRequest( enteringToSwarm );
     }
 
     ~PeerSearchInfo()
@@ -744,7 +747,7 @@ public:
         m_timer.cancel();
     }
 
-    inline void sendNextRequest()
+    inline void sendNextRequest( bool enteringToSwarm = false )
     {
         if ( auto session = m_session.lock(); session )
         {
@@ -752,6 +755,20 @@ public:
          
             if ( ! m_candidates.empty() )
             {
+//                {
+//                    if ( !enteringToSwarm && m_endpointCatalogue.m_myPort == 99 )
+//                    {
+//                        for( const auto& info : m_candidates )
+//                        {
+//                            ___LOG( "FILTER: " << info.m_xorValue )
+//                        }
+//
+//                        const auto& info = m_candidates.back();
+//                        ___LOG( "FILTER: " << info.m_endpoint.port() << " myPort: " << m_endpointCatalogue.m_myPort << " of: " << m_targetPeerKey )
+//                        ___LOG( "FILTER: " << info.m_publicKey << " " << info.m_xorValue )
+//                        ___LOG( "FILTER: " )
+//                    }
+//                }
                 ___LOG( "sendGetPeerIpRequest: to: " << m_candidates.back().m_endpoint.port() << " myPort: " << m_endpointCatalogue.m_myPort << " of: " << m_targetPeerKey )
                 session->sendGetPeerIpRequest( request, m_candidates.back().m_endpoint );
                 m_triedPeers.insert( m_candidates.back().m_publicKey );
