@@ -171,7 +171,7 @@ public:
         {
             ___LOG( m_myPort << " : start: m_myPeerInfoTimer" )
             m_myPeerInfoTimer = session->startTimer( PEER_ANSWER_LIMIT_MS, [this]{ onMyPeerInfoTimer(); } );
-            m_updateKademliaTimer = session->startTimer( CHECK_EXPIRED_SEC, [this]{ updateKademlia(); } );
+            updateKademlia();
         }
     }
 
@@ -179,8 +179,25 @@ public:
     {
         if ( auto session = m_kademliaTransport.lock(); session )
         {
-            m_updateKademliaTimer = session->startTimer( CHECK_EXPIRED_SEC, [this]
+            m_updateKademliaTimer = session->startTimer( CHECK_EXPIRED_SEC, [this,session]
             {
+                // update local map
+                
+                //TODO?
+//                std::erase_if( m_localEndpointMap, []( const auto& it ) {
+//                    return  it->second.m_endpoint && isPeerInfoExpired(it->second->m_lastUsed);
+//                });
+                
+                for( auto& [key,endpointInfo] : m_localEndpointMap )
+                {
+                    if ( endpointInfo.m_endpoint && shouldPeerInfoBeUpdated(endpointInfo.m_lastSeen) )
+                    {
+                        PeerIpRequest request{ m_isClient, TargetKey{key}, RequesterKey{m_keyPair.publicKey()} };
+                        session->sendGetPeerIpRequest( request, *endpointInfo.m_endpoint );
+                    }
+                }
+
+                // update buckets
                 for( auto& bucket : m_hashTable.buckets() )
                 {
                     bucket.removeExpiredNodes();
@@ -784,12 +801,15 @@ public:
                 m_candidates.pop_back();
             }
             
+            assert( ((void*)&m_endpointCatalogue) != nullptr );
             m_timer = session->startTimer( PEER_ANSWER_LIMIT_MS, [this]{ onTimer(); } );
         }
     }
     
     void onTimer()
     {
+        assert( ((void*)&m_endpointCatalogue) != nullptr );
+
         if ( m_candidates.empty() )
         {
             if ( m_enterToSwarm )
