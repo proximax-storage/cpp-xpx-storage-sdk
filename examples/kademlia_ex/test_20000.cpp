@@ -25,7 +25,7 @@
 
 bool gBreak_On_Warning = true;
 
-const size_t NODE_NUMBER = 1000*1; // 20000
+const size_t NODE_NUMBER = 200*1; // 20000
 const size_t BOOTSTRAP_NUMBER = 5; // 20
 const size_t MAX_INTERESTING_NODES = 30;
 

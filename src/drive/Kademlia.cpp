@@ -41,6 +41,12 @@ inline std::unique_ptr<PeerSearchInfo> createPeerSearchInfo(   const TargetKey& 
                                                                EndpointCatalogueImpl&          endpointCatalogue,
                                                                std::weak_ptr<Transport>        session,
                                                                bool                            enterToSwarm = false );
+struct OptEdpInfo
+{
+    OptionalEndpoint m_endpoint;
+    uint64_t         m_lastSeen = 0;
+    uint64_t         m_lastUsed = 0;
+};
 
 class EndpointCatalogueImpl : public EndpointCatalogue
 {
@@ -60,7 +66,7 @@ public:
     Timer                           m_myPeerInfoTimer;
     Timer                           m_updateKademliaTimer;
 
-    std::map<PeerKey,OptionalEndpoint> m_localEndpointMap;
+    std::map<PeerKey, OptEdpInfo>   m_localEndpointMap;
 
     KademliaHashTable               m_hashTable;
     SearcherMap                     m_searcherMap;
@@ -115,7 +121,8 @@ public:
         for( const auto& nodeInfo : m_bootstraps )
         {
             //___LOG( "bootstrap: " << m_myPort << " " << nodeInfo.m_endpoint << " "  << nodeInfo.m_publicKey )
-            m_localEndpointMap[nodeInfo.m_publicKey] = nodeInfo.m_endpoint;
+            uint64_t currentTime = uint64_t(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+            m_localEndpointMap[nodeInfo.m_publicKey] = {nodeInfo.m_endpoint, currentTime, currentTime};
         }
         
         // make some delay (for starting dht)
@@ -232,13 +239,13 @@ public:
     {
         m_localEndpointMap[key] = {};
     }
-
     // On some (signed) endpoint discovered
     virtual void onEndpointDiscovered( const Key& key, const OptionalEndpoint& endpoint ) override
     {
         if ( auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() )
         {
-            it->second = endpoint;
+            it->second.m_endpoint = endpoint;
+            it->second.m_lastSeen = uint64_t (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
         }
         if ( m_endpointHandler )
         {
@@ -255,10 +262,11 @@ public:
     {
         // find in local map (usually replicators of common drives)
         //
-        if ( auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() && it->second )
+        if ( auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() && it->second.m_endpoint ) // как эндпоинт конверится в bool?
         {
-            __LOG( "getEndpoint (m_localEndpointMap): " << key << " " << it->second.value() )
-            return it->second;
+            it->second.m_lastUsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+            __LOG( "getEndpoint (m_localEndpointMap): " << key << " " << it->second.m_endpoint.value() )
+            return it->second.m_endpoint;
         }
     
         // find in Kademlia hash table
@@ -284,10 +292,10 @@ public:
     OptionalEndpoint dbgGetEndpointLocal(const PeerKey& key ) override
     {
         // find in local map (usually replicators of common drives)
-        if (auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() && it->second)
+        if (auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() && it->second.m_endpoint)
         {
-            __LOG("dbgGetEndpointLocal: " << key << " " << it->second.value())
-            return it->second;
+            __LOG("dbgGetEndpointLocal: " << key << " " << it->second.m_endpoint.value())
+            return it->second.m_endpoint;
         }
         else return {};
     }
@@ -567,7 +575,7 @@ public:
                 bool peerInfoIsNew = m_localEndpointMap.find(peerInfo.m_publicKey) == m_localEndpointMap.end();
                 
                 // add to local map
-                m_localEndpointMap[peerInfo.m_publicKey] = peerInfo.endpoint();
+                m_localEndpointMap[peerInfo.m_publicKey] = {peerInfo.endpoint(), peerInfo.m_creationTimeInSeconds, peerInfo.m_creationTimeInSeconds};
                 ___LOG( " added to local map: " << m_myPort << " of: " << peerInfo.m_publicKey << " " << (m_localEndpointMap.find(peerInfo.m_publicKey)!=m_localEndpointMap.end() ))
 
                 // try add to kademlia
