@@ -171,6 +171,7 @@ public:
         {
             ___LOG( m_myPort << " : start: m_myPeerInfoTimer" )
             m_myPeerInfoTimer = session->startTimer( PEER_ANSWER_LIMIT_MS, [this]{ onMyPeerInfoTimer(); } );
+            m_updateKademliaTimer = session->startTimer( CHECK_EXPIRED_SEC, [this]{ updateKademlia(); } );
         }
     }
 
@@ -178,7 +179,7 @@ public:
     {
         if ( auto session = m_kademliaTransport.lock(); session )
         {
-            m_myPeerInfoTimer = session->startTimer( int(PEER_UPDATE_SEC), [this]
+            m_updateKademliaTimer = session->startTimer( CHECK_EXPIRED_SEC, [this]
             {
                 for( auto& bucket : m_hashTable.buckets() )
                 {
