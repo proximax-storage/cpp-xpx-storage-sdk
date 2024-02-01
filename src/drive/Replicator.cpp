@@ -138,7 +138,7 @@ public:
                                       { task(); } );
     }
 
-    void stop()
+    void stopReplicator()
     {
         DBG_MAIN_THREAD
 
@@ -157,7 +157,7 @@ public:
 
         for ( auto&[key, drive]: m_driveMap )
         {
-            drive->terminate();
+            drive->shutdown();
         }
 
         for ( auto&[channelId, value]: m_dnChannelMap )
@@ -170,12 +170,12 @@ public:
         }
     }
 
-    void stopReplicator() override {
+    void shutdownReplicator() override {
 
         std::promise<void> barrier;
         boost::asio::post( m_session->lt_session().get_context(), [&barrier, this]() mutable {
             DBG_MAIN_THREAD
-            stop();
+            stopReplicator();
             barrier.set_value();
         } );
         barrier.get_future().wait();

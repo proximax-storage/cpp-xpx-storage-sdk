@@ -45,7 +45,7 @@ public:
                                            } );
     }
 
-    void terminate() override
+    void shutdown() override
     {
         DBG_MAIN_THREAD
     }
@@ -57,7 +57,7 @@ public:
         return true;
     }
 
-    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
+    void interruptTask( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override
     {
         DBG_MAIN_THREAD
 
@@ -65,15 +65,15 @@ public:
         {
             if ( m_opinionController.notApprovedModificationId() == cancelRequest.m_modifyTransactionHash.array() )
             {
-                return true;
+                cancelRequestIsAccepted = true;
+                return;
             }
-
-            return false;
         }
-        else {
+        else
+        {
             m_cancelRequests.push_back(cancelRequest);
-            return false;
         }
+        cancelRequestIsAccepted = false;
     }
 
 private:
@@ -221,7 +221,7 @@ private:
             return item.m_modificationId.array() == m_opinionController.notApprovedModificationId();
         });
 
-        if ( it != m_completedModifications.end() && it->m_status == CompletedModification::CompletedModificationStatus::CANCELLED )
+        if ( it != m_completedModifications.end() && it->m_completedModificationStatus == CompletedModification::CompletedModificationStatus::CANCELLED )
         {
             SIRIUS_ASSERT( !foundAppropriateCancel )
             foundAppropriateCancel = true;
@@ -262,7 +262,7 @@ private:
         }
 
         _LOG ( "Initialized" )
-        finishTask();
+        finishTaskAndRunNext();
     }
 
     void addFilesToSession( const Folder& folder )

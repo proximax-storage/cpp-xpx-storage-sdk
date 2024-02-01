@@ -96,7 +96,7 @@ class DefaultFlatDrive
     mobj<DriveClosureRequest> m_closeDriveRequest = {};
     mobj<ModificationCancelRequest> m_modificationCancelRequest;
     mobj<CatchingUpRequest> m_catchingUpRequest;
-    mobj<SynchronizationRequest> m_synchronizationRequest;
+    mobj<SynchronizationRequest> m_manualSyncRequest;
 
     struct DeferredRequest
     {
@@ -177,9 +177,9 @@ public:
 
     ~DefaultFlatDrive() override
     {
-        if ( m_synchronizationRequest )
+        if ( m_manualSyncRequest )
         {
-            m_synchronizationRequest->m_callback( {} );
+            m_manualSyncRequest->m_callback( {} );
         }
         if ( m_deferredManualModificationRequest )
         {
@@ -190,18 +190,18 @@ public:
     const Key& drivePublicKey() const override
     { return m_driveKey; }
 
-    void terminate() override
+    void shutdown() override
     {
         DBG_MAIN_THREAD
 
         if ( m_task )
         {
-            m_task->terminate();
+            m_task->shutdown();
         }
 
         if ( m_verificationTask )
         {
-            m_verificationTask->terminate();
+            m_verificationTask->terminateVerification();
             m_verificationTask.reset();
         }
     }
@@ -336,7 +336,7 @@ public:
             return;
         }
 
-        if ( m_synchronizationRequest )
+        if ( m_manualSyncRequest )
         {
             runSynchronizationTask();
             return;
@@ -431,7 +431,7 @@ public:
             m_deferredManualModificationRequest.reset();
         }
 
-        m_task = createManualSynchronizationTask( std::move( m_synchronizationRequest ), *this, m_opinionController );
+        m_task = createManualSynchronizationTask( std::move( m_manualSyncRequest ), *this, m_opinionController );
 
         SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::MANUAL_SYNCHRONIZATION )
 
@@ -606,7 +606,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        SIRIUS_ASSERT( !m_synchronizationRequest )
+        SIRIUS_ASSERT( !m_manualSyncRequest )
 
         cancelVerification();
 
@@ -672,7 +672,6 @@ public:
         if ( !m_task )
         {
             runNextTask();
-            return;
         }
     }
 
@@ -680,21 +679,29 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_task && m_task->shouldCancelModify( *request ))
+        if ( m_task )
         {
-            m_modificationCancelRequest = std::move(request);
+            // try cancel current task
+            //
+            bool cancelRequestIsAccepted = false;
+            m_task->interruptTask( *request, cancelRequestIsAccepted );
+            if ( cancelRequestIsAccepted )
+            {
+                m_modificationCancelRequest = std::move(request);
+                return;
+            }
         }
 
+        // try to remove deffered modification request
+        //
         auto it = std::find_if( m_deferredModificationRequests.begin(), m_deferredModificationRequests.end(),
-                                [&request]( const auto& item )
-                                { return item.transactionHash() == request->m_modifyTransactionHash; } );
-
-        if ( it == m_deferredModificationRequests.end())
+                               [&request]( const auto& item )
+                               { return item.transactionHash() == request->m_modifyTransactionHash; } );
+        
+        if ( it != m_deferredModificationRequests.end())
         {
-            return;
+            m_deferredModificationRequests.erase( it );
         }
-
-        m_deferredModificationRequests.erase( it );
     }
 
     void initiateManualModifications( mobj<InitiateModificationsRequest>&& request ) override
@@ -922,7 +929,7 @@ public:
             m_catchingUpRequest.reset();
         }
 
-        m_synchronizationRequest = std::move( request );
+        m_manualSyncRequest = std::move( request );
 
         if ( !m_task )
         {

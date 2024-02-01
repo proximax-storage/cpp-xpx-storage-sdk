@@ -22,7 +22,7 @@ public:
     RpcRemoteReplicator() {}
     ~RpcRemoteReplicator() {
         if (m_replicator) {
-            m_replicator->stopReplicator();
+            m_replicator->shutdownReplicator();
         }
         delete m_keyPair;
     }
@@ -85,7 +85,7 @@ public:
             case RPC_CMD::destroyReplicator:
             {
                 if (m_replicator) {
-                    m_replicator->stopReplicator();
+                    m_replicator->shutdownReplicator();
                     m_replicator.reset();
                 }
                 break;

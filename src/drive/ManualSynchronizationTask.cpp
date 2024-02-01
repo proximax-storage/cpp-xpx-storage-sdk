@@ -10,8 +10,8 @@
 namespace sirius::drive
 {
 
-class ManualSynchronizationTask
-        : public SynchronizationTaskBase
+class ManualSyncTask
+        : public SyncTaskBase
 {
 private:
 
@@ -20,23 +20,21 @@ private:
 
 public:
 
-    ManualSynchronizationTask( mobj<SynchronizationRequest>&& request,
+    ManualSyncTask( mobj<SynchronizationRequest>&& request,
                                DriveParams& drive,
                                ModifyOpinionController& opinionTaskController )
-            : SynchronizationTaskBase( DriveTaskType::MANUAL_SYNCHRONIZATION, drive, opinionTaskController )
+            : SyncTaskBase( DriveTaskType::MANUAL_SYNCHRONIZATION, drive, opinionTaskController )
             , m_request( std::move( request ))
     {
         SIRIUS_ASSERT( m_request )
     }
 
-    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
+    void interruptTask( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override
     {
-
         DBG_MAIN_THREAD
 
-        SIRIUS_ASSERT( 0 )
-
-        return false;
+        SIRIUS_ASSERT(0)
+        cancelRequestIsAccepted = false;
     }
 
     // Returns 'true' if 'CatchingUp' should be started
@@ -75,7 +73,7 @@ public:
     void modifyIsCompleted() override
     {
         m_taskIsExecuted = true;
-        SynchronizationTaskBase::modifyIsCompleted();
+        SyncTaskBase::modifyIsCompleted();
     }
 
     uint64_t getToBeApprovedDownloadSize() override
@@ -93,10 +91,10 @@ protected:
 		modifyIsCompleted();
 	}
 
-    void finishTask() override
+    void removeTorrentsAndFinishTask() override
     {
         m_request->m_callback( SynchronizationResponse{m_taskIsExecuted} );
-        sirius::drive::UpdateDriveTaskBase::finishTask();
+        sirius::drive::UpdateDriveTaskBase::removeTorrentsAndFinishTask();
     }
 
 private:
@@ -120,7 +118,7 @@ std::unique_ptr<DriveTaskBase> createManualSynchronizationTask( mobj <Synchroniz
                                                                 DriveParams& drive,
                                                                 ModifyOpinionController& opinionTaskController )
 {
-    return std::make_unique<ManualSynchronizationTask>( std::move( request ), drive, opinionTaskController );
+    return std::make_unique<ManualSyncTask>( std::move( request ), drive, opinionTaskController );
 }
 
 

@@ -298,7 +298,7 @@ private:
         if ( m_taskIsInterrupted )
         {
             callback( {} );
-            finishTask();
+            finishManualTask();
             return;
         }
 
@@ -405,7 +405,7 @@ private:
         if ( m_taskIsInterrupted )
         {
             callback( {} );
-            finishTask();
+            finishManualTask();
             return;
         }
 
@@ -492,7 +492,7 @@ private:
         if ( m_taskIsInterrupted )
         {
             callback( {} );
-            finishTask();
+            finishManualTask();
             return;
         }
 
@@ -566,7 +566,7 @@ private:
         if ( m_taskIsInterrupted )
         {
             callback( {} );
-            finishTask();
+            finishManualTask();
             return;
         }
 
@@ -673,7 +673,7 @@ private:
         if ( m_taskIsInterrupted )
         {
             callback( {} );
-            finishTask();
+            finishManualTask();
             return;
         }
 
@@ -775,7 +775,7 @@ private:
         if ( m_taskIsInterrupted )
         {
             callback( {} );
-            finishTask();
+            finishManualTask();
             return;
         }
 
@@ -941,7 +941,7 @@ private:
         if ( m_taskIsInterrupted )
         {
             callback( {} );
-            finishTask();
+            finishManualTask();
             return;
         }
 
@@ -1148,7 +1148,7 @@ private:
         if ( m_taskIsInterrupted )
         {
             callback( {} );
-            finishTask();
+            finishManualTask();
             return;
         }
 
@@ -1194,7 +1194,7 @@ private:
         if ( m_taskIsInterrupted )
         {
             request.m_callback( {} );
-            finishTask();
+            finishManualTask();
             return;
         }
 
@@ -1321,7 +1321,7 @@ private:
         if ( m_taskIsInterrupted )
         {
             callback( {} );
-            finishTask();
+            finishManualTask();
             return;
         }
 
@@ -1441,7 +1441,7 @@ private:
         if ( m_taskIsInterrupted )
         {
             callback( {} );
-            finishTask();
+            finishManualTask();
             return;
         }
 
@@ -1472,7 +1472,7 @@ public:
         } else
         {
             request.m_callback( ApplyStorageModificationsResponse{} );
-            finishTask();
+            finishManualTask();
         }
 
         return true;
@@ -1626,12 +1626,17 @@ private:
 
         callback( ApplyStorageModificationsResponse{} );
 
-        finishTask();
+        finishManualTask();
     }
 
 public:
 
-    void terminate() override
+    void shutdown() override
+    {
+        terminateManualTask();
+    }
+    
+    void terminateManualTask()
     {
         DBG_MAIN_THREAD
 
@@ -1644,7 +1649,7 @@ public:
 
         if ( !m_isExecutingQuery )
         {
-            finishTask();
+            finishManualTask();
         }
     }
 
@@ -1652,7 +1657,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        terminate();
+        terminateManualTask();
 
         return true;
     }
@@ -1661,7 +1666,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        terminate();
+        terminateManualTask();
     }
 
     void onModificationInitiated( const ModificationRequest& request ) override
@@ -1670,7 +1675,7 @@ public:
 
         // It is possible if the contract has been destroyed because of unsuccessful deployment
 
-        terminate();
+        terminateManualTask();
     }
 
     void onStreamStarted( const StreamRequest& request ) override
@@ -1679,7 +1684,7 @@ public:
 
         // It is possible if the contract has been destroyed because of unsuccessful deployment
 
-        terminate();
+        terminateManualTask();
     }
 
     void onManualModificationInitiated( const InitiateModificationsRequest& request ) override
@@ -1688,14 +1693,14 @@ public:
 
 //        SIRIUS_ASSERT ( m_request->m_modificationIdentifier == request.m_modificationIdentifier )
 
-        terminate();
+        terminateManualTask();
     }
 
     bool manualSynchronize( const SynchronizationRequest& request ) override
     {
         DBG_MAIN_THREAD
 
-        terminate();
+        terminateManualTask();
 
         return true;
     }
@@ -1741,7 +1746,7 @@ private:
     }
 
 protected:
-    void finishTask() override
+    void finishManualTask()
     {
         DBG_MAIN_THREAD
 
@@ -1784,7 +1789,7 @@ private:
         m_drive.executeOnSessionThread([this] {
             closeFiles( [this]
             {
-                DriveTaskBase::finishTask();
+                finishTaskAndRunNext();
             } );
         });
     }

@@ -28,7 +28,7 @@ namespace sirius::drive
 
 namespace fs = std::filesystem;
 
-class SynchronizationTaskBase
+class SyncTaskBase
         : public UpdateDriveTaskBase
 {
 private:
@@ -38,7 +38,7 @@ private:
 
 public:
 
-    SynchronizationTaskBase(
+    SyncTaskBase(
             const DriveTaskType& type,
             DriveParams& drive,
             ModifyOpinionController& opinionTaskController )
@@ -46,11 +46,11 @@ public:
     {
     }
 
-    void terminate() override
+    void shutdown() override
     {
         DBG_MAIN_THREAD
 
-        breakTorrentDownloadAndRunNextTask();
+        interruptTorrentDownloadAndRunNextTask();
     }
 
     void run() override
@@ -60,7 +60,7 @@ public:
         if ( m_drive.m_lastApprovedModification == getModificationTransactionHash() )
         {
             SIRIUS_ASSERT( m_drive.m_rootHash == getRootHash() );
-            finishTask();
+            removeTorrentsAndFinishTask();
             return;
         }
 
@@ -161,7 +161,7 @@ protected:
 
 public:
 
-    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
+    void interruptTask( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override
     {
 
         DBG_MAIN_THREAD
@@ -174,10 +174,11 @@ public:
         {
             SIRIUS_ASSERT( cancelRequest.m_modifyTransactionHash != getModificationTransactionHash() )
             SIRIUS_ASSERT( m_drive.m_lastApprovedModification == getModificationTransactionHash() )
-            return true;
+            cancelRequestIsAccepted = true;
+            return;
         }
 
-        return false;
+        cancelRequestIsAccepted = false;
     }
 
     void createUnusedFileList()
@@ -267,7 +268,7 @@ public:
                                         {
                                             if ( m_taskIsInterrupted )
                                             {
-                                                finishTask();
+                                                removeTorrentsAndFinishTask();
                                             } else
                                             {
                                                 startDownloadMissingFiles();
@@ -361,7 +362,7 @@ public:
                                         downloadMissingFiles();
                                     } else if ( code == download_status::dn_failed )
                                     {
-                                        _LOG_ERR( "? is it possible now?" );
+                                        SIRIUS_ASSERT( 0 );
                                     }
                                 },
 
@@ -406,7 +407,7 @@ public:
             return true;
         }
 
-        breakTorrentDownloadAndRunNextTask();
+        interruptTorrentDownloadAndRunNextTask();
         return true;
     }
 
@@ -464,7 +465,7 @@ public:
         catch ( const std::exception& ex )
         {
             _LOG_ERR( "exception during completeCatchingUp: " << ex.what());
-            finishTask();
+            removeTorrentsAndFinishTask();
         }
     }
 
@@ -474,7 +475,7 @@ public:
 
         if ( m_taskIsInterrupted )
         {
-            finishTask();
+            removeTorrentsAndFinishTask();
             return;
         }
 
@@ -488,7 +489,7 @@ public:
         return 0;
     }
 
-    void tryBreakTask() override
+    void tryFinishTask() override
     {
 
     }

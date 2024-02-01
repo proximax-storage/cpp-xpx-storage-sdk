@@ -362,7 +362,7 @@ public:
     virtual OptionalEndpoint dbgGetEndpoint( const Key& key ) { return {}; }
 
 
-    virtual void        stopReplicator() = 0;
+    virtual void        shutdownReplicator() = 0;
 
     // For RPC support
     virtual bool        isConnectionLost() const { return false; };
