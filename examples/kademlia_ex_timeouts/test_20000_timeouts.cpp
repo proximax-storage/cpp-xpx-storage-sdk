@@ -25,7 +25,7 @@
 
 bool gBreak_On_Warning = true;
 
-const size_t NODE_NUMBER = 200*1; // 20000
+const size_t NODE_NUMBER = 1000*1; // 20000
 const size_t BOOTSTRAP_NUMBER = 5; // 20
 const size_t MAX_INTERESTING_NODES = 30;
 
@@ -77,7 +77,7 @@ struct TestContext
 {
     boost::asio::io_context                      m_context;
     std::map<endpoint,std::shared_ptr<TestNode>> m_map;
-    
+
 public:
     TestContext( std::vector<std::shared_ptr<TestNode>>& nodes );
 };
@@ -86,7 +86,7 @@ public:
 
 class TestNode : public std::enable_shared_from_this<TestNode>, public kademlia::Transport // replicator
 {
-    TestContext*                             m_testContext = nullptr;
+    TestContext*                                 m_testContext = nullptr;
 
 public:
     std::shared_ptr<kademlia::EndpointCatalogue> m_kademlia;
@@ -96,23 +96,26 @@ public:
     size_t m_counterMySearch = 0;
     size_t m_counterPeerSearch = 0;
 public:
-    
+
     TestNode( endpoint theEndpoint )
-    :
-        m_keyPair( sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( generatePrivateKey() )) ),
-        m_endpoint(theEndpoint)
-    {}
+            :
+            m_keyPair( sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( generatePrivateKey() )) ),
+            m_endpoint(theEndpoint)
+    {
+        // TODO remove the line below - ?
+        //m_keyPair = sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( generatePrivateKey() ));
+    }
 
     void init(  TestContext&                        testContext,
                 const std::vector<ReplicatorInfo>&  bootstraps )
     {
         m_testContext = &testContext;
-        
+
         m_kademlia = createEndpointCatalogue( (std::weak_ptr<sirius::drive::kademlia::Transport>) shared_from_this(),
-                                             (sirius::crypto::KeyPair const&) m_keyPair,
-                                             (const std::vector<sirius::drive::ReplicatorInfo>&) bootstraps,
-                                             (unsigned short) m_endpoint.port(),
-                                             false );
+                                              (sirius::crypto::KeyPair const&) m_keyPair,
+                                              (const std::vector<sirius::drive::ReplicatorInfo>&) bootstraps,
+                                              (unsigned short) m_endpoint.port(),
+                                              false );
     }
 
     void addInterestingPeerKey( kademlia::PeerKey& peerKey )
@@ -126,7 +129,7 @@ public:
     //
     //-----------------------------------------------------------------------------------------------------------
     //
-    
+
     virtual void sendGetMyIpRequest( const kademlia::MyIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override
     {
         boost::asio::post( getContext(), [=,this]() //mutable
@@ -139,7 +142,7 @@ public:
             ++m_counterMySearch;
         });
     }
-    
+
     virtual void sendGetPeerIpRequest( const kademlia::PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override
     {
         boost::asio::post( getContext(), [=,this]() //mutable
@@ -153,6 +156,7 @@ public:
         });
     }
 
+    // когда не спрашивали PeerInfo, а он уведомил для уменьшения трафика
     virtual void sendDirectPeerInfo( const kademlia::PeerIpResponse& response, boost::asio::ip::udp::endpoint endpoint ) override
     {
         boost::asio::post( getContext(), [=,this]() //mutable
@@ -164,7 +168,7 @@ public:
             ++m_counterPeerSearch;
         });
     }
-    
+
     virtual std::string onGetMyIpRequest( const std::string& requestStr, boost::asio::ip::udp::endpoint requesterEndpoint ) override
     {
         boost::asio::post( getContext(), [=,this]() //mutable
@@ -199,9 +203,9 @@ public:
             m_kademlia->onGetPeerIpResponse(response, responserEndpoint);
         });
     }
-    
+
     virtual boost::asio::io_context& getContext() override { return m_testContext->m_context; }
-    
+
     virtual Timer     startTimer( int milliseconds, std::function<void()> func ) override
     {
         return Timer{ getContext(), milliseconds, std::move( func ) };
@@ -237,13 +241,13 @@ int c = 0;
 int main(int,char**)
 {
     gBreakOnWarning = false;
-    
+
     // Skip verifications for this test
     gDoNotSkipVerification = false;
 
-    CHECK_EXPIRED_SEC   = (15*60); // 15*60
-    PEER_UPDATE_SEC     = (40*60);
-    EXPIRED_SEC         = (2*60*60);
+    CHECK_EXPIRED_SEC   = (15*60)/40; // 15*60
+    PEER_UPDATE_SEC     = (40*60)/40;
+    EXPIRED_SEC         = (2*60*60)/40;
 
     __attribute__((unused)) auto startTime = std::clock();
 
@@ -251,7 +255,7 @@ int main(int,char**)
     for ( size_t i = 0; i < NODE_NUMBER - 1; i++ )
     {
         endpoint theEndpoint = boost::asio::ip::udp::endpoint{ boost::asio::ip::make_address( "127.0.0.1"), uint16_t(i) };
-           
+
         gTestNodes.push_back( std::make_shared<TestNode>(theEndpoint) );
 
         ___LOG( "node_" << i << ": port: " << i << " key: " << gTestNodes.back()->m_keyPair.publicKey() )
@@ -264,18 +268,18 @@ int main(int,char**)
     {
         bootstraps.emplace_back( ReplicatorInfo{ gTestNodes[i]->m_endpoint, gTestNodes[i]->m_keyPair.publicKey()  } );
         ___LOG( "boostarap_" << i << ": port: " << bootstraps[i].m_endpoint.port() << ", address: "
-            << bootstraps[i].m_endpoint.address() << ", public key: " << bootstraps[i].m_publicKey);
+                             << bootstraps[i].m_endpoint.address() << ", public key: " << bootstraps[i].m_publicKey);
     }
-    
+
     // create KademliaTransport
     TestContext testContext( gTestNodes );
-    
+
     // init node
     for ( auto& node : gTestNodes )
     {
         node->init( testContext, bootstraps );
     }
-    
+
     size_t interestingNodeNumber = gTestNodes.size()/3;
     if ( interestingNodeNumber > MAX_INTERESTING_NODES )
     {
@@ -304,9 +308,9 @@ int main(int,char**)
 
     __attribute__((unused)) auto printOne = [&](std::shared_ptr<TestNode> node)
     {
-            ___LOG("FILTER (One) MyMessages " << node->m_counterMySearch
-                                    << "; PeerMessages " << node->m_counterPeerSearch);
-            EXLOG( "FILTER (One) !!!!!! total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
+        ___LOG("FILTER (One) MyMessages " << node->m_counterMySearch
+                                          << "; PeerMessages " << node->m_counterPeerSearch);
+        EXLOG( "FILTER (One) !!!!!! total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
     };
 
     auto addLastNode = [&]()
@@ -339,25 +343,38 @@ int main(int,char**)
         double cntPeerMessagesTotal = 0;
         int cntFound = 0;
         int cntNotFound = 0;
-        for (auto &node: gTestNodes) {
-            for (auto &key: node->m_interestingPeerKeys) {
-                if (node->m_kademlia->dbgGetEndpointLocal(key)) {
+        for (size_t i = 0; i < gTestNodes.size(); ++i)
+        {
+            if(i == gTestNodes.size()/3) {
+                ___LOG("TEST " << gTestNodes[i]->m_keyPair.publicKey() << ": "
+                               << gTestNodes[i]->m_kademlia->getPeerInfo(
+                                       gTestNodes[i]->m_keyPair.publicKey())->m_creationTimeInSeconds);
+            }
+
+            if(isPeerInfoExpired( gTestNodes[i]->m_kademlia->getPeerInfo(
+                    gTestNodes[i]->m_keyPair.publicKey())->m_creationTimeInSeconds))
+            {
+                ___LOG("TEST ERROR " << gTestNodes[i]->m_keyPair.publicKey() << ": "
+                               << gTestNodes[i]->m_kademlia->getPeerInfo(
+                                       gTestNodes[i]->m_keyPair.publicKey())->m_creationTimeInSeconds
+                                       << " EXPIRED");
+            }
+            for (auto &key: gTestNodes[i]->m_interestingPeerKeys) {
+                if (gTestNodes[i]->m_kademlia->dbgGetEndpointLocal(key)) {
                     ++cntFound;
                 } else {
                     ++cntNotFound;
                 }
             }
-            cntMyMessagesTotal += node->m_counterMySearch;
-            cntPeerMessagesTotal += node->m_counterPeerSearch;
-
+            cntMyMessagesTotal += gTestNodes[i]->m_counterMySearch;
+            cntPeerMessagesTotal += gTestNodes[i]->m_counterPeerSearch;
         }
+        ___LOG("FILTER " << " found " << cntFound << " out of " << cntFound + cntNotFound
+                         << "; MyMessages " << cntMyMessagesTotal / gTestNodes.size()
+                         << "; PeerMessages " << cntPeerMessagesTotal / gTestNodes.size());
+        ___LOG("TEST iteration " << c << "--------------------------------FILTER");
+        EXLOG( "FILTER total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
 
-            ___LOG("FILTER " << " found " << cntFound << " out of " << cntFound + cntNotFound
-                             << "; MyMessages " << cntMyMessagesTotal / gTestNodes.size()
-                             << "; PeerMessages " << cntPeerMessagesTotal / gTestNodes.size());
-            ___LOG("iteration " << c << "--------------------------------FILTER");
-            EXLOG( "FILTER total time: " << float( std::clock() - startTime ) /  CLOCKS_PER_SEC );
-        
         if ( cntFound == cntFound + cntNotFound )
         {
             testContext.m_context.stop();
@@ -367,18 +384,18 @@ int main(int,char**)
     ___LOG("FILTER Start: " << gTestNodes.size() );
 
     std::thread([&]
-    {
-        testContext.m_context.run();
-        printStatistic();
-        addLastNode();
+                {
+                    testContext.m_context.run();
+                    printStatistic();
+                    addLastNode();
 
-        testContext.m_context.restart();
-        testContext.m_context.run();
-        printStatistic();
-        printOne( gTestNodes.back() );
-        
-        ___LOG( "FILTER Ended" );
-    }).detach();
+                    testContext.m_context.restart();
+                    testContext.m_context.run();
+                    printStatistic();
+                    printOne( gTestNodes.back() );
+
+                    ___LOG( "FILTER Ended" );
+                }).detach();
 
     for(;;)
     {
