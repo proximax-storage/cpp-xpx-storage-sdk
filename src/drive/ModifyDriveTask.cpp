@@ -266,8 +266,11 @@ public:
         }
         else
         {
-            _LOG( "Download Handle Reset" )
-            m_downloadingLtHandle.reset();
+            if ( m_downloadingLtHandle )
+            {
+                _LOG( "Download Handle Reset" )
+                m_downloadingLtHandle.reset();
+            }
 
             // it is the end of list
             m_drive.executeOnBackgroundThread( [this]

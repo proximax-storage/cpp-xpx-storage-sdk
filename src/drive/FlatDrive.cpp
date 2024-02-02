@@ -338,7 +338,7 @@ public:
 
         if ( m_manualSyncRequest )
         {
-            runSynchronizationTask();
+            runManualSyncTask();
             return;
         }
 
@@ -419,7 +419,7 @@ public:
         m_task->run();
     }
 
-    void runSynchronizationTask()
+    void runManualSyncTask()
     {
         DBG_MAIN_THREAD
 
