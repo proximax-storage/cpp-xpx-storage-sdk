@@ -257,7 +257,9 @@ public:
     {
         m_localEndpointMap[key] = {};
     }
+    
     // On some (signed) endpoint discovered
+    // This function is called during peer-connection-handshake 
     virtual void onEndpointDiscovered( const Key& key, const OptionalEndpoint& endpoint ) override
     {
         if ( auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() )
