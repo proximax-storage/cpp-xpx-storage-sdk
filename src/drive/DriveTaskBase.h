@@ -50,7 +50,9 @@ public:
 
     virtual void run() = 0;
 
-    virtual void terminate() = 0;
+    virtual void shutdown() = 0;
+
+    virtual void terminateVerification() {};
 
     DriveTaskType getTaskType()
     {
@@ -72,12 +74,13 @@ public:
         DBG_MAIN_THREAD
     }
 
-    virtual bool shouldCancelModify( const ModificationCancelRequest& cancelRequest )
+    virtual void interruptTask( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted )
     {
         DBG_MAIN_THREAD
 
-        return false;
+        cancelRequestIsAccepted = false;
     }
+
 
     virtual void onDriveClose( const DriveClosureRequest& closureRequest )
     {
@@ -296,39 +299,39 @@ public:
 protected:
 
 
-    virtual void finishTask()
+    virtual void finishTaskAndRunNext()
     {
         DBG_MAIN_THREAD
 
         m_drive.executeOnBackgroundThread( [this]
+        {
+           DBG_BG_THREAD
+
+           std::error_code err;
+
+           if ( !fs::exists( m_drive.m_sandboxRootPath, err ))
+           {
+               fs::create_directories( m_drive.m_sandboxRootPath );
+               fs::create_directories( m_drive.m_sandboxStreamTFolder );
+           }
+           else
+           {
+               for( const auto& entry: std::filesystem::directory_iterator( m_drive.m_sandboxRootPath ))
+               {
+                   fs::remove_all( entry.path(), err );
+                   _LOG( "fs::remove_all" );
+                   if ( err )
+                   {
+                       _LOG_WARN( "remove sandbox error: " << err )
+                   }
+               }
+           }
+
+           m_drive.executeOnSessionThread( [this]
                                            {
-                                               DBG_BG_THREAD
-
-                                               std::error_code err;
-
-                                               if ( !fs::exists( m_drive.m_sandboxRootPath, err ))
-                                               {
-                                                   fs::create_directories( m_drive.m_sandboxRootPath );
-                                                   fs::create_directories( m_drive.m_sandboxStreamTFolder );
-                                               } else
-                                               {
-                                                   for ( const auto& entry: std::filesystem::directory_iterator(
-                                                           m_drive.m_sandboxRootPath ))
-                                                   {
-                                                       fs::remove_all( entry.path(), err );
-                                                       _LOG( "fs::remove_all" );
-                                                       if ( err )
-                                                       {
-                                                           _LOG_WARN( "remove sandbox error: " << err )
-                                                       }
-                                                   }
-                                               }
-
-                                               m_drive.executeOnSessionThread( [this]
-                                                                               {
-                                                                                   m_drive.runNextTask();
-                                                                               } );
+                                               m_drive.runNextTask();
                                            } );
+        } );
     }
 
     void markUsedFiles( const Folder& folder )

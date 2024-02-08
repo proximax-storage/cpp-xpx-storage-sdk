@@ -11,7 +11,7 @@ namespace sirius::drive
 
 namespace fs = std::filesystem;
 
-class CatchingUpTask : public SynchronizationTaskBase
+class CatchingUpTask : public SyncTaskBase
 {
 private:
 
@@ -22,13 +22,13 @@ public:
     CatchingUpTask( mobj<CatchingUpRequest>&& request,
                     DriveParams& drive,
                     ModifyOpinionController& opinionTaskController )
-                    : SynchronizationTaskBase(DriveTaskType::CATCHING_UP, drive, opinionTaskController)
+                    : SyncTaskBase(DriveTaskType::CATCHING_UP, drive, opinionTaskController)
                     , m_request( std::move(request) )
     {
         SIRIUS_ASSERT( m_request )
     }
 
-    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override {
+    void interruptTask( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override {
 
         DBG_MAIN_THREAD
 
@@ -40,10 +40,11 @@ public:
         {
             SIRIUS_ASSERT( cancelRequest.m_modifyTransactionHash != m_request->m_modifyTransactionHash )
             SIRIUS_ASSERT( m_drive.m_lastApprovedModification == m_request->m_modifyTransactionHash )
-            return true;
+            cancelRequestIsAccepted = true;
+            return;
         }
 
-        return false;
+        cancelRequestIsAccepted = false;
     }
 
     // Returns 'true' if 'CatchingUp' should be started
@@ -56,7 +57,7 @@ public:
             return true;
         }
 
-        breakTorrentDownloadAndRunNextTask();
+        interruptTorrentDownloadAndRunNextTask();
         return true;
     }
 
@@ -73,7 +74,7 @@ public:
 
         sendSingleApprovalTransaction( *m_myOpinion );
 
-        SynchronizationTaskBase::myOpinionIsCreated();
+        SyncTaskBase::myOpinionIsCreated();
     }
 
 protected:

@@ -10,7 +10,7 @@
 #include "drive/ActionList.h"
 #include "drive/FlatDrive.h"
 #include "DriveParams.h"
-#include "ModifyApprovalTaskBase.h"
+#include "ModifyTaskBase.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
 
@@ -27,7 +27,7 @@ namespace sirius::drive
 
 namespace fs = std::filesystem;
 
-class ModifyDriveTask : public ModifyApprovalTaskBase
+class ModifyDriveTask : public ModifyTaskBase
 {
 
 private:
@@ -45,20 +45,20 @@ public:
             std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>&& receivedOpinions,
             DriveParams& drive,
             ModifyOpinionController& opinionTaskController)
-            : ModifyApprovalTaskBase( DriveTaskType::MODIFICATION_REQUEST, drive, std::move(receivedOpinions), opinionTaskController )
+            : ModifyTaskBase( DriveTaskType::MODIFICATION_REQUEST, drive, std::move(receivedOpinions), opinionTaskController )
             , m_request( std::move(request) )
     {
         SIRIUS_ASSERT( m_request )
     }
 
-    void terminate() override
+    void shutdown() override
     {
         DBG_MAIN_THREAD
 
         m_modifyOpinionTimer.cancel();
         m_shareMyOpinionTimer.cancel();
 
-        breakTorrentDownloadAndRunNextTask();
+        interruptTorrentDownloadAndRunNextTask();
     }
 
     void run() override
@@ -97,6 +97,7 @@ public:
 
                                                        if ( code == download_status::dn_failed )
                                                        {
+                                                           SIRIUS_ASSERT( 0 );
                                                            m_drive.m_torrentHandleMap.erase( infoHash );
                                                            modifyIsCompletedWithError( errorText, ModificationStatus::DOWNLOAD_FAILED );
                                                        }
@@ -108,7 +109,9 @@ public:
 
                                                            if ( ! m_taskIsInterrupted )
                                                            {
+                                                               // remeber "fsTree or actionList handle"; they to be removed in finishTask()
                                                                m_fsTreeOrActionListHandle = m_downloadingLtHandle;
+                                                               
                                                                m_downloadingLtHandle.reset();
                                                                m_uploadedDataSize += downloadedSize;
                                                                m_actionListIsReceived = true;
@@ -233,9 +236,12 @@ public:
                                                                        {
                                                                            _LOG( "downloading: END: " << toString( infoHash ));
                                                                            m_uploadedDataSize += downloadedSize;
+                                                                           m_downloadingLtHandle.reset();
                                                                            downloadMissingFiles();
-                                                                       } else if ( code == download_status::dn_failed )
+                                                                       }
+                                                                       else if ( code == download_status::dn_failed )
                                                                        {
+                                                                           SIRIUS_ASSERT( 0 );
                                                                            m_drive.m_torrentHandleMap.erase( infoHash );
                                                                            modifyIsCompletedWithError( errorText, ModificationStatus::DOWNLOAD_FAILED );
                                                                        }
@@ -260,8 +266,11 @@ public:
         }
         else
         {
-            _LOG( "Download Handle Reset" )
-            m_downloadingLtHandle.reset();
+            if ( m_downloadingLtHandle )
+            {
+                _LOG( "Download Handle Reset" )
+                m_downloadingLtHandle.reset();
+            }
 
             // it is the end of list
             m_drive.executeOnBackgroundThread( [this]
@@ -489,7 +498,7 @@ public:
             if ( validateOpinion( anOpinion ) )
             {
                 m_receivedOpinions[anOpinion.m_opinions[0].m_replicatorKey] = anOpinion;
-                checkOpinionNumberAndStartTimer();
+                sendModifyApproveTxWithDelay();
             }
          }
         else {
@@ -511,53 +520,70 @@ public:
 
         m_modifyApproveTxReceived = true;
 
+        // Note: approvalTx have been received, it means that other nodes can 'remove action list'
+        // If our node did not receive 'actionList', we need start syncing
+        // If our node received 'actionList', then we will continue download missed files
+        //
+        // 'm_modificationStatus != ModificationStatus::SUCCESS' means
+        // that all nodes completed modification with the same error (the error is absent in ApprovalTransactionInfo!)
+        // so, we need send single tx with this error
+        //
         if ( m_request->m_transactionHash == transaction.m_modifyTransactionHash
-             && ( m_actionListIsReceived || m_status != ModificationStatus::SUCCESS ))
+            && ( m_actionListIsReceived || m_modificationStatus != ModificationStatus::SUCCESS ))
         {
             if ( !m_sandboxCalculated )
             {
+                // it means our task currently works on BG thread
+                // so, it must be completed/ended
                 return false;
             }
 
+            // Current our state: we are waiting the approval tx
+            //SIRIUS_ASSERT( m_sandboxCalculated )
+            
 			if ( *m_sandboxRootHash != transaction.m_rootHash ) {
 				_LOG_ERR( "Invalid Sandbox Root Hash: " << *m_sandboxRootHash << " " << Hash256(transaction.m_rootHash) )
 			}
             
+            // Is my opinion present in received transaction?
+            //
             const auto& v = transaction.m_replicatorKeys;
-            auto it = std::find( v.begin(), v.end(), m_drive.m_replicator.replicatorKey().array());
-
-            // Is my opinion present in the transaction
-            if ( it == v.end())
+            if ( auto it = std::find( v.begin(), v.end(), m_drive.m_replicator.replicatorKey().array());
+                it == v.end())
             {
                 // Send Single Approval Transaction At First
                 sendSingleApprovalTransaction( *m_myOpinion );
             }
 
+            // Accept modification
+            // or clear unused files in case of 'm_modificationStatus != ModificationStatus::SUCCESS'
             startSynchronizingDriveWithSandbox();
             return false;
         }
         else
         {
+            // Our lag (rus: 'otstavanie') is to big
+            // we must start syncing
+            //
             m_opinionController.increaseApprovedExpectedCumulativeDownload(m_request->m_maxDataSize);
-            breakTorrentDownloadAndRunNextTask();
+            interruptTorrentDownloadAndRunNextTask();
             return true;
         }
     }
 
-    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
+    void interruptTask( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override
     {
-        if ( m_taskIsInterrupted )
+        DBG_MAIN_THREAD
+        
+        if ( ! m_taskIsInterrupted &&
+             cancelRequest.m_modifyTransactionHash == m_request->m_transactionHash )
         {
-            return false;
+            interruptTorrentDownloadAndRunNextTask();
+            cancelRequestIsAccepted = true;
+            return;
         }
 
-        if ( cancelRequest.m_modifyTransactionHash == m_request->m_transactionHash )
-        {
-            breakTorrentDownloadAndRunNextTask();
-            return true;
-        }
-
-        return false;
+        cancelRequestIsAccepted = false;
     }
 
     void onApprovalTxFailed( const Hash256& transactionHash ) override
@@ -577,15 +603,16 @@ public:
         }
     }
     
-    void tryBreakTask() override
+    void tryFinishTask() override
     {
         if ( m_sandboxCalculated && ! m_modifyApproveTxReceived )
         {
-            finishTask();
+            SIRIUS_ASSERT( ! m_downloadingLtHandle )
+            removeTorrentsAndFinishTask();
         }
         else
         {
-            // we will wait the end of current task, that will call m_drive.runNextTask()
+            // we will wait the end of the current task, that will call m_drive.runNextTask()
         }
     }
 
@@ -610,7 +637,7 @@ protected:
 
         m_downloadingLtHandle.reset();
 
-        m_status = status;
+        m_modificationStatus = status;
 
         m_drive.executeOnBackgroundThread([this]
         {

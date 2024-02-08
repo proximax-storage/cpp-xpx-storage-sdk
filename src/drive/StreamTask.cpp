@@ -9,14 +9,14 @@
 #include "drive/FsTree.h"
 #include "drive/FlatDrive.h"
 #include "DriveParams.h"
-#include "ModifyApprovalTaskBase.h"
+#include "ModifyTaskBase.h"
 
 namespace sirius::drive
 {
 
 namespace fs = std::filesystem;
 
-class StreamTask : public ModifyApprovalTaskBase
+class StreamTask : public ModifyTaskBase
 {
     std::mutex  m_mutex;
     
@@ -76,7 +76,7 @@ public:
                  DriveParams&                drive,
                  ModifyOpinionController&    opinionTaskController )
             :
-    ModifyApprovalTaskBase( DriveTaskType::STREAM_REQUEST, drive, {}, opinionTaskController )
+    ModifyTaskBase( DriveTaskType::STREAM_REQUEST, drive, {}, opinionTaskController )
             , m_request( std::move(request) )
     {
         SIRIUS_ASSERT( m_request )
@@ -87,7 +87,7 @@ public:
         _LOG( "m_chunkInfoList.size: " << m_chunkInfoList.size() )
     }
     
-    void terminate() override
+    void shutdown() override
     {
         DBG_MAIN_THREAD
 
@@ -95,46 +95,45 @@ public:
 //        m_modifyOpinionTimer.reset();
 //        m_shareMyOpinionTimer.reset();
 
-        breakTorrentDownloadAndRunNextTask();
+        interruptTorrentDownloadAndRunNextTask();
     }
     
-    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
+    void interruptTask( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override
     {
         DBG_MAIN_THREAD
         
-        if ( m_taskIsInterrupted )
+        if ( ! m_taskIsInterrupted &&
+             cancelRequest.m_modifyTransactionHash == m_request->m_streamId )
         {
-            return false;
+            interruptTorrentDownloadAndRunNextTask();
+            cancelRequestIsAccepted = true;
+            return;
         }
 
-        if ( cancelRequest.m_modifyTransactionHash == m_request->m_streamId )
-        {
-            breakTorrentDownloadAndRunNextTask();
-            return true;
-        }
-        
-        _LOG( "!!! cancelRequest.m_modifyTransactionHash != m_request->m_streamId" )
-
-        return false;
+        cancelRequestIsAccepted = false;
     }
 
-
-    void tryBreakTask() override
+    void tryFinishTask() override
     {
         DBG_MAIN_THREAD
 
-        if ( m_sandboxCalculated & !m_modifyApproveTxReceived )
-        {
-            finishTask();
-        }
-        else
-        {
-            // We will wait the end of current task, that will call m_drive.runNextTask()
-        }
+        // m_finishInfoHash?
+        
+        //if ( m_sandboxCalculated && ! m_modifyApproveTxReceived )
+        //{
+            removeTorrentsAndFinishTask();
+//        }
+//        else
+//        {
+//            // We will wait the end of current task, that will call m_drive.runNextTask()
+//        }
     }
 
     void run() override
     {
+        _LOG( "StreamTask::run: m_request->m_streamId: " << m_request->m_streamId )
+        _LOG( "StreamTask::run: m_request->m_streamerKey: " << m_request->m_streamerKey )
+        _LOG( "StreamTask::run: m_request->m_folder: " << m_request->m_folder )
     }
 
     const Hash256& getModificationTransactionHash() override
@@ -231,7 +230,7 @@ public:
 
         if ( chunkInfo->m_streamId != m_request->m_streamId.array() )
         {
-            _LOG_WARN( "ignore unkown stream" )
+            _LOG_WARN( "ignore unkown stream: " << toString(chunkInfo->m_streamId) << " vs. " << m_request->m_streamId )
             return;
         }
         
@@ -522,7 +521,7 @@ public:
         catch (const std::exception& ex)
         {
             _LOG_WARN( "exception during continueSynchronizingDriveWithSandbox: " << ex.what());
-            finishTask();
+            removeTorrentsAndFinishTask();
         }
     }
 
@@ -537,6 +536,7 @@ public:
                     m_drive.m_replicator, m_drive.m_driveKey, m_request->m_streamId, *m_sandboxRootHash);
         }
 
+        //???
         UpdateDriveTaskBase::modifyIsCompleted();
     }
 
@@ -555,7 +555,7 @@ public:
              validateOpinion( anOpinion ) )
         {
             m_receivedOpinions[anOpinion.m_opinions[0].m_replicatorKey] = anOpinion;
-            checkOpinionNumberAndStartTimer();
+            sendModifyApproveTxWithDelay();
         }
         return true;
     }
@@ -571,7 +571,7 @@ public:
 
         m_modifyApproveTxReceived = true;
 
-        if ( m_request->m_streamId == transaction.m_modifyTransactionHash && m_sandboxCalculated )
+        if ( m_request->m_streamId == transaction.m_modifyTransactionHash )//&& (m_finishLtHandle || m_status != )
         {
             if ( *m_sandboxRootHash != transaction.m_rootHash ) {
                 _LOG_ERR( "Invalid Sandbox Root Hash: " << *m_sandboxRootHash << " " << Hash256(transaction.m_rootHash) )
@@ -593,7 +593,7 @@ public:
         else
         {
             m_opinionController.increaseApprovedExpectedCumulativeDownload(m_request->m_maxSizeBytes);
-            breakTorrentDownloadAndRunNextTask();
+            interruptTorrentDownloadAndRunNextTask();
             return true;
         }
     }

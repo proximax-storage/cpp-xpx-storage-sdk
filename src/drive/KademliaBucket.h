@@ -30,6 +30,8 @@ inline bool      gDoNotSkipVerification  = true;
 inline bool isPeerInfoExpired( uint64_t t )
 {
     uint64_t now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    //TODO? check staing logs!!! ??? 20185094 > 49200191+7200
+    ___LOG( "isPeerInfoExpired: " << now << " > " << t << "+" << EXPIRED_SEC )
     return now > t+EXPIRED_SEC;
 }
 

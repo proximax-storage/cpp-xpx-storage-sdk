@@ -74,13 +74,13 @@ struct CompletedModification
     };
 
     Hash256 m_modificationId;
-    CompletedModificationStatus m_status;
+    CompletedModificationStatus m_completedModificationStatus;
 
     template<class Archive>
     void serialize( Archive& arch )
     {
         arch( m_modificationId );
-        arch( m_status );
+        arch( m_completedModificationStatus );
     }
 };
 
@@ -745,7 +745,7 @@ public:
 
     virtual ~FlatDrive() = default;
 
-    virtual void terminate() = 0;
+    virtual void shutdown() = 0;
 
     virtual const Key& drivePublicKey() const = 0;
 

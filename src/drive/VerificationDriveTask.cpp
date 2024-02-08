@@ -98,7 +98,12 @@ public:
         } );
     }
 
-    void terminate() override
+    void shutdown() override
+    {
+        SIRIUS_ASSERT(0)
+    }
+    
+    void terminateVerification() override
     {
         DBG_MAIN_THREAD
 
@@ -124,15 +129,18 @@ public:
 
     bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
     {
-        terminate();
+        terminateVerification();
 
         // Return result will be ignored
         return false;
     }
 
-    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
+    void interruptTask( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override
     {
-        return false;
+        DBG_MAIN_THREAD
+
+        SIRIUS_ASSERT(0)
+        cancelRequestIsAccepted = false;
     }
 
     void onDriveClose( const DriveClosureRequest& closureRequest ) override
@@ -267,7 +275,7 @@ public:
 
     void cancelVerification() override
     {
-        terminate();
+        terminateVerification();
     }
 
 

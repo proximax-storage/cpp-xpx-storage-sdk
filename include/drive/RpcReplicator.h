@@ -133,7 +133,7 @@ public:
     	rpcCallArchStr( RPC_CMD::createReplicator, os.str() );
 	}
 
-    void stopReplicator() override {
+    void shutdownReplicator() override {
         rpcCall( RPC_CMD::destroyReplicator );
     }
 

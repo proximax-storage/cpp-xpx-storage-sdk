@@ -21,13 +21,13 @@ protected:
 
     std::optional<ApprovalTransactionInfo> m_myOpinion;
 
-    ModificationStatus m_status = ModificationStatus::SUCCESS;
+    ModificationStatus      m_modificationStatus = ModificationStatus::SUCCESS;
     std::unique_ptr<FsTree> m_sandboxFsTree;
     std::optional<InfoHash> m_sandboxRootHash;
-    uint64_t m_metaFilesSize = 0;
+    
+    uint64_t m_metaFilesSize    = 0;
     uint64_t m_sandboxDriveSize = 0;
-    uint64_t m_fsTreeSize = 0;
-
+    uint64_t m_fsTreeSize       = 0;
 
     std::optional<lt_handle> m_sandboxFsTreeLtHandle;
 
@@ -47,14 +47,14 @@ public:
             return;
         }
 
-        breakTorrentDownloadAndRunNextTask();
+        interruptTorrentDownloadAndRunNextTask();
     }
 
     bool manualSynchronize( const SynchronizationRequest& request ) override
     {
         if ( !m_taskIsInterrupted )
         {
-            breakTorrentDownloadAndRunNextTask();
+            interruptTorrentDownloadAndRunNextTask();
         }
 
         return true;
@@ -81,11 +81,11 @@ protected:
 
         if ( m_taskIsInterrupted )
         {
-            finishTask();
+            removeTorrentsAndFinishTask();
             return;
         }
 
-        // Notify
+        // Dbg Notify
         if ( m_drive.m_dbgEventHandler )
         {
             m_drive.m_dbgEventHandler->rootHashIsCalculated(
@@ -95,14 +95,10 @@ protected:
                     *m_sandboxRootHash );
         }
 
-        /// (???) replace with replicators of the shard
-        m_opinionController.updateCumulativeUploads( getModificationTransactionHash(), m_drive.getDonatorShard(), getToBeApprovedDownloadSize(), [this]
-        {
-            onCumulativeUploadsUpdated();
-        } );
+		prepareForSandboxSynchronization();
     }
 
-    void synchronizationIsCompleted()
+    virtual void synchronizationIsCompleted()
     {
         DBG_MAIN_THREAD
 
@@ -133,10 +129,10 @@ protected:
 
         m_drive.updateStreamMap();
 
-        finishTask();
+        removeTorrentsAndFinishTask();
     }
 
-    void breakTorrentDownloadAndRunNextTask()
+    void interruptTorrentDownloadAndRunNextTask()
     {
         DBG_MAIN_THREAD
 
@@ -161,17 +157,17 @@ protected:
 
                     //TODO: move downloaded files from sandbox to drive (for catching-up only)
 
-                    finishTask();
+                    removeTorrentsAndFinishTask();
                 }, true );
-                _LOG( "breakTorrentDownloadAndRunNextTask: remove torrents " )
+                _LOG( "interruptTorrentDownloadAndRunNextTask: remove torrents " )
             }
         }
         else
         {
-            tryBreakTask();
+            tryFinishTask();
         }
 //        {
-//            _LOG( "breakTorrentDownloadAndRunNextTask: nothing " )
+//            _LOG( "interruptTorrentDownloadAndRunNextTask: nothing " )
 //            // We cannot break torrent download.
 //            // Therefore, we will wait the end of current task, that will call m_drive.runNextTask()
 //        }
@@ -287,7 +283,7 @@ private:
 
         if ( m_taskIsInterrupted )
         {
-            finishTask();
+            removeTorrentsAndFinishTask();
             return;
         }
 
@@ -302,7 +298,7 @@ private:
                       m_drive.m_driveKey,
                       getModificationTransactionHash(),
                       *m_sandboxRootHash,
-					  m_status,
+					  m_modificationStatus,
                       m_fsTreeSize,
                       m_metaFilesSize,
                       m_sandboxDriveSize );
@@ -310,7 +306,7 @@ private:
         m_myOpinion = std::optional<ApprovalTransactionInfo>{{m_drive.m_driveKey.array(),
                                                                      getModificationTransactionHash().array(),
                                                                      m_sandboxRootHash->array(),
-                                                                     m_status,
+                                                                     m_modificationStatus,
                                                                      m_fsTreeSize,
                                                                      m_metaFilesSize,
                                                                      m_sandboxDriveSize,
@@ -333,7 +329,7 @@ private:
 
 protected:
 
-    void finishTask() override
+    virtual void removeTorrentsAndFinishTask()
     {
         DBG_MAIN_THREAD
 
@@ -347,16 +343,22 @@ protected:
                 session->removeTorrentsFromSession( {torrentHandle}, [this]
                 {
                     DBG_MAIN_THREAD
-                    DriveTaskBase::finishTask();
+                    finishTaskAndRunNext();
                 }, false );
             }
         } else
         {
-            DriveTaskBase::finishTask();
+            finishTaskAndRunNext();
         }
     }
 
 private:
+	virtual void prepareForSandboxSynchronization() {
+		m_opinionController.updateCumulativeUploads( getModificationTransactionHash(), m_drive.getDonatorShard(), getToBeApprovedDownloadSize(), [this]
+		{
+			onCumulativeUploadsUpdated();
+		} );
+	};
 
     virtual void continueSynchronizingDriveWithSandbox() = 0;
 
@@ -365,7 +367,7 @@ private:
     virtual void myOpinionIsCreated() = 0;
 
     // Whether the finishTask can be called by the task itself
-    virtual void tryBreakTask() = 0;
+    virtual void tryFinishTask() = 0;
 };
 
 } // namespace sirius::drive

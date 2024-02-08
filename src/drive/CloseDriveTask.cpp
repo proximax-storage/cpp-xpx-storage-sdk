@@ -65,7 +65,7 @@ public:
         }
     }
 
-    void terminate() override
+    void shutdown() override
     {
         DBG_MAIN_THREAD
     }
@@ -78,12 +78,12 @@ public:
         return false;
     }
 
-    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
+    void interruptTask( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override
     {
         DBG_MAIN_THREAD
 
         SIRIUS_ASSERT(0)
-        return false;
+        cancelRequestIsAccepted = false;
     }
 
 private:
@@ -100,7 +100,7 @@ private:
         catch ( const std::exception& ex )
         {
             _LOG_ERR( "exception during removeAllDriveData: " << ex.what() );
-            finishTask();
+            finishTaskAndRunNext();
         }
 
         if ( auto session = m_drive.m_session.lock(); session )
