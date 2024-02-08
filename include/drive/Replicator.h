@@ -381,15 +381,15 @@ public:
 
 PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(
                                                const crypto::KeyPair&,
-                                               std::string&&  address,
-                                               std::string&&  port,
-                                               std::string&&  storageDirectory,
-                                               std::string&&  sandboxDirectory,
+                                               std::string  address,
+                                               std::string  port,
+                                               std::string  storageDirectory,
                                                const std::vector<ReplicatorInfo>&  bootstraps,
                                                bool           useTcpSocket, // use TCP socket (instead of uTP)
                                                ReplicatorEventHandler&,
-                                               DbgReplicatorEventHandler*  dbgEventHandler = nullptr,
-                                               const std::string& dbgReplicatorName = ""
+                                               DbgReplicatorEventHandler*  dbgEventHandler,
+                                               const std::string& dbgReplicatorName,
+                                               std::string  logOptions
 );
 
 }

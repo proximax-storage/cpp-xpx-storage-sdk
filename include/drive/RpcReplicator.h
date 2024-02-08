@@ -34,12 +34,12 @@ class RpcReplicator : public Replicator, public RpcServer
     std::string                     m_address;
     std::string                     m_port;
     std::string                     m_storageDirectory;
-    std::string                     m_sandboxDirectory;
     const std::vector<ReplicatorInfo> m_bootstraps;
     bool                            m_useTcpSocket;
     ReplicatorEventHandler&         m_eventHandler;
     DbgReplicatorEventHandler*      m_dbgEventHandler;
     const std::string               m_dbgReplicatorName;
+    const std::string               m_logOptions;
     
     bool                            m_isRemoteServiceConnected = false;
     
@@ -48,27 +48,27 @@ class RpcReplicator : public Replicator, public RpcServer
 public:
     RpcReplicator(
               const crypto::KeyPair& keyPair,
-              std::string&&  address,
-              std::string&&  port,
-              std::string&&  storageDirectory,
-              std::string&&  sandboxDirectory,
+              std::string  address,
+              std::string  port,
+              std::string  storageDirectory,
               const std::vector<ReplicatorInfo>&  bootstraps,
               bool           useTcpSocket, // use TCP socket (instead of uTP)
               ReplicatorEventHandler&       eventHandler,
-              DbgReplicatorEventHandler*    dbgEventHandler = nullptr,
-              const std::string&            dbgReplicatorName = ""
+              DbgReplicatorEventHandler*    dbgEventHandler,
+              std::string                   dbgReplicatorName,
+              std::string                   logOptions
             )
               : RpcServer(),
                 m_keyPair(keyPair),
                 m_address(address),
                 m_port(port),
                 m_storageDirectory(storageDirectory),
-                m_sandboxDirectory(sandboxDirectory),
                 m_bootstraps(bootstraps),
                 m_useTcpSocket(useTcpSocket),
                 m_eventHandler(eventHandler),
                 m_dbgEventHandler(dbgEventHandler),
-                m_dbgReplicatorName(dbgReplicatorName)
+                m_dbgReplicatorName(dbgReplicatorName),
+                m_logOptions(logOptions)
     {
     }
     
@@ -112,7 +112,7 @@ public:
     	archive( m_address );
     	archive( m_port );
     	archive( m_storageDirectory );
-    	archive( m_sandboxDirectory );
+    	archive( m_logOptions );
     	int bootstrapNumber = (int) m_bootstraps.size();
     	archive( bootstrapNumber );
     	for( int i=0; i<bootstrapNumber; i++ )
@@ -644,18 +644,19 @@ public:
 };
 
 PLUGIN_API std::shared_ptr<Replicator> createRpcReplicator(
-                                               std::string&&            rpcAddress,
+                                               std::string              rpcAddress,
                                                int                      rpcPort,
                                                const crypto::KeyPair&   keyPair,
-                                               std::string&&            address,
-                                               std::string&&            port,
-                                               std::string&&            storageDirectory,
-                                               std::string&&            sandboxDirectory,
+                                               std::string              address,
+                                               std::string              port,
+                                               std::string              storageDirectory,
                                                const std::vector<ReplicatorInfo>&  bootstraps,
                                                bool                     useTcpSocket, // use TCP socket (instead of uTP)
                                                ReplicatorEventHandler&  handler,
-                                               DbgReplicatorEventHandler*  dbgEventHandler = nullptr,
-                                               const std::string&    dbgReplicatorName = "" )
+                                               DbgReplicatorEventHandler*  dbgEventHandler,
+                                               std::string              dbgReplicatorName,
+                                               std::string              logOptions
+                                                )
 {
     std::error_code ec;
     auto absoluteStorageDirectory = fs::absolute(storageDirectory, ec);
@@ -664,23 +665,17 @@ PLUGIN_API std::shared_ptr<Replicator> createRpcReplicator(
         _LOG_ERR( "Unable To Find Absolute Path Of " << storageDirectory << ": " << ec.message() );
     }
 
-    auto absoluteSandboxDirectory = fs::absolute(sandboxDirectory, ec);
-    if (ec)
-    {
-        _LOG_ERR( "Unable To Find Absolute Path Of " << sandboxDirectory << ": " << ec.message() );
-    }
-
     auto replicator = std::make_shared<RpcReplicator>(
                         keyPair,
-                        std::move( address ),
-                        std::move(port),
-                        std::move( absoluteStorageDirectory ),
-                        std::move( absoluteSandboxDirectory ),
+                        address,
+                        port,
+                        absoluteStorageDirectory,
                         bootstraps,
                         useTcpSocket,
                         handler,
                         dbgEventHandler,
-                        dbgReplicatorName );
+                        dbgReplicatorName,
+                        logOptions );
 
     replicator->startTcpServer( rpcAddress, rpcPort );
 

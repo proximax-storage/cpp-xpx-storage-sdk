@@ -47,8 +47,8 @@ public:
                 iarchive( port );
                 std::string  storageDirectory;
                 iarchive( storageDirectory );
-                std::string  sandboxDirectory;
-                iarchive( sandboxDirectory );
+                std::string  logOptions;
+                iarchive( logOptions );
                 std::vector<ReplicatorInfo>  bootstraps;
                 int bootstrapNumber;
                 iarchive( bootstrapNumber );
@@ -69,15 +69,15 @@ public:
 
                 m_replicator = createDefaultReplicator(
                                      *m_keyPair,
-                                     std::move(address),
-                                     std::move(port),
-                                     std::move(storageDirectory),
-                                     std::move(sandboxDirectory),
+                                     address,
+                                     port,
+                                     storageDirectory,
                                      bootstraps,
                                      false, // use TCP socket (instead of uTP)
                                      *this,
                                      dbgEventHandlerIsSet ? this : nullptr,
-                                     dbgReplicatorName );
+                                     dbgReplicatorName,
+                                     logOptions );
                 
                 RPC_LOG("Remote replicator created")
                 break;

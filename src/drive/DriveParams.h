@@ -268,7 +268,6 @@ protected:
             ReplicatorInt&              replicator,
             DbgReplicatorEventHandler*  dbgEventHandler,
             const std::string&          replicatorRootFolder,
-            const std::string&          replicatorSandboxRootFolder,
             const std::string&          dbgOurPeerName
         )
         : FlatDrivePaths( replicatorRootFolder, drivePubKey )
