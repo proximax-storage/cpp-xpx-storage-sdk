@@ -138,7 +138,7 @@ inline bool operator==(const PeerInfo& a,const PeerInfo& b)  { return a.m_public
 //-----------------------------------------------------
 struct MyIpRequest
 {
-    // m_myPort is using to skip local addresses
+    // m_myPort is used to skip local addresses
     // (Client won't possibly do this request)
     // If requester is client m_myPort MUST BE 0 !!!
     // (Because client could not be in the same local network as bootstrap node)
@@ -194,7 +194,7 @@ struct PeerIpRequest
         : m_requesterIsClient(requesterIsClient), m_targetKey(targetKey), m_requesterKey( requesterKey )
     {}
 
-    bool         m_requesterIsClient = false;;
+    bool         m_requesterIsClient = false;
     TargetKey    m_targetKey;
     RequesterKey m_requesterKey;
 
@@ -269,9 +269,11 @@ public:
 
     virtual void    setEndpointHandler( ::sirius::drive::EndpointHandler endpointHandler ) = 0;
 
-    virtual OptionalEndpoint getEndpoint( const PeerKey& key ) =0;
+    virtual OptionalEndpoint getEndpoint( const PeerKey& key ) = 0;
+    virtual OptionalEndpoint dbgGetEndpointLocal(const PeerKey& key ) = 0;
+    virtual OptionalEndpoint dbgGetEndpointHashTable(const PeerKey& key ) = 0;
 
-    virtual const PeerInfo* getPeerInfo( const PeerKey& key ) =0;
+    virtual const PeerInfo* getPeerInfo( const PeerKey& key ) = 0;
 
     virtual void            addClientToLocalEndpointMap( const Key& keys ) = 0;
     virtual void            onEndpointDiscovered( const Key& key, const OptionalEndpoint& endpoint ) = 0;

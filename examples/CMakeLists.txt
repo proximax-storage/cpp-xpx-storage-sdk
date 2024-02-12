@@ -19,6 +19,7 @@ include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/libtorrent/include)
 #add_subdirectory(downloadFileFlat)
 
 add_subdirectory(kademlia_ex)
+add_subdirectory(kademlia_ex_timeouts)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 #    add_subdirectory(streamExample)
