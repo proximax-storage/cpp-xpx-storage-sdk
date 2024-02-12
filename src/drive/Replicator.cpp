@@ -62,7 +62,6 @@ private:
 
     // Folders for drives and sandboxes
     std::string m_storageDirectory;
-    std::string m_sandboxDirectory;
 
     int m_downloadApprovalTransactionTimerDelayMs = 10 * 1000;
     int m_modifyApprovalTransactionTimerDelayMs = 10 * 1000;
@@ -100,20 +99,21 @@ private:
 public:
     DefaultReplicator(
             const crypto::KeyPair& keyPair,
-            std::string&& address,
-            std::string&& port,
-            std::string&& storageDirectory,
-            std::string&& sandboxDirectory,
+            std::string address,
+            std::string port,
+            std::string storageDirectory,
+            //std::string&& sandboxDirectory,
             bool useTcpSocket,
             ReplicatorEventHandler& handler,
             DbgReplicatorEventHandler* dbgEventHandler,
             const std::vector<ReplicatorInfo>& bootstraps,
-               const std::string&   dbgReplicatorName ) : DownloadLimiter( keyPair, dbgReplicatorName ),
+            std::string  dbgReplicatorName,
+            std::string  logOptions
+            ) : DownloadLimiter( keyPair, dbgReplicatorName ),
 
-        m_address( std::move(address) ),
-        m_port( std::move(port) ),
-        m_storageDirectory( std::move(storageDirectory) ),
-        m_sandboxDirectory( std::move(sandboxDirectory) ),
+        m_address( address ),
+        m_port( port ),
+        m_storageDirectory( storageDirectory ),
         m_useTcpSocket( useTcpSocket ),
         m_eventHandler( handler ),
         m_dbgEventHandler( dbgEventHandler ),
@@ -307,7 +307,6 @@ public:
         boost::asio::post( m_session->lt_session().get_context(), [this]
         {
             removeUnusedDrives( m_storageDirectory );
-            removeUnusedDrives( m_sandboxDirectory );
         } );
     }
 
@@ -346,7 +345,6 @@ public:
             auto drive = sirius::drive::createDefaultFlatDrive(
                     session(),
                     m_storageDirectory,
-                    m_sandboxDirectory,
                     driveKey,
                     driveRequest->m_client,
                     driveRequest->m_driveSize,
@@ -2247,7 +2245,6 @@ public:
             auto drive = sirius::drive::createDefaultFlatDrive(
                     session(),
                     m_storageDirectory,
-                    m_sandboxDirectory,
                     driveKey,
                     driveRequest.m_client,
                     driveRequest.m_driveSize,
@@ -3062,27 +3059,28 @@ public:
 
 std::shared_ptr<Replicator> createDefaultReplicator(
         const crypto::KeyPair& keyPair,
-        std::string&& address,
-        std::string&& port,
-        std::string&& storageDirectory,
-        std::string&& sandboxDirectory,
+        std::string address,
+        std::string port,
+        std::string storageDirectory,
+        //std::string&& sandboxDirectory,
         const std::vector<ReplicatorInfo>& bootstraps,
         bool useTcpSocket,
         ReplicatorEventHandler& handler,
         DbgReplicatorEventHandler* dbgEventHandler,
-        const std::string& dbgReplicatorName )
+        const std::string& dbgReplicatorName,
+        std::string  logOptions )
 {
     return std::make_shared<DefaultReplicator>(
             keyPair,
-            std::move( address ),
-            std::move( port ),
-            std::move( storageDirectory ),
-            std::move( sandboxDirectory ),
+            address,
+            port,
+            storageDirectory,
             useTcpSocket,
             handler,
             dbgEventHandler,
             bootstraps,
-            dbgReplicatorName );
+            dbgReplicatorName,
+            logOptions );
 }
 
 }

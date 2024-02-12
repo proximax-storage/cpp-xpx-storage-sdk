@@ -140,7 +140,6 @@ public:
     DefaultFlatDrive(
             std::shared_ptr<Session> session,
             const std::string& replicatorRootFolder,
-            const std::string& replicatorSandboxRootFolder,
             const Key& drivePubKey,
             const Key& driveOwner,
             size_t maxSize,
@@ -162,7 +161,6 @@ public:
             replicator,
             dbgEventHandler,
             replicatorRootFolder,
-            replicatorSandboxRootFolder,
             replicator.dbgReplicatorName()
     )
             , m_allReplicators( fullReplicatorList )
@@ -1269,7 +1267,6 @@ public:
 std::shared_ptr<FlatDrive> createDefaultFlatDrive(
         std::shared_ptr<Session> session,
         const std::string& replicatorRootFolder,
-        const std::string& replicatorSandboxRootFolder,
         const Key& drivePubKey,
         const Key& clientPubKey,
         size_t maxSize,
@@ -1284,7 +1281,6 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
 {
     return std::make_shared<DefaultFlatDrive>( session,
                                                replicatorRootFolder,
-                                               replicatorSandboxRootFolder,
                                                drivePubKey,
                                                clientPubKey,
                                                maxSize,

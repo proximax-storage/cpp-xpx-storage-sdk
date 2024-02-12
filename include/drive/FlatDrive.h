@@ -890,7 +890,6 @@ class Session;
 PLUGIN_API std::shared_ptr<FlatDrive> createDefaultFlatDrive(
         std::shared_ptr<Session> session,
         const std::string& replicatorRootFolder,
-        const std::string& replicatorSandboxRootFolder,
         const Key& drivePubKey,
         const Key& clientPubKey,
         size_t maxSize,
