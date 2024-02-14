@@ -262,7 +262,7 @@ public:
 
     InfoHash rootHash() const override
     {
-        return m_rootHash;
+        return m_driveRootHash;
     }
 
     const ReplicatorList& getAllReplicators() const override
@@ -599,8 +599,7 @@ public:
 
     /// Transactions from Replicators
 
-    void
-    onApprovalTransactionHasBeenPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
+    void onApprovalTransactionHasBeenPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
     {
         DBG_MAIN_THREAD
 
@@ -608,19 +607,24 @@ public:
 
         cancelVerification();
 
-        // Notify task about 'ApprovalTxPublished'
-        // and check that 'CatchingUp' should be started
-        //
-        if ( !m_task || m_task->onApprovalTxPublished( transaction ))
+        if ( m_task)
         {
-            // 'CatchingUp' should be started
-            _LOG( "transaction.m_rootHash: " << Key( transaction.m_rootHash ))
-            m_catchingUpRequest = std::make_unique<CatchingUpRequest>( transaction.m_rootHash, transaction.m_modifyTransactionHash );
-
-            if ( !m_task )
+            bool currentTaskMustBeBroken = m_task->onApprovalTxPublished( transaction );
+            if ( currentTaskMustBeBroken )
             {
-                runNextTask();
+                _LOG( "approved rootHash: " << Key( transaction.m_rootHash ))
+                m_catchingUpRequest = std::make_unique<CatchingUpRequest>( transaction.m_rootHash, transaction.m_modifyTransactionHash );
             }
+            else
+            {
+                //continue current task
+            }
+        }
+        else
+        {
+            _LOG( "approved rootHash (2): " << Key( transaction.m_rootHash ))
+            m_catchingUpRequest = std::make_unique<CatchingUpRequest>( transaction.m_rootHash, transaction.m_modifyTransactionHash );
+            runNextTask();
         }
     }
 
@@ -1067,7 +1071,7 @@ public:
 
     bool acceptConnectionFromClient( const Key& clientKey, const Hash256& fileHash ) const override
     {
-        return clientKey == m_driveOwner && fileHash == m_rootHash;
+        return clientKey == m_driveOwner && fileHash == m_driveRootHash;
     }
 
     void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& streamer ) override

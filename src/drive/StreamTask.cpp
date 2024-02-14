@@ -439,7 +439,7 @@ public:
         });
     }
 
-    void continueSynchronizingDriveWithSandbox() override
+    void continueСompleteUpdateAfterApproving() override
     {
         DBG_BG_THREAD
 
@@ -515,7 +515,7 @@ public:
 
             m_drive.executeOnSessionThread( [this]() mutable
                                             {
-                                                synchronizationIsCompleted();
+                                                onDriveChangedAfterApproving();
                                             } );
         }
         catch (const std::exception& ex)
@@ -525,7 +525,7 @@ public:
         }
     }
 
-    void modifyIsCompleted() override
+    void modificationCompletedSuccessfully() override
     {
         DBG_MAIN_THREAD
 
@@ -537,7 +537,7 @@ public:
         }
 
         //???
-        UpdateDriveTaskBase::modifyIsCompleted();
+        UpdateDriveTaskBase::modificationCompletedSuccessfully();
     }
 
     uint64_t getToBeApprovedDownloadSize() override
@@ -587,7 +587,7 @@ public:
                 sendSingleApprovalTransaction( *m_myOpinion );
             }
 
-            startSynchronizingDriveWithSandbox();
+            completeUpdateAfterApproving();
             return false;
         }
         else

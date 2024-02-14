@@ -1620,7 +1620,7 @@ private:
         SIRIUS_ASSERT ( m_sandboxFsTreeHandle )
 
         m_drive.m_fsTree = std::move( m_lowerSandboxFsTree );
-        m_drive.m_rootHash = *m_sandboxRootHash;
+        m_drive.m_driveRootHash = *m_sandboxRootHash;
         m_drive.m_fsTreeLtHandle = *m_sandboxFsTreeHandle;
         m_drive.m_lastApprovedModification = m_request->m_modificationIdentifier;
 

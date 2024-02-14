@@ -75,7 +75,7 @@ protected:
         if ( m_modifyApproveTxReceived )
         {
             sendSingleApprovalTransaction( *m_myOpinion );
-            startSynchronizingDriveWithSandbox();
+            completeUpdateAfterApproving();
         } else
         {
             // Send my opinion to other replicators
@@ -201,7 +201,7 @@ protected:
     // - remove unused files and torrent files
     // - add new torrents to session
     //
-    void continueSynchronizingDriveWithSandbox() override
+    void continueСompleteUpdateAfterApproving() override
     {
         DBG_BG_THREAD
 
@@ -279,7 +279,7 @@ protected:
 
             m_drive.executeOnSessionThread( [this]() mutable
                                             {
-                                                synchronizationIsCompleted();
+                                                onDriveChangedAfterApproving();
                                             } );
         }
         catch (const std::exception& ex)

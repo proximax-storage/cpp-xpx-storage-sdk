@@ -95,20 +95,20 @@ protected:
                     *m_sandboxRootHash );
         }
 
-		prepareForSandboxSynchronization();
+		updateOpinionUploads();
     }
 
-    virtual void synchronizationIsCompleted()
+    virtual void onDriveChangedAfterApproving()
     {
         DBG_MAIN_THREAD
 
         m_opinionController.approveCumulativeUploads( getModificationTransactionHash(), [this]
         {
-            modifyIsCompleted();
+            modificationCompletedSuccessfully();
         });
     }
 
-    virtual void modifyIsCompleted()
+    virtual void modificationCompletedSuccessfully()
     {
         DBG_MAIN_THREAD
 
@@ -122,7 +122,7 @@ protected:
         }
 
         m_drive.m_fsTree = std::move(m_sandboxFsTree);
-        m_drive.m_rootHash = *m_sandboxRootHash;
+        m_drive.m_driveRootHash = *m_sandboxRootHash;
         m_drive.m_fsTreeLtHandle = *m_sandboxFsTreeLtHandle;
         m_sandboxFsTreeLtHandle.reset();
         m_drive.m_lastApprovedModification = getModificationTransactionHash();
@@ -176,7 +176,7 @@ protected:
     // updates drive (1st step after approve)
     // - remove torrents from session
     //
-    virtual void startSynchronizingDriveWithSandbox()
+    virtual void completeUpdateAfterApproving()
     {
         DBG_MAIN_THREAD
 
@@ -221,7 +221,7 @@ protected:
             {
                 m_drive.executeOnBackgroundThread( [this]
                 {
-                    continueSynchronizingDriveWithSandbox();
+                    continueСompleteUpdateAfterApproving();
                 });
             }, false);
         }
@@ -353,14 +353,14 @@ protected:
     }
 
 private:
-	virtual void prepareForSandboxSynchronization() {
+	virtual void updateOpinionUploads() {
 		m_opinionController.updateCumulativeUploads( getModificationTransactionHash(), m_drive.getDonatorShard(), getToBeApprovedDownloadSize(), [this]
 		{
 			onCumulativeUploadsUpdated();
 		} );
 	};
 
-    virtual void continueSynchronizingDriveWithSandbox() = 0;
+    virtual void continueСompleteUpdateAfterApproving() = 0;
 
     virtual uint64_t getToBeApprovedDownloadSize() = 0;
 

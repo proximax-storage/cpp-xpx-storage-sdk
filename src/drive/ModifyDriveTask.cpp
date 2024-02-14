@@ -557,7 +557,7 @@ public:
 
             // Accept modification
             // or clear unused files in case of 'm_modificationStatus != ModificationStatus::SUCCESS'
-            startSynchronizingDriveWithSandbox();
+            completeUpdateAfterApproving();
             return false;
         }
         else
@@ -642,7 +642,7 @@ protected:
         m_drive.executeOnBackgroundThread([this]
         {
             SIRIUS_ASSERT( m_drive.m_fsTree )
-            m_sandboxRootHash = m_drive.m_rootHash;
+            m_sandboxRootHash = m_drive.m_driveRootHash;
             m_sandboxFsTree = std::make_unique<FsTree>( *m_drive.m_fsTree );
             std::error_code ec;
             fs::remove( m_drive.m_sandboxFsTreeFile, ec );

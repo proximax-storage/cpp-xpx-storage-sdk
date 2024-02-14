@@ -237,7 +237,7 @@ public:
     // Drive state
     //
 
-    InfoHash                m_rootHash;
+    InfoHash                m_driveRootHash;
     Hash256                 m_lastApprovedModification;
 
     // FsTree

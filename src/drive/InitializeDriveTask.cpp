@@ -83,7 +83,7 @@ private:
         DBG_BG_THREAD
 
         // Clear m_rootDriveHash
-        m_drive.m_rootHash = Hash256();
+        m_drive.m_driveRootHash = Hash256();
 
         try
         {
@@ -145,12 +145,12 @@ private:
             }
 
             // Calculate torrent and root hash
-            m_drive.m_rootHash = createTorrentFile( m_drive.m_fsTreeFile,
+            m_drive.m_driveRootHash = createTorrentFile( m_drive.m_fsTreeFile,
                                                     m_drive.m_driveKey,
                                                     m_drive.m_fsTreeFile.parent_path(),
                                                     m_drive.m_fsTreeTorrent );
         
-            _LOG( "m_rootHash=" << m_drive.m_rootHash )
+            _LOG( "m_rootHash=" << m_drive.m_driveRootHash )
 
             std::array<uint8_t, 32> modificationId{};
             m_drive.m_serializer.loadRestartValue( modificationId, "approvedModification" );
@@ -258,7 +258,7 @@ private:
         if ( m_drive.m_dbgEventHandler )
         {
             m_drive.m_dbgEventHandler->driveIsInitialized( m_drive.m_replicator, m_drive.m_driveKey,
-                                                           m_drive.m_rootHash );
+                                                           m_drive.m_driveRootHash );
         }
 
         _LOG ( "Initialized" )

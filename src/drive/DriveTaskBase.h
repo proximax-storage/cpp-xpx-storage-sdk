@@ -61,13 +61,8 @@ public:
         return m_type;
     }
 
-    // Returns 'true' if 'CatchingUp' should be started
-    virtual bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction )
-    {
-        DBG_MAIN_THREAD
-
-        return false;
-    }
+    // Returns 'true' if 'CatchingUp' should start
+    virtual bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction ) = 0;
 
     virtual void onApprovalTxFailed( const Hash256& transactionHash )
     {

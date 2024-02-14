@@ -16,7 +16,7 @@ class ManualSyncTask
 private:
 
     mobj<SynchronizationRequest> m_request;
-    bool m_taskIsExecuted = false;
+    bool m_syncCompletedSuccessfully = false;
 
 public:
 
@@ -70,10 +70,10 @@ protected:
 
 public:
 
-    void modifyIsCompleted() override
+    void modificationCompletedSuccessfully() override
     {
-        m_taskIsExecuted = true;
-        SyncTaskBase::modifyIsCompleted();
+        m_syncCompletedSuccessfully = true;
+        SyncTaskBase::modificationCompletedSuccessfully();
     }
 
     uint64_t getToBeApprovedDownloadSize() override
@@ -83,34 +83,24 @@ public:
 
 protected:
 
-	void synchronizationIsCompleted() override
+	void onDriveChangedAfterApproving() override
 	{
 		DBG_MAIN_THREAD
 
-		// Ignore cumulative uploads approval, skip right to modifyIsCompleted().
-		modifyIsCompleted();
+		// Ignore cumulative uploads approval, skip right to modificationCompletedSuccessfully().
+		modificationCompletedSuccessfully();
 	}
 
     void removeTorrentsAndFinishTask() override
     {
-        m_request->m_callback( SynchronizationResponse{m_taskIsExecuted} );
+        m_request->m_callback( SynchronizationResponse{m_syncCompletedSuccessfully} );
         sirius::drive::UpdateDriveTaskBase::removeTorrentsAndFinishTask();
     }
 
 private:
 
-	void prepareForSandboxSynchronization() override {
-		_LOG( "Preparing for sandbox synchronization from Manual Synchronization task." )
-		_LOG( "Skipping to myOpinionIsCreated()" )
-		m_drive.executeOnBackgroundThread( [this]
-										   {
-											 DBG_BG_THREAD
-
-											 m_drive.executeOnSessionThread( [this]
-																			 {
-																			   myOpinionIsCreated();
-																			 } );
-										   } );
+	void updateOpinionUploads() override {
+        myOpinionIsCreated();
 	};
 };
 

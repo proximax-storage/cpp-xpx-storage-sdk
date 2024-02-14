@@ -59,21 +59,21 @@ public:
 
         if ( m_drive.m_lastApprovedModification == getModificationTransactionHash() )
         {
-            SIRIUS_ASSERT( m_drive.m_rootHash == getRootHash() );
+            SIRIUS_ASSERT( m_drive.m_driveRootHash == getRootHash() );
             removeTorrentsAndFinishTask();
             return;
         }
 
         _LOG( "getRootHash(): " << getRootHash() )
-        _LOG( "m_drive.m_rootHash: " << m_drive.m_rootHash )
-        if ( getRootHash() == m_drive.m_rootHash )
+        _LOG( "m_drive.m_rootHash: " << m_drive.m_driveRootHash )
+        if ( getRootHash() == m_drive.m_driveRootHash )
         {
             _LOG( "No need to catch up to " << getRootHash() )
 
             m_drive.executeOnBackgroundThread( [this]
                                                {
                                                    m_sandboxRootHash = getRootHash();
-                                                   m_sandboxRootHash = m_drive.m_rootHash;
+                                                   m_sandboxRootHash = m_drive.m_driveRootHash;
                                                    m_sandboxFsTree = std::make_unique<FsTree>();
                                                    m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile);
                                                    std::error_code ec;
@@ -411,7 +411,7 @@ public:
         return true;
     }
 
-    void continueSynchronizingDriveWithSandbox() override
+    void continueСompleteUpdateAfterApproving() override
     {
         DBG_BG_THREAD
 
@@ -459,7 +459,7 @@ public:
 
             m_drive.executeOnSessionThread( [this]
                                             {
-                                                synchronizationIsCompleted();
+                                                onDriveChangedAfterApproving();
                                             } );
         }
         catch ( const std::exception& ex )
@@ -481,7 +481,7 @@ public:
 
         m_sandboxCalculated = true;
 
-        startSynchronizingDriveWithSandbox();
+        completeUpdateAfterApproving();
     }
 
     uint64_t getToBeApprovedDownloadSize() override
