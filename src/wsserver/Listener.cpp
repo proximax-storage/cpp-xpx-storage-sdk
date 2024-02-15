@@ -32,4 +32,4 @@ namespace sirius { namespace wsserver {
         // Accept another connection
         doAccept();
     }
-}}
+}};

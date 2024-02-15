@@ -1,10 +1,15 @@
+#ifndef SESSION_H
+#define SESSION_H
+
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
+#include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>
-
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/beast/core/buffers_to_string.hpp>
+
+#include <openssl/dh.h>
 
 #include <algorithm>
 #include <cstdlib>
@@ -42,6 +47,7 @@ public:
 
     // Start the asynchronous operation
     void run();
+    void onRun();
     void onAccept(beast::error_code ec);
     void doRead();
     void onRead(beast::error_code ec, std::size_t bytes_transferred);
@@ -49,6 +55,7 @@ public:
     void onWriteClose(beast::error_code ec, std::size_t bytes_transferred);
     void doClose();
     void onClose(beast::error_code ec);
+    void keyExchange(pt::ptree* json);
     void sendMessage(pt::ptree* json, bool is_close);
     void recvData(pt::ptree* json);
     void recvDataChunk(pt::ptree* json);
@@ -65,6 +72,8 @@ public:
 private:
     void handleJson(pt::ptree* parsed_pt);
 
+    std::string sharedKey;
+
     std::unordered_map<std::string, std::string>  recv_directory;
     std::unordered_map<std::string, int> recv_numOfDataPieces;
     std::unordered_map<std::string, int> recv_dataCounter;
@@ -73,3 +82,5 @@ private:
     const std::size_t send_DataPieceSize = 1024 * 1000;
     std::unordered_map<std::string, int> send_dataCounter;
 };
+
+#endif // SESSION_H

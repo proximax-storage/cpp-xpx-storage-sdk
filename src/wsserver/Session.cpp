@@ -2,14 +2,41 @@
 #include "wsserver/Utils.h"
 #include "wsserver/Task.h"
 #include "wsserver/Base64.h"
+#include "wsserver/EncryptDecrypt.h"
+#include "wsserver/Message.h"
 #include <iostream>
 #include <filesystem>
 
+#include <openssl/rand.h>
+#include <openssl/evp.h>
+#include <openssl/err.h>
+
 namespace fs = std::filesystem;
+
+std::string AES_P = "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF6955817183995497CEA956AE515D2261898FA051015728E5A8AACAA68FFFFFFFFFFFFFFFF";
+std::string AES_G = "2";
+
+void handleErrors() {
+    std::cerr << "Error occurred.\n";
+    ERR_print_errors_fp(stderr);
+    exit(EXIT_FAILURE);
+}
 
 std::set<std::shared_ptr<Session>> Session::incoming_sessions;
 
 void Session::run()
+{
+    // We need to be executing within a strand to perform async operations
+    // on the I/O objects in this session. Although not strictly necessary
+    // for single-threaded contexts, this example code is written to be
+    // thread-safe by default.
+    net::dispatch(ws.get_executor(),
+        beast::bind_front_handler(
+            &Session::onRun,
+            shared_from_this()));
+}
+
+void Session::onRun()
 {
     // Set suggested timeout settings for the websocket
     ws.set_option(
@@ -45,8 +72,55 @@ void Session::onAccept(beast::error_code ec)
         std::cout << "Session ID: " << sess.get() << "\n";
     }
 
-    // Read a message
-    doRead();
+    ws.async_read(buffer,
+        [this](beast::error_code ec, std::size_t bytes_transferred){
+            boost::ignore_unused(bytes_transferred);
+            // This indicates that the Session was closed
+            if(ec == websocket::error::closed)
+                return;
+
+            if(ec) {
+                fail(ec, "read");
+                doClose();
+            }
+            else {
+                std::string message = boost::beast::buffers_to_string(buffer.data());
+                buffer.consume(buffer.size());
+
+                try {
+                    boost::property_tree::ptree parsed_pt;
+                    std::istringstream json_input(message);
+                    read_json(json_input, parsed_pt);
+                    
+                    int task = (parsed_pt).get<int>("task");
+                    std::cout << "Sessions:\n";
+                    for (const auto& sess : incoming_sessions) {
+                        std::cout << "Session ID: " << sess.get() << "\n";
+                    }
+
+                    std::cout << "Current Session ID: " << shared_from_this().get() << std::endl;
+
+                    if (task == Task::KEY_EX) {
+                        std::cout << message << std::endl;
+                        keyExchange(&parsed_pt);
+                    } 
+                    else {
+                        doClose();
+                    }
+                } catch (const boost::property_tree::json_parser_error& e) {
+                    std::cerr << "JSON parsing error: " << e.what() << std::endl;
+                    doClose();
+                } catch (const std::exception& e) {
+                    std::cerr << "An unexpected error occurred: " << e.what() << std::endl;
+                    doClose();
+                } catch (...) {
+                    std::cerr << "An unexpected and unknown error occurred." << std::endl;
+                    doClose();
+                }
+            }
+        });
+
+    // doRead();
 }
 
 void Session::doRead()
@@ -62,7 +136,6 @@ void Session::doRead()
 void Session::onRead(beast::error_code ec, std::size_t bytes_transferred)
 {
     boost::ignore_unused(bytes_transferred);
-
     // This indicates that the Session was closed
     if(ec == websocket::error::closed)
         return;
@@ -72,25 +145,10 @@ void Session::onRead(beast::error_code ec, std::size_t bytes_transferred)
         doClose();
     }
     else {
-        std::string message = boost::beast::buffers_to_string(buffer.data());
+        pt::ptree json;
+        int flag = decodeMessage(boost::beast::buffers_to_string(buffer.data()), &json, sharedKey);
         buffer.consume(buffer.size());
-
-        try {
-            boost::property_tree::ptree parsed_pt;
-            std::istringstream json_input(message);
-            read_json(json_input, parsed_pt);
-            handleJson(&parsed_pt);
-
-        } catch (const boost::property_tree::json_parser_error& e) {
-            std::cerr << "JSON parsing error: " << e.what() << std::endl;
-            doClose();
-        } catch (const std::exception& e) {
-            std::cerr << "An unexpected error occurred: " << e.what() << std::endl;
-            doClose();
-        } catch (...) {
-            std::cerr << "An unexpected and unknown error occurred." << std::endl;
-            doClose();
-        }
+        flag ? handleJson(&json) : doClose();
     }
 }
 
@@ -133,14 +191,85 @@ void Session::onClose(beast::error_code ec)
     incoming_sessions.erase(shared_from_this());
 }
 
+void Session::keyExchange(pt::ptree* json) 
+{
+    OpenSSL_add_all_algorithms();
+    ERR_load_crypto_strings();
+
+    DH *dh = DH_new();
+
+    if (!dh) {
+        handleErrors();
+    }
+
+    BIGNUM *p = BN_new();
+    BIGNUM *g = BN_new();
+
+    BN_hex2bn(&p, AES_P.c_str());
+    BN_hex2bn(&g, AES_G.c_str());
+
+    DH_set0_pqg(dh, p, nullptr, g);
+    // Generate public and private keys for Server
+    if (DH_generate_key(dh) != 1) {
+        handleErrors();
+    }
+
+    // Serialize public key of Server to send to Bob
+    const BIGNUM *serverPublicKey = BN_new();
+    DH_get0_key(dh, &serverPublicKey, nullptr);
+    char *serializedSeverPublicKey = BN_bn2hex(serverPublicKey);
+
+    // Send serializedSeverPublicKey to connected Client
+    pt::ptree key;
+    key.put("task", Task::KEY_EX);
+    key.put("publicKey", serializedSeverPublicKey);
+
+    std::ostringstream key_stream;
+    write_json(key_stream, key, false);
+
+    std::cout << key_stream.str() << std::endl;
+
+    ws.write(net::buffer(key_stream.str()));
+    
+    unsigned char *sharedSecret = nullptr;
+
+    BIGNUM *deserializedClientPublicKey = BN_new();
+    std::string clientPublicKeyStr = (*json).get<std::string>("publicKey");
+    BN_hex2bn(&deserializedClientPublicKey, clientPublicKeyStr.c_str());
+
+    // Allocate memory for sharedSecret
+    sharedSecret = (unsigned char*)OPENSSL_malloc(DH_size(dh));
+    if (sharedSecret == nullptr) {
+        // Handle memory allocation failure
+        handleErrors();
+    }
+
+    if (DH_compute_key(sharedSecret, deserializedClientPublicKey, dh) == -1) {
+        handleErrors();
+    }
+    
+    std::string derivedKey = "";
+    for (int i = 0; i < DH_size(dh); ++i) {
+        std::stringstream ss;
+        ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(sharedSecret[i]);
+        derivedKey += ss.str();
+    }
+
+    sharedKey = derivedKey.substr(0, 32);
+
+    DH_free(dh);
+    BN_free(deserializedClientPublicKey);
+    OPENSSL_free(sharedSecret); // Free allocated memory
+    ERR_free_strings();
+
+    doRead();
+}
+
 // Send message to a client
 void Session::sendMessage(pt::ptree* json, bool is_close) 
 {
-    std::ostringstream message;
-    write_json(message, *json, false);
-
     ws.async_write(
-        net::buffer(message.str()),
+        net::buffer(encodeMessage(json, sharedKey)),
         beast::bind_front_handler(
             is_close ? &Session::onWriteClose : &Session::onWrite,
             shared_from_this()));
@@ -238,12 +367,10 @@ void Session::sendData(pt::ptree* json) {
     (*json).put("dataPieceSize", send_DataPieceSize);
     (*json).put("numOfDataPieces", send_numOfDataPieces[uid]);
     (*json).put("uid", uid);
-    std::ostringstream send_stream;
-    write_json(send_stream, (*json), false);
 
     send_dataCounter[uid]  = 0;
-    
-    ws.async_write(net::buffer(send_stream.str()),
+
+    ws.async_write(net::buffer(encodeMessage(json, sharedKey)),
         [this, uid, filePath, fileName](beast::error_code ec, std::size_t bytes_transferred) {
             std::cout << "Download info sent: " << filePath << std::endl;
             if (!ec) {
@@ -269,14 +396,14 @@ void Session::sendData(pt::ptree* json) {
                     outputFile2.close();
                     std::string bin_data = base64_encode(ss.str());
                     
+                    // std::cout << send_dataCounter[uid] << std::endl;
                     pt::ptree data;
                     data.put("task", Task::DOWNLOAD_DATA);
                     data.put("data", bin_data);
                     data.put("dataPieceNum", send_dataCounter[uid]);
                     data.put("uid", uid);
-                    std::ostringstream data_stream;
-                    write_json(data_stream, data, false);
-                    ws.write(net::buffer(data_stream.str()));
+                    
+                    ws.write(net::buffer(encodeMessage(&data, sharedKey)));
                     
                     send_dataCounter[uid]++;
                     fileBuffer.assign(send_DataPieceSize, 0);
@@ -288,14 +415,14 @@ void Session::sendData(pt::ptree* json) {
                     std::cerr << "Error deleting file: " << e.what() << std::endl;
                 }
 
+                doRead();
+
             } else {
                 // Handle errors or connection closure
                 std::cerr << "Error in sending data: " << ec.message() << std::endl;
                 doClose();
             }
     });
-
-    doRead();
 }
 
 void Session::sendDataAck(pt::ptree* json) {
@@ -334,14 +461,10 @@ void Session::deleteData(pt::ptree* json) {
         (*json).put("task", Task::DELETE_DATA_FAILURE);
     }
 
-    std::ostringstream deleteData_stream;
-    write_json(deleteData_stream, *json, false);
-
-    ws.async_write(net::buffer(deleteData_stream.str()), 
-        [](beast::error_code ec, std::size_t bytes_transferred){
+    ws.async_write(net::buffer(encodeMessage(json, sharedKey)), 
+        [this](beast::error_code ec, std::size_t bytes_transferred){
+            doRead();
     });
-
-    doRead();
 };
 
 // Broadcast message to all Session
@@ -363,8 +486,7 @@ void Session::requestToAll(pt::ptree* json)
 
 // Handles JSON receive by doRead()
 void Session::handleJson(pt::ptree* parsed_pt)
-{
-    int task = (*parsed_pt).get<int>("task");
+{  
     std::ostringstream json_output;
     std::ostringstream print;
     pt::ptree close;
@@ -376,7 +498,13 @@ void Session::handleJson(pt::ptree* parsed_pt)
 
     std::cout << "Current Session ID: " << shared_from_this().get() << std::endl;
     
+    int task = (*parsed_pt).get<int>("task");
     switch (task) {
+        case KEY_EX:
+            write_json(print, *parsed_pt);
+            std::cout << print.str() << std::endl;
+            keyExchange(parsed_pt);
+            break;
         case DOWNLOAD_START:
             write_json(print, *parsed_pt);
             std::cout << print.str() << std::endl;
@@ -397,7 +525,8 @@ void Session::handleJson(pt::ptree* parsed_pt)
             recvData(parsed_pt);
             break;
         case UPLOAD_DATA:
-            recvDataChunk(parsed_pt);
+            // doRead();
+            recvDataChunk(parsed_pt);          
             break;
         case UPLOAD_FAILURE:
             write_json(print, *parsed_pt);

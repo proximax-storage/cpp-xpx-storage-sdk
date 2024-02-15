@@ -1,7 +1,8 @@
-/*
-    Task codes used in each json when sending & receiving message or data via websocket server
-*/
+#ifndef TASK_H
+#define TASK_H
+
 enum Task {
+    KEY_EX,
     DOWNLOAD_START,
     DOWNLOAD_INFO,
     DOWNLOAD_DATA,
@@ -19,3 +20,5 @@ enum Task {
     CLOSE,
     CLOSE_ACK
 };
+
+#endif // TASK_H
