@@ -161,7 +161,7 @@ protected:
 
 public:
 
-    void interruptTask( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override
+    void onCancelModifyTx( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override
     {
 
         DBG_MAIN_THREAD

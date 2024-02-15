@@ -135,6 +135,11 @@ protected:
     void interruptTorrentDownloadAndRunNextTask()
     {
         DBG_MAIN_THREAD
+        
+        if ( m_taskIsInterrupted )
+        {
+            _LOG_WARN( "!!! interruptTorrentDownloadAndRunNextTask already true !!!" )
+        }
 
         m_taskIsInterrupted = true;
 

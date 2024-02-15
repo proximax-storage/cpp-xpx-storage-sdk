@@ -28,7 +28,7 @@ public:
         SIRIUS_ASSERT( m_request )
     }
 
-    void interruptTask( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override {
+    void onCancelModifyTx( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override {
 
         DBG_MAIN_THREAD
 
@@ -52,12 +52,11 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_taskIsInterrupted )
+        if ( ! m_taskIsInterrupted )
         {
-            return true;
+            interruptTorrentDownloadAndRunNextTask();
         }
 
-        interruptTorrentDownloadAndRunNextTask();
         return true;
     }
 

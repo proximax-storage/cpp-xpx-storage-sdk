@@ -686,7 +686,7 @@ public:
             // try cancel current task
             //
             bool cancelRequestIsAccepted = false;
-            m_task->interruptTask( *request, cancelRequestIsAccepted );
+            m_task->onCancelModifyTx( *request, cancelRequestIsAccepted );
             if ( cancelRequestIsAccepted )
             {
                 m_modificationCancelRequest = std::move(request);

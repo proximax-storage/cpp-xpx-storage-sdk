@@ -69,7 +69,7 @@ public:
         DBG_MAIN_THREAD
     }
 
-    virtual void interruptTask( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted )
+    virtual void onCancelModifyTx( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted )
     {
         DBG_MAIN_THREAD
 
