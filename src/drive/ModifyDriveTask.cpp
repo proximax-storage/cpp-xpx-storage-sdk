@@ -30,9 +30,9 @@ namespace fs = std::filesystem;
 class ModifyDriveTask : public ModifyTaskBase
 {
 
-private:
+protected:
 
-    const mobj<ModificationRequest> m_request;
+    mobj<ModificationRequest> m_request;
 
     std::set<InfoHash> m_missedFileSet;
 
@@ -44,9 +44,21 @@ public:
             mobj<ModificationRequest>&& request,
             std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>&& receivedOpinions,
             DriveParams& drive,
-            ModifyOpinionController& opinionTaskController)
-            : ModifyTaskBase( DriveTaskType::MODIFICATION_REQUEST, drive, std::move(receivedOpinions), opinionTaskController )
-            , m_request( std::move(request) )
+            ModifyOpinionController& opinionTaskController
+        )
+        : ModifyTaskBase( DriveTaskType::MODIFICATION_REQUEST, drive, std::move(receivedOpinions), opinionTaskController )
+        , m_request( std::move(request) )
+    {
+        SIRIUS_ASSERT( m_request )
+    }
+
+    // Constructor For StreamTask
+    ModifyDriveTask(
+            DriveParams& drive,
+            ModifyOpinionController& opinionTaskController
+        )
+        : ModifyTaskBase( DriveTaskType::STREAM_REQUEST, drive, {}, opinionTaskController )
+        , m_request()
     {
         SIRIUS_ASSERT( m_request )
     }
@@ -64,8 +76,15 @@ public:
     void run() override
     {
         DBG_MAIN_THREAD
-
+        
         m_uploadedDataSize = 0;
+        
+        startModification();
+    }
+        
+    void startModification()
+    {
+        DBG_MAIN_THREAD
 
         //_LOG( "?????????: " << m_request->m_clientDataInfoHash  << "   " << m_drive.m_torrentHandleMap.size() )
         if ( auto it = m_drive.m_torrentHandleMap.find( m_request->m_clientDataInfoHash ); it != m_drive.m_torrentHandleMap.end() )
@@ -679,3 +698,5 @@ std::unique_ptr<DriveTaskBase> createModificationTask( mobj<ModificationRequest>
 }
 
 }
+
+#include "StreamTask.h"

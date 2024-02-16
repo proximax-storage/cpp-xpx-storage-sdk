@@ -5,18 +5,13 @@
 */
 
 #include "drive/Streaming.h"
-#include "DriveTaskBase.h"
-#include "drive/FsTree.h"
-#include "drive/FlatDrive.h"
-#include "DriveParams.h"
-#include "ModifyTaskBase.h"
 
 namespace sirius::drive
 {
 
 namespace fs = std::filesystem;
 
-class StreamTask : public ModifyTaskBase
+class StreamTask : public ModifyDriveTask
 {
     std::mutex  m_mutex;
     
@@ -39,35 +34,7 @@ class StreamTask : public ModifyTaskBase
     
     std::optional<boost::asio::ip::udp::endpoint>  m_streamerEndpoint;
 
-    ///---
-
-    std::optional<InfoHash>         m_finishInfoHash;
-    std::optional<lt_handle>        m_finishLtHandle = {};
-    
-    using FinishInfo = std::vector<FinishStreamChunkInfo>;
-    FinishInfo                      m_finishInfo;
-    
-    using FinishStreamIt = std::vector<FinishStreamChunkInfo>::iterator;
-    FinishStreamIt                  m_finishStreamIt;
-    
-    ///---
-
-    std::map<std::array<uint8_t,32>,ApprovalTransactionInfo> m_receivedOpinions;
-
-    bool m_modifyApproveTransactionSent = false;
-    bool m_modifyApproveTxReceived = false;
-    
-    uint64_t m_uploadedDataSize = 0;
-
-    Timer m_shareMyOpinionTimer;
-#ifndef __APPLE__
-    const int m_shareMyOpinionTimerDelayMs = 1000 * 60;
-#else
-    //(???+++)
-    const int m_shareMyOpinionTimerDelayMs = 1000 * 1;
-#endif
-
-    Timer m_modifyOpinionTimer;
+    std::optional<InfoHash>         m_finishDataInfoHash;
 
     
 public:
@@ -76,7 +43,7 @@ public:
                  DriveParams&                drive,
                  ModifyOpinionController&    opinionTaskController )
             :
-    ModifyTaskBase( DriveTaskType::STREAM_REQUEST, drive, {}, opinionTaskController )
+    ModifyDriveTask( drive, opinionTaskController )
             , m_request( std::move(request) )
     {
         SIRIUS_ASSERT( m_request )
@@ -87,20 +54,11 @@ public:
         _LOG( "m_chunkInfoList.size: " << m_chunkInfoList.size() )
     }
     
-    void shutdown() override
-    {
-        DBG_MAIN_THREAD
-
-        //TODO
-//        m_modifyOpinionTimer.reset();
-//        m_shareMyOpinionTimer.reset();
-
-        interruptTorrentDownloadAndRunNextTask();
-    }
-    
     void onCancelModifyTx( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override
     {
         DBG_MAIN_THREAD
+        
+        //TODO== m_finishInfoHash
         
         if ( ! m_taskIsInterrupted &&
              cancelRequest.m_modifyTransactionHash == m_request->m_streamId )
@@ -117,16 +75,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        // m_finishInfoHash?
-        
-        //if ( m_sandboxCalculated && ! m_modifyApproveTxReceived )
-        //{
-            removeTorrentsAndFinishTask();
-//        }
-//        else
-//        {
-//            // We will wait the end of current task, that will call m_drive.runNextTask()
-//        }
+        //TODO== m_finishInfoHash
     }
 
     void run() override
@@ -327,6 +276,12 @@ public:
                 _LOG( "tryDownloadNextChunk: wait the end of current downloading (2)" )
                 return;
             }
+            
+            if ( m_finishDataInfoHash )
+            {
+                _LOG( "tryDownloadNextChunk: skip download: we are finishing" )
+                return;
+            }
 
             SIRIUS_ASSERT( ! m_downloadingLtHandle )
             
@@ -412,12 +367,13 @@ public:
                                    if ( code == download_status::download_complete )
                                    {
                                        m_downloadingLtHandle.reset();
-                                       tryDownloadNextChunk();
-                                       if ( m_finishInfoHash )
+                                       if ( m_finishDataInfoHash )
                                        {
-                                           m_drive.executeOnBackgroundThread( [this] {
-                                               checkFinishCondition();
-                                           });
+                                           startFinishStream();
+                                       }
+                                       else
+                                       {
+                                           tryDownloadNextChunk();
                                        }
                                    }
                                },
@@ -442,6 +398,8 @@ public:
     void continueСompleteUpdateAfterApproving() override
     {
         DBG_BG_THREAD
+        
+        //TODO== m_finishInfoHash
 
         _LOG( "StreamTask::continueSynchronizingDriveWithSandbox" )
 
@@ -528,6 +486,8 @@ public:
     void modificationCompletedSuccessfully() override
     {
         DBG_MAIN_THREAD
+        
+        //TODO== m_finishInfoHash
 
         _LOG( "modifyIsCompleted" );
 
@@ -545,24 +505,11 @@ public:
         return m_request->m_maxSizeBytes;
     }
 
-    bool processedModifyOpinion( const ApprovalTransactionInfo& anOpinion ) override
-    {
-        _LOG( "processedModifyOpinion" )
-        
-        // In this case Replicator is able to verify all data in the opinion
-        if ( m_myOpinion &&
-             m_request->m_streamId.array() == anOpinion.m_modifyTransactionHash &&
-             validateOpinion( anOpinion ) )
-        {
-            m_receivedOpinions[anOpinion.m_opinions[0].m_replicatorKey] = anOpinion;
-            sendModifyApproveTxWithDelay();
-        }
-        return true;
-    }
-
     bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
     {
         DBG_MAIN_THREAD
+        
+        //TODO== m_finishInfoHash
 
         if ( m_taskIsInterrupted )
         {
@@ -606,346 +553,37 @@ public:
     void acceptFinishStreamTx( mobj<StreamFinishRequest>&& finishStream ) override
     {
         DBG_MAIN_THREAD
-
-        if ( m_finishInfoHash )
+        
+        if ( m_finishDataInfoHash )
         {
             _LOG_WARN( "duplicated finish-stream message" )
             return;
         }
-            
+        
         if ( finishStream->m_streamId != m_request->m_streamId.array() )
         {
             _LOG_WARN( "ignore unkown stream" )
             return;
         }
         
-        m_finishInfoHash = finishStream->m_finishDataInfoHash;
+        m_finishDataInfoHash = finishStream->m_finishDataInfoHash;
         
-        if ( auto it = m_drive.m_torrentHandleMap.find( *m_finishInfoHash ); it != m_drive.m_torrentHandleMap.end())
+        if ( ! m_downloadingLtHandle )
         {
-            SIRIUS_ASSERT( it->second.m_ltHandle.is_valid() )
-            m_finishLtHandle = it->second.m_ltHandle;
-            m_drive.executeOnBackgroundThread( [this]
-            {
-                parseFinishInfoFile();
-            });
-            return;
+            startFinishStream();
         }
-        
-        // start downloading finish info
-        //
-        if ( auto session = m_drive.m_session.lock(); session )
-        {
-            m_finishLtHandle = session->download(
-                   DownloadContext(
-                           DownloadContext::missing_files,
-                           [this]( download_status::code code,
-                                   const InfoHash& infoHash,
-                                   const std::filesystem::path saveAs,
-                                   size_t /*downloaded*/,
-                                   size_t /*fileSize*/,
-                                   const std::string& errorText )
-                           {
-                               DBG_MAIN_THREAD
-
-                               SIRIUS_ASSERT( !m_taskIsInterrupted );
-
-                               if ( code == download_status::dn_failed )
-                               {
-                                   //todo is it possible?
-                                   SIRIUS_ASSERT( 0 );
-                                   m_drive.m_torrentHandleMap.erase( infoHash );
-                                   return;
-                               }
-
-                               if ( code == download_status::download_complete )
-                               {
-                                   m_drive.executeOnBackgroundThread( [this]
-                                   {
-                                       parseFinishInfoFile();
-                                   });
-                               }
-                           },
-                           *m_finishInfoHash,
-                           getModificationTransactionHash(),
-                           0, true, ""
-                   ),
-                   m_drive.m_sandboxStreamFolder,
-                   m_drive.m_sandboxStreamTFolder / toPath(toString(*m_finishInfoHash)),
-                   getUploaders(),
-                   &m_drive.m_driveKey.array(),
-                   nullptr,
-                   &m_request->m_streamId.array() );
-
-            // save reference into 'torrentHandleMap'
-            m_drive.m_torrentHandleMap[*m_finishInfoHash] = UseTorrentInfo{ *m_finishLtHandle, false };
-        }
-    }
-
-    void parseFinishInfoFile()
-    {
-        DBG_BG_THREAD
-    
-        // parse finish info file
-        try
-        {
-            auto status = m_finishLtHandle->status( lt::torrent_handle::query_save_path | lt::torrent_handle::query_name );
-            _LOG( " file:" << status.save_path << "/" << status.name );
-
-            std::ifstream finishInfoFile( fs::path(status.save_path) / status.name, std::ios::binary );
-            cereal::PortableBinaryInputArchive iarchive(finishInfoFile);
-            iarchive( m_finishInfo );
-        }
-        catch( const std::runtime_error& e )
-        {
-            _LOG_WARN( "Error in finishStreamFile: " << e.what() )
-            return;
-        }
-        catch(...)
-        {
-            _LOG_WARN( "Error in finishStreamFile" )
-            return;
-        }
-        m_finishStreamIt = m_finishInfo.begin();
-        
-        continueFinishStream();
-    }
-
-    void continueFinishStream()
-    {
-        DBG_BG_THREAD
-        
-        if ( m_finishStreamIt == m_finishInfo.end() )
-        {
-            return;
-        }
-        
-        std::lock_guard<std::mutex> lock(m_mutex);
-
-        _LOG( "m_finishInfo.size(): " << m_finishInfo.size() )
-        
-        for( ; m_finishStreamIt != m_finishInfo.end(); m_finishStreamIt++ )
-        {
-            if ( m_drive.m_torrentHandleMap.find( m_finishStreamIt->m_chunkInfoHash ) == m_drive.m_torrentHandleMap.end() )
-            {
-                m_drive.executeOnSessionThread( [this]
-                {
-                    _LOG( "requestMissingChunkInfo: " << m_finishStreamIt->m_chunkIndex )
-                    requestMissingChunkInfo( m_finishStreamIt->m_chunkIndex );
-                });
-                return;
-            }
-        }
-        
-        checkFinishCondition();
-    }
-
-
-    void checkFinishCondition()
-    {
-        DBG_BG_THREAD
-        
-        if ( m_finishInfo.size() == 0 ) // finishInfo-file not received
-        {
-            _LOG( "checkFinishCondition: m_finishInfo.size() == 0" )
-            return;
-        }
-        
-        _LOG( "checkFinishCondition: m_chunkInfoList.size(), m_finishInfo.size(): " << m_chunkInfoList.size() << ", " << m_finishInfo.size() )
-
-        if ( m_chunkInfoList.size() < m_finishInfo.size() )
-        {
-            if ( m_finishInfo.size() > 0 )
-            {
-                _LOG( "checkFinishCondition: "  << m_chunkInfoList.size() << " <> " << m_finishInfo.size() )
-            }
-            return;
-        }
-        
-        if ( m_chunkInfoList.size() > m_finishInfo.size() )
-        {
-            //TODO cancel tx
-            _LOG( "m_chunkInfoList.size() > m_finishInfo.size(): " << m_chunkInfoList.size() << " " << m_finishInfo.size() )
-            return;
-        }
-        
-        // check that all chunk-INFO are received
-        //
-        bool allChunkInfoReceived = true;
-        for( size_t i=0; i<m_chunkInfoList.size(); i++ )
-        {
-            const auto& chunkInfo = m_chunkInfoList[i];
-            if ( chunkInfo.get() == nullptr )
-            {
-                requestMissingChunkInfo( i );
-                allChunkInfoReceived = false;
-            }
-        }
-        
-        if ( ! allChunkInfoReceived )
-        {
-            _LOG( "! allChunkInfoReceived" )
-            return;
-        }
-        
-        // check that all chunks are received
-        //
-        for( size_t i=0; i<m_chunkInfoList.size(); i++ )
-        {
-            const auto& chunkInfo = m_chunkInfoList[i];
-            if ( m_drive.m_torrentHandleMap.find( chunkInfo->m_chunkInfoHash ) == m_drive.m_torrentHandleMap.end() )
-            {
-                // chunk is not received
-                _LOG( "chunk is not received: " << chunkInfo->m_chunkIndex );
-                return;
-            }
-
-            if ( chunkInfo->m_chunkInfoHash != m_finishInfo[i].m_chunkInfoHash )
-            {
-                // bad finish-info
-                _LOG( "bad finish-info: " << chunkInfo->m_chunkIndex );
-                return;
-            }
-        }
-
-        completeStreamFinishing();
-    }
-
-    void completeStreamFinishing()
-    {
-        DBG_BG_THREAD
-
-        m_sandboxFsTree = std::make_unique<FsTree>( *m_drive.m_fsTree );
-
-        if ( ! m_sandboxFsTree->addFolder( m_request->m_folder ) )
-        {
-            _LOG( "cannot add folder: " << m_request->m_folder )
-        }
-        _LOG( "--1--: m_request->m_folder: " << m_request->m_folder );
-
-        Folder* streamFolder = m_sandboxFsTree->getFolderPtr( m_request->m_folder );
-        if ( streamFolder == nullptr )
-        {
-            _LOG_WARN( "streamFolder == nullptr: " << m_request->m_folder )
-            return;
-        }
-
-        _LOG( "--2--: " << (streamFolder==nullptr) );
-
-        for( const auto& chunkInfo : m_finishInfo )
-        {
-            _LOG( "--3--:" << chunkInfo.m_chunkIndex );
-            if ( chunkInfo.m_saveOnDrive )
-            {
-                _LOG( "--3--a" );
-                auto name = toString(chunkInfo.m_chunkInfoHash);
-                _LOG( "--3--b" );
-                streamFolder->m_childs.emplace( name, File{ name, chunkInfo.m_chunkInfoHash, chunkInfo.m_sizeBytes} );
-                _LOG( "add chunk chunkInfo.m_chunkInfoHash: " << toString(chunkInfo.m_chunkInfoHash) );
-            }
-        }
-        
-        _LOG( "--4--" );
-
-        //
-        // Generate playlist
-        //
-        
-        std::stringstream playlist;
-        playlist << "#EXTM3U" << std::endl;
-        playlist << "#EXT-X-VERSION:3" << std::endl;
-
-        uint32_t maxDuration = 1;
-        for( const auto& chunkInfo : m_finishInfo )
-        {
-            uint32_t seconds = (chunkInfo.m_durationMks+100000-1)/1000000;
-            if ( maxDuration < seconds )
-            {
-                maxDuration = seconds;
-            }
-        }
-
-        playlist << "#EXT-X-TARGETDURATION:" << maxDuration << std::endl;
-        playlist << "#EXT-X-MEDIA-SEQUENCE:" << 0 << std::endl;
-        
-        for( const auto& chunkInfo : m_finishInfo )
-        {
-            playlist << "#EXTINF:" << chunkInfo.m_durationMks/1000000 << "." << chunkInfo.m_durationMks%1000000 << std::endl;
-            playlist << Key(chunkInfo.m_chunkInfoHash) << std::endl;
-        }
-
-        auto playlistTxt = playlist.str();
-        
-        _LOG( "playlistTxt: " << playlistTxt )
-
-        fs::path tmp = m_drive.m_sandboxRootPath / PLAYLIST_FILE_NAME;
-        {
-            std::ofstream fileStream( tmp, std::ios::binary );
-            fileStream.write( playlistTxt.c_str(), playlistTxt.size() );
-        }
-        
-        // Calculate infoHash of playlist
-        InfoHash finishPlaylistHash = createTorrentFile( tmp, m_drive.m_driveKey, m_drive.m_sandboxRootPath, {} );
-        fs::path finishPlaylistFilename = m_drive.m_driveFolder / toString( finishPlaylistHash );
-        fs::path torrentFilename = m_drive.m_torrentFolder / toString( finishPlaylistHash );
-        
-        if ( ! fs::exists(finishPlaylistFilename) )
-        {
-            moveFile( tmp, finishPlaylistFilename );
-        }
-        
-        if ( ! fs::exists(torrentFilename) )
-        {
-            InfoHash finishPlaylistHash2 = createTorrentFile( finishPlaylistFilename,
-                                                              m_drive.m_driveKey,
-                                                              m_drive.m_driveFolder,
-                                                              torrentFilename );
-            SIRIUS_ASSERT( finishPlaylistHash2 == finishPlaylistHash )
-        }
-
-        streamFolder->m_childs.emplace( PLAYLIST_FILE_NAME, File{ PLAYLIST_FILE_NAME, finishPlaylistHash, playlistTxt.size() } );
-        streamFolder->m_isaStream = true;
-        streamFolder->m_streamId  = m_request->m_streamId;
-
-        m_sandboxFsTree->doSerialize( m_drive.m_sandboxFsTreeFile.string() );
-
-        m_sandboxRootHash = createTorrentFile( m_drive.m_sandboxFsTreeFile,
-                                               m_drive.m_driveKey,
-                                               m_drive.m_sandboxRootPath,
-                                               m_drive.m_sandboxFsTreeTorrent );
-
-        getSandboxDriveSizes( m_metaFilesSize, m_sandboxDriveSize );
-        m_fsTreeSize = sandboxFsTreeSize();
-        
-        if ( m_metaFilesSize + m_sandboxDriveSize + m_fsTreeSize > m_drive.m_maxSize )
-        {
-            _LOG( "!!! Drive is full:" )
-            //TODO!
-//            m_drive.executeOnSessionThread( [this] {
-//                modifyIsCompletedWithError( "Drive is full", 0 );
-//            });
-            return;
-        }
-
-        m_drive.executeOnSessionThread( [this,torrentFilename]() //mutable
-        {
-            _LOG( "add playlist as torrent" );
-            if ( auto session = m_drive.m_session.lock(); session )
-            {
-                session->addTorrentFileToSession( torrentFilename,
-                                                  m_drive.m_driveFolder,
-                                                  lt::SiriusFlags::peer_is_replicator,
-                                                  &m_drive.m_driveKey.array(),
-                                                  nullptr,
-                                                  &m_request->m_streamId.array(),
-                                                  {},
-                                                  nullptr );
-            }
-            myRootHashIsCalculated();
-        } );
-
     }
     
+    void startFinishStream()
+    {
+        DBG_MAIN_THREAD
+
+        ModifyDriveTask::m_request = std::make_unique<ModificationRequest>( ModificationRequest{ *m_finishDataInfoHash,
+                                                                                                 m_request->m_streamId,
+                                                                                                 m_request->m_maxSizeBytes,
+                                                                                                 m_request->m_replicatorList });
+        ModifyDriveTask::startModification();
+    }
 };
 
 std::unique_ptr<DriveTaskBase> createStreamTask( mobj<StreamRequest>&&       request,

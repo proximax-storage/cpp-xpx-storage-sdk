@@ -407,6 +407,7 @@ public:
 
         SIRIUS_ASSERT( !m_task )
 
+//TODO it should be on finishStreaming
 //        auto opinions = std::move(m_unknownModificationOpinions[request->m_transactionHash]);
 //        m_unknownModificationOpinions.erase(request->m_transactionHash);
 
