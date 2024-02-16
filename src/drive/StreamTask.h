@@ -369,7 +369,7 @@ public:
                                        m_downloadingLtHandle.reset();
                                        if ( m_finishDataInfoHash )
                                        {
-                                           startFinishStream();
+                                           ModifyDriveTask::startModification();
                                        }
                                        else
                                        {
@@ -550,7 +550,7 @@ public:
 #pragma mark --acceptFinishStreamTx--
 #endif
     
-    void acceptFinishStreamTx( mobj<StreamFinishRequest>&& finishStream ) override
+    void acceptFinishStreamTx( mobj<StreamFinishRequest>&& finishStream, std::map<std::array<uint8_t, 32>, ApprovalTransactionInfo>&& opinions ) override
     {
         DBG_MAIN_THREAD
         
@@ -567,22 +567,18 @@ public:
         }
         
         m_finishDataInfoHash = finishStream->m_finishDataInfoHash;
-        
-        if ( ! m_downloadingLtHandle )
-        {
-            startFinishStream();
-        }
-    }
-    
-    void startFinishStream()
-    {
-        DBG_MAIN_THREAD
 
         ModifyDriveTask::m_request = std::make_unique<ModificationRequest>( ModificationRequest{ *m_finishDataInfoHash,
                                                                                                  m_request->m_streamId,
                                                                                                  m_request->m_maxSizeBytes,
                                                                                                  m_request->m_replicatorList });
-        ModifyDriveTask::startModification();
+        
+        ModifyTaskBase::m_receivedOpinions = std::move(opinions);
+
+        if ( ! m_downloadingLtHandle )
+        {
+            ModifyDriveTask::startModification();
+        }
     }
 };
 

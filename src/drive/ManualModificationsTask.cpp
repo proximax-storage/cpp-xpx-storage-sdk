@@ -1647,6 +1647,7 @@ public:
 
         m_taskIsInterrupted = true;
 
+        // m_isExecutingQuery - means BG thread
         if ( !m_isExecutingQuery )
         {
             finishManualTask();
@@ -1657,6 +1658,7 @@ public:
     {
         DBG_MAIN_THREAD
 
+        // It is possible if the contract has been destroyed because of unsuccessful deployment
         terminateManualTask();
 
         return true;
@@ -1666,6 +1668,7 @@ public:
     {
         DBG_MAIN_THREAD
 
+        // Drive could be closed when money is over
         terminateManualTask();
     }
 
@@ -1693,6 +1696,8 @@ public:
 
 //        SIRIUS_ASSERT ( m_request->m_modificationIdentifier == request.m_modificationIdentifier )
 
+        // On case supercontract-sdk crashed and then restarted
+        
         terminateManualTask();
     }
 
@@ -1700,6 +1705,8 @@ public:
     {
         DBG_MAIN_THREAD
 
+        // terminate current task and start sync
+        
         terminateManualTask();
 
         return true;

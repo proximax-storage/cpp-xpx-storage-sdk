@@ -1088,10 +1088,16 @@ public:
     void acceptFinishStreamTx( mobj<StreamFinishRequest>&& finishStream ) override
     {
         DBG_MAIN_THREAD
+        
+        _LOG("acceptFinishStreamTx: " << finishStream->m_streamId )
+        _LOG("acceptFinishStreamTx: " << finishStream->m_finishDataInfoHash )
 
         if ( m_task )
         {
-            m_task->acceptFinishStreamTx( std::move( finishStream ));
+            auto&& opinions = std::move( m_unknownModificationOpinions[finishStream->m_streamId] );
+            m_unknownModificationOpinions.erase( finishStream->m_streamId );
+
+            m_task->acceptFinishStreamTx( std::move( finishStream ), std::move( opinions ) );
         }
     }
 
