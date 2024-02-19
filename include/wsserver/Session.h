@@ -22,6 +22,8 @@
 #include <set>
 #include <fstream>
 
+#define FILE_CHUNK_SIZE 1024*1024;
+
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http = beast::http;           // from <boost/beast/http.hpp>
 namespace websocket = beast::websocket; // from <boost/beast/websocket.hpp>
@@ -79,7 +81,7 @@ private:
     std::unordered_map<std::string, int> recv_dataCounter;
     
     std::unordered_map<std::string, int> send_numOfDataPieces;
-    const std::size_t send_DataPieceSize = 1024 * 1000;
+    const std::size_t send_DataPieceSize = FILE_CHUNK_SIZE;
     std::unordered_map<std::string, int> send_dataCounter;
 };
 
