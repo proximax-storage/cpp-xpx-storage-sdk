@@ -245,7 +245,7 @@ void Session::keyExchange(pt::ptree* json)
     }
     
     std::string derivedKey = "";
-    for (size_t i = 0; i < DH_size(dh); ++i) {
+    for (int i = 0; i < DH_size(dh); ++i) {
         std::stringstream ss;
         ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(sharedSecret[i]);
         derivedKey += ss.str();
