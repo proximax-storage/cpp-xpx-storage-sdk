@@ -50,19 +50,39 @@ public:
     // Start the asynchronous operation
     void run();
     void onRun();
+
+    // Accept connections
     void onAccept(beast::error_code ec);
+
+    // Receive JSON from the client
     void doRead();
+    // Triggered after receive JSON from the client
     void onRead(beast::error_code ec, std::size_t bytes_transferred);
+
+    // Triggered after sending JSON to the client
     void onWrite(beast::error_code ec, std::size_t bytes_transferred);
     void onWriteClose(beast::error_code ec, std::size_t bytes_transferred);
+
+    // Close connection
     void doClose();
+    // Triggered after connection is closed
     void onClose(beast::error_code ec);
+
+    // Perform ky exchange using Diffie-Hellman
     void keyExchange(pt::ptree* json);
+
+    // Send JSON to client
     void sendMessage(pt::ptree* json, bool is_close);
+
+    // Receive binary data from client (Client upload)
     void recvData(pt::ptree* json);
     void recvDataChunk(pt::ptree* json);
+
+    // Send binary data to client (Client download)
     void sendData(pt::ptree* json);
     void sendDataAck(pt::ptree* json);
+
+    // Delete stored data in server
     void deleteData(pt::ptree* json);
 
     void broadcastToAll(pt::ptree* json, bool is_close);
@@ -72,9 +92,10 @@ public:
     static std::set<std::shared_ptr<Session>> incoming_sessions;
 
 private:
+    // Handle JSON received from client
     void handleJson(pt::ptree* parsed_pt);
 
-    std::string sharedKey;
+    std::string sharedKey; // Shared secret key for encrypt/decrypt/hashing
 
     std::unordered_map<std::string, std::string>  recv_directory;
     std::unordered_map<std::string, int> recv_numOfDataPieces;

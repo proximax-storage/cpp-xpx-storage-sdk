@@ -119,8 +119,6 @@ void Session::onAccept(beast::error_code ec)
                 }
             }
         });
-
-    // doRead();
 }
 
 void Session::doRead()
@@ -146,9 +144,9 @@ void Session::onRead(beast::error_code ec, std::size_t bytes_transferred)
     }
     else {
         pt::ptree json;
-        int flag = decodeMessage(boost::beast::buffers_to_string(buffer.data()), &json, sharedKey);
+        int isAuthentic = decodeMessage(boost::beast::buffers_to_string(buffer.data()), &json, sharedKey);
         buffer.consume(buffer.size());
-        flag ? handleJson(&json) : doClose();
+        isAuthentic ? handleJson(&json) : doClose();
     }
 }
 
@@ -167,9 +165,7 @@ void Session::onWriteClose(beast::error_code ec, std::size_t bytes_transferred)
     if(ec)
         fail(ec, "write");
 
-    // Clear the buffer
     buffer.consume(buffer.size());
-
     doClose();
 }
 
@@ -180,6 +176,7 @@ void Session::doClose()
             &Session::onClose,
             shared_from_this()));
 }
+
 void Session::onClose(beast::error_code ec) 
 {
     if (ec) {
@@ -187,7 +184,6 @@ void Session::onClose(beast::error_code ec)
     } else {
         std::cout << "Session ID: " << shared_from_this().get() << " is closed successfully." << std::endl;
     }
-
     incoming_sessions.erase(shared_from_this());
 }
 
@@ -249,7 +245,7 @@ void Session::keyExchange(pt::ptree* json)
     }
     
     std::string derivedKey = "";
-    for (int i = 0; i < DH_size(dh); ++i) {
+    for (size_t i = 0; i < DH_size(dh); ++i) {
         std::stringstream ss;
         ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(sharedSecret[i]);
         derivedKey += ss.str();
@@ -396,7 +392,6 @@ void Session::sendData(pt::ptree* json) {
                     outputFile2.close();
                     std::string bin_data = base64_encode(ss.str());
                     
-                    // std::cout << send_dataCounter[uid] << std::endl;
                     pt::ptree data;
                     data.put("task", Task::DOWNLOAD_DATA);
                     data.put("data", bin_data);

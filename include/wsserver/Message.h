@@ -12,7 +12,8 @@
 
 namespace pt = boost::property_tree;    // from <boost/property_tree>
 
-std::string calculateMD5HMAC(const std::string &data, const std::string &key) {
+// compute MD5 HMAC of given data using the provided key
+std::string getMD5HMAC(const std::string &data, const std::string &key) {
     unsigned char hash[EVP_MAX_MD_SIZE];
     unsigned int hashLength;
 
@@ -26,6 +27,15 @@ std::string calculateMD5HMAC(const std::string &data, const std::string &key) {
     return std::string(md5HMACString);
 }
 
+/*
+    Creates a JSON with the format
+    {
+        data: ENCRYPTED MESSAGE using AES256
+        HMAC: MD5 HMAC of the ENCRYPTED MESSAGE
+    }
+    as a string to be sent to client
+*/
+
 std::string encodeMessage(pt::ptree *data, const std::string &key) {
     std::ostringstream oss;
     write_json(oss, *data, false);
@@ -34,7 +44,7 @@ std::string encodeMessage(pt::ptree *data, const std::string &key) {
 
     pt::ptree msg;
     msg.put("data", encrypted);
-    msg.put("HMAC", calculateMD5HMAC(encrypted, key));
+    msg.put("HMAC", getMD5HMAC(encrypted, key));
 
     std::ostringstream oss2;
     write_json(oss2, msg, false);
@@ -42,13 +52,20 @@ std::string encodeMessage(pt::ptree *data, const std::string &key) {
     return oss2.str();
 }
 
+/*
+    Decrypts messages sent from client in the format
+    {
+        data: ENCRYPTED MESSAGE using AES256
+        HMAC: MD5 HMAC of the ENCRYPTED MESSAGE
+    }
+*/
 int decodeMessage(const std::string &bufferStr, pt::ptree *data, const std::string &key) {
     try {
         pt::ptree msg;
         std::istringstream iss(bufferStr);
         read_json(iss, msg);
 
-        if (msg.get<std::string>("HMAC") == calculateMD5HMAC(msg.get<std::string>("data"), key)) {
+        if (msg.get<std::string>("HMAC") == getMD5HMAC(msg.get<std::string>("data"), key)) {
             std::istringstream iss(aes_decrypt(msg.get<std::string>("data"), key));
             read_json(iss, *data);
         }
