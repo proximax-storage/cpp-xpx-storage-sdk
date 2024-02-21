@@ -208,7 +208,7 @@ public:
             {
                 m_dbgOurPeerName = downloadLimiterPtr->dbgOurPeerName();
                 
-                m_kademlia = std::move( createEndpointCatalogue( weak_from_this(), keyPair, bootstraps, uint16_t(m_listeningPort), true ));
+                m_kademlia = createEndpointCatalogue( weak_from_this(), keyPair, bootstraps, uint16_t(m_listeningPort), true );
             }
             auto plugin = std::make_shared<DhtRequestPlugin>(  dhtMessageHandler, weak_from_this() );
             m_session.add_extension(plugin);

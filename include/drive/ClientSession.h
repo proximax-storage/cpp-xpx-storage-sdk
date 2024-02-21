@@ -680,12 +680,13 @@ protected:
         //todo here could be call back-call of test UI app
     }
 
+public:
+
     std::optional<boost::asio::ip::udp::endpoint> getEndpoint(const std::array<uint8_t, 32> &key) override
     {
         return m_session->getEndpoint(key);
     }
 
-public:
     std::vector<std::array<uint8_t,32>> getTorrentHandleHashes()
     {
         std::vector<std::array<uint8_t,32>> hashes;

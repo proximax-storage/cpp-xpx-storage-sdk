@@ -411,7 +411,7 @@ public:
         return true;
     }
 
-    void continueСompleteUpdateAfterApproving() override
+    void continueCompleteUpdateAfterApproving() override
     {
         DBG_BG_THREAD
 

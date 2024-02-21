@@ -226,7 +226,7 @@ protected:
             {
                 m_drive.executeOnBackgroundThread( [this]
                 {
-                    continueСompleteUpdateAfterApproving();
+                    continueCompleteUpdateAfterApproving();
                 });
             }, false);
         }
@@ -365,7 +365,7 @@ private:
 		} );
 	};
 
-    virtual void continueСompleteUpdateAfterApproving() = 0;
+    virtual void continueCompleteUpdateAfterApproving() = 0;
 
     virtual uint64_t getToBeApprovedDownloadSize() = 0;
 

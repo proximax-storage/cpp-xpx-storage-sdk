@@ -73,11 +73,11 @@ private:
 
     bool m_useTcpSocket;
 
-    ReplicatorEventHandler& m_eventHandler;
-    DbgReplicatorEventHandler* m_dbgEventHandler;
+    ReplicatorEventHandler&             m_eventHandler;
+    DbgReplicatorEventHandler*          m_dbgEventHandler;
 
-    RcptSyncronizer m_dnOpinionSyncronizer;
-    std::vector<ReplicatorInfo>       m_bootstraps;
+    std::vector<ReplicatorInfo>         m_bootstraps;
+    RcptSyncronizer                     m_dnOpinionSyncronizer;
 
     // key is verify tx
     std::map<std::array<uint8_t, 32>, VerifyOpinion> m_verifyApprovalMap;
@@ -3006,7 +3006,7 @@ public:
         m_session->dbgTestKademlia(dbgFunc);
     }
 
-    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList )
+    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList ) override
     {
         boost::asio::post( m_session->lt_session().get_context(), [outReplicatorList=outReplicatorList,this]() mutable {
             for( auto& [key,drive] : m_driveMap )
@@ -3027,7 +3027,7 @@ public:
         } );
     }
 
-    virtual OptionalEndpoint dbgGetEndpoint( const Key& key, int& port )
+    OptionalEndpoint dbgGetEndpoint( const Key& key, int& port )
     {
         if ( auto ep = m_session->getEndpoint(key); ep )
         {

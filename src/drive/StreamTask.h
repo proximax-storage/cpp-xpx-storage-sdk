@@ -395,7 +395,7 @@ public:
         });
     }
 
-    void continueСompleteUpdateAfterApproving() override
+    void continueCompleteUpdateAfterApproving() override
     {
         DBG_BG_THREAD
         

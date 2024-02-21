@@ -107,11 +107,6 @@ public:
         }
     }
     
-    OptionalEndpoint getEndpoint( const Key& key )
-    {
-        return m_session->getEndpoint( key );
-    }
-    
     void initStream( const Hash256&          streamId,
                      const Key&              driveKey,
                      const fs::path&         m3u8Playlist,
@@ -178,6 +173,82 @@ public:
     }
     
     void doFinishStream( std::function<void(const sirius::drive::FinishStreamInfo&)> backCall )
+    {
+        if ( ! m_streamId )
+        {
+            throw std::runtime_error("no active stream");
+        }
+        
+        std::vector<FinishStreamChunkInfo> finishStreamInfo;
+        
+        uint64_t timeMks = 0;
+        uint64_t streamSize = 0;
+        for( uint32_t i=0; (i < m_chunkInfoMap.size()); i++ )
+        {
+            auto chunkInfoIt = m_chunkInfoMap.find(i);
+            SIRIUS_ASSERT( chunkInfoIt != m_chunkInfoMap.end() )
+            
+            if ( (timeMks + chunkInfoIt->second.m_durationMks < m_startTimeSecods*1000000)
+                || (timeMks > m_endTimeSecods*1000000) )
+            {
+                finishStreamInfo.emplace_back( FinishStreamChunkInfo{ i, chunkInfoIt->second.m_chunkInfoHash,
+                                                                chunkInfoIt->second.m_durationMks,
+                                                                chunkInfoIt->second.m_sizeBytes,
+                                                                false } );
+                timeMks += chunkInfoIt->second.m_durationMks;
+                continue;
+            }
+            
+            finishStreamInfo.emplace_back( FinishStreamChunkInfo{ i, chunkInfoIt->second.m_chunkInfoHash,
+                                                            chunkInfoIt->second.m_durationMks,
+                                                            chunkInfoIt->second.m_sizeBytes,
+                                                            true } );
+            timeMks += chunkInfoIt->second.m_durationMks;
+            
+            std::error_code ec;
+            auto fileSize = fs::file_size( m_chunkFolder / toString(chunkInfoIt->second.m_chunkInfoHash), ec );
+            _LOG( "fileSize: " << fileSize );
+            if ( ! ec )
+            {
+                streamSize += fileSize;
+            }
+            auto torrentFileSize = fs::file_size( m_torrentFolder / toString(chunkInfoIt->second.m_chunkInfoHash), ec );
+            _LOG( "torrentFileSize: " << torrentFileSize );
+            if ( ! ec )
+            {
+                streamSize += torrentFileSize;
+            }
+            _LOG( "streamSize: " << streamSize );
+        }
+
+        
+        
+        fs::path finishStreamFilename = m_chunkFolder / "finishStreamInfo";
+        {
+//            std::ofstream finishStreamFile( finishStreamFilename, std::ios::binary );
+//            cereal::PortableBinaryOutputArchive archive( finishStreamFile );
+//            archive( finishStreamInfo );
+        }
+
+
+
+        fs::path torrentFilename = m_torrentFolder / "finishStreamInfo";
+        InfoHash infoHash = createTorrentFile( finishStreamFilename, m_keyPair.publicKey(), m_chunkFolder, torrentFilename );
+
+        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename.make_preferred(),
+                                                                      m_chunkFolder.make_preferred(),
+                                                                      lt::SiriusFlags::client_has_modify_data,
+                                                                      &m_keyPair.publicKey().array(),
+                                                                      nullptr,
+                                                                      &m_streamId->array(),
+                                                                      {},
+                                                                      nullptr );
+
+        m_streamId.reset();
+        m_finishBackCall( { infoHash, streamSize } );
+    }
+
+    void doFinishStream_old( std::function<void(const sirius::drive::FinishStreamInfo&)> backCall )
     {
         if ( ! m_streamId )
         {

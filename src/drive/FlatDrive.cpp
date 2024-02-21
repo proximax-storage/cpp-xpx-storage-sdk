@@ -1259,7 +1259,7 @@ public:
     }
     //-----------------------------------------------------------------------------
     
-    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList )
+    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList ) override
     {
         for( auto& key : m_allReplicators )
         {
