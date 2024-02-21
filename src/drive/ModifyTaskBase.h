@@ -201,7 +201,7 @@ protected:
     // - remove unused files and torrent files
     // - add new torrents to session
     //
-    void continueСompleteUpdateAfterApproving() override
+    void continueCompleteUpdateAfterApproving() override
     {
         DBG_BG_THREAD
 
