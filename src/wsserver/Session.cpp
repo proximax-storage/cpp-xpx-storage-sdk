@@ -348,7 +348,7 @@ void Session::sendData(pt::ptree* json) {
     std::string fileName = (*json).get<std::string>("fileName");
     std::string filePath = "get-data/" 
         + (*json).get<std::string>("drive") 
-        + (*json).get<std::string>("directory") 
+        + (*json).get<std::string>("directory")
         + fileName;
 
     std::string uid = (*json).get<std::string>("uid");
@@ -382,11 +382,11 @@ void Session::sendData(pt::ptree* json) {
                     file.read(fileBuffer.data(), fileBuffer.size());
                     std::streamsize bytesRead = file.gcount();
 
-                    std::ofstream outputFile("out_" + fileName, std::ios::binary);
+                    std::ofstream outputFile("out_" + uid + fileName, std::ios::binary);
                     outputFile.write(fileBuffer.data(), bytesRead);
                     outputFile.close();
 
-                    std::ifstream outputFile2("out_" + fileName, std::ios::binary);
+                    std::ifstream outputFile2("out_" + uid + fileName, std::ios::binary);
                     std::ostringstream ss;
                     ss << outputFile2.rdbuf();
                     outputFile2.close();
@@ -405,7 +405,7 @@ void Session::sendData(pt::ptree* json) {
                 }
                 
                 try {
-                    std::filesystem::remove("out_" + fileName);
+                    std::filesystem::remove("out_" + uid + fileName);
                 } catch (const std::filesystem::filesystem_error& e) {
                     std::cerr << "Error deleting file: " << e.what() << std::endl;
                 }
