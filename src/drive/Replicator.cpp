@@ -3003,7 +3003,7 @@ public:
         m_session->dbgTestKademlia(dbgFunc);
     }
 
-    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList )
+    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList ) override
     {
         boost::asio::post( m_session->lt_session().get_context(), [outReplicatorList=outReplicatorList,this]() mutable {
             for( auto& [key,drive] : m_driveMap )
