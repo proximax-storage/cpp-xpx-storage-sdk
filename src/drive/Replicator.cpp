@@ -71,8 +71,6 @@ private:
     int m_verificationShareTimerDelay = 60 * 1000;
     uint64_t m_minReplicatorsNumber = 4;
 
-    bool m_useTcpSocket;
-
     ReplicatorEventHandler& m_eventHandler;
     DbgReplicatorEventHandler* m_dbgEventHandler;
 
@@ -114,11 +112,10 @@ public:
         m_address( address ),
         m_port( port ),
         m_storageDirectory( storageDirectory ),
-        m_useTcpSocket( useTcpSocket ),
         m_eventHandler( handler ),
         m_dbgEventHandler( dbgEventHandler ),
-        m_bootstraps(bootstraps),
-        m_dnOpinionSyncronizer( *this, m_dbgOurPeerName )
+        m_dnOpinionSyncronizer( *this, m_dbgOurPeerName ),
+        m_bootstraps(bootstraps)
     {
         _LOG("Replicator Public Key: " << m_keyPair.publicKey())
     }
@@ -2187,9 +2184,9 @@ public:
             auto query = rDict.dict_find_string_value( "q" );
             if ( query == "get_dn_rcpts" )
             {
-                lt::string_view response = rDict.dict_find_string_value( "ret" );
+                lt::string_view rsp = rDict.dict_find_string_value( "ret" );
                 lt::string_view sign = rDict.dict_find_string_value( "sign" );
-                onSyncRcptReceived( response, sign );
+                onSyncRcptReceived( rsp, sign );
             }
         }
         catch ( ... )
