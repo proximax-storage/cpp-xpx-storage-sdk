@@ -35,7 +35,6 @@ class RpcReplicator : public Replicator, public RpcServer
     std::string                     m_port;
     std::string                     m_storageDirectory;
     const std::vector<ReplicatorInfo> m_bootstraps;
-    bool                            m_useTcpSocket;
     ReplicatorEventHandler&         m_eventHandler;
     DbgReplicatorEventHandler*      m_dbgEventHandler;
     const std::string               m_dbgReplicatorName;
@@ -64,7 +63,6 @@ public:
                 m_port(port),
                 m_storageDirectory(storageDirectory),
                 m_bootstraps(bootstraps),
-                m_useTcpSocket(useTcpSocket),
                 m_eventHandler(eventHandler),
                 m_dbgEventHandler(dbgEventHandler),
                 m_dbgReplicatorName(dbgReplicatorName),
