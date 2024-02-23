@@ -311,6 +311,20 @@ void Session::recvDataChunk(pt::ptree* json) {
     std::string binaryString = base64_decode((*json).get<std::string>("data"));     
     std::ofstream file(recv_directory[uid], std::ios::binary | std::ios::app);
     file << binaryString;
+
+    // Check if any error occurred during the appending process
+    if (file.fail()) {
+        std::cerr << "Error appending data to file: " << (*json).get<std::string>("fileName") << std::endl;
+        (*json).put("task", Task::UPLOAD_FAILURE);
+        ws.async_write(net::buffer(encodeMessage(json, sharedKey)),
+            [this](beast::error_code ec, std::size_t bytes_transferred) { 
+                doRead();
+            });
+        return;
+        file.close(); // Close the file before exiting
+        return;
+    }
+
     file.close();
 
     if (recv_dataCounter[uid] + 1 == recv_numOfDataPieces[uid]) {
@@ -353,6 +367,16 @@ void Session::sendData(pt::ptree* json) {
 
     std::string uid = (*json).get<std::string>("uid");
 
+    if (!(fs::exists(filePath))) {
+        std::cout << filePath << " does not exist" << std::endl;
+        (*json).put("task", Task::DOWNLOAD_FAILURE);
+        ws.async_write(net::buffer(encodeMessage(json, sharedKey)),
+            [this](beast::error_code ec, std::size_t bytes_transferred) { 
+                doRead();
+            });
+        return;
+    }
+
     send_numOfDataPieces[uid] = std::filesystem::file_size(filePath) / send_DataPieceSize;
     if (std::filesystem::file_size(filePath) % send_DataPieceSize != 0) {
         send_numOfDataPieces[uid]++;
@@ -376,6 +400,13 @@ void Session::sendData(pt::ptree* json) {
                 if (!file.is_open()) {
                     std::cerr << "[Download info] Failed to open file: " << filePath << std::endl;
                     return;
+                }
+
+                if (fs::exists("out_" + uid + fileName)) {
+                    // Delete the file
+                    if (fs::remove("out_" + uid + fileName)) {
+                        std::cout << "File deleted successfully." << std::endl;
+                    } 
                 }
 
                 while (!file.eof()) {
