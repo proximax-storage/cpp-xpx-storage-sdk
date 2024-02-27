@@ -21,12 +21,6 @@
 
 namespace sirius::drive {
 
-struct FinishStreamInfo
-{
-    InfoHash infoHash;
-    uint64_t streamSizeBytes;
-};
-
 class StreamerSession : public ClientSession, public DhtMessageHandler, public lt::plugin
 {
 protected:
@@ -67,7 +61,12 @@ protected:
     uint64_t m_startTimeSecods = 0;
     uint64_t m_endTimeSecods   = std::numeric_limits<uint64_t>::max();
 
-    std::function<void(const sirius::drive::FinishStreamInfo&)> m_finishBackCall;
+    std::function<void( const Key& driveKey, const InfoHash& streamId, const InfoHash& actionListHash, uint64_t streamBytes )> m_finishBackCall;
+    
+    ReplicatorList      m_finishReplicatorKeys;
+    std::string         m_finishSandboxFolder;
+    endpoint_list       m_finishEndpointList;
+
 
 public:
     StreamerSession( const crypto::KeyPair& keyPair, const char* dbgOurPeerName )
@@ -133,7 +132,7 @@ public:
         
         m_startTimeSecods = 0;
         m_endTimeSecods   = std::numeric_limits<uint64_t>::max();
-        m_finishBackCall  = [](auto) {};
+        m_finishBackCall  = {};
 
         for( const auto& endpoint : endPointList )
         {
@@ -162,17 +161,26 @@ public:
         m_streamId.reset();
     }
     
-    void finishStream( std::function<void(const sirius::drive::FinishStreamInfo&)> backCall,
-                       uint64_t startTimeSecods = 0,
-                       uint64_t endTimeSecods   = std::numeric_limits<uint64_t>::max() )
+    void finishStream( std::function<void(const sirius::Key& driveKey, const sirius::drive::InfoHash& streamId, const sirius::drive::InfoHash& actionListHash, uint64_t streamBytes)> backCall,
+                      const ReplicatorList&  replicatorKeys,
+                      const std::string&     sandboxFolder, // it is the folder where all ActionLists and file-links will be placed
+                      endpoint_list          endpointList,
+                      uint64_t               startTimeSecods = 0,
+                      uint64_t               endTimeSecods   = std::numeric_limits<uint64_t>::max() )
     {
-        m_finishBackCall  = backCall;
-        m_startTimeSecods = startTimeSecods;
-        m_endTimeSecods   = endTimeSecods;
-        m_isFinished      = true;
+        m_isFinished = true;
+
+        m_finishBackCall       = backCall;
+        m_finishReplicatorKeys = replicatorKeys;
+        m_finishSandboxFolder  = sandboxFolder;
+        m_finishEndpointList   = endpointList;
+
+        m_startTimeSecods      = startTimeSecods;
+        m_endTimeSecods        = endTimeSecods;
     }
     
-    void doFinishStream( std::function<void(const sirius::drive::FinishStreamInfo&)> backCall )
+    void doFinishStream( std::function<void(const sirius::Key& driveKey, const sirius::drive::InfoHash& streamId, const sirius::drive::InfoHash& actionListHash, uint64_t streamBytes)> backCall )
+                         //const std::string& sandboxFolder )
     {
         if ( ! m_streamId )
         {
@@ -221,34 +229,61 @@ public:
             _LOG( "streamSize: " << streamSize );
         }
 
+        //
+        // Create actionList
+        //
+        ActionList actionList;
+        fs::path streamFolder = m_mediaFolder;
+        actionList.push_back( Action::newFolder( streamFolder ) );
+
+        // create playlist (playlist.m3u8)
+        createPlaylist( finishStreamInfo, m_chunkFolder );
+        createTorrentFile( m_chunkFolder / PLAYLIST_FILE_NAME, m_keyPair.publicKey(), m_chunkFolder, m_chunkFolder / PLAYLIST_FILE_NAME );
         
-        
-        fs::path finishStreamFilename = m_chunkFolder / "finishStreamInfo";
+        // add playlist
+        actionList.push_back( Action::upload( streamFolder / PLAYLIST_FILE_NAME, m_torrentFolder / PLAYLIST_FILE_NAME ));
+        //actionList.dbgPrint();
+
+        // add chunks
+        for( auto& info : finishStreamInfo )
         {
-//            std::ofstream finishStreamFile( finishStreamFilename, std::ios::binary );
-//            cereal::PortableBinaryOutputArchive archive( finishStreamFile );
-//            archive( finishStreamInfo );
+            actionList.push_back( Action::upload( m_chunkFolder / toString(info.m_chunkInfoHash), toString(info.m_chunkInfoHash) ) );
         }
+        
+        uint64_t        outTotalModifySize;
+        std::error_code ec;
 
+        InfoHash actionListHash = addActionListToSession( actionList, m_driveKey, m_finishReplicatorKeys, m_finishSandboxFolder, outTotalModifySize, m_finishEndpointList,ec );
 
-
-        fs::path torrentFilename = m_torrentFolder / "finishStreamInfo";
-        InfoHash infoHash = createTorrentFile( finishStreamFilename, m_keyPair.publicKey(), m_chunkFolder, torrentFilename );
-
-        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename.make_preferred(),
-                                                                      m_chunkFolder.make_preferred(),
-                                                                      lt::SiriusFlags::client_has_modify_data,
-                                                                      &m_keyPair.publicKey().array(),
-                                                                      nullptr,
-                                                                      &m_streamId->array(),
-                                                                      {},
-                                                                      nullptr );
-
-        m_streamId.reset();
-        m_finishBackCall( { infoHash, streamSize } );
+        m_finishBackCall( m_driveKey, *m_streamId, actionListHash, outTotalModifySize );
     }
 
-    void doFinishStream_old( std::function<void(const sirius::drive::FinishStreamInfo&)> backCall )
+    void createPlaylist( const std::vector<FinishStreamChunkInfo>& chunkList, const fs::path& chunkFolder )
+    {
+        _LOG("createPlaylist: ")
+
+        float maxDuration = 8.333333;
+        
+        std::stringstream playlist;
+        playlist << "#EXTM3U" << std::endl;
+        playlist << "#EXT-X-VERSION:3" << std::endl;
+        playlist << "#EXT-X-TARGETDURATION:" << maxDuration << std::endl;
+        playlist << "#EXT-X-MEDIA-SEQUENCE:" << 0 << std::endl;
+
+        for( const auto& chunkInfo : chunkList )
+        {
+            playlist << "#EXTINF:" << chunkInfo.m_durationMks/1000000 << "." << chunkInfo.m_durationMks%1000000 << std::endl;
+            playlist << toString(chunkInfo.m_chunkInfoHash) << std::endl;
+        }
+
+        {
+            auto playlistTxt = playlist.str();
+            std::ofstream fileStream( chunkFolder / PLAYLIST_FILE_NAME, std::ios::binary );
+            fileStream.write( playlistTxt.c_str(), playlistTxt.size() );
+        }
+    }
+
+    void doFinishStream_old( )
     {
         if ( ! m_streamId )
         {
@@ -309,9 +344,11 @@ public:
         }
 
         fs::path torrentFilename = m_torrentFolder / "finishStreamInfo";
-        InfoHash infoHash = createTorrentFile( finishStreamFilename, m_keyPair.publicKey(), m_chunkFolder, torrentFilename );
+        //InfoHash infoHash =
+        createTorrentFile( finishStreamFilename, m_keyPair.publicKey(), m_chunkFolder, torrentFilename );
 
-        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilename.make_preferred(),
+        //lt_handle torrentHandle =
+        m_session->addTorrentFileToSession( torrentFilename.make_preferred(),
                                                                       m_chunkFolder.make_preferred(),
                                                                       lt::SiriusFlags::client_has_modify_data,
                                                                       &m_keyPair.publicKey().array(),
@@ -337,7 +374,7 @@ public:
 //        }
         
         m_streamId.reset();
-        m_finishBackCall( { infoHash, streamSize } );
+        //m_finishBackCall( { infoHash, streamSize } );
     }
     
 //    void addChunkToStream( const std::vector<uint8_t>& chunk, uint32_t durationMs, InfoHash* dbgInfoHash = nullptr )

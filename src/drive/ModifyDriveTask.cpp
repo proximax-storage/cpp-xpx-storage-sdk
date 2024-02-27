@@ -60,7 +60,6 @@ public:
         : ModifyTaskBase( DriveTaskType::STREAM_REQUEST, drive, {}, opinionTaskController )
         , m_request()
     {
-        SIRIUS_ASSERT( m_request )
     }
 
     void shutdown() override

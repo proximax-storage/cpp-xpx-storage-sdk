@@ -56,7 +56,7 @@ bool gBreak_On_Warning = true;
 #define REPLICATOR_PORT_4       2004
 
 //#define OSB_OUTPUT_PLAYLIST             fs::path(getenv("HOME")) / "111" / "stream" / "stream.m3u8"
-#define OSB_OUTPUT_PLAYLIST             fs::path(getenv("HOME")) / "111-stream" / "obs-stream.m3u8"
+#define OSB_OUTPUT_PLAYLIST             fs::path(getenv("HOME")) / "000" / "111-stream" / "obs-stream.m3u8"
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111"
 #define REPLICATOR_ROOT_FOLDER          fs::path(getenv("HOME")) / "111" / "replicator_root"
@@ -619,7 +619,7 @@ int main(int,char**)
                                               TRANSPORT_PROTOCOL,
                                               "streamer" );
     
-    gStreamerSession->dbgAddReplicatorList( bootstraps );
+    //gStreamerSession->dbgAddReplicatorList( bootstraps );
 
     gViewerSession = createViewerSession( viewerKeyPair,
                                           CLIENT_IP_ADDR1 CLIENT_PORT1,
@@ -628,7 +628,7 @@ int main(int,char**)
                                           TRANSPORT_PROTOCOL,
                                           "viewer" );
 
-    gViewerSession->dbgAddReplicatorList( bootstraps );
+    //gViewerSession->dbgAddReplicatorList( bootstraps );
     _EXLOG("");
 
     //
@@ -647,36 +647,50 @@ int main(int,char**)
                                  [](const std::string&){},
                                  endpointList );
 
-    downloadStreamEnded = false;
-    auto progress = []( std::string playListPath, int chunkIndex, int chunkNumber, std::string error )
+    
+    sleep(1);
+    auto endStreamBackCall = []( const sirius::Key& driveKey, const sirius::drive::InfoHash& streamId, const sirius::drive::InfoHash& actionListHash, uint64_t streamBytes  )
     {
-        EXLOG( "@@@ chunkIndex,chunkNumber: " << chunkIndex << "," << chunkNumber )
-        if ( chunkIndex == chunkNumber )
+        for( auto replicator : gReplicatorArray )
         {
-            //std::unique_lock<std::mutex> lock(downloadStreamMutex);
-            downloadStreamEnded = true;
-            downloadStreamCondVar.notify_all();
-            downloadStreamCondVar.notify_one();
+            replicator->asyncFinishStreamTxPublished( driveKey, std::make_unique<StreamFinishRequest>(StreamFinishRequest{ streamId.array(), actionListHash, streamBytes }) );
         }
+
     };
     
-    //
-    // startWatchingLiveStream
-    //
-#ifdef __APPLE__
-    auto startPlayer = []( std::string address )
-    {
-        std::cout << "startPlayer address: " << address <<std::endl;
-        auto cmd = std::string( "open -a /Users/alex/Applications/VLC.app/Contents/MacOS/VLC " + address + "");
-        system( cmd.c_str() );
-    };
-#else
-    auto startPlayer = []( std::string address )
-    {
-        std::cout << "startPlayer() not implemented";
-        assert(0);
-    };
-#endif
+    gStreamerSession->finishStream( endStreamBackCall, replicatorList, STREAMER_WORK_FOLDER / "sandboxFolder", endpointList );
+    
+    
+    downloadStreamEnded = false;
+//    auto progress = []( std::string playListPath, int chunkIndex, int chunkNumber, std::string error )
+//    {
+//        EXLOG( "@@@ chunkIndex,chunkNumber: " << chunkIndex << "," << chunkNumber )
+//        if ( chunkIndex == chunkNumber )
+//        {
+//            //std::unique_lock<std::mutex> lock(downloadStreamMutex);
+//            downloadStreamEnded = true;
+//            downloadStreamCondVar.notify_all();
+//            downloadStreamCondVar.notify_one();
+//        }
+//    };
+    
+//    //
+//    // startWatchingLiveStream
+//    //
+//#ifdef __APPLE__
+//    auto startPlayer = []( std::string address )
+//    {
+//        std::cout << "startPlayer address: " << address <<std::endl;
+//        auto cmd = std::string( "open -a /Users/alex/Applications/VLC.app/Contents/MacOS/VLC " + address + "");
+//        system( cmd.c_str() );
+//    };
+//#else
+//    auto startPlayer = []( std::string address )
+//    {
+//        std::cout << "startPlayer() not implemented";
+//        assert(0);
+//    };
+//#endif
 
 //    gViewerSession->setDownloadChannel( replicatorList, downloadChannelHash1 );
 //    gViewerSession->startWatchingLiveStream( streamTx,
@@ -695,7 +709,7 @@ int main(int,char**)
         replicator->asyncStartStream( DRIVE_PUB_KEY, std::make_unique<StreamRequest>(streamRequest) );
     }
 
-    sleep(10);
+    sleep(100);
     gViewerSession->addReplicatorList( replicatorList );
     gViewerSession->requestStreamStatus( DRIVE_PUB_KEY, replicatorList,
                                                          [] ( const DriveKey&                 driveKey,
@@ -711,16 +725,16 @@ int main(int,char**)
         sleep(1);
     }
 
-    gViewerSession->startWatchingLiveStream( streamTx,
-                                            gStreamerSession->publicKey(),
-                                            DRIVE_PUB_KEY,
-                                            downloadChannelHash1,
-                                            replicatorList,
-                                            VIEWER_STREAM_ROOT_FOLDER,
-                                            "testStreamFolder",
-                                            startPlayer,
-                                            {"localhost","5151"},
-                                            progress );
+//    gViewerSession->startWatchingLiveStream( streamTx,
+//                                            gStreamerSession->publicKey(),
+//                                            DRIVE_PUB_KEY,
+//                                            downloadChannelHash1,
+//                                            replicatorList,
+//                                            VIEWER_STREAM_ROOT_FOLDER,
+//                                            "testStreamFolder",
+//                                            startPlayer,
+//                                            {"localhost","5151"},
+//                                            progress );
 
     int n;
     std::cin >> n;
@@ -729,14 +743,14 @@ int main(int,char**)
     // FinishStream
     //
 
-    gStreamerSession->finishStream( [](const sirius::drive::FinishStreamInfo& finishInfo)
-    {
-        for( auto replicator : gReplicatorArray )
-        {
-            replicator->asyncFinishStreamTxPublished( DRIVE_PUB_KEY, std::make_unique<StreamFinishRequest>(StreamFinishRequest{ streamTx, finishInfo.infoHash, finishInfo.streamSizeBytes }) );
-        }
-
-    });
+//    gStreamerSession->finishStream( [](const sirius::drive::FinishStreamInfo& finishInfo)
+//    {
+//        for( auto replicator : gReplicatorArray )
+//        {
+//            replicator->asyncFinishStreamTxPublished( DRIVE_PUB_KEY, std::make_unique<StreamFinishRequest>(StreamFinishRequest{ streamTx, finishInfo.infoHash, finishInfo.streamSizeBytes }) );
+//        }
+//
+//    });
     
     
     {
