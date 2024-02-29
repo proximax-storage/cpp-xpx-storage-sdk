@@ -363,6 +363,13 @@ public:
                                        tryDownloadNextChunk();
                                        return;
                                    }
+                                   else if ( code == download_status::dn_not_enougth_space )
+                                   {
+                                       SIRIUS_ASSERT( 0 );
+                                       //todo
+//                                       m_drive.m_torrentHandleMap.erase( infoHash );
+//                                       modifyIsCompletedWithError( errorText, ModificationStatus::NOT_ENOUGH_SPACE );
+                                   }
 
                                    if ( code == download_status::download_complete )
                                    {

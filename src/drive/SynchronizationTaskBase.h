@@ -113,7 +113,11 @@ public:
                                     SIRIUS_ASSERT( 0 );
                                     return;
                                 }
-
+                                else if ( code == download_status::dn_not_enougth_space )
+                                {
+                                    SIRIUS_ASSERT( 0 );
+                                }
+                                
                                 if ( code == download_status::download_complete )
                                 {
                                     m_sandboxRootHash = infoHash;
@@ -361,6 +365,10 @@ public:
 
                                         downloadMissingFiles();
                                     } else if ( code == download_status::dn_failed )
+                                    {
+                                        SIRIUS_ASSERT( 0 );
+                                    }
+                                    else if ( code == download_status::dn_not_enougth_space )
                                     {
                                         SIRIUS_ASSERT( 0 );
                                     }

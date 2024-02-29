@@ -118,6 +118,11 @@ public:
                                                            m_drive.m_torrentHandleMap.erase( infoHash );
                                                            modifyIsCompletedWithError( errorText, ModificationStatus::DOWNLOAD_FAILED );
                                                        }
+                                                       else if ( code == download_status::dn_not_enougth_space )
+                                                       {
+                                                           m_drive.m_torrentHandleMap.erase( infoHash );
+                                                           modifyIsCompletedWithError( errorText, ModificationStatus::NOT_ENOUGH_SPACE );
+                                                       }
                                                        else if ( code == download_status::download_complete )
                                                        {
                                                            //SIRIUS_ASSERT( !m_taskIsStopped );
@@ -260,6 +265,11 @@ public:
                                                                        {
                                                                            m_drive.m_torrentHandleMap.erase( infoHash );
                                                                            modifyIsCompletedWithError( errorText, ModificationStatus::DOWNLOAD_FAILED );
+                                                                       }
+                                                                       else if ( code == download_status::dn_not_enougth_space )
+                                                                       {
+                                                                           m_drive.m_torrentHandleMap.erase( infoHash );
+                                                                           modifyIsCompletedWithError( errorText, ModificationStatus::NOT_ENOUGH_SPACE );
                                                                        }
                                                                    },
 

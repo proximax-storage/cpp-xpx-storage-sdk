@@ -53,7 +53,8 @@ namespace download_status {
     enum code {
         download_complete = 0,
         downloading = 1,
-        dn_failed = 2
+        dn_failed = 2,
+        dn_not_enougth_space = 3
     };
 };
 
