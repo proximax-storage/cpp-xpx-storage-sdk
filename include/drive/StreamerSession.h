@@ -117,7 +117,7 @@ public:
                      const std::string       streamFolderName,
                      const Key&              driveKey,
                      const fs::path&         m3u8Playlist,
-                     const fs::path&         workFolder,
+                     const fs::path&         driveLocalFolder,
                      StreamingStatusHandler  streamingStatusHandler,
                      const endpoint_list&    endPointList )
     {
@@ -127,7 +127,7 @@ public:
         _LOG( "initStream: streamId: " << streamId )
         _LOG( "initStream: driveKey: " << driveKey )
         _LOG( "initStream: m3u8Playlist: " << m3u8Playlist )
-        _LOG( "initStream: workFolder: " << workFolder )
+        _LOG( "initStream: workFolder: " << driveLocalFolder )
         _LOG( "initStream: endPointList.size(): " << endPointList.size() )
 
         m_streamId = streamId;
@@ -150,8 +150,8 @@ public:
 
         m_m3u8Playlist  = m3u8Playlist;
         m_mediaFolder   = fs::path(m3u8Playlist).parent_path();
-        m_chunkFolder   = fs::path(workFolder) / ".video" / m_streamFolderName / "chunks";
-        m_torrentFolder = fs::path(workFolder) / ".video" / m_streamFolderName / "torrents";
+        m_chunkFolder   = fs::path(driveLocalFolder) / ".video" / m_streamFolderName / "chunks";
+        m_torrentFolder = fs::path(driveLocalFolder) / ".video" / m_streamFolderName / "torrents";
         m_streamingStatusHandler = streamingStatusHandler;
 
         fs::create_directories( m_chunkFolder );
