@@ -115,7 +115,6 @@ public:
 
                                                        if ( code == download_status::dn_failed )
                                                        {
-                                                           SIRIUS_ASSERT( 0 );
                                                            m_drive.m_torrentHandleMap.erase( infoHash );
                                                            modifyIsCompletedWithError( errorText, ModificationStatus::DOWNLOAD_FAILED );
                                                        }
@@ -259,7 +258,6 @@ public:
                                                                        }
                                                                        else if ( code == download_status::dn_failed )
                                                                        {
-                                                                           SIRIUS_ASSERT( 0 );
                                                                            m_drive.m_torrentHandleMap.erase( infoHash );
                                                                            modifyIsCompletedWithError( errorText, ModificationStatus::DOWNLOAD_FAILED );
                                                                        }
