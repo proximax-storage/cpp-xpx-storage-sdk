@@ -118,9 +118,12 @@ namespace sirius { namespace drive {
 
     private:
         friend class ModifyDriveTask;
-
         mutable bool         m_isInvalid = false;
-        lt_handle            m_ltHandle;
+
+    private:
+        friend class StreamerSession;
+        friend class ClientSession;
+        mutable lt_handle    m_ltHandle;
     };
 
     // ActionList

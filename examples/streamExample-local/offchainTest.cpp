@@ -640,10 +640,10 @@ int main(int,char**)
     }
     fs::remove_all( STREAMER_WORK_FOLDER / "streamFolder" );
     gStreamerSession->initStream( streamTx,
+                                 "streamN1",
                                  DRIVE_PUB_KEY,
                                  OSB_OUTPUT_PLAYLIST,
-                                 STREAMER_WORK_FOLDER / "streamFolder/chunks",
-                                 STREAMER_WORK_FOLDER / "streamFolder/torrents",
+                                 STREAMER_WORK_FOLDER / "streamFolder",
                                  [](const std::string&){},
                                  endpointList );
 
@@ -655,7 +655,6 @@ int main(int,char**)
         {
             replicator->asyncFinishStreamTxPublished( driveKey, std::make_unique<StreamFinishRequest>(StreamFinishRequest{ streamId.array(), actionListHash, streamBytes }) );
         }
-
     };
     
     gStreamerSession->finishStream( endStreamBackCall, replicatorList, STREAMER_WORK_FOLDER / "sandboxFolder", endpointList );
@@ -709,7 +708,7 @@ int main(int,char**)
         replicator->asyncStartStream( DRIVE_PUB_KEY, std::make_unique<StreamRequest>(streamRequest) );
     }
 
-    sleep(100);
+    sleep(10000);
     gViewerSession->addReplicatorList( replicatorList );
     gViewerSession->requestStreamStatus( DRIVE_PUB_KEY, replicatorList,
                                                          [] ( const DriveKey&                 driveKey,

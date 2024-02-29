@@ -25,6 +25,7 @@ class StreamerSession : public ClientSession, public DhtMessageHandler, public l
 {
 protected:
     std::optional<Hash256>  m_streamId;
+    std::string             m_streamFolderName;
     Key                     m_driveKey;
     
     using udp_endpoint_list = std::set<boost::asio::ip::udp::endpoint>;
@@ -85,6 +86,12 @@ public:
     {
         // BG THREAD
         
+        if ( m_isFinished )
+        {
+            doFinishStream( m_finishBackCall );
+            return;
+        }
+        
         m_tickTimer.expires_after( std::chrono::milliseconds( 1000 ) );
         m_tickTimer.async_wait( [this] ( boost::system::error_code const& e )
         {
@@ -107,10 +114,10 @@ public:
     }
     
     void initStream( const Hash256&          streamId,
+                     const std::string       streamFolderName,
                      const Key&              driveKey,
                      const fs::path&         m3u8Playlist,
-                     const fs::path&         chunksFolder,
-                     const fs::path&         torrentsFolder,
+                     const fs::path&         workFolder,
                      StreamingStatusHandler  streamingStatusHandler,
                      const endpoint_list&    endPointList )
     {
@@ -120,11 +127,11 @@ public:
         _LOG( "initStream: streamId: " << streamId )
         _LOG( "initStream: driveKey: " << driveKey )
         _LOG( "initStream: m3u8Playlist: " << m3u8Playlist )
-        _LOG( "initStream: chunksFolder: " << chunksFolder )
-        _LOG( "initStream: torrentsFolder: " << torrentsFolder )
+        _LOG( "initStream: workFolder: " << workFolder )
         _LOG( "initStream: endPointList.size(): " << endPointList.size() )
 
         m_streamId = streamId;
+        m_streamFolderName = streamFolderName;
         m_driveKey = driveKey;
         m_chunkInfoMap.clear();
         m_isFinished = false;
@@ -143,8 +150,8 @@ public:
 
         m_m3u8Playlist  = m3u8Playlist;
         m_mediaFolder   = fs::path(m3u8Playlist).parent_path();
-        m_chunkFolder   = chunksFolder;
-        m_torrentFolder = torrentsFolder;
+        m_chunkFolder   = fs::path(workFolder) / ".video" / m_streamFolderName / "chunks";
+        m_torrentFolder = fs::path(workFolder) / ".video" / m_streamFolderName / "torrents";
         m_streamingStatusHandler = streamingStatusHandler;
 
         fs::create_directories( m_chunkFolder );
@@ -230,35 +237,88 @@ public:
         }
 
         //
+        // Create playlist (obs-stream.m3u8)
+        //
+        fs::path playlistFile = createPlaylist( finishStreamInfo, m_chunkFolder );
+        
+        InfoHash playlistInfoHash = createTorrentFile( playlistFile.make_preferred(), m_keyPair.publicKey(), playlistFile.parent_path().make_preferred(), {} );
+        _LOG( "playlistInfoHash: " << toString(playlistInfoHash) )
+        std::error_code ec;
+        
+        auto playlistNewFilePath = (playlistFile.parent_path() / toString(playlistInfoHash));
+        fs::copy( playlistFile.make_preferred(), playlistNewFilePath.make_preferred(), ec );
+        if ( ec )
+        {
+            _LOG_WARN( "Cannot copy playlist: " << playlistFile << " to: " << playlistNewFilePath );
+            _LOG_WARN( "Cannot copy playlist: " << ec.message() );
+            return;
+        }
+
+        fs::remove( playlistFile, ec );
+        if ( ec )
+        {
+            _LOG_WARN( "Cannot remove playlist: " << playlistFile );
+            _LOG_WARN( "Cannot remove playlist: " << ec.message() );
+            return;
+        }
+
+        fs::path torrentFilePath = (m_torrentFolder / toString(playlistInfoHash));
+        InfoHash playlistInfoHash0 = createTorrentFile( playlistNewFilePath.make_preferred(),
+                                                      m_keyPair.publicKey(),
+                                                      playlistFile.parent_path().make_preferred(),
+                                                      torrentFilePath );
+        SIRIUS_ASSERT( playlistInfoHash0 == playlistInfoHash )
+        
+        uint64_t  playlistFileSize;
+        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilePath.make_preferred(),
+                                                                      playlistFile.parent_path().make_preferred(),
+                                                                      lt::SiriusFlags::client_has_modify_data,
+                                                                      &playlistInfoHash.array(),
+                                                                      nullptr,
+                                                                      &m_driveKey.array(),
+                                                                      m_finishEndpointList,
+                                                                      &playlistFileSize );
+        m_modifyTorrentMap[playlistInfoHash] = {torrentHandle,false};
+
+        //
         // Create actionList
         //
         ActionList actionList;
-        fs::path streamFolder = m_mediaFolder;
-        actionList.push_back( Action::newFolder( streamFolder ) );
+        actionList.push_back( Action::newFolder( m_streamFolderName ) );
 
-        // create playlist (playlist.m3u8)
-        createPlaylist( finishStreamInfo, m_chunkFolder );
-        createTorrentFile( m_chunkFolder / PLAYLIST_FILE_NAME, m_keyPair.publicKey(), m_chunkFolder, m_chunkFolder / PLAYLIST_FILE_NAME );
-        
         // add playlist
-        actionList.push_back( Action::upload( streamFolder / PLAYLIST_FILE_NAME, m_torrentFolder / PLAYLIST_FILE_NAME ));
-        //actionList.dbgPrint();
+        actionList.push_back( Action::upload( toString(playlistInfoHash),
+                                             ( fs::path(".video") / m_streamFolderName / "chunks" / PLAYLIST_FILE_NAME ).string() ));
+        actionList.back().m_ltHandle = torrentHandle;
+        actionList.back().m_filename = playlistFile.filename().string();
 
         // add chunks
         for( auto& info : finishStreamInfo )
         {
-            actionList.push_back( Action::upload( m_chunkFolder / toString(info.m_chunkInfoHash), toString(info.m_chunkInfoHash) ) );
+            if ( auto it = m_modifyTorrentMap.find(info.m_chunkInfoHash); it == m_modifyTorrentMap.end() )
+            {
+                _LOG_WARN("unknown chunk: no torrent")
+            }
+            else
+            {
+                actionList.push_back( Action::upload( toString(info.m_chunkInfoHash),
+                                                     ( fs::path(".video") / m_streamFolderName / "chunks" / toString(info.m_chunkInfoHash) ).string() ));
+                
+                actionList.back().m_ltHandle = it->second.m_ltHandle;
+                actionList.back().m_filename = toString(info.m_chunkInfoHash);
+            }
         }
         
         uint64_t        outTotalModifySize;
-        std::error_code ec;
 
+        actionList.dbgPrint();
+        
         InfoHash actionListHash = addActionListToSession( actionList, m_driveKey, m_finishReplicatorKeys, m_finishSandboxFolder, outTotalModifySize, m_finishEndpointList,ec );
 
         m_finishBackCall( m_driveKey, *m_streamId, actionListHash, outTotalModifySize );
     }
-
-    void createPlaylist( const std::vector<FinishStreamChunkInfo>& chunkList, const fs::path& chunkFolder )
+    
+    fs::path createPlaylist( const std::vector<FinishStreamChunkInfo>& chunkList, const fs::path& chunkFolder )
     {
         _LOG("createPlaylist: ")
 
@@ -280,6 +340,7 @@ public:
             auto playlistTxt = playlist.str();
             std::ofstream fileStream( chunkFolder / PLAYLIST_FILE_NAME, std::ios::binary );
             fileStream.write( playlistTxt.c_str(), playlistTxt.size() );
+            return chunkFolder / PLAYLIST_FILE_NAME;
         }
     }
 
@@ -444,6 +505,7 @@ public:
                                                                           &m_streamId->array(),
                                                                           {},
                                                                           nullptr );
+            m_modifyTorrentMap[chunkHash2] = {torrentHandle,false};
             m_totalChunkBytes += chunkSize;
         }
 
@@ -531,12 +593,6 @@ public:
 
         if ( ! m_streamId )
         {
-            return;
-        }
-        
-        if ( m_isFinished )
-        {
-            doFinishStream( m_finishBackCall );
             return;
         }
         
