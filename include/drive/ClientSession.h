@@ -551,7 +551,6 @@ public:
         boost::asio::post(m_session->lt_session().get_context(), [&torrents,&barrier,this]() //mutable
         {
             m_session->removeTorrentsFromSession( torrents, [&barrier] {
-                __LOG("???? barrier.set_value();")
                 barrier.set_value();
             }, true);
         });
@@ -632,7 +631,7 @@ protected:
             _LOG( "msg.clientKey() " << msg.clientKey() )
             _LOG( "msg.replicatorKey() " << msg.replicatorKey() )
             _LOG( "downloadedSize: " << *msg.downloadedSizePtr() )
-            _LOG( "msg.signature() " << hexToString(msg.signature().begin(), msg.signature().end()) )
+            _LOG( "msg.signature() " << hexToString(&*msg.signature().begin(), &*msg.signature().end()) )
 
             _LOG_WARN( dbgOurPeerName() << ": verifyReceipt: invalid signature will be ignored: channel id: " << toString(msg.channelId().array()) << " replicator key: " << toString(msg.replicatorKey().array()) )
             return;
