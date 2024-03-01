@@ -126,7 +126,7 @@ public:
         // it must be overriden by StreamTask
     }
 
-    virtual void acceptFinishStreamTx( mobj<StreamFinishRequest>&& )
+    virtual void acceptFinishStreamTx( mobj<StreamFinishRequest>&&, std::map<std::array<uint8_t, 32>, ApprovalTransactionInfo>&& )
     {
         // it must be overriden by StreamTask
     }

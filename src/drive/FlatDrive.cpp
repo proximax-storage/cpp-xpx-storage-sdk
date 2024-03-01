@@ -407,6 +407,7 @@ public:
 
         SIRIUS_ASSERT( !m_task )
 
+//TODO it should be on finishStreaming
 //        auto opinions = std::move(m_unknownModificationOpinions[request->m_transactionHash]);
 //        m_unknownModificationOpinions.erase(request->m_transactionHash);
 
@@ -1087,10 +1088,16 @@ public:
     void acceptFinishStreamTx( mobj<StreamFinishRequest>&& finishStream ) override
     {
         DBG_MAIN_THREAD
+        
+        _LOG("acceptFinishStreamTx: " << finishStream->m_streamId )
+        _LOG("acceptFinishStreamTx: " << finishStream->m_finishDataInfoHash )
 
         if ( m_task )
         {
-            m_task->acceptFinishStreamTx( std::move( finishStream ));
+            auto&& opinions = std::move( m_unknownModificationOpinions[finishStream->m_streamId] );
+            m_unknownModificationOpinions.erase( finishStream->m_streamId );
+
+            m_task->acceptFinishStreamTx( std::move( finishStream ), std::move( opinions ) );
         }
     }
 
@@ -1252,7 +1259,7 @@ public:
     }
     //-----------------------------------------------------------------------------
     
-    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList )
+    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList ) override
     {
         for( auto& key : m_allReplicators )
         {

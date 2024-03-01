@@ -252,71 +252,74 @@ public:
             {
                 case action_list_id::upload:
                 {
-                    const auto pathToFile = fs::path(action.m_param1).make_preferred();
-                    bool isPathExists = fs::exists(pathToFile, ec);
-                    if (ec)
+                    if ( ! action.m_ltHandle.is_valid() ) // for streaming
                     {
-                        __LOG( "ClientSession.h addActionListToSession. fs::exists error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << pathToFile.string() )
-                        return {};
-                    }
-
-                    if ( ! isPathExists )
-                    {
-                        __LOG( "ClientSession.h File is absent: " << pathToFile )
-                        return {};
-                    }
-
-                    bool isDirectory = fs::is_directory(pathToFile, ec);
-                    if (ec)
-                    {
-                        __LOG( "ClientSession.h addActionListToSession. fs::is_directory error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << pathToFile )
-                        return {};
-                    }
-
-                    if ( isDirectory )
-                    {
-                        __LOG( "ClientSession.h Folder could not be added, only files: " << pathToFile )
-                        return {};
-                    }
-
-                    // calculate InfoHash
-                    InfoHash infoHash = createTorrentFile( pathToFile, drivePublicKey, fs::path(action.m_param1).parent_path().make_preferred(), {} );
-                    __LOG( "addActionListToSession: " << infoHash << " " << pathToFile )
-                    if ( m_modifyTorrentMap.find(infoHash) == m_modifyTorrentMap.end() )
-                    {
-                        const auto filenameInSandbox = fs::path(workFolder.string() + "/" + hashToFileName(infoHash)).make_preferred();
-                        bool isExists = fs::exists( filenameInSandbox, ec );
+                        const auto pathToFile = fs::path(action.m_param1).make_preferred();
+                        bool isPathExists = fs::exists(pathToFile, ec);
                         if (ec)
                         {
-                            __LOG( "ClientSession.h fs::exists error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << filenameInSandbox )
+                            __LOG( "ClientSession.h addActionListToSession. fs::exists error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << pathToFile.string() )
                             return {};
                         }
 
-                        if ( ! isExists )
+                        if ( ! isPathExists )
                         {
-                            // remove symlink and not the file
-                            fs::remove( filenameInSandbox, ec );
+                            __LOG( "ClientSession.h File is absent: " << pathToFile )
+                            return {};
+                        }
+
+                        bool isDirectory = fs::is_directory(pathToFile, ec);
+                        if (ec)
+                        {
+                            __LOG( "ClientSession.h addActionListToSession. fs::is_directory error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << pathToFile )
+                            return {};
+                        }
+
+                        if ( isDirectory )
+                        {
+                            __LOG( "ClientSession.h Folder could not be added, only files: " << pathToFile )
+                            return {};
+                        }
+
+                        // calculate InfoHash
+                        InfoHash infoHash = createTorrentFile( pathToFile, drivePublicKey, fs::path(action.m_param1).parent_path().make_preferred(), {} );
+                        __LOG( "addActionListToSession: " << infoHash << " " << pathToFile )
+                        if ( m_modifyTorrentMap.find(infoHash) == m_modifyTorrentMap.end() )
+                        {
+                            const auto filenameInSandbox = fs::path(workFolder.string() + "/" + hashToFileName(infoHash)).make_preferred();
+                            bool isExists = fs::exists( filenameInSandbox, ec );
                             if (ec)
                             {
-                                __LOG( "ClientSession.h fs::remove error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << filenameInSandbox )
+                                __LOG( "ClientSession.h fs::exists error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << filenameInSandbox )
                                 return {};
                             }
-
-#if defined(_WIN32) || defined(_WIN64)
-                            fs::copy( fs::path(action.m_param1).make_preferred(), filenameInSandbox, ec );
-#else
-                            fs::create_symlink( pathToFile, filenameInSandbox, ec );
-#endif
-                            if (ec)
+                            
+                            if ( ! isExists )
                             {
-                                __LOG( "ClientSession.h fs::create_symlink/copy error: " << ec.message() << " category name: " << ec.category().name() << " code: " << std::to_string(ec.value()) << " source path: " << pathToFile << " new symlink: " << filenameInSandbox )
-                                return {};
+                                // remove symlink and not the file
+                                fs::remove( filenameInSandbox, ec );
+                                if (ec)
+                                {
+                                    __LOG( "ClientSession.h fs::remove error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << filenameInSandbox )
+                                    return {};
+                                }
+                                
+#if defined(_WIN32) || defined(_WIN64)
+                                fs::copy( fs::path(action.m_param1).make_preferred(), filenameInSandbox, ec );
+#else
+                                fs::create_symlink( pathToFile, filenameInSandbox, ec );
+#endif
+                                if (ec)
+                                {
+                                    __LOG( "ClientSession.h fs::create_symlink/copy error: " << ec.message() << " category name: " << ec.category().name() << " code: " << std::to_string(ec.value()) << " source path: " << pathToFile << " new symlink: " << filenameInSandbox )
+                                    return {};
+                                }
                             }
                         }
+                        
+                        action.m_filename = fs::path( action.m_param1 ).filename().string();
+                        action.m_param1 = hashToFileName(infoHash);
                     }
-
-                    action.m_filename = fs::path( action.m_param1 ).filename().string();
-                    action.m_param1 = hashToFileName(infoHash);
                     break;
                 }
 
@@ -397,7 +400,11 @@ public:
                 case action_list_id::upload:
                 {
                     InfoHash infoHash = stringToByteArray<Hash256>( action.m_param1 );
-                    if ( m_modifyTorrentMap.find(infoHash) == m_modifyTorrentMap.end() )
+                    if ( auto it = m_modifyTorrentMap.find(infoHash); it != m_modifyTorrentMap.end() )
+                    {
+                        outTotalModifySize += it->second.m_ltHandle.torrent_file()->total_size();
+                    }
+                    else
                     {
                         fs::path filenameInSandbox = workFolder.string() + "/" + action.m_param1;
                         fs::path torrentFilenameInSandbox = filenameInSandbox;
@@ -679,12 +686,13 @@ protected:
         //todo here could be call back-call of test UI app
     }
 
+public:
+
     std::optional<boost::asio::ip::udp::endpoint> getEndpoint(const std::array<uint8_t, 32> &key) override
     {
         return m_session->getEndpoint(key);
     }
 
-public:
     std::vector<std::array<uint8_t,32>> getTorrentHandleHashes()
     {
         std::vector<std::array<uint8_t,32>> hashes;

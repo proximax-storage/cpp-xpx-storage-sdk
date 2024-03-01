@@ -47,12 +47,13 @@ protected:
 
 protected:
 
-    ModifyTaskBase(
-            const DriveTaskType&    type,
-            DriveParams&            drive,
-            std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>&&  receivedOpinions,
-            ModifyOpinionController&                                    opinionTaskController )
-            : UpdateDriveTaskBase( type, drive, opinionTaskController )
+    ModifyTaskBase( const DriveTaskType&    type,
+                    DriveParams&            drive,
+                    std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>&&  receivedOpinions,
+                    ModifyOpinionController&                                    opinionTaskController
+            )
+            : UpdateDriveTaskBase( type, drive, opinionTaskController ),
+            m_receivedOpinions( std::move(receivedOpinions) )
     {}
 
 

@@ -208,7 +208,7 @@ public:
             {
                 m_dbgOurPeerName = downloadLimiterPtr->dbgOurPeerName();
                 
-                m_kademlia = std::move( createEndpointCatalogue( weak_from_this(), keyPair, bootstraps, uint16_t(m_listeningPort), true ));
+                m_kademlia = createEndpointCatalogue( weak_from_this(), keyPair, bootstraps, uint16_t(m_listeningPort), true );
             }
             auto plugin = std::make_shared<DhtRequestPlugin>(  dhtMessageHandler, weak_from_this() );
             m_session.add_extension(plugin);
@@ -1202,6 +1202,8 @@ private:
                         auto* theAlert = dynamic_cast<lt::metadata_received_alert*>(alert);
                         if ( theAlert->handle.is_valid() && theAlert->handle.userdata().get<LtClientData>() != nullptr )
                         {
+                            std::optional<download_status::code> m_errorCode;
+                            
                             auto userdata = theAlert->handle.userdata().get<LtClientData>();
                             
                             std::optional<std::string> errorText;
@@ -1211,6 +1213,7 @@ private:
                             if (torrentInfo->total_size() > m_maxTotalSize) {
                                 errorText = "Max Total Size Exceeded";
                                 _LOG( "+**** Max Total Size Exceeded: " << torrentInfo->total_size() );
+                                m_errorCode = download_status::code::dn_not_enougth_space;
                             }
                             
                             if ( !errorText )
@@ -1221,6 +1224,7 @@ private:
                                 if (expectedPieceSize != actualPieceSize) {
                                     errorText = "Invalid Piece Size";
                                     _LOG( "+**** Invalid Piece Size: " << actualPieceSize << " " << expectedPieceSize );
+                                    m_errorCode = download_status::code::dn_failed;
                                 }
                             }
                             
@@ -1232,17 +1236,18 @@ private:
                                 if ( downloadLimit != 0 && downloadLimit < torrentInfo->total_size() ) {
                                     errorText = "Limit Is Exceeded";
                                     _LOG( "+**** limitIsExceeded: " << torrentInfo->total_size() );
+                                    m_errorCode = download_status::code::dn_not_enougth_space;
                                 }
                             }
                             
-                            if ( errorText )
+                            if ( m_errorCode )
                             {
                                 m_session.remove_torrent( theAlert->handle, lt::session::delete_files );
                                 
                                 userdata->m_invalidMetadata = true;
                                 SIRIUS_ASSERT( userdata->m_dnContexts.size()==1 )
                                 userdata->m_dnContexts.front().m_downloadNotification(
-                                                                                      download_status::code::dn_failed,
+                                                                                      *m_errorCode,
                                                                                       userdata->m_dnContexts.front().m_infoHash,
                                                                                       userdata->m_dnContexts.front().m_saveAs,
                                                                                       userdata->m_uploadedDataSize,

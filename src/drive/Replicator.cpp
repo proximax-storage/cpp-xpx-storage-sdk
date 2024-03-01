@@ -71,11 +71,11 @@ private:
     int m_verificationShareTimerDelay = 60 * 1000;
     uint64_t m_minReplicatorsNumber = 4;
 
-    ReplicatorEventHandler& m_eventHandler;
-    DbgReplicatorEventHandler* m_dbgEventHandler;
+    ReplicatorEventHandler&             m_eventHandler;
+    DbgReplicatorEventHandler*          m_dbgEventHandler;
 
-    RcptSyncronizer m_dnOpinionSyncronizer;
-    std::vector<ReplicatorInfo>       m_bootstraps;
+    std::vector<ReplicatorInfo>         m_bootstraps;
+    RcptSyncronizer                     m_dnOpinionSyncronizer;
 
     // key is verify tx
     std::map<std::array<uint8_t, 32>, VerifyOpinion> m_verifyApprovalMap;
@@ -114,8 +114,8 @@ public:
         m_storageDirectory( storageDirectory ),
         m_eventHandler( handler ),
         m_dbgEventHandler( dbgEventHandler ),
-        m_dnOpinionSyncronizer( *this, m_dbgOurPeerName ),
-        m_bootstraps(bootstraps)
+        m_bootstraps(bootstraps),
+        m_dnOpinionSyncronizer( *this, m_dbgOurPeerName )
     {
         _LOG("Replicator Public Key: " << m_keyPair.publicKey())
     }
@@ -3024,7 +3024,7 @@ public:
         } );
     }
 
-    virtual OptionalEndpoint dbgGetEndpoint( const Key& key, int& port )
+    OptionalEndpoint dbgGetEndpoint( const Key& key, int& port )
     {
         if ( auto ep = m_session->getEndpoint(key); ep )
         {
