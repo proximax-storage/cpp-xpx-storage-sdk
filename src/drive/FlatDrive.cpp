@@ -358,6 +358,14 @@ public:
 
         SIRIUS_ASSERT( !m_task )
 
+        if ( auto session = m_session.lock(); session )
+        {
+            for( const auto& key : m_allReplicators )
+            {
+                session->getEndpoint( key );
+            }
+        }
+        
         m_task = createDriveInitializationTask( std::move( completedModifications ), *this, m_opinionController );
 
         SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::DRIVE_INITIALIZATION )

@@ -94,17 +94,17 @@ public:
     {
         if ( ! m_isClient )
         {
-            auto it = std::find_if( m_bootstraps.begin(), m_bootstraps.end(), [this]( const auto& item )
+            auto myEndpointInfoIt = std::find_if( m_bootstraps.begin(), m_bootstraps.end(), [this]( const auto& item )
                                    {
                 return m_keyPair.publicKey() == item.m_publicKey;
             });
             
-            if ( it != m_bootstraps.end() )
+            if ( myEndpointInfoIt != m_bootstraps.end() )
             {
-                m_myPeerInfo = PeerInfo{ m_keyPair.publicKey(), it->m_endpoint };
+                m_myPeerInfo = PeerInfo{ m_keyPair.publicKey(), myEndpointInfoIt->m_endpoint };
                 m_myPeerInfo->Sign( m_keyPair );
-                m_myEndpoint = it->m_endpoint;
-                m_bootstraps.erase( it );
+                m_myEndpoint = myEndpointInfoIt->m_endpoint;
+                m_bootstraps.erase( myEndpointInfoIt );
                 m_isBootstrap = true;
                 if ( auto session = m_kademliaTransport.lock(); session )
                 {
