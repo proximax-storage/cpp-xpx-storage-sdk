@@ -150,8 +150,8 @@ public:
 
         m_m3u8Playlist  = m3u8Playlist;
         m_mediaFolder   = fs::path(m3u8Playlist).parent_path();
-        m_chunkFolder   = fs::path(driveLocalFolder) / ".video" / m_streamFolderName / "chunks";
-        m_torrentFolder = fs::path(driveLocalFolder) / ".video" / m_streamFolderName / "torrents";
+        m_chunkFolder   = fs::path(driveLocalFolder) / "video" / m_streamFolderName / "chunks";
+        m_torrentFolder = fs::path(driveLocalFolder) / "video" / m_streamFolderName / "torrents";
         m_streamingStatusHandler = streamingStatusHandler;
 
         fs::create_directories( m_chunkFolder );
@@ -288,7 +288,7 @@ public:
 
         // add playlist
         actionList.push_back( Action::upload( toString(playlistInfoHash),
-                                             ( fs::path(".video") / m_streamFolderName / "chunks" / PLAYLIST_FILE_NAME ).string() ));
+                                             ( fs::path("video") / m_streamFolderName / "chunks" / PLAYLIST_FILE_NAME ).string() ));
         actionList.back().m_ltHandle = torrentHandle;
         actionList.back().m_filename = playlistFile.filename().string();
 
@@ -302,7 +302,7 @@ public:
             else
             {
                 actionList.push_back( Action::upload( toString(info.m_chunkInfoHash),
-                                                     ( fs::path(".video") / m_streamFolderName / "chunks" / toString(info.m_chunkInfoHash) ).string() ));
+                                                     ( fs::path("video") / m_streamFolderName / "chunks" / toString(info.m_chunkInfoHash) ).string() ));
                 
                 actionList.back().m_ltHandle = it->second.m_ltHandle;
                 actionList.back().m_filename = toString(info.m_chunkInfoHash);

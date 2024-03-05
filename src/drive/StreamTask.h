@@ -402,156 +402,19 @@ public:
         });
     }
 
-    void continueCompleteUpdateAfterApproving() override
-    {
-        DBG_BG_THREAD
-        
-        //TODO== m_finishInfoHash
-
-        _LOG( "StreamTask::continueSynchronizingDriveWithSandbox" )
-
-        try
-        {
-            // update FsTree file & torrent
-            if ( ! fs::exists( m_drive.m_sandboxFsTreeFile ) )
-            {
-                _LOG_ERR( "not exist 1: " << m_drive.m_sandboxFsTreeFile )
-            }
-            if ( ! fs::exists( m_drive.m_fsTreeFile.parent_path() ) )
-            {
-                _LOG_ERR( "not exist 2: " <<m_drive.m_fsTreeFile.parent_path() )
-            }
-            moveFile( m_drive.m_sandboxFsTreeFile, m_drive.m_fsTreeFile );
-            moveFile( m_drive.m_sandboxFsTreeTorrent, m_drive.m_fsTreeTorrent );
-
-            auto& torrentHandleMap = m_drive.m_torrentHandleMap;
-            // remove unused files and torrent files from the drive
-            for ( const auto& it : torrentHandleMap )
-            {
-                const UseTorrentInfo& info = it.second;
-                if ( !info.m_isUsed )
-                {
-                    const auto& hash = it.first;
-                    std::string filename = hashToFileName( hash );
-                    fs::remove( fs::path( m_drive.m_driveFolder ) / filename );
-                    fs::remove( fs::path( m_drive.m_torrentFolder ) / filename );
-                }
-            }
-
-            // remove unused data from 'fileMap'
-            std::erase_if( torrentHandleMap, []( const auto& it )
-            { return !it.second.m_isUsed; } );
-
-            //
-            // Add torrents into session
-            //
-            for ( auto& it : torrentHandleMap )
-            {
-                // load torrent (if it is not loaded)
-                //(???+++) unused code
-                if ( ! it.second.m_ltHandle.is_valid())
-                {
-                    if ( auto session = m_drive.m_session.lock(); session )
-                    {
-                        std::string fileName = hashToFileName( it.first );
-                        it.second.m_ltHandle = session->addTorrentFileToSession(
-                                m_drive.m_torrentFolder / toPath(fileName),
-                                m_drive.m_driveFolder,
-                                lt::SiriusFlags::peer_is_replicator,
-                                &m_drive.m_driveKey.array(),
-                                nullptr,
-                                nullptr );
-                        SIRIUS_ASSERT( it.second.m_ltHandle.is_valid() )
-                        _LOG( "downloading: ADDED_TO_SESSION : " << m_drive.m_torrentFolder / fileName )
-                    }
-                }
-            }
-
-            // Add FsTree torrent to session
-            if ( auto session = m_drive.m_session.lock(); session )
-            {
-                m_sandboxFsTreeLtHandle = session->addTorrentFileToSession( m_drive.m_fsTreeTorrent,
-                                                                            m_drive.m_fsTreeTorrent.parent_path(),
-                                                                            lt::SiriusFlags::peer_is_replicator,
-                                                                            &m_drive.m_driveKey.array(),
-                                                                            nullptr,
-                                                                            nullptr );
-            }
-
-            m_drive.executeOnSessionThread( [this]() mutable
-                                            {
-                                                onDriveChangedAfterApproving();
-                                            } );
-        }
-        catch (const std::exception& ex)
-        {
-            _LOG_WARN( "exception during continueSynchronizingDriveWithSandbox: " << ex.what());
-            removeTorrentsAndFinishTask();
-        }
-    }
-
     void modificationCompletedSuccessfully() override
     {
         DBG_MAIN_THREAD
         
-        //TODO== m_finishInfoHash
+        //TODO ?? (is it all?)
 
-        _LOG( "modifyIsCompleted" );
-
-        if ( m_drive.m_dbgEventHandler ) {
-            m_drive.m_dbgEventHandler->driveModificationIsCompleted(
-                    m_drive.m_replicator, m_drive.m_driveKey, m_request->m_streamId, *m_sandboxRootHash);
-        }
-
-        //???
-        UpdateDriveTaskBase::modificationCompletedSuccessfully();
+        ModifyDriveTask::modificationCompletedSuccessfully();
     }
 
     uint64_t getToBeApprovedDownloadSize() override
     {
         return m_request->m_maxSizeBytes;
     }
-
-    bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
-    {
-        DBG_MAIN_THREAD
-        
-        //TODO== m_finishInfoHash
-
-        if ( m_taskIsInterrupted )
-        {
-            return true;
-        }
-
-        m_modifyApproveTxReceived = true;
-
-        if ( m_request->m_streamId == transaction.m_modifyTransactionHash )//&& (m_finishLtHandle || m_status != )
-        {
-            if ( *m_sandboxRootHash != transaction.m_rootHash ) {
-                _LOG_ERR( "Invalid Sandbox Root Hash: " << *m_sandboxRootHash << " " << Hash256(transaction.m_rootHash) )
-            }
-
-            const auto& v = transaction.m_replicatorKeys;
-            auto it = std::find( v.begin(), v.end(), m_drive.m_replicator.replicatorKey().array());
-
-            // Is my opinion present in the transaction ?
-            if ( it == v.end() )
-            {
-                // Send Single Approval Transaction At First
-                sendSingleApprovalTransaction( *m_myOpinion );
-            }
-
-            completeUpdateAfterApproving();
-            return false;
-        }
-        else
-        {
-            m_opinionController.increaseApprovedExpectedCumulativeDownload(m_request->m_maxSizeBytes);
-            interruptTorrentDownloadAndRunNextTask();
-            return true;
-        }
-    }
-
 
 #ifdef __APPLE__
 #pragma mark --acceptFinishStreamTx--
