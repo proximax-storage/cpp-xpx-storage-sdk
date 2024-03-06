@@ -509,6 +509,7 @@ public:
         _FUNC_ENTRY
 
         _LOG( "+++ ex startModifyDrive: " << modifyRequest->m_clientDataInfoHash )
+        _LOG("m_uploadedDataSize: +++ ex startModifyDrive: " << modifyRequest->m_maxDataSize )
 
         boost::asio::post(m_session->lt_session().get_context(), [=,modifyRequest=std::move(modifyRequest),this]() mutable {
 
