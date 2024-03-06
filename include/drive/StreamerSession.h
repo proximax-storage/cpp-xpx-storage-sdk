@@ -118,6 +118,7 @@ public:
                      const Key&              driveKey,
                      const fs::path&         m3u8Playlist,
                      const fs::path&         driveLocalFolder,
+                     const fs::path&         torrentLocalFolder,
                      StreamingStatusHandler  streamingStatusHandler,
                      const endpoint_list&    endPointList )
     {
@@ -151,7 +152,7 @@ public:
         m_m3u8Playlist  = m3u8Playlist;
         m_mediaFolder   = fs::path(m3u8Playlist).parent_path();
         m_chunkFolder   = fs::path(driveLocalFolder) / "video" / m_streamFolderName / "chunks";
-        m_torrentFolder = fs::path(driveLocalFolder) / "video" / m_streamFolderName / "torrents";
+        m_torrentFolder = fs::path(torrentLocalFolder) / "video" / m_streamFolderName / "torrents";
         m_streamingStatusHandler = streamingStatusHandler;
 
         fs::create_directories( m_chunkFolder );
