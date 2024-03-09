@@ -47,6 +47,9 @@ public:
             , m_request( std::move(request) )
     {
         SIRIUS_ASSERT( m_request )
+        _LOG( "StreamTask: streamId: " << request->m_streamId )
+        _LOG( "StreamTask: folder:   " << request->m_folder )
+
     }
     
     ~StreamTask()
@@ -59,7 +62,10 @@ public:
         DBG_MAIN_THREAD
         
         //TODO== m_finishInfoHash
-        
+        _LOG( "m_taskIsInterrupted:                   " << m_taskIsInterrupted )
+        _LOG( "cancelRequest.m_modifyTransactionHash: " << cancelRequest.m_modifyTransactionHash )
+        _LOG( "m_request->m_streamId:                 " << m_request->m_streamId )
+
         if ( ! m_taskIsInterrupted &&
              cancelRequest.m_modifyTransactionHash == m_request->m_streamId )
         {
