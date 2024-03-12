@@ -16,7 +16,7 @@ class StreamTask : public ModifyDriveTask
     std::mutex  m_mutex;
     
     const uint32_t MAX_CHUNKS_DURATION_MS = 10000;
-    std::unique_ptr<StreamRequest>  m_request;
+    std::unique_ptr<StreamRequest>  m_streamRequest;
     
     // 'ChunkInfo' are sent by 'StreamerClient' via DHT message
     // They are saved in 'm_chunkInfoList' (ordered by m_chunkIndex)
@@ -44,9 +44,9 @@ public:
                  ModifyOpinionController&    opinionTaskController )
             :
     ModifyDriveTask( drive, opinionTaskController )
-            , m_request( std::move(request) )
+            , m_streamRequest( std::move(request) )
     {
-        SIRIUS_ASSERT( m_request )
+        SIRIUS_ASSERT( m_streamRequest )
         _LOG( "StreamTask: streamId: " << request->m_streamId )
         _LOG( "StreamTask: folder:   " << request->m_folder )
 
@@ -64,10 +64,10 @@ public:
         //TODO== m_finishInfoHash
         _LOG( "m_taskIsInterrupted:                   " << m_taskIsInterrupted )
         _LOG( "cancelRequest.m_modifyTransactionHash: " << cancelRequest.m_modifyTransactionHash )
-        _LOG( "m_request->m_streamId:                 " << m_request->m_streamId )
+        _LOG( "m_request->m_streamId:                 " << m_streamRequest->m_streamId )
 
         if ( ! m_taskIsInterrupted &&
-             cancelRequest.m_modifyTransactionHash == m_request->m_streamId )
+             cancelRequest.m_modifyTransactionHash == m_streamRequest->m_streamId )
         {
             interruptTorrentDownloadAndRunNextTask();
             cancelRequestIsAccepted = true;
@@ -81,19 +81,29 @@ public:
     {
         DBG_MAIN_THREAD
 
-        //TODO== m_finishInfoHash
+        if ( m_finishDataInfoHash )
+        {
+            ModifyDriveTask::tryFinishTask();
+        }
+        else
+        {
+            m_drive.executeOnSessionThread( [this]
+            {
+                DriveTaskBase::finishTaskAndRunNext();
+            });
+        }
     }
 
     void run() override
     {
-        _LOG( "StreamTask::run: m_request->m_streamId: " << m_request->m_streamId )
-        _LOG( "StreamTask::run: m_request->m_streamerKey: " << m_request->m_streamerKey )
-        _LOG( "StreamTask::run: m_request->m_folder: " << m_request->m_folder )
+        _LOG( "StreamTask::run: m_request->m_streamId: " << m_streamRequest->m_streamId )
+        _LOG( "StreamTask::run: m_request->m_streamerKey: " << m_streamRequest->m_streamerKey )
+        _LOG( "StreamTask::run: m_request->m_folder: " << m_streamRequest->m_folder )
     }
 
     const Hash256& getModificationTransactionHash() override
     {
-        return m_request->m_streamId;
+        return m_streamRequest->m_streamId;
     }
     
     virtual std::string acceptGetChunksInfoMessage( const std::array<uint8_t,32>&          streamId,
@@ -102,9 +112,9 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_request->m_streamId != streamId )
+        if ( m_streamRequest->m_streamId != streamId )
         {
-            _LOG( "m_request->m_streamId != streamId:" << InfoHash(m_request->m_streamId) << " " << InfoHash(streamId) )
+            _LOG( "m_request->m_streamId != streamId:" << InfoHash(m_streamRequest->m_streamId) << " " << InfoHash(streamId) )
             bool streamFinished = m_drive.m_streamMap.find( Hash256(streamId) ) != m_drive.m_streamMap.end();
             std::ostringstream os( std::ios::binary );
             cereal::PortableBinaryOutputArchive archive( os );
@@ -183,13 +193,13 @@ public:
         
         std::lock_guard<std::mutex> lock(m_mutex);
 
-        if ( chunkInfo->m_streamId != m_request->m_streamId.array() )
+        if ( chunkInfo->m_streamId != m_streamRequest->m_streamId.array() )
         {
-            _LOG_WARN( "ignore unkown stream: " << toString(chunkInfo->m_streamId) << " vs. " << m_request->m_streamId )
+            _LOG_WARN( "ignore unkown stream: " << toString(chunkInfo->m_streamId) << " vs. " << m_streamRequest->m_streamId )
             return;
         }
         
-        if ( ! chunkInfo->Verify( m_request->m_streamerKey ) )
+        if ( ! chunkInfo->Verify( m_streamRequest->m_streamerKey ) )
         {
             _LOG_WARN( "Bad sign" )
             return;
@@ -219,9 +229,9 @@ public:
     
     virtual std::optional<std::array<uint8_t,32>> getStreamId() override
     {
-        if ( m_request )
+        if ( m_streamRequest )
         {
-            return m_request->m_streamId.array();
+            return m_streamRequest->m_streamId.array();
         }
         return {};
     }
@@ -237,11 +247,11 @@ public:
         {
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                m_streamerEndpoint = session->getEndpoint( m_request->m_streamerKey.array() );
+                m_streamerEndpoint = session->getEndpoint( m_streamRequest->m_streamerKey.array() );
 
                 if ( ! m_streamerEndpoint )
                 {
-                    _LOG_WARN( "no m_streamerEndpoint: " << m_request->m_streamerKey )
+                    _LOG_WARN( "no m_streamerEndpoint: " << m_streamRequest->m_streamerKey )
                     return;
                 }
             }
@@ -399,7 +409,7 @@ public:
                        getUploaders(),
                        &m_drive.m_driveKey.array(),
                        nullptr,
-                       &m_request->m_streamId.array() );
+                       &m_streamRequest->m_streamId.array() );
                        //&m_opinionController.opinionTrafficTx().value().array() );
 
                 // save reference into 'torrentHandleMap'
@@ -419,7 +429,7 @@ public:
 
     uint64_t getToBeApprovedDownloadSize() override
     {
-        return m_request->m_maxSizeBytes;
+        return m_streamRequest->m_maxSizeBytes;
     }
 
 #ifdef __APPLE__
@@ -436,7 +446,7 @@ public:
             return;
         }
         
-        if ( finishStream->m_streamId != m_request->m_streamId.array() )
+        if ( finishStream->m_streamId != m_streamRequest->m_streamId.array() )
         {
             _LOG_WARN( "ignore unkown stream" )
             return;
@@ -445,9 +455,9 @@ public:
         m_finishDataInfoHash = finishStream->m_finishDataInfoHash;
 
         ModifyDriveTask::m_request = std::make_unique<ModificationRequest>( ModificationRequest{ *m_finishDataInfoHash,
-                                                                                                 m_request->m_streamId,
-                                                                                                 m_request->m_maxSizeBytes,
-                                                                                                 m_request->m_replicatorList });
+                                                                                                 m_streamRequest->m_streamId,
+                                                                                                 m_streamRequest->m_maxSizeBytes,
+                                                                                                 m_streamRequest->m_replicatorList });
         
         ModifyTaskBase::m_receivedOpinions = std::move(opinions);
 

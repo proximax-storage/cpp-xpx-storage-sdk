@@ -338,6 +338,9 @@ protected:
     {
         DBG_MAIN_THREAD
 
+        // ActionList could been downloaded during a modification task.
+        // FsTree could been downloaded during a synchronization task.
+        //
         if ( m_fsTreeOrActionListHandle )
         {
             if ( auto session = m_drive.m_session.lock(); session )
