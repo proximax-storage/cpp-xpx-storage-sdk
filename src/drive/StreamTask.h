@@ -47,8 +47,8 @@ public:
             , m_streamRequest( std::move(request) )
     {
         SIRIUS_ASSERT( m_streamRequest )
-        _LOG( "StreamTask: streamId: " << request->m_streamId )
-        _LOG( "StreamTask: folder:   " << request->m_folder )
+        _LOG( "StreamTask: streamId: " << m_streamRequest->m_streamId )
+        _LOG( "StreamTask: folder:   " << m_streamRequest->m_folder )
 
     }
     
