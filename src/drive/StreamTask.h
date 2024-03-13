@@ -96,6 +96,8 @@ public:
 
     void run() override
     {
+        DBG_MAIN_THREAD
+
         _LOG( "StreamTask::run: m_request->m_streamId: " << m_streamRequest->m_streamId )
         _LOG( "StreamTask::run: m_request->m_streamerKey: " << m_streamRequest->m_streamerKey )
         _LOG( "StreamTask::run: m_request->m_folder: " << m_streamRequest->m_folder )
