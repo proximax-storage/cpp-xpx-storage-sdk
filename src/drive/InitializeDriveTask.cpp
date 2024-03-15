@@ -224,7 +224,7 @@ private:
         if ( it != m_completedModifications.end() && it->m_completedModificationStatus == CompletedModification::CompletedModificationStatus::CANCELLED )
         {
             SIRIUS_ASSERT( !foundAppropriateCancel )
-            foundAppropriateCancel = true;
+            //not used: foundAppropriateCancel = true;
             _LOG( "Modification Has Been Cancelled During Offline" );
             m_drive.cancelModifyDrive( std::make_unique<ModificationCancelRequest>( it->m_modificationId ) );
         }

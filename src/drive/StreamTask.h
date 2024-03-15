@@ -27,7 +27,7 @@ class StreamTask : public ModifyDriveTask
     // If some 'ChunkInfo' message is lost, it will be requested after the lost is detected
     //
     
-    using ChunkInfoList = std::deque< std::unique_ptr<ChunkInfo> >;
+    using ChunkInfoList = std::deque< std::optional<ChunkInfo> >;
     ChunkInfoList                   m_chunkInfoList;
     ChunkInfoList::iterator         m_downloadingChunkInfoIt;
     bool                            m_downloadingChunkInfoItWasSet = false;
@@ -108,6 +108,7 @@ public:
         return m_streamRequest->m_streamId;
     }
     
+    // Request from viewer
     virtual std::string acceptGetChunksInfoMessage( const std::array<uint8_t,32>&          streamId,
                                                     uint32_t                               requestedIndex,
                                                     const boost::asio::ip::udp::endpoint&  viewer ) override
@@ -126,20 +127,17 @@ public:
             return os.str();
         }
 
-        if ( m_chunkInfoList.size() <= requestedIndex || m_chunkInfoList[requestedIndex].get() == nullptr )
+        if ( m_chunkInfoList.size() <= requestedIndex || ! m_chunkInfoList[requestedIndex].has_value() )
         {
             // so far we do not have requested chunkInfo (not signed info could be received by finish-stream)
             return "";
         }
 
-        auto chunkInfo = m_chunkInfoList[requestedIndex].get();
-            
-        if ( chunkInfo == nullptr )
-        {
-            return "";
-        }
+        SIRIUS_ASSERT( m_chunkInfoList[requestedIndex].has_value() )
         
-        SIRIUS_ASSERT( chunkInfo->m_chunkIndex == requestedIndex )
+        auto chunkInfo = *m_chunkInfoList[requestedIndex];
+            
+        SIRIUS_ASSERT( chunkInfo.m_chunkIndex == requestedIndex )
         uint32_t beginIndex = requestedIndex;
         
         // Find the end index (of the chunk sequence)
@@ -155,13 +153,14 @@ public:
                 break;
             }
             
-            auto chunkInfo2 = m_chunkInfoList[endIndex].get();
-            if ( chunkInfo2 == nullptr )
+            if ( ! m_chunkInfoList[endIndex].has_value() )
             {
                 break;
             }
 
-            durationMks += chunkInfo2->m_durationMks;
+            auto chunkInfo2 = *m_chunkInfoList[endIndex];
+
+            durationMks += chunkInfo2.m_durationMks;
             if ( durationMks > MAX_CHUNKS_DURATION_MS )
             {
                 break;
@@ -179,29 +178,27 @@ public:
 
         for( auto i = beginIndex; i < endIndex; i++ )
         {
-            const ChunkInfo& info = * m_chunkInfoList[i].get();
-            archive( info );
+            archive( m_chunkInfoList[i] );
         }
 
         return os.str();
     }
 
-    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& sender ) override
+    virtual void acceptChunkInfoMessage( ChunkInfo& chunkInfo, const boost::asio::ip::udp::endpoint& sender ) override
     {
         DBG_MAIN_THREAD
         
-        SIRIUS_ASSERT( chunkInfo )
-        _LOG( "acceptChunkInfoMessage chunk-info: index=" << chunkInfo->m_chunkIndex << " " << toString(chunkInfo->m_chunkInfoHash) )
+        _LOG( "acceptChunkInfoMessage chunk-info: index=" << chunkInfo.m_chunkIndex << " " << toString(chunkInfo.m_chunkInfoHash) )
         
         std::lock_guard<std::mutex> lock(m_mutex);
 
-        if ( chunkInfo->m_streamId != m_streamRequest->m_streamId.array() )
+        if ( chunkInfo.m_streamId != m_streamRequest->m_streamId.array() )
         {
-            _LOG_WARN( "ignore unkown stream: " << toString(chunkInfo->m_streamId) << " vs. " << m_streamRequest->m_streamId )
+            _LOG_WARN( "ignore unkown stream: " << toString(chunkInfo.m_streamId) << " vs. " << m_streamRequest->m_streamId )
             return;
         }
         
-        if ( ! chunkInfo->Verify( m_streamRequest->m_streamerKey ) )
+        if ( ! chunkInfo.Verify( m_streamRequest->m_streamerKey ) )
         {
             _LOG_WARN( "Bad sign" )
             return;
@@ -209,21 +206,21 @@ public:
         
         m_streamerEndpoint = sender;
 
-        if ( chunkInfo->m_chunkIndex < m_chunkInfoList.size() )
+        if ( chunkInfo.m_chunkIndex < m_chunkInfoList.size() )
         {
             // we have received lost chunk-info
-            m_chunkInfoList[chunkInfo->m_chunkIndex] = std::move(chunkInfo);
+            m_chunkInfoList[chunkInfo.m_chunkIndex] = chunkInfo;
         }
         else
         {
-            while( chunkInfo->m_chunkIndex > m_chunkInfoList.size() )
+            while( chunkInfo.m_chunkIndex > m_chunkInfoList.size() )
             {
                 // insert missing null-cells
-                m_chunkInfoList.emplace_back( std::unique_ptr<ChunkInfo>(nullptr) );
+                m_chunkInfoList.push_back( {} );
             }
 
             // append received info
-            m_chunkInfoList.emplace_back( std::move(chunkInfo) );
+            m_chunkInfoList.emplace_back( chunkInfo );
         }
         
         tryDownloadNextChunk();
@@ -310,7 +307,7 @@ public:
                 // set 1-st m_downloadingChunkInfoIt
                 SIRIUS_ASSERT( ! m_chunkInfoList.empty() )
 
-                if ( m_chunkInfoList.begin()->get() == nullptr )
+                if ( m_chunkInfoList.empty() || ! m_chunkInfoList.begin()->has_value() )
                 {
                     // 1-st ChunkInfo is not received
                     _LOG( "1-st ChunkInfo is not received" )
@@ -331,24 +328,24 @@ public:
                     return;
                 }
 
-                if ( next->get() == nullptr )
+                if ( ! next->has_value() )
                 {
                     // send request to streamer about missing info
                     _LOG("send request to streamer about missing info")
-                    requestMissingChunkInfo( m_downloadingChunkInfoIt->get()->m_chunkIndex+1 );
+                    requestMissingChunkInfo( (*m_downloadingChunkInfoIt)->m_chunkIndex+1 );
                     return;
                 }
 
                 m_downloadingChunkInfoIt = next;
             }
             
-            _LOG("m_downloadingChunkInfoIt: chunkIndex: " << m_downloadingChunkInfoIt->get()->m_chunkIndex << " " << toString(m_downloadingChunkInfoIt->get()->m_chunkInfoHash) )
+            _LOG("m_downloadingChunkInfoIt: chunkIndex: " << (*m_downloadingChunkInfoIt)->m_chunkIndex << " " << toString((*m_downloadingChunkInfoIt)->m_chunkInfoHash) )
 
             // start downloading chunk
             //
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                const auto& chunkInfoHash = m_downloadingChunkInfoIt->get()->m_chunkInfoHash;
+                const auto& chunkInfoHash = (*m_downloadingChunkInfoIt)->m_chunkInfoHash;
                 
                 if ( auto it = m_drive.m_torrentHandleMap.find( chunkInfoHash ); it != m_drive.m_torrentHandleMap.end())
                 {
