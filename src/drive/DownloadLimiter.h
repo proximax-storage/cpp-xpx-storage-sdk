@@ -388,6 +388,11 @@ public:
             return lt::connection_status::REJECTED;
         }
         
+        if ( peerKey == this->m_keyPair.publicKey().array() )
+        {
+            return lt::connection_status::UNLIMITED;
+        }
+        
         // Replicator downloads from another replicator
         if ( auto driveIt = m_driveMap.find( Key(driveKey) ); driveIt != m_driveMap.end() )
         {

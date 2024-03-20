@@ -302,7 +302,7 @@ public:
         }
         else if ( m_hashTable.couldBeAdded( key ) )
         {
-            __LOG( "getEndpoint : startSearchPeerInfo" << key )
+            __LOG( "getEndpoint : startSearchPeerInfo: " << key )
             // search unknown peer
             size_t bucketIndex = m_hashTable.calcBucketIndex( key );
             startSearchPeerInfo( TargetKey{key}, bucketIndex );
@@ -531,6 +531,11 @@ public:
             {
                 // find in Kademlia hash table
                 peers  = m_hashTable.findClosestNodes( request.m_targetKey.m_key );
+                ___LOG( "onGetPeerIpRequest: " << request.m_targetKey.m_key << " --- " )
+                for( auto& peer : peers )
+                {
+                    ___LOG( "onGetPeerIpRequest: --- " << peer.endpoint() << " " << peer.m_publicKey << " " )
+                }
             }
             
             // return response
@@ -597,21 +602,31 @@ public:
                 
                 bool peerInfoIsNew = m_localEndpointMap.find(peerInfo.m_publicKey) == m_localEndpointMap.end();
                 
+                if ( m_localEndpointMap.find(peerInfo.m_publicKey) == m_localEndpointMap.end() )
+                {
+                    ___LOG( "XXX added to local map: " << peerInfo.endpoint() << " of: " << peerInfo.m_publicKey << " " << (m_localEndpointMap.find(peerInfo.m_publicKey)!=m_localEndpointMap.end() ))
+                }
+                
                 // add to local map
                 m_localEndpointMap[peerInfo.m_publicKey] = {peerInfo.endpoint(), peerInfo.m_creationTimeInSeconds, peerInfo.m_creationTimeInSeconds};
-                ___LOG( " added to local map: " << m_myPort << " of: " << peerInfo.m_publicKey << " " << (m_localEndpointMap.find(peerInfo.m_publicKey)!=m_localEndpointMap.end() ))
+                ___LOG( " added to local map: " << m_myPort << " of: " << peerInfo.m_publicKey )
 
                 // try add to kademlia
                 if ( int bucketIndex = m_hashTable.addPeerInfoOrUpdate( peerInfo ); bucketIndex >= 0 )
                 {
-                    ___LOG( " (direct?) added: " << m_myPort << " of: " << peerInfo.m_publicKey )
+                    ___LOG( " (direct?) added?: " << m_myPort << " of: " << peerInfo.m_publicKey )
                 }
 
+//                ___LOG( "onGetPeerIpResponse: ---" )
+//                for( auto& [key,value] : m_searcherMap )
+//                {
+//                    ___LOG( "onGetPeerIpResponse: " << key << " " << peerInfo.m_publicKey )
+//                }
                 if ( auto it = m_searcherMap.find( TargetKey{peerInfo.m_publicKey} ); it != m_searcherMap.end()  )
                 {
                     // Peer is found!
                     //
-                    ___LOG( " added: " << m_myPort << " of: " << peerInfo.m_publicKey << " " << (m_localEndpointMap.find(peerInfo.m_publicKey)!=m_localEndpointMap.end() ))
+                    ___LOG( "it is added: " << m_myPort << " of: " << peerInfo.m_publicKey << " " << (m_localEndpointMap.find(peerInfo.m_publicKey)!=m_localEndpointMap.end() ))
                     m_searcherMap.erase(it);
 
                     if ( response.m_targetKey.m_key == peerInfo.m_publicKey && peerInfoIsNew )
