@@ -273,7 +273,7 @@ public:
     virtual OptionalEndpoint dbgGetEndpointLocal(const PeerKey& key ) = 0;
     virtual OptionalEndpoint dbgGetEndpointHashTable(const PeerKey& key ) = 0;
 
-    virtual const PeerInfo* getPeerInfo( const PeerKey& key ) = 0;
+    virtual const PeerInfo* getPeerInfoSkippingLocalMap( const PeerKey& key ) = 0;
 
     virtual void            addClientToLocalEndpointMap( const Key& keys ) = 0;
     virtual void            onEndpointDiscovered( const Key& key, const OptionalEndpoint& endpoint ) = 0;

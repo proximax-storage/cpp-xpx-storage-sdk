@@ -349,7 +349,7 @@ public:
         }
     }
 
-    const PeerInfo* getPeerInfo( const PeerKey& key ) override
+    const PeerInfo* getPeerInfoSkippingLocalMap( const PeerKey& key ) override
     {
         if ( key == m_keyPair.publicKey() )
         {
@@ -577,7 +577,8 @@ public:
             PeerIpResponse response;
             archive( response );
             
-            ___LOG( "onGetPeerIpResponse: from: " << responserEndpoint.port() << " myPort: " << m_myPort << " of: " << response.m_targetKey << " " << response.m_response.size() )
+//            ___LOG( "onGetPeerIpResponse: from: " << responserEndpoint.port() << " myPort: " << m_myPort << " of: " << response.m_targetKey << " " << response.m_response.size() )
+            ___LOG( "onGetPeerIpResponse: from: " << responserEndpoint << " myPort: " << m_myPort << " of: " << response.m_targetKey << " " << response.m_response.size() )
 
             //
             // At first we add all peerInfo from response to our DHT
@@ -626,7 +627,7 @@ public:
                 {
                     // Peer is found!
                     //
-                    ___LOG( "it is added: " << m_myPort << " of: " << peerInfo.m_publicKey << " " << (m_localEndpointMap.find(peerInfo.m_publicKey)!=m_localEndpointMap.end() ))
+                    ___LOG( "it is added: " << m_myPort << " of: " << peerInfo.m_publicKey << " " << peerInfo.endpoint() )
                     m_searcherMap.erase(it);
 
                     if ( response.m_targetKey.m_key == peerInfo.m_publicKey && peerInfoIsNew )
@@ -815,7 +816,7 @@ public:
 //                        ___LOG( "FILTER: " )
 //                    }
 //                }
-                ___LOG( "sendGetPeerIpRequest: to: " << m_candidates.back().m_endpoint.port() << " myPort: " << m_endpointCatalogue.m_myPort << " of: " << m_targetPeerKey )
+                ___LOG( "sendGetPeerIpRequest: to: " << m_candidates.back().m_endpoint << " myPort: " << m_endpointCatalogue.m_myPort << " of: " << m_targetPeerKey )
                 session->sendGetPeerIpRequest( request, m_candidates.back().m_endpoint );
                 m_triedPeers.insert( m_candidates.back().m_publicKey );
                 m_candidates.pop_back();
