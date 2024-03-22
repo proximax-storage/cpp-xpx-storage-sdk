@@ -40,7 +40,7 @@ inline bool isPeerInfoExpired( uint64_t t )
 inline bool shouldPeerInfoBeUpdated( uint64_t t )
 {
     auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-    return now-t > t+PEER_UPDATE_SEC;
+    return now-t > PEER_UPDATE_SEC;
 }
 
 size_t equalPrefixLength( PeerKey aKey, PeerKey bKey )
