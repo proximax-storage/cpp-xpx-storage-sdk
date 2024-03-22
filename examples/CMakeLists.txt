@@ -18,9 +18,6 @@ include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/libtorrent/include)
 ### download flat file example
 #add_subdirectory(downloadFileFlat)
 
-add_subdirectory(kademlia_ex)
-add_subdirectory(kademlia_ex_timeouts)
-
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     add_subdirectory(streamExample-local)
 #    add_subdirectory(streamExample)
@@ -46,4 +43,6 @@ else()
     #add_subdirectory(replicator2)
     #add_subdirectory(client2)
     #add_subdirectory(sendMessage)
+    #add_subdirectory(kademlia_ex)
+    #add_subdirectory(kademlia_ex_timeouts)
 endif()
