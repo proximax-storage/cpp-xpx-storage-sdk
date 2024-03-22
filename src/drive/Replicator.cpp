@@ -509,6 +509,7 @@ public:
         _FUNC_ENTRY
 
         _LOG( "+++ ex startModifyDrive: " << modifyRequest->m_clientDataInfoHash )
+        _LOG("m_uploadedDataSize: +++ ex startModifyDrive: " << modifyRequest->m_maxDataSize )
 
         boost::asio::post(m_session->lt_session().get_context(), [=,modifyRequest=std::move(modifyRequest),this]() mutable {
 
@@ -1559,12 +1560,12 @@ public:
 
                     if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end())
                     {
-                        auto chunkInfo = std::make_unique<ChunkInfo>();
-                        iarchive( *chunkInfo );
-                        SIRIUS_ASSERT( chunkInfo )
+                        ChunkInfo chunkInfo;
+                        iarchive( chunkInfo );
 
-                        driveIt->second->acceptChunkInfoMessage( std::move( chunkInfo ), source );
-                    } else
+                        driveIt->second->acceptChunkInfoMessage( chunkInfo, source );
+                    }
+                    else
                     {
                         _LOG_WARN( "Unknown drive: " << Key( driveKey ))
                     }

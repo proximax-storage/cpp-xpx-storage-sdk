@@ -121,7 +121,7 @@ public:
         DBG_MAIN_THREAD
     }
 
-    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& streamer )
+    virtual void acceptChunkInfoMessage( ChunkInfo&, const boost::asio::ip::udp::endpoint& streamer )
     {
         // it must be overriden by StreamTask
     }
@@ -131,6 +131,7 @@ public:
         // it must be overriden by StreamTask
     }
 
+    // Request from viewer
     virtual std::string acceptGetChunksInfoMessage( const std::array<uint8_t, 32>& streamId,
                                                     uint32_t chunkIndex,
                                                     const boost::asio::ip::udp::endpoint& viewer )

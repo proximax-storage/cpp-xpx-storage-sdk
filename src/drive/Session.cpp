@@ -436,7 +436,7 @@ public:
     {
         for( const auto& key : keys )
         {
-            m_kademlia->getEndpoint( key );
+            m_kademlia->getPeerInfoSkippingLocalMap( key );
         }
     }
 
@@ -455,9 +455,9 @@ public:
         return m_kademlia->getEndpoint( key );
     }
     
-    virtual const kademlia::PeerInfo*  getPeerInfo( const Key& key ) override
+    virtual const kademlia::PeerInfo*  getPeerInfoSkippingLocalMap( const Key& key ) override
     {
-        return m_kademlia->getPeerInfo( key );
+        return m_kademlia->getPeerInfoSkippingLocalMap( key );
     }
 
     virtual void      addReplicatorKeyToKademlia( const Key& key ) override

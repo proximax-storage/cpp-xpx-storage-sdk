@@ -133,6 +133,9 @@ class DefaultFlatDrive
     std::unique_ptr<DriveTaskBase> m_task;
     std::shared_ptr<DriveTaskBase> m_verificationTask;
 
+    std::optional<ChunkInfo>       m_pretermChunkInfo;
+    boost::asio::ip::udp::endpoint m_pretermStreamerEndpoint; // only for m_pretermChunks
+    
     std::set<Key> m_blockedReplicators; // blocked until verification will be approved
 
 public:
@@ -358,6 +361,14 @@ public:
 
         SIRIUS_ASSERT( !m_task )
 
+        if ( auto session = m_session.lock(); session )
+        {
+            for( const auto& key : m_allReplicators )
+            {
+                session->getEndpoint( key );
+            }
+        }
+        
         m_task = createDriveInitializationTask( std::move( completedModifications ), *this, m_opinionController );
 
         SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::DRIVE_INITIALIZATION )
@@ -416,6 +427,11 @@ public:
         SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::STREAM_REQUEST )
 
         m_task->run();
+        
+        if ( m_pretermChunkInfo )
+        {
+            acceptChunkInfoMessage( *m_pretermChunkInfo, m_pretermStreamerEndpoint );
+        }
     }
 
     void runManualSyncTask()
@@ -1075,13 +1091,18 @@ public:
         return clientKey == m_driveOwner && fileHash == m_driveRootHash;
     }
 
-    void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& streamer ) override
+    void acceptChunkInfoMessage( ChunkInfo& chunkInfo, const boost::asio::ip::udp::endpoint& streamer ) override
     {
         DBG_MAIN_THREAD
 
         if ( m_task )
         {
-            m_task->acceptChunkInfoMessage( std::move( chunkInfo ), streamer );
+            m_task->acceptChunkInfoMessage( chunkInfo, streamer );
+        }
+        else
+        {
+            m_pretermChunkInfo = chunkInfo;
+            m_pretermStreamerEndpoint = streamer;
         }
     }
 
@@ -1101,6 +1122,7 @@ public:
         }
     }
 
+    // Request from viewer
     std::string acceptGetChunksInfoMessage( const std::array<uint8_t, 32>& streamId,
                                             uint32_t chunkIndex,
                                             const boost::asio::ip::udp::endpoint& viewer ) override

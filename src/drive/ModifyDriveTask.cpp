@@ -77,6 +77,7 @@ public:
         DBG_MAIN_THREAD
         
         m_uploadedDataSize = 0;
+        _LOG("m_uploadedDataSize: =0")
         
         startModification();
     }
@@ -99,6 +100,7 @@ public:
         
         if ( auto session = m_drive.m_session.lock(); session )
         {
+            _LOG("m_uploadedDataSize: m_request->m_maxDataSize: " << m_request->m_maxDataSize )
             m_downloadingLtHandle = session->download(
                                         DownloadContext(
                                                DownloadContext::client_data,
@@ -135,7 +137,9 @@ public:
                                                                m_fsTreeOrActionListHandle = m_downloadingLtHandle;
                                                                
                                                                m_downloadingLtHandle.reset();
+                                                               _LOG("m_uploadedDataSize: " << m_uploadedDataSize << " downloadedSize: " << downloadedSize )
                                                                m_uploadedDataSize += downloadedSize;
+                                                               _LOG("m_uploadedDataSize: after: " << m_uploadedDataSize )
                                                                m_actionListIsReceived = true;
 
                                                                m_drive.executeOnBackgroundThread( [this]
@@ -241,6 +245,7 @@ public:
             {
                 SIRIUS_ASSERT( *fileToDownload != Hash256() )
                 _LOG( "+++ ex downloading: START: " << toString( *fileToDownload ));
+                _LOG("m_uploadedDataSize: m_request->m_maxDataSize: " << m_request->m_maxDataSize )
                 m_downloadingLtHandle = session->download( DownloadContext(
 
                                                                    DownloadContext::missing_files,
@@ -257,7 +262,9 @@ public:
                                                                        if ( code == download_status::download_complete )
                                                                        {
                                                                            _LOG( "downloading: END: " << toString( infoHash ));
+                                                                           _LOG("m_uploadedDataSize: " << m_uploadedDataSize << " downloadedSize: " << downloadedSize )
                                                                            m_uploadedDataSize += downloadedSize;
+                                                                           _LOG("m_uploadedDataSize: after: " << m_uploadedDataSize )
                                                                            m_downloadingLtHandle.reset();
                                                                            downloadMissingFiles();
                                                                        }

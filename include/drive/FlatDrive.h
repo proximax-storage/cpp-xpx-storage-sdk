@@ -867,7 +867,7 @@ public:
 
     static std::string driveIsClosingPath( const std::string& driveRootPath );
 
-    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
+    virtual void acceptChunkInfoMessage( ChunkInfo&, const boost::asio::ip::udp::endpoint& sender ) = 0;
 
     virtual void acceptFinishStreamTx( mobj<StreamFinishRequest>&& ) = 0;
 

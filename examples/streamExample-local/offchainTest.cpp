@@ -644,6 +644,7 @@ int main(int,char**)
                                  DRIVE_PUB_KEY,
                                  OSB_OUTPUT_PLAYLIST,
                                  STREAMER_WORK_FOLDER / "streamFolder",
+                                 STREAMER_WORK_FOLDER / "streamFolder",
                                  [](const std::string&){},
                                  endpointList );
 
