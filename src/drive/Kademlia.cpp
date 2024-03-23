@@ -125,7 +125,7 @@ public:
         for( const auto& nodeInfo : m_bootstraps )
         {
             //___LOG( "bootstrap: " << m_myPort << " " << nodeInfo.m_endpoint << " "  << nodeInfo.m_publicKey )
-            uint64_t currentTime = uint64_t(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+            uint64_t currentTime = currentTimeSeconds();
             m_localEndpointMap[nodeInfo.m_publicKey] = {nodeInfo.m_endpoint, currentTime, currentTime, true };
         }
         
@@ -208,7 +208,7 @@ public:
                     
                     for( const auto& peerInfo : bucket.nodes() )
                     {
-                        ___LOG( "updateKademlia: " << peerInfo.m_creationTimeInSeconds << "" << peerInfo.endpoint() )
+                        ___LOG( "updateKademlia: " << peerInfo.m_creationTimeInSeconds << " " << peerInfo.endpoint() )
                         if ( shouldPeerInfoBeUpdated( peerInfo.m_creationTimeInSeconds ) )
                         {
                             sendDirectRequest( peerInfo.m_publicKey, peerInfo.endpoint() );
@@ -275,7 +275,7 @@ public:
         if ( auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() )
         {
             it->second.m_endpoint = endpoint;
-            it->second.m_lastSeen = uint64_t (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+            it->second.m_lastSeen = currentTimeSeconds();
         }
         if ( m_endpointHandler )
         {
@@ -294,7 +294,7 @@ public:
         //
         if ( auto it = m_localEndpointMap.find(key); it != m_localEndpointMap.end() && it->second.m_endpoint ) // как эндпоинт конверится в bool?
         {
-            it->second.m_lastUsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+            it->second.m_lastUsed = currentTimeSeconds();
             __LOG( "getEndpoint (m_localEndpointMap): " << key << " " << it->second.m_endpoint.value() )
             return it->second.m_endpoint;
         }

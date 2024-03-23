@@ -70,7 +70,7 @@ struct PeerInfo
     PeerKey     m_publicKey;
     std::string m_address;
     uint16_t    m_port;
-    uint64_t    m_creationTimeInSeconds; // uint64_t now = duration_cast(std::chrono::steady_clock::now().time_since_epoch()).count();
+    uint64_t    m_creationTimeInSeconds; // currentTimeSeconds()
     Signature   m_signature;
     
     PeerInfo() = default;
@@ -79,10 +79,10 @@ struct PeerInfo
       : m_publicKey(peerKey),
         m_address(endpoint.address().to_string()),
         m_port(endpoint.port()),
-        m_creationTimeInSeconds( std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() )
+        m_creationTimeInSeconds( currentTimeSeconds() )
     {}
     
-    uint64_t secondsFromNow() const { return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_creationTimeInSeconds; }
+    uint64_t secondsFromNow() const { return currentTimeSeconds() - m_creationTimeInSeconds; }
     
     template<class Archive>
     void serialize(Archive &arch)
@@ -100,7 +100,7 @@ struct PeerInfo
     
     void updateCreationTime( const crypto::KeyPair& keyPair )
     {
-        m_creationTimeInSeconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        m_creationTimeInSeconds = currentTimeSeconds();
         Sign( keyPair );
     }
     
@@ -174,7 +174,7 @@ struct MyIpResponse
     MyIpResponse( const crypto::KeyPair& keyPair, const boost::asio::ip::udp::endpoint& queriedEndpoint )
     : m_badPort(false), m_response( keyPair.publicKey().array(), queriedEndpoint )
     {
-        m_response.m_creationTimeInSeconds = std::chrono::steady_clock::now().time_since_epoch().count();
+        m_response.m_creationTimeInSeconds = currentTimeSeconds();
         m_response.Sign( keyPair );
     }
     
