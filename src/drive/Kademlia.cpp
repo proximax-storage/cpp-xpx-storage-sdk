@@ -208,6 +208,7 @@ public:
                     
                     for( const auto& peerInfo : bucket.nodes() )
                     {
+                        ___LOG( "updateKademlia: " << peerInfo.m_creationTimeInSeconds << "" << peerInfo.endpoint() )
                         if ( shouldPeerInfoBeUpdated( peerInfo.m_creationTimeInSeconds ) )
                         {
                             sendDirectRequest( peerInfo.m_publicKey, peerInfo.endpoint() );
@@ -624,7 +625,8 @@ public:
                 // try add to kademlia
                 if ( int bucketIndex = m_hashTable.addPeerInfoOrUpdate( peerInfo ); bucketIndex >= 0 )
                 {
-                    ___LOG( " (direct?) added?: " << m_myPort << " of: " << peerInfo.m_publicKey )
+                    ___LOG( "added/updated: " << m_myPort << " of: " << peerInfo.m_publicKey )
+                    ___LOG( "added/updated: " <<  std::dec << peerInfo.m_creationTimeInSeconds << " " << peerInfo.endpoint() << " " << peerInfo.m_publicKey )
                 }
 
 //                ___LOG( "onGetPeerIpResponse: ---" )
