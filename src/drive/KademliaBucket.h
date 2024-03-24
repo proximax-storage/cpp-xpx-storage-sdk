@@ -29,7 +29,7 @@ inline bool      gDoNotSkipVerification  = true;
 
 inline bool isPeerInfoExpired( uint64_t t )
 {
-    uint64_t now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    uint64_t now = currentTimeSeconds();
 
     //TODO? check staging logs!!! ??? 20185094 > 49200191+7200
     ___LOG( "isPeerInfoExpired: " << now << " > " << t << "+" << EXPIRED_SEC )
@@ -39,7 +39,7 @@ inline bool isPeerInfoExpired( uint64_t t )
 
 inline bool shouldPeerInfoBeUpdated( uint64_t t )
 {
-    auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    auto now = currentTimeSeconds();;
     return now-t > PEER_UPDATE_SEC;
 }
 
