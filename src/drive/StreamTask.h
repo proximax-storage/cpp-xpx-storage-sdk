@@ -455,7 +455,8 @@ public:
 
         ModifyDriveTask::m_request = std::make_unique<ModificationRequest>( ModificationRequest{ *m_finishDataInfoHash,
                                                                                                  m_streamRequest->m_streamId,
-                                                                                                 m_streamRequest->m_maxSizeBytes,
+                                                                                                 finishStream->m_streamSizeBytes,
+                                                                                                 //m_streamRequest->m_maxSizeBytes,
                                                                                                  m_streamRequest->m_replicatorList });
         
         ModifyTaskBase::m_receivedOpinions = std::move(opinions);

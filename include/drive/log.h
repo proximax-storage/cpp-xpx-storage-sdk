@@ -25,12 +25,19 @@ inline std::mutex gLogMutex;
 
 inline uint64_t currentTimeSeconds()
 {
-      boost::posix_time::ptime universalTime = boost::posix_time::microsec_clock::universal_time();
+//    auto timeSinceEpoch = std::chrono::system_clock::now().time_since_epoch();
+//    uint64_t seconds = std::chrono::duration_cast<std::chrono::seconds>(timeSinceEpoch);
+//    return seconds;
+    
+    
+    {
+        boost::posix_time::ptime universalTime = boost::posix_time::microsec_clock::universal_time();
 
-      static boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
-      boost::posix_time::time_duration duration = universalTime - epoch;
+        static boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+        boost::posix_time::time_duration duration = universalTime - epoch;
 
-      return static_cast<uint64_t>(duration.total_seconds());
+        return static_cast<uint64_t>(duration.total_seconds());
+    }
 }
 
 inline std::string current_time()

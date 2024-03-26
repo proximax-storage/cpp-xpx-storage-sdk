@@ -183,7 +183,7 @@ public:
     {
         if ( auto session = m_kademliaTransport.lock(); session )
         {
-            m_updateKademliaTimer = session->startTimer( CHECK_EXPIRED_SEC, [this,session]
+            m_updateKademliaTimer = session->startTimer( CHECK_EXPIRED_SEC*1000, [this,session]
             {
                 // update local map
                 
