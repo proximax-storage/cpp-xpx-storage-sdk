@@ -273,9 +273,9 @@ void Session::sendMessage(pt::ptree* json, bool is_close)
 
 void Session::recvData(pt::ptree* json)
 {
-    std::string uid = (*json).get<std::string>("uid");
+    auto uid = (*json).get<std::string>("uid");
     recv_directory[uid] = "saved-data/" 
-        + (*json).get<std::string>("drive") 
+        + (*json).get<std::string>("drive")
         + (*json).get<std::string>("directory");
 
     try {
@@ -305,7 +305,7 @@ void Session::recvData(pt::ptree* json)
 }
 
 void Session::recvDataChunk(pt::ptree* json) {
-    std::string uid = (*json).get<std::string>("uid");
+    auto uid = (*json).get<std::string>("uid");
 
     std::cout << recv_dataCounter[uid] << std::endl;
     std::string binaryString = base64_decode((*json).get<std::string>("data"));     
