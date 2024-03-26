@@ -70,7 +70,7 @@ struct PeerInfo
     PeerKey     m_publicKey;
     std::string m_address;
     uint16_t    m_port;
-    uint64_t    m_creationTimeInSeconds; // uint64_t now = duration_cast(std::chrono::steady_clock::now().time_since_epoch()).count();
+    uint64_t    m_creationTimeInSeconds; // currentTimeSeconds()
     Signature   m_signature;
     
     PeerInfo() = default;
@@ -79,10 +79,10 @@ struct PeerInfo
       : m_publicKey(peerKey),
         m_address(endpoint.address().to_string()),
         m_port(endpoint.port()),
-        m_creationTimeInSeconds( std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() )
+        m_creationTimeInSeconds( currentTimeSeconds() )
     {}
     
-    uint64_t secondsFromNow() const { return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_creationTimeInSeconds; }
+    uint64_t secondsFromNow() const { return currentTimeSeconds() - m_creationTimeInSeconds; }
     
     template<class Archive>
     void serialize(Archive &arch)
@@ -100,7 +100,7 @@ struct PeerInfo
     
     void updateCreationTime( const crypto::KeyPair& keyPair )
     {
-        m_creationTimeInSeconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        m_creationTimeInSeconds = currentTimeSeconds();
         Sign( keyPair );
     }
     
@@ -138,7 +138,7 @@ inline bool operator==(const PeerInfo& a,const PeerInfo& b)  { return a.m_public
 //-----------------------------------------------------
 struct MyIpRequest
 {
-    // m_myPort is using to skip local addresses
+    // m_myPort is used to skip local addresses
     // (Client won't possibly do this request)
     // If requester is client m_myPort MUST BE 0 !!!
     // (Because client could not be in the same local network as bootstrap node)
@@ -174,7 +174,7 @@ struct MyIpResponse
     MyIpResponse( const crypto::KeyPair& keyPair, const boost::asio::ip::udp::endpoint& queriedEndpoint )
     : m_badPort(false), m_response( keyPair.publicKey().array(), queriedEndpoint )
     {
-        m_response.m_creationTimeInSeconds = std::chrono::steady_clock::now().time_since_epoch().count();
+        m_response.m_creationTimeInSeconds = currentTimeSeconds();
         m_response.Sign( keyPair );
     }
     
@@ -194,7 +194,7 @@ struct PeerIpRequest
         : m_requesterIsClient(requesterIsClient), m_targetKey(targetKey), m_requesterKey( requesterKey )
     {}
 
-    bool         m_requesterIsClient = false;;
+    bool         m_requesterIsClient = false;
     TargetKey    m_targetKey;
     RequesterKey m_requesterKey;
 
@@ -269,9 +269,11 @@ public:
 
     virtual void    setEndpointHandler( ::sirius::drive::EndpointHandler endpointHandler ) = 0;
 
-    virtual OptionalEndpoint getEndpoint( const PeerKey& key ) =0;
+    virtual OptionalEndpoint getEndpoint( const PeerKey& key ) = 0;
+    virtual OptionalEndpoint dbgGetEndpointLocal(const PeerKey& key ) = 0;
+    virtual OptionalEndpoint dbgGetEndpointHashTable(const PeerKey& key ) = 0;
 
-    virtual const PeerInfo* getPeerInfo( const PeerKey& key ) =0;
+    virtual const PeerInfo* getPeerInfoSkippingLocalMap( const PeerKey& key ) = 0;
 
     virtual void            addClientToLocalEndpointMap( const Key& keys ) = 0;
     virtual void            onEndpointDiscovered( const Key& key, const OptionalEndpoint& endpoint ) = 0;

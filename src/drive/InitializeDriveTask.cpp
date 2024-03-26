@@ -45,7 +45,7 @@ public:
                                            } );
     }
 
-    void terminate() override
+    void shutdown() override
     {
         DBG_MAIN_THREAD
     }
@@ -57,7 +57,7 @@ public:
         return true;
     }
 
-    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
+    void onCancelModifyTx( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override
     {
         DBG_MAIN_THREAD
 
@@ -65,15 +65,15 @@ public:
         {
             if ( m_opinionController.notApprovedModificationId() == cancelRequest.m_modifyTransactionHash.array() )
             {
-                return true;
+                cancelRequestIsAccepted = true;
+                return;
             }
-
-            return false;
         }
-        else {
+        else
+        {
             m_cancelRequests.push_back(cancelRequest);
-            return false;
         }
+        cancelRequestIsAccepted = false;
     }
 
 private:
@@ -83,7 +83,7 @@ private:
         DBG_BG_THREAD
 
         // Clear m_rootDriveHash
-        m_drive.m_rootHash = Hash256();
+        m_drive.m_driveRootHash = Hash256();
 
         try
         {
@@ -145,12 +145,12 @@ private:
             }
 
             // Calculate torrent and root hash
-            m_drive.m_rootHash = createTorrentFile( m_drive.m_fsTreeFile,
+            m_drive.m_driveRootHash = createTorrentFile( m_drive.m_fsTreeFile,
                                                     m_drive.m_driveKey,
                                                     m_drive.m_fsTreeFile.parent_path(),
                                                     m_drive.m_fsTreeTorrent );
         
-            _LOG( "m_rootHash=" << m_drive.m_rootHash )
+            _LOG( "m_rootHash=" << m_drive.m_driveRootHash )
 
             std::array<uint8_t, 32> modificationId{};
             m_drive.m_serializer.loadRestartValue( modificationId, "approvedModification" );
@@ -221,10 +221,10 @@ private:
             return item.m_modificationId.array() == m_opinionController.notApprovedModificationId();
         });
 
-        if ( it != m_completedModifications.end() && it->m_status == CompletedModification::CompletedModificationStatus::CANCELLED )
+        if ( it != m_completedModifications.end() && it->m_completedModificationStatus == CompletedModification::CompletedModificationStatus::CANCELLED )
         {
             SIRIUS_ASSERT( !foundAppropriateCancel )
-            foundAppropriateCancel = true;
+            //not used: foundAppropriateCancel = true;
             _LOG( "Modification Has Been Cancelled During Offline" );
             m_drive.cancelModifyDrive( std::make_unique<ModificationCancelRequest>( it->m_modificationId ) );
         }
@@ -258,11 +258,11 @@ private:
         if ( m_drive.m_dbgEventHandler )
         {
             m_drive.m_dbgEventHandler->driveIsInitialized( m_drive.m_replicator, m_drive.m_driveKey,
-                                                           m_drive.m_rootHash );
+                                                           m_drive.m_driveRootHash );
         }
 
         _LOG ( "Initialized" )
-        finishTask();
+        finishTaskAndRunNext();
     }
 
     void addFilesToSession( const Folder& folder )

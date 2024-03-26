@@ -27,7 +27,7 @@ namespace sirius::drive
 
 namespace fs = std::filesystem;
 
-class ModifyApprovalTaskBase : public UpdateDriveTaskBase
+class ModifyTaskBase : public UpdateDriveTaskBase
 {
 
 protected:
@@ -47,12 +47,13 @@ protected:
 
 protected:
 
-    ModifyApprovalTaskBase(
-            const DriveTaskType&    type,
-            DriveParams&            drive,
-            std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>&&  receivedOpinions,
-            ModifyOpinionController&                                    opinionTaskController )
-            : UpdateDriveTaskBase( type, drive, opinionTaskController )
+    ModifyTaskBase( const DriveTaskType&    type,
+                    DriveParams&            drive,
+                    std::map<std::array<uint8_t,32>,ApprovalTransactionInfo>&&  receivedOpinions,
+                    ModifyOpinionController&                                    opinionTaskController
+            )
+            : UpdateDriveTaskBase( type, drive, opinionTaskController ),
+            m_receivedOpinions( std::move(receivedOpinions) )
     {}
 
 
@@ -66,7 +67,7 @@ protected:
 
         if ( m_taskIsInterrupted )
         {
-            finishTask();
+            removeTorrentsAndFinishTask();
             return;
         }
 
@@ -75,7 +76,7 @@ protected:
         if ( m_modifyApproveTxReceived )
         {
             sendSingleApprovalTransaction( *m_myOpinion );
-            startSynchronizingDriveWithSandbox();
+            completeUpdateAfterApproving();
         } else
         {
             // Send my opinion to other replicators
@@ -87,8 +88,10 @@ protected:
                 return !validateOpinion( item.second );
             } );
 
-            // Maybe send approval transaction
-            checkOpinionNumberAndStartTimer();
+            // Send approval tx after small delay
+            // (maybe all opinions will be received)
+            //
+            sendModifyApproveTxWithDelay();
         }
     }
 
@@ -118,7 +121,7 @@ protected:
         }
     }
 
-    void checkOpinionNumberAndStartTimer()
+    void sendModifyApproveTxWithDelay()
     {
         DBG_MAIN_THREAD
 
@@ -135,9 +138,10 @@ protected:
              m_receivedOpinions.size() >=
              m_drive.getAllReplicators().size() &&
              !m_modifyApproveTransactionSent &&
-             !m_modifyApproveTxReceived ) {
+             !m_modifyApproveTxReceived )
+        {
             m_modifyOpinionTimer.cancel();
-            opinionTimerExpired();
+            sendModifyApproveTx();
             return;
         }
 
@@ -151,21 +155,24 @@ protected:
             {
                 if ( auto session = m_drive.m_session.lock(); session )
                 {
-                    m_modifyOpinionTimer = session->startTimer(
-                            m_drive.m_replicator.getModifyApprovalTransactionTimerDelay(),
-                            [this]()
-                            { opinionTimerExpired(); } );
+                    m_modifyOpinionTimer = session->startTimer( m_drive.m_replicator.getModifyApprovalTransactionTimerDelay(), [this]
+                    {
+                        if ( !m_modifyApproveTransactionSent && !m_modifyApproveTxReceived )
+                        {
+                            sendModifyApproveTx();
+                        }
+                    });
                 }
             }
         }
     }
 
-    void opinionTimerExpired()
+    void sendModifyApproveTx()
     {
         DBG_MAIN_THREAD
 
-        if ( m_modifyApproveTransactionSent || m_modifyApproveTxReceived )
-            return;
+        SIRIUS_ASSERT( !m_modifyApproveTransactionSent )
+        SIRIUS_ASSERT( !m_modifyApproveTxReceived )
 
         ApprovalTransactionInfo info = {m_drive.m_driveKey.array(),
                                         m_myOpinion->m_modifyTransactionHash,
@@ -183,7 +190,9 @@ protected:
             info.m_opinions.emplace_back( otherOpinion.second.m_opinions[0] );
         }
 
-        // notify event handler
+        //
+        // Send transaction to chain!
+        //
         m_drive.m_eventHandler.modifyApprovalTransactionIsReady( m_drive.m_replicator, info );
 
         m_modifyApproveTransactionSent = true;
@@ -193,7 +202,7 @@ protected:
     // - remove unused files and torrent files
     // - add new torrents to session
     //
-    void continueSynchronizingDriveWithSandbox() override
+    void continueCompleteUpdateAfterApproving() override
     {
         DBG_BG_THREAD
 
@@ -271,14 +280,14 @@ protected:
 
             m_drive.executeOnSessionThread( [this]() mutable
                                             {
-                                                synchronizationIsCompleted();
+                                                onDriveChangedAfterApproving();
                                             } );
         }
         catch (const std::exception& ex)
         {
             _LOG( "exception during updateDrive_2: " << ex.what());
             _LOG_WARN( "exception during updateDrive_2: " << ex.what());
-            finishTask();
+            removeTorrentsAndFinishTask();
         }
     }
 

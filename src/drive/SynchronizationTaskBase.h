@@ -28,7 +28,7 @@ namespace sirius::drive
 
 namespace fs = std::filesystem;
 
-class SynchronizationTaskBase
+class SyncTaskBase
         : public UpdateDriveTaskBase
 {
 private:
@@ -38,7 +38,7 @@ private:
 
 public:
 
-    SynchronizationTaskBase(
+    SyncTaskBase(
             const DriveTaskType& type,
             DriveParams& drive,
             ModifyOpinionController& opinionTaskController )
@@ -46,11 +46,11 @@ public:
     {
     }
 
-    void terminate() override
+    void shutdown() override
     {
         DBG_MAIN_THREAD
 
-        breakTorrentDownloadAndRunNextTask();
+        interruptTorrentDownloadAndRunNextTask();
     }
 
     void run() override
@@ -59,21 +59,21 @@ public:
 
         if ( m_drive.m_lastApprovedModification == getModificationTransactionHash() )
         {
-            SIRIUS_ASSERT( m_drive.m_rootHash == getRootHash() );
-            finishTask();
+            SIRIUS_ASSERT( m_drive.m_driveRootHash == getRootHash() );
+            removeTorrentsAndFinishTask();
             return;
         }
 
         _LOG( "getRootHash(): " << getRootHash() )
-        _LOG( "m_drive.m_rootHash: " << m_drive.m_rootHash )
-        if ( getRootHash() == m_drive.m_rootHash )
+        _LOG( "m_drive.m_rootHash: " << m_drive.m_driveRootHash )
+        if ( getRootHash() == m_drive.m_driveRootHash )
         {
             _LOG( "No need to catch up to " << getRootHash() )
 
             m_drive.executeOnBackgroundThread( [this]
                                                {
                                                    m_sandboxRootHash = getRootHash();
-                                                   m_sandboxRootHash = m_drive.m_rootHash;
+                                                   m_sandboxRootHash = m_drive.m_driveRootHash;
                                                    m_sandboxFsTree = std::make_unique<FsTree>();
                                                    m_sandboxFsTree->deserialize( m_drive.m_fsTreeFile);
                                                    std::error_code ec;
@@ -113,7 +113,11 @@ public:
                                     SIRIUS_ASSERT( 0 );
                                     return;
                                 }
-
+                                else if ( code == download_status::dn_not_enougth_space )
+                                {
+                                    SIRIUS_ASSERT( 0 );
+                                }
+                                
                                 if ( code == download_status::download_complete )
                                 {
                                     m_sandboxRootHash = infoHash;
@@ -161,7 +165,7 @@ protected:
 
 public:
 
-    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
+    void onCancelModifyTx( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override
     {
 
         DBG_MAIN_THREAD
@@ -174,10 +178,11 @@ public:
         {
             SIRIUS_ASSERT( cancelRequest.m_modifyTransactionHash != getModificationTransactionHash() )
             SIRIUS_ASSERT( m_drive.m_lastApprovedModification == getModificationTransactionHash() )
-            return true;
+            cancelRequestIsAccepted = true;
+            return;
         }
 
-        return false;
+        cancelRequestIsAccepted = false;
     }
 
     void createUnusedFileList()
@@ -267,7 +272,7 @@ public:
                                         {
                                             if ( m_taskIsInterrupted )
                                             {
-                                                finishTask();
+                                                removeTorrentsAndFinishTask();
                                             } else
                                             {
                                                 startDownloadMissingFiles();
@@ -361,7 +366,11 @@ public:
                                         downloadMissingFiles();
                                     } else if ( code == download_status::dn_failed )
                                     {
-                                        _LOG_ERR( "? is it possible now?" );
+                                        SIRIUS_ASSERT( 0 );
+                                    }
+                                    else if ( code == download_status::dn_not_enougth_space )
+                                    {
+                                        SIRIUS_ASSERT( 0 );
                                     }
                                 },
 
@@ -406,11 +415,11 @@ public:
             return true;
         }
 
-        breakTorrentDownloadAndRunNextTask();
+        interruptTorrentDownloadAndRunNextTask();
         return true;
     }
 
-    void continueSynchronizingDriveWithSandbox() override
+    void continueCompleteUpdateAfterApproving() override
     {
         DBG_BG_THREAD
 
@@ -458,13 +467,13 @@ public:
 
             m_drive.executeOnSessionThread( [this]
                                             {
-                                                synchronizationIsCompleted();
+                                                onDriveChangedAfterApproving();
                                             } );
         }
         catch ( const std::exception& ex )
         {
             _LOG_ERR( "exception during completeCatchingUp: " << ex.what());
-            finishTask();
+            removeTorrentsAndFinishTask();
         }
     }
 
@@ -474,13 +483,13 @@ public:
 
         if ( m_taskIsInterrupted )
         {
-            finishTask();
+            removeTorrentsAndFinishTask();
             return;
         }
 
         m_sandboxCalculated = true;
 
-        startSynchronizingDriveWithSandbox();
+        completeUpdateAfterApproving();
     }
 
     uint64_t getToBeApprovedDownloadSize() override
@@ -488,7 +497,7 @@ public:
         return 0;
     }
 
-    void tryBreakTask() override
+    void tryFinishTask() override
     {
 
     }

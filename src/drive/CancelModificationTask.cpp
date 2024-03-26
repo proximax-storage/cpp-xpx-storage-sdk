@@ -12,65 +12,65 @@ namespace sirius::drive {
 
 class CancelModificationDriveTask: public DriveTaskBase
 {
-
+    
 private:
-
+    
     const mobj<ModificationCancelRequest> m_request;
-
+    
     ModifyOpinionController& m_opinionTaskController;
-
+    
 public:
-
+    
     CancelModificationDriveTask(
-            mobj<ModificationCancelRequest>&& request,
-            DriveParams& drive,
-            ModifyOpinionController& opinionTaskController)
-            : DriveTaskBase(DriveTaskType::MODIFICATION_CANCEL, drive )
-            , m_request(std::move(request))
-            , m_opinionTaskController(opinionTaskController)
+                                mobj<ModificationCancelRequest>&& request,
+                                DriveParams& drive,
+                                ModifyOpinionController& opinionTaskController)
+    : DriveTaskBase(DriveTaskType::MODIFICATION_CANCEL, drive )
+    , m_request(std::move(request))
+    , m_opinionTaskController(opinionTaskController)
     {
         SIRIUS_ASSERT( m_request )
     }
-
+    
     void run() override
     {
         DBG_MAIN_THREAD
-
+        
         m_opinionTaskController.disapproveCumulativeUploads( m_request->m_modifyTransactionHash, [this] {
             onCumulativeUploadsDisapproved();
         });
     }
-
-    void terminate() override
+    
+    void shutdown() override
     {
         DBG_MAIN_THREAD
     }
-
+    
     bool manualSynchronize( const SynchronizationRequest& request ) override
     {
         DBG_MAIN_THREAD
-
+        
         return true;
     }
-
-
+    
+    
 private:
-
+    
     void onCumulativeUploadsDisapproved()
     {
         DBG_MAIN_THREAD
-
+        
         auto& torrentHandleMap = m_drive.m_torrentHandleMap;
-
+        
         for( auto& it : torrentHandleMap )
         {
             it.second.m_isUsed = false;
         }
-
+        
         markUsedFiles( *m_drive.m_fsTree );
-
+        
         std::set<lt::torrent_handle> toBeRemovedTorrents;
-
+        
         for ( const auto& it : torrentHandleMap )
         {
             const UseTorrentInfo& info = it.second;
@@ -83,23 +83,23 @@ private:
                 }
             }
         }
-
+        
         if ( auto session = m_drive.m_session.lock(); session )
         {
             session->removeTorrentsFromSession( toBeRemovedTorrents, [this]
-            {
+                                               {
                 m_drive.executeOnBackgroundThread( [this]
-                {
+                                                  {
                     clearDrive();
                 });
-                }, false);
+            }, false);
         }
     }
-
+    
     void clearDrive()
     {
         DBG_BG_THREAD
-
+        
         try
         {
             auto& torrentHandleMap = m_drive.m_torrentHandleMap;
@@ -116,22 +116,22 @@ private:
                     fs::remove( fs::path( m_drive.m_torrentFolder ) / filename );
                 }
             }
-
+            
             // remove unused data from 'fileMap'
             std::erase_if( torrentHandleMap, []( const auto& it )
-            { return !it.second.m_isUsed; } );
+                          { return !it.second.m_isUsed; } );
         }
         catch ( const std::exception& ex )
         {
             _LOG_ERR( "exception during cancel: " << ex.what() );
         }
-
+        
         m_drive.executeOnSessionThread( [this]
-                                        {
-                                            cancelModificationIsCompleted();
-                                        } );
+                                       {
+            cancelModificationIsCompleted();
+        } );
     }
-
+    
     void cancelModificationIsCompleted()
     {
         auto * dbgEventHandler = m_drive.m_dbgEventHandler;
@@ -139,7 +139,12 @@ private:
         {
             dbgEventHandler->driveModificationIsCanceled( m_drive.m_replicator, m_drive.m_replicator.dbgReplicatorKey(), m_request->m_modifyTransactionHash );
         }
-        finishTask();
+        finishTaskAndRunNext();
+    }
+    
+    bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
+    {
+        return false;
     }
 };
 

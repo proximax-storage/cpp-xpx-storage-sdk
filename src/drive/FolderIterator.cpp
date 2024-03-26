@@ -41,7 +41,7 @@ std::optional<IteratorValue> FolderIterator::next()
     }
 
     IteratorValue iteratorValue;
-    iteratorValue.m_depth = m_stack.size() - 1;
+    iteratorValue.m_depth = uint32_t(m_stack.size() - 1);
 
     auto& entry = m_stack.top();
     if ( isFile( entry.m_it->second ))

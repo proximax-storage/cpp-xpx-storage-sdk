@@ -359,10 +359,9 @@ public:
     virtual void        removeReplicatorKeyFromKademlia( const Key& keys ) = 0;
     virtual void        dbgTestKademlia( KademliaDbgFunc dbgFunc ) = 0;
     virtual void        dbgTestKademlia2( ReplicatorList& outReplicatorList ) {}
-    virtual OptionalEndpoint dbgGetEndpoint( const Key& key ) { return {}; }
 
 
-    virtual void        stopReplicator() = 0;
+    virtual void        shutdownReplicator() = 0;
 
     // For RPC support
     virtual bool        isConnectionLost() const { return false; };
@@ -381,15 +380,15 @@ public:
 
 PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(
                                                const crypto::KeyPair&,
-                                               std::string&&  address,
-                                               std::string&&  port,
-                                               std::string&&  storageDirectory,
-                                               std::string&&  sandboxDirectory,
+                                               std::string  address,
+                                               std::string  port,
+                                               std::string  storageDirectory,
                                                const std::vector<ReplicatorInfo>&  bootstraps,
                                                bool           useTcpSocket, // use TCP socket (instead of uTP)
                                                ReplicatorEventHandler&,
-                                               DbgReplicatorEventHandler*  dbgEventHandler = nullptr,
-                                               const std::string& dbgReplicatorName = ""
+                                               DbgReplicatorEventHandler*  dbgEventHandler,
+                                               const std::string& dbgReplicatorName,
+                                               std::string  logOptions
 );
 
 }

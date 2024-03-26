@@ -62,7 +62,6 @@ private:
 
     // Folders for drives and sandboxes
     std::string m_storageDirectory;
-    std::string m_sandboxDirectory;
 
     int m_downloadApprovalTransactionTimerDelayMs = 10 * 1000;
     int m_modifyApprovalTransactionTimerDelayMs = 10 * 1000;
@@ -72,13 +71,11 @@ private:
     int m_verificationShareTimerDelay = 60 * 1000;
     uint64_t m_minReplicatorsNumber = 4;
 
-    bool m_useTcpSocket;
+    ReplicatorEventHandler&             m_eventHandler;
+    DbgReplicatorEventHandler*          m_dbgEventHandler;
 
-    ReplicatorEventHandler& m_eventHandler;
-    DbgReplicatorEventHandler* m_dbgEventHandler;
-
-    RcptSyncronizer m_dnOpinionSyncronizer;
-    std::vector<ReplicatorInfo>       m_bootstraps;
+    std::vector<ReplicatorInfo>         m_bootstraps;
+    RcptSyncronizer                     m_dnOpinionSyncronizer;
 
     // key is verify tx
     std::map<std::array<uint8_t, 32>, VerifyOpinion> m_verifyApprovalMap;
@@ -100,21 +97,21 @@ private:
 public:
     DefaultReplicator(
             const crypto::KeyPair& keyPair,
-            std::string&& address,
-            std::string&& port,
-            std::string&& storageDirectory,
-            std::string&& sandboxDirectory,
+            std::string address,
+            std::string port,
+            std::string storageDirectory,
+            //std::string&& sandboxDirectory,
             bool useTcpSocket,
             ReplicatorEventHandler& handler,
             DbgReplicatorEventHandler* dbgEventHandler,
             const std::vector<ReplicatorInfo>& bootstraps,
-               const std::string&   dbgReplicatorName ) : DownloadLimiter( keyPair, dbgReplicatorName ),
+            std::string  dbgReplicatorName,
+            std::string  logOptions
+            ) : DownloadLimiter( keyPair, dbgReplicatorName ),
 
-        m_address( std::move(address) ),
-        m_port( std::move(port) ),
-        m_storageDirectory( std::move(storageDirectory) ),
-        m_sandboxDirectory( std::move(sandboxDirectory) ),
-        m_useTcpSocket( useTcpSocket ),
+        m_address( address ),
+        m_port( port ),
+        m_storageDirectory( storageDirectory ),
         m_eventHandler( handler ),
         m_dbgEventHandler( dbgEventHandler ),
         m_bootstraps(bootstraps),
@@ -138,7 +135,7 @@ public:
                                       { task(); } );
     }
 
-    void stop()
+    void stopReplicator()
     {
         DBG_MAIN_THREAD
 
@@ -157,7 +154,7 @@ public:
 
         for ( auto&[key, drive]: m_driveMap )
         {
-            drive->terminate();
+            drive->shutdown();
         }
 
         for ( auto&[channelId, value]: m_dnChannelMap )
@@ -170,12 +167,12 @@ public:
         }
     }
 
-    void stopReplicator() override {
+    void shutdownReplicator() override {
 
         std::promise<void> barrier;
         boost::asio::post( m_session->lt_session().get_context(), [&barrier, this]() mutable {
             DBG_MAIN_THREAD
-            stop();
+            stopReplicator();
             barrier.set_value();
         } );
         barrier.get_future().wait();
@@ -307,7 +304,6 @@ public:
         boost::asio::post( m_session->lt_session().get_context(), [this]
         {
             removeUnusedDrives( m_storageDirectory );
-            removeUnusedDrives( m_sandboxDirectory );
         } );
     }
 
@@ -346,7 +342,6 @@ public:
             auto drive = sirius::drive::createDefaultFlatDrive(
                     session(),
                     m_storageDirectory,
-                    m_sandboxDirectory,
                     driveKey,
                     driveRequest->m_client,
                     driveRequest->m_driveSize,
@@ -514,6 +509,7 @@ public:
         _FUNC_ENTRY
 
         _LOG( "+++ ex startModifyDrive: " << modifyRequest->m_clientDataInfoHash )
+        _LOG("m_uploadedDataSize: +++ ex startModifyDrive: " << modifyRequest->m_maxDataSize )
 
         boost::asio::post(m_session->lt_session().get_context(), [=,modifyRequest=std::move(modifyRequest),this]() mutable {
 
@@ -636,34 +632,13 @@ public:
                 return;
             }
 
-            std::shared_ptr<sirius::drive::FlatDrive> pDrive;
-            {
-                if ( auto drive = getDrive( driveKey ); drive )
-                {
-                    pDrive = drive;
-                } else
-                {
-                    _LOG( "asyncModify(): drive not found: " << driveKey );
-                    return;
-                }
-            }
-
-//            for( auto it = modifyRequest->m_replicatorList.begin();  it != modifyRequest->m_replicatorList.end(); it++ )
-//            {
-//                if ( *it == publicKey() )
-//                {
-//                    modifyRequest->m_replicatorList.erase( it );
-//                    break;
-//                }
-//            }
-
-            if ( const auto drive = getDrive( driveKey ); drive )
+            if ( auto drive = getDrive( driveKey ); drive )
             {
                 drive->startStream( std::move( request ));
-                return;
+            } else
+            {
+                _LOG( "asyncModify(): drive not found: " << driveKey );
             }
-
-            _LOG( "unknown drive: " << driveKey );
         } );//post
     }
 
@@ -1585,12 +1560,12 @@ public:
 
                     if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end())
                     {
-                        auto chunkInfo = std::make_unique<ChunkInfo>();
-                        iarchive( *chunkInfo );
-                        SIRIUS_ASSERT( chunkInfo )
+                        ChunkInfo chunkInfo;
+                        iarchive( chunkInfo );
 
-                        driveIt->second->acceptChunkInfoMessage( std::move( chunkInfo ), source );
-                    } else
+                        driveIt->second->acceptChunkInfoMessage( chunkInfo, source );
+                    }
+                    else
                     {
                         _LOG_WARN( "Unknown drive: " << Key( driveKey ))
                     }
@@ -2210,9 +2185,9 @@ public:
             auto query = rDict.dict_find_string_value( "q" );
             if ( query == "get_dn_rcpts" )
             {
-                lt::string_view response = rDict.dict_find_string_value( "ret" );
+                lt::string_view rsp = rDict.dict_find_string_value( "ret" );
                 lt::string_view sign = rDict.dict_find_string_value( "sign" );
-                onSyncRcptReceived( response, sign );
+                onSyncRcptReceived( rsp, sign );
             }
         }
         catch ( ... )
@@ -2268,7 +2243,6 @@ public:
             auto drive = sirius::drive::createDefaultFlatDrive(
                     session(),
                     m_storageDirectory,
-                    m_sandboxDirectory,
                     driveKey,
                     driveRequest.m_client,
                     driveRequest.m_driveSize,
@@ -3030,7 +3004,7 @@ public:
         m_session->dbgTestKademlia(dbgFunc);
     }
 
-    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList )
+    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList ) override
     {
         boost::asio::post( m_session->lt_session().get_context(), [outReplicatorList=outReplicatorList,this]() mutable {
             for( auto& [key,drive] : m_driveMap )
@@ -3051,7 +3025,7 @@ public:
         } );
     }
 
-    virtual OptionalEndpoint dbgGetEndpoint( const Key& key, int& port )
+    OptionalEndpoint dbgGetEndpoint( const Key& key, int& port )
     {
         if ( auto ep = m_session->getEndpoint(key); ep )
         {
@@ -3083,27 +3057,28 @@ public:
 
 std::shared_ptr<Replicator> createDefaultReplicator(
         const crypto::KeyPair& keyPair,
-        std::string&& address,
-        std::string&& port,
-        std::string&& storageDirectory,
-        std::string&& sandboxDirectory,
+        std::string address,
+        std::string port,
+        std::string storageDirectory,
+        //std::string&& sandboxDirectory,
         const std::vector<ReplicatorInfo>& bootstraps,
         bool useTcpSocket,
         ReplicatorEventHandler& handler,
         DbgReplicatorEventHandler* dbgEventHandler,
-        const std::string& dbgReplicatorName )
+        const std::string& dbgReplicatorName,
+        std::string  logOptions )
 {
     return std::make_shared<DefaultReplicator>(
             keyPair,
-            std::move( address ),
-            std::move( port ),
-            std::move( storageDirectory ),
-            std::move( sandboxDirectory ),
+            address,
+            port,
+            storageDirectory,
             useTcpSocket,
             handler,
             dbgEventHandler,
             bootstraps,
-            dbgReplicatorName );
+            dbgReplicatorName,
+            logOptions );
 }
 
 }

@@ -96,7 +96,7 @@ class DefaultFlatDrive
     mobj<DriveClosureRequest> m_closeDriveRequest = {};
     mobj<ModificationCancelRequest> m_modificationCancelRequest;
     mobj<CatchingUpRequest> m_catchingUpRequest;
-    mobj<SynchronizationRequest> m_synchronizationRequest;
+    mobj<SynchronizationRequest> m_manualSyncRequest;
 
     struct DeferredRequest
     {
@@ -133,6 +133,9 @@ class DefaultFlatDrive
     std::unique_ptr<DriveTaskBase> m_task;
     std::shared_ptr<DriveTaskBase> m_verificationTask;
 
+    std::optional<ChunkInfo>       m_pretermChunkInfo;
+    boost::asio::ip::udp::endpoint m_pretermStreamerEndpoint; // only for m_pretermChunks
+    
     std::set<Key> m_blockedReplicators; // blocked until verification will be approved
 
 public:
@@ -140,7 +143,6 @@ public:
     DefaultFlatDrive(
             std::shared_ptr<Session> session,
             const std::string& replicatorRootFolder,
-            const std::string& replicatorSandboxRootFolder,
             const Key& drivePubKey,
             const Key& driveOwner,
             size_t maxSize,
@@ -162,7 +164,6 @@ public:
             replicator,
             dbgEventHandler,
             replicatorRootFolder,
-            replicatorSandboxRootFolder,
             replicator.dbgReplicatorName()
     )
             , m_allReplicators( fullReplicatorList )
@@ -177,9 +178,9 @@ public:
 
     ~DefaultFlatDrive() override
     {
-        if ( m_synchronizationRequest )
+        if ( m_manualSyncRequest )
         {
-            m_synchronizationRequest->m_callback( {} );
+            m_manualSyncRequest->m_callback( {} );
         }
         if ( m_deferredManualModificationRequest )
         {
@@ -190,18 +191,18 @@ public:
     const Key& drivePublicKey() const override
     { return m_driveKey; }
 
-    void terminate() override
+    void shutdown() override
     {
         DBG_MAIN_THREAD
 
         if ( m_task )
         {
-            m_task->terminate();
+            m_task->shutdown();
         }
 
         if ( m_verificationTask )
         {
-            m_verificationTask->terminate();
+            m_verificationTask->terminateVerification();
             m_verificationTask.reset();
         }
     }
@@ -264,7 +265,7 @@ public:
 
     InfoHash rootHash() const override
     {
-        return m_rootHash;
+        return m_driveRootHash;
     }
 
     const ReplicatorList& getAllReplicators() const override
@@ -336,9 +337,9 @@ public:
             return;
         }
 
-        if ( m_synchronizationRequest )
+        if ( m_manualSyncRequest )
         {
-            runSynchronizationTask();
+            runManualSyncTask();
             return;
         }
 
@@ -360,6 +361,14 @@ public:
 
         SIRIUS_ASSERT( !m_task )
 
+        if ( auto session = m_session.lock(); session )
+        {
+            for( const auto& key : m_allReplicators )
+            {
+                session->getEndpoint( key );
+            }
+        }
+        
         m_task = createDriveInitializationTask( std::move( completedModifications ), *this, m_opinionController );
 
         SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::DRIVE_INITIALIZATION )
@@ -409,6 +418,7 @@ public:
 
         SIRIUS_ASSERT( !m_task )
 
+//TODO it should be on finishStreaming
 //        auto opinions = std::move(m_unknownModificationOpinions[request->m_transactionHash]);
 //        m_unknownModificationOpinions.erase(request->m_transactionHash);
 
@@ -417,9 +427,14 @@ public:
         SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::STREAM_REQUEST )
 
         m_task->run();
+        
+        if ( m_pretermChunkInfo )
+        {
+            acceptChunkInfoMessage( *m_pretermChunkInfo, m_pretermStreamerEndpoint );
+        }
     }
 
-    void runSynchronizationTask()
+    void runManualSyncTask()
     {
         DBG_MAIN_THREAD
 
@@ -431,7 +446,7 @@ public:
             m_deferredManualModificationRequest.reset();
         }
 
-        m_task = createManualSynchronizationTask( std::move( m_synchronizationRequest ), *this, m_opinionController );
+        m_task = createManualSynchronizationTask( std::move( m_manualSyncRequest ), *this, m_opinionController );
 
         SIRIUS_ASSERT( m_task->getTaskType() == DriveTaskType::MANUAL_SYNCHRONIZATION )
 
@@ -601,28 +616,32 @@ public:
 
     /// Transactions from Replicators
 
-    void
-    onApprovalTransactionHasBeenPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
+    void onApprovalTransactionHasBeenPublished( const PublishedModificationApprovalTransactionInfo& transaction ) override
     {
         DBG_MAIN_THREAD
 
-        SIRIUS_ASSERT( !m_synchronizationRequest )
+        SIRIUS_ASSERT( !m_manualSyncRequest )
 
         cancelVerification();
 
-        // Notify task about 'ApprovalTxPublished'
-        // and check that 'CatchingUp' should be started
-        //
-        if ( !m_task || m_task->onApprovalTxPublished( transaction ))
+        if ( m_task)
         {
-            // 'CatchingUp' should be started
-            _LOG( "transaction.m_rootHash: " << Key( transaction.m_rootHash ))
-            m_catchingUpRequest = std::make_unique<CatchingUpRequest>( transaction.m_rootHash, transaction.m_modifyTransactionHash );
-
-            if ( !m_task )
+            bool currentTaskMustBeBroken = m_task->onApprovalTxPublished( transaction );
+            if ( currentTaskMustBeBroken )
             {
-                runNextTask();
+                _LOG( "approved rootHash: " << Key( transaction.m_rootHash ))
+                m_catchingUpRequest = std::make_unique<CatchingUpRequest>( transaction.m_rootHash, transaction.m_modifyTransactionHash );
             }
+            else
+            {
+                //continue current task
+            }
+        }
+        else
+        {
+            _LOG( "approved rootHash (2): " << Key( transaction.m_rootHash ))
+            m_catchingUpRequest = std::make_unique<CatchingUpRequest>( transaction.m_rootHash, transaction.m_modifyTransactionHash );
+            runNextTask();
         }
     }
 
@@ -672,7 +691,6 @@ public:
         if ( !m_task )
         {
             runNextTask();
-            return;
         }
     }
 
@@ -680,21 +698,29 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_task && m_task->shouldCancelModify( *request ))
+        if ( m_task )
         {
-            m_modificationCancelRequest = std::move(request);
+            // try cancel current task
+            //
+            bool cancelRequestIsAccepted = false;
+            m_task->onCancelModifyTx( *request, cancelRequestIsAccepted );
+            if ( cancelRequestIsAccepted )
+            {
+                m_modificationCancelRequest = std::move(request);
+                return;
+            }
         }
 
+        // try to remove deffered modification request
+        //
         auto it = std::find_if( m_deferredModificationRequests.begin(), m_deferredModificationRequests.end(),
-                                [&request]( const auto& item )
-                                { return item.transactionHash() == request->m_modifyTransactionHash; } );
-
-        if ( it == m_deferredModificationRequests.end())
+                               [&request]( const auto& item )
+                               { return item.transactionHash() == request->m_modifyTransactionHash; } );
+        
+        if ( it != m_deferredModificationRequests.end())
         {
-            return;
+            m_deferredModificationRequests.erase( it );
         }
-
-        m_deferredModificationRequests.erase( it );
     }
 
     void initiateManualModifications( mobj<InitiateModificationsRequest>&& request ) override
@@ -922,7 +948,7 @@ public:
             m_catchingUpRequest.reset();
         }
 
-        m_synchronizationRequest = std::move( request );
+        m_manualSyncRequest = std::move( request );
 
         if ( !m_task )
         {
@@ -1062,29 +1088,41 @@ public:
 
     bool acceptConnectionFromClient( const Key& clientKey, const Hash256& fileHash ) const override
     {
-        return clientKey == m_driveOwner && fileHash == m_rootHash;
+        return clientKey == m_driveOwner && fileHash == m_driveRootHash;
     }
 
-    void acceptChunkInfoMessage( mobj<ChunkInfo>&& chunkInfo, const boost::asio::ip::udp::endpoint& streamer ) override
+    void acceptChunkInfoMessage( ChunkInfo& chunkInfo, const boost::asio::ip::udp::endpoint& streamer ) override
     {
         DBG_MAIN_THREAD
 
         if ( m_task )
         {
-            m_task->acceptChunkInfoMessage( std::move( chunkInfo ), streamer );
+            m_task->acceptChunkInfoMessage( chunkInfo, streamer );
+        }
+        else
+        {
+            m_pretermChunkInfo = chunkInfo;
+            m_pretermStreamerEndpoint = streamer;
         }
     }
 
     void acceptFinishStreamTx( mobj<StreamFinishRequest>&& finishStream ) override
     {
         DBG_MAIN_THREAD
+        
+        _LOG("acceptFinishStreamTx: " << finishStream->m_streamId )
+        _LOG("acceptFinishStreamTx: " << finishStream->m_finishDataInfoHash )
 
         if ( m_task )
         {
-            m_task->acceptFinishStreamTx( std::move( finishStream ));
+            auto&& opinions = std::move( m_unknownModificationOpinions[finishStream->m_streamId] );
+            m_unknownModificationOpinions.erase( finishStream->m_streamId );
+
+            m_task->acceptFinishStreamTx( std::move( finishStream ), std::move( opinions ) );
         }
     }
 
+    // Request from viewer
     std::string acceptGetChunksInfoMessage( const std::array<uint8_t, 32>& streamId,
                                             uint32_t chunkIndex,
                                             const boost::asio::ip::udp::endpoint& viewer ) override
@@ -1243,7 +1281,7 @@ public:
     }
     //-----------------------------------------------------------------------------
     
-    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList )
+    virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList ) override
     {
         for( auto& key : m_allReplicators )
         {
@@ -1262,7 +1300,6 @@ public:
 std::shared_ptr<FlatDrive> createDefaultFlatDrive(
         std::shared_ptr<Session> session,
         const std::string& replicatorRootFolder,
-        const std::string& replicatorSandboxRootFolder,
         const Key& drivePubKey,
         const Key& clientPubKey,
         size_t maxSize,
@@ -1277,7 +1314,6 @@ std::shared_ptr<FlatDrive> createDefaultFlatDrive(
 {
     return std::make_shared<DefaultFlatDrive>( session,
                                                replicatorRootFolder,
-                                               replicatorSandboxRootFolder,
                                                drivePubKey,
                                                clientPubKey,
                                                maxSize,

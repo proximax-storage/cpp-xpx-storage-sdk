@@ -237,7 +237,7 @@ public:
     // Drive state
     //
 
-    InfoHash                m_rootHash;
+    InfoHash                m_driveRootHash;
     Hash256                 m_lastApprovedModification;
 
     // FsTree
@@ -268,7 +268,6 @@ protected:
             ReplicatorInt&              replicator,
             DbgReplicatorEventHandler*  dbgEventHandler,
             const std::string&          replicatorRootFolder,
-            const std::string&          replicatorSandboxRootFolder,
             const std::string&          dbgOurPeerName
         )
         : FlatDrivePaths( replicatorRootFolder, drivePubKey )

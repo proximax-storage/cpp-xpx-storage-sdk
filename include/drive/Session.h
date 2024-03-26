@@ -40,7 +40,7 @@ inline bool isValid( const boost::asio::ip::udp::endpoint& ep )
 namespace sirius::drive {
 
 #define FS_TREE_FILE_NAME  "FsTree.bin"
-#define PLAYLIST_FILE_NAME "playlist.m3u8"
+#define PLAYLIST_FILE_NAME "obs-stream.m3u8"
 
 #define GET_MY_IP_MSG       "get-my-ip"
 #define GET_PEER_IP_MSG     "get-peer-ip"
@@ -53,7 +53,8 @@ namespace download_status {
     enum code {
         download_complete = 0,
         downloading = 1,
-        dn_failed = 2
+        dn_failed = 2,
+        dn_not_enougth_space = 3
     };
 };
 
@@ -171,7 +172,7 @@ public:
 
 
     virtual OptionalEndpoint getEndpoint( const Key& key ) = 0;
-    virtual const kademlia::PeerInfo*  getPeerInfo( const Key& key ) = 0;
+    virtual const kademlia::PeerInfo*  getPeerInfoSkippingLocalMap( const Key& key ) = 0;
 
     // It loads existing file from disk
     virtual lt_handle addTorrentFileToSession( const std::filesystem::path&     torrentFilename,

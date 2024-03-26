@@ -10,33 +10,31 @@
 namespace sirius::drive
 {
 
-class ManualSynchronizationTask
-        : public SynchronizationTaskBase
+class ManualSyncTask
+        : public SyncTaskBase
 {
 private:
 
     mobj<SynchronizationRequest> m_request;
-    bool m_taskIsExecuted = false;
+    bool m_syncCompletedSuccessfully = false;
 
 public:
 
-    ManualSynchronizationTask( mobj<SynchronizationRequest>&& request,
+    ManualSyncTask( mobj<SynchronizationRequest>&& request,
                                DriveParams& drive,
                                ModifyOpinionController& opinionTaskController )
-            : SynchronizationTaskBase( DriveTaskType::MANUAL_SYNCHRONIZATION, drive, opinionTaskController )
+            : SyncTaskBase( DriveTaskType::MANUAL_SYNCHRONIZATION, drive, opinionTaskController )
             , m_request( std::move( request ))
     {
         SIRIUS_ASSERT( m_request )
     }
 
-    bool shouldCancelModify( const ModificationCancelRequest& cancelRequest ) override
+    void onCancelModifyTx( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted ) override
     {
-
         DBG_MAIN_THREAD
 
-        SIRIUS_ASSERT( 0 )
-
-        return false;
+        SIRIUS_ASSERT(0)
+        cancelRequestIsAccepted = false;
     }
 
     // Returns 'true' if 'CatchingUp' should be started
@@ -72,10 +70,10 @@ protected:
 
 public:
 
-    void modifyIsCompleted() override
+    void modificationCompletedSuccessfully() override
     {
-        m_taskIsExecuted = true;
-        SynchronizationTaskBase::modifyIsCompleted();
+        m_syncCompletedSuccessfully = true;
+        SyncTaskBase::modificationCompletedSuccessfully();
     }
 
     uint64_t getToBeApprovedDownloadSize() override
@@ -85,18 +83,32 @@ public:
 
 protected:
 
-    void finishTask() override
+	void onDriveChangedAfterApproving() override
+	{
+		DBG_MAIN_THREAD
+
+		// Ignore cumulative uploads approval, skip right to modificationCompletedSuccessfully().
+		modificationCompletedSuccessfully();
+	}
+
+    void removeTorrentsAndFinishTask() override
     {
-        m_request->m_callback( SynchronizationResponse{m_taskIsExecuted} );
-        sirius::drive::UpdateDriveTaskBase::finishTask();
+        m_request->m_callback( SynchronizationResponse{m_syncCompletedSuccessfully} );
+        sirius::drive::UpdateDriveTaskBase::removeTorrentsAndFinishTask();
     }
+
+private:
+
+	void updateOpinionUploads() override {
+        myOpinionIsCreated();
+	};
 };
 
 std::unique_ptr<DriveTaskBase> createManualSynchronizationTask( mobj <SynchronizationRequest>&& request,
                                                                 DriveParams& drive,
                                                                 ModifyOpinionController& opinionTaskController )
 {
-    return std::make_unique<ManualSynchronizationTask>( std::move( request ), drive, opinionTaskController );
+    return std::make_unique<ManualSyncTask>( std::move( request ), drive, opinionTaskController );
 }
 
 

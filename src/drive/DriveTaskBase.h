@@ -50,7 +50,9 @@ public:
 
     virtual void run() = 0;
 
-    virtual void terminate() = 0;
+    virtual void shutdown() = 0;
+
+    virtual void terminateVerification() {};
 
     DriveTaskType getTaskType()
     {
@@ -59,25 +61,21 @@ public:
         return m_type;
     }
 
-    // Returns 'true' if 'CatchingUp' should be started
-    virtual bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction )
-    {
-        DBG_MAIN_THREAD
-
-        return false;
-    }
+    // Returns 'true' if 'CatchingUp' should start
+    virtual bool onApprovalTxPublished( const PublishedModificationApprovalTransactionInfo& transaction ) = 0;
 
     virtual void onApprovalTxFailed( const Hash256& transactionHash )
     {
         DBG_MAIN_THREAD
     }
 
-    virtual bool shouldCancelModify( const ModificationCancelRequest& cancelRequest )
+    virtual void onCancelModifyTx( const ModificationCancelRequest& cancelRequest, bool& cancelRequestIsAccepted )
     {
         DBG_MAIN_THREAD
 
-        return false;
+        cancelRequestIsAccepted = false;
     }
+
 
     virtual void onDriveClose( const DriveClosureRequest& closureRequest )
     {
@@ -123,16 +121,17 @@ public:
         DBG_MAIN_THREAD
     }
 
-    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& streamer )
+    virtual void acceptChunkInfoMessage( ChunkInfo&, const boost::asio::ip::udp::endpoint& streamer )
     {
         // it must be overriden by StreamTask
     }
 
-    virtual void acceptFinishStreamTx( mobj<StreamFinishRequest>&& )
+    virtual void acceptFinishStreamTx( mobj<StreamFinishRequest>&&, std::map<std::array<uint8_t, 32>, ApprovalTransactionInfo>&& )
     {
         // it must be overriden by StreamTask
     }
 
+    // Request from viewer
     virtual std::string acceptGetChunksInfoMessage( const std::array<uint8_t, 32>& streamId,
                                                     uint32_t chunkIndex,
                                                     const boost::asio::ip::udp::endpoint& viewer )
@@ -296,39 +295,39 @@ public:
 protected:
 
 
-    virtual void finishTask()
+    virtual void finishTaskAndRunNext()
     {
         DBG_MAIN_THREAD
 
         m_drive.executeOnBackgroundThread( [this]
+        {
+           DBG_BG_THREAD
+
+           std::error_code err;
+
+           if ( !fs::exists( m_drive.m_sandboxRootPath, err ))
+           {
+               fs::create_directories( m_drive.m_sandboxRootPath );
+               fs::create_directories( m_drive.m_sandboxStreamTFolder );
+           }
+           else
+           {
+               for( const auto& entry: std::filesystem::directory_iterator( m_drive.m_sandboxRootPath ))
+               {
+                   fs::remove_all( entry.path(), err );
+                   _LOG( "fs::remove_all" );
+                   if ( err )
+                   {
+                       _LOG_WARN( "remove sandbox error: " << err )
+                   }
+               }
+           }
+
+           m_drive.executeOnSessionThread( [this]
                                            {
-                                               DBG_BG_THREAD
-
-                                               std::error_code err;
-
-                                               if ( !fs::exists( m_drive.m_sandboxRootPath, err ))
-                                               {
-                                                   fs::create_directories( m_drive.m_sandboxRootPath );
-                                                   fs::create_directories( m_drive.m_sandboxStreamTFolder );
-                                               } else
-                                               {
-                                                   for ( const auto& entry: std::filesystem::directory_iterator(
-                                                           m_drive.m_sandboxRootPath ))
-                                                   {
-                                                       fs::remove_all( entry.path(), err );
-                                                       _LOG( "fs::remove_all" );
-                                                       if ( err )
-                                                       {
-                                                           _LOG_WARN( "remove sandbox error: " << err )
-                                                       }
-                                                   }
-                                               }
-
-                                               m_drive.executeOnSessionThread( [this]
-                                                                               {
-                                                                                   m_drive.runNextTask();
-                                                                               } );
+                                               m_drive.runNextTask();
                                            } );
+        } );
     }
 
     void markUsedFiles( const Folder& folder )

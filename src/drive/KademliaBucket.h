@@ -12,29 +12,34 @@ namespace sirius { namespace drive { namespace kademlia {
 
 
 const size_t    BUCKET_NUMBER = sizeof(Key)*8; // 32*8
-const size_t    BUCKET_SIZE   = 4;
+const size_t    BUCKET_SIZE   = 6;
 
 // Every 15 minutes (CHECK_EXPIRED_SEC) will be checked all peerInfo
 // If time is exceed 1 hour (PEER_UPDATE_SEC), "get-peer-info" mesage will be send to this peer
 // If time is exceed 2 hour (EXPIRED_SEC), peer-info will be removed
 //const
-inline uint64_t  CHECK_EXPIRED_SEC   = 15*60;
+inline uint32_t  CHECK_EXPIRED_SEC   = (15*60); // 15*60
 //const
-inline uint64_t  PEER_UPDATE_SEC     = 40*60;
+inline uint32_t  PEER_UPDATE_SEC     = (40*60);
 //const
-inline uint64_t  EXPIRED_SEC         = 2*60*60;
+inline uint32_t  EXPIRED_SEC         = (2*60*60);
+
+inline bool      gDoNotSkipVerification  = true;
 
 
 inline bool isPeerInfoExpired( uint64_t t )
 {
-    uint64_t now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-    ___LOG( "isPeerInfoExpired: " << now << " < " << t << "+" << EXPIRED_SEC )
+    uint64_t now = currentTimeSeconds();
+
+    //TODO? check staging logs!!! ??? 20185094 > 49200191+7200
+    ___LOG( "isPeerInfoExpired: " << now << " > " << t << "+" << EXPIRED_SEC )
+
     return now > t+EXPIRED_SEC;
 }
 
 inline bool shouldPeerInfoBeUpdated( uint64_t t )
 {
-    auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    auto now = currentTimeSeconds();;
     return now-t > PEER_UPDATE_SEC;
 }
 

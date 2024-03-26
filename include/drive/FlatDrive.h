@@ -74,13 +74,13 @@ struct CompletedModification
     };
 
     Hash256 m_modificationId;
-    CompletedModificationStatus m_status;
+    CompletedModificationStatus m_completedModificationStatus;
 
     template<class Archive>
     void serialize( Archive& arch )
     {
         arch( m_modificationId );
-        arch( m_status );
+        arch( m_completedModificationStatus );
     }
 };
 
@@ -745,7 +745,7 @@ public:
 
     virtual ~FlatDrive() = default;
 
-    virtual void terminate() = 0;
+    virtual void shutdown() = 0;
 
     virtual const Key& drivePublicKey() const = 0;
 
@@ -867,7 +867,7 @@ public:
 
     static std::string driveIsClosingPath( const std::string& driveRootPath );
 
-    virtual void acceptChunkInfoMessage( mobj<ChunkInfo>&&, const boost::asio::ip::udp::endpoint& sender ) = 0;
+    virtual void acceptChunkInfoMessage( ChunkInfo&, const boost::asio::ip::udp::endpoint& sender ) = 0;
 
     virtual void acceptFinishStreamTx( mobj<StreamFinishRequest>&& ) = 0;
 
@@ -890,7 +890,6 @@ class Session;
 PLUGIN_API std::shared_ptr<FlatDrive> createDefaultFlatDrive(
         std::shared_ptr<Session> session,
         const std::string& replicatorRootFolder,
-        const std::string& replicatorSandboxRootFolder,
         const Key& drivePubKey,
         const Key& clientPubKey,
         size_t maxSize,

@@ -123,7 +123,7 @@ public:
             return;
         }
 
-        requestChunkInfo( m_chunkInfoList.size() );
+        requestChunkInfo( uint32_t(m_chunkInfoList.size()) );
     }
 
     void startWatchingLiveStream( const Hash256&          streamId,
@@ -467,7 +467,7 @@ public:
 
     bool addChunkInfo( const ChunkInfo& info )
     {
-        uint32_t newIndex = m_chunkInfoList.size();
+        uint32_t newIndex = uint32_t(m_chunkInfoList.size());
         if ( newIndex != info.m_chunkIndex )
         {
             return (newIndex > info.m_chunkIndex);

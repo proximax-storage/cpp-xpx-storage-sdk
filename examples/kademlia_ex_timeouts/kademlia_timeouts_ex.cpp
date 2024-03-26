@@ -86,7 +86,7 @@ public:
 
 class TestNode : public std::enable_shared_from_this<TestNode>, public kademlia::Transport // replicator
 {
-    TestContext*                                 m_testContext = nullptr;
+    TestContext*                             m_testContext = nullptr;
 
 public:
     std::shared_ptr<kademlia::EndpointCatalogue> m_kademlia;
@@ -101,10 +101,7 @@ public:
     :
         m_keyPair( sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( generatePrivateKey() )) ),
         m_endpoint(theEndpoint)
-    {
-    // TODO remove the line below - ?
-        //m_keyPair = sirius::crypto::KeyPair::FromPrivate(sirius::crypto::PrivateKey::FromString( generatePrivateKey() ));
-    }
+    {}
 
     void init(  TestContext&                        testContext,
                 const std::vector<ReplicatorInfo>&  bootstraps )
@@ -156,7 +153,6 @@ public:
         });
     }
 
-    // когда не спрашивали PeerInfo, а он уведомил для уменьшения трафика
     virtual void sendDirectPeerInfo( const kademlia::PeerIpResponse& response, boost::asio::ip::udp::endpoint endpoint ) override
     {
         boost::asio::post( getContext(), [=,this]() //mutable
@@ -245,9 +241,9 @@ int main(int,char**)
     // Skip verifications for this test
     gDoNotSkipVerification = false;
 
-    CHECK_EXPIRED_SEC   = (15*60)*10; // 15*60
-    PEER_UPDATE_SEC     = (40*60)*10;
-    EXPIRED_SEC         = (2*60*60)*10;
+    CHECK_EXPIRED_SEC   = (15*60); // 15*60
+    PEER_UPDATE_SEC     = (40*60);
+    EXPIRED_SEC         = (2*60*60);
 
     __attribute__((unused)) auto startTime = std::clock();
 

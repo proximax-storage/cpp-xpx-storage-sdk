@@ -30,7 +30,5 @@ else()
     target_link_libraries(client2
             drive
             storage-crypto
-            ${CMAKE_SOURCE_DIR}/libtorrent/_build/libtorrent-sirius.so
-            ${CMAKE_SOURCE_DIR}/rpclib/build/librpc.a
             Threads::Threads)
 endif()
