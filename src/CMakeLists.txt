@@ -13,7 +13,10 @@ add_subdirectory(model)
 add_subdirectory(net)
 add_subdirectory(utils)
 add_subdirectory(nodediscovery)
-add_subdirectory(wsserver)
+
+if(NOT WIN32)
+   add_subdirectory(wsserver)
+endif()
 
 # find_package(Boost 1.71.0 REQUIRED)
 set(CMAKE_CXX_STANDARD 20)
