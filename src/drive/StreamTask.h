@@ -426,11 +426,6 @@ public:
         ModifyDriveTask::modificationCompletedSuccessfully();
     }
 
-    uint64_t getToBeApprovedDownloadSize() override
-    {
-        return m_streamRequest->m_maxSizeBytes;
-    }
-
 #ifdef __APPLE__
 #pragma mark --acceptFinishStreamTx--
 #endif
@@ -454,9 +449,8 @@ public:
         m_finishDataInfoHash = finishStream->m_finishDataInfoHash;
 
         ModifyDriveTask::m_request = std::make_unique<ModificationRequest>( ModificationRequest{ *m_finishDataInfoHash,
-                                                                                                 m_streamRequest->m_streamId,
+                                                                                                 finishStream->m_streamId,
                                                                                                  finishStream->m_streamSizeBytes,
-                                                                                                 //m_streamRequest->m_maxSizeBytes,
                                                                                                  m_streamRequest->m_replicatorList });
         
         ModifyTaskBase::m_receivedOpinions = std::move(opinions);

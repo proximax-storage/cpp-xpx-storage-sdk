@@ -119,7 +119,7 @@ class DefaultFlatDrive
             {
                 return m_modificationRequest->m_maxDataSize;
             }
-            _SIRIUS_ASSERT( m_streamRequest )
+            _LOG_ERR( "maxDataSize() cannot be used by StreamTask")
             return m_streamRequest->m_maxSizeBytes;
         }
     };
