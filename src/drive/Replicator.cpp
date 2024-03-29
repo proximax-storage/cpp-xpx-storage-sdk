@@ -24,7 +24,6 @@
 #endif
 
 #include <cereal/types/vector.hpp>
-#include <cereal/types/array.hpp>
 #include <cereal/types/map.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
@@ -33,8 +32,6 @@
 #include <filesystem>
 #include <mutex>
 #include <future>
-
-#include <drive/Utils.h>
 
 #undef DBG_MAIN_THREAD
 #define DBG_MAIN_THREAD _FUNC_ENTRY; assert( m_dbgThreadId == std::this_thread::get_id() );
@@ -79,8 +76,6 @@ private:
 
     // key is verify tx
     std::map<std::array<uint8_t, 32>, VerifyOpinion> m_verifyApprovalMap;
-
-    std::future<void> m_bootstrapFuture;
 
     BackgroundExecutor m_backgroundExecutor;
 
@@ -201,9 +196,6 @@ public:
 
     void start() override
     {
-        std::promise<void> bootstrapBarrier;
-        m_bootstrapFuture = bootstrapBarrier.get_future();
-
         loadDownloadChannelMap();
 
         m_session = createDefaultSession( m_replicatorContext, m_address + ":" + m_port,
@@ -218,8 +210,7 @@ public:
                                           },
                                           weak_from_this(),
                                           weak_from_this(),
-                                          m_bootstraps,
-                                          std::move( bootstrapBarrier ));
+                                          m_bootstraps);
 
         m_session->lt_session().m_dbgOurPeerName = m_dbgOurPeerName;
 
