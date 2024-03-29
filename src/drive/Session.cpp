@@ -18,16 +18,12 @@
 
 
 // boost
-#include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/ip/address.hpp>
 
 // cereal
 #include <cereal/types/vector.hpp>
-#include <cereal/types/array.hpp>
-#include <cereal/types/map.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
 // libtorrent
@@ -131,9 +127,7 @@ public:
                    const LibTorrentErrorHandler&        alertHandler,
                    std::weak_ptr<ReplicatorInt>         replicator,
                    std::weak_ptr<lt::session_delegate>  downloadLimiter,
-                   const std::vector<ReplicatorInfo>&   bootstraps,
-                   std::promise<void>&&                 bootstrapBarrier
-                   )
+                   const std::vector<ReplicatorInfo>&   bootstraps)
     : m_ownerIsReplicator(true)
     , m_addressAndPort(address)
     , m_listeningPort(extractListeningPort())
@@ -1859,16 +1853,14 @@ std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&         
                                                const LibTorrentErrorHandler&        alertHandler,
                                                std::weak_ptr<ReplicatorInt>         replicator,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
-                                              const std::vector<ReplicatorInfo>&    bootstraps,
-                                               std::promise<void>&&                 bootstrapBarrier )
+                                              const std::vector<ReplicatorInfo>&    bootstraps )
 {
     return std::make_shared<DefaultSession>( context,
                                             address,
                                             alertHandler,
                                             replicator,
                                             downloadLimiter,
-                                            bootstraps,
-                                            std::move(bootstrapBarrier) );
+                                            bootstraps );
 }
 
 //

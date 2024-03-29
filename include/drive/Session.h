@@ -266,8 +266,7 @@ PLUGIN_API std::shared_ptr<Session> createDefaultSession( boost::asio::io_contex
                                                           const LibTorrentErrorHandler&,
                                                           std::weak_ptr<ReplicatorInt>,
                                                           std::weak_ptr<lt::session_delegate>,
-                                                          const std::vector<ReplicatorInfo>& bootstraps,
-                                                          std::promise<void>&& bootstrapBarrier );
+                                                          const std::vector<ReplicatorInfo>& bootstraps);
 
 PLUGIN_API std::shared_ptr<Session> createDefaultSession( std::string address,
                                                           const crypto::KeyPair&,
