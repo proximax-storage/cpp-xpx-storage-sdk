@@ -202,6 +202,8 @@ public:
     , m_alertHandler(alertHandler)
     , m_downloadLimiter(downloadLimiter)
     {
+        gSkipDhtPktLogs = true;
+        
         boost::asio::post( m_session.get_context(), [&keyPair,bootstraps,dhtMessageHandler, this]() mutable
         {
             if ( auto downloadLimiterPtr = m_downloadLimiter.lock(); downloadLimiterPtr )
@@ -1560,8 +1562,11 @@ private:
 #pragma mark --dht_pkt_alert
 #endif
                     case lt::dht_pkt_alert::alert_type: {
-                        auto *theAlert = dynamic_cast<lt::dht_pkt_alert *>(alert);
-                        __LOG( m_listeningPort << " : dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
+                        if ( ! gSkipDhtPktLogs )
+                        {
+                            auto *theAlert = dynamic_cast<lt::dht_pkt_alert *>(alert);
+                            __LOG( m_listeningPort << " : dht_pkt_alert: " << theAlert->message() ) //<< " " << theAlert->outgoing )
+                        }
                         break;
                     }
                         

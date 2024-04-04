@@ -406,6 +406,7 @@ public:
                     }
                     else
                     {
+                        _LOG("addActionListToSession: infoHash not found: " << infoHash )
                         fs::path filenameInSandbox = workFolder.string() + "/" + action.m_param1;
                         fs::path torrentFilenameInSandbox = filenameInSandbox;
                         torrentFilenameInSandbox.replace_extension(".torrent");
@@ -448,6 +449,8 @@ public:
                     break;
             }
         }
+        
+        newActionList.dbgPrint();
 
         return infoHash0;
     }
@@ -1132,7 +1135,7 @@ protected:
 public:
     void
     onEndpointDiscovered( const std::array<uint8_t, 32>& key, const std::optional<boost::asio::ip::udp::endpoint>& endpoint ) override {
-        __LOG( "@@@  onEndpointDiscovered: public key: " << toString(key) << " endpoint: " << endpoint->address().to_string() << " : " << endpoint->port())
+        //__LOG( "@@@  onEndpointDiscovered: public key: " << toString(key) << " endpoint: " << endpoint->address().to_string() << " : " << endpoint->port())
         m_session->onEndpointDiscovered(key, endpoint);
     }
 

@@ -23,6 +23,10 @@
 
 inline std::mutex gLogMutex;
 
+inline bool gSkipDhtPktLogs = false;
+inline bool gKademliaLogs = false;
+
+
 inline uint64_t currentTimeSeconds()
 {
     auto timeSinceEpoch = std::chrono::system_clock::now().time_since_epoch();
@@ -145,10 +149,11 @@ inline void checkLogFileSize()
 //#define ___LOG(expr) {}
 
  #define ___LOG(expr) { \
+    if ( !gKademliaLogs ) {\
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << current_time() << " " << expr << std::endl << std::flush; \
-    }
+    }}
 
 
 // _LOG_WARN - with m_dbgOurPeerName
