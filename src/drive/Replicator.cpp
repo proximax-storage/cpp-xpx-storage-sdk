@@ -13,6 +13,7 @@
 #include "DownloadLimiter.h"
 #include "RcptSyncronizer.h"
 #include "BackgroundExecutor.h"
+#include "wsserver/Listener.h"
 
 #ifndef SKIP_GRPC
 #include <drive/RPCService.h>
@@ -53,9 +54,13 @@ private:
     boost::asio::io_context m_replicatorContext;
     std::thread m_libtorrentThread;
 
+	std::vector<std::thread> m_wsThreads;
+	boost::asio::io_context m_wsServerContext;
+
     // Session listen interface
     std::string m_address;
     std::string m_port;
+	std::string m_wsPort;
 
     // Folders for drives and sandboxes
     std::string m_storageDirectory;
@@ -94,8 +99,8 @@ public:
             const crypto::KeyPair& keyPair,
             std::string address,
             std::string port,
+			std::string wsPort,
             std::string storageDirectory,
-            //std::string&& sandboxDirectory,
             bool useTcpSocket,
             ReplicatorEventHandler& handler,
             DbgReplicatorEventHandler* dbgEventHandler,
@@ -106,6 +111,7 @@ public:
 
         m_address( address ),
         m_port( port ),
+		m_wsPort( wsPort ),
         m_storageDirectory( storageDirectory ),
         m_eventHandler( handler ),
         m_dbgEventHandler( dbgEventHandler ),
@@ -162,10 +168,20 @@ public:
         }
     }
 
-    void shutdownReplicator() override {
+    void shutdownReplicator() override
+	{
+		// TODO: stop ws serer here
+		for (auto& thread : m_wsThreads)
+		{
+			if (thread.joinable())
+			{
+				thread.join();
+			}
+		}
 
         std::promise<void> barrier;
-        boost::asio::post( m_session->lt_session().get_context(), [&barrier, this]() mutable {
+        boost::asio::post( m_session->lt_session().get_context(), [&barrier, this]() mutable
+		{
             DBG_MAIN_THREAD
             stopReplicator();
             barrier.set_value();
@@ -177,7 +193,8 @@ public:
         auto blockedDestructor = m_session->lt_session().abort();
         m_session.reset();
 
-        if ( m_libtorrentThread.joinable()) {
+        if ( m_libtorrentThread.joinable())
+		{
             _LOG( "m_libtorrentThread joined" )
             m_libtorrentThread.join();
         }
@@ -239,11 +256,14 @@ public:
                 SIRIUS_ASSERT(m_serviceServerAddress)
                 grpc::ServerBuilder builder;
                 builder.AddListeningPort( *m_serviceServerAddress, grpc::InsecureServerCredentials());
-                for (const auto& service: m_services) {
+                for (const auto& service: m_services)
+				{
                     service->registerService(builder);
                 }
+
                 m_serviceServer = builder.BuildAndStart();
-                for (const auto& service: m_services) {
+                for (const auto& service: m_services)
+				{
                     service->run(m_session);
                 }
             }
@@ -251,6 +271,23 @@ public:
         } );
 
         m_dnOpinionSyncronizer.start( m_session );
+
+		auto wsServer = std::make_shared<sirius::wsserver::Listener>(m_wsServerContext);
+		const auto address = boost::asio::ip::make_address(m_address);
+		const auto rawPort = boost::lexical_cast<unsigned short>(m_wsPort);
+		const auto wsEndpoint = boost::asio::ip::tcp::endpoint{ address, rawPort };
+		wsServer->init(wsEndpoint);
+		wsServer->run();
+
+		const unsigned int threadsAmount = std::thread::hardware_concurrency();
+		m_wsThreads.reserve(threadsAmount);
+		for (int i = 0; i < threadsAmount; ++i)
+		{
+			m_wsThreads.emplace_back([pThis = shared_from_this()]
+			{
+				pThis->m_wsServerContext.run();
+			});
+		}
     }
 
     Hash256 dbgGetRootHash( const DriveKey& driveKey ) override
@@ -3050,6 +3087,7 @@ std::shared_ptr<Replicator> createDefaultReplicator(
         const crypto::KeyPair& keyPair,
         std::string address,
         std::string port,
+		std::string wsPort,
         std::string storageDirectory,
         //std::string&& sandboxDirectory,
         const std::vector<ReplicatorInfo>& bootstraps,
@@ -3063,6 +3101,7 @@ std::shared_ptr<Replicator> createDefaultReplicator(
             keyPair,
             address,
             port,
+			wsPort,
             storageDirectory,
             useTcpSocket,
             handler,
