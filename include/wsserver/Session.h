@@ -1,6 +1,8 @@
 #ifndef SESSION_H
 #define SESSION_H
 
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <boost/asio/dispatch.hpp>
@@ -22,88 +24,65 @@
 #include <set>
 #include <fstream>
 
-#define FILE_CHUNK_SIZE 1024*1024;
-
-namespace beast = boost::beast;         // from <boost/beast.hpp>
-namespace http = beast::http;           // from <boost/beast/http.hpp>
-namespace websocket = beast::websocket; // from <boost/beast/websocket.hpp>
-namespace net = boost::asio;            // from <boost/asio.hpp>
-using tcp = boost::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
-namespace pt = boost::property_tree;    // from <boost/property_tree>
-
-// Initialize Session when server accepts incoming connection from servers and clients
-class Session : public std::enable_shared_from_this<Session> 
+namespace sirius::wsserver
 {
-    websocket::stream<beast::tcp_stream> ws;
-    beast::flat_buffer buffer;
-    net::io_context::strand& strand;
 
-public:
-    // Take ownership of the socket
-    explicit
-    Session(tcp::socket&& socket, net::io_context::strand& strand)
-        : ws(std::move(socket))
-        , strand(strand)
-    {
-    }
+#define FILE_CHUNK_SIZE 1024 * 1024;
 
-    // Start the asynchronous operation
-    void run();
-    void onRun();
+class Session : public std::enable_shared_from_this<Session>
+{
+	public:
+		explicit Session(const boost::uuids::uuid& uuid,
+						 boost::asio::io_context& ioCtx,
+						 std::unique_ptr<boost::asio::ip::tcp::socket> socket,
+						 const boost::asio::ip::tcp::endpoint::protocol_type& protocolType);
+		~Session() = default;
 
-    // Accept connections
-    void onAccept(beast::error_code ec);
+	public:
+		void run();
+		void onRun();
+		void onAccept(boost::beast::error_code ec);
+		void doRead();
+		void onRead(boost::beast::error_code ec, std::size_t bytes_transferred);
+		void onWrite(boost::beast::error_code ec, std::size_t bytes_transferred);
+		void doClose();
+		void onClose(boost::beast::error_code ec);
+		void keyExchange(std::shared_ptr<boost::property_tree::ptree> json);
+		void sendMessage(std::shared_ptr<boost::property_tree::ptree> json);
+		void recvData(std::shared_ptr<boost::property_tree::ptree> json);
+		void recvDataChunk(std::shared_ptr<boost::property_tree::ptree> json);
+		void sendData(std::shared_ptr<boost::property_tree::ptree> json);
+		void sendDataAck(std::shared_ptr<boost::property_tree::ptree> json);
+		void deleteData(std::shared_ptr<boost::property_tree::ptree> json);
 
-    // Receive JSON from the client
-    void doRead();
-    // Triggered after receive JSON from the client
-    void onRead(beast::error_code ec, std::size_t bytes_transferred);
+		void broadcastToAll(std::shared_ptr<boost::property_tree::ptree> json);
+		void requestToAll(std::shared_ptr<boost::property_tree::ptree> json);
 
-    // Triggered after sending JSON to the client
-    void onWrite(beast::error_code ec, std::size_t bytes_transferred);
-    void onWriteClose(beast::error_code ec, std::size_t bytes_transferred);
+	private:
+		void handleJson(std::shared_ptr<boost::property_tree::ptree> json);
+		void handleErrors();
 
-    // Close connection
-    void doClose();
-    // Triggered after connection is closed
-    void onClose(beast::error_code ec);
+	private:
+		std::string m_sharedKey; // Shared secret key for encrypt/decrypt/hashing
 
-    // Perform ky exchange using Diffie-Hellman
-    void keyExchange(pt::ptree* json);
+		std::unordered_map<std::string, std::string> m_recvDirectory;
+		std::unordered_map<std::string, int> m_recvNumOfDataPieces;
+		std::unordered_map<std::string, int> m_recvDataCounter;
 
-    // Send JSON to client
-    void sendMessage(pt::ptree* json, bool is_close);
+		std::unordered_map<std::string, int> m_sendNumOfDataPieces;
+		const std::size_t m_sendDataPieceSize = FILE_CHUNK_SIZE;
+		std::unordered_map<std::string, int> m_sendDataCounter;
 
-    // Receive binary data from client (Client upload)
-    void recvData(pt::ptree* json);
-    void recvDataChunk(pt::ptree* json);
+	private:
+		std::unique_ptr<boost::asio::ip::tcp::socket> m_socket;
+		boost::beast::websocket::stream<boost::beast::tcp_stream> m_ws;
+		boost::beast::flat_buffer m_buffer;
+		boost::asio::io_context::strand m_strand;
+		boost::uuids::uuid m_id;
 
-    // Send binary data to client (Client download)
-    void sendData(pt::ptree* json);
-    void sendDataAck(pt::ptree* json);
-
-    // Delete stored data in server
-    void deleteData(pt::ptree* json);
-
-    void broadcastToAll(pt::ptree* json, bool is_close);
-    void requestToAll(pt::ptree* json);
-    
-    // store connected sessions
-    static std::set<std::shared_ptr<Session>> incoming_sessions;
-
-private:
-    // Handle JSON received from client
-    void handleJson(pt::ptree* parsed_pt);
-
-    std::string sharedKey; // Shared secret key for encrypt/decrypt/hashing
-
-    std::unordered_map<std::string, std::string>  recv_directory;
-    std::unordered_map<std::string, int> recv_numOfDataPieces;
-    std::unordered_map<std::string, int> recv_dataCounter;
-    
-    std::unordered_map<std::string, int> send_numOfDataPieces;
-    const std::size_t send_DataPieceSize = FILE_CHUNK_SIZE;
-    std::unordered_map<std::string, int> send_dataCounter;
+		const std::string AES_P = "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF6955817183995497CEA956AE515D2261898FA051015728E5A8AACAA68FFFFFFFFFFFFFFFF";
+		const std::string AES_G = "2";
 };
+}
 
 #endif // SESSION_H

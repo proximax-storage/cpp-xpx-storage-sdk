@@ -1,6 +1,13 @@
 #ifndef LISTENER_H
 #define LISTENER_H
 
+#include "plugins.h"
+#include "drive/log.h"
+#include "wsserver/Session.h"
+
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <boost/asio/strand.hpp>
@@ -19,75 +26,35 @@
 #include <set>
 #include <fstream>
 
-namespace beast = boost::beast;         // from <boost/beast.hpp>
-namespace http = beast::http;           // from <boost/beast/http.hpp>
-namespace websocket = beast::websocket; // from <boost/beast/websocket.hpp>
-namespace net = boost::asio;            // from <boost/asio.hpp>
-using tcp = boost::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
-namespace pt = boost::property_tree;    // from <boost/property_tree>
 
-void fail(beast::error_code ec, char const* what);
-
-namespace sirius { namespace wsserver {
-// Accepts incoming connections and launches the Sessions
-class Listener : public std::enable_shared_from_this<Listener>
+namespace sirius::wsserver
 {
-    net::io_context& ioc;
-    tcp::acceptor acceptor;
-    net::io_context::strand strand;
 
-public:
-    Listener(
-        net::io_context& ioc,
-        tcp::endpoint endpoint)
-        : ioc(ioc)
-        , acceptor(ioc)
-        , strand(ioc)
-    {
-        beast::error_code ec;
+class PLUGIN_API Listener : public std::enable_shared_from_this<Listener>
+{
+	public:
+		Listener(boost::asio::io_context& ioCtx)
+			: m_ioCtx(ioCtx)
+			, m_acceptor(ioCtx)
+			, m_strand(ioCtx)
+		{}
 
-        // Open the acceptor
-        acceptor.open(endpoint.protocol(), ec);
-        if(ec)
-        {
-            fail(ec, "open");
-            return;
-        }
+	public:
+		void init(const boost::asio::ip::tcp::endpoint& endpoint);
+		void run();
 
-        // Allow address reuse
-        acceptor.set_option(net::socket_base::reuse_address(true), ec);
-        if(ec)
-        {
-            fail(ec, "set_option");
-            return;
-        }
+	private:
+		void doAccept();
+		void onAccept(boost::beast::error_code ec, std::unique_ptr<boost::asio::ip::tcp::socket> socket);
 
-        // Bind to the server address
-        acceptor.bind(endpoint, ec);
-        if(ec)
-        {
-            fail(ec, "bind");
-            return;
-        }
-
-        // Start listening for connections
-        acceptor.listen(
-            net::socket_base::max_listen_connections, ec);
-        if(ec)
-        {
-            fail(ec, "listen");
-            return;
-        }
-    }
-
-    // Start accepting incoming connections
-    void run();
-    
-private:
-    void doAccept();
-    void onAccept(beast::error_code ec, tcp::socket socket);
+	private:
+		boost::asio::ip::tcp::endpoint m_endpoint;
+		boost::asio::io_context& m_ioCtx;
+		boost::asio::ip::tcp::acceptor m_acceptor;
+		boost::asio::io_context::strand m_strand;
+		boost::uuids::random_generator m_uuidGenerator;
+		std::map<boost::uuids::uuid, std::unique_ptr<Session>> m_sessions;
 };
-
-}};
+};
 
 #endif // LISTENER_H
