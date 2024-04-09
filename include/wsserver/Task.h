@@ -1,7 +1,8 @@
 #ifndef TASK_H
 #define TASK_H
 
-enum Task {
+enum Task
+{
     KEY_EX,
     DOWNLOAD_START,
     DOWNLOAD_INFO,

@@ -5,35 +5,40 @@
 #include <openssl/aes.h>
 #include <openssl/rand.h>
 #include <openssl/evp.h>
-#include <string.h>
+#include <cstring>
 
 #include "Base64.h"
 
 #define AES_BLOCK_SIZE 16
 
 // Function to perform AES encryption
-std::string aes_encrypt(const std::string &plaintext, const std::string &key) {
-    if (key.size() != 32) {
+std::string aes_encrypt(const std::string &plaintext, const std::string &key)
+{
+    if (key.size() != 32)
+	{
         std::cerr << "Key length must be 32 bytes for AES256\n";
         return "";
     }
 
     // Generate IV
     unsigned char iv[AES_BLOCK_SIZE];
-    if (RAND_bytes(iv, AES_BLOCK_SIZE) == 0) {
+    if (RAND_bytes(iv, AES_BLOCK_SIZE) == 0)
+	{
         std::cerr << "Error generating IV\n";
         return "";
     }
 
     // Create and initialize the cipher context
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if (!ctx) {
+    if (!ctx)
+	{
         std::cerr << "Error creating context\n";
         return "";
     }
 
     // Initialize the encryption operation with AES CBC mode and PKCS7 padding
-    if (!EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, reinterpret_cast<const unsigned char *>(key.c_str()), iv)) {
+    if (!EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, reinterpret_cast<const unsigned char *>(key.c_str()), iv))
+	{
         std::cerr << "Error initializing encryption operation\n";
         EVP_CIPHER_CTX_free(ctx);
         return "";
@@ -43,19 +48,23 @@ std::string aes_encrypt(const std::string &plaintext, const std::string &key) {
     int ciphertext_len;
     int len;
     unsigned char ciphertext[plaintext.size() + AES_BLOCK_SIZE];
-    if (!EVP_EncryptUpdate(ctx, ciphertext, &len, reinterpret_cast<const unsigned char *>(plaintext.c_str()), plaintext.size())) {
+    if (!EVP_EncryptUpdate(ctx, ciphertext, &len, reinterpret_cast<const unsigned char *>(plaintext.c_str()), plaintext.size()))
+	{
         std::cerr << "Error encrypting\n";
         EVP_CIPHER_CTX_free(ctx);
         return "";
     }
+
     ciphertext_len = len;
 
     // Finalize the encryption
-    if (!EVP_EncryptFinal_ex(ctx, ciphertext + len, &len)) {
+    if (!EVP_EncryptFinal_ex(ctx, ciphertext + len, &len))
+	{
         std::cerr << "Error finalizing encryption\n";
         EVP_CIPHER_CTX_free(ctx);
         return "";
     }
+
     ciphertext_len += len;
 
     // Cleanup
@@ -66,9 +75,11 @@ std::string aes_encrypt(const std::string &plaintext, const std::string &key) {
 }
 
 // Function to perform AES decryption
-std::string aes_decrypt(const std::string &ciphertextB64, const std::string &key) {
+std::string aes_decrypt(const std::string &ciphertextB64, const std::string &key)
+{
     const std::string ciphertext = base64_decode(ciphertextB64);
-    if (key.size() != 32) {
+    if (key.size() != 32)
+	{
         std::cerr << "Key length must be 32 bytes for AES256\n";
         return "";
     }
@@ -79,13 +90,15 @@ std::string aes_decrypt(const std::string &ciphertextB64, const std::string &key
 
     // Create and initialize the cipher context
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if (!ctx) {
+    if (!ctx)
+	{
         std::cerr << "Error creating context\n";
         return "";
     }
 
     // Initialize the decryption operation with AES CBC mode and PKCS7 padding
-    if (!EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, reinterpret_cast<const unsigned char *>(key.c_str()), iv)) {
+    if (!EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, reinterpret_cast<const unsigned char *>(key.c_str()), iv))
+	{
         std::cerr << "Error initializing decryption operation\n";
         EVP_CIPHER_CTX_free(ctx);
         return "";
@@ -100,6 +113,7 @@ std::string aes_decrypt(const std::string &ciphertextB64, const std::string &key
         EVP_CIPHER_CTX_free(ctx);
         return "";
     }
+
     plaintext_len = len;
 
     // Finalize the decryption
@@ -108,13 +122,14 @@ std::string aes_decrypt(const std::string &ciphertextB64, const std::string &key
         EVP_CIPHER_CTX_free(ctx);
         return "";
     }
+
     plaintext_len += len;
 
     // Cleanup
     EVP_CIPHER_CTX_free(ctx);
 
     // Return the decrypted plaintext
-    return std::string(reinterpret_cast<const char *>(plaintext), plaintext_len);
+    return { reinterpret_cast<const char *>(plaintext), static_cast<size_t>(plaintext_len) };
 }
 
 #endif // ENCRYPT_DECRYPT_H

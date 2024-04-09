@@ -9,22 +9,23 @@
 #include <boost/property_tree/json_parser.hpp>
 
 #include "EncryptDecrypt.h"
-
-namespace pt = boost::property_tree;    // from <boost/property_tree>
+#include "drive/log.h"
 
 // compute MD5 HMAC of given data using the provided key
-std::string getMD5HMAC(const std::string &data, const std::string &key) {
+std::string getMD5HMAC(const std::string &data, const std::string &key)
+{
     unsigned char hash[EVP_MAX_MD_SIZE];
     unsigned int hashLength;
 
     HMAC(EVP_md5(), key.c_str(), key.length(), (const unsigned char *)data.c_str(), data.length(), hash, &hashLength);
 
     char md5HMACString[EVP_MAX_MD_SIZE * 2 + 1];
-    for (unsigned int i = 0; i < hashLength; i++) {
+    for (unsigned int i = 0; i < hashLength; i++)
+	{
         sprintf(&md5HMACString[i * 2], "%02x", (unsigned int)hash[i]);
     }
 
-    return std::string(md5HMACString);
+    return {md5HMACString };
 }
 
 /*
@@ -36,13 +37,14 @@ std::string getMD5HMAC(const std::string &data, const std::string &key) {
     as a string to be sent to client
 */
 
-std::string encodeMessage(pt::ptree *data, const std::string &key) {
+std::string encodeMessage(std::shared_ptr<boost::property_tree::ptree> data, const std::string &key)
+{
     std::ostringstream oss;
     write_json(oss, *data, false);
 
     std::string encrypted = aes_encrypt(oss.str(), key);
 
-    pt::ptree msg;
+	boost::property_tree::ptree msg;
     msg.put("data", encrypted);
     msg.put("HMAC", getMD5HMAC(encrypted, key));
 
@@ -59,25 +61,31 @@ std::string encodeMessage(pt::ptree *data, const std::string &key) {
         HMAC: MD5 HMAC of the ENCRYPTED MESSAGE
     }
 */
-int decodeMessage(const std::string &bufferStr, pt::ptree *data, const std::string &key) {
-    try {
-        pt::ptree msg;
+int decodeMessage(const std::string &bufferStr, std::shared_ptr<boost::property_tree::ptree> data, const std::string &key)
+{
+    try
+	{
+        boost::property_tree::ptree msg;
         std::istringstream iss(bufferStr);
         read_json(iss, msg);
 
-        if (msg.get<std::string>("HMAC") == getMD5HMAC(msg.get<std::string>("data"), key)) {
+        if (msg.get<std::string>("HMAC") == getMD5HMAC(msg.get<std::string>("data"), key))
+		{
             std::istringstream iss(aes_decrypt(msg.get<std::string>("data"), key));
             read_json(iss, *data);
         }
 
-    } catch (const boost::property_tree::json_parser_error& e) {
-        std::cerr << "JSON parsing error: " << e.what() << std::endl;
+    } catch (const boost::property_tree::json_parser_error& e)
+	{
+		__LOG_WARN( "DecodeMessage: JSON parsing error: " << e.what() )
         return 0;
-    } catch (const std::exception& e) {
-        std::cerr << "An unexpected error occurred: " << e.what() << std::endl;
+    } catch (const std::exception& e)
+	{
+		__LOG_WARN( "DecodeMessage: An unexpected error occurred: " << e.what() )
         return 0;
-    } catch (...) {
-        std::cerr << "An unexpected and unknown error occurred." << std::endl;
+    } catch (...)
+	{
+		__LOG_WARN( "DecodeMessage: An unexpected and unknown error occurred." )
         return 0;
     }
 
