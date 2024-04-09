@@ -33,6 +33,7 @@ class RpcReplicator : public Replicator, public RpcServer
     const crypto::KeyPair&          m_keyPair;
     std::string                     m_address;
     std::string                     m_port;
+	std::string                     m_wsPort;
     std::string                     m_storageDirectory;
     const std::vector<ReplicatorInfo> m_bootstraps;
     ReplicatorEventHandler&         m_eventHandler;
@@ -49,6 +50,7 @@ public:
               const crypto::KeyPair& keyPair,
               std::string  address,
               std::string  port,
+			  std::string  wsPort,
               std::string  storageDirectory,
               const std::vector<ReplicatorInfo>&  bootstraps,
               bool           useTcpSocket, // use TCP socket (instead of uTP)
@@ -61,6 +63,7 @@ public:
                 m_keyPair(keyPair),
                 m_address(address),
                 m_port(port),
+				m_wsPort(wsPort),
                 m_storageDirectory(storageDirectory),
                 m_bootstraps(bootstraps),
                 m_eventHandler(eventHandler),
@@ -109,6 +112,7 @@ public:
 
     	archive( m_address );
     	archive( m_port );
+		archive( m_wsPort );
     	archive( m_storageDirectory );
     	archive( m_logOptions );
     	int bootstrapNumber = (int) m_bootstraps.size();
@@ -647,6 +651,7 @@ PLUGIN_API std::shared_ptr<Replicator> createRpcReplicator(
                                                const crypto::KeyPair&   keyPair,
                                                std::string              address,
                                                std::string              port,
+											   std::string              wsPort,
                                                std::string              storageDirectory,
                                                const std::vector<ReplicatorInfo>&  bootstraps,
                                                bool                     useTcpSocket, // use TCP socket (instead of uTP)
@@ -667,6 +672,7 @@ PLUGIN_API std::shared_ptr<Replicator> createRpcReplicator(
                         keyPair,
                         address,
                         port,
+						wsPort,
                         absoluteStorageDirectory,
                         bootstraps,
                         useTcpSocket,
