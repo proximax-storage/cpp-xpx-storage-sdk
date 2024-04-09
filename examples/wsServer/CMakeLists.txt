@@ -1,22 +1,16 @@
 cmake_minimum_required(VERSION 3.9)
-project(server)
+project(wsserverapp)
 
 set(CMAKE_CXX_STANDARD 20)
 
-include_directories(${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/src)
+file(GLOB SOURCES ../../src/wsserver/*.cpp)
 
-if(NOT WIN32)
-    add_subdirectory(wsserver)
-endif()
+include_directories(${PROJECT_SOURCE_DIR}/include)
 
+find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
+find_package(OpenSSL REQUIRED)
 
-add_executable(serverApp 
-    server.cpp 
-    wsserver/Base64.cpp
-    wsserver/Session.cpp 
-    wsserver/Listener.cpp 
-)
+add_executable(wsserverapp server.cpp ${SOURCES})
 
-target_include_directories(serverApp PRIVATE ${Boost_INCLUDE_DIRS} wsserver)
-target_link_libraries(serverApp PRIVATE ${Boost_LIBRARIES} pthread wsserver)
+target_link_libraries(wsserverapp PRIVATE ${Boost_LIBRARIES} wsserver Threads::Threads OpenSSL::SSL)

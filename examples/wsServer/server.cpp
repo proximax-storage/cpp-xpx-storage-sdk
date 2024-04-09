@@ -4,18 +4,10 @@
 
 int main(int argc, char* argv[])
 {
-    // Check command line arguments.
-    if (argc != 4)
-    {
-        std::cerr <<
-            "Usage: websocket-server-async <address> <port> <threads>\n" <<
-            "Example:\n" <<
-            "    websocket-server-async 0.0.0.0 8080 1\n";
-        return EXIT_FAILURE;
-    }
-    auto const address = net::ip::make_address(argv[1]);
-    auto const port = static_cast<unsigned short>(std::atoi(argv[2]));
-    auto const threads = std::max<int>(1, std::atoi(argv[3]));
+    auto const address = net::ip::make_address("0.0.0.0");
+    auto const port = 8081;
+    //auto const threads = std::max<int>(1, std::atoi(argv[3]));
+    auto const threads = 1;
 
     // The io_context is required for all I/O
     net::io_context ioc{threads};
