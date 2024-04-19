@@ -45,12 +45,11 @@ void Listener::doAccept()
 {
 	m_acceptor.async_accept(m_ioCtx,[pThis = shared_from_this()](auto ec, auto socket)
 	{
-		auto newSocket = std::make_unique<boost::asio::ip::tcp::socket>(std::move(socket));
-		pThis->onAccept(ec, std::move(newSocket));
+		pThis->onAccept(ec, std::move(socket));
 	});
 }
 
-void Listener::onAccept(boost::beast::error_code ec, std::unique_ptr<boost::asio::ip::tcp::socket> socket)
+void Listener::onAccept(boost::beast::error_code ec, boost::asio::ip::tcp::socket&& socket)
 {
     if(ec)
     {
@@ -61,7 +60,7 @@ void Listener::onAccept(boost::beast::error_code ec, std::unique_ptr<boost::asio
 		boost::asio::post(m_strand, [pThis = shared_from_this(), pSocket = std::move(socket)]() mutable
 		{
 			auto sessionId = pThis->m_uuidGenerator();
-			auto newSession = std::make_unique<Session>(sessionId, pThis->m_ioCtx, std::move(pSocket), pThis->m_endpoint.protocol());
+			auto newSession = std::make_shared<Session>(sessionId, pThis->m_keyPair, pThis->m_ioCtx, std::move(pSocket));
 			pThis->m_sessions.insert({sessionId, std::move(newSession) });
 			pThis->m_sessions[sessionId]->run();
 		});

@@ -2,7 +2,10 @@
 #include "wsserver/Task.h"
 #include "wsserver/Base64.h"
 #include "wsserver/Message.h"
+#include "crypto/Signer.h"
 #include "drive/log.h"
+#include "utils/HexParser.h"
+
 #include <iostream>
 #include <filesystem>
 
@@ -12,125 +15,158 @@
 #include <openssl/dh.h>
 #include <openssl/ossl_typ.h>
 
+#include <boost/archive/iterators/binary_from_base64.hpp>
+#include <boost/archive/iterators/transform_width.hpp>
+#include <boost/archive/iterators/remove_whitespace.hpp>
+
+
+// TODO: fix Man-in-the-middle attack (verify server key, authenticator app, etc)
+// TODO: add logic for receipts
+
 
 namespace sirius::wsserver
 {
 
 Session::Session(const boost::uuids::uuid& uuid,
+                 const sirius::crypto::KeyPair& keyPair,
 				 boost::asio::io_context& ioCtx,
-				 std::unique_ptr<boost::asio::ip::tcp::socket> socket,
-				 const boost::asio::ip::tcp::endpoint::protocol_type& protocolType)
+                 boost::asio::ip::tcp::socket&& socket)
 	: m_id(uuid)
-	, m_strand(ioCtx)
-	, m_socket(std::move(socket))
-	, m_ws(m_strand, protocolType, m_socket->native_handle())
+    , m_strand(ioCtx)
+	, m_ws(std::move(socket))
+	, m_keyPair(keyPair)
 {}
 
 void Session::run()
 {
-	boost::asio::dispatch(m_strand, [pThis = shared_from_this()]() { pThis->onRun(); });
-}
+	boost::asio::dispatch(m_strand, [pThis = shared_from_this()]()
+    {
+        pThis->m_ws.set_option(boost::beast::websocket::stream_base::timeout::suggested(boost::beast::role_type::server));
+        pThis->m_ws.set_option(boost::beast::websocket::stream_base::decorator([](boost::beast::websocket::response_type& res)
+        {
+            res.set(boost::beast::http::field::server, std::string(BOOST_BEAST_VERSION_STRING) + " websocket-server-async");
+        }));
 
-void Session::onRun()
-{
-	m_ws.set_option(boost::beast::websocket::stream_base::timeout::suggested(boost::beast::role_type::server));
-	m_ws.set_option(boost::beast::websocket::stream_base::decorator([](boost::beast::websocket::response_type& res)
-	{
-		res.set(boost::beast::http::field::server, std::string(BOOST_BEAST_VERSION_STRING) + " websocket-server-async");
-	}));
-
-	m_ws.async_accept(boost::beast::bind_front_handler(&Session::onAccept, shared_from_this()));
+        pThis->m_ws.async_accept([pThis](auto ec)
+        {
+            pThis->onAccept(ec);
+        });
+    });
 }
 
 void Session::onAccept(boost::beast::error_code ec)
 {
-	if (ec)
-	{
-		// TODO: remove session if error, callback
-		__LOG_WARN( "Session::onAccept: " << ec.message() )
-		return;
-	}
+    boost::asio::post(m_strand, [pThis = shared_from_this(), ec]()
+    {
+        if (ec)
+        {
+            // TODO: remove session if error, callback
+            __LOG_WARN( "Session::onAccept: " << ec.message() )
+            return;
+        }
 
-	__LOG( "Session::onAccept: " << to_string(m_id) )
-	m_ws.async_read(m_buffer, [this](boost::beast::error_code ec, std::size_t bytes_transferred)
-	{
-		boost::ignore_unused(bytes_transferred);
-		if (ec == boost::beast::websocket::error::closed)
-		{
-			// TODO: remove session if error, callback
-			__LOG( "Session::onAccept:closed: " << to_string(m_id) )
-			return;
-		}
+        __LOG( "Session::onAccept: Session id: " << to_string(pThis->m_id) )
+        pThis->m_ws.async_read(pThis->m_buffer, [pThis](boost::beast::error_code ec, std::size_t)
+        {
+            if (ec == boost::beast::websocket::error::closed)
+            {
+                // TODO: remove session if error, callback
+                __LOG( "Session::onAccept:closed: " << to_string(pThis->m_id) )
+                return;
+            }
 
-		if (ec)
-		{
-			__LOG( "Session::onAccept:async_read: " << to_string(m_id) << " message: " << ec.message() )
-			doClose();
-		}
-		else
-		{
-			const std::string message = boost::beast::buffers_to_string(m_buffer.data());
-			m_buffer.consume(m_buffer.size());
+            if (ec)
+            {
+                __LOG( "Session::onAccept:async_read: " << to_string(pThis->m_id) << " message: " << ec.message() )
+                pThis->doClose();
+            }
+            else
+            {
+                const std::string message = boost::beast::buffers_to_string(pThis->m_buffer.data());
+                pThis->m_buffer.consume(pThis->m_buffer.size());
 
-			try
-			{
-				std::istringstream json_input(message);
-				auto pTree = std::make_shared<boost::property_tree::ptree>();
-				boost::property_tree::read_json(json_input, *pTree);
+                try
+                {
+                    std::stringstream json_input(message);
+                    auto pTree = std::make_shared<boost::property_tree::ptree>();
+                    boost::property_tree::read_json(json_input, *pTree);
 
-				auto task = pTree->get_optional<int>("task");
-				if (task.has_value() && task.value() == Task::KEY_EX)
-				{
-					__LOG( "Session::onAccept:async_read::message: " << message )
-					keyExchange(pTree);
-				} else
-				{
-					doClose();
-				}
-			} catch (const boost::property_tree::json_parser_error& e)
-			{
-				__LOG_WARN( "Session::onAccept:async_read:: JSON parsing error: " << e.what() )
-				doClose();
-			} catch (const std::exception& e)
-			{
-				__LOG_WARN( "Session::onAccept:async_read:: An unexpected error occurred: " << e.what() )
-				doClose();
-			} catch (...)
-			{
-				__LOG_WARN( "Session::onAccept:async_read:: An unexpected and unknown error occurred." )
-				doClose();
-			}
-		}
-	});
+                    auto payload = pTree->get_optional<std::string>("payload");
+                    if (payload.has_value())
+                    {
+                        __LOG( "Session::onAccept:async_read::message: " << message )
+                        pThis->keyExchange(pTree);
+                    } else
+                    {
+                        pThis->doClose();
+                    }
+                } catch (const boost::property_tree::json_parser_error& e)
+                {
+                    __LOG_WARN( "Session::onAccept:async_read:: JSON parsing error: " << e.what() )
+                    pThis->doClose();
+                } catch (const std::exception& e)
+                {
+                    __LOG_WARN( "Session::onAccept:async_read:: An unexpected error occurred: " << e.what() )
+                    pThis->doClose();
+                } catch (...)
+                {
+                    __LOG_WARN( "Session::onAccept:async_read:: An unexpected and unknown error occurred." )
+                    pThis->doClose();
+                }
+            }
+        });
+    });
 }
 
 void Session::doRead()
 {
-	m_ws.async_read(m_buffer, boost::beast::bind_front_handler(&Session::onRead, shared_from_this()));
+    boost::asio::post(m_strand, [pThis = shared_from_this()]()
+    {
+        pThis->m_ws.async_read(pThis->m_buffer, [pThis](auto ec, auto bytesTransferred)
+        {
+            pThis->onRead(ec, bytesTransferred);
+        });
+    });
 }
 
-void Session::onRead(boost::beast::error_code ec, std::size_t bytes_transferred)
+void Session::onRead(boost::beast::error_code ec, std::size_t)
 {
-	boost::ignore_unused(bytes_transferred);
-	if (ec == boost::beast::websocket::error::closed)
+	if (ec == boost::beast::websocket::error::closed || ec == boost::asio::stream_errc::eof)
 	{
 		// TODO: remove session if error, callback
-		__LOG( "Session::onRead:closed: " << to_string(m_id) )
-		return;
+		__LOG( "Session::onRead: closed by client: " << to_string(m_id) )
+		return doClose();
 	}
+
+    if (ec == boost::asio::error::operation_aborted)
+    {
+        // TODO: remove session if error, callback
+        __LOG( "Session::onRead: operation_aborted: " << to_string(m_id)  << " message: " << ec.message() )
+        return;
+    }
 
 	if (ec)
 	{
 		// TODO: remove session if error, callback
 		__LOG_WARN( "Session::onRead::error: " << to_string(m_id) << " message: " << ec.message() )
-		doClose();
+		//doClose();
+        // TODO: is close or deep analyze errors ?!
+        return doRead();
 	}
 	else
 	{
 		auto pTree = std::make_shared<boost::property_tree::ptree>();
 		int isAuthentic = decodeMessage(boost::beast::buffers_to_string(m_buffer.data()), pTree, m_sharedKey);
 		m_buffer.consume(m_buffer.size());
-		isAuthentic ? handleJson(pTree) : doClose();
+        if (isAuthentic)
+        {
+            handleJson(pTree);
+            doRead();
+        }
+        else
+        {
+            return doClose();
+        }
 	}
 }
 
@@ -145,7 +181,13 @@ void Session::onWrite(boost::beast::error_code ec, std::size_t bytes_transferred
 
 void Session::doClose()
 {
-	m_ws.async_close(boost::beast::websocket::close_code::normal, boost::beast::bind_front_handler(&Session::onClose, shared_from_this()));
+    boost::asio::post(m_strand, [pThis = shared_from_this()]()
+    {
+        pThis->m_ws.async_close(boost::beast::websocket::close_code::normal, [pThis](auto ec)
+        {
+            pThis->onClose(ec);
+        });
+    });
 }
 
 void Session::onClose(boost::beast::error_code ec)
@@ -164,80 +206,109 @@ void Session::onClose(boost::beast::error_code ec)
 
 void Session::keyExchange(std::shared_ptr<boost::property_tree::ptree> json)
 {
-	OpenSSL_add_all_algorithms();
-	ERR_load_crypto_strings();
+    auto encodedPayload = json->get_optional<std::string>("payload");
+    if (!encodedPayload.has_value() || encodedPayload.value().empty())
+    {
+        // TODO: remove session
+        __LOG_WARN( "Session::keyExchange: " << to_string(m_id) << " message: missed payload" )
+        doClose();
+        return;
+    }
 
-	auto pDh = std::shared_ptr<DH>(DH_new(), [](DH* dh){ DH_free(dh); });
-	if (!pDh)
-	{
-		handleErrors();
-	}
+    auto encodedSignature = json->get_optional<std::string>("signature");
+    if (!encodedSignature.has_value() || encodedSignature.value().empty())
+    {
+        // TODO: remove session
+        __LOG_WARN( "Session::keyExchange: " << to_string(m_id) << " message: signature" )
+        doClose();
+        return;
+    }
 
-	auto bigNumDeleter = [](BIGNUM* pValue){ BN_free(pValue); };
+    auto decodedPayload = base64_decode(encodedPayload.value());
+    __LOG("decodedPayload: " << decodedPayload)
 
-	auto pRawPBN = BN_new();
-	BN_hex2bn(&pRawPBN, AES_P.c_str());
-	auto pPBN = std::shared_ptr<BIGNUM>(pRawPBN, bigNumDeleter);
+    std::stringstream payloadStream(decodedPayload);
+    auto payloadTree = std::make_shared<boost::property_tree::ptree>();
+    boost::property_tree::read_json(payloadStream, *payloadTree);
 
-	auto pRawGBN = BN_new();
-	BN_hex2bn(&pRawGBN, AES_G.c_str());
-	auto pGBN = std::shared_ptr<BIGNUM>(pRawGBN, bigNumDeleter);
+    auto task = payloadTree->get_optional<int>("task");
+    if (!task.has_value() || task.value() != Task::KEY_EX)
+    {
+        // TODO: remove session
+        __LOG_WARN( "Session::keyExchange: " << to_string(m_id) << " message: invalid task id" )
+        doClose();
+        return;
+    }
 
-	DH_set0_pqg(pDh.get(), pPBN.get(), nullptr, pGBN.get());
-	// Generate public and private keys for Server
-	if (DH_generate_key(pDh.get()) != 1)
-	{
-		handleErrors();
-	}
+    auto clientPublicKey = payloadTree->get_optional<std::string>("publicKey");
+    if (!clientPublicKey.has_value() || clientPublicKey.value().empty())
+    {
+        // TODO: remove session
+        __LOG_WARN( "Session::keyExchange: " << to_string(m_id) << " message: missed client public key" )
+        doClose();
+        return;
+    }
 
-	// Serialize public key of Server to send to Bob
-	const auto* pRawServerPublicKey = BN_new();
-	DH_get0_key(pDh.get(), &pRawServerPublicKey, nullptr);
-	auto pServerPublicKey = std::shared_ptr<BIGNUM>(const_cast<BIGNUM*>(pRawServerPublicKey), bigNumDeleter);
-	auto serializedSeverPublicKey = BN_bn2hex(pServerPublicKey.get());
+    m_clientPublicKey = clientPublicKey.value();
+    auto decodedSignature = base64_decode(encodedSignature.value());
 
-	// Send serializedSeverPublicKey to connected Client
-	boost::property_tree::ptree key;
-	key.put("task", Task::KEY_EX);
-	key.put("publicKey", serializedSeverPublicKey);
+    std::array<uint8_t, 64> rawSignature{};
+    for (int i = 0; i < 64; i++)
+    {
+        rawSignature[i] = static_cast<uint8_t>(decodedSignature[i]);
+    }
 
-	std::ostringstream keyStream;
-	write_json(keyStream, key, false);
+    sirius::Signature finalSignature(rawSignature);
+    bool isVerified = verify( m_clientPublicKey, encodedPayload.value(), finalSignature );
+    if (!isVerified)
+    {
+        // TODO: remove session
+        __LOG_WARN( "Session::keyExchange: " << to_string(m_id) << " message: verification data error" )
+        doClose();
+        return;
+    }
 
-	// TODO: Use async call
-	m_ws.write(boost::asio::buffer(keyStream.str()));
+    auto keyExchangeTree = std::make_shared<boost::property_tree::ptree>();
+    keyExchangeTree->put("task", Task::KEY_EX);
+    keyExchangeTree->put("sessionId",  to_string(m_id));
 
-	auto pRawDeserializedClientPublicKey = BN_new();
-	auto clientPublicKeyStr = json->get<std::string>("publicKey");
-	BN_hex2bn(&pRawDeserializedClientPublicKey, clientPublicKeyStr.c_str());
-	auto pDeserializedClientPublicKey = std::shared_ptr<BIGNUM>(pRawDeserializedClientPublicKey, bigNumDeleter);
+    std::stringstream serverPublicKey;
+    serverPublicKey << sirius::utils::HexFormat(m_keyPair.publicKey().array());
+    keyExchangeTree->put("publicKey",  serverPublicKey.str());
 
-	// Allocate memory for sharedSecret
-	auto opensslDeleter = [](void* pValue) { OPENSSL_free(pValue); };
-	std::shared_ptr<unsigned char> pSharedSecret((unsigned char*)OPENSSL_malloc(DH_size(pDh.get())), opensslDeleter);
+    std::stringstream keyExchangeMessage;
+    boost::property_tree::write_json(keyExchangeMessage, *keyExchangeTree);
 
-	if (DH_compute_key(pSharedSecret.get(), pDeserializedClientPublicKey.get(), pDh.get()) == -1)
-	{
-		handleErrors();
-	}
+    const auto encodedKeyExchangeMessage = base64_encode(keyExchangeMessage.view());
+    sirius::Signature keyExchangeSignature;
+    sign(m_keyPair, encodedKeyExchangeMessage, keyExchangeSignature);
+    const auto encodedKeyExchangeSignature = base64_encode(keyExchangeSignature.data(), keyExchangeSignature.size());
 
-	std::string derivedKey;
-	for (int i = 0; i < DH_size(pDh.get()); ++i)
-	{
-		std::stringstream ss;
-		ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(pSharedSecret.get()[i]);
-		derivedKey += ss.str();
-	}
+    auto encodedMessage = std::make_shared<boost::property_tree::ptree>();
+    encodedMessage->put("payload", encodedKeyExchangeMessage);
+    encodedMessage->put("signature", encodedKeyExchangeSignature);
 
-	m_sharedKey = derivedKey.substr(0, 32);
-	ERR_free_strings();
-	doRead();
+    boost::asio::post(m_strand, [pThis = shared_from_this(), encodedMessage]()
+    {
+        pThis->m_ws.async_write(boost::asio::buffer(jsonToString(encodedMessage)), [pThis](auto ec, auto bytesTransferred)
+        {
+            pThis->onWrite(ec, bytesTransferred);
+        });
+    });
+
+    doRead();
 }
 
 void Session::sendMessage(std::shared_ptr<boost::property_tree::ptree> json)
 {
-	const auto buffer = boost::asio::buffer(encodeMessage(json, m_sharedKey));
-	m_ws.async_write(buffer, boost::beast::bind_front_handler(&Session::onWrite, shared_from_this()));
+    boost::asio::post(m_strand, [pThis = shared_from_this(), json]()
+    {
+        const auto buffer = boost::asio::buffer(encodeMessage(json, pThis->m_sharedKey));
+        pThis->m_ws.async_write(buffer, [pThis](auto ec, auto bytesTransferred)
+        {
+            pThis->onWrite(ec, bytesTransferred);
+        });
+    });
 }
 
 void Session::recvData(std::shared_ptr<boost::property_tree::ptree> json)
@@ -274,7 +345,7 @@ void Session::recvData(std::shared_ptr<boost::property_tree::ptree> json)
 	m_recvNumOfDataPieces[uid] = json->get<int>("numOfDataPieces");
 	m_recvDataCounter[uid] = 0;
 
-	doRead();
+	//doRead();
 }
 
 void Session::recvDataChunk(std::shared_ptr<boost::property_tree::ptree> json)
@@ -289,15 +360,13 @@ void Session::recvDataChunk(std::shared_ptr<boost::property_tree::ptree> json)
 	// Check if any error occurred during the appending process
 	if (file.fail())
 	{
-		std::cerr << "Error appending data to file: " << json->get<std::string>("fileName") << std::endl;
+        __LOG_WARN( " Session::recvDataChunk: Error appending data to file: " << json->get<std::string>("fileName") )
 		json->put("task", Task::UPLOAD_FAILURE);
-		m_ws.async_write(boost::asio::buffer(encodeMessage(json, m_sharedKey)), [this](boost::beast::error_code ec, std::size_t bytes_transferred) { doRead(); });
-		return;
-		file.close(); // Close the file before exiting
-		return;
-	}
+        sendMessage(json);
+        //doRead();
 
-	file.close();
+        return;
+	}
 
 	if (m_recvDataCounter[uid] + 1 == m_recvNumOfDataPieces[uid])
 	{
@@ -332,7 +401,7 @@ void Session::recvDataChunk(std::shared_ptr<boost::property_tree::ptree> json)
 		m_recvDataCounter[uid]++;
 	}
 
-	doRead();
+	//doRead();
 }
 
 void Session::sendData(std::shared_ptr<boost::property_tree::ptree> json)
@@ -341,100 +410,98 @@ void Session::sendData(std::shared_ptr<boost::property_tree::ptree> json)
 	std::string filePath = "get-data/" + json->get<std::string>("drive") + json->get<std::string>("directory") + fileName;
 	auto uid = json->get<std::string>("uid");
 
-	if (!(std::filesystem::exists(filePath))) 
+	if (!(std::filesystem::exists(filePath)))
 	{
-		std::cout << filePath << " does not exist" << std::endl;
-		json->put("task", Task::DOWNLOAD_FAILURE);
-		m_ws.async_write(
-				boost::asio::buffer(encodeMessage(json, m_sharedKey)),
-				[this](boost::beast::error_code ec, std::size_t bytes_transferred) { doRead(); });
-		return;
+        __LOG_WARN( "Session::sendData:: file does not exist: " << filePath )
+
+        sendMessage(json);
+        //doRead();
+        return;
 	}
 
-	m_sendNumOfDataPieces[uid] = std::filesystem::file_size(filePath) / m_sendDataPieceSize;
-	if (std::filesystem::file_size(filePath) % m_sendDataPieceSize != 0) 
-	{
-		m_sendNumOfDataPieces[uid]++;
-	}
+    boost::asio::post(m_strand, [pThis = shared_from_this(), json, uid, filePath, fileName]()
+    {
+        pThis->m_sendNumOfDataPieces[uid] = std::filesystem::file_size(filePath) / pThis->m_sendDataPieceSize;
+        if (std::filesystem::file_size(filePath) % pThis->m_sendDataPieceSize != 0)
+        {
+            pThis->m_sendNumOfDataPieces[uid]++;
+        }
 
-	json->put("task", Task::DOWNLOAD_INFO);
-	json->put("dataSize", std::filesystem::file_size(filePath));
-	json->put("dataPieceSize", m_sendDataPieceSize);
-	json->put("numOfDataPieces", m_sendNumOfDataPieces[uid]);
-	json->put("uid", uid);
+        json->put("task", Task::DOWNLOAD_INFO);
+        json->put("dataSize", std::filesystem::file_size(filePath));
+        json->put("dataPieceSize", pThis->m_sendDataPieceSize);
+        json->put("numOfDataPieces", pThis->m_sendNumOfDataPieces[uid]);
+        json->put("uid", uid);
 
-	m_sendDataCounter[uid] = 0;
+        pThis->m_sendDataCounter[uid] = 0;
+        const auto buffer = boost::asio::buffer(encodeMessage(json, pThis->m_sharedKey));
+        pThis->m_ws.async_write(buffer,[pThis, uid, filePath, fileName](auto ec, auto bytes_transferred)
+        {
+            if (!ec)
+            {
+                std::vector<char> fileBuffer(pThis->m_sendDataPieceSize, 0);
+                std::ifstream file;
+                file.open(filePath, std::ios::binary);
+                if (!file.is_open())
+                {
+                    std::cerr << "[Download info] Failed to open file: " << filePath << std::endl;
+                    return;
+                }
 
-	m_ws.async_write(
-			boost::asio::buffer(encodeMessage(json, m_sharedKey)),
-			[this, uid, filePath, fileName](boost::beast::error_code ec, std::size_t bytes_transferred)
-			{
-				std::cout << "Download info sent: " << filePath << std::endl;
-				if (!ec)
-				{
-					std::vector<char> fileBuffer(m_sendDataPieceSize, 0);
-					std::ifstream file;
-					file.open(filePath, std::ios::binary);
-					if (!file.is_open())
-					{
-						std::cerr << "[Download info] Failed to open file: " << filePath << std::endl;
-						return;
-					}
+                if (std::filesystem::exists("out_" + uid + fileName))
+                {
+                    // Delete the file
+                    if (std::filesystem::remove("out_" + uid + fileName))
+                    {
+                        std::cout << "File deleted successfully." << std::endl;
+                    }
+                }
 
-					if (std::filesystem::exists("out_" + uid + fileName))
-					{
-						// Delete the file
-						if (std::filesystem::remove("out_" + uid + fileName))
-						{
-							std::cout << "File deleted successfully." << std::endl;
-						}
-					}
+                while (!file.eof())
+                {
+                    file.read(fileBuffer.data(), fileBuffer.size());
+                    std::streamsize bytesRead = file.gcount();
 
-					while (!file.eof())
-					{
-						file.read(fileBuffer.data(), fileBuffer.size());
-						std::streamsize bytesRead = file.gcount();
+                    std::ofstream outputFile("out_" + uid + fileName, std::ios::binary);
+                    outputFile.write(fileBuffer.data(), bytesRead);
+                    outputFile.close();
 
-						std::ofstream outputFile("out_" + uid + fileName, std::ios::binary);
-						outputFile.write(fileBuffer.data(), bytesRead);
-						outputFile.close();
+                    std::ifstream outputFile2("out_" + uid + fileName, std::ios::binary);
+                    std::ostringstream ss;
+                    ss << outputFile2.rdbuf();
+                    outputFile2.close();
+                    std::string bin_data = base64_encode(ss.str());
 
-						std::ifstream outputFile2("out_" + uid + fileName, std::ios::binary);
-						std::ostringstream ss;
-						ss << outputFile2.rdbuf();
-						outputFile2.close();
-						std::string bin_data = base64_encode(ss.str());
+                    auto pData = std::make_shared<boost::property_tree::ptree>();
+                    pData->put("task", Task::DOWNLOAD_DATA);
+                    pData->put("data", bin_data);
+                    pData->put("dataPieceNum", pThis->m_sendDataCounter[uid]);
+                    pData->put("uid", uid);
 
-						auto pData = std::make_shared<boost::property_tree::ptree>();
-						pData->put("task", Task::DOWNLOAD_DATA);
-						pData->put("data", bin_data);
-						pData->put("dataPieceNum", m_sendDataCounter[uid]);
-						pData->put("uid", uid);
+                    pThis->sendMessage(pData);
+                    pThis->m_sendDataCounter[uid]++;
+                    fileBuffer.assign(pThis->m_sendDataPieceSize, 0);
+                }
 
-						// TODO: Use async call
-						m_ws.write(boost::asio::buffer(encodeMessage(pData, m_sharedKey)));
+                try
+                {
+                    // TODO: use error code instead of exceptions
+                    std::filesystem::remove("out_" + uid + fileName);
+                } catch (const std::filesystem::filesystem_error& e)
+                {
+                    __LOG_WARN( "Session::sendData::Error deleting file:" << e.what() )
+                }
 
-						m_sendDataCounter[uid]++;
-						fileBuffer.assign(m_sendDataPieceSize, 0);
-					}
-
-					try
-					{
-						std::filesystem::remove("out_" + uid + fileName);
-					} catch (const std::filesystem::filesystem_error& e)
-					{
-						std::cerr << "Error deleting file: " << e.what() << std::endl;
-					}
-
-					doRead();
-				}
-				else
-				{
-					// Handle errors or connection closure
-					std::cerr << "Error in sending data: " << ec.message() << std::endl;
-					doClose();
-				}
-			});
+                //pThis->doRead();
+            }
+            else
+            {
+                // Handle errors or connection closure
+                __LOG_WARN( "Session::sendData::Error in sending data:" << ec.message() )
+                pThis->doClose();
+            }
+        });
+    });
 }
 
 void Session::sendDataAck(std::shared_ptr<boost::property_tree::ptree> json)
@@ -481,9 +548,8 @@ void Session::deleteData(std::shared_ptr<boost::property_tree::ptree> json)
 		json->put("task", Task::DELETE_DATA_FAILURE);
 	}
 
-	m_ws.async_write(
-			boost::asio::buffer(encodeMessage(json, m_sharedKey)),
-			[this](boost::beast::error_code ec, std::size_t bytes_transferred) { doRead(); });
+    sendMessage(json);
+    //doRead();
 };
 
 void Session::broadcastToAll(std::shared_ptr<boost::property_tree::ptree> json)
@@ -531,7 +597,7 @@ void Session::handleJson(std::shared_ptr<boost::property_tree::ptree> json)
 		case DOWNLOAD_ACK:
 		{
 			sendDataAck(json);
-			doRead();
+			//doRead();
 			break;
 		}
 		case UPLOAD_START:
@@ -559,24 +625,27 @@ void Session::handleJson(std::shared_ptr<boost::property_tree::ptree> json)
 		{
 			json->put("task", MESSAGE_ACK);
 			sendMessage(json);
-			doRead();
+			//doRead();
 			break;
 		}
 		case CLOSE:
 		{
-			auto closeMessage = std::make_shared<boost::property_tree::ptree>();
-			closeMessage->put("task", CLOSE_ACK);
+            boost::asio::post(m_strand, [pThis = shared_from_this()]()
+            {
+                auto closeMessage = std::make_shared<boost::property_tree::ptree>();
+                closeMessage->put("task", CLOSE_ACK);
 
-			const auto buffer = boost::asio::buffer(encodeMessage(closeMessage, m_sharedKey));
-			m_ws.async_write(buffer, [pThis = shared_from_this()](boost::beast::error_code ec, auto)
-			{
-				pThis->m_buffer.consume(pThis->m_buffer.size());
-				pThis->doClose();
-				if (ec)
-				{
-					__LOG_WARN( "Session::handleErrors: " << ec.message() )
-				}
-			});
+                const auto buffer = boost::asio::buffer(encodeMessage(closeMessage, pThis->m_sharedKey));
+                pThis->m_ws.async_write(buffer, [pThis](boost::beast::error_code ec, auto)
+                {
+                    pThis->m_buffer.consume(pThis->m_buffer.size());
+                    pThis->doClose();
+                    if (ec)
+                    {
+                        __LOG_WARN( "Session::handleErrors: " << ec.message() )
+                    }
+                });
+            });
 
 			break;
 		}

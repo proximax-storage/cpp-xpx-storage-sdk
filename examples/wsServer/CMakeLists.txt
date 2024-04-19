@@ -13,4 +13,4 @@ find_package(OpenSSL REQUIRED)
 
 add_executable(wsserverapp server.cpp ${SOURCES})
 
-target_link_libraries(wsserverapp PRIVATE ${Boost_LIBRARIES} wsserver Threads::Threads OpenSSL::SSL)
+target_link_libraries(wsserverapp PRIVATE ${Boost_LIBRARIES} wsserver Threads::Threads OpenSSL::SSL storage-crypto)

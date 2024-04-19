@@ -1,30 +1,37 @@
 #include "wsserver/Listener.h"
 
-#include <iostream>
 
 int main(int argc, char* argv[])
 {
-    auto const address = net::ip::make_address("0.0.0.0");
+    auto const address = boost::asio::ip::make_address("0.0.0.0");
     auto const port = 8081;
-    //auto const threads = std::max<int>(1, std::atoi(argv[3]));
-    auto const threads = 1;
 
-    // The io_context is required for all I/O
-    net::io_context ioc{threads};
+    auto privateKey = sirius::crypto::PrivateKey::FromString("D6430327F90FAAD41F4BC69E51EB6C9D4C78B618D0A4B616478BD05E7A480950");
+    auto keyPair = sirius::crypto::KeyPair::FromPrivate(std::move(privateKey));
 
-    // Create and launch a listening port
-    std::make_shared<sirius::wsserver::Listener>(ioc, tcp::endpoint{address, port})->run();
+    boost::asio::io_context ioc;
+    auto server = std::make_shared<sirius::wsserver::Listener>(ioc, keyPair);
+    server->init(boost::asio::ip::tcp::endpoint{address, port});
+    server->run();
 
-    // Run the I/O service on the requested number of threads
-    std::vector<std::thread> v;
-    v.reserve(threads - 1);
-    for(auto i = threads - 1; i > 0; --i)
-        v.emplace_back(
-        [&ioc]
+    unsigned int threadCount = std::thread::hardware_concurrency();
+    std::vector<std::thread> threads;
+    threads.reserve(threadCount);
+    for(unsigned int i = 0; i < threadCount; i++ )
+    {
+        threads.emplace_back([&ioc]()
         {
             ioc.run();
         });
-    ioc.run();
+    }
+
+    for (auto& thread : threads)
+    {
+        if (thread.joinable())
+        {
+            thread.join();
+        }
+    }
 
     return EXIT_SUCCESS;
 }

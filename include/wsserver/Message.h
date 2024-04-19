@@ -10,6 +10,15 @@
 
 #include "EncryptDecrypt.h"
 #include "drive/log.h"
+#include "crypto/Signer.h"
+#include "utils/HexParser.h"
+
+std::string jsonToString(std::shared_ptr<boost::property_tree::ptree> data)
+{
+    std::stringstream stream;
+    write_json(stream, *data);
+    return stream.str();
+}
 
 // compute MD5 HMAC of given data using the provided key
 std::string getMD5HMAC(const std::string &data, const std::string &key)
@@ -39,19 +48,13 @@ std::string getMD5HMAC(const std::string &data, const std::string &key)
 
 std::string encodeMessage(std::shared_ptr<boost::property_tree::ptree> data, const std::string &key)
 {
-    std::ostringstream oss;
-    write_json(oss, *data, false);
+    const std::string encrypted = aes_encrypt(jsonToString(data), key);
 
-    std::string encrypted = aes_encrypt(oss.str(), key);
+    auto message = std::make_shared<boost::property_tree::ptree>();
+    message->put("data", encrypted);
+    message->put("hmac", getMD5HMAC(encrypted, key));
 
-	boost::property_tree::ptree msg;
-    msg.put("data", encrypted);
-    msg.put("HMAC", getMD5HMAC(encrypted, key));
-
-    std::ostringstream oss2;
-    write_json(oss2, msg, false);
-
-    return oss2.str();
+    return jsonToString(message);
 }
 
 /*
@@ -66,13 +69,13 @@ int decodeMessage(const std::string &bufferStr, std::shared_ptr<boost::property_
     try
 	{
         boost::property_tree::ptree msg;
-        std::istringstream iss(bufferStr);
+        std::stringstream iss(bufferStr);
         read_json(iss, msg);
 
-        if (msg.get<std::string>("HMAC") == getMD5HMAC(msg.get<std::string>("data"), key))
+        if (msg.get<std::string>("hmac") == getMD5HMAC(msg.get<std::string>("data"), key))
 		{
-            std::istringstream iss(aes_decrypt(msg.get<std::string>("data"), key));
-            read_json(iss, *data);
+            std::stringstream decryptedData(aes_decrypt(msg.get<std::string>("data"), key));
+            read_json(decryptedData, *data);
         }
 
     } catch (const boost::property_tree::json_parser_error& e)
@@ -90,6 +93,28 @@ int decodeMessage(const std::string &bufferStr, std::shared_ptr<boost::property_
     }
 
     return 1;
+}
+
+void sign(const sirius::crypto::KeyPair& keyPair, const std::string& buffer, sirius::Signature& signature)
+{
+    std::vector<uint8_t> rawBuffer(buffer.begin(), buffer.end());
+    //sirius::utils::ParseHexStringIntoContainer(buffer.c_str(), 64, rawBuffer);
+    sirius::crypto::Sign(keyPair, { sirius::utils::RawBuffer{ rawBuffer } }, signature);
+}
+
+bool verify(const std::string& publicKey, const std::string& buffer, const sirius::Signature& signature)
+{
+    sirius::Key key;
+    sirius::utils::ParseHexStringIntoContainer(publicKey.c_str(), publicKey.size(), key);
+
+    std::vector<uint8_t> rawBuffer(buffer.begin(), buffer.end());
+//    for (int i = 0; i < 64; i++)
+//    {
+//        rawSignature[i] = static_cast<uint8_t>(clientSignatureRaw[i]);
+//    }
+    //sirius::utils::ParseHexStringIntoContainer(buffer.c_str(), 64, rawBuffer);
+
+    return sirius::crypto::Verify(key, { sirius::utils::RawBuffer{ rawBuffer } }, signature );
 }
 
 #endif // MESSAGE_H
