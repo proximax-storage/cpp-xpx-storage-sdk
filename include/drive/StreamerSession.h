@@ -95,7 +95,11 @@ public:
         m_tickTimer.expires_after( std::chrono::milliseconds( 1000 ) );
         m_tickTimer.async_wait( [this] ( boost::system::error_code const& e )
         {
-            if ( ! e )
+            if ( e )
+            {
+                _LOG("Timer error:" << e.message() );
+            }
+            else
             {
                 onTick();
                 planNextTick();
@@ -191,6 +195,8 @@ public:
 
         m_startTimeSecods      = startTimeSecods;
         m_endTimeSecods        = endTimeSecods;
+        
+        // ... see doFinishStream()
     }
     
     void doFinishStream( std::function<void(const sirius::Key& driveKey, const sirius::drive::InfoHash& streamId, const sirius::drive::InfoHash& actionListHash, uint64_t streamBytes)> backCall )
@@ -243,41 +249,24 @@ public:
             _LOG( "streamSize: " << streamSize );
         }
 
+        std::error_code ec;
+
         //
         // Create playlist (obs-stream.m3u8)
         //
         fs::path playlistFile = createPlaylist( finishStreamInfo, m_chunkFolder );
+        {
+            InfoHash playlistInfoHash = createTorrentFile( playlistFile.make_preferred(), m_driveKey, playlistFile.parent_path().make_preferred(), {} );
+            _LOG( "playlistInfoHash: " << toString(playlistInfoHash) )
+            
+            fs::path torrentFilePath = (m_torrentFolder / toString(playlistInfoHash));
+            InfoHash playlistInfoHash0 = createTorrentFile( playlistFile.make_preferred(),
+                                                           m_driveKey,
+                                                           playlistFile.parent_path().make_preferred(),
+                                                           torrentFilePath );
+            SIRIUS_ASSERT( playlistInfoHash0 == playlistInfoHash )
+        }
         
-        InfoHash playlistInfoHash = createTorrentFile( playlistFile.make_preferred(), m_driveKey, playlistFile.parent_path().make_preferred(), {} );
-        _LOG( "playlistInfoHash: " << toString(playlistInfoHash) )
-        std::error_code ec;
-        
-//        fs::remove( playlistFile, ec );
-//        if ( ec )
-//        {
-//            _LOG_WARN( "Cannot remove playlist: " << playlistFile );
-//            _LOG_WARN( "Cannot remove playlist: " << ec.message() );
-//            return;
-//        }
-
-        fs::path torrentFilePath = (m_torrentFolder / toString(playlistInfoHash));
-        InfoHash playlistInfoHash0 = createTorrentFile( playlistFile.make_preferred(),
-                                                      m_driveKey,
-                                                      playlistFile.parent_path().make_preferred(),
-                                                      torrentFilePath );
-        SIRIUS_ASSERT( playlistInfoHash0 == playlistInfoHash )
-        
-//        uint64_t  playlistFileSize;
-//        lt_handle torrentHandle = m_session->addTorrentFileToSession( torrentFilePath.make_preferred(),
-//                                                                      playlistFile.parent_path().make_preferred(),
-//                                                                      lt::SiriusFlags::client_has_modify_data,
-//                                                                      &playlistInfoHash.array(),
-//                                                                      nullptr,
-//                                                                      &m_driveKey.array(),
-//                                                                      m_finishEndpointList,
-//                                                                      &playlistFileSize );
-//        m_modifyTorrentMap[playlistInfoHash] = {torrentHandle,false};
-
         //
         // Create actionList
         //
@@ -286,10 +275,6 @@ public:
         // add playlist
         actionList.push_back( Action::upload( playlistFile,
                                              ( fs::path("video") / m_streamFolderName / "HLS" / PLAYLIST_FILE_NAME ).string() ));
-//        actionList.push_back( Action::upload( hashToFileName(playlistInfoHash),
-//                                             ( fs::path("video") / m_streamFolderName / "HLS" / PLAYLIST_FILE_NAME ).string() ));
-//        actionList.back().m_ltHandle = torrentHandle;
-//        actionList.back().m_filename = playlistFile.filename().string();
 
         // add chunks
         for( auto& info : finishStreamInfo )
@@ -313,6 +298,7 @@ public:
         actionList.dbgPrint();
         
         InfoHash actionListHash = addActionListToSession( actionList, m_driveKey, m_finishReplicatorKeys, m_finishSandboxFolder, outTotalModifySize, m_finishEndpointList,ec );
+        _LOG( "actionListHash: " << toString(actionListHash) );
 
         m_finishBackCall( m_driveKey, *m_streamId, actionListHash, outTotalModifySize );
     }

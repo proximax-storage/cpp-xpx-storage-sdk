@@ -425,13 +425,16 @@ public:
                 std::array<uint8_t,32> driveKey;
                 iarchive( driveKey );
 
+                std::array<uint8_t,32> streamerKey;
+                iarchive( streamerKey );
+
                 bool isStreaming;
                 iarchive( isStreaming );
 
                 std::array<uint8_t,32> streamId;
                 iarchive( streamId );
                 
-                (*m_streamStatusResponseHandler) ( driveKey, isStreaming, streamId );
+                (*m_streamStatusResponseHandler) ( driveKey, streamerKey, isStreaming, streamId );
             }
         }
         catch( std::exception& ex )

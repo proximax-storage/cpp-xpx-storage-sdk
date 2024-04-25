@@ -1187,6 +1187,7 @@ public:
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
         archive( m_driveKey );
+        archive( m_driveOwner );
         archive( m_task ? true : false );
         if ( m_task )
         {

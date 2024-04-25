@@ -33,6 +33,7 @@ struct HttpServerParams
 };
 
 using StreamStatusResponseHandler = std::function<void( const DriveKey&                 driveKey,
+                                                        const Key&                      streamerKey,
                                                         bool                            isStreaming,
                                                         const std::array<uint8_t,32>&   streamId )>;
 
