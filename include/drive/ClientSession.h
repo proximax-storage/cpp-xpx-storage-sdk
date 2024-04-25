@@ -1169,6 +1169,7 @@ private:
                                                                            bool,
                                                                            const char* );
 
+public:
     auto session() { return m_session; }
 };
 

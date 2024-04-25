@@ -202,7 +202,7 @@ public:
     , m_alertHandler(alertHandler)
     , m_downloadLimiter(downloadLimiter)
     {
-        gSkipDhtPktLogs = true;
+        //gSkipDhtPktLogs = true;
         
         boost::asio::post( m_session.get_context(), [&keyPair,bootstraps,dhtMessageHandler, this]() mutable
         {
