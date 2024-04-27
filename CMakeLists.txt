@@ -22,6 +22,10 @@ if (NOT DEFINED CPP_XPX_CHAIN)
     set(SKIP_GRPC ON)
 endif()
 
+if (DEFINED SKIP_SUPERCONTRACT)
+    set(SKIP_GRPC ON)
+endif()
+
 if (DEFINED SKIP_GRPC)
     add_compile_definitions(SKIP_GRPC)
 
