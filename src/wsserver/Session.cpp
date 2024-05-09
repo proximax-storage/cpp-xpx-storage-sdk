@@ -12,11 +12,11 @@
 #include <openssl/rand.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
-#include <openssl/dh.h>
 #include <openssl/ossl_typ.h>
+#include <openssl/ssl.h>
+#include <openssl/ec.h>
+#include <openssl/pem.h>
 
-#include <boost/archive/iterators/binary_from_base64.hpp>
-#include <boost/archive/iterators/transform_width.hpp>
 #include <boost/archive/iterators/remove_whitespace.hpp>
 
 
@@ -32,9 +32,9 @@ Session::Session(const boost::uuids::uuid& uuid,
 				 boost::asio::io_context& ioCtx,
                  boost::asio::ip::tcp::socket&& socket)
 	: m_id(uuid)
-    , m_strand(ioCtx)
+	, m_strand(ioCtx)
 	, m_ws(std::move(socket))
-	, m_keyPair(keyPair)
+    , m_keyPair(keyPair)
 {}
 
 void Session::run()
@@ -240,7 +240,7 @@ void Session::keyExchange(std::shared_ptr<boost::property_tree::ptree> json)
         return;
     }
 
-    auto clientPublicKey = payloadTree->get_optional<std::string>("publicKey");
+    auto clientPublicKey = payloadTree->get_optional<std::string>("clientPublicKey");
     if (!clientPublicKey.has_value() || clientPublicKey.value().empty())
     {
         // TODO: remove session
@@ -268,13 +268,26 @@ void Session::keyExchange(std::shared_ptr<boost::property_tree::ptree> json)
         return;
     }
 
+    auto clientSessionPublicKey = payloadTree->get_optional<std::string>("sessionPublicKey");
+    if (!clientSessionPublicKey.has_value() || clientSessionPublicKey.value().empty())
+    {
+        // TODO: remove session
+        __LOG_WARN( "Session::keyExchange: " << to_string(m_id) << " message: invalid client session public key" )
+        doClose();
+        return;
+    }
+
+    std::string serverSessionPublicKey;
+    generateSessionKeyPair(clientSessionPublicKey.value(), serverSessionPublicKey);
+
     auto keyExchangeTree = std::make_shared<boost::property_tree::ptree>();
     keyExchangeTree->put("task", Task::KEY_EX);
     keyExchangeTree->put("sessionId",  to_string(m_id));
 
     std::stringstream serverPublicKey;
     serverPublicKey << sirius::utils::HexFormat(m_keyPair.publicKey().array());
-    keyExchangeTree->put("publicKey",  serverPublicKey.str());
+    keyExchangeTree->put("serverPublicKey",  serverPublicKey.str());
+    keyExchangeTree->put("serverSessionPublicKey",  serverSessionPublicKey);
 
     std::stringstream keyExchangeMessage;
     boost::property_tree::write_json(keyExchangeMessage, *keyExchangeTree);
@@ -667,6 +680,79 @@ void Session::handleErrors()
 	__LOG_WARN( "Session::handleErrors: Error occurred" )
 	ERR_print_errors_fp(stderr);
 	exit(EXIT_FAILURE);
+}
+
+void Session::generateSessionKeyPair(const std::string& inSessionPublicKey, std::string& outSessionPublicKey)
+{
+    __LOG("Session::generateSessionKeyPair:: client session public key: " << inSessionPublicKey)
+
+    ERR_put_error(ERR_LIB_SSL, 0, SSL_R_SSL_HANDSHAKE_FAILURE, __FILE__, __LINE__);
+    EC_KEY* serverSessionKeys = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
+    if (EC_KEY_generate_key(serverSessionKeys) != 1)
+    {
+        // TODO: remove session
+        BIO* bioErrors = BIO_new(BIO_s_mem());
+        ERR_print_errors(bioErrors);
+        char* errors;
+        long len = BIO_get_mem_data(bioErrors, &errors);
+        std::string finalError(errors, len + 1 );
+
+        __LOG_WARN( "Session::keyExchange: " << to_string(m_id) << " message: EC_KEY_generate_key error: " << finalError )
+
+        BIO_free(bioErrors);
+        EC_KEY_free(serverSessionKeys);
+        doClose();
+        return;
+    }
+
+    unsigned char* serverSessionPublicKeyRaw = nullptr;
+    int serverSessionPublicKeySize = i2d_EC_PUBKEY(serverSessionKeys, &serverSessionPublicKeyRaw);
+    if (serverSessionPublicKeySize <= 0)
+    {
+        // TODO: remove session
+        __LOG_WARN( "Session::generateSessionKeyPair: calculation shared secret error" )
+        //fprintf(stderr, "Failed to encode public key.\n");
+        EC_KEY_free(serverSessionKeys);
+        doClose();
+        return;
+    }
+
+    outSessionPublicKey = base64_encode(std::string(reinterpret_cast<const char *>(serverSessionPublicKeyRaw), serverSessionPublicKeySize));
+
+    __LOG("Session::generateSessionKeyPair:: server session public key: " << outSessionPublicKey)
+
+    const auto clientSessionPublicKey = base64_decode(inSessionPublicKey);
+    const auto* clientSessionPublicKeyPtr = reinterpret_cast<const uint8_t *>(clientSessionPublicKey.c_str());
+
+    EC_KEY* ecKeyClientSession = d2i_EC_PUBKEY(nullptr, &clientSessionPublicKeyPtr, static_cast<long>(clientSessionPublicKey.size()));
+    if (!ecKeyClientSession)
+    {
+        // TODO: remove session
+        __LOG_WARN( "Session::generateSessionKeyPair: Failed to load EC public key" )
+        ERR_print_errors_fp(stderr);
+        EC_KEY_free(serverSessionKeys);
+        doClose();
+        return;
+    }
+
+    const auto sharedSecretSize = 32;
+    m_sharedKey.resize(sharedSecretSize);
+    int secret_len = ECDH_compute_key(m_sharedKey.data(), sharedSecretSize, EC_KEY_get0_public_key(ecKeyClientSession), serverSessionKeys,nullptr);
+    if (secret_len <= 0)
+    {
+        // TODO: remove session, fix logs
+        __LOG_WARN( "Session::generateSessionKeyPair: calculation shared secret error" )
+        ERR_print_errors_fp(stderr);
+        EC_KEY_free(serverSessionKeys);
+        EC_KEY_free(ecKeyClientSession);
+        doClose();
+        return;
+    }
+
+    __LOG("Session shared secret: " << base64_encode( m_sharedKey))
+
+    EC_KEY_free(serverSessionKeys);
+    EC_KEY_free(ecKeyClientSession);
 }
 
 }
