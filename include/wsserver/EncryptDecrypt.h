@@ -11,7 +11,6 @@
 
 #define AES_BLOCK_SIZE 16
 
-// Function to perform AES encryption
 std::string aes_encrypt(const std::string &plaintext, const std::string &key)
 {
     if (key.size() != 32)
