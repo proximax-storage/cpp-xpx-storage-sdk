@@ -51,8 +51,8 @@ public:
                                           const Key&              driveKey,
                                           const Hash256&          channelId,
                                           const ReplicatorList&   replicatorSet,
-                                          const fs::path&         streamRootFolder, // root folder of http/hls server
-                                          const fs::path&         workFolder, // relative to streamRootFolder
+                                          const fs::path&         streamRootFolder, // folder where all streams will be saved
+                                          const fs::path&         streamFolder,     // folder inside 'streamRootFolder' where stream will be saved
                                           StartPlayerMethod       startPlayerMethod,
                                           HttpServerParams        httpServerParams,
                                           DownloadStreamProgress  downloadStreamProgress ) = 0;

@@ -1188,7 +1188,8 @@ public:
         cereal::PortableBinaryOutputArchive archive( os );
         archive( m_driveKey );
         archive( m_driveOwner );
-        archive( m_task ? true : false );
+        uint8_t isStreaming = m_task ? 1 : 0;
+        archive( isStreaming );
         if ( m_task )
         {
             archive( m_task->getStreamId() );
