@@ -171,6 +171,8 @@ struct DownloadRequest
 struct KeyAndBytes
 {
     std::array<uint8_t, 32> m_key;
+    
+    // Amount of downloaded bytes from 'm_key' during all time of the drive
     uint64_t m_uploadedBytes;
 
     template<class Archive>

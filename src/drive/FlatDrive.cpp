@@ -119,7 +119,7 @@ class DefaultFlatDrive
             {
                 return m_modificationRequest->m_maxDataSize;
             }
-            _SIRIUS_ASSERT( m_streamRequest )
+            _LOG_ERR( "maxDataSize() cannot be used by StreamTask")
             return m_streamRequest->m_maxSizeBytes;
         }
     };
@@ -1187,7 +1187,9 @@ public:
         std::ostringstream os( std::ios::binary );
         cereal::PortableBinaryOutputArchive archive( os );
         archive( m_driveKey );
-        archive( m_task ? true : false );
+        archive( m_driveOwner );
+        uint8_t isStreaming = m_task ? 1 : 0;
+        archive( isStreaming );
         if ( m_task )
         {
             archive( m_task->getStreamId() );

@@ -132,12 +132,16 @@ public:
                                   const Hash256&          channelId,
                                   const ReplicatorList&   replicators,
                                   const fs::path&         streamRootFolder,
-                                  const fs::path&         workFolder,
+                                  const fs::path&         streamFolder,     // folder inside 'streamRootFolder' where stream will be saved
                                   StartPlayerMethod       startPlayerMethod,
                                   HttpServerParams        httpServerParams,
                                   DownloadStreamProgress  downloadStreamProgress ) override
     {
-        SIRIUS_ASSERT( ! m_liveStreamId )
+        if ( m_liveStreamId )
+        {
+            SIRIUS_ASSERT( *m_liveStreamId  == streamId );
+            return;
+        }
 
         m_streamerKey            = streamerKey;
         m_driveKey               = driveKey;
@@ -159,10 +163,10 @@ public:
         addDownloadChannel(channelId);
         setDownloadChannelReplicators(channelId, replicators);
 
-        fs::remove_all( workFolder );
-        m_relativeChunkFolder   = workFolder / "chunks";
+        fs::remove_all( streamFolder );
+        m_relativeChunkFolder   = streamFolder / "chunks";
         m_chunkFolder           = m_streamRootFolder / m_relativeChunkFolder;
-        m_torrentFolder         = m_streamRootFolder / workFolder / "torrents";
+        m_torrentFolder         = m_streamRootFolder / streamFolder / "torrents";
 
         fs::create_directories( m_chunkFolder );
         fs::create_directories( m_torrentFolder );
@@ -424,14 +428,20 @@ public:
 
                 std::array<uint8_t,32> driveKey;
                 iarchive( driveKey );
+                _LOG( "get_stream_status: driveKey: " << toString(driveKey) )
 
-                bool isStreaming;
+                std::array<uint8_t,32> streamerKey;
+                iarchive( streamerKey );
+                _LOG( "get_stream_status: streamerKey: " << toString(streamerKey) )
+
+                uint8_t isStreaming = true;
                 iarchive( isStreaming );
+                _LOG( "get_stream_status: isStreaming: " << int(isStreaming) )
 
                 std::array<uint8_t,32> streamId;
                 iarchive( streamId );
                 
-                (*m_streamStatusResponseHandler) ( driveKey, isStreaming, streamId );
+                (*m_streamStatusResponseHandler) ( driveKey, streamerKey, isStreaming!=0, streamId );
             }
         }
         catch( std::exception& ex )

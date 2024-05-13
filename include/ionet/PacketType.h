@@ -23,6 +23,7 @@
 #include "plugins.h"
 #include <iosfwd>
 #include <stdint.h>
+#include <stddef.h>
 
 namespace sirius { namespace ionet {
 

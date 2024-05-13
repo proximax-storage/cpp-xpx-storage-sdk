@@ -2183,6 +2183,7 @@ public:
             auto str = message.dict_find_string_value("x");
             std::string packet( (char*)str.data(), (char*)str.data()+str.size() );
 
+            // get drive key
             std::istringstream is( packet, std::ios::binary );
             cereal::PortableBinaryInputArchive iarchive(is);
             std::array<uint8_t,32> driveKey;
@@ -2190,6 +2191,7 @@ public:
 
             if ( auto driveIt = m_driveMap.find( driveKey ); driveIt != m_driveMap.end() )
             {
+                // set response
                 std::string status = driveIt->second->getStreamStatus();
                 response["r"]["q"] = std::string(query);
                 response["r"]["ret"] = status;

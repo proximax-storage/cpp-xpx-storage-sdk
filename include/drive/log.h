@@ -23,14 +23,25 @@
 
 inline std::mutex gLogMutex;
 
+inline bool gSkipDhtPktLogs = false;
+inline bool gKademliaLogs = false;
+
+
 inline uint64_t currentTimeSeconds()
 {
-      boost::posix_time::ptime universalTime = boost::posix_time::microsec_clock::universal_time();
-
-      static boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
-      boost::posix_time::time_duration duration = universalTime - epoch;
-
-      return static_cast<uint64_t>(duration.total_seconds());
+    auto timeSinceEpoch = std::chrono::system_clock::now().time_since_epoch();
+    auto duration = std::chrono::duration_cast<std::chrono::seconds>(timeSinceEpoch);
+    return duration.count();
+    
+    
+//    {
+//        boost::posix_time::ptime universalTime = boost::posix_time::microsec_clock::universal_time();
+//
+//        static boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
+//        boost::posix_time::time_duration duration = universalTime - epoch;
+//
+//        return static_cast<uint64_t>(duration.total_seconds());
+//    }
 }
 
 inline std::string current_time()
@@ -138,10 +149,11 @@ inline void checkLogFileSize()
 //#define ___LOG(expr) {}
 
  #define ___LOG(expr) { \
+    if ( !gKademliaLogs ) {\
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << current_time() << " " << expr << std::endl << std::flush; \
-    }
+    }}
 
 
 // _LOG_WARN - with m_dbgOurPeerName

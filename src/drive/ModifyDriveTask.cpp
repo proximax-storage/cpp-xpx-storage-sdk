@@ -521,6 +521,8 @@ public:
 
     bool processedModifyOpinion( const ApprovalTransactionInfo& anOpinion ) override
     {
+        DBG_MAIN_THREAD
+        
         // In this case Replicator is able to verify all data in the opinion
         if ( m_request->m_transactionHash.array() != anOpinion.m_modifyTransactionHash )
         {
