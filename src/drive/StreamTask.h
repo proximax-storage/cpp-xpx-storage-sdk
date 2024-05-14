@@ -129,6 +129,8 @@ public:
 
         if ( m_chunkInfoList.size() <= requestedIndex || ! m_chunkInfoList[requestedIndex].has_value() )
         {
+            _LOG( "not found: requestedIndex: " << requestedIndex )
+            _LOG( "m_chunkInfoList.size(): " << m_chunkInfoList.size() )
             // so far we do not have requested chunkInfo (not signed info could be received by finish-stream)
             return "";
         }
