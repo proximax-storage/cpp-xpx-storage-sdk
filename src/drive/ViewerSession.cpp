@@ -13,6 +13,8 @@
 #include "drive/Utils.h"
 #include "crypto/Signer.h"
 
+#include <boost/algorithm/hex.hpp>
+
 #include "libtorrent/aux_/session_impl.hpp"
 #include "libtorrent/extensions.hpp"
 #include <sirius_drive/session_delegate.h>
@@ -321,6 +323,12 @@ public:
             {
                 lt::string_view ret = rDict.dict_find_string_value("ret");
                 std::string result( ret.begin(), ret.end() );
+                
+                _LOG( "result.size: " << result.size() );
+                std::string hexString;
+                boost::algorithm::hex( result.begin(), result.end(), std::back_inserter(hexString) );
+                _LOG( "result.hexString: " << hexString );
+
 
                 std::istringstream is( result, std::ios::binary );
                 cereal::PortableBinaryInputArchive iarchive(is);
@@ -353,7 +361,11 @@ public:
                 {
                     ChunkInfo info;
                     iarchive( info );
-
+                    
+                    _LOG( "sss+ chunkIndex: " << info.m_chunkIndex )
+                    _LOG( "sss+ streamId: " << toString(info.m_streamId) )
+                    _LOG( "sss+ hash: " << toString(info.m_chunkInfoHash) )
+                    
                     if ( ! addChunkInfo( info ) )
                     {
                         return;
@@ -434,13 +446,15 @@ public:
                 iarchive( streamerKey );
                 _LOG( "get_stream_status: streamerKey: " << toString(streamerKey) )
 
-                uint8_t isStreaming = true;
+                //TODO!!!!!!!!!!!
+                uint16_t isStreaming = true;
                 iarchive( isStreaming );
                 _LOG( "get_stream_status: isStreaming: " << int(isStreaming) )
 
                 std::array<uint8_t,32> streamId;
                 iarchive( streamId );
-                
+                _LOG( "get_stream_status: streamId: " << toString(streamId) )
+
                 (*m_streamStatusResponseHandler) ( driveKey, streamerKey, isStreaming!=0, streamId );
             }
         }

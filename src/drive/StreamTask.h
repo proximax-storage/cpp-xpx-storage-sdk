@@ -180,7 +180,14 @@ public:
 
         for( auto i = beginIndex; i < endIndex; i++ )
         {
-            archive( m_chunkInfoList[i] );
+            if ( m_chunkInfoList[i] )
+            {
+                archive( *m_chunkInfoList[i] );
+            }
+            else
+            {
+                _LOG_WARN( "Empty m_chunkInfoList[i]: " << i );
+            }
         }
 
         return os.str();
