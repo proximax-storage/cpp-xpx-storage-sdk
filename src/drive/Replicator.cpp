@@ -14,6 +14,8 @@
 #include "RcptSyncronizer.h"
 #include "BackgroundExecutor.h"
 
+#include <boost/algorithm/hex.hpp>
+
 #ifndef SKIP_GRPC
 #include <drive/RPCService.h>
 
@@ -1971,6 +1973,10 @@ public:
                     iarchive( chunkIndex );
 
                     std::string result = driveIt->second->acceptGetChunksInfoMessage( streamId, chunkIndex, source );
+                    _LOG( "result.size: " << result.size() );
+                    std::string hexString;
+                    boost::algorithm::hex( result.begin(), result.end(), std::back_inserter(hexString) );
+                    _LOG( "result.hexString: " << hexString );
                     if ( !result.empty())
                     {
                         response["r"]["q"] = std::string( query );
