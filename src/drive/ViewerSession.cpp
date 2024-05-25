@@ -305,7 +305,8 @@ public:
     {
         if ( m_startPlayerMethod )
         {
-            std::string address = "http://" + m_httpServerParams.m_address + ":" + m_httpServerParams.m_port + "/" + (m_relativeChunkFolder / PLAYLIST_FILE_NAME).string();
+//            std::string address = "http://" + m_httpServerParams.m_address + ":" + m_httpServerParams.m_port + "/" + (m_relativeChunkFolder / PLAYLIST_FILE_NAME).string();
+            std::string address = (m_streamRootFolder / m_relativeChunkFolder / PLAYLIST_FILE_NAME).string();
 
             (*m_startPlayerMethod)( address );
             m_startPlayerMethod.reset();
