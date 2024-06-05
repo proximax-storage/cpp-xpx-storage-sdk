@@ -58,6 +58,8 @@ public:
     void setSize( uint64_t size )
     { m_size = size; };
 
+    uint64_t getSize() const { return m_size; };
+
     void setIsModifiable( bool isModifiable )
     { m_isModifiable = isModifiable; };
 
