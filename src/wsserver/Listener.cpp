@@ -60,13 +60,25 @@ void Listener::onAccept(boost::beast::error_code ec, boost::asio::ip::tcp::socke
 		boost::asio::post(m_strand, [pThis = shared_from_this(), pSocket = std::move(socket)]() mutable
 		{
 			auto sessionId = pThis->m_uuidGenerator();
-			auto newSession = std::make_shared<Session>(sessionId, pThis->m_keyPair, pThis->m_ioCtx, std::move(pSocket));
+            auto callback = [pThis](const boost::uuids::uuid& id){ pThis->removeSession(id); };
+			auto newSession = std::make_shared<Session>(sessionId, pThis->m_keyPair, pThis->m_ioCtx, std::move(pSocket), callback);
 			pThis->m_sessions.insert({sessionId, std::move(newSession) });
 			pThis->m_sessions[sessionId]->run();
 		});
     }
 
     doAccept();
+}
+
+void Listener::removeSession(const boost::uuids::uuid& id)
+{
+    boost::asio::post(m_strand, [pThis = shared_from_this(), id]()
+    {
+        if (pThis->m_sessions.erase(id) == 0)
+        {
+            __LOG_WARN( "Listener::removeSession: session not found: " << to_string(id) )
+        }
+    });
 }
 
 }

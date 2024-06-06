@@ -10,6 +10,7 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/beast/core/buffers_to_string.hpp>
+#include <boost/uuid/random_generator.hpp>
 
 #include <openssl/dh.h>
 
@@ -25,6 +26,7 @@
 #include <fstream>
 
 #include "crypto/KeyPair.h"
+#include "wsserver/Task.h"
 
 namespace sirius::wsserver
 {
@@ -37,7 +39,8 @@ class Session : public std::enable_shared_from_this<Session>
 		explicit Session(const boost::uuids::uuid& uuid,
                          const sirius::crypto::KeyPair& keyPair,
 						 boost::asio::io_context& ioCtx,
-                         boost::asio::ip::tcp::socket&& socket);
+                         boost::asio::ip::tcp::socket&& socket,
+                         std::function<void(const boost::uuids::uuid& id)> remover);
 		~Session() = default;
 
 	public:
@@ -47,6 +50,7 @@ class Session : public std::enable_shared_from_this<Session>
 		void onRead(boost::beast::error_code ec, std::size_t bytes_transferred);
 		void onWrite(boost::beast::error_code ec, std::size_t bytes_transferred);
 		void doClose();
+        void doClose(ServerErrorCode code, const std::string& message);
 		void onClose(boost::beast::error_code ec);
 		void keyExchange(std::shared_ptr<boost::property_tree::ptree> json);
 		void sendMessage(std::shared_ptr<boost::property_tree::ptree> json);
@@ -60,14 +64,21 @@ class Session : public std::enable_shared_from_this<Session>
 		void requestToAll(std::shared_ptr<boost::property_tree::ptree> json);
 
 	private:
-		void handleJson(std::shared_ptr<boost::property_tree::ptree> json);
-		void handleErrors();
+        void handleUploadDataStartRequest(std::shared_ptr<boost::property_tree::ptree> json);
+        void handleUploadDataRequest(std::shared_ptr<boost::property_tree::ptree> json);
+        bool isValidUUIDv4(const std::string& uuid);
+        bool validateUploadDataStartRequest(std::shared_ptr<boost::property_tree::ptree> json);
+        bool validateUploadDataRequest(std::shared_ptr<boost::property_tree::ptree> json);
+        long getCurrentTimestamp();
+        std::string generateMessageId();
+		void handlePayload(std::shared_ptr<boost::property_tree::ptree> json);
         void generateSessionKeyPair(const std::string& inSessionPublicKey, std::string& outSessionPublicKey);
 
 	private:
 		std::string m_sharedKey;
         std::string m_clientPublicKey;
 
+        std::function<void(const boost::uuids::uuid& id)> removeSession;
 		std::unordered_map<std::string, std::string> m_recvDirectory;
 		std::unordered_map<std::string, int> m_recvNumOfDataPieces;
 		std::unordered_map<std::string, int> m_recvDataCounter;
@@ -77,11 +88,99 @@ class Session : public std::enable_shared_from_this<Session>
 		std::unordered_map<std::string, int> m_sendDataCounter;
 
         boost::uuids::uuid m_id;
-        boost::asio::io_context::strand m_strand;
+        boost::uuids::random_generator m_uuidGenerator;
+        boost::asio::io_context::strand m_networkStrand;
+        boost::asio::io_context::strand m_downloadsStrand;
 		boost::beast::websocket::stream<boost::beast::tcp_stream> m_ws;
 		boost::beast::flat_buffer m_buffer;
 
         const sirius::crypto::KeyPair& m_keyPair;
+
+    private:
+        struct FileDescriptor
+        {
+            FileDescriptor() = default;
+            ~FileDescriptor() = default;
+
+            FileDescriptor(const std::string& name,
+                           const std::string& path,
+                           const std::string& driveKey,
+                           const std::string& hash,
+                           std::uint64_t size,
+                           std::uint64_t chunksAmount,
+                           unsigned int chunkSize)
+                    : m_name(name)
+                    , m_path(path)
+                    , m_driveKey(driveKey)
+                    , m_hash(hash)
+                    , m_size(size)
+                    , m_chunksAmount(chunksAmount)
+                    , m_chunkSize(chunkSize)
+            {}
+
+            FileDescriptor(const FileDescriptor& other)
+                    : m_name(other.m_name)
+                    , m_path(other.m_path)
+                    , m_driveKey(other.m_driveKey)
+                    , m_hash(other.m_hash)
+                    , m_size(other.m_size)
+                    , m_chunksAmount(other.m_chunksAmount)
+                    , m_chunkSize(other.m_chunkSize)
+            {}
+
+            FileDescriptor(FileDescriptor&& other) noexcept
+                    : m_name(std::move(other.m_name))
+                    , m_path(std::move(other.m_path))
+                    , m_driveKey(std::move(other.m_driveKey))
+                    , m_hash(std::move(other.m_hash))
+                    , m_size(other.m_size)
+                    , m_chunksAmount(other.m_chunksAmount)
+                    , m_chunkSize(other.m_chunkSize)
+            {}
+
+            FileDescriptor& operator=(const FileDescriptor& other)
+            {
+                if (this != &other)
+                {
+                    m_name = other.m_name;
+                    m_path = other.m_path;
+                    m_driveKey = other.m_driveKey;
+                    m_hash = other.m_hash;
+                    m_size = other.m_size;
+                    m_chunksAmount = other.m_chunksAmount;
+                    m_chunkSize = other.m_chunkSize;
+                }
+
+                return *this;
+            }
+
+            FileDescriptor& operator=(FileDescriptor&& other) noexcept
+            {
+                if (this != &other)
+                {
+                    m_name = std::move(other.m_name);
+                    m_path = std::move(other.m_path);
+                    m_driveKey = std::move(other.m_driveKey);
+                    m_hash = std::move(other.m_hash);
+                    m_size = other.m_size;
+                    m_chunksAmount = other.m_chunksAmount;
+                    m_chunkSize = other.m_chunkSize;
+                }
+
+                return *this;
+            }
+
+            std::string m_name;
+            std::string m_path;
+            std::string m_driveKey;
+            std::string m_hash;
+            std::ofstream m_stream;
+            std::uint64_t m_size; // bytes
+            std::uint64_t m_chunksAmount;
+            unsigned int m_chunkSize; // bytes
+        };
+
+        std::unordered_map<std::string, FileDescriptor> m_downloads;
 };
 }
 

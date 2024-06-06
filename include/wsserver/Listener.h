@@ -48,6 +48,7 @@ class PLUGIN_API Listener : public std::enable_shared_from_this<Listener>
 	private:
 		void doAccept();
 		void onAccept(boost::beast::error_code ec, boost::asio::ip::tcp::socket&& socket);
+        void removeSession(const boost::uuids::uuid& id);
 
 	private:
         const sirius::crypto::KeyPair& m_keyPair;
