@@ -167,6 +167,8 @@ public:
     { return m_name == f.m_name && m_childs == f.m_childs; }
 
     bool iterate( const std::function<bool( const File& )>& func ) const;
+    
+    bool iterate( const std::filesystem::path path, const std::function<bool( const std::filesystem::path& path, const File& )>& func ) const;
 
     void mapFiles( const std::function<void( File& )>& func );
 
@@ -255,10 +257,35 @@ inline bool Folder::iterate( const std::function<bool( const File& )>& func ) co
             {
                 return true;
             }
-        } else
+        }
+        else
         {
             const File& file = getFile( child );
             if ( func( file ))
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+inline bool Folder::iterate( const std::filesystem::path path, const std::function<bool( const std::filesystem::path& path, const File& )>& func ) const
+{
+    for ( const auto&[name, child] : m_childs )
+    {
+        if ( isFolder( child ))
+        {
+            const Folder& folder = getFolder( child );
+            if ( folder.iterate( path / folder.m_name , func ))
+            {
+                return true;
+            }
+        }
+        else
+        {
+            const File& file = getFile( child );
+            if ( func( path, file ))
             {
                 return true;
             }

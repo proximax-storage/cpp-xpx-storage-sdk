@@ -36,7 +36,7 @@ void Folder::dbgPrint( std::string leadingSpaces ) const {
             getFolder(it->second).dbgPrint( leadingSpaces+"  " );
         }
         else {
-            std::cout << leadingSpaces << "  " << getFile(it->second).name() << " : " << toString(getFile(it->second).hash()).substr(0,4) << std::endl;
+            std::cout << leadingSpaces << "  " << getFile(it->second).name() << " : " << getFile(it->second).size() << std::endl;
         }
     }
 }
@@ -576,8 +576,8 @@ Folder::Child* FsTree::getEntryPtr( const std::string& pathStr )
 // getFolderPtr
 Folder* FsTree::getFolderPtr( const std::string& fullPath, bool createIfNotExist )
 {
-//    if ( fullPath.empty() || fullPath=="/" || fullPath=="\\" )
-//        return this;
+    if ( fullPath.empty() || fullPath=="/" || fullPath=="\\" )
+        return this;
 
     fs::path path( fullPath );
     Folder* treeWalker = this;
