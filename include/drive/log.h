@@ -210,7 +210,11 @@ struct FuncEntry
 */
 
 //#define _FUNC_ENTRY ;
+#ifdef _WIN64
+    #define _FUNC_ENTRY  FuncEntry funcEntry(__FUNCSIG__,m_dbgOurPeerName);
+#else
 #define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
+#endif
 
 #endif
 
