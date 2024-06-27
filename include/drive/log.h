@@ -21,10 +21,10 @@
 
 #include "boost/date_time/posix_time/posix_time.hpp"
 
-inline std::mutex gLogMutex;
+BOOST_SYMBOL_EXPORT inline std::mutex gLogMutex;
 
-inline bool gSkipDhtPktLogs = false;
-inline bool gKademliaLogs = false;
+BOOST_SYMBOL_EXPORT inline bool gSkipDhtPktLogs = false;
+BOOST_SYMBOL_EXPORT inline bool gKademliaLogs = false;
 
 
 inline uint64_t currentTimeSeconds()
@@ -90,12 +90,12 @@ inline std::string current_time()
     return buf;
 }
 
-inline bool gBreakOnWarning = false;
-inline bool gBreakOnError   = true;
+BOOST_SYMBOL_EXPORT inline bool gBreakOnWarning = false;
+BOOST_SYMBOL_EXPORT inline bool gBreakOnError   = true;
 
 
-inline bool gIsRemoteRpcClient = false;
-inline std::optional<std::function<void()>> gCreateLogBackup = {};
+BOOST_SYMBOL_EXPORT inline bool gIsRemoteRpcClient = false;
+BOOST_SYMBOL_EXPORT inline std::optional<std::function<void()>> gCreateLogBackup = {};
 
 inline void checkLogFileSize()
 {
@@ -210,7 +210,11 @@ struct FuncEntry
 */
 
 //#define _FUNC_ENTRY ;
+#ifdef _WIN64
+    #define _FUNC_ENTRY  FuncEntry funcEntry(__FUNCSIG__,m_dbgOurPeerName);
+#else
 #define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
+#endif
 
 #endif
 

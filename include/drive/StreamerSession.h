@@ -273,7 +273,7 @@ public:
         ActionList actionList;
 
         // add playlist
-        actionList.push_back( Action::upload( playlistFile,
+        actionList.push_back( Action::upload( playlistFile.string(),
                                              ( fs::path("video") / m_streamFolderName / "HLS" / PLAYLIST_FILE_NAME ).string() ));
 
         // add chunks

@@ -29,8 +29,7 @@ class StreamTask : public ModifyDriveTask
     
     using ChunkInfoList = std::deque< std::optional<ChunkInfo> >;
     ChunkInfoList                   m_chunkInfoList;
-    ChunkInfoList::iterator         m_downloadingChunkInfoIt;
-    bool                            m_downloadingChunkInfoItWasSet = false;
+    int                             m_downloadingChunkIdx = -1;
     
     std::optional<boost::asio::ip::udp::endpoint>  m_streamerEndpoint;
 
@@ -129,6 +128,8 @@ public:
 
         if ( m_chunkInfoList.size() <= requestedIndex || ! m_chunkInfoList[requestedIndex].has_value() )
         {
+            _LOG( "not found: requestedIndex: " << requestedIndex )
+            _LOG( "m_chunkInfoList.size(): " << m_chunkInfoList.size() )
             // so far we do not have requested chunkInfo (not signed info could be received by finish-stream)
             return "";
         }
@@ -178,7 +179,14 @@ public:
 
         for( auto i = beginIndex; i < endIndex; i++ )
         {
-            archive( m_chunkInfoList[i] );
+            if ( m_chunkInfoList[i] )
+            {
+                archive( *m_chunkInfoList[i] );
+            }
+            else
+            {
+                _LOG_WARN( "Empty m_chunkInfoList[i]: " << i );
+            }
         }
 
         return os.str();
@@ -302,7 +310,7 @@ public:
             
             // select next 'm_downloadingChunkInfoIt'
             //
-            if ( ! m_downloadingChunkInfoItWasSet )
+            if ( m_downloadingChunkIdx < 0 )
             {
                 // set 1-st m_downloadingChunkInfoIt
                 SIRIUS_ASSERT( ! m_chunkInfoList.empty() )
@@ -315,37 +323,36 @@ public:
                     return;
                 }
 
-                m_downloadingChunkInfoItWasSet = true;
-                m_downloadingChunkInfoIt = m_chunkInfoList.begin();
+                m_downloadingChunkIdx = 0;
             }
             else
             {
-                auto next = std::next( m_downloadingChunkInfoIt, 1 );
-                if ( next == m_chunkInfoList.end() )
+                if ( m_downloadingChunkIdx+1 >= m_chunkInfoList.size() )
                 {
                     // so far, we have nothing to download
                     _LOG( "so far, we have nothing to download" )
                     return;
                 }
 
-                if ( ! next->has_value() )
+                if ( ! m_chunkInfoList[m_downloadingChunkIdx+1].has_value() )
                 {
                     // send request to streamer about missing info
                     _LOG("send request to streamer about missing info")
-                    requestMissingChunkInfo( (*m_downloadingChunkInfoIt)->m_chunkIndex+1 );
+                    requestMissingChunkInfo( m_chunkInfoList[m_downloadingChunkIdx]->m_chunkIndex+1 );
                     return;
                 }
 
-                m_downloadingChunkInfoIt = next;
+                m_downloadingChunkIdx++;
             }
             
-            _LOG("m_downloadingChunkInfoIt: chunkIndex: " << (*m_downloadingChunkInfoIt)->m_chunkIndex << " " << toString((*m_downloadingChunkInfoIt)->m_chunkInfoHash) )
+            _LOG("m_downloadingChunkInfoIt: chunkIndex: " << m_chunkInfoList[m_downloadingChunkIdx]->m_chunkIndex << " " 
+                                                        << toString(m_chunkInfoList[m_downloadingChunkIdx]->m_chunkInfoHash) )
 
             // start downloading chunk
             //
             if ( auto session = m_drive.m_session.lock(); session )
             {
-                const auto& chunkInfoHash = (*m_downloadingChunkInfoIt)->m_chunkInfoHash;
+                const auto& chunkInfoHash = m_chunkInfoList[m_downloadingChunkIdx]->m_chunkInfoHash;
                 
                 if ( auto it = m_drive.m_torrentHandleMap.find( chunkInfoHash ); it != m_drive.m_torrentHandleMap.end())
                 {

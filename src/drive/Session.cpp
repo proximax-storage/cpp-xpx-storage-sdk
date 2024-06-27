@@ -514,11 +514,18 @@ public:
             
             for( const auto& torrentHandle : torrents )
             {
-                if ( torrentHandle.is_valid() && torrentHandle.status().state > 2 )
+                try
                 {
-                    _SIRIUS_ASSERT( torrentHandle.userdata().get<LtClientData>() != nullptr )
-                    _SIRIUS_ASSERT( ! torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer )
-                    torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer = removeNotifyer;
+                    if ( torrentHandle.is_valid() && torrentHandle.status().state > 2 )
+                    {
+                        _SIRIUS_ASSERT( torrentHandle.userdata().get<LtClientData>() != nullptr )
+                        _SIRIUS_ASSERT( ! torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer )
+                        torrentHandle.userdata().get<LtClientData>()->m_removeNotifyer = removeNotifyer;
+                    }
+                }
+                catch(...)
+                {
+                    _LOG_WARN( "invalid torrent handle: maybe unexising torrent hash" )
                 }
             }
             
