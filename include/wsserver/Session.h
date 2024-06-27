@@ -27,6 +27,7 @@
 
 #include "crypto/KeyPair.h"
 #include "wsserver/Task.h"
+#include "EncryptDecrypt.h"
 
 namespace sirius::wsserver
 {
@@ -73,6 +74,8 @@ class Session : public std::enable_shared_from_this<Session>
         std::string generateMessageId();
 		void handlePayload(std::shared_ptr<boost::property_tree::ptree> json);
         void generateSessionKeyPair(const std::string& inSessionPublicKey, std::string& outSessionPublicKey);
+        std::shared_ptr<boost::property_tree::ptree> generateBasicPayload(const std::string& id, Type type);
+        std::shared_ptr<boost::property_tree::ptree> generateFinalMessage(const EncryptionResult& encryptedData);
 
 	private:
 		std::string m_sharedKey;
@@ -103,7 +106,8 @@ class Session : public std::enable_shared_from_this<Session>
             ~FileDescriptor() = default;
 
             FileDescriptor(const std::string& name,
-                           const std::string& path,
+                           const std::filesystem::path& path,
+                           const std::filesystem::path& relativePath,
                            const std::string& driveKey,
                            const std::string& hash,
                            std::uint64_t size,
@@ -111,6 +115,7 @@ class Session : public std::enable_shared_from_this<Session>
                            unsigned int chunkSize)
                     : m_name(name)
                     , m_path(path)
+                    , m_relativePath(relativePath)
                     , m_driveKey(driveKey)
                     , m_hash(hash)
                     , m_size(size)
@@ -121,6 +126,7 @@ class Session : public std::enable_shared_from_this<Session>
             FileDescriptor(const FileDescriptor& other)
                     : m_name(other.m_name)
                     , m_path(other.m_path)
+                    , m_relativePath(other.m_relativePath)
                     , m_driveKey(other.m_driveKey)
                     , m_hash(other.m_hash)
                     , m_size(other.m_size)
@@ -131,6 +137,7 @@ class Session : public std::enable_shared_from_this<Session>
             FileDescriptor(FileDescriptor&& other) noexcept
                     : m_name(std::move(other.m_name))
                     , m_path(std::move(other.m_path))
+                    , m_relativePath(std::move(other.m_relativePath))
                     , m_driveKey(std::move(other.m_driveKey))
                     , m_hash(std::move(other.m_hash))
                     , m_size(other.m_size)
@@ -144,6 +151,7 @@ class Session : public std::enable_shared_from_this<Session>
                 {
                     m_name = other.m_name;
                     m_path = other.m_path;
+                    m_relativePath = other.m_relativePath;
                     m_driveKey = other.m_driveKey;
                     m_hash = other.m_hash;
                     m_size = other.m_size;
@@ -160,6 +168,7 @@ class Session : public std::enable_shared_from_this<Session>
                 {
                     m_name = std::move(other.m_name);
                     m_path = std::move(other.m_path);
+                    m_relativePath = std::move(other.m_relativePath);
                     m_driveKey = std::move(other.m_driveKey);
                     m_hash = std::move(other.m_hash);
                     m_size = other.m_size;
@@ -171,10 +180,11 @@ class Session : public std::enable_shared_from_this<Session>
             }
 
             std::string m_name;
-            std::string m_path;
+            std::filesystem::path m_path;
+            std::filesystem::path m_relativePath;
             std::string m_driveKey;
             std::string m_hash;
-            std::ofstream m_stream;
+            std::unique_ptr<std::ofstream> m_stream;
             std::uint64_t m_size; // bytes
             std::uint64_t m_chunksAmount;
             unsigned int m_chunkSize; // bytes

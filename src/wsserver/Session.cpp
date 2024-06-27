@@ -1,5 +1,4 @@
 #include "wsserver/Session.h"
-#include "wsserver/Base64.h"
 #include "wsserver/Message.h"
 #include "crypto/Signer.h"
 #include "drive/log.h"
@@ -9,9 +8,7 @@
 
 #include <openssl/rand.h>
 #include <openssl/evp.h>
-#include <openssl/err.h>
 #include <openssl/ossl_typ.h>
-#include <openssl/ssl.h>
 #include <openssl/ec.h>
 #include <openssl/pem.h>
 
@@ -22,6 +19,7 @@
 
 // TODO: fix Man-in-the-middle attack (verify server key, authenticator app, etc)
 // TODO: add logic for receipts
+// TODO: add possibility to download data from client for each replicator independently and direct()
 
 
 namespace sirius::wsserver
@@ -241,12 +239,9 @@ void Session::doClose()
 
 void Session::doClose(ServerErrorCode code, const std::string& message)
 {
-    auto closeMessage = std::make_shared<boost::property_tree::ptree>();
-    closeMessage->put("payload.id", generateMessageId());
-    closeMessage->put("payload.type", Type::FAILURE);
-    closeMessage->put("payload.message", message);
-    closeMessage->put("payload.code", static_cast<int>(code));
-    closeMessage->put("payload.timestamp", getCurrentTimestamp());
+    auto closeMessage = generateBasicPayload(generateMessageId(), Type::FAILURE);
+    closeMessage->put("message", message);
+    closeMessage->put("code", static_cast<int>(code));
 
     const auto closeMessageStr = jsonToString(closeMessage);
     if (closeMessageStr.empty())
@@ -266,11 +261,8 @@ void Session::doClose(ServerErrorCode code, const std::string& message)
         return;
     }
 
-    closeMessage->put("payload", base64_encode(encryptedPayload.cipherData));
-    closeMessage->put("metadata.iv", base64_encode(encryptedPayload.iv));
-    closeMessage->put("metadata.tag", base64_encode(encryptedPayload.tag));
-
-    sendMessage(closeMessage);
+    auto finalMessage = generateFinalMessage(encryptedPayload);
+    sendMessage(finalMessage);
     doClose();
 }
 
@@ -365,11 +357,7 @@ void Session::keyExchange(std::shared_ptr<boost::property_tree::ptree> json)
     std::string serverSessionPublicKey;
     generateSessionKeyPair(clientSessionPublicKey.value(), serverSessionPublicKey);
 
-    auto payloadOutboundTree = std::make_shared<boost::property_tree::ptree>();
-    payloadOutboundTree->put("id", id.value());
-    payloadOutboundTree->put("type", Type::HANDSHAKE_RESPONSE);
-    payloadOutboundTree->put("timestamp", getCurrentTimestamp());
-
+    auto payloadOutboundTree = generateBasicPayload(id.value(), Type::HANDSHAKE_RESPONSE);
     const EncryptionResult encryptedSessionId = encrypt(m_sharedKey, to_string(m_id));
     if (encryptedSessionId.cipherData.empty())
     {
@@ -711,54 +699,80 @@ void Session::handleUploadDataStartRequest(std::shared_ptr<boost::property_tree:
         return;
     }
 
+    // TODO: check file already exists on the drive
     // TODO: use hash as a key
-    if (m_downloads.contains(json->get<std::string>("m_hash")))
+    const auto fileHash = json->get<std::string>("hash");
+    if (m_downloads.contains(fileHash))
     {
         __LOG_WARN("Session::handleUploadDataStartRequest: file already exists in downloads cache (skipping): request id: "
         << json->get<std::string>("id")
         << " file hash: "
-        << json->get<std::string>("m_hash")
+        << fileHash
         << " file name: "
-        << json->get<std::string>("m_name"))
+        << json->get<std::string>("name"))
 
-        // TODO: re-send ack??
         return;
     }
     else
     {
         FileDescriptor newFileDescriptor;
         newFileDescriptor.m_name = json->get<std::string>("name");
-        newFileDescriptor.m_hash = json->get<std::string>("name"); // TODO: use hash
+        newFileDescriptor.m_hash = json->get<std::string>("hash"); // TODO: use hash
         newFileDescriptor.m_size = json->get<uint64_t>("size");
-        newFileDescriptor.m_chunksAmount = json->get<uint64_t>("m_chunksAmount");
-        newFileDescriptor.m_chunkSize = json->get<unsigned int>("m_chunkSize");
+        newFileDescriptor.m_chunksAmount = json->get<uint64_t>("chunksAmount");
+        newFileDescriptor.m_chunkSize = json->get<unsigned int>("chunkSize");
+        newFileDescriptor.m_driveKey = json->get<std::string>("driveKey");
+
+        newFileDescriptor.m_relativePath = std::filesystem::path(newFileDescriptor.m_driveKey);
+        newFileDescriptor.m_path = std::filesystem::path(json->get<std::string>("path"));
+        if (newFileDescriptor.m_path.empty())
+        {
+            newFileDescriptor.m_relativePath /= std::filesystem::path(fileHash);
+        }
+        else
+        {
+            newFileDescriptor.m_relativePath /= newFileDescriptor.m_path / std::filesystem::path(fileHash);
+        }
+
         m_downloads.insert( { newFileDescriptor.m_hash, newFileDescriptor } );
+
+        std::error_code ec;
+        std::filesystem::create_directories(newFileDescriptor.m_relativePath.parent_path(), ec);
+        if (ec)
+        {
+            __LOG_WARN("Session::handleUploadDataStartRequest: create directories error: " << newFileDescriptor.m_relativePath.string() << " error: " << ec.message())
+            // TODO: send error back
+            return;
+        }
+
+        std::filesystem::path currentPath = std::filesystem::current_path();
+        std::filesystem::path absolutePath = currentPath / newFileDescriptor.m_relativePath;
+        m_downloads[newFileDescriptor.m_hash].m_stream = std::make_unique<std::ofstream>(absolutePath, std::ios::binary | std::ios::app);
+        if(!m_downloads[newFileDescriptor.m_hash].m_stream->is_open())
+        {
+            __LOG_WARN("Session::handleUploadDataStartRequest: could not open file: " << absolutePath.string() << " hash: " << fileHash)
+            // TODO: send error back
+            return;
+        }
     }
 
-    auto payloadOutboundTree = std::make_shared<boost::property_tree::ptree>();
-    payloadOutboundTree->put("id", json->get<std::string>("id"));
-    payloadOutboundTree->put("type", Type::SERVER_READY_RESPONSE);
-    payloadOutboundTree->put("timestamp", getCurrentTimestamp());
-
+    const auto responseId = json->get<std::string>("id");
+    auto payloadOutboundTree = generateBasicPayload(responseId, Type::SERVER_READY_RESPONSE);
     const auto payloadStr = jsonToString(payloadOutboundTree);
     if (payloadStr.empty())
     {
-        __LOG_WARN("Session::handleUploadDataStartRequest: SERVER_READY_RESPONSE json conversion error: " << json->get<std::string>("id"))
+        __LOG_WARN("Session::handleUploadDataStartRequest: SERVER_READY_RESPONSE json conversion error: " << responseId)
         return;
     }
 
     const EncryptionResult encryptedAck = encrypt(m_sharedKey, payloadStr);
     if (encryptedAck.cipherData.empty())
     {
-        __LOG_WARN("Session::handleUploadDataStartRequest: encryption of the SERVER_READY_RESPONSE error " << json->get<std::string>("id"))
+        __LOG_WARN("Session::handleUploadDataStartRequest: encryption of the SERVER_READY_RESPONSE error " << responseId)
         return;
     }
 
-    auto finalMessage = std::make_shared<boost::property_tree::ptree>();
-    finalMessage->put("payload", base64_encode(encryptedAck.cipherData));
-    finalMessage->put("metadata.iv", base64_encode(encryptedAck.iv));
-    finalMessage->put("metadata.tag", base64_encode(encryptedAck.tag));
-
+    auto finalMessage = generateFinalMessage(encryptedAck);
     sendMessage(finalMessage);
 }
 
@@ -771,27 +785,57 @@ void Session::handleUploadDataRequest(std::shared_ptr<boost::property_tree::ptre
         return;
     }
 
-    const auto fileHash = json->get<std::string>("m_hash");
+    const auto fileHash = json->get<std::string>("hash");
     if (!m_downloads.contains(fileHash))
     {
-        __LOG_WARN("Session::handleUploadDataRequest: file not found: " << json->get<std::string>("m_hash"))
+        __LOG_WARN("Session::handleUploadDataRequest: file not found: " << fileHash)
         return;
     }
 
-    if (!m_downloads[fileHash].m_stream.is_open())
+    if (!m_downloads[fileHash].m_stream->is_open())
     {
-        m_downloads[fileHash].m_stream = std::ofstream("./" + fileHash, std::ios::binary | std::ios::app);
+        __LOG_WARN("Session::handleUploadDataRequest: could not open the file: " << fileHash)
+        // TODO: send failure back and remove file from downloads
+        return;
     }
 
-    m_downloads[fileHash].m_stream << base64_decode(json->get<std::string>("data"));
-    if (m_downloads[fileHash].m_stream.fail())
+    *m_downloads[fileHash].m_stream << base64_decode(json->get<std::string>("data"));
+    if (m_downloads[fileHash].m_stream->fail())
     {
-        // TODO: send failure back
+        // TODO: send failure back and remove file from downloads
         __LOG_WARN("Session::handleUploadDataRequest: saving chunk failure: chunk hash:" << json->get<std::string>("chunkHash"))
         return;
     }
 
+    const auto chunkIndex = json->get<std::uint64_t>("chunkIndex") + 1;
+    if (m_downloads[fileHash].m_chunksAmount == chunkIndex)
+    {
+        m_downloads[fileHash].m_stream->close();
+        // TODO: add rename and check file.
 
+        std::filesystem::path currentPath = std::filesystem::current_path();
+        std::filesystem::path absolutePath = currentPath / m_downloads[fileHash].m_relativePath;
+        __LOG("Session::handleUploadDataRequest: file path: " << fileHash << " path:" << absolutePath.string())
+    }
+
+    const auto responseId = json->get<std::string>("id");
+    auto payloadOutboundTree = generateBasicPayload(responseId, Type::SERVER_ACK_RESPONSE);
+    const auto payloadStr = jsonToString(payloadOutboundTree);
+    if (payloadStr.empty())
+    {
+        __LOG_WARN("Session::handleUploadDataRequest: SERVER_ACK_RESPONSE json conversion error: " << responseId)
+        return;
+    }
+
+    const EncryptionResult encryptedAck = encrypt(m_sharedKey, payloadStr);
+    if (encryptedAck.cipherData.empty())
+    {
+        __LOG_WARN("Session::handleUploadDataRequest: encryption of the SERVER_ACK_RESPONSE error " << responseId)
+        return;
+    }
+
+    auto finalMessage = generateFinalMessage(encryptedAck);
+    sendMessage(finalMessage);
 }
 
 long Session::getCurrentTimestamp()
@@ -942,6 +986,7 @@ void Session::handlePayload(std::shared_ptr<boost::property_tree::ptree> json)
                 }
             */
 
+            // TODO: re-work logic
             boost::asio::post(m_networkStrand, [pThis = shared_from_this()]()
             {
                 auto closeMessage = std::make_shared<boost::property_tree::ptree>();
@@ -1062,6 +1107,26 @@ void Session::generateSessionKeyPair(const std::string& inSessionPublicKey, std:
 
     EC_KEY_free(serverSessionKeys);
     EC_KEY_free(ecKeyClientSession);
+}
+
+std::shared_ptr<boost::property_tree::ptree> Session::generateBasicPayload(const std::string& id, Type type)
+{
+    auto payload = std::make_shared<boost::property_tree::ptree>(); // !!!!! check filed names
+    payload->put("id", id);
+    payload->put("type", type);
+    payload->put("timestamp", getCurrentTimestamp());
+
+    return payload;
+}
+
+std::shared_ptr<boost::property_tree::ptree> Session::generateFinalMessage(const EncryptionResult& encryptedData)
+{
+    auto finalMessage = std::make_shared<boost::property_tree::ptree>();
+    finalMessage->put("payload", base64_encode(encryptedData.cipherData));
+    finalMessage->put("metadata.iv", base64_encode(encryptedData.iv));
+    finalMessage->put("metadata.tag", base64_encode(encryptedData.tag));
+
+    return finalMessage;
 }
 
 }
