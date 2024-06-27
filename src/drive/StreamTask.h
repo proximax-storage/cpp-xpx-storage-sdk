@@ -327,7 +327,7 @@ public:
             }
             else
             {
-                if ( m_downloadingChunkIdx+1 >= m_chunkInfoList.size() )
+                if ( m_downloadingChunkIdx + 1 >= static_cast<int>(m_chunkInfoList.size()) )
                 {
                     // so far, we have nothing to download
                     _LOG( "so far, we have nothing to download" )
