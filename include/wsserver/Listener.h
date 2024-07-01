@@ -34,11 +34,12 @@ namespace sirius::wsserver
 class PLUGIN_API Listener : public std::enable_shared_from_this<Listener>
 {
 	public:
-		Listener(boost::asio::io_context& ioCtx, const sirius::crypto::KeyPair& keyPair)
+		Listener(boost::asio::io_context& ioCtx, const sirius::crypto::KeyPair& keyPair, const std::string& storageDirectory)
 			: m_keyPair(keyPair)
             , m_ioCtx(ioCtx)
 			, m_acceptor(ioCtx)
 			, m_strand(ioCtx)
+            , m_storageDirectory(std::filesystem::current_path() / std::filesystem::path(storageDirectory))
 		{}
 
 	public:
@@ -57,6 +58,7 @@ class PLUGIN_API Listener : public std::enable_shared_from_this<Listener>
 		boost::asio::ip::tcp::acceptor m_acceptor;
 		boost::asio::io_context::strand m_strand;
 		boost::uuids::random_generator m_uuidGenerator;
+        std::filesystem::path m_storageDirectory;
 		std::map<boost::uuids::uuid, std::shared_ptr<Session>> m_sessions;
 };
 };

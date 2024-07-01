@@ -29,9 +29,12 @@ Session::Session(const boost::uuids::uuid& uuid,
                  const sirius::crypto::KeyPair& keyPair,
 				 boost::asio::io_context& ioCtx,
                  boost::asio::ip::tcp::socket&& socket,
+                 std::filesystem::path& storageDirectory,
                  std::function<void(const boost::uuids::uuid& id)> remover)
-	: removeSession(remover)
-	, m_id(uuid)
+	: m_storageDirectory(storageDirectory)
+	, removeSession(remover)
+    , m_id(uuid)
+    , m_uuidGenerator({})
 	, m_networkStrand(ioCtx)
 	, m_downloadsStrand(ioCtx)
     , m_ws(std::move(socket))
@@ -40,6 +43,15 @@ Session::Session(const boost::uuids::uuid& uuid,
 
 void Session::run()
 {
+    std::error_code ec;
+    std::filesystem::create_directories(m_storageDirectory, ec);
+    if (ec)
+    {
+        __LOG_WARN("Session::run: create directories error: " << m_storageDirectory.string() << " error: " << ec.message())
+        // TODO: send error back
+        return;
+    }
+
 	boost::asio::dispatch(m_networkStrand, [pThis = shared_from_this()]()
     {
         pThis->m_ws.set_option(boost::beast::websocket::stream_base::timeout::suggested(boost::beast::role_type::server));
@@ -70,7 +82,7 @@ void Session::onAccept(boost::beast::error_code ec)
         auto clientIp = clientEndpoint.address().to_string();
         auto clientPort = clientEndpoint.port();
 
-        __LOG( "Session::onAccept: Session id: " << to_string(pThis->m_id) << " client endpoint: " << clientIp << " : " << clientPort )
+        __LOG( "Session::onAccept: Session id: " << to_string(pThis->m_id) << " client endpoint: " << clientIp << " : " << clientPort << " storage directory: " << pThis->m_storageDirectory)
         pThis->m_ws.async_read(pThis->m_buffer, [pThis](boost::beast::error_code ec, std::size_t)
         {
             if (ec == boost::beast::websocket::error::closed)

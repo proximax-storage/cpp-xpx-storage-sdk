@@ -41,6 +41,7 @@ class Session : public std::enable_shared_from_this<Session>
                          const sirius::crypto::KeyPair& keyPair,
 						 boost::asio::io_context& ioCtx,
                          boost::asio::ip::tcp::socket&& socket,
+                         std::filesystem::path& storageDirectory,
                          std::function<void(const boost::uuids::uuid& id)> remover);
 		~Session() = default;
 
@@ -80,6 +81,7 @@ class Session : public std::enable_shared_from_this<Session>
 	private:
 		std::string m_sharedKey;
         std::string m_clientPublicKey;
+        std::filesystem::path& m_storageDirectory;
 
         std::function<void(const boost::uuids::uuid& id)> removeSession;
 		std::unordered_map<std::string, std::string> m_recvDirectory;
