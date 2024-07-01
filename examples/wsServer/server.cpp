@@ -10,7 +10,8 @@ int main(int argc, char* argv[])
     auto keyPair = sirius::crypto::KeyPair::FromPrivate(std::move(privateKey));
 
     boost::asio::io_context ioc;
-    auto server = std::make_shared<sirius::wsserver::Listener>(ioc, keyPair);
+    const std::string storageDirectory = "storageDirectory";
+    auto server = std::make_shared<sirius::wsserver::Listener>(ioc, keyPair, storageDirectory);
     server->init(boost::asio::ip::tcp::endpoint{address, port});
     server->run();
 
