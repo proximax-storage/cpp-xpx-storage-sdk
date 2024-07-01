@@ -274,7 +274,7 @@ public:
 
         m_dnOpinionSyncronizer.start( m_session );
 
-		auto wsServer = std::make_shared<sirius::wsserver::Listener>(m_wsServerContext, m_keyPair);
+		auto wsServer = std::make_shared<sirius::wsserver::Listener>(m_wsServerContext, m_keyPair, m_storageDirectory);
 		const auto address = boost::asio::ip::make_address(m_address);
 		const auto rawPort = boost::lexical_cast<unsigned short>(m_wsPort);
 		const auto wsEndpoint = boost::asio::ip::tcp::endpoint{ address, rawPort };
