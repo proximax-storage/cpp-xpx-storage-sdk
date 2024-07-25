@@ -15,6 +15,7 @@
 #include <boost/archive/iterators/remove_whitespace.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/uuid/string_generator.hpp>
+#include <utility>
 
 
 // TODO: fix Man-in-the-middle attack (verify server key, authenticator app, etc)
@@ -30,8 +31,10 @@ Session::Session(const boost::uuids::uuid& uuid,
 				 boost::asio::io_context& ioCtx,
                  boost::asio::ip::tcp::socket&& socket,
                  std::filesystem::path& storageDirectory,
+                 std::function<void(boost::property_tree::ptree data, std::function<void(std::string fsTreeJson)> callback)> fsTreeHandler,
                  std::function<void(const boost::uuids::uuid& id)> remover)
 	: m_storageDirectory(storageDirectory)
+    , fsTreeHandler(fsTreeHandler)
 	, removeSession(remover)
     , m_id(uuid)
     , m_uuidGenerator({})
@@ -938,6 +941,26 @@ void Session::handlePayload(std::shared_ptr<boost::property_tree::ptree> json)
             {
                 pThis->handleUploadDataRequest(json);
             });
+            break;
+        }
+
+        case FILE_TREE_REQUEST:
+        {
+            __LOG( "FILE_TREE_REQUEST: " << to_string(m_id) << " data: " << json->get<std::string>("data") )
+            if (!fsTreeHandler)
+            {
+                __LOG_WARN( "FILE_TREE_REQUEST: " << to_string(m_id) << " data: " << json->get<std::string>("data") << " callback is not set!" )
+                // TODO: send error to client
+                return;
+            }
+
+            auto callback = [pThis = shared_from_this()](std::string fileTreeJson)
+            {
+                __LOG_WARN( "FILE_TREE_REQUEST fileTreeJson: " << to_string(pThis->m_id) << " data: " << fileTreeJson )
+            };
+
+            fsTreeHandler(*json, callback);
+
             break;
         }
 

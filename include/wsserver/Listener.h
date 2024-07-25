@@ -45,6 +45,7 @@ class PLUGIN_API Listener : public std::enable_shared_from_this<Listener>
 	public:
 		void init(const boost::asio::ip::tcp::endpoint& endpoint);
 		void run();
+        void setFsTreeHandler(std::function<void(boost::property_tree::ptree data, std::function<void(std::string fsTreeJson)> callback)> handler);
 
 	private:
 		void doAccept();
@@ -60,6 +61,7 @@ class PLUGIN_API Listener : public std::enable_shared_from_this<Listener>
 		boost::uuids::random_generator m_uuidGenerator;
         std::filesystem::path m_storageDirectory;
 		std::map<boost::uuids::uuid, std::shared_ptr<Session>> m_sessions;
+        std::function<void(boost::property_tree::ptree data, std::function<void(std::string fsTreeJson)> callback)> m_fsTreeHandler;
 };
 };
 

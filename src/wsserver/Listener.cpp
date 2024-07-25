@@ -41,6 +41,11 @@ void Listener::run()
     doAccept();
 }
 
+void Listener::setFsTreeHandler(std::function<void(boost::property_tree::ptree data, std::function<void(std::string fsTreeJson)> callback)> handler)
+{
+    m_fsTreeHandler = handler;
+}
+
 void Listener::doAccept()
 {
 	m_acceptor.async_accept(m_ioCtx,[pThis = shared_from_this()](auto ec, auto socket)
@@ -61,7 +66,14 @@ void Listener::onAccept(boost::beast::error_code ec, boost::asio::ip::tcp::socke
 		{
 			auto sessionId = pThis->m_uuidGenerator();
             auto callback = [pThis](const boost::uuids::uuid& id){ pThis->removeSession(id); };
-			auto newSession = std::make_shared<Session>(sessionId, pThis->m_keyPair, pThis->m_ioCtx, std::move(pSocket), pThis->m_storageDirectory, callback);
+			auto newSession = std::make_shared<Session>(sessionId,
+                                                        pThis->m_keyPair,
+                                                        pThis->m_ioCtx,
+                                                        std::move(pSocket),
+                                                        pThis->m_storageDirectory,
+                                                        pThis->m_fsTreeHandler,
+                                                        callback);
+
 			pThis->m_sessions.insert({sessionId, std::move(newSession) });
 			pThis->m_sessions[sessionId]->run();
 		});

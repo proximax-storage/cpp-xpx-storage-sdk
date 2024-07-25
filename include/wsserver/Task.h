@@ -9,8 +9,11 @@ enum Type
     CLIENT_UPLOAD_DATA_START_REQUEST, // From client to server
     SERVER_READY_RESPONSE, // From server to client
 
-    CLIENT_UPLOAD_DATA_REQUEST, // From client to server
-    SERVER_ACK_RESPONSE, // From server to client
+    CLIENT_UPLOAD_DATA_REQUEST, // From client
+    SERVER_ACK_RESPONSE, // From server
+
+    FILE_TREE_REQUEST, // From client
+    FILE_TREE_RESPONSE, // From server
 
     CLIENT_DOWNLOAD_DATA_START,
     CLIENT_DOWNLOAD_DATA_INFO,

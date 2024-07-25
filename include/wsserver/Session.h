@@ -42,6 +42,7 @@ class Session : public std::enable_shared_from_this<Session>
 						 boost::asio::io_context& ioCtx,
                          boost::asio::ip::tcp::socket&& socket,
                          std::filesystem::path& storageDirectory,
+                         std::function<void(boost::property_tree::ptree data, std::function<void(std::string fsTreeJson)> callback)> fsTreeHandler,
                          std::function<void(const boost::uuids::uuid& id)> remover);
 		~Session() = default;
 
@@ -83,6 +84,7 @@ class Session : public std::enable_shared_from_this<Session>
         std::string m_clientPublicKey;
         std::filesystem::path& m_storageDirectory;
 
+        std::function<void(boost::property_tree::ptree data, std::function<void(std::string fsTreeJson)> callback)> fsTreeHandler;
         std::function<void(const boost::uuids::uuid& id)> removeSession;
 		std::unordered_map<std::string, std::string> m_recvDirectory;
 		std::unordered_map<std::string, int> m_recvNumOfDataPieces;
