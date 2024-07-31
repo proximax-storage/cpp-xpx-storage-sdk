@@ -944,19 +944,19 @@ void Session::handlePayload(std::shared_ptr<boost::property_tree::ptree> json)
             break;
         }
 
-        case FILE_TREE_REQUEST:
+        case FS_TREE_REQUEST:
         {
-            __LOG( "FILE_TREE_REQUEST: " << to_string(m_id) << " data: " << json->get<std::string>("data") )
+            __LOG( "FS_TREE_REQUEST: " << to_string(m_id) << " data: " << json->get<std::string>("data") )
             if (!fsTreeHandler)
             {
-                __LOG_WARN( "FILE_TREE_REQUEST: " << to_string(m_id) << " data: " << json->get<std::string>("data") << " callback is not set!" )
+                __LOG_WARN( "FS_TREE_REQUEST: " << to_string(m_id) << " data: " << json->get<std::string>("data") << " callback is not set!" )
                 // TODO: send error to client
                 return;
             }
 
             auto callback = [pThis = shared_from_this()](std::string fileTreeJson)
             {
-                __LOG_WARN( "FILE_TREE_REQUEST fileTreeJson: " << to_string(pThis->m_id) << " data: " << fileTreeJson )
+                __LOG_WARN( "FS_TREE_REQUEST fileTreeJson: " << to_string(pThis->m_id) << " data: " << fileTreeJson )
             };
 
             fsTreeHandler(*json, callback);

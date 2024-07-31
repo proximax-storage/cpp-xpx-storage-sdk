@@ -12,7 +12,7 @@ enum Type
     CLIENT_UPLOAD_DATA_REQUEST, // From client
     SERVER_ACK_RESPONSE, // From server
 
-    FILE_TREE_REQUEST, // From client
+    FS_TREE_REQUEST, // From client
     FILE_TREE_RESPONSE, // From server
 
     CLIENT_DOWNLOAD_DATA_START,
