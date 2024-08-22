@@ -41,7 +41,7 @@ void Listener::run()
     doAccept();
 }
 
-void Listener::setFsTreeHandler(std::function<void(boost::property_tree::ptree data, std::function<void(std::string fsTreeJson)> callback)> handler)
+void Listener::setFsTreeHandler(std::function<void(boost::property_tree::ptree data, std::function<void(boost::property_tree::ptree fsTreeJson)> callback)> handler)
 {
     m_fsTreeHandler = handler;
 }

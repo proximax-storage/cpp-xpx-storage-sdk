@@ -3,6 +3,7 @@
 
 enum Type
 {
+	// TODO: Use a status(success or failure) as a field of payload, not like type
     HANDSHAKE_REQUEST, // From client to server
     HANDSHAKE_RESPONSE, // From server to client
 
@@ -10,10 +11,15 @@ enum Type
     SERVER_READY_RESPONSE, // From server to client
 
     CLIENT_UPLOAD_DATA_REQUEST, // From client
-    SERVER_ACK_RESPONSE, // From server
+    SERVER_ACK, // send to client after handling
 
     FS_TREE_REQUEST, // From client
-    FILE_TREE_RESPONSE, // From server
+    FS_TREE_RESPONSE, // From server
+
+	CLIENT_DOWNLOAD_FILES_REQUEST,
+	CLIENT_DOWNLOAD_FILES_RESPONSE,
+	CLIENT_DOWNLOAD_PIECE_RESPONSE,
+	CLIENT_ACK, // send to server after handling
 
     CLIENT_DOWNLOAD_DATA_START,
     CLIENT_DOWNLOAD_DATA_INFO,

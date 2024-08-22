@@ -1,10 +1,14 @@
 #include "wsserver/Session.h"
 #include "wsserver/Message.h"
 #include "crypto/Signer.h"
+#include "crypto/Hashes.h"
 #include "drive/log.h"
+#include "libtorrent/create_torrent.hpp"
 
 #include <iostream>
 #include <filesystem>
+#include <sys/file.h>
+#include <sys/stat.h>
 
 #include <openssl/rand.h>
 #include <openssl/evp.h>
@@ -31,7 +35,7 @@ Session::Session(const boost::uuids::uuid& uuid,
 				 boost::asio::io_context& ioCtx,
                  boost::asio::ip::tcp::socket&& socket,
                  std::filesystem::path& storageDirectory,
-                 std::function<void(boost::property_tree::ptree data, std::function<void(std::string fsTreeJson)> callback)> fsTreeHandler,
+                 std::function<void(boost::property_tree::ptree data, std::function<void(boost::property_tree::ptree fsTreeJson)> callback)> fsTreeHandler,
                  std::function<void(const boost::uuids::uuid& id)> remover)
 	: m_storageDirectory(storageDirectory)
     , fsTreeHandler(fsTreeHandler)
@@ -705,6 +709,69 @@ void Session::requestToAll(std::shared_ptr<boost::property_tree::ptree> json)
 //	}
 }
 
+void Session::sendChunk(const uint64_t chunkIndex,
+						const std::string& driveKey,
+						const std::string& fileHash,
+						const std::string& chunkHash,
+						const std::string& chunk)
+{
+	const auto responseId = generateMessageId();
+	auto payloadOutboundTree = generateBasicPayload(responseId, Type::CLIENT_DOWNLOAD_PIECE_RESPONSE);
+	payloadOutboundTree->put("chunkIndex", chunkIndex);
+	payloadOutboundTree->put("chunkHash", chunkHash);
+	payloadOutboundTree->put("hash", fileHash);
+	payloadOutboundTree->put("driveKey", driveKey);
+	payloadOutboundTree->put("data", chunk);
+
+	const auto payloadStr = jsonToString(payloadOutboundTree);
+	if (payloadStr.empty())
+	{
+		__LOG_WARN("Session::sendChunk: json conversion error: " << responseId)
+		return;
+	}
+
+	const EncryptionResult encryptedResponse = encrypt(m_sharedKey, payloadStr);
+	if (encryptedResponse.cipherData.empty())
+	{
+		__LOG_WARN("Session::sendChunk: encryption error " << responseId)
+		return;
+	}
+
+	auto finalMessage = generateFinalMessage(encryptedResponse);
+	sendMessage(finalMessage);
+}
+
+void Session::sendFileDescription(const std::string& responseId,
+								  const std::string& driveKey,
+								  const std::string& fileHash,
+								  int chunkSize,
+								  uint64_t fileSize)
+{
+	auto payloadOutboundTree = generateBasicPayload(responseId, Type::CLIENT_DOWNLOAD_FILES_RESPONSE);
+	payloadOutboundTree->put("size", fileSize);
+	payloadOutboundTree->put("chunkSize", chunkSize);
+	payloadOutboundTree->put("chunksAmount", chunkSize >= fileSize ? 1 : std::ceil(fileSize/chunkSize));
+	payloadOutboundTree->put("driveKey", driveKey);
+	payloadOutboundTree->put("hash", fileHash);
+
+	const auto payloadStr = jsonToString(payloadOutboundTree);
+	if (payloadStr.empty())
+	{
+		__LOG_WARN("Session::sendFileDescription: json conversion error: " << responseId)
+		return;
+	}
+
+	const EncryptionResult encryptedResponse = encrypt(m_sharedKey, payloadStr);
+	if (encryptedResponse.cipherData.empty())
+	{
+		__LOG_WARN("Session::sendFileDescription: encryption error " << responseId)
+		return;
+	}
+
+	auto finalMessage = generateFinalMessage(encryptedResponse);
+	sendMessage(finalMessage);
+}
+
 void Session::handleUploadDataStartRequest(std::shared_ptr<boost::property_tree::ptree> json)
 {
     __LOG( "Session::handleUploadDataStartRequest:::Session ID: " << to_string(m_id) )
@@ -834,18 +901,18 @@ void Session::handleUploadDataRequest(std::shared_ptr<boost::property_tree::ptre
     }
 
     const auto responseId = json->get<std::string>("id");
-    auto payloadOutboundTree = generateBasicPayload(responseId, Type::SERVER_ACK_RESPONSE);
+    auto payloadOutboundTree = generateBasicPayload(responseId, Type::SERVER_ACK);
     const auto payloadStr = jsonToString(payloadOutboundTree);
     if (payloadStr.empty())
     {
-        __LOG_WARN("Session::handleUploadDataRequest: SERVER_ACK_RESPONSE json conversion error: " << responseId)
+        __LOG_WARN("Session::handleUploadDataRequest: SERVER_ACK json conversion error: " << responseId)
         return;
     }
 
     const EncryptionResult encryptedAck = encrypt(m_sharedKey, payloadStr);
     if (encryptedAck.cipherData.empty())
     {
-        __LOG_WARN("Session::handleUploadDataRequest: encryption of the SERVER_ACK_RESPONSE error " << responseId)
+        __LOG_WARN("Session::handleUploadDataRequest: encryption of the SERVER_ACK error " << responseId)
         return;
     }
 
@@ -946,23 +1013,140 @@ void Session::handlePayload(std::shared_ptr<boost::property_tree::ptree> json)
 
         case FS_TREE_REQUEST:
         {
-            __LOG( "FS_TREE_REQUEST: " << to_string(m_id) << " data: " << json->get<std::string>("data") )
+			auto data = json->get_optional<std::string>("data");
+			if (!data.has_value())
+			{
+				__LOG_WARN( "FS_TREE_REQUEST: " << to_string(m_id) << " data is empty!" )
+				// TODO: send error to client
+				return;
+			}
+
             if (!fsTreeHandler)
             {
-                __LOG_WARN( "FS_TREE_REQUEST: " << to_string(m_id) << " data: " << json->get<std::string>("data") << " callback is not set!" )
+                __LOG_WARN( "FS_TREE_REQUEST: " << to_string(m_id) << " data: " << data.value() << " callback is not set!" )
                 // TODO: send error to client
                 return;
             }
 
-            auto callback = [pThis = shared_from_this()](std::string fileTreeJson)
+			const auto responseId = json->get<std::string>("id");
+            auto callback = [pThis = shared_from_this(), responseId](boost::property_tree::ptree fsTree)
             {
-                __LOG_WARN( "FS_TREE_REQUEST fileTreeJson: " << to_string(pThis->m_id) << " data: " << fileTreeJson )
+				auto fsTreePtr = std::make_shared<boost::property_tree::ptree>(fsTree);
+				const auto fsTreeJson = jsonToString(fsTreePtr);
+                __LOG( "Session::handlePayload FS_TREE_REQUEST callback, fsTree: " << to_string(pThis->m_id) << " data: " << fsTreeJson )
+
+				auto payloadOutboundTree = pThis->generateBasicPayload(responseId, Type::FS_TREE_RESPONSE);
+				payloadOutboundTree->put("data", fsTreeJson);
+				const auto payloadStr = jsonToString(payloadOutboundTree);
+				if (payloadStr.empty())
+				{
+					__LOG_WARN("Session::handlePayload FS_TREE_RESPONSE callback: json conversion error: " << responseId)
+					return;
+				}
+
+				const EncryptionResult encryptedResponse = encrypt(pThis->m_sharedKey, payloadStr);
+				if (encryptedResponse.cipherData.empty())
+				{
+					__LOG_WARN("Session::handlePayload: encryption of the FS_TREE_RESPONSE error " << responseId)
+					return;
+				}
+
+				auto finalMessage = pThis->generateFinalMessage(encryptedResponse);
+				pThis->sendMessage(finalMessage);
             };
 
-            fsTreeHandler(*json, callback);
+			auto jsonData = stringToJson(data.value());
+            fsTreeHandler(*jsonData, callback);
 
             break;
         }
+
+		case CLIENT_DOWNLOAD_FILES_REQUEST:
+		{
+			auto data = json->get_optional<std::string>("data");
+			if (!data.has_value())
+			{
+				__LOG_WARN( "CLIENT_DOWNLOAD_FILES_REQUEST: " << to_string(m_id) << " data is empty!" )
+				// TODO: send error to client
+				return;
+			}
+
+			auto jsonData = stringToJson(data.value());
+			auto driveKey = jsonData->get_optional<std::string>("driveKey");
+			if (!driveKey.has_value() || driveKey.value().empty())
+			{
+				__LOG_WARN( "CLIENT_DOWNLOAD_FILES_REQUEST: " << to_string(m_id) << " invalid drive key! Data: " << data.value())
+				// TODO: send error to client
+				return;
+			}
+
+			for (const auto& currentFile : jsonData->get_child("files"))
+			{
+				const auto hash = currentFile.second.get<std::string>("hash");
+				const auto pathToFile = m_storageDirectory.string() + "/" + driveKey.value() + "/drive/" + hash;
+
+				__LOG( "CLIENT_DOWNLOAD_FILES_REQUEST full path to file" << pathToFile )
+
+				int fileDescriptor = open(pathToFile.c_str(), O_RDONLY);
+				if (fileDescriptor == -1)
+				{
+					__LOG_WARN( "CLIENT_DOWNLOAD_FILES_REQUEST: " << to_string(m_id) << " file not found! Path: " << pathToFile << " message: " << strerror(errno))
+					// TODO: send error to client
+					continue;
+				}
+
+				if (flock(fileDescriptor, LOCK_SH) == -1)
+				{
+					__LOG_WARN( "CLIENT_DOWNLOAD_FILES_REQUEST: " << to_string(m_id) << " Error locking file: " << pathToFile << " message: " << strerror(errno))
+					close(fileDescriptor);
+					// TODO: send error to client
+					continue;
+				}
+
+				struct stat fileStat{};
+				if (stat(pathToFile.c_str(), &fileStat) == -1)
+				{
+					__LOG_WARN( "CLIENT_DOWNLOAD_FILES_REQUEST: " << to_string(m_id) << " Error getting file size. File: " << pathToFile )
+					close(fileDescriptor);
+					// TODO: send error to client
+					continue;
+				}
+
+				const auto chunkSize = lt::create_torrent::automatic_piece_size(fileStat.st_size);
+				const auto responseId = json->get<std::string>("id");
+				sendFileDescription(responseId, driveKey.value(), hash, chunkSize, fileStat.st_size);
+
+				uint64_t chunkIndex = 0;
+				char buffer[chunkSize];
+				ssize_t bytesRead;
+				while ((bytesRead = read(fileDescriptor, buffer, chunkSize)) > 0)
+				{
+					const std::string content(buffer, bytesRead);
+
+					Hash256 rawChunkHash;
+					crypto::Sha3_256_Builder sha3;
+					sha3.update(utils::RawBuffer{(const uint8_t*) content.c_str(), content.size()});
+					sha3.final(rawChunkHash);
+
+					std::ostringstream hexStream;
+					hexStream << utils::HexFormat(rawChunkHash.array());
+					std::string chunkHash = hexStream.str();
+					const auto encodedChunk = base64_encode(content);
+					chunkIndex += 1;
+
+					sendChunk(chunkIndex, driveKey.value(), hash, chunkHash, encodedChunk);
+				}
+
+				if (bytesRead == -1)
+				{
+					__LOG_WARN( "CLIENT_DOWNLOAD_FILES_REQUEST: " << to_string(m_id) << "Error reading file: " << strerror(errno) << pathToFile )
+				}
+
+				close(fileDescriptor);
+			}
+
+			break;
+		}
 
 		case CLIENT_DOWNLOAD_DATA_START:
 		case CLIENT_DOWNLOAD_DATA_FAILURE:

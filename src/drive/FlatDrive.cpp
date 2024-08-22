@@ -1255,6 +1255,67 @@ public:
         request.m_callback( FilesystemResponse{std::move( fsTree )} );
     }
 
+	void getFsTreeAsJson( boost::property_tree::ptree& jsonTree )
+	{
+		// TODO: Add json validator
+		std::function<void(const sirius::drive::Folder& folder, boost::property_tree::ptree& pTree)> readFolder = [&readFolder]
+				(const sirius::drive::Folder& folder, boost::property_tree::ptree& pTree)
+		{
+			if (folder.name().empty() || folder.name() == "/")
+			{
+				pTree.put("name", "root");
+				pTree.add_child("entities", boost::property_tree::ptree());
+			}
+
+			for( const auto& child : folder.childs() )
+			{
+				if (sirius::drive::isFolder(child.second))
+				{
+					auto& currentFolder = getFolder(child.second);
+
+					boost::property_tree::ptree entities;
+					readFolder(currentFolder, entities);
+
+					boost::property_tree::ptree folderObject;
+					folderObject.put("name", currentFolder.name());
+					folderObject.add_child("entities", entities);
+
+					if (folder.name().empty() || folder.name() == "/")
+					{
+						pTree.get_child("entities").push_back(std::make_pair("", folderObject));
+					}
+					else
+					{
+						pTree.push_back(std::make_pair("", folderObject));
+					}
+				}
+				else
+				{
+					const auto& file = sirius::drive::getFile(child.second);
+
+					std::ostringstream hashStream;
+					hashStream << sirius::utils::HexFormat(file.hash().array());
+
+					boost::property_tree::ptree fileObject;
+					fileObject.put("hash", hashStream.str());
+					fileObject.put("name", file.name());
+					fileObject.put("size", file.size());
+
+					if (folder.name().empty() || folder.name() == "/")
+					{
+						pTree.get_child("entities").push_back(std::make_pair("", fileObject));
+					}
+					else
+					{
+						pTree.push_back(std::make_pair("", fileObject));
+					}
+				}
+			}
+		};
+
+		readFolder(*m_fsTree, jsonTree);
+	}
+
     void dbgPrintDriveStatus() override
     {
         LOG( "Drive Status:" )

@@ -14,6 +14,8 @@
 #include <libtorrent/alert_types.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ip/udp.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/set.hpp>
 #include <memory>
@@ -819,6 +821,8 @@ public:
     virtual void getActualModificationId( mobj<ActualModificationIdRequest>&& request ) = 0;
 
     virtual void getFilesystem( const FilesystemRequest& request ) = 0;
+
+	virtual void getFsTreeAsJson( boost::property_tree::ptree& jsonTree ) = 0;
 
     virtual void startDriveClosing( mobj<DriveClosureRequest>&& request ) = 0;
 

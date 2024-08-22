@@ -14,6 +14,7 @@
 #include "RcptSyncronizer.h"
 #include "BackgroundExecutor.h"
 #include "wsserver/Listener.h"
+#include "utils/HexParser.h"
 
 #include <boost/algorithm/hex.hpp>
 
@@ -172,6 +173,8 @@ public:
 
     void shutdownReplicator() override
 	{
+		_LOG_WARN( "shutdownReplicator START: ")
+
 		// TODO: stop ws serer here
 		for (auto& thread : m_wsThreads)
 		{
@@ -180,6 +183,8 @@ public:
 				thread.join();
 			}
 		}
+
+		_LOG_WARN( "shutdownReplicator ws server stopped")
 
         std::promise<void> barrier;
         boost::asio::post( m_session->lt_session().get_context(), [&barrier, this]() mutable
@@ -192,8 +197,12 @@ public:
 
         m_backgroundExecutor.stop();
 
-        auto blockedDestructor = m_session->lt_session().abort();
+		_LOG_WARN( "shutdownReplicator replicator stopped")
+
+		m_session->lt_session().abort();
         m_session.reset();
+
+		_LOG_WARN( "shutdownReplicator libtorrent session stopped")
 
         if ( m_libtorrentThread.joinable())
 		{
@@ -203,6 +212,8 @@ public:
 
         //(???+++)
         saveDownloadChannelMap();
+
+		_LOG_WARN( "shutdownReplicator END: ")
     }
 
     ~DefaultReplicator() override
@@ -245,7 +256,7 @@ public:
 #endif
                                           } );
         m_dbgThreadId = m_libtorrentThread.get_id();
-        _LOG( "m_dbgThreadId = " << m_dbgThreadId )
+        _LOG( "m_dbgThreadId 1234 = " << m_dbgThreadId )
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {
@@ -278,18 +289,66 @@ public:
 		const auto address = boost::asio::ip::make_address(m_address);
 		const auto rawPort = boost::lexical_cast<unsigned short>(m_wsPort);
 		const auto wsEndpoint = boost::asio::ip::tcp::endpoint{ address, rawPort };
+
+		auto fsTreeHandler = [this](boost::property_tree::ptree data, std::function<void(boost::property_tree::ptree fsTreeJson)> callback)
+		{
+			for (const auto& fsTreeInfo : data)
+			{
+				boost::property_tree::ptree info = fsTreeInfo.second;
+				auto driveKey = info.get_optional<std::string>("driveKey");
+				if (!driveKey.has_value() || driveKey.value().empty())
+				{
+					_LOG( "fsTreeHandler: invalid drive key!")
+					// TODO: send error to client
+					continue;
+				}
+
+				auto rootHash = info.get_optional<std::string>("rootHash");
+				if (!rootHash.has_value() || rootHash.value().empty())
+				{
+					_LOG( "fsTreeHandler: invalid root hash!")
+					// TODO: send error to client
+					continue;
+				}
+
+				sirius::Key rawDriveKey;
+				sirius::utils::ParseHexStringIntoContainer(driveKey.value().c_str(), driveKey.value().size(), rawDriveKey);
+
+				sirius::Key rawRootHash;
+				sirius::utils::ParseHexStringIntoContainer(rootHash.value().c_str(), rootHash.value().size(), rawRootHash);
+
+				boost::asio::post( m_session->lt_session().get_context(), [this, rawDriveKey, driveKey, rootHash, rawRootHash, callback]()
+				{
+					DBG_MAIN_THREAD
+
+					auto driveIt = m_driveMap.find(rawDriveKey);
+					if (driveIt == m_driveMap.end())
+					{
+						// TODO: find on other replicators
+						_LOG( "fsTreeHandler: drive not found: " << driveKey)
+					}
+//					else if (driveIt->second->rootHash() == rawRootHash.array())
+//					{
+//						// TODO: send response to client
+//						_LOG( "fsTreeHandler: fs tree is up to date. Root hash: " << rootHash)
+//					}
+					else
+					{
+						boost::property_tree::ptree pTree;
+						driveIt->second->getFsTreeAsJson(pTree);
+
+						boost::asio::post( m_wsServerContext, [this, callback, pTree]()
+						{
+							callback(pTree);
+						});
+					}
+				});
+			}
+		};
+
+		wsServer->setFsTreeHandler(fsTreeHandler);
 		wsServer->init(wsEndpoint);
 		wsServer->run();
-
-		const unsigned int threadsAmount = std::thread::hardware_concurrency();
-		m_wsThreads.reserve(threadsAmount);
-		for (int i = 0; i < threadsAmount; ++i)
-		{
-			m_wsThreads.emplace_back([pThis = shared_from_this()]
-			{
-				pThis->m_wsServerContext.run();
-			});
-		}
     }
 
     Hash256 dbgGetRootHash( const DriveKey& driveKey ) override
@@ -330,6 +389,13 @@ public:
     void asyncInitializationFinished() override
     {
         _FUNC_ENTRY
+
+		const unsigned int threadsAmount = std::thread::hardware_concurrency();
+		m_wsThreads.reserve(threadsAmount);
+		for (int i = 0; i < threadsAmount; ++i)
+		{
+			m_wsThreads.emplace_back([pThis = shared_from_this()]{ pThis->m_wsServerContext.run(); });
+		}
 
         boost::asio::post( m_session->lt_session().get_context(), [this]
         {
