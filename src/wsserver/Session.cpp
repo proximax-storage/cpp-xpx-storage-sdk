@@ -750,7 +750,7 @@ void Session::sendFileDescription(const std::string& responseId,
 	auto payloadOutboundTree = generateBasicPayload(responseId, Type::CLIENT_DOWNLOAD_FILES_RESPONSE);
 	payloadOutboundTree->put("size", fileSize);
 	payloadOutboundTree->put("chunkSize", chunkSize);
-	payloadOutboundTree->put("chunksAmount", chunkSize >= fileSize ? 1 : std::ceil(fileSize/chunkSize));
+	payloadOutboundTree->put("chunksAmount", static_cast<uint64_t>(chunkSize) >= fileSize ? 1 : std::ceil(fileSize/chunkSize));
 	payloadOutboundTree->put("driveKey", driveKey);
 	payloadOutboundTree->put("hash", fileHash);
 
@@ -1112,7 +1112,7 @@ void Session::handlePayload(std::shared_ptr<boost::property_tree::ptree> json)
 					continue;
 				}
 
-				const auto chunkSize = lt::create_torrent::automatic_piece_size(fileStat.st_size);
+				const auto chunkSize = libtorrent::create_torrent::automatic_piece_size(fileStat.st_size);
 				const auto responseId = json->get<std::string>("id");
 				sendFileDescription(responseId, driveKey.value(), hash, chunkSize, fileStat.st_size);
 
