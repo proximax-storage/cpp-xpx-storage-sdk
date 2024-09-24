@@ -285,11 +285,12 @@ public:
 
         m_dnOpinionSyncronizer.start( m_session );
 
+#ifndef SKIP_WSSERVER
 		auto wsServer = std::make_shared<sirius::wsserver::Listener>(m_wsServerContext, m_keyPair, m_storageDirectory);
 		const auto address = boost::asio::ip::make_address(m_address);
 		const auto rawPort = boost::lexical_cast<unsigned short>(m_wsPort);
 		const auto wsEndpoint = boost::asio::ip::tcp::endpoint{ address, rawPort };
-
+#endif
 		auto fsTreeHandler = [this](boost::property_tree::ptree data, std::function<void(boost::property_tree::ptree fsTreeJson)> callback)
 		{
 			for (const auto& fsTreeInfo : data)
@@ -346,9 +347,11 @@ public:
 			}
 		};
 
+#ifndef SKIP_WSSERVER
 		wsServer->setFsTreeHandler(fsTreeHandler);
 		wsServer->init(wsEndpoint);
 		wsServer->run();
+#endif
     }
 
     Hash256 dbgGetRootHash( const DriveKey& driveKey ) override

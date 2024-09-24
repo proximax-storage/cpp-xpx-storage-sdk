@@ -11,7 +11,7 @@ if (APPLE)
 endif()
 
 if (DEFINED SKIP_GRPC)
-    target_link_libraries(drive storage-crypto torrent-sirius wsserver)
+    target_link_libraries(drive storage-crypto torrent-sirius)
 else()
     target_link_libraries(drive supercontract-server messenger-server storage-crypto torrent-sirius wsserver)
 endif()

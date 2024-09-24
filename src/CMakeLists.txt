@@ -14,8 +14,10 @@ add_subdirectory(net)
 add_subdirectory(utils)
 add_subdirectory(nodediscovery)
 
-if(NOT WIN32)
-   add_subdirectory(wsserver)
+if (DEFINED CPP_XPX_CHAIN)
+   if(NOT WIN32)
+      add_subdirectory(wsserver)
+   endif()
 endif()
 
 # find_package(Boost 1.71.0 REQUIRED)

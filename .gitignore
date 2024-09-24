@@ -65,3 +65,5 @@ _bin
 CMakeLists.back
 _build
 .vscode
+
+.DS_Store
