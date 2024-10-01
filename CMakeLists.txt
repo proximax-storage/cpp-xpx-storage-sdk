@@ -11,15 +11,14 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 set(ABSL_PROPAGATE_CXX_STD ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-
 if (NOT DEFINED CPP_XPX_CHAIN)
     set(SKIP_GRPC ON)
+#else()
+    add_definitions(-DUSE_ELPP)
 endif()
 
 if (DEFINED SKIP_SUPERCONTRACT)
@@ -44,6 +43,9 @@ if(WIN32)
 endif()
 
 include_directories(include)
+if(DEFINED EASYLOGGING AND EASYLOGGING STREQUAL "ON")
+    include_directories(include/el)
+endif()
 
 ### setup boost
 if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
@@ -116,3 +118,4 @@ if (XPX_STORAGE_SDK_NOT_BUILD_EXAMPLES)
 else()
     add_subdirectory(examples)
 endif()
+

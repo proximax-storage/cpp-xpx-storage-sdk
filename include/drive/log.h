@@ -21,6 +21,11 @@
 
 #include "boost/date_time/posix_time/posix_time.hpp"
 
+#ifdef USE_ELPP
+    #include "easylogging/easylogging++.h"
+    #define LOG_FOLDER "/tmp/replicator_service_logs"
+#endif
+
 BOOST_SYMBOL_EXPORT inline std::mutex gLogMutex;
 
 BOOST_SYMBOL_EXPORT inline bool gSkipDhtPktLogs = false;
@@ -114,69 +119,183 @@ inline void checkLogFileSize()
     }
 }
 
-// LOG
-#define LOG(expr) {}
-/*
-#define LOG(expr) { \
-        std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        checkLogFileSize(); \
-        std::cout << current_time() << " " << expr << std::endl << std::flush; \
+static unsigned int idx;
+#ifdef USE_ELPP
+inline void rolloutHandler(const char* filename, std::size_t size)
+{
+// gLogFileName = logFolder / ("replicator_service_" + port + ".log");
+    if (!std::filesystem::exists(LOG_FOLDER))
+    {
+        try {
+            std::filesystem::create_directory(LOG_FOLDER);
+            std::cout << "Directory 'LOG_FOLDER' created successfully." << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "Error creating directory 'LOG_FOLDER': " << e.what() << std::endl;
+        }
+    } else {
+        std::cout << "Directory 'LOG_FOLDER' already exists." << std::endl;
     }
-*/
 
+    // SHOULD NOT LOG ANYTHING HERE BECAUSE LOG FILE IS CLOSED!
+    std::cout << "************** Rolling out [" << filename << "] because it reached [" << size << " bytes]" << std::endl;
+
+    std::stringstream ss;
+    ss << "mv " << filename << " " << LOG_FOLDER << "/log-" << idx++ << ".log";
+    std::cout << "************* command was: mv " << filename << " " << LOG_FOLDER << "/log-" << idx << ".log";
+    system(ss.str().c_str());
+
+    std::vector<std::filesystem::path> logFiles;
+    for (const auto& entry : std::filesystem::directory_iterator("bin")) {
+        if (entry.path().extension() == ".log") {
+            logFiles.push_back(entry.path());
+        }
+    }
+    // Sort the log files by creation time (oldest first)
+    std::sort(logFiles.begin(), logFiles.end(), [](const std::filesystem::path& p1, const std::filesystem::path& p2) {
+        return std::filesystem::last_write_time(p1) < std::filesystem::last_write_time(p2);
+    });
+
+    // Delete the oldest log files if there are more than 10
+    if (logFiles.size() > 10) {
+        for (std::size_t i = 0; i < logFiles.size() - 10; ++i) {
+            std::cout << "Deleting oldest log file: " << logFiles[i] << std::endl;
+            std::filesystem::remove(logFiles[i]);
+        }
+    }
+}
+
+inline void setLogConf(std::string port)
+{
+    el::Loggers::addFlag(el::LoggingFlag::StrictLogFileSizeCheck);
+    el::Configurations conf;
+    std::string filename = std::string(LOG_FOLDER) + "/ESLreplicator_service_" + port + ".log";
+    conf.set(el::Level::Global, el::ConfigurationType::Filename, filename);
+    conf.set(el::Level::Global, el::ConfigurationType::Format, "%msg");
+    conf.set(el::Level::Global, el::ConfigurationType::SubsecondPrecision, "4");
+    conf.set(el::Level::Global, el::ConfigurationType::ToFile, "true");
+    conf.set(el::Level::Global, el::ConfigurationType::LogFlushThreshold, "1");
+    conf.set(el::Level::Global, el::ConfigurationType::MaxLogFileSize, "10000");
+    el::Loggers::reconfigureAllLoggers(conf);
+}
+#endif
+
+#if USE_ELPP
+#define LOG(expr) { \
+    std::lock_guard<std::mutex> autolock( gLogMutex ); \
+    checkLogFileSize(); \
+    std::cout << current_time() << " " << std::endl << std::flush; \
+}
+#else
+#define LOG(expr) {}
+#endif
 
 // _LOG - with m_dbgOurPeerName
 //#define _LOG(expr) {}
 
+#if USE_ELPP
 #define _LOG(expr) { \
-        std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        checkLogFileSize(); \
-        std::cout << current_time() << " " << m_dbgOurPeerName << ": " << expr << std::endl << std::flush; \
-    }
+    std::lock_guard<std::mutex> autolock( gLogMutex ); \
+    el::Helpers::installPreRollOutCallback(rolloutHandler); \
+    LOGPP(DEBUG) <<"ESL______"<< current_time() << " " << m_dbgOurPeerName << ": " << expr; \
+    el::Helpers::uninstallPreRollOutCallback(); \
+}
+#else
+#define _LOG(expr) { \
+std::lock_guard<std::mutex> autolock( gLogMutex ); \
+    checkLogFileSize(); \
+    std::cout << current_time() << " " << m_dbgOurPeerName << ": " << expr << std::endl << std::flush; \
+}
+#endif
 
 
 // __LOG
 //#define __LOG(expr) {}
-
+#if USE_ELPP
 #define __LOG(expr) { \
-        std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        checkLogFileSize(); \
-        std::cout << current_time() << " " << expr << std::endl << std::flush; \
-    }
-
+    std::lock_guard<std::mutex> autolock( gLogMutex ); \
+    el::Helpers::installPreRollOutCallback(rolloutHandler); \
+    LOGPP(DEBUG) <<"ESL______"<< current_time() << " " << expr; \
+    el::Helpers::uninstallPreRollOutCallback(); \
+}
+#else
+#define __LOG(expr) { \
+std::lock_guard<std::mutex> autolock( gLogMutex ); \
+    checkLogFileSize(); \
+    std::cout << current_time() << " " << expr << std::endl << std::flush; \
+}
+#endif
 
 // ___LOG
 //#define ___LOG(expr) {}
 
- #define ___LOG(expr) { \
-    if ( !gKademliaLogs ) {\
+#if USE_ELPP
+#define ___LOG(expr) { \
+    if ( !gKademliaLogs ) { \
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        el::Helpers::installPreRollOutCallback(rolloutHandler); \
+        LOGPP(DEBUG) <<"ESL______"<< current_time() << " " << expr; \
+        el::Helpers::uninstallPreRollOutCallback(); \
+    }   \
+}
+#else
+#define ___LOG(expr) { \
+if ( !gKademliaLogs ) {\
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << current_time() << " " << expr << std::endl << std::flush; \
-    }}
-
+}}
+#endif
 
 // _LOG_WARN - with m_dbgOurPeerName
+#if USE_ELPP
+#define _LOG_WARN(expr) { \
+    std::lock_guard<std::mutex> autolock( gLogMutex ); \
+    el::Helpers::installPreRollOutCallback(rolloutHandler); \
+    LOGPP(WARNING) <<"ESL______"<< current_time() << " " << m_dbgOurPeerName << ": WARNING!!! in " << __FUNCTION__ << "() " << expr; \
+    el::Helpers::uninstallPreRollOutCallback(); \
+    if ( gBreakOnWarning ) { assert(0); } \
+}
+#else
 #define _LOG_WARN(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << current_time() << " " << m_dbgOurPeerName << ": WARNING!!! in " << __FUNCTION__ << "() " << expr << std::endl << std::flush; \
         if ( gBreakOnWarning ) { assert(0); } \
-    }
+}
+#endif
 
+#if USE_ELPP
+#define __LOG_WARN(expr) { \
+    std::lock_guard<std::mutex> autolock( gLogMutex ); \
+    el::Helpers::installPreRollOutCallback(rolloutHandler); \
+    LOGPP(WARNING) <<"ESL______"<< ": WARNING!!! in " << __FUNCTION__ << "() " << current_time() << " " << expr; \
+    el::Helpers::uninstallPreRollOutCallback(); \
+    if ( gBreakOnWarning ) { assert(0); } \
+}
+#else
 #define __LOG_WARN(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << ": WARNING!!! in " << __FUNCTION__ << "() " << current_time() << " " << expr << std::endl << std::flush; \
         if ( gBreakOnWarning ) { assert(0); } \
     }
+#endif
 
+#if USE_ELPP
+#define _LOG_ERR(expr) { \
+    std::lock_guard<std::mutex> autolock( gLogMutex ); \
+    LOGPP(ERROR) <<"ESL______"<< __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< current_time() << " " << expr; \
+    el::Helpers::uninstallPreRollOutCallback(); \
+    if ( gBreakOnError ) { assert(0); } \
+ }
+#else
 #define _LOG_ERR(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< current_time() << " " << expr << "\n" << std::flush; \
         if ( gBreakOnError ) { assert(0); } \
     }
+#endif
 
 #if 0
 #define _FUNC_ENTRY

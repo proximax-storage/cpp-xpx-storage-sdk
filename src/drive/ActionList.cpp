@@ -5,6 +5,7 @@
 */
 
 #include "drive/ActionList.h"
+#include "drive/log.h"
 
 #include <fstream>
 
@@ -33,26 +34,26 @@ void ActionList::deserialize( const std::filesystem::path& fileName )
 
 void ActionList::dbgPrint() const
 {
-    std::cerr << "ActionList {" << std::endl;
+    __LOG("ActionList {")
     for( const auto& action : *this )
     {
         switch( action.m_actionId )
         {
             case action_list_id::upload:
-                std::cerr << " upload: '" << action.m_param1 << "' to '" << action.m_param2 << "'" << std::endl;
+                __LOG(" upload: '" << action.m_param1 << "' to '" << action.m_param2 << "'")
                 break;
             case action_list_id::new_folder:
-                std::cerr << " new_folder: '" << action.m_param1 << "'" << std::endl;
+                __LOG(" new_folder: '" << action.m_param1 << "'")
                 break;
             case action_list_id::move:
-                std::cerr << " move: '" << action.m_param1 << "' to '" << action.m_param2 << "'" << std::endl;
+                __LOG(" move: '" << action.m_param1 << "' to '" << action.m_param2 << "'")
                 break;
             case action_list_id::remove:
-                std::cerr << " remove: '" << action.m_param1 << "'" << std::endl;
+                __LOG(" remove: '" << action.m_param1 << "'")
                 break;
         }
     }
-    std::cerr << "}" << std::endl;
+    __LOG("}")
 }
 
 }}

@@ -12,6 +12,8 @@
 #include <syslog.h>
 #include <thread>
 
+#include "drive/log.h"
+
 #include <boost/asio/connect.hpp>
 #include <boost/asio/write.hpp>
 #include <boost/asio/read.hpp>
@@ -39,8 +41,9 @@
 #include "libtorrent/bdecode.hpp"
 #include "libtorrent/entry.hpp"
 
-
-#   define RPC_LOG(expr) __LOG( "*RPC* " << expr)
+#   define RPC_LOG(expr) { \
+    std::cout << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< expr << "\n" << std::flush; \
+}
 
 #   define RPC_ERR(expr) { \
         std::cout << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< expr << "\n" << std::flush; \

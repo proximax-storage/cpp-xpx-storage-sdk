@@ -100,7 +100,7 @@ struct DownloadContext {
 
             if ( (m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty() )
             {
-                _LOG_ERR("(m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty()")
+                std::cerr << "(m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty()\n";
             }
   
 // it is not true for catching-up

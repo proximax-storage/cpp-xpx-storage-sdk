@@ -38,6 +38,10 @@
 
 #include <drive/Utils.h>
 
+#ifdef USE_ELPP
+    #include "easylogging/easylogging++.h"
+#endif
+
 #undef DBG_MAIN_THREAD
 #define DBG_MAIN_THREAD _FUNC_ENTRY; assert( m_dbgThreadId == std::this_thread::get_id() );
 
