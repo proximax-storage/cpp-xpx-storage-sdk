@@ -9,6 +9,7 @@
 //  This library is released under the MIT Licence.
 //  https://github.com/abumq/easyloggingpp/blob/master/LICENSE
 //
+#define AUTO_INITIALIZE_EASYLOGGINGPP
 #include "easylogging/easylogging++.h"
 
 #if defined(AUTO_INITIALIZE_EASYLOGGINGPP)

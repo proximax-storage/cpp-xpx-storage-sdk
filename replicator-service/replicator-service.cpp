@@ -29,7 +29,7 @@ namespace fs = std::filesystem;
 
 #include "drive/RpcRemoteReplicator.h"
 #include "drive/Replicator.h"
-INITIALIZE_EASYLOGGINGPP
+
 // signal_handler.cpp
 void set_signal_handler();
 

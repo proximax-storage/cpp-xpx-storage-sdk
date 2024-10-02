@@ -40,14 +40,11 @@
 
 #ifdef USE_ELPP
     #include "easylogging/easylogging++.h"
-
-	INITIALIZE_EASYLOGGINGPP
-
 	void setLogConf(std::string port)
 	{
 		std::string filename = std::string(LOG_FOLDER) + "/ESLreplicator_service_" + port + ".log";
 		std::cout << "setLogConf filename is " << filename << '\n';
-		calculateLastIndex(filename);
+		//calculateLastIndex(filename);
 		std::cout << "setLogConf begin\n";
 		el::Loggers::addFlag(el::LoggingFlag::StrictLogFileSizeCheck);
 		el::Configurations conf;
@@ -56,7 +53,7 @@
 		conf.set(el::Level::Global, el::ConfigurationType::SubsecondPrecision, "4");
 		conf.set(el::Level::Global, el::ConfigurationType::ToFile, "true");
 		conf.set(el::Level::Global, el::ConfigurationType::LogFlushThreshold, "1");
-		conf.set(el::Level::Global, el::ConfigurationType::MaxLogFileSize, "10000");
+		conf.set(el::Level::Global, el::ConfigurationType::MaxLogFileSize, "100000000");
 		el::Loggers::reconfigureAllLoggers(conf);
 		std::cout << "setLogConf end\n";
 	}

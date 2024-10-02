@@ -58,7 +58,7 @@ endif()
         # endif()
 
         require_cpp14()
-        add_library(easyloggingpp STATIC src/easylogging++.cpp)
+        add_library(easyloggingpp src/easylogging++.cpp)
         set_property(TARGET easyloggingpp PROPERTY POSITION_INDEPENDENT_CODE ON)
 
         install(TARGETS
