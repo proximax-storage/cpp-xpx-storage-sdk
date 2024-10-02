@@ -119,11 +119,18 @@ inline void checkLogFileSize()
     }
 }
 
-static unsigned int idx;
 #ifdef USE_ELPP
+#include "plugins.h"
+
+PLUGIN_API void setLogConf(std::string port);
+
+static unsigned int idx;
+inline int calculateLastIndex(const char* filename)
+{
+
+}
 inline void rolloutHandler(const char* filename, std::size_t size)
 {
-// gLogFileName = logFolder / ("replicator_service_" + port + ".log");
     if (!std::filesystem::exists(LOG_FOLDER))
     {
         try {
@@ -140,7 +147,7 @@ inline void rolloutHandler(const char* filename, std::size_t size)
     std::cout << "************** Rolling out [" << filename << "] because it reached [" << size << " bytes]" << std::endl;
 
     std::stringstream ss;
-    ss << "mv " << filename << " " << LOG_FOLDER << "/log-" << idx++ << ".log";
+    ss << "mv " << filename << " " << filename << idx++ << ".log";
     std::cout << "************* command was: mv " << filename << " " << LOG_FOLDER << "/log-" << idx << ".log";
     system(ss.str().c_str());
 
@@ -162,20 +169,6 @@ inline void rolloutHandler(const char* filename, std::size_t size)
             std::filesystem::remove(logFiles[i]);
         }
     }
-}
-
-inline void setLogConf(std::string port)
-{
-    el::Loggers::addFlag(el::LoggingFlag::StrictLogFileSizeCheck);
-    el::Configurations conf;
-    std::string filename = std::string(LOG_FOLDER) + "/ESLreplicator_service_" + port + ".log";
-    conf.set(el::Level::Global, el::ConfigurationType::Filename, filename);
-    conf.set(el::Level::Global, el::ConfigurationType::Format, "%msg");
-    conf.set(el::Level::Global, el::ConfigurationType::SubsecondPrecision, "4");
-    conf.set(el::Level::Global, el::ConfigurationType::ToFile, "true");
-    conf.set(el::Level::Global, el::ConfigurationType::LogFlushThreshold, "1");
-    conf.set(el::Level::Global, el::ConfigurationType::MaxLogFileSize, "10000");
-    el::Loggers::reconfigureAllLoggers(conf);
 }
 #endif
 

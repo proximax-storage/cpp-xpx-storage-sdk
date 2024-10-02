@@ -17,7 +17,8 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 if (NOT DEFINED CPP_XPX_CHAIN)
     set(SKIP_GRPC ON)
-#else()
+else()
+    message(STATUS "USE_ELPP ON")
     add_definitions(-DUSE_ELPP)
 endif()
 

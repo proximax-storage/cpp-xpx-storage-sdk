@@ -15,7 +15,6 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <errno.h>
-#include "drive/log.h"
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -30,7 +29,7 @@ namespace fs = std::filesystem;
 
 #include "drive/RpcRemoteReplicator.h"
 #include "drive/Replicator.h"
-
+INITIALIZE_EASYLOGGINGPP
 // signal_handler.cpp
 void set_signal_handler();
 
@@ -100,7 +99,7 @@ int main( int argc, char* argv[] )
     {
         std::cout << "Run In Background\n";
         runServiceInBackground(LOG_FOLDER, port);
-        
+		std::cout << "invoked runServiceInBackground\n";
         set_signal_handler();
     }
 
@@ -155,9 +154,24 @@ inline void createLogBackup()
     }
 }
 
-
 int runServiceInBackground( fs::path logFolder, const std::string& port )
 {
+	std::cout << "********** runServiceInBackground huidfghius\n";
+#ifdef USE_ELPP
+	// Check log folder
+	std::error_code ec;
+	fs::create_directories( logFolder, ec );
+
+	if (ec)
+	{
+		log( true, "create_directories error");
+	}
+
+	fs::permissions( logFolder,
+					fs::perms::owner_all | fs::perms::group_all | fs::perms::others_all,
+					fs::perm_options::add );
+	setLogConf(port);
+#endif
     try
     {
         // Fork the process and have the parent exit. If the process was started
@@ -220,9 +234,8 @@ int runServiceInBackground( fs::path logFolder, const std::string& port )
             }
         }
 #ifdef USE_ELPP
-        setLogConf(port);
-#endif
-#if 0
+        //setLogConf(port);
+#else
         close(0);
         close(1);
         close(2);
@@ -268,7 +281,7 @@ int runServiceInBackground( fs::path logFolder, const std::string& port )
     }
     catch (std::exception& e)
     {
-        __LOG("Exception: " << e.what())
+        std::cerr << "Exception: " << e.what() << '\n';
         RPC_LOG( "Exception: " << e.what() );
     }
     return 0;
