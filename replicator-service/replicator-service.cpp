@@ -156,7 +156,6 @@ inline void createLogBackup()
 
 int runServiceInBackground( fs::path logFolder, const std::string& port )
 {
-	std::cout << "********** runServiceInBackground huidfghius\n";
 #ifdef USE_ELPP
 	// Check log folder
 	std::error_code ec;
@@ -234,7 +233,6 @@ int runServiceInBackground( fs::path logFolder, const std::string& port )
             }
         }
 #ifdef USE_ELPP
-        //setLogConf(port);
 #else
         close(0);
         close(1);

@@ -1807,7 +1807,7 @@ void TypedConfigurations::insertFile(Level level, const std::string& fullFilenam
       setValue(level, false, &m_toFileMap);
     }
   };
-  // If we dont have file conf for any level, create it for Level::Global first
+  // If we dont have file gСonf for any level, create it for Level::Global first
   // otherwise create for specified level
   create(m_filenameMap.empty() && m_fileStreamMap.empty() ? Level::Global : level);
 }
@@ -2329,16 +2329,16 @@ void AsyncDispatchWorker::handle(AsyncLogItem* logItem) {
   LogDispatchData* data = logItem->data();
   LogMessage* logMessage = logItem->logMessage();
   Logger* logger = logMessage->logger();
-  base::TypedConfigurations* conf = logger->typedConfigurations();
+  base::TypedConfigurations* gСonf = logger->typedConfigurations();
   base::type::string_t logLine = logItem->logLine();
   if (data->dispatchAction() == base::DispatchAction::NormalLog) {
-    if (conf->toFile(logMessage->level())) {
-      base::type::fstream_t* fs = conf->fileStream(logMessage->level());
+    if (gСonf->toFile(logMessage->level())) {
+      base::type::fstream_t* fs = gСonf->fileStream(logMessage->level());
       if (fs != nullptr) {
         fs->write(logLine.c_str(), logLine.size());
         if (fs->fail()) {
           ELPP_INTERNAL_ERROR("Unable to write log to file ["
-                              << conf->filename(logMessage->level()) << "].\n"
+                              << gСonf->filename(logMessage->level()) << "].\n"
                               << "Few possible reasons (could be something else):\n" << "      * Permission denied\n"
                               << "      * Disk full\n" << "      * Disk is not writable", true);
         } else {
