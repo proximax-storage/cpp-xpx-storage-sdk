@@ -123,7 +123,7 @@ inline void checkLogFileSize()
 #include "plugins.h"
 
 PLUGIN_API void setLogConf(std::string port);
-PLUGIN_API void rolloutHandler(const char* filename, std::size_t size);
+PLUGIN_API void rolloutHandler(const char* absolutePath, std::size_t size);
 
 
 #endif

@@ -41,18 +41,19 @@
 #ifdef USE_ELPP
 #include "easylogging/easylogging++.h"
 
-void rolloutHandler(const char* filename, std::size_t size)
+void rolloutHandler(const char* absolutePath, std::size_t size)
 {
 	// SHOULD NOT LOG ANYTHING HERE BECAUSE LOG FILE IS CLOSED!
-//	std::cout << "************** Rolling out [" << filename << "] because it reached [" << size << " bytes]" << std::endl;
+//	std::cout << "************** Rolling out [" << absolutePath << "] because it reached [" << size << " bytes]" << std::endl;
 	std::vector<std::filesystem::path> logFiles;
-	std::string pattern = std::filesystem::path( std::string(filename)).filename().string();
+
+	std::string pattern = std::filesystem::path(absolutePath).filename().string();
 
 	pattern = pattern.substr(0,pattern.size()-4) + "_";
-//	std::cout << "************** pattern: " << pattern << '\n';
+//	std::cout << "************** pattern : " << pattern << '\n';
 	int index = 0;
 	for (const auto& entry : std::filesystem::directory_iterator(LOG_FOLDER)) {
-		//std::cout << "************** entry.path(): " << entry.path().filename().string().c_str() <<"'\n";
+		//std::cout << "************** entry.path(): " << entry.path().absolutePath().string().c_str() <<"'\n";
 		//std::cout << "************** entry.path(): " << pattern.c_str() <<"'\n";
 		if ( std::strncmp( entry.path().filename().string().c_str(), pattern.c_str(), pattern.size()) == 0 ) {
 			logFiles.push_back(entry.path());
@@ -74,8 +75,8 @@ void rolloutHandler(const char* filename, std::size_t size)
 	indexStr.insert(0,6-indexStr.length(),'0');
 //	std::cout << "************** indexStr: " << indexStr << '\n';
 	std::error_code ec;
-	auto path = std::filesystem::path( std::string(filename)).parent_path();
-	std::filesystem::rename( filename, path / std::filesystem::path(pattern + indexStr + ".log"), ec );
+	auto path = std::filesystem::path( absolutePath).parent_path();
+	std::filesystem::rename(absolutePath, path / std::filesystem::path(pattern + indexStr + ".log"), ec );
 //	std::cout << "************** path: " << path / std::filesystem::path(pattern + indexStr + ".log") << '\n';
 
 	// Sort the log files by creation time (oldest last)
