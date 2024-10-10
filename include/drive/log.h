@@ -144,7 +144,7 @@ PLUGIN_API void rolloutHandler(const char* absolutePath, std::size_t size);
 #if USE_ELPP
 #define _LOG(expr) { \
     std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    LOGPP(DEBUG) <<"ESL______"<< current_time() << " " << m_dbgOurPeerName << ": " << expr; \
+    LOGPP(DEBUG) << current_time() << " " << m_dbgOurPeerName << ": " << expr; \
 }
 #else
 #define _LOG(expr) { \
@@ -160,7 +160,7 @@ std::lock_guard<std::mutex> autolock( gLogMutex ); \
 #if USE_ELPP
 #define __LOG(expr) { \
     std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    LOGPP(DEBUG) <<"ESL______"<< current_time() << " " << expr; \
+    LOGPP(DEBUG) << current_time() << " " << expr; \
 }
 #else
 #define __LOG(expr) { \
@@ -177,7 +177,7 @@ std::lock_guard<std::mutex> autolock( gLogMutex ); \
 #define ___LOG(expr) { \
     if ( !gKademliaLogs ) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        LOGPP(DEBUG) <<"ESL______"<< current_time() << " " << expr; \
+        LOGPP(DEBUG) << current_time() << " " << expr; \
     }   \
 }
 #else
@@ -193,7 +193,7 @@ if ( !gKademliaLogs ) {\
 #if USE_ELPP
 #define _LOG_WARN(expr) { \
     std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    LOGPP(WARNING) <<"ESL______"<< current_time() << " " << m_dbgOurPeerName << ": WARNING!!! in " << __FUNCTION__ << "() " << expr; \
+    LOGPP(WARNING) << current_time() << " " << m_dbgOurPeerName << ": WARNING!!! in " << __FUNCTION__ << "() " << expr; \
     if ( gBreakOnWarning ) { assert(0); } \
 }
 #else
@@ -208,7 +208,7 @@ if ( !gKademliaLogs ) {\
 #if USE_ELPP
 #define __LOG_WARN(expr) { \
     std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    LOGPP(WARNING) <<"ESL______"<< ": WARNING!!! in " << __FUNCTION__ << "() " << current_time() << " " << expr; \
+    LOGPP(WARNING) << ": WARNING!!! in " << __FUNCTION__ << "() " << current_time() << " " << expr; \
     if ( gBreakOnWarning ) { assert(0); } \
 }
 #else
@@ -223,7 +223,7 @@ if ( !gKademliaLogs ) {\
 #if USE_ELPP
 #define _LOG_ERR(expr) { \
     std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    LOGPP(ERROR) <<"ESL______"<< __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< current_time() << " " << expr; \
+    LOGPP(ERROR) << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< current_time() << " " << expr; \
     if ( gBreakOnError ) { assert(0); } \
  }
 #else
