@@ -267,10 +267,14 @@ struct FuncEntry
 */
 
 //#define _FUNC_ENTRY ;
-#ifdef _WIN64
-    #define _FUNC_ENTRY  FuncEntry funcEntry(__FUNCSIG__,m_dbgOurPeerName);
+#if defined(_WIN32) || defined(_WIN64)
+    #ifdef __MINGW32__ || __MINGW64__
+        #define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
+    #else
+        #define _FUNC_ENTRY  FuncEntry funcEntry(__FUNCSIG__,m_dbgOurPeerName);
+    #endif
 #else
-#define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
+    #define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
 #endif
 
 #endif
