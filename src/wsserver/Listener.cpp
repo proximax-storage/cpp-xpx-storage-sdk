@@ -50,7 +50,7 @@ void Listener::doAccept()
 {
 	m_acceptor.async_accept(m_ioCtx,[pThis = shared_from_this()](auto ec, auto socket)
 	{
-		pThis->onAccept(ec, std::move(socket));
+		pThis->onAccept(ec, socket);
 	});
 }
 
