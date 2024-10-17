@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.9)
+find_package(OpenSSL REQUIRED)
 
 include_directories(${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/src)
 
@@ -14,6 +15,37 @@ add_subdirectory(utils)
 add_subdirectory(nodediscovery)
 add_subdirectory(easyloggingpp)
 
+if (DEFINED CPP_XPX_CHAIN)
+   if(NOT WIN32)
+      add_subdirectory(wsserver)
+   endif()
+endif()
+
+# find_package(Boost 1.71.0 REQUIRED)
+set(CMAKE_CXX_STANDARD 20)
+
+# add_executable(serverApp 
+#     main.cpp 
+#     wsserver/Base64.cpp
+#     wsserver/Session.cpp 
+#     wsserver/Listener.cpp 
+# )
+
+# target_include_directories(serverApp 
+#    PRIVATE 
+#    ${Boost_INCLUDE_DIRS} 
+#    ${OPENSSL_INCLUDE_DIR} 
+#    wsserver
+# )
+# target_link_libraries(serverApp 
+#    PRIVATE 
+#    ${Boost_LIBRARIES} 
+#    ${OPENSSL_LIBRARIES} 
+#    pthread 
+#    wsserver
+# )
+
+#end
 if (XPX_STORAGE_SDK_BUILD_EMULATOR)
    add_subdirectory(emulator)
 endif()

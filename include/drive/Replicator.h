@@ -382,6 +382,7 @@ PLUGIN_API std::shared_ptr<Replicator> createDefaultReplicator(
                                                const crypto::KeyPair&,
                                                std::string  address,
                                                std::string  port,
+											   std::string  wsPort,
                                                std::string  storageDirectory,
                                                const std::vector<ReplicatorInfo>&  bootstraps,
                                                bool           useTcpSocket, // use TCP socket (instead of uTP)
