@@ -48,13 +48,13 @@ void Listener::setFsTreeHandler(std::function<void(boost::property_tree::ptree d
 
 void Listener::doAccept()
 {
-	m_acceptor.async_accept(m_ioCtx,[pThis = shared_from_this()](auto ec, auto socket)
+	m_acceptor.async_accept(m_ioCtx,[pThis = shared_from_this()](auto ec, boost::asio::ip::tcp::socket socket)
 	{
-		pThis->onAccept(ec, socket);
+		pThis->onAccept(ec, std::move(socket) );
 	});
 }
 
-void Listener::onAccept(boost::beast::error_code ec, boost::asio::ip::tcp::socket socket)
+void Listener::onAccept(boost::beast::error_code ec, boost::asio::ip::tcp::socket&& socket)
 {
     if(ec)
     {
