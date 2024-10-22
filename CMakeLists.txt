@@ -45,9 +45,6 @@ if(WIN32)
 endif()
 
 include_directories(include)
-if(DEFINED EASYLOGGING AND EASYLOGGING STREQUAL "ON")
-    include_directories(include/el)
-endif()
 
 ### setup boost
 if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
