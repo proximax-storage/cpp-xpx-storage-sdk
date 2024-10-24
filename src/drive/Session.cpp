@@ -121,7 +121,8 @@ class DefaultSession:   public Session,
     std::thread::id                     m_dbgThreadId;
     
     LogMode                             m_logMode = LogMode::BRIEF;
-    
+//    LogMode                             m_logMode = LogMode::PEER;
+
 public:
     
     // Constructor for Replicator
@@ -553,6 +554,7 @@ public:
         }
         else
         {
+            //_LOG( "+++ ex :remove_torrent(33) torrents: " << torrents.size() );
             for( const auto& torrentHandle : torrents )
             {
                 //                if ( torrentHandle.status().state > 2 )
@@ -562,6 +564,7 @@ public:
             }
             
             boost::asio::post(lt_session().get_context(), [=] {
+                //_LOG( "+++ ex :remove_torrent(34) torrents: " << torrents.size() );
                 endNotification();
             });
         }
@@ -1153,13 +1156,12 @@ private:
                     }
                         
                     case lt::listen_failed_alert::alert_type: {
-                        this->m_alertHandler( alert );
-                        
                         auto *theAlert = dynamic_cast<lt::listen_failed_alert *>(alert);
                         
                         if ( theAlert ) {
-                            LOG(  "listen error: " << theAlert->message())
+                            _LOG(  "listen error: " << theAlert->message())
                         }
+                        this->m_alertHandler( alert );
                         break;
                     }
                         

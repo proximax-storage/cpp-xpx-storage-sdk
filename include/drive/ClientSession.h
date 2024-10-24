@@ -575,6 +575,7 @@ public:
         std::set<lt::torrent_handle>  torrents;
         for (const auto& hash : hashes) {
             if (m_modifyTorrentMap.contains(hash)) {
+                //__LOG("???? hash: " << toString(hash) )
                 torrents.insert( m_modifyTorrentMap[hash].m_ltHandle );
                 m_modifyTorrentMap.erase(hash);
             }
@@ -583,6 +584,7 @@ public:
         std::promise<void> barrier;
         boost::asio::post(m_session->lt_session().get_context(), [&torrents,&barrier,this]() //mutable
         {
+            //__LOG("???? torrents: " << torrents.size() )
             m_session->removeTorrentsFromSession( torrents, [&barrier] {
                 __LOG("???? barrier.set_value();")
                 barrier.set_value();
