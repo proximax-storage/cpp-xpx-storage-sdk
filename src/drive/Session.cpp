@@ -802,6 +802,7 @@ public:
         {
             try
             {
+				__LOG( "on_dht_request: query: " << query )
                 if ( query == "get_peers" || query == "announce_peer" )
                 {
                     return false;
