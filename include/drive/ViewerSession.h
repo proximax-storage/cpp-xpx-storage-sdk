@@ -62,11 +62,11 @@ public:
                                       StreamStatusResponseHandler streamStatusResponseHandler ) = 0;
 };
 
-PLUGIN_API  std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&        keyPair,
-                                                    const std::string&            address,
-                                                    const LibTorrentErrorHandler& errorHandler,
-                                                    const endpoint_list&          bootstraps,
-                                                    bool                          useTcpSocket, // instead of uTP
-                                                    const char*                   dbgClientName = "" );
+PLUGIN_API  std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&              keyPair,
+                                                                const std::string&                  address,
+                                                                const LibTorrentErrorHandler&       errorHandler,
+                                                                const std::vector<ReplicatorInfo>&  bootstraps,
+                                                                bool                                useTcpSocket, // instead of uTP
+                                                                const char*                         dbgClientName = "" );
 
 }

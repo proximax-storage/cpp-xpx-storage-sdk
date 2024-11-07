@@ -1871,7 +1871,7 @@ std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&         
                                                const LibTorrentErrorHandler&        alertHandler,
                                                std::weak_ptr<ReplicatorInt>         replicator,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
-                                              const std::vector<ReplicatorInfo>&    bootstraps,
+                                               const std::vector<ReplicatorInfo>&   bootstraps,
                                                std::promise<void>&&                 bootstrapBarrier )
 {
     return std::make_shared<DefaultSession>( context,
