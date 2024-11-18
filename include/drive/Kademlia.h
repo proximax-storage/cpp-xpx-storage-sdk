@@ -239,7 +239,13 @@ public:
     virtual ~Transport() = default;
     
     //
-    // Requests
+    // Requests from Clients
+    //
+    virtual void sendGetPeerIpRequestFromClient( const PeerIpRequest&           request,
+                                                boost::asio::ip::udp::endpoint  endpoint ) = 0;
+
+    //
+    // Other requests and responses
     //
     virtual void sendGetMyIpRequest( const MyIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) = 0;
     virtual void sendGetPeerIpRequest( const PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) = 0;

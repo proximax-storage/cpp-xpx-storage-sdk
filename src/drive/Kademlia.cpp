@@ -37,7 +37,8 @@ class PeerSearchInfo;
 void  addCandidatesToSearcher( PeerSearchInfo& searchInfo, PeerIpResponse& response );
 void  onPeerFound( PeerSearchInfo& searchInfo );
 
-inline std::unique_ptr<PeerSearchInfo> createPeerSearchInfo(   const TargetKey&                targetPeerKey,
+inline std::unique_ptr<PeerSearchInfo> createPeerSearchInfo(   bool                            isClient,
+                                                               const TargetKey&                targetPeerKey,
                                                                size_t                          bucketIndex,
                                                                EndpointCatalogueImpl&          endpointCatalogue,
                                                                std::weak_ptr<Transport>        session,
@@ -348,7 +349,8 @@ public:
     {
         if ( auto it = m_searcherMap.find( key ); it == m_searcherMap.end() )
         {
-            m_searcherMap[key] = createPeerSearchInfo( key,
+            m_searcherMap[key] = createPeerSearchInfo( m_isClient,
+                                                      key,
                                                       bucketIndex,
                                                       *this,
                                                       m_kademliaTransport,
@@ -734,9 +736,11 @@ class PeerSearchInfo
         }
     };
     
+    bool                    m_isClient; // use TCP (or DHT for replicator)
+
     const TargetKey         m_targetPeerKey;
     const PeerKey           m_myPeerKey;
-    
+
     EndpointCatalogueImpl&   m_endpointCatalogue;
     std::weak_ptr<Transport> m_session;
     bool                     m_enterToSwarm;
@@ -752,12 +756,14 @@ public:
 
     //PeerSearchInfo( const PeerSearchInfo& ) = default;
 
-    PeerSearchInfo( const TargetKey&                targetPeerKey,
+    PeerSearchInfo( bool                            isClient,
+                    const TargetKey&                targetPeerKey,
                     int                             bucketIndex,
                     EndpointCatalogueImpl&          endpointCatalogue,
                     std::weak_ptr<Transport>        session,
                     bool                            enteringToSwarm )
     :
+        m_isClient(isClient),
         m_targetPeerKey(targetPeerKey),
         m_myPeerKey(endpointCatalogue.m_keyPair.publicKey()),
         m_endpointCatalogue(endpointCatalogue),
@@ -988,13 +994,15 @@ inline void  onPeerFound( PeerSearchInfo& searchInfo )
 }
 
 
-inline std::unique_ptr<PeerSearchInfo> createPeerSearchInfo(    const TargetKey&                targetPeerKey,
+inline std::unique_ptr<PeerSearchInfo> createPeerSearchInfo(    bool                            isClient,
+                                                                const TargetKey&                targetPeerKey,
                                                                 size_t                          bucketIndex,
                                                                 EndpointCatalogueImpl&          endpointCatalogue,
                                                                 std::weak_ptr<Transport>        session,
                                                                 bool                            enterToSwarm )
 {
-    return std::make_unique<PeerSearchInfo>(  targetPeerKey,
+    return std::make_unique<PeerSearchInfo>(  isClient,
+                                              targetPeerKey,
                                               (int)bucketIndex,
                                               endpointCatalogue,
                                               session,

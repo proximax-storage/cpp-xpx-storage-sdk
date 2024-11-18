@@ -5,6 +5,9 @@
 */
 
 #include "drive/Session.h"
+#include "drive/TcpServer.h"
+#include "drive/TcpServer.h"
+#include "drive/TcpClientConnectionManager.h"
 #include "ReplicatorInt.h"
 #include "DownloadLimiter.h"
 #include "drive/Utils.h"
@@ -93,6 +96,7 @@ struct LtClientData
 // DefaultSession
 //
 class DefaultSession:   public Session,
+                        public TcpServer,
                         public std::enable_shared_from_this<DefaultSession>
 {
     std::shared_ptr<kademlia::EndpointCatalogue> m_kademlia;
@@ -123,6 +127,8 @@ class DefaultSession:   public Session,
     LogMode                             m_logMode = LogMode::BRIEF;
 //    LogMode                             m_logMode = LogMode::PEER;
 
+    std::unique_ptr<TcpClientConnectionManager> m_tcpClientConnectionManager; // only for user app
+
 public:
     
     // Constructor for Replicator
@@ -135,9 +141,11 @@ public:
                    const std::vector<ReplicatorInfo>&   bootstraps,
                    std::promise<void>&&                 bootstrapBarrier
                    )
-    : m_ownerIsReplicator(true)
+    : 
+      TcpServer( context, "0.0.0.0", std::to_string(extractListeningPort(address)) ),
+      m_ownerIsReplicator(true)
     , m_addressAndPort(address)
-    , m_listeningPort(extractListeningPort())
+    , m_listeningPort(extractListeningPort(address))
     , m_replicator(replicator)
     , m_session( lt::session_params{ generateSessionSettings( false, bootstraps) }, context, {})
     , m_alertHandler(alertHandler)
@@ -171,11 +179,12 @@ public:
         _LOG( "DefaultSession created: m_listeningPort " << m_listeningPort );
     }
     
-    int extractListeningPort()
+    int extractListeningPort( std::string addressAndPort )
     {
-        if ( auto colonPos = m_addressAndPort.find(":"); colonPos != std::string::npos )
+        _LOG( "extractListeningPort::addressAndPort: " << addressAndPort );
+        if ( auto colonPos = addressAndPort.find(":"); colonPos != std::string::npos )
         {
-            std::string portString = m_addressAndPort.substr(colonPos + 1);
+            std::string portString = addressAndPort.substr(colonPos + 1);
             return std::stoi(portString);
         }
         return 0;
@@ -188,7 +197,7 @@ public:
     
     // Constructor for Client
     //
-    DefaultSession( std::string                             address,
+    DefaultSession( std::string                            address,
                    const crypto::KeyPair&                  keyPair,
                    LibTorrentErrorHandler                  alertHandler,
                    std::weak_ptr<lt::session_delegate>     downloadLimiter,
@@ -196,9 +205,10 @@ public:
                    const std::vector<ReplicatorInfo>&      bootstraps,
                    std::weak_ptr<DhtMessageHandler>        dhtMessageHandler
                    )
-    : m_ownerIsReplicator(false)
+    : TcpServer(),
+      m_ownerIsReplicator(false)
     , m_addressAndPort(address)
-    , m_listeningPort(extractListeningPort())
+    , m_listeningPort(extractListeningPort(address))
     , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
     , m_alertHandler(alertHandler)
     , m_downloadLimiter(downloadLimiter)
@@ -222,6 +232,8 @@ public:
         
         _LOG( "DefaultSession created: " << m_addressAndPort );
         _LOG( "Client DefaultSession created: m_listeningPort " << m_listeningPort );
+        
+        m_tcpClientConnectionManager = std::make_unique<TcpClientConnectionManager>( m_session.get_context() );
     }
     
     virtual ~DefaultSession()
@@ -1607,6 +1619,15 @@ private:
 #pragma mark --KademliaTransport--
 #endif
 
+    virtual void sendGetPeerIpRequestFromClient( const kademlia::PeerIpRequest& request, 
+                                                boost::asio::ip::udp::endpoint  endpoint ) override
+    {
+        SIRIUS_ASSERT( isClient() )
+        
+        boost::asio::ip::tcp::endpoint tcpEndpoint( endpoint.address().to_v4(), endpoint.port() );
+        m_tcpClientConnectionManager->sendRequestTo( tcpEndpoint, TcpRequestId::get_peer_ip, request );
+    }
+
     virtual void sendGetMyIpRequest( const kademlia::MyIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override
     {
         std::ostringstream os( std::ios::binary );
@@ -1654,6 +1675,8 @@ private:
     {
         m_kademlia->onGetPeerIpResponse( response, responserEndpoint );
     }
+    
+    
 };
 
 //
