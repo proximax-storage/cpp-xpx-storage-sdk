@@ -88,11 +88,17 @@ inline std::string current_time()
     //      ---------10-     --> 12 chars + \0 --> 13 chars should suffice
     //
     //
-    char buf[40];
-    std::snprintf(buf, sizeof(buf), "%04ld.%02ld.%02ld %02ld:%02ld:%02ld.%03ld",
-                  year, month, day, hours, minutes, seconds, milliseconds);
 
-    return buf;
+    std::ostringstream oss;
+    oss << std::setfill('0') << std::setw(4) << year << '.'
+        << std::setw(2) << month << '.'
+        << std::setw(2) << day << ' '
+        << std::setw(2) << hours << ':'
+        << std::setw(2) << minutes << ':'
+        << std::setw(2) << seconds << '.'
+        << std::setw(3) << milliseconds;
+
+    return oss.str();
 }
 
 BOOST_SYMBOL_EXPORT inline bool gBreakOnWarning = false;
