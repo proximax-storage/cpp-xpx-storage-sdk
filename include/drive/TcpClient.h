@@ -167,7 +167,7 @@ private:
         {
             if ( ec )
             {
-                __LOG( "async read error (2): " << ec.what() << "; to: " << self->m_socket.remote_endpoint() );
+                __LOG( "async read error (2): " << ec.message() << "; to: " << self->m_socket.remote_endpoint() );
                 self->m_manager.onResponseReceived( false, nullptr, 0, *self.get() );
                 return;
             }
