@@ -7,6 +7,7 @@
 #pragma once
 
 #include <boost/asio.hpp>
+#include <boost/system/error_code.hpp>
 #include <iostream>
 #include <memory>
 
@@ -88,7 +89,7 @@ public:
             {
                 if ( ec )
                 {
-                    __LOG( "Connection error: " << ec.what() << "; to: " << endpoint );
+                    __LOG( "Connection error: " << ec.message() << "; to: " << endpoint );
                     connectionPtr->m_manager.onResponseReceived( false, nullptr, 0, *connectionPtr.get() );
                 }
                 else
@@ -110,7 +111,7 @@ private:
             {
                 if ( ec )
                 {
-                    __LOG( "async write error: " << ec.what() << "; to: " << connectionPtr->m_socket.remote_endpoint() );
+                    __LOG( "async write error: " << ec.message() << "; to: " << connectionPtr->m_socket.remote_endpoint() );
                     connectionPtr->m_manager.onResponseReceived( false, nullptr, 0, *connectionPtr.get() );
                 }
                 else
@@ -126,10 +127,10 @@ private:
     void readPacketHeader()
     {
         boost::asio::async_read( m_socket, boost::asio::buffer( &m_dataLength, sizeof(m_dataLength) ), [self=this->shared_from_this()] ( auto ec, auto bytes_transferred )
-                                {
+        {
             if ( ec )
             {
-                __LOG( "async read error: " << ec.what() << "; to: " << self->m_socket.remote_endpoint() );
+                __LOG( "async read error: " << ec.message() << "; to: " << self->m_socket.remote_endpoint() );
                 self->m_manager.onResponseReceived( false, nullptr, 0, *self.get() );
                 return;
             }
