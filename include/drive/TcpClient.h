@@ -20,6 +20,8 @@ class TcpClient;
 class IClientConnectionManager
 {
 public:
+    virtual ~IClientConnectionManager() = default;
+
     virtual void onResponseReceived( bool success, uint8_t* data, size_t dataSize, TcpClient& connection ) = 0;
 };
 
@@ -68,20 +70,20 @@ public:
     {
         m_sendData = std::move(data);
         assert( m_sendData.size() <= 0xFFFFF );
-        m_sendData[0] = m_sendData.size() & 0xFF;
-        m_sendData[1] = (m_sendData.size() & 0xFF00) << 8;
+        ((uint8_t&) m_sendData[0]) = m_sendData.size() & 0xFF;
+        ((uint8_t&) m_sendData[1]) = (m_sendData.size() & 0xFF00) << 8;
         
         // Response Time-out: 5 seconds
-        m_timer = Timer { m_context, 5*1000, [self = this->weak_from_this()]
+        m_timer = Timer { m_context, 15*1000, [self = this->weak_from_this()]
+        {
+            if ( auto connectionPtr = self.lock(); connectionPtr )
             {
-                if ( auto connectionPtr = self.lock(); connectionPtr )
-                {
-                    connectionPtr->m_manager.onResponseReceived( false, nullptr, 0, *connectionPtr.get() );
-                }
-            }};
+                connectionPtr->m_manager.onResponseReceived( false, nullptr, 0, *connectionPtr.get() );
+            }
+        }};
         
         m_socket.async_connect( endpoint, [endpoint, self = this->weak_from_this()] ( const boost::system::error_code& ec )
-                               {
+        {
             if ( auto connectionPtr = self.lock(); connectionPtr )
             {
                 if ( ec )
@@ -103,7 +105,7 @@ private:
         boost::asio::async_write( m_socket, boost::asio::buffer(message,size),
                                  [self = this->weak_from_this()] ( const boost::system::error_code& ec,
                                                                   std::size_t                      length )
-                                 {
+        {
             if ( auto connectionPtr = self.lock(); connectionPtr )
             {
                 if ( ec )
@@ -161,7 +163,7 @@ private:
         m_packetData.resize( m_dataLength-2 );
         boost::asio::async_read( m_socket, boost::asio::buffer(m_packetData.data(), m_dataLength),
                                 [self=this->shared_from_this()] ( auto ec, auto bytes_transferred )
-                                {
+        {
             if ( ec )
             {
                 __LOG( "async read error (2): " << ec.what() << "; to: " << self->m_socket.remote_endpoint() );

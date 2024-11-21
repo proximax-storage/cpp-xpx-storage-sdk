@@ -97,6 +97,7 @@ struct LtClientData
 //
 class DefaultSession:   public Session,
                         public TcpServer,
+                        public ITcpResponseHandler,
                         public std::enable_shared_from_this<DefaultSession>
 {
     std::shared_ptr<kademlia::EndpointCatalogue> m_kademlia;
@@ -233,7 +234,7 @@ public:
         _LOG( "DefaultSession created: " << m_addressAndPort );
         _LOG( "Client DefaultSession created: m_listeningPort " << m_listeningPort );
         
-        m_tcpClientConnectionManager = std::make_unique<TcpClientConnectionManager>( m_session.get_context() );
+        m_tcpClientConnectionManager = std::make_unique<TcpClientConnectionManager>( *this, m_session.get_context() );
     }
     
     virtual ~DefaultSession()
@@ -1619,8 +1620,63 @@ private:
 #pragma mark --KademliaTransport--
 #endif
 
-    virtual void sendGetPeerIpRequestFromClient( const kademlia::PeerIpRequest& request, 
-                                                boost::asio::ip::udp::endpoint  endpoint ) override
+    virtual void onResponseReceived( bool success, uint8_t* data, size_t dataSize ) override
+    {
+        if ( success )
+        {
+            Buffer streambuf{ (char*)data, dataSize };
+            std::istream is(&streambuf);
+            cereal::BinaryInputArchive iarchive( is );
+            
+            TcpResponseId responseId;
+            iarchive( responseId );
+            __LOG( "responseId: " << responseId )
+            
+            kademlia::PeerIpResponse response;
+            iarchive( response );
+            __LOG( "response: " << response.m_response.size() )
+            __LOG( "response: " << response.m_response.size() )
+        }
+    }
+    
+    // only for replicator
+    virtual void onRequestReceived( uint8_t* data, size_t dataSize, std::weak_ptr<TcpClientSession> session ) override
+    {
+        SIRIUS_ASSERT( !isClient() )
+
+        if ( auto sessionPtr = session.lock(); sessionPtr )
+        {
+            StreamBuffer strBuffer( (char*)data, dataSize );
+            std::istream is(&strBuffer);
+            
+            cereal::BinaryInputArchive iarchive( is );
+            
+            uint16_t requestId;
+            iarchive( requestId );
+            _LOG( "requestId: " << requestId );
+            
+            if ( requestId == get_peer_ip )
+            {
+                kademlia::PeerIpRequest request;
+                iarchive( request );
+                
+                try
+                {
+                    kademlia::PeerIpResponse response = m_kademlia->onGetPeerIpTcpRequest( request );
+                    sessionPtr->sendReply( peer_ip_response, response );
+                }
+                catch(...)
+                {
+                    // for standalone debugging
+                    kademlia::PeerIpResponse response;
+                    sessionPtr->sendReply( peer_ip_response, response );
+                }
+            }
+        }
+    }
+
+    virtual void sendGetPeerIpTcpRequest( const kademlia::PeerIpRequest& request,
+                                          boost::asio::ip::udp::endpoint  endpoint )
     {
         SIRIUS_ASSERT( isClient() )
         
@@ -1639,11 +1695,18 @@ private:
 
     virtual void sendGetPeerIpRequest( const kademlia::PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override
     {
-        std::ostringstream os( std::ios::binary );
-        cereal::PortableBinaryOutputArchive archive( os );
-        archive( request );
-
-        sendMessage( GET_PEER_IP_MSG, endpoint, os.str() );
+        if ( isClient() )
+        {
+            sendGetPeerIpTcpRequest( request, endpoint );
+        }
+        else
+        {
+            std::ostringstream os( std::ios::binary );
+            cereal::PortableBinaryOutputArchive archive( os );
+            archive( request );
+            
+            sendMessage( GET_PEER_IP_MSG, endpoint, os.str() );
+        }
     }
     
     virtual void sendDirectPeerInfo( const kademlia::PeerIpResponse& response, boost::asio::ip::udp::endpoint endpoint ) override

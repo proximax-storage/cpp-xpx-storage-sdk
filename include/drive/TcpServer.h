@@ -29,6 +29,8 @@ class TcpServer;
 class ITcpServer
 {
 public:
+    virtual ~ITcpServer() = default;
+    
     virtual void onRequestReceived( uint8_t* data, size_t dataSize, std::weak_ptr<TcpClientSession> session ) = 0;
 };
 
@@ -80,7 +82,7 @@ public:
         
         m_socket.async_send( boost::asio::buffer( os->rdbuf()->view().data(), size ),
                             [self=this->shared_from_this(),os=std::move(os)] ( auto error, auto sentSize )
-                            {
+        {
             if (error)
             {
                 _LOG_ERR( "#TcpClientSession async_send error(2): " << error.message() );
@@ -95,7 +97,7 @@ private:
     {
         m_timer.expires_after( std::chrono::seconds(5) );
         m_timer.async_wait( [self = shared_from_this()] (const boost::system::error_code& ec)
-                           {
+        {
             if ( !ec )
             {
                 self->m_socket.cancel(); // Cancel the async_read
@@ -103,7 +105,7 @@ private:
         });
         
         boost::asio::async_read( m_socket, boost::asio::buffer(&m_dataLength, sizeof(m_dataLength)), [self=this->shared_from_this()] ( auto error, auto bytes_transferred )
-                                {
+        {
             self -> doReadPacketHeader( error, bytes_transferred );
         });
     }
@@ -134,7 +136,7 @@ private:
         m_packetData.resize( m_dataLength );
         boost::asio::async_read( m_socket, boost::asio::buffer(m_packetData.data(), m_dataLength ),
                                 [self=this->shared_from_this()] ( auto error, auto bytes_transferred )
-                                {
+        {
             self -> readPacketData( error, bytes_transferred );
         });
     }
@@ -186,17 +188,14 @@ public:
             m_endpoint = *resolver.resolve( addr, port ).begin();
             
             m_acceptor = boost::asio::ip::tcp::acceptor( *m_context, m_endpoint );
+            
+            asyncAccept();
         }
         catch( std::runtime_error& e )
         {
             __LOG("#TcpServer exception: " << e.what() )
             __LOG("??? Port already in use ???" )
         }
-    }
-    
-    void start()
-    {
-        asyncAccept();
     }
     
     void asyncAccept()
@@ -232,6 +231,7 @@ public:
     void onRequestReceived( uint8_t* data, size_t dataSize, std::weak_ptr<TcpClientSession> session ) override
     {
         // !!! ONLY for debugging
+        // (it must be overriden)
         
         Buffer streambuf{ (char*)data, dataSize };
         std::istream is(&streambuf);

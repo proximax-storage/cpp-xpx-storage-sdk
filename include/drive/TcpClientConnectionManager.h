@@ -23,14 +23,26 @@
 
 namespace sirius { namespace drive {
 
+class ITcpResponseHandler
+{
+public:
+    virtual ~ITcpResponseHandler() = default;
+    
+    virtual void onResponseReceived( bool success, uint8_t* data, size_t dataSize ) = 0;
+};
+
+
 class TcpClientConnectionManager: public std::enable_shared_from_this<TcpClientConnectionManager>, public IClientConnectionManager
 {
+    ITcpResponseHandler&     m_responseHandler;
     boost::asio::io_context& m_ioContext;
     
     std::list< std::shared_ptr<TcpClient> > m_connections;
     
 public:
-    TcpClientConnectionManager( boost::asio::io_context& ioContext ) : m_ioContext(ioContext) {}
+    TcpClientConnectionManager( ITcpResponseHandler& responseHandler, boost::asio::io_context& ioContext )
+        : m_responseHandler(responseHandler), m_ioContext(ioContext)
+    {}
     
     template<class PacketT>
     void sendRequestTo( boost::asio::ip::tcp::endpoint replicatorEndpoint,
@@ -44,7 +56,7 @@ public:
         archive( uint16_t(requestId) );
         archive( request );
         
-        m_connections.back()->sendRequestTo( replicatorEndpoint, std::move( os.str() ) );
+        m_connections.back()->sendRequestTo( replicatorEndpoint, os.str() );
     }
     
     
@@ -55,24 +67,23 @@ public:
     
     void onResponseReceived( bool success, uint8_t* data, size_t dataSize, TcpClient& connection ) override
     {
-        if ( success )
-        {
-            Buffer streambuf{ (char*)data, dataSize };
-            std::istream is(&streambuf);
-            cereal::BinaryInputArchive iarchive( is );
-            
-            TcpResponseId responseId;
-            iarchive( responseId );
-            __LOG( "responseId: " << responseId )
-            
-            std::string response;
-            iarchive( response );
-            __LOG( "response: " << response )
-        }
+        m_responseHandler.onResponseReceived( success, data, dataSize );
+//        if ( success )
+//        {
+//            Buffer streambuf{ (char*)data, dataSize };
+//            std::istream is(&streambuf);
+//            cereal::BinaryInputArchive iarchive( is );
+//            
+//            TcpResponseId responseId;
+//            iarchive( responseId );
+//            __LOG( "responseId: " << responseId )
+//            
+//            std::string response;
+//            iarchive( response );
+//            __LOG( "response: " << response )
+//        }
         
-        //_LOG( "m_connections.size: " << m_connections.size() )
         m_connections.remove_if( [&connection](auto& instance) { return instance.get() == &connection; } );
-        //_LOG( "m_connections.size: " << m_connections.size() )
     }
 };
 
