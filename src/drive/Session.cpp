@@ -1695,11 +1695,11 @@ private:
 
     virtual void sendGetPeerIpRequest( const kademlia::PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override
     {
-        if ( isClient() )
-        {
-            sendGetPeerIpTcpRequest( request, endpoint );
-        }
-        else
+//        if ( isClient() )
+//        {
+//            sendGetPeerIpTcpRequest( request, endpoint );
+//        }
+//        else
         {
             std::ostringstream os( std::ios::binary );
             cereal::PortableBinaryOutputArchive archive( os );
