@@ -45,6 +45,30 @@ endif()
 
 include_directories(include)
 
+if (APPLE)
+    if (CMAKE_APPLE_SILICON_PROCESSOR)
+        set(CMAKE_PREFIX_PATH "~/Qt/6.5.3/macos")
+        set(BOOST_INCLUDE_DIR "/usr/local/include")
+        set(BOOST_LIB_DIR "/usr/local/lib")
+        add_definitions(-DBOOST_ASIO_HAS_STD_INVOKE_RESULT)
+        set(OPENSSL_ROOT_DIR "/opt/homebrew/opt/openssl")
+        set(OPENSSL_LIBRARIES "/opt/homebrew/opt/openssl/lib")
+        
+        # for -lcrypto (I do not know who uses it!)
+        link_directories(/opt/homebrew/opt/openssl/lib)
+    else()
+        set(CMAKE_PREFIX_PATH "~/Qt/6.4.0/macos")
+        set(BOOST_INCLUDE_DIR "/usr/local/include")
+        set(BOOST_LIB_DIR "/usr/local/lib")
+        add_definitions(-DBOOST_ASIO_HAS_STD_INVOKE_RESULT)
+        set(OPENSSL_ROOT_DIR "/usr/local/opt/openssl")
+        set(OPENSSL_LIBRARIES "/usr/local/opt/openssl/lib")
+        
+        # for -lcrypto (I do not know who uses it!)
+        link_directories(/usr/local/opt/openssl/lib)
+    endif()
+endif()
+
 ### setup boost
 if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
     SET(Boost_NAMESPACE ${Boost_NAMESPACE} "libboost")

@@ -73,5 +73,11 @@ inline void moveFile( const fs::path& src, const fs::path& dest )
         fs::remove( src );
     }
 }
+
+struct StreamBuffer : public std::streambuf
+{
+    StreamBuffer( char* data, size_t dataSize ) { setg( data, data, data + dataSize ); }
+};
+
 }}
 
