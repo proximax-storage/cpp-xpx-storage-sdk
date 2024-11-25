@@ -1,18 +1,6 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 2.8.7)
 
 project(Easyloggingpp CXX)
-
-if(POLICY CMP0144)
-    cmake_policy(SET CMP0144 NEW)
-endif()
-
-if(POLICY CMP0167)
-    cmake_policy(SET CMP0167 NEW)
-endif()
-
-if(POLICY CMP0048)
-    cmake_policy(SET CMP0048 NEW)
-endif()
 
 macro(require_cpp14)
         if (${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION} GREATER 3.0)
@@ -47,16 +35,16 @@ set(ELPP_PKGCONFIG_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/share/pkgconfig" CACHE P
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-#install(FILES
-#    src/easylogging++.h
-#    src/easylogging++.cc
-#    DESTINATION "${ELPP_INCLUDE_INSTALL_DIR}"
-#    COMPONENT dev)
+install(FILES
+    src/easylogging++.h
+    src/easylogging++.cc
+    DESTINATION "${ELPP_INCLUDE_INSTALL_DIR}"
+    COMPONENT dev)
 
 configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/cmake/easyloggingpp.pc.cmakein
     ${CMAKE_CURRENT_BINARY_DIR}/easyloggingpp.pc @ONLY)
 
-#install(FILES ${CMAKE_CURRENT_BINARY_DIR}/easyloggingpp.pc DESTINATION "${ELPP_PKGCONFIG_INSTALL_DIR}")
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/easyloggingpp.pc DESTINATION "${ELPP_PKGCONFIG_INSTALL_DIR}")
 
 include(CheckIncludeFileCXX)
 check_include_file_cxx("execinfo.h" HAVE_EXECINFO)

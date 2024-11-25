@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.9)
 
 add_definitions(-DSIRIUS_DRIVE_MULTI)
 
