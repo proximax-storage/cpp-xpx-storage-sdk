@@ -52,7 +52,11 @@ if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 endif()
 
 set(Boost_NO_WARN_NEW_VERSIONS 1)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-enum-constexpr-conversion")
+
+if((CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "16.0.0") OR
+    (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "11"))
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-enum-constexpr-conversion")
+endif()
 
 if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     find_package(Boost COMPONENTS atomic system date_time regex timer chrono log thread filesystem program_options random REQUIRED)
