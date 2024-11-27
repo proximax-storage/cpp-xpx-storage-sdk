@@ -143,8 +143,8 @@ public:
                    std::promise<void>&&                 bootstrapBarrier
                    )
     : 
-      TcpServer( context, "0.0.0.0", std::to_string(extractListeningPort(address)) ),
-      m_ownerIsReplicator(true)
+      TcpServer( context, "0.0.0.0", std::to_string(extractListeningPort(address)) )
+    , m_ownerIsReplicator(true)
     , m_addressAndPort(address)
     , m_listeningPort(extractListeningPort(address))
     , m_replicator(replicator)
