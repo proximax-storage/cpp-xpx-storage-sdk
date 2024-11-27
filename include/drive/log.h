@@ -101,6 +101,7 @@ inline std::string current_time()
 //
 //     return oss.str();
 
+    char buf[40];
     std::snprintf(buf, sizeof(buf), "%04ld.%02ld.%02ld %02ld:%02ld:%02ld.%03ld",
                   year, month, day, hours, minutes, seconds, milliseconds);
 
