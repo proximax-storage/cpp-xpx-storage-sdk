@@ -239,7 +239,7 @@ public:
     virtual ~Transport() = default;
     
     //
-    // Other requests and responses
+    // Requests
     //
     virtual void sendGetMyIpRequest( const MyIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) = 0;
     virtual void sendGetPeerIpRequest( const PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) = 0;
@@ -284,12 +284,9 @@ public:
 
     // 'get-ip'
     virtual std::string     onGetPeerIpRequest( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
-    virtual PeerIpResponse  onGetPeerIpTcpRequest( const PeerIpRequest& ) = 0;
-
+    
     virtual void            onGetPeerIpResponse( const std::string&, boost::asio::ip::udp::endpoint requesterEndpoint ) = 0;
-
-    virtual void            onGetPeerIpResponse( const PeerIpResponse& ) = 0;
-
+    
     virtual void            addReplicatorKey( const Key& key ) = 0;
     virtual void            addReplicatorKeys( const std::vector<Key>& keys ) = 0;
     virtual void            removeReplicatorKey( const Key& keys ) = 0;

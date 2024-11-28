@@ -140,7 +140,7 @@ public:
     {
         auto bucketIndex = calcBucketIndex( key );
         auto bucketNodes = m_buckets[bucketIndex].nodes();
-        std::erase_if( bucketNodes, [&key] (const auto& peerInfo) -> bool {
+        std::remove_if( bucketNodes.begin(), bucketNodes.end(), [&key] (const auto& peerInfo) {
             return peerInfo.m_publicKey == key;
         });
     }

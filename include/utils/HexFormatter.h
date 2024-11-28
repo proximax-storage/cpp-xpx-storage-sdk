@@ -24,7 +24,6 @@
 #include <array>
 #include <iostream>
 #include <vector>
-#include <cstdint>
 
 namespace sirius { namespace utils {
 
