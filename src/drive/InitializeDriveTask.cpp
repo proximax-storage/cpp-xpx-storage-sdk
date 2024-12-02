@@ -292,9 +292,16 @@ private:
 
                     if ( !fs::exists( m_drive.m_torrentFolder / fileName, err ))
                     {
-                        //TODO try recovery
-                        _LOG_ERR( "disk corrupted: torrent file does not exist: "
-                        << m_drive.m_torrentFolder / fileName )
+                        // try recovery
+						createTorrentFile( m_drive.m_driveFolder / fileName,
+										  m_drive.m_driveKey.array(),
+										  m_drive.m_driveFolder,
+										  m_drive.m_torrentFolder / fileName );
+
+						if(!fs::exists(m_drive.m_torrentFolder / fileName))
+						{
+							_LOG_ERR( "disk corrupted: torrent file does not exist: ")
+						}
                     }
 
                     if ( auto session = m_drive.m_session.lock(); session )

@@ -253,9 +253,12 @@ protected:
         m_sandboxFsTree->getUniqueFiles( files );
         for ( const auto& file: files )
         {
-            metaFilesSize += fs::file_size( m_drive.m_torrentFolder / toString(file) );
-            driveSize += fs::file_size( m_drive.m_driveFolder / toString(file) );
-        }
+			if ( fs::exists( m_drive.m_torrentFolder / toString(file) ) )
+			{
+				metaFilesSize += fs::file_size(m_drive.m_torrentFolder / toString(file));
+			}
+			driveSize += fs::file_size(m_drive.m_driveFolder / toString(file));
+	}
 
         driveSize += metaFilesSize;
 

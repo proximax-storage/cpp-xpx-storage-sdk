@@ -18,7 +18,6 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if (NOT DEFINED CPP_XPX_CHAIN)
     set(SKIP_GRPC ON)
 else()
-    message(STATUS "USE_ELPP ON")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DELPP_NO_DEFAULT_LOG_FILE")
     add_definitions(-DUSE_ELPP)
 endif()
@@ -45,9 +44,6 @@ if(WIN32)
 endif()
 
 include_directories(include)
-if(DEFINED EASYLOGGING AND EASYLOGGING STREQUAL "ON")
-    include_directories(include/el)
-endif()
 
 ### setup boost
 if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
@@ -68,10 +64,6 @@ else()
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DSHOW_BACKTRACE")
 endif()
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
-
-if (NOT DEFINED SKIP_GRPC)
-    storage_sdk_third_party_lib(cmake/grpc.cmake)
-endif()
 
 include_directories(cereal/include)
 add_subdirectory(libtorrent)
