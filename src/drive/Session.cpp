@@ -121,13 +121,15 @@ class DefaultSession:   public Session,
     std::thread::id                     m_dbgThreadId;
     
     LogMode                             m_logMode = LogMode::BRIEF;
-    
+//    LogMode                             m_logMode = LogMode::PEER;
+
 public:
     
     // Constructor for Replicator
     //
     DefaultSession( boost::asio::io_context&             context,
-                   std::string                          address,
+                   std::string                          addressAndPort,
+                   int                                  port,
                    const LibTorrentErrorHandler&        alertHandler,
                    std::weak_ptr<ReplicatorInt>         replicator,
                    std::weak_ptr<lt::session_delegate>  downloadLimiter,
@@ -135,8 +137,8 @@ public:
                    std::promise<void>&&                 bootstrapBarrier
                    )
     : m_ownerIsReplicator(true)
-    , m_addressAndPort(address)
-    , m_listeningPort(extractListeningPort())
+    , m_addressAndPort(addressAndPort)
+    , m_listeningPort(port)
     , m_replicator(replicator)
     , m_session( lt::session_params{ generateSessionSettings( false, bootstraps) }, context, {})
     , m_alertHandler(alertHandler)
@@ -157,7 +159,7 @@ public:
             m_session.setDelegate( m_downloadLimiter );
         });
                           
-        _LOG( "DefaultSession: " << address << " : " << toString(m_downloadLimiter.lock()->publicKey()) );
+        _LOG( "DefaultSession: " << addressAndPort << " : " << toString(m_downloadLimiter.lock()->publicKey()) );
         m_dbgOurPeerName = m_downloadLimiter.lock()->dbgOurPeerName();
         
         m_session.set_alert_notify( [this] { this->alertHandler(); } );
@@ -170,16 +172,6 @@ public:
         _LOG( "DefaultSession created: m_listeningPort " << m_listeningPort );
     }
     
-    int extractListeningPort()
-    {
-        if ( auto colonPos = m_addressAndPort.find(":"); colonPos != std::string::npos )
-        {
-            std::string portString = m_addressAndPort.substr(colonPos + 1);
-            return std::stoi(portString);
-        }
-        return 0;
-    }
-    
     virtual int listeningPort() override
     {
         return m_listeningPort;
@@ -187,7 +179,8 @@ public:
     
     // Constructor for Client
     //
-    DefaultSession( std::string                             address,
+    DefaultSession( std::string                             addressAndPort,
+                   int                                     port,
                    const crypto::KeyPair&                  keyPair,
                    LibTorrentErrorHandler                  alertHandler,
                    std::weak_ptr<lt::session_delegate>     downloadLimiter,
@@ -196,8 +189,8 @@ public:
                    std::weak_ptr<DhtMessageHandler>        dhtMessageHandler
                    )
     : m_ownerIsReplicator(false)
-    , m_addressAndPort(address)
-    , m_listeningPort(extractListeningPort())
+    , m_addressAndPort(addressAndPort)
+    , m_listeningPort(port)
     , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
     , m_alertHandler(alertHandler)
     , m_downloadLimiter(downloadLimiter)
@@ -553,6 +546,7 @@ public:
         }
         else
         {
+            //_LOG( "+++ ex :remove_torrent(33) torrents: " << torrents.size() );
             for( const auto& torrentHandle : torrents )
             {
                 //                if ( torrentHandle.status().state > 2 )
@@ -562,6 +556,7 @@ public:
             }
             
             boost::asio::post(lt_session().get_context(), [=] {
+                //_LOG( "+++ ex :remove_torrent(34) torrents: " << torrents.size() );
                 endNotification();
             });
         }
@@ -802,6 +797,7 @@ public:
         {
             try
             {
+				__LOG( "on_dht_request: query: " << query )
                 if ( query == "get_peers" || query == "announce_peer" )
                 {
                     return false;
@@ -1153,13 +1149,12 @@ private:
                     }
                         
                     case lt::listen_failed_alert::alert_type: {
-                        this->m_alertHandler( alert );
-                        
                         auto *theAlert = dynamic_cast<lt::listen_failed_alert *>(alert);
                         
                         if ( theAlert ) {
-                            LOG(  "listen error: " << theAlert->message())
+                            _LOG(  "listen error: " << theAlert->message())
                         }
+                        this->m_alertHandler( alert );
                         break;
                     }
                         
@@ -1862,20 +1857,35 @@ InfoHash calculateInfoHash( const std::filesystem::path& pathToFile, const Key& 
     return infoHash;
 }
 
+static int extractPort( const std::string& addressAndPort )
+{
+    __LOG( "extractListeningPort: addressAndPort: " << addressAndPort )
+    if ( auto colonPos = addressAndPort.find(":"); colonPos != std::string::npos )
+    {
+        std::string port = addressAndPort.substr(colonPos + 1);
+        __LOG( "port: " << port )
+        return std::stoi(port);
+    }
+    return 0;
+}
+
 //
 // For Replicator
 //
 
 std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&             context,
-                                               std::string                          address,
+                                               std::string                          addressAndPort,
                                                const LibTorrentErrorHandler&        alertHandler,
                                                std::weak_ptr<ReplicatorInt>         replicator,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
-                                              const std::vector<ReplicatorInfo>&    bootstraps,
+                                               const std::vector<ReplicatorInfo>&   bootstraps,
                                                std::promise<void>&&                 bootstrapBarrier )
 {
+    int port = extractPort( addressAndPort );
+
     return std::make_shared<DefaultSession>( context,
-                                            address,
+                                            addressAndPort,
+                                            port,
                                             alertHandler,
                                             replicator,
                                             downloadLimiter,
@@ -1886,14 +1896,23 @@ std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&         
 //
 // For Client
 //
-std::shared_ptr<Session> createDefaultSession( std::string                          address,
+std::shared_ptr<Session> createDefaultSession( std::string                          addressAndPort,
                                                const crypto::KeyPair&               keyPair,
                                                const LibTorrentErrorHandler&        alertHandler,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
                                                const std::vector<ReplicatorInfo>&   bootstraps,
                                                std::weak_ptr<DhtMessageHandler>     dhtMessageHandler )
 {
-    return std::make_shared<DefaultSession>( address, keyPair, alertHandler, downloadLimiter, false, bootstraps, dhtMessageHandler );
+    int port = extractPort( addressAndPort );
+
+    return std::make_shared<DefaultSession>( addressAndPort,
+                                             port,
+                                             keyPair,
+                                             alertHandler,
+                                             downloadLimiter,
+                                             false,
+                                             bootstraps,
+                                             dhtMessageHandler );
 }
 
 }

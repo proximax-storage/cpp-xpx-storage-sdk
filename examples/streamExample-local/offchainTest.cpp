@@ -712,7 +712,8 @@ int main(int,char**)
     sleep(10000);
     gViewerSession->addReplicatorList( replicatorList );
     gViewerSession->requestStreamStatus( DRIVE_PUB_KEY, replicatorList,
-                                                         [] ( const DriveKey&                 driveKey,
+                                                         [] ( const auto&                     driveKey,
+                                                              const auto&                     streamerKey,
                                                               bool                            isStreaming,
                                                               const std::array<uint8_t,32>&   streamId )
     {

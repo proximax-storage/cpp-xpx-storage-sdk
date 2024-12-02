@@ -88,6 +88,19 @@ inline std::string current_time()
     //      ---------10-     --> 12 chars + \0 --> 13 chars should suffice
     //
     //
+
+//TODO:
+//     std::ostringstream oss;
+//     oss << std::setfill('0') << std::setw(4) << year << '.'
+//         << std::setw(2) << month << '.'
+//         << std::setw(2) << day << ' '
+//         << std::setw(2) << hours << ':'
+//         << std::setw(2) << minutes << ':'
+//         << std::setw(2) << seconds << '.'
+//         << std::setw(3) << milliseconds;
+//
+//     return oss.str();
+
     char buf[40];
     std::snprintf(buf, sizeof(buf), "%04ld.%02ld.%02ld %02ld:%02ld:%02ld.%03ld",
                   year, month, day, hours, minutes, seconds, milliseconds);
@@ -129,13 +142,9 @@ PLUGIN_API void rolloutHandler(const char* absolutePath, std::size_t size);
 #endif
 
 #if USE_ELPP
-#define LOG(expr) { \
-    std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    checkLogFileSize(); \
-    std::cout << current_time() << " " << std::endl << std::flush; \
-}
+#   define LOG(expr) {}
 #else
-#define LOG(expr) {}
+#   define LOG(expr) {}
 #endif
 
 // _LOG - with m_dbgOurPeerName

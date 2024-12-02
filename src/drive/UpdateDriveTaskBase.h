@@ -258,7 +258,7 @@ protected:
 				metaFilesSize += fs::file_size(m_drive.m_torrentFolder / toString(file));
 			}
 			driveSize += fs::file_size(m_drive.m_driveFolder / toString(file));
-	}
+		}
 
         driveSize += metaFilesSize;
 
