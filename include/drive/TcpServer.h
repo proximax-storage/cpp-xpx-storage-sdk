@@ -182,20 +182,20 @@ public:
     :
         m_context( &context )
     {
-        try
-        {
-            boost::asio::ip::tcp::resolver resolver(*m_context);
-            m_endpoint = *resolver.resolve( addr, port ).begin();
-            
-            m_acceptor = boost::asio::ip::tcp::acceptor( *m_context, m_endpoint );
-            
-            asyncAccept();
-        }
-        catch( std::runtime_error& e )
-        {
-            __LOG("#TcpServer exception: " << e.what() )
-            __LOG("??? Port already in use ???" )
-        }
+//        try
+//        {
+//            boost::asio::ip::tcp::resolver resolver(*m_context);
+//            m_endpoint = *resolver.resolve( addr, port ).begin();
+//            
+//            m_acceptor = boost::asio::ip::tcp::acceptor( *m_context, m_endpoint );
+//            
+//            asyncAccept();
+//        }
+//        catch( std::runtime_error& e )
+//        {
+//            __LOG("#TcpServer exception: " << e.what() )
+//            __LOG("??? Port already in use ???" )
+//        }
     }
     
     void asyncAccept()
