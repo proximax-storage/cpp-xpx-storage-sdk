@@ -144,8 +144,7 @@ public:
                    std::promise<void>&&                 bootstrapBarrier
                    )
     : 
-//    TcpServer( context, "0.0.0.0", std::to_string(port) )
-    TcpServer( context, "0.0.0.0", "7906" )
+    TcpServer( context, "0.0.0.0", std::to_string(port) )
     , m_ownerIsReplicator(true)
     , m_addressAndPort(addressAndPort)
     , m_listeningPort(port)
@@ -1689,6 +1688,7 @@ private:
     {
         SIRIUS_ASSERT( isClient() )
         
+        _LOG( "sendGetPeerIpTcpRequest to: " << endpoint )
         boost::asio::ip::tcp::endpoint tcpEndpoint( endpoint.address().to_v4(), endpoint.port() );
         m_tcpClientConnectionManager->sendRequestTo( tcpEndpoint, TcpRequestId::get_peer_ip, request );
     }
