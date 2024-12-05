@@ -72,7 +72,7 @@ public:
         m_sendData = std::move(data);
         assert( m_sendData.size() <= 0xFFFFF );
         ((uint8_t&) m_sendData[0]) = m_sendData.size() & 0xFF;
-        ((uint8_t&) m_sendData[1]) = (m_sendData.size() & 0xFF00) << 8;
+        ((uint8_t&) m_sendData[1]) = (m_sendData.size() & 0xFF00) >> 8;
         
         // Response Time-out: 5 seconds
         m_timer = Timer { m_context, 15*1000, [self = this->weak_from_this()]
