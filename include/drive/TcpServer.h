@@ -40,7 +40,7 @@ protected:
     boost::asio::ip::tcp::socket m_socket;
     ITcpServer&                  m_server;
     
-    boost::asio::steady_timer    m_timer;
+//    boost::asio::steady_timer    m_timer;
     
     uint16_t                     m_dataLength;
     std::vector<uint8_t>         m_packetData;
@@ -50,9 +50,9 @@ public:
 
 public:
     TcpClientSession( boost::asio::ip::tcp::socket&& socket, ITcpServer& server )
-     :  m_socket( std::move(socket) ),
-        m_server(server),
-        m_timer( m_socket.get_executor() )
+     : m_socket( std::move(socket) )
+     , m_server(server)
+     //, m_timer( m_socket.get_executor() )
     {
     }
     
@@ -76,18 +76,44 @@ public:
         uint16_t size = (uint16_t) os->rdbuf()->view().size();
         _LOG( "#TcpClientSession: sendReply: " << size );
         
+        if ( size == 0 )
+        {
+            // no reply
+            return;
+        }
+        
         auto buffer = (uint8_t*)os->rdbuf()->view().data();
         buffer[0] = size&0x00FF;
         buffer[1] = (size&0xFF00) >> 8;
         
-        m_socket.async_send( boost::asio::buffer( os->rdbuf()->view().data(), size ),
-                            [self=this->shared_from_this(),os=std::move(os)] ( auto error, auto sentSize )
+        uint8_t* message = new uint8_t[size];
+        std::memcpy( message, buffer, size );
+        
+        m_socket.async_send( boost::asio::buffer( message, size ),
+                            [self=this->shared_from_this(),message] ( auto error, auto sentSize )
         {
+            __LOG( "#TcpClientSession: async_send ended" );
+
+            delete [] message;
+            
             if (error)
             {
+                __LOG( "#TcpClientSession: async_send error(2): " << error.message() );
                 _LOG_ERR( "#TcpClientSession: async_send error(2): " << error.message() );
             }
+            __LOG( "#TcpClientSession: sendReply sent" );
         });
+
+    //        m_socket.async_send( boost::asio::buffer( os->rdbuf()->view().data(), size ),
+    //                            [self=this->shared_from_this(),os=std::move(os)] ( auto error, auto sentSize )
+    //        {
+    //            if (error)
+    //            {
+    //                __LOG( "#TcpClientSession: async_send error(2): " << error.message() );
+    //                _LOG_ERR( "#TcpClientSession: async_send error(2): " << error.message() );
+    //            }
+    //            __LOG( "#TcpClientSession: sendReply sent" );
+    //        });
     }
     
 private:
@@ -95,23 +121,23 @@ private:
     
     void readPacketHeader()
     {
-        m_timer.expires_after( std::chrono::seconds(5) );
-        m_timer.async_wait( [self = shared_from_this()] (const boost::system::error_code& ec)
-        {
-            if ( ec == boost::asio::error::operation_aborted )
-            {
-                __LOG( "#TcpClientSession: timer was cancelled" );
-            }
-            else if ( ec )
-            {
-                __LOG( "#TcpClientSession: timer error: " << ec.message() );
-            }
-            else
-            {
-                __LOG( "#TcpClientSession: close socket: " << ec.message() );
-                self->m_socket.close();
-            }
-        });
+//        m_timer.expires_after( std::chrono::seconds(5) );
+//        m_timer.async_wait( [self = shared_from_this()] (const boost::system::error_code& ec)
+//        {
+//            if ( ec == boost::asio::error::operation_aborted )
+//            {
+//                __LOG( "#TcpClientSession: timer was cancelled" );
+//            }
+//            else if ( ec )
+//            {
+//                __LOG( "#TcpClientSession: timer error: " << ec.message() );
+//            }
+//            else
+//            {
+//                __LOG( "#TcpClientSession: close socket: " << ec.message() );
+//                self->m_socket.close();
+//            }
+//        });
         
         boost::asio::async_read( m_socket, boost::asio::buffer(&m_dataLength, sizeof(m_dataLength)), [self=this->shared_from_this()] ( auto error, auto bytes_transferred )
         {
@@ -168,7 +194,7 @@ private:
         _LOG( "#TcpClientSession: readPacketData: " << bytes_transferred )
         m_server.onRequestReceived( m_packetData.data(), m_dataLength, weak_from_this() );
         
-        m_timer.cancel();
+        //m_timer.cancel();
         readPacketHeader();
     }
 };
