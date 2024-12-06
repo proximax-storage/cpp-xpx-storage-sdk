@@ -40,7 +40,7 @@ protected:
     boost::asio::ip::tcp::socket m_socket;
     ITcpServer&                  m_server;
     
-//    boost::asio::steady_timer    m_timer;
+    boost::asio::steady_timer    m_timer;
     
     uint16_t                     m_dataLength;
     std::vector<uint8_t>         m_packetData;
@@ -52,7 +52,7 @@ public:
     TcpClientSession( boost::asio::ip::tcp::socket&& socket, ITcpServer& server )
      : m_socket( std::move(socket) )
      , m_server(server)
-     //, m_timer( m_socket.get_executor() )
+     , m_timer( m_socket.get_executor() )
     {
     }
     
@@ -121,26 +121,27 @@ private:
     
     void readPacketHeader()
     {
-//        m_timer.expires_after( std::chrono::seconds(5) );
-//        m_timer.async_wait( [self = shared_from_this()] (const boost::system::error_code& ec)
-//        {
-//            if ( ec == boost::asio::error::operation_aborted )
-//            {
-//                __LOG( "#TcpClientSession: timer was cancelled" );
-//            }
-//            else if ( ec )
-//            {
-//                __LOG( "#TcpClientSession: timer error: " << ec.message() );
-//            }
-//            else
-//            {
-//                __LOG( "#TcpClientSession: close socket: " << ec.message() );
-//                self->m_socket.close();
-//            }
-//        });
+        m_timer.expires_after( std::chrono::seconds(5) );
+        m_timer.async_wait( [self = shared_from_this()] (const boost::system::error_code& ec)
+        {
+            if ( ec == boost::asio::error::operation_aborted )
+            {
+                __LOG( "#TcpClientSession: timer was cancelled" );
+            }
+            else if ( ec )
+            {
+                __LOG( "#TcpClientSession: timer error: " << ec.message() );
+            }
+            else
+            {
+                __LOG( "#TcpClientSession: close socket: " << ec.message() );
+                self->m_socket.close();
+            }
+        });
         
         boost::asio::async_read( m_socket, boost::asio::buffer(&m_dataLength, sizeof(m_dataLength)), [self=this->shared_from_this()] ( auto error, auto bytes_transferred )
         {
+            self -> m_timer.cancel();
             self -> doReadPacketHeader( error, bytes_transferred );
         });
     }
@@ -194,7 +195,6 @@ private:
         _LOG( "#TcpClientSession: readPacketData: " << bytes_transferred )
         m_server.onRequestReceived( m_packetData.data(), m_dataLength, weak_from_this() );
         
-        //m_timer.cancel();
         readPacketHeader();
     }
 };

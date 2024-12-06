@@ -1643,7 +1643,8 @@ private:
             kademlia::PeerIpResponse response;
             iarchive( response );
             __LOG( "response: " << response.m_response.size() )
-            __LOG( "response: " << response.m_response.size() )
+  
+            m_kademlia->onGetPeerIpResponse( response );
         }
     }
     
