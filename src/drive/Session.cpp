@@ -369,8 +369,8 @@ public:
         settingsPack.set_str(  lt::settings_pack::user_agent, std::string(todoPubKey,32) );
         settingsPack.set_bool( lt::settings_pack::enable_outgoing_utp, true );
         settingsPack.set_bool( lt::settings_pack::enable_incoming_utp, true );
-        settingsPack.set_bool( lt::settings_pack::enable_outgoing_tcp, true );
-        settingsPack.set_bool( lt::settings_pack::enable_incoming_tcp, true );
+        settingsPack.set_bool( lt::settings_pack::enable_outgoing_tcp, false );
+        settingsPack.set_bool( lt::settings_pack::enable_incoming_tcp, false );
         
         //todo 1. is it enough? 2. is it for single peer?
         settingsPack.set_int( lt::settings_pack::dht_upload_rate_limit, 8000000 );

@@ -86,34 +86,34 @@ public:
         buffer[0] = size&0x00FF;
         buffer[1] = (size&0xFF00) >> 8;
         
-        uint8_t* message = new uint8_t[size];
-        std::memcpy( message, buffer, size );
-        
-        m_socket.async_send( boost::asio::buffer( message, size ),
-                            [self=this->shared_from_this(),message] ( auto error, auto sentSize )
-        {
-            __LOG( "#TcpClientSession: async_send ended" );
+//        uint8_t* message = new uint8_t[size];
+//        std::memcpy( message, buffer, size );
+//        
+//        m_socket.async_send( boost::asio::buffer( message, size ),
+//                            [self=this->shared_from_this(),message] ( auto error, auto sentSize )
+//        {
+//            __LOG( "#TcpClientSession: async_send ended" );
+//
+//            delete [] message;
+//            
+//            if (error)
+//            {
+//                __LOG( "#TcpClientSession: async_send error(2): " << error.message() );
+//                _LOG_ERR( "#TcpClientSession: async_send error(2): " << error.message() );
+//            }
+//            __LOG( "#TcpClientSession: sendReply sent" );
+//        });
 
-            delete [] message;
-            
-            if (error)
+            m_socket.async_send( boost::asio::buffer( buffer, size ),
+                                [self=this->shared_from_this(),os=std::move(os)] ( auto error, auto sentSize )
             {
-                __LOG( "#TcpClientSession: async_send error(2): " << error.message() );
-                _LOG_ERR( "#TcpClientSession: async_send error(2): " << error.message() );
-            }
-            __LOG( "#TcpClientSession: sendReply sent" );
-        });
-
-    //        m_socket.async_send( boost::asio::buffer( os->rdbuf()->view().data(), size ),
-    //                            [self=this->shared_from_this(),os=std::move(os)] ( auto error, auto sentSize )
-    //        {
-    //            if (error)
-    //            {
-    //                __LOG( "#TcpClientSession: async_send error(2): " << error.message() );
-    //                _LOG_ERR( "#TcpClientSession: async_send error(2): " << error.message() );
-    //            }
-    //            __LOG( "#TcpClientSession: sendReply sent" );
-    //        });
+                if (error)
+                {
+                    __LOG( "#TcpClientSession: async_send error(2): " << error.message() );
+                    _LOG_ERR( "#TcpClientSession: async_send error(2): " << error.message() );
+                }
+                __LOG( "#TcpClientSession: sendReply sent" );
+            });
     }
     
 private:
