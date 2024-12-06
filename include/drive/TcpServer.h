@@ -167,7 +167,7 @@ private:
         }
         
         m_dataLength -= sizeof(m_dataLength);
-        _LOG( "#TcpClientSession received: " << m_dataLength );
+        _LOG( "#TcpClientSession received: " << m_dataLength << " from: " << m_socket.remote_endpoint() );
         
         m_packetData.resize( m_dataLength );
         boost::asio::async_read( m_socket, boost::asio::buffer(m_packetData.data(), m_dataLength ),
