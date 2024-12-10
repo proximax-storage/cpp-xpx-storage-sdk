@@ -101,12 +101,12 @@ void setLogConf(std::string port)
 		{
 			try {
 				std::filesystem::create_directory(LOG_FOLDER);
-				std::cout << "Directory 'LOG_FOLDER' created successfully." << std::endl;
+				//std::cout << "Directory 'LOG_FOLDER' created successfully." << std::endl;
 			} catch (const std::exception& e) {
-				std::cerr << "Error creating directory 'LOG_FOLDER': " << e.what() << std::endl;
+				//std::cerr << "Error creating directory 'LOG_FOLDER': " << e.what() << std::endl;
 			}
 		} else {
-			std::cout << "Directory " << LOG_FOLDER << " already exists." << std::endl;
+			//std::cout << "Directory " << LOG_FOLDER << " already exists." << std::endl;
 		}
 
 		std::string filename = std::string(LOG_FOLDER) + "/replicator_log_" + port + ".log";
@@ -2356,7 +2356,7 @@ public:
             m_session->startSearchPeerEndpoints( driveRequest.m_fullReplicatorList );
             m_session->addClientToLocalEndpointMap( driveRequest.m_client );
 
-            std::cout << "added virtualDrive " << driveKey;
+            _LOG( "added virtualDrive " << driveKey );
         } );//post
     }
 

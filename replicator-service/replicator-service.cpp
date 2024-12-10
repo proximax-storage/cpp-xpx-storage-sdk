@@ -279,7 +279,7 @@ int runServiceInBackground( fs::path logFolder, const std::string& port )
     }
     catch (std::exception& e)
     {
-        std::cerr << "Exception: " << e.what() << '\n';
+        //std::cerr << "Exception: " << e.what() << '\n';
         RPC_LOG( "Exception: " << e.what() );
     }
     return 0;

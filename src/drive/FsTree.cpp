@@ -28,7 +28,7 @@ namespace sirius { namespace drive {
 // dbgPring
 void Folder::dbgPrint( std::string leadingSpaces ) const {
 
-    std::cout << leadingSpaces << "• " << m_name << std::endl;
+    __LOG( leadingSpaces << "• " << m_name );
 
     for( auto it = m_childs.begin(); it != m_childs.end(); it++ ) {
 
@@ -36,7 +36,7 @@ void Folder::dbgPrint( std::string leadingSpaces ) const {
             getFolder(it->second).dbgPrint( leadingSpaces+"  " );
         }
         else {
-            std::cout << leadingSpaces << "  " << getFile(it->second).name() << " : " << getFile(it->second).size() << std::endl;
+            __LOG( leadingSpaces << "  " << getFile(it->second).name() << " : " << getFile(it->second).size() );
         }
     }
 }
@@ -89,9 +89,8 @@ bool Folder::initWithFolder( const std::string& pathToFolder ) try {
 
         const auto entryName = entry.path().filename().string();
 
-        if ( entry.is_directory() ) {
-            //std::cout << "dir:  " << filenameStr << '\n';
-
+        if ( entry.is_directory() )
+        {
             Folder subfolder{entryName};
 
             if ( !subfolder.initWithFolder(pathToFolder + "/" + entryName) )
@@ -100,10 +99,8 @@ bool Folder::initWithFolder( const std::string& pathToFolder ) try {
             m_childs[entryName] = subfolder;
             //m_childs.insert( subfolder );
         }
-        else if ( entry.is_regular_file() ) {
-            //std::cout << "file: " << filenameStr << '\n';
-
-
+        else if ( entry.is_regular_file() )
+        {
             if ( entryName != ".DS_Store" )
             {
 #ifdef DEBUG
@@ -138,8 +135,8 @@ void Folder::getSizes( const fs::path& driveFolder, const fs::path& torrentFolde
             const auto& file = getFile(it->second);
             _SIRIUS_ASSERT(!file.isModifiable());
             const auto& fileHash = file.hash();
-            std::cout << "name:  " << getFile(it->second).name() << "\n" << std::flush;
-            std::cout << "tname: " << torrentFolder.string() + "/" + toString(fileHash) << "\n" << std::flush;
+            __LOG( "name:  " << getFile(it->second).name() );
+            __LOG( "tname: " << torrentFolder.string() + "/" + toString(fileHash) );
             metaFilesSize += fs::file_size( torrentFolder.string() + "/" + toString(fileHash) );
             filesSize += fs::file_size( driveFolder.string() + "/" + toString(fileHash) );
         }

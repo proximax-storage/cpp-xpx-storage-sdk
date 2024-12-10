@@ -257,7 +257,7 @@ struct FuncEntry
     FuncEntry( const std::string& PRETTY_FUNCTION, const std::string& dbgOurPeerName ) : m_PRETTY_FUNCTION(PRETTY_FUNCTION), m_dbgOurPeerName(dbgOurPeerName)
     {
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        std::cout << m_dbgOurPeerName << ": call: " << gIndentString+sizeof(gIndentString)-gCallLevel-1 << "->" << m_PRETTY_FUNCTION << std::endl << std::flush; \
+        _LOG( ": call: " << gIndentString+sizeof(gIndentString)-gCallLevel-1 << "->" << m_PRETTY_FUNCTION ); \
         gCallLevel+=2;
     }
     
@@ -265,7 +265,7 @@ struct FuncEntry
     {
         gCallLevel-=2;
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        std::cout << m_dbgOurPeerName << ": call: " << gIndentString+sizeof(gIndentString)-gCallLevel-1 << "<-" << m_PRETTY_FUNCTION << std::endl << std::flush; \
+        _LOG( ": call: " << gIndentString+sizeof(gIndentString)-gCallLevel-1 << "<-" << m_PRETTY_FUNCTION ); \
     }
 };
 /*
