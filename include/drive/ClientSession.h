@@ -463,6 +463,24 @@ public:
         }
     }
 
+    void modificationHasBeenRegistered( const sirius::drive::ReplicatorList& keys )
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [keys=keys,this]() //mutable
+        {
+            if ( m_modifyTorrentMap.empty() )
+            {
+                __LOG( "m_modifyTorrentMap.empty()" )
+            }
+            else
+            {
+                for( auto& item : m_modifyTorrentMap )
+                {
+                    m_session->modificationHasBeenRegistered( item.second.m_ltHandle, keys );
+                }
+            }
+        });
+    }
+
     void addReplicatorList( const sirius::drive::ReplicatorList& keys )
     {
         m_session->startSearchPeerEndpoints( keys );

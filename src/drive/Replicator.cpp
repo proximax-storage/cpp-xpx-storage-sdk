@@ -1030,6 +1030,7 @@ public:
 
     bool createModificationStatus( const DriveKey&       driveKey,
                                    const Hash256&        modificationHash,
+                                   const boost::asio::ip::udp::endpoint& endpoint,
                                    std::ostringstream&   outOs,
                                    Signature&            outSignature,
                                    bool&                 outIsModificationFinished )
@@ -1046,6 +1047,8 @@ public:
 
         if ( auto driveIt = m_driveMap.find(driveKey.array()); driveIt != m_driveMap.end() )
         {
+            driveIt->second->tryConnectPeer( modificationHash, endpoint );
+
             auto* info = driveIt->second->findModifyInfo( modificationHash, outIsModificationFinished );
             if ( info != nullptr )
             {
@@ -2224,7 +2227,7 @@ public:
             std::ostringstream os( std::ios::binary );
             Signature responseSignature;
             bool isModificationFinished = false;
-            if ( ! createModificationStatus( driveKey, modifyTx, os, responseSignature, isModificationFinished ) )
+            if ( ! createModificationStatus( driveKey, modifyTx, source, os, responseSignature, isModificationFinished ) )
             {
                 response["r"]["not_found"] = "yes";
             }

@@ -220,6 +220,9 @@ public:
     virtual Timer     startTimer( int milliseconds, std::function<void()> func ) = 0;
 
     virtual void      connectTorentsToEndpoint( const boost::asio::ip::udp::endpoint& endpoint ) = 0;
+    
+    virtual void      modificationHasBeenRegistered( Session::lt_handle, const ReplicatorList& keys ) = 0;
+
 
     // for testing and debugging
     virtual void      dbgPrintActiveTorrents() = 0;

@@ -5,6 +5,9 @@
 */
 
 #include "drive/Session.h"
+#include "drive/TcpServer.h"
+#include "drive/TcpServer.h"
+#include "drive/TcpClientConnectionManager.h"
 #include "ReplicatorInt.h"
 #include "DownloadLimiter.h"
 #include "drive/Utils.h"
@@ -93,6 +96,8 @@ struct LtClientData
 // DefaultSession
 //
 class DefaultSession:   public Session,
+                        public TcpServer,
+                        public ITcpResponseHandler,
                         public std::enable_shared_from_this<DefaultSession>
 {
     std::shared_ptr<kademlia::EndpointCatalogue> m_kademlia;
@@ -123,6 +128,8 @@ class DefaultSession:   public Session,
     LogMode                             m_logMode = LogMode::BRIEF;
 //    LogMode                             m_logMode = LogMode::PEER;
 
+    std::unique_ptr<TcpClientConnectionManager> m_tcpClientConnectionManager; // only for user app
+
 public:
     
     // Constructor for Replicator
@@ -136,7 +143,9 @@ public:
                    const std::vector<ReplicatorInfo>&   bootstraps,
                    std::promise<void>&&                 bootstrapBarrier
                    )
-    : m_ownerIsReplicator(true)
+    : 
+    TcpServer( context, "0.0.0.0", std::to_string(port) )
+    , m_ownerIsReplicator(true)
     , m_addressAndPort(addressAndPort)
     , m_listeningPort(port)
     , m_replicator(replicator)
@@ -188,7 +197,9 @@ public:
                    const std::vector<ReplicatorInfo>&      bootstraps,
                    std::weak_ptr<DhtMessageHandler>        dhtMessageHandler
                    )
-    : m_ownerIsReplicator(false)
+    // TcpServer not used (note: DefaultSession is common for 'client' and 'replicator')
+    : TcpServer()
+    , m_ownerIsReplicator(false)
     , m_addressAndPort(addressAndPort)
     , m_listeningPort(port)
     , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
@@ -214,6 +225,8 @@ public:
         
         _LOG( "DefaultSession created: " << m_addressAndPort );
         _LOG( "Client DefaultSession created: m_listeningPort " << m_listeningPort );
+        
+        m_tcpClientConnectionManager = std::make_unique<TcpClientConnectionManager>( *this, m_session.get_context() );
     }
     
     virtual ~DefaultSession()
@@ -356,8 +369,8 @@ public:
         settingsPack.set_str(  lt::settings_pack::user_agent, std::string(todoPubKey,32) );
         settingsPack.set_bool( lt::settings_pack::enable_outgoing_utp, true );
         settingsPack.set_bool( lt::settings_pack::enable_incoming_utp, true );
-        settingsPack.set_bool( lt::settings_pack::enable_outgoing_tcp, true );
-        settingsPack.set_bool( lt::settings_pack::enable_incoming_tcp, true );
+        settingsPack.set_bool( lt::settings_pack::enable_outgoing_tcp, false );
+        settingsPack.set_bool( lt::settings_pack::enable_incoming_tcp, false );
         
         //todo 1. is it enough? 2. is it for single peer?
         settingsPack.set_int( lt::settings_pack::dht_upload_rate_limit, 8000000 );
@@ -639,6 +652,22 @@ public:
         }
         
         return tHandle;
+    }
+    
+    void modificationHasBeenRegistered( Session::lt_handle tHandle, const ReplicatorList& keys ) override
+    {
+        _LOG( "@@@ modificationHasBeenRegistered:" );
+        if ( auto limiter = m_downloadLimiter.lock(); limiter )
+        {
+            for( const auto& key : keys ) {
+                auto endpoint = limiter->getEndpoint( key.array() );
+                if ( endpoint )
+                {
+                    _LOG( "@@@ modificationHasBeenRegistered: connect_peer: " << *endpoint << " " << key );
+                    tHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint->address(), endpoint->port() } );
+                }
+            }
+        }
     }
     
     // downloadFile
@@ -1599,6 +1628,72 @@ private:
 #pragma mark --KademliaTransport--
 #endif
 
+    virtual void onResponseReceived( bool success, uint8_t* data, size_t dataSize ) override
+    {
+        if ( success )
+        {
+            Buffer streambuf{ (char*)data, dataSize };
+            std::istream is(&streambuf);
+            cereal::BinaryInputArchive iarchive( is );
+            
+            TcpResponseId responseId;
+            iarchive( responseId );
+            __LOG( "responseId: " << responseId )
+            
+            kademlia::PeerIpResponse response;
+            iarchive( response );
+            __LOG( "response: " << response.m_response.size() )
+  
+            m_kademlia->onGetPeerIpResponse( response );
+        }
+    }
+    
+    // only for replicator
+    virtual void onRequestReceived( uint8_t* data, size_t dataSize, std::weak_ptr<TcpClientSession> session ) override
+    {
+        SIRIUS_ASSERT( !isClient() )
+
+        if ( auto sessionPtr = session.lock(); sessionPtr )
+        {
+            StreamBuffer strBuffer( (char*)data, dataSize );
+            std::istream is(&strBuffer);
+            
+            cereal::BinaryInputArchive iarchive( is );
+            
+            uint16_t requestId;
+            iarchive( requestId );
+            _LOG( "requestId: " << requestId );
+            
+            if ( requestId == get_peer_ip )
+            {
+                kademlia::PeerIpRequest request;
+                iarchive( request );
+                
+                try
+                {
+                    kademlia::PeerIpResponse response = m_kademlia->onGetPeerIpTcpRequest( request );
+                    sessionPtr->sendReply( peer_ip_response, response );
+                }
+                catch(...)
+                {
+                    // for standalone debugging
+                    kademlia::PeerIpResponse response;
+                    sessionPtr->sendReply( peer_ip_response, response );
+                }
+            }
+        }
+    }
+
+    virtual void sendGetPeerIpTcpRequest( const kademlia::PeerIpRequest& request,
+                                          boost::asio::ip::udp::endpoint  endpoint )
+    {
+        SIRIUS_ASSERT( isClient() )
+        
+        _LOG( "sendGetPeerIpTcpRequest to: " << endpoint )
+        boost::asio::ip::tcp::endpoint tcpEndpoint( endpoint.address().to_v4(), endpoint.port() );
+        m_tcpClientConnectionManager->sendRequestTo( tcpEndpoint, TcpRequestId::get_peer_ip, request );
+    }
+
     virtual void sendGetMyIpRequest( const kademlia::MyIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override
     {
         std::ostringstream os( std::ios::binary );
@@ -1610,11 +1705,18 @@ private:
 
     virtual void sendGetPeerIpRequest( const kademlia::PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override
     {
-        std::ostringstream os( std::ios::binary );
-        cereal::PortableBinaryOutputArchive archive( os );
-        archive( request );
-
-        sendMessage( GET_PEER_IP_MSG, endpoint, os.str() );
+        if ( isClient() )
+        {
+            sendGetPeerIpTcpRequest( request, endpoint );
+        }
+        else
+        {
+            std::ostringstream os( std::ios::binary );
+            cereal::PortableBinaryOutputArchive archive( os );
+            archive( request );
+            
+            sendMessage( GET_PEER_IP_MSG, endpoint, os.str() );
+        }
     }
     
     virtual void sendDirectPeerInfo( const kademlia::PeerIpResponse& response, boost::asio::ip::udp::endpoint endpoint ) override

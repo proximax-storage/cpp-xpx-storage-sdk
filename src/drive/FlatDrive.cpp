@@ -258,6 +258,29 @@ public:
 
         return nullptr;
     }
+    
+    virtual void tryConnectPeer( const Hash256& tx, const boost::asio::ip::udp::endpoint& endpoint ) override
+    {
+        if ( auto currentTx = currentModifyTx(); currentTx && *currentTx == tx )
+        {
+            if ( m_task->getTaskType() == DriveTaskType::MODIFICATION_REQUEST )
+            {
+                _LOG ( "--- tryConnectPeer(0): " << m_modifyInfo.m_modifyTrafficMap.size() << " driveKey: " <<  toString(m_modifyInfo.m_driveKey) )
+                for( const auto& replicatorInfo : m_modifyInfo.m_modifyTrafficMap ) {
+                    _LOG ( "tryConnectPeer(1): " << replicatorInfo.second.m_receivedSize << "/" << replicatorInfo.second.m_requestedSize
+                                                 << " replicator: " <<  toString(replicatorInfo.first)  )
+                }
+                
+                for( auto& it: m_torrentHandleMap )
+                {
+                    _LOG ( "tryConnectPeer(2): " <<  it.second.m_ltHandle.info_hashes().v2.to_string() )
+
+                    it.second.m_ltHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint.address(), endpoint.port() } );
+                }
+            }
+        }
+    }
+
 
     uint64_t maxSize() const override {
         return m_maxSize;
