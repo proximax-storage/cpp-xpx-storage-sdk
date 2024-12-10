@@ -245,7 +245,8 @@ public:
             {
                 SIRIUS_ASSERT( *fileToDownload != Hash256() )
                 _LOG( "+++ ex downloading: START: " << toString( *fileToDownload ));
-                _LOG("m_uploadedDataSize: m_request->m_maxDataSize: " << m_request->m_maxDataSize )
+                _LOG("m_uploadedDataSize: m_request->m_maxDataSize: " << m_request->m_maxDataSize
+                                        << " torrentHandleMap.size: " << m_drive.m_torrentHandleMap.size() )
                 m_downloadingLtHandle = session->download( DownloadContext(
 
                                                                    DownloadContext::missing_files,

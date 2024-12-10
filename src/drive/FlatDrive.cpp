@@ -261,6 +261,8 @@ public:
     
     virtual void tryConnectPeer( const Hash256& tx, const boost::asio::ip::udp::endpoint& endpoint ) override
     {
+        m_task->tryConnectPeer( tx, endpoint );
+        
         if ( auto currentTx = currentModifyTx(); currentTx && *currentTx == tx )
         {
             if ( m_task->getTaskType() == DriveTaskType::MODIFICATION_REQUEST )
@@ -271,6 +273,7 @@ public:
                                                  << " replicator: " <<  toString(replicatorInfo.first)  )
                 }
                 
+                _LOG ( "tryConnectPeer(2): m_torrentHandleMap.size: " << m_torrentHandleMap.size() )
                 for( auto& it: m_torrentHandleMap )
                 {
                     _LOG ( "tryConnectPeer(2): " <<  it.second.m_ltHandle.info_hashes().v2.to_string() )
