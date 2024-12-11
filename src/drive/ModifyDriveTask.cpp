@@ -115,17 +115,7 @@ public:
                                                        //(???+)
                                                        DBG_MAIN_THREAD
 
-                                                       if ( code == download_status::dn_failed )
-                                                       {
-                                                           m_drive.m_torrentHandleMap.erase( infoHash );
-                                                           modifyIsCompletedWithError( errorText, ModificationStatus::DOWNLOAD_FAILED );
-                                                       }
-                                                       else if ( code == download_status::dn_not_enougth_space )
-                                                       {
-                                                           m_drive.m_torrentHandleMap.erase( infoHash );
-                                                           modifyIsCompletedWithError( errorText, ModificationStatus::NOT_ENOUGH_SPACE );
-                                                       }
-                                                       else if ( code == download_status::download_complete )
+                                                       if ( code == download_status::download_complete )
                                                        {
                                                            //SIRIUS_ASSERT( !m_taskIsStopped );
                                                            // it could be stopped after asyncApprovalTransactionHasBeenPublished
@@ -148,6 +138,22 @@ public:
                                                                } );
                                                            }
                                                        }
+                                                       else
+                                                       {
+                                                           _LOG( "Download fsTree or ActionList failed! " << int(code) )
+
+                                                           m_drive.m_torrentHandleMap.erase( infoHash );
+                                                           m_fsTreeOrActionListHandle.reset();
+
+                                                           if ( code == download_status::dn_failed )
+                                                           {
+                                                               modifyIsCompletedWithError( errorText, ModificationStatus::DOWNLOAD_FAILED );
+                                                           }
+                                                           else if ( code == download_status::dn_not_enougth_space )
+                                                           {
+                                                               modifyIsCompletedWithError( errorText, ModificationStatus::NOT_ENOUGH_SPACE );
+                                                           }
+                                                       }
                                                    },
                                                    m_request->m_clientDataInfoHash,
                                                    m_request->m_transactionHash,
@@ -161,6 +167,7 @@ public:
                                                nullptr,
                                                &m_request->m_transactionHash.array()
                                                 );
+            m_fsTreeOrActionListHandle = m_downloadingLtHandle;
         }
     }
 
