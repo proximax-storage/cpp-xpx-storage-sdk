@@ -119,6 +119,9 @@ void setLogConf(std::string port)
 		conf.set(el::Level::Global, el::ConfigurationType::LogFlushThreshold, "1");
 		// rollout size == 100 MB, el::ConfigurationType::MaxLogFileSize value is in bytes == 100000000
 		conf.set(el::Level::Global, el::ConfigurationType::MaxLogFileSize, "100000000");
+#ifndef DEBUG
+        conf.set(el::Level::Global, el::ConfigurationType::ToStandardOutput, "false");
+#endif
 		el::Helpers::installPreRollOutCallback(rolloutHandler);
 		el::Loggers::reconfigureAllLoggers(conf);
 	}
