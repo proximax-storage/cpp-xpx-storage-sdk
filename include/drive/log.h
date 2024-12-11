@@ -152,7 +152,6 @@ PLUGIN_API void rolloutHandler(const char* absolutePath, std::size_t size);
 
 #if USE_ELPP
 #define _LOG(expr) { \
-    std::lock_guard<std::mutex> autolock( gLogMutex ); \
     LOGPP(DEBUG) << current_time() << " " << m_dbgOurPeerName << ": " << expr; \
 }
 #else
@@ -168,7 +167,6 @@ std::lock_guard<std::mutex> autolock( gLogMutex ); \
 //#define __LOG(expr) {}
 #if USE_ELPP
 #define __LOG(expr) { \
-    std::lock_guard<std::mutex> autolock( gLogMutex ); \
     LOGPP(DEBUG) << current_time() << " " << expr; \
 }
 #else
@@ -185,7 +183,6 @@ std::lock_guard<std::mutex> autolock( gLogMutex ); \
 #if USE_ELPP
 #define ___LOG(expr) { \
     if ( !gKademliaLogs ) { \
-        std::lock_guard<std::mutex> autolock( gLogMutex ); \
         LOGPP(DEBUG) << current_time() << " " << expr; \
     }   \
 }
@@ -201,9 +198,7 @@ if ( !gKademliaLogs ) {\
 // _LOG_WARN - with m_dbgOurPeerName
 #if USE_ELPP
 #define _LOG_WARN(expr) { \
-    std::lock_guard<std::mutex> autolock( gLogMutex ); \
     LOGPP(WARNING) << current_time() << " " << m_dbgOurPeerName << ": WARNING!!! in " << __FUNCTION__ << "() " << expr; \
-    if ( gBreakOnWarning ) { assert(0); } \
 }
 #else
 #define _LOG_WARN(expr) { \
@@ -216,9 +211,7 @@ if ( !gKademliaLogs ) {\
 
 #if USE_ELPP
 #define __LOG_WARN(expr) { \
-    std::lock_guard<std::mutex> autolock( gLogMutex ); \
     LOGPP(WARNING) << ": WARNING!!! in " << __FUNCTION__ << "() " << current_time() << " " << expr; \
-    if ( gBreakOnWarning ) { assert(0); } \
 }
 #else
 #define __LOG_WARN(expr) { \
@@ -231,15 +224,13 @@ if ( !gKademliaLogs ) {\
 
 #if USE_ELPP
 #define _LOG_ERR(expr) { \
-    std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    LOGPP(ERROR) << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< current_time() << " " << expr; \
-    if ( gBreakOnError ) { assert(0); } \
+    LOGPP(ERROR) << __FILE__ << ": ERROR!!! in " << __LINE__ << ": " << __FUNCTION__ << ": "<< current_time() << " " << expr; \
  }
 #else
 #define _LOG_ERR(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
-        std::cout << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< current_time() << " " << expr << "\n" << std::flush; \
+        std::cout << __FILE__ << ": ERROR!!! in " << __LINE__ << ": " << __FUNCTION__ << ": "<< current_time() << " " << expr << "\n" << std::flush; \
         if ( gBreakOnError ) { assert(0); } \
     }
 #endif
