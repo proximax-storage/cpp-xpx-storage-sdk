@@ -279,7 +279,7 @@ protected:
     ReplicatorList getUploaders()
     {
         auto replicators = m_drive.getAllReplicators();
-        replicators.push_back( m_drive.m_driveOwner );
+        //replicators.push_back( m_drive.m_driveOwner );
         return replicators;
     }
 
