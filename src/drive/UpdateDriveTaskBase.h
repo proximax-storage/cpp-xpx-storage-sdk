@@ -365,10 +365,15 @@ protected:
     
     virtual void tryConnectPeer( const Hash256&, const boost::asio::ip::udp::endpoint& endpoint ) override
     {
-        if ( m_fsTreeOrActionListHandle )
+        if ( m_fsTreeOrActionListHandle && m_fsTreeOrActionListHandle->is_valid() )
         {
-            _LOG( "Task:tryConnectPeer: " << endpoint );
+            _LOG( "Task:tryConnectPeer: " << endpoint << " : " <<  m_fsTreeOrActionListHandle->info_hashes().v2.to_string() );
             m_fsTreeOrActionListHandle->connect_peer( boost::asio::ip::tcp::endpoint{ endpoint.address(), endpoint.port() } );
+        }
+        if ( m_downloadingLtHandle && m_downloadingLtHandle->is_valid() )
+        {
+            _LOG( "Task:tryConnectPeer: " << endpoint << " : " <<  m_downloadingLtHandle->info_hashes().v2.to_string() );
+            m_downloadingLtHandle->connect_peer( boost::asio::ip::tcp::endpoint{ endpoint.address(), endpoint.port() } );
         }
     }
 

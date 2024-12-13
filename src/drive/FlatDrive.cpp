@@ -272,14 +272,6 @@ public:
                     _LOG ( "tryConnectPeer(1): " << replicatorInfo.second.m_receivedSize << "/" << replicatorInfo.second.m_requestedSize
                                                  << " replicator: " <<  toString(replicatorInfo.first)  )
                 }
-                
-                _LOG ( "tryConnectPeer(2): m_torrentHandleMap.size: " << m_torrentHandleMap.size() )
-                for( auto& it: m_torrentHandleMap )
-                {
-                    _LOG ( "tryConnectPeer(2): " <<  it.second.m_ltHandle.info_hashes().v2.to_string() )
-
-                    it.second.m_ltHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint.address(), endpoint.port() } );
-                }
             }
         }
     }
