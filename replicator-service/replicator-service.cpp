@@ -50,7 +50,7 @@ int main( int argc, char* argv[] )
     
     int nchar = readlink("/proc/self/exe", gExecutablePath, sizeof(gExecutablePath) );
     if ( nchar < 0 ) {
-        std::cerr << "Invalid Read Link\n";
+        _LOG_ERR("Invalid Read Link")
     }
     gExecutablePath[nchar] = 0;
 
@@ -59,7 +59,7 @@ int main( int argc, char* argv[] )
     uint32_t bufsize = PATH_MAX;
     if( int rc = _NSGetExecutablePath( gExecutablePath, &bufsize); rc )
     {
-        std::cout << "Error: _NSGetExecutablePath: " << rc << '\n';
+        _LOG_ERR("Error: _NSGetExecutablePath: " << rc )
     }
 
 #endif
@@ -72,14 +72,14 @@ int main( int argc, char* argv[] )
 #else
     if ( argc == 4 && std::string(argv[1])=="-d" )
     {
-        std::cout << "argc == 4\n";
+        __LOG( "argc == 4" )
         runInBackground = true;
         address         = argv[2];
         port            = argv[3];
     }
     else if ( argc == 3 )
     {
-        std::cout << "argc == 3\n";
+        __LOG( "argc == 3" )
         address         = argv[1];
         port            = argv[2];
     }
@@ -93,17 +93,17 @@ int main( int argc, char* argv[] )
     }
 #endif
 
-        std::cout << "replicator-service started: " << address << ":" << port << '\n';
+    __LOG( "replicator-service started: " << address << ":" << port )
 
     if ( runInBackground )
     {
-        std::cout << "Run In Background\n";
+        __LOG( "Run In Background" )
         runServiceInBackground(LOG_FOLDER, port);
-		std::cout << "invoked runServiceInBackground\n";
+        
         set_signal_handler();
     }
 
-    std::cout << "RpcRemoteReplicator replicator\n";
+    __LOG( "RpcRemoteReplicator replicator" )
     sirius::drive::RpcRemoteReplicator replicator;
     replicator.run( address, port );
 }
@@ -154,23 +154,9 @@ inline void createLogBackup()
     }
 }
 
+
 int runServiceInBackground( fs::path logFolder, const std::string& port )
 {
-#ifdef USE_ELPP
-	// Check log folder
-	std::error_code ec;
-	fs::create_directories( logFolder, ec );
-
-	if (ec)
-	{
-		log( true, "create_directories error");
-	}
-
-	fs::permissions( logFolder,
-					fs::perms::owner_all | fs::perms::group_all | fs::perms::others_all,
-					fs::perm_options::add );
-	setLogConf(port);
-#endif
     try
     {
         // Fork the process and have the parent exit. If the process was started
@@ -232,8 +218,7 @@ int runServiceInBackground( fs::path logFolder, const std::string& port )
                 exit(0);
             }
         }
-#ifdef USE_ELPP
-#else
+
         close(0);
         close(1);
         close(2);
@@ -268,7 +253,6 @@ int runServiceInBackground( fs::path logFolder, const std::string& port )
         }
 
         gCreateLogBackup = createLogBackup;
-#endif
         gIsRemoteRpcClient = true;
         
         log( false, " Daemon started" );
@@ -279,7 +263,7 @@ int runServiceInBackground( fs::path logFolder, const std::string& port )
     }
     catch (std::exception& e)
     {
-        //std::cerr << "Exception: " << e.what() << '\n';
+        std::cerr << "Exception: " << e.what() << std::endl;
         RPC_LOG( "Exception: " << e.what() );
     }
     return 0;
@@ -291,7 +275,7 @@ int log( bool isError, const std::string& text )
     int sockfd = socket( AF_INET, SOCK_STREAM, 0 );
     if (sockfd == -1)
     {
-        std::cout << "log ERROR: sockfd == -1\n";
+        __LOG( "log ERROR: sockfd == -1" )
         return 1;
     }
 
@@ -305,7 +289,7 @@ int log( bool isError, const std::string& text )
     // connect
     if ( connect( sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr) ) != 0 )
     {
-        std::cout << "log ERROR: connect\n";
+        __LOG( "log ERROR: connect" )
         return 2;
     }
 
