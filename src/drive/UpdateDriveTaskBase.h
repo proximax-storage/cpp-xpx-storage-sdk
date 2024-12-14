@@ -363,19 +363,27 @@ protected:
         }
     }
     
+    void connectPeer( lt_handle& ltHandle, const boost::asio::ip::udp::endpoint& endpoint )
+    {
+        auto status = ltHandle.status();
+        _LOG( "Task:tryConnectPeer: file: " << endpoint << " : "
+                                            << status.progress << "% : "
+                                            << status.total_payload_download << " : "
+                                            <<  status.save_path );
+       ltHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint.address(), endpoint.port() } );
+    }
+    
     virtual void tryConnectPeer( const Hash256&, const boost::asio::ip::udp::endpoint& endpoint ) override
     {
         DBG_MAIN_THREAD
         
-        if ( m_fsTreeOrActionListHandle )
-        {
-            _LOG( "Task:tryConnectPeer: fsTree: " << endpoint << " : " <<  m_fsTreeOrActionListHandle->info_hashes().v2.to_string() );
-            m_fsTreeOrActionListHandle->connect_peer( boost::asio::ip::tcp::endpoint{ endpoint.address(), endpoint.port() } );
-        }
         if ( m_downloadingLtHandle )
         {
-            _LOG( "Task:tryConnectPeer: file: " << endpoint << " : " <<  m_downloadingLtHandle->info_hashes().v2.to_string() );
-            m_downloadingLtHandle->connect_peer( boost::asio::ip::tcp::endpoint{ endpoint.address(), endpoint.port() } );
+            connectPeer( *m_downloadingLtHandle, endpoint );
+        }
+        else if ( m_fsTreeOrActionListHandle )
+        {
+            connectPeer( *m_fsTreeOrActionListHandle, endpoint );
         }
     }
 
