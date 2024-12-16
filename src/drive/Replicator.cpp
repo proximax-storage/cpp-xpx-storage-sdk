@@ -962,6 +962,7 @@ public:
 
         if ( auto driveIt = m_driveMap.find(driveKey.array()); driveIt != m_driveMap.end() )
         {
+            _LOG( "before tryConnectPeer" )
             driveIt->second->tryConnectPeer( modificationHash, endpoint );
 
             auto* info = driveIt->second->findModifyInfo( modificationHash, outIsModificationFinished );
@@ -972,8 +973,11 @@ public:
             }
         }
 
+        _LOG( "before crypto::Sign(1)" )
         auto str = outOs.str();
+        _LOG( "before crypto::Sign(2)" )
         crypto::Sign( m_keyPair, { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature);
+        _LOG( "after crypto::Sign(1)" )
         return isFound;
     }
 

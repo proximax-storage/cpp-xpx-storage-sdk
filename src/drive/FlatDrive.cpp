@@ -239,6 +239,8 @@ public:
 
     virtual const ModifyTrafficInfo* findModifyInfo( const Hash256& tx, bool& outIsFinished ) override
     {
+        DBG_MAIN_THREAD
+        
         outIsFinished = false;
 
         const auto it = std::find_if( m_oldModifications.begin(), m_oldModifications.end(), [&tx] ( const auto& m ){
