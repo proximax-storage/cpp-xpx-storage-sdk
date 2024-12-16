@@ -99,7 +99,7 @@ public:
 //            if (error)
 //            {
 //                __LOG( "#TcpClientSession: async_send error(2): " << error.message() );
-//                _LOG_ERR( "#TcpClientSession: async_send error(2): " << error.message() );
+//                _LOG_WARN( "#TcpClientSession: async_send error(2): " << error.message() );
 //            }
 //            __LOG( "#TcpClientSession: sendReply sent" );
 //        });
@@ -110,7 +110,7 @@ public:
                 if (error)
                 {
                     __LOG( "#TcpClientSession: async_send error(2): " << error.message() );
-                    _LOG_ERR( "#TcpClientSession: async_send error(2): " << error.message() );
+                    __LOG_WARN( "#TcpClientSession: async_send error(2): " << error.message() );
                 }
                 __LOG( "#TcpClientSession: sendReply sent" );
             });
@@ -155,13 +155,13 @@ private:
                 _LOG("#TcpClientSession: Connection closed");
                 return;
             }
-            _LOG_ERR( "#TcpClientSession read error: " << error.message() );
+            _LOG_WARN( "#TcpClientSession read error: " << error.message() );
             //connectionLost( error );
             return;
         }
         if ( bytes_transferred != sizeof(m_dataLength) )
         {
-            _LOG_ERR( "#TcpClientSession read error (m_dataLength): " << bytes_transferred << " vs " << sizeof(m_dataLength) );
+            _LOG_WARN( "#TcpClientSession read error (m_dataLength): " << bytes_transferred << " vs " << sizeof(m_dataLength) );
             //connectionLost( error );
             return;
         }
@@ -181,13 +181,13 @@ private:
     {
         if ( error )
         {
-            _LOG_ERR( "#TcpClientSession read error: " << error.message() );
+            _LOG_WARN( "#TcpClientSession read error: " << error.message() );
             //connectionLost( error );
             return;
         }
         if ( bytes_transferred != m_dataLength )
         {
-            _LOG_ERR( "#TcpClientSession read error (bytes_transferred): " << bytes_transferred << " vs "  << m_dataLength );
+            _LOG_WARN( "#TcpClientSession read error (bytes_transferred): " << bytes_transferred << " vs "  << m_dataLength );
             //connectionLost( error );
             return;
         }
@@ -239,7 +239,7 @@ public:
         {
             if (ec)
             {
-                _LOG_ERR( "async_accept error: " << ec.message() );
+                __LOG_WARN( "async_accept error: " << ec.message() );
             }
             else
             {

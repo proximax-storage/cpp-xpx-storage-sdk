@@ -104,7 +104,7 @@ inline std::string current_time()
 }
 
 BOOST_SYMBOL_EXPORT inline bool gBreakOnWarning = false;
-BOOST_SYMBOL_EXPORT inline bool gBreakOnError   = true;
+BOOST_SYMBOL_EXPORT inline bool gBreakOnError   = false;
 
 
 BOOST_SYMBOL_EXPORT inline bool gIsRemoteRpcClient = false;

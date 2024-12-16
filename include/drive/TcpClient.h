@@ -143,7 +143,7 @@ private:
     {
         if ( bytes_transferred != sizeof(m_dataLength) )
         {
-            _LOG_ERR( "TcpClient read error (m_dataLength): " << bytes_transferred << " vs " << sizeof(m_dataLength) );
+            _LOG_WARN( "TcpClient read error (m_dataLength): " << bytes_transferred << " vs " << sizeof(m_dataLength) );
             m_manager.onResponseReceived( false, nullptr, 0, shared_from_this() );
             return;
         }
@@ -155,13 +155,12 @@ private:
         
         if ( m_dataLength == 0 || m_dataLength > 16*1024 )
         {
-            _LOG_ERR( "TcpClient invalid dataLength: " << m_dataLength );
+            _LOG_WARN( "TcpClient invalid dataLength: " << m_dataLength );
             m_manager.onResponseReceived( false, nullptr, 0, shared_from_this() );
             return;
         }
         
-        
-        m_packetData.resize( m_dataLength-2 );
+        m_packetData.resize( m_dataLength );
         boost::asio::async_read( m_socket, boost::asio::buffer(m_packetData.data(), m_dataLength),
                                 [self=this->shared_from_this()] ( auto ec, auto bytes_transferred )
         {
@@ -179,7 +178,7 @@ private:
     {
         if ( bytes_transferred != m_dataLength )
         {
-            _LOG_ERR( "TcpClient read error (bytes_transferred): " << bytes_transferred << " vs "  << m_dataLength );
+            _LOG_WARN( "TcpClient read error (bytes_transferred): " << bytes_transferred << " vs "  << m_dataLength );
             m_manager.onResponseReceived( false, nullptr, 0, shared_from_this() );
             return;
         }
