@@ -369,7 +369,7 @@ protected:
         _LOG( "Task:tryConnectPeer: file: " << endpoint << " : "
                                             << status.progress << "% : "
                                             << status.total_payload_download << " : "
-                                            <<  status.save_path );
+                                            << status.save_path << " " << status.name );
        ltHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint.address(), endpoint.port() } );
     }
     

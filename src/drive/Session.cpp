@@ -125,8 +125,8 @@ class DefaultSession:   public Session,
     
     std::thread::id                     m_dbgThreadId;
     
-    LogMode                             m_logMode = LogMode::BRIEF;
-//    LogMode                             m_logMode = LogMode::PEER;
+//    LogMode                             m_logMode = LogMode::BRIEF;
+    LogMode                             m_logMode = LogMode::PEER;
 
     std::unique_ptr<TcpClientConnectionManager> m_tcpClientConnectionManager; // only for user app
 
@@ -552,7 +552,15 @@ public:
                 {
                     _LOG( "+++ ex :remove_torrent(3): " << torrentHandle.info_hashes().v2 );
                     lt::remove_flags_t removeFlag = removeFiles ? lt::session::delete_files : lt::session::delete_partfile;
-                    m_session.remove_torrent( torrentHandle, removeFlag );
+                    try {
+                        m_session.remove_torrent( torrentHandle, removeFlag );
+                    } 
+                    catch (std::runtime_error& ex) {
+                        _LOG_WARN("Exception while remove_torrent(): " << ex.what() )
+                    }
+                    catch (...) {
+                        _LOG_WARN("Exception while remove_torrent(): ")
+                    }
                 }
                 //                }
             }
@@ -564,7 +572,7 @@ public:
             {
                 //                if ( torrentHandle.status().state > 2 )
                 //                {
-                m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
+                //m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
                 //                }
             }
             
