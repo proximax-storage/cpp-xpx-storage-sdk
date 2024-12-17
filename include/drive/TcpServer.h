@@ -267,26 +267,29 @@ public:
     {
         // !!! ONLY for debugging
         // (it must be overriden)
-        
-        Buffer streambuf{ (char*)data, dataSize };
-        std::istream is(&streambuf);
-        
-        cereal::BinaryInputArchive iarchive( is );
-        
-        uint16_t requestId;
-        iarchive( requestId );
-        __LOG( "requestId: " << requestId );
-        
-        std::string request;
-        iarchive( request );
-        __LOG( "request: " << request );
-        
-        //sleep(100);
-        
-        if ( auto tcpSession = session.lock() )
+        try
         {
-            tcpSession->sendReply( TcpResponseId::peer_ip_response, std::string("<dbg-replay>") );
+            Buffer streambuf{ (char*)data, dataSize };
+            std::istream is(&streambuf);
+            
+            cereal::BinaryInputArchive iarchive( is );
+            
+            uint16_t requestId;
+            iarchive( requestId );
+            __LOG( "requestId: " << requestId );
+            
+            std::string request;
+            iarchive( request );
+            __LOG( "request: " << request );
+            
+            //sleep(100);
+            
+            if ( auto tcpSession = session.lock() )
+            {
+                tcpSession->sendReply( TcpResponseId::peer_ip_response, std::string("<dbg-replay>") );
+            }
         }
+        catch(...){}
     }
 };
 
