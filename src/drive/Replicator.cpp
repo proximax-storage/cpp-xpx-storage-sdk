@@ -964,6 +964,7 @@ public:
         {
             _LOG( "before tryConnectPeer" )
             driveIt->second->tryConnectPeer( modificationHash, endpoint );
+            _LOG( "after tryConnectPeer" )
 
             auto* info = driveIt->second->findModifyInfo( modificationHash, outIsModificationFinished );
             if ( info != nullptr )

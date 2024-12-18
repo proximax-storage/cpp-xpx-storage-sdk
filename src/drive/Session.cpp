@@ -193,7 +193,7 @@ public:
                    const crypto::KeyPair&                  keyPair,
                    LibTorrentErrorHandler                  alertHandler,
                    std::weak_ptr<lt::session_delegate>     downloadLimiter,
-                   bool                                    useTcpSocket,
+                   bool                                    ,//useTcpSocket,
                    const std::vector<ReplicatorInfo>&      bootstraps,
                    std::weak_ptr<DhtMessageHandler>        dhtMessageHandler
                    )
@@ -202,7 +202,7 @@ public:
     , m_ownerIsReplicator(false)
     , m_addressAndPort(addressAndPort)
     , m_listeningPort(port)
-    , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
+    , m_session( lt::session_params{ generateSessionSettings( true, bootstraps ) } )
     , m_alertHandler(alertHandler)
     , m_downloadLimiter(downloadLimiter)
     {
@@ -356,11 +356,16 @@ public:
         onTorrentFinished(handle);
     }
     
-    lt::settings_pack generateSessionSettings(bool useTcpSocket, const std::vector<ReplicatorInfo>& bootstraps)
+    lt::settings_pack generateSessionSettings(bool isClient, const std::vector<ReplicatorInfo>& bootstraps)
     {
         lt::settings_pack settingsPack;
         
         settingsPack.set_int( lt::settings_pack::alert_mask, ~0 );//lt::alert_category::all );
+        
+        if ( isClient )
+        {
+            settingsPack.set_int( lt::settings_pack::peer_connect_timeout, 60 );
+        }
         
         // todo public_key?
         char todoPubKey[32];
@@ -664,18 +669,18 @@ public:
     
     void modificationHasBeenRegistered( Session::lt_handle tHandle, const ReplicatorList& keys ) override
     {
-        _LOG( "@@@ modificationHasBeenRegistered:" );
-        if ( auto limiter = m_downloadLimiter.lock(); limiter )
-        {
-            for( const auto& key : keys ) {
-                auto endpoint = limiter->getEndpoint( key.array() );
-                if ( endpoint )
-                {
-                    _LOG( "@@@ modificationHasBeenRegistered: connect_peer: " << *endpoint << " " << key );
-                    tHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint->address(), endpoint->port() } );
-                }
-            }
-        }
+//        _LOG( "@@@ modificationHasBeenRegistered:" );
+//        if ( auto limiter = m_downloadLimiter.lock(); limiter )
+//        {
+//            for( const auto& key : keys ) {
+//                auto endpoint = limiter->getEndpoint( key.array() );
+//                if ( endpoint )
+//                {
+//                    _LOG( "@@@ modificationHasBeenRegistered: connect_peer: " << *endpoint << " " << key );
+//                    tHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint->address(), endpoint->port() } );
+//                }
+//            }
+//        }
     }
     
     // downloadFile

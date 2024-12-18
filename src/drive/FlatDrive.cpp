@@ -263,6 +263,12 @@ public:
     
     virtual void tryConnectPeer( const Hash256& tx, const boost::asio::ip::udp::endpoint& endpoint ) override
     {
+        if ( ! m_task )
+        {
+            _LOG ( "tryConnectPeer: no task" )
+            return;
+        }
+        
         m_task->tryConnectPeer( tx, endpoint );
         
         if ( auto currentTx = currentModifyTx(); currentTx && *currentTx == tx )
