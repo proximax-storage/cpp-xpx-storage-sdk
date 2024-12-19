@@ -414,11 +414,34 @@ public:
         
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
         settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, true );
-        settingsPack.set_bool( lt::settings_pack::enable_ip_notifier, false );
         
         settingsPack.set_int( lt::settings_pack::max_retry_port_bind, 0 );
         settingsPack.set_bool( lt::settings_pack::listen_system_port_fallback, false );
+        settingsPack.set_int( lt::settings_pack::utp_connect_timeout, 15000 );
+        settingsPack.set_int( lt::settings_pack::dht_block_timeout, 1 );
+        settingsPack.set_int( lt::settings_pack::dht_block_ratelimit, 32000 );
+
+        // TODO? BEP42
+        //settingsPack.set_bool( lt::settings_pack::dht_prefer_verified_node_ids, false );
         
+        // In libtorrent, an "IP notifier" refers to a mechanism or functionality
+        // that tracks changes to the network interface's IP address.
+        // This is crucial in BitTorrent and other peer-to-peer systems because
+        // the external or local IP address of a machine can change due to:
+        //
+        // Dynamic IP Addresses:
+        //    When a client is on a network where the IP address is assigned dynamically (e.g., via DHCP),
+        //    the IP can change periodically.
+        //
+        // Network Changes: 
+        //    If a device switches between networks (e.g., from Wi-Fi to Ethernet or to a mobile hotspot),
+        //    its IP address may change.
+        //
+        // NAT Traversal or ISP Reassignments:
+        //    In some cases, the external (public) IP address might change due to changes in the ISP's NAT configurations or public IP lease expiration.
+        //
+        //settingsPack.set_bool( lt::settings_pack::enable_ip_notifier, false );
+
         //settingsPack.set_int( lt::settings_pack::max_out_request_queue, 10 );
         
         return settingsPack;

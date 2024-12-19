@@ -381,10 +381,6 @@ protected:
         {
             connectPeer( *m_downloadingLtHandle, endpoint );
         }
-        else if ( m_fsTreeOrActionListHandle )
-        {
-            connectPeer( *m_fsTreeOrActionListHandle, endpoint );
-        }
     }
 
 

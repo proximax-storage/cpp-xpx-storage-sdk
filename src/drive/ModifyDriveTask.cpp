@@ -167,7 +167,6 @@ public:
                                                nullptr,
                                                &m_request->m_transactionHash.array()
                                                 );
-            m_fsTreeOrActionListHandle = m_downloadingLtHandle;
         }
     }
 
