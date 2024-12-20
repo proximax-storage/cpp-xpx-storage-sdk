@@ -362,6 +362,7 @@ public:
                     return;
                 }
                 
+                m_downloadingLtHandleIsConnected = false;
                 m_downloadingLtHandle = session->download(
                        DownloadContext(
                                DownloadContext::missing_files,

@@ -101,6 +101,7 @@ public:
         if ( auto session = m_drive.m_session.lock(); session )
         {
             _LOG("m_uploadedDataSize: m_request->m_maxDataSize: " << m_request->m_maxDataSize )
+            m_downloadingLtHandleIsConnected = false;
             m_downloadingLtHandle = session->download(
                                         DownloadContext(
                                                DownloadContext::client_data,
@@ -253,6 +254,7 @@ public:
                 _LOG( "+++ ex downloading: START: " << toString( *fileToDownload ));
                 _LOG("m_uploadedDataSize: m_request->m_maxDataSize: " << m_request->m_maxDataSize
                                         << " torrentHandleMap.size: " << m_drive.m_torrentHandleMap.size() )
+                m_downloadingLtHandleIsConnected = false;
                 m_downloadingLtHandle = session->download( DownloadContext(
 
                                                                    DownloadContext::missing_files,

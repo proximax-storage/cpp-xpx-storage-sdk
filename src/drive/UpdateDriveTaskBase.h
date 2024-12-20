@@ -32,6 +32,7 @@ protected:
     std::optional<lt_handle> m_sandboxFsTreeLtHandle;
 
     std::optional<lt_handle> m_downloadingLtHandle;
+    bool                     m_downloadingLtHandleIsConnected = false;
     std::optional<lt_handle> m_fsTreeOrActionListHandle;
 
     bool m_sandboxCalculated = false;
@@ -377,9 +378,10 @@ protected:
     {
         DBG_MAIN_THREAD
         
-        if ( m_downloadingLtHandle )
+        if ( m_downloadingLtHandle && !m_downloadingLtHandleIsConnected )
         {
             connectPeer( *m_downloadingLtHandle, endpoint );
+            m_downloadingLtHandleIsConnected = true;
         }
     }
 

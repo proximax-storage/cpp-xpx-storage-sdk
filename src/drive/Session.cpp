@@ -1688,35 +1688,40 @@ private:
     virtual void onRequestReceived( uint8_t* data, size_t dataSize, std::weak_ptr<TcpClientSession> session ) override
     {
         SIRIUS_ASSERT( !isClient() )
+        
 
         if ( auto sessionPtr = session.lock(); sessionPtr )
         {
-            StreamBuffer strBuffer( (char*)data, dataSize );
-            std::istream is(&strBuffer);
-            
-            cereal::BinaryInputArchive iarchive( is );
-            
-            uint16_t requestId;
-            iarchive( requestId );
-            _LOG( "requestId: " << requestId );
-            
-            if ( requestId == get_peer_ip )
+            try
             {
-                kademlia::PeerIpRequest request;
-                iarchive( request );
+                StreamBuffer strBuffer( (char*)data, dataSize );
+                std::istream is(&strBuffer);
                 
-                try
+                cereal::BinaryInputArchive iarchive( is );
+                
+                uint16_t requestId;
+                iarchive( requestId );
+                _LOG( "requestId: " << requestId );
+                
+                if ( requestId == get_peer_ip )
                 {
+                    kademlia::PeerIpRequest request;
+                    iarchive( request );
+                    
+                    //                try
+                    //                {
                     kademlia::PeerIpResponse response = m_kademlia->onGetPeerIpTcpRequest( request );
                     sessionPtr->sendReply( peer_ip_response, response );
-                }
-                catch(...)
-                {
-                    // for standalone debugging
-                    kademlia::PeerIpResponse response;
-                    sessionPtr->sendReply( peer_ip_response, response );
+                    //                }
+                    //                catch(...)
+                    //                {
+                    //                    // for standalone debugging
+                    //                    kademlia::PeerIpResponse response;
+                    //                    sessionPtr->sendReply( peer_ip_response, response );
+                    //                }
                 }
             }
+            catch(...){}
         }
     }
 
