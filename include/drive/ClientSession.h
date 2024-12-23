@@ -218,20 +218,20 @@ public:
                                      std::error_code&       ec
                                    )
     {
-        for( const auto& key: replicatorKeys )
-        {
-            auto endpoint = m_session->getEndpoint( key );
-            if ( endpoint )
-            {
-                auto it = std::find_if( endpointList.begin(), endpointList.end(), [&endpoint] (const auto& item) {
-                    return item == endpoint;
-                });
-                if ( it == endpointList.end() )
-                {
-                    endpointList.push_back( *endpoint );
-                }
-            }
-        }
+//        for( const auto& key: replicatorKeys )
+//        {
+//            auto endpoint = m_session->getEndpoint( key );
+//            if ( endpoint )
+//            {
+//                auto it = std::find_if( endpointList.begin(), endpointList.end(), [&endpoint] (const auto& item) {
+//                    return item == endpoint;
+//                });
+//                if ( it == endpointList.end() )
+//                {
+//                    endpointList.push_back( *endpoint );
+//                }
+//            }
+//        }
 
         fs::path workFolder = sandboxFolder;
         fs::create_directories(workFolder.make_preferred(), ec );

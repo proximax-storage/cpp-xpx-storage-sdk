@@ -1204,10 +1204,10 @@ private:
                         //                    break;
                         //                }
                         
-                        //                    case lt::log_alert::alert_type: {
-                        //                        ___LOG(  m_listeningPort << " : log_alert: " << alert->message())
-                        //                        break;
-                        //                    }
+                    case lt::log_alert::alert_type: {
+                        _LOG(  ": log_alert: " << alert->message() )
+                        break;
+                    }
                                                 
                     case lt::peer_log_alert::alert_type: {
                         if ( m_logMode == LogMode::PEER )

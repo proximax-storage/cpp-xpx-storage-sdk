@@ -163,7 +163,7 @@ public:
                                                    "" ),
                                                m_drive.m_sandboxRootPath,
                                                m_drive.m_sandboxRootPath / toPath((toString(m_request->m_clientDataInfoHash)) + ".torrent"),
-                                               getUploaders(),
+                                               {}, //getUploaders(),
                                                &m_drive.m_driveKey.array(),
                                                nullptr,
                                                &m_request->m_transactionHash.array()
@@ -296,7 +296,7 @@ public:
                                                                    "" ),
                                                            m_drive.m_driveFolder,
                                                            m_drive.m_torrentFolder / toString(*fileToDownload),
-                                                           getUploaders(),
+                                                          {},//getUploaders(),
                                                            &m_drive.m_driveKey.array(),
                                                            nullptr,
                                                            &m_request->m_transactionHash.array()
