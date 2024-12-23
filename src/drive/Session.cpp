@@ -417,7 +417,7 @@ public:
         
         settingsPack.set_int( lt::settings_pack::max_retry_port_bind, 0 );
         settingsPack.set_bool( lt::settings_pack::listen_system_port_fallback, false );
-        settingsPack.set_int( lt::settings_pack::utp_connect_timeout, 1000 );
+        settingsPack.set_int( lt::settings_pack::utp_connect_timeout, 3000 );
         settingsPack.set_int( lt::settings_pack::dht_block_timeout, 1 );
         settingsPack.set_int( lt::settings_pack::dht_block_ratelimit, 32000 );
         if ( !isClient )
