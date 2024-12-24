@@ -65,25 +65,11 @@ public:
         Buffer( char* data, size_t dataSize ) { setg( data, data, data + dataSize ); }
     };
     
-    void onResponseReceived( bool success, uint8_t* data, size_t dataSize, TcpClient& connection ) override
+    void onResponseReceived( bool success, uint8_t* data, size_t dataSize, std::shared_ptr<TcpClient> connection ) override
     {
         m_responseHandler.onResponseReceived( success, data, dataSize );
-//        if ( success )
-//        {
-//            Buffer streambuf{ (char*)data, dataSize };
-//            std::istream is(&streambuf);
-//            cereal::BinaryInputArchive iarchive( is );
-//            
-//            TcpResponseId responseId;
-//            iarchive( responseId );
-//            __LOG( "responseId: " << responseId )
-//            
-//            std::string response;
-//            iarchive( response );
-//            __LOG( "response: " << response )
-//        }
         
-        m_connections.remove_if( [&connection](auto& instance) { return instance.get() == &connection; } );
+        m_connections.remove_if( [&connection](auto& instance) { return instance.get() == connection.get(); } );
     }
 };
 

@@ -23,7 +23,7 @@ class IClientConnectionManager
 public:
     virtual ~IClientConnectionManager() = default;
 
-    virtual void onResponseReceived( bool success, uint8_t* data, size_t dataSize, TcpClient& connection ) = 0;
+    virtual void onResponseReceived( bool success, uint8_t* data, size_t dataSize, std::shared_ptr<TcpClient> connection ) = 0;
 };
 
 
@@ -79,7 +79,7 @@ public:
         {
             if ( auto connectionPtr = self.lock(); connectionPtr )
             {
-                connectionPtr->m_manager.onResponseReceived( false, nullptr, 0, *connectionPtr.get() );
+                connectionPtr->m_manager.onResponseReceived( false, nullptr, 0, connectionPtr );
             }
         }};
         
@@ -90,7 +90,7 @@ public:
                 if ( ec )
                 {
                     __LOG( "Connection error: " << ec.message() << "; to: " << endpoint );
-                    connectionPtr->m_manager.onResponseReceived( false, nullptr, 0, *connectionPtr.get() );
+                    connectionPtr->m_manager.onResponseReceived( false, nullptr, 0, connectionPtr );
                 }
                 else
                 {
@@ -112,7 +112,7 @@ private:
                 if ( ec )
                 {
                     __LOG( "async write error: " << ec.message() << "; to: " << connectionPtr->m_socket.remote_endpoint() );
-                    connectionPtr->m_manager.onResponseReceived( false, nullptr, 0, *connectionPtr.get() );
+                    connectionPtr->m_manager.onResponseReceived( false, nullptr, 0, connectionPtr );
                 }
                 else
                 {
@@ -131,7 +131,7 @@ private:
             if ( ec )
             {
                 __LOG( "async read error: " << ec.message() << "; to: " );//<< self->m_socket.remote_endpoint() );
-                self->m_manager.onResponseReceived( false, nullptr, 0, *self.get() );
+                self->m_manager.onResponseReceived( false, nullptr, 0, self );
                 return;
             }
             
@@ -143,8 +143,8 @@ private:
     {
         if ( bytes_transferred != sizeof(m_dataLength) )
         {
-            _LOG_ERR( "TcpClient read error (m_dataLength): " << bytes_transferred << " vs " << sizeof(m_dataLength) );
-            m_manager.onResponseReceived( false, nullptr, 0, *this );
+            _LOG_WARN( "TcpClient read error (m_dataLength): " << bytes_transferred << " vs " << sizeof(m_dataLength) );
+            m_manager.onResponseReceived( false, nullptr, 0, shared_from_this() );
             return;
         }
         
@@ -155,20 +155,19 @@ private:
         
         if ( m_dataLength == 0 || m_dataLength > 16*1024 )
         {
-            _LOG_ERR( "TcpClient invalid dataLength: " << m_dataLength );
-            m_manager.onResponseReceived( false, nullptr, 0, *this );
+            _LOG_WARN( "TcpClient invalid dataLength: " << m_dataLength );
+            m_manager.onResponseReceived( false, nullptr, 0, shared_from_this() );
             return;
         }
         
-        
-        m_packetData.resize( m_dataLength-2 );
+        m_packetData.resize( m_dataLength );
         boost::asio::async_read( m_socket, boost::asio::buffer(m_packetData.data(), m_dataLength),
                                 [self=this->shared_from_this()] ( auto ec, auto bytes_transferred )
         {
             if ( ec )
             {
                 __LOG( "async read error (2): " << ec.message() << "; to: " << self->m_socket.remote_endpoint() );
-                self->m_manager.onResponseReceived( false, nullptr, 0, *self.get() );
+                self->m_manager.onResponseReceived( false, nullptr, 0, self );
                 return;
             }
             self->onPacketData( bytes_transferred );
@@ -179,12 +178,12 @@ private:
     {
         if ( bytes_transferred != m_dataLength )
         {
-            _LOG_ERR( "TcpClient read error (bytes_transferred): " << bytes_transferred << " vs "  << m_dataLength );
-            m_manager.onResponseReceived( false, nullptr, 0, *this );
+            _LOG_WARN( "TcpClient read error (bytes_transferred): " << bytes_transferred << " vs "  << m_dataLength );
+            m_manager.onResponseReceived( false, nullptr, 0, shared_from_this() );
             return;
         }
         
-        m_manager.onResponseReceived( true, m_packetData.data(), bytes_transferred, *this );
+        m_manager.onResponseReceived( true, m_packetData.data(), bytes_transferred, shared_from_this() );
         
         // automatically close connection (by shared pointer)
     }

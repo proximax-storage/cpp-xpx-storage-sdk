@@ -101,6 +101,7 @@ public:
         if ( auto session = m_drive.m_session.lock(); session )
         {
             _LOG("m_uploadedDataSize: m_request->m_maxDataSize: " << m_request->m_maxDataSize )
+            m_downloadingLtHandleIsConnected = false;
             m_downloadingLtHandle = session->download(
                                         DownloadContext(
                                                DownloadContext::client_data,
@@ -115,17 +116,7 @@ public:
                                                        //(???+)
                                                        DBG_MAIN_THREAD
 
-                                                       if ( code == download_status::dn_failed )
-                                                       {
-                                                           m_drive.m_torrentHandleMap.erase( infoHash );
-                                                           modifyIsCompletedWithError( errorText, ModificationStatus::DOWNLOAD_FAILED );
-                                                       }
-                                                       else if ( code == download_status::dn_not_enougth_space )
-                                                       {
-                                                           m_drive.m_torrentHandleMap.erase( infoHash );
-                                                           modifyIsCompletedWithError( errorText, ModificationStatus::NOT_ENOUGH_SPACE );
-                                                       }
-                                                       else if ( code == download_status::download_complete )
+                                                       if ( code == download_status::download_complete )
                                                        {
                                                            //SIRIUS_ASSERT( !m_taskIsStopped );
                                                            // it could be stopped after asyncApprovalTransactionHasBeenPublished
@@ -148,6 +139,22 @@ public:
                                                                } );
                                                            }
                                                        }
+                                                       else
+                                                       {
+                                                           _LOG( "Download fsTree or ActionList failed! " << int(code) )
+
+                                                           m_drive.m_torrentHandleMap.erase( infoHash );
+                                                           m_fsTreeOrActionListHandle.reset();
+
+                                                           if ( code == download_status::dn_failed )
+                                                           {
+                                                               modifyIsCompletedWithError( errorText, ModificationStatus::DOWNLOAD_FAILED );
+                                                           }
+                                                           else if ( code == download_status::dn_not_enougth_space )
+                                                           {
+                                                               modifyIsCompletedWithError( errorText, ModificationStatus::NOT_ENOUGH_SPACE );
+                                                           }
+                                                       }
                                                    },
                                                    m_request->m_clientDataInfoHash,
                                                    m_request->m_transactionHash,
@@ -156,7 +163,7 @@ public:
                                                    "" ),
                                                m_drive.m_sandboxRootPath,
                                                m_drive.m_sandboxRootPath / toPath((toString(m_request->m_clientDataInfoHash)) + ".torrent"),
-                                               getUploaders(),
+                                               {}, //getUploaders(),
                                                &m_drive.m_driveKey.array(),
                                                nullptr,
                                                &m_request->m_transactionHash.array()
@@ -245,7 +252,9 @@ public:
             {
                 SIRIUS_ASSERT( *fileToDownload != Hash256() )
                 _LOG( "+++ ex downloading: START: " << toString( *fileToDownload ));
-                _LOG("m_uploadedDataSize: m_request->m_maxDataSize: " << m_request->m_maxDataSize )
+                _LOG("m_uploadedDataSize: m_request->m_maxDataSize: " << m_request->m_maxDataSize
+                                        << " torrentHandleMap.size: " << m_drive.m_torrentHandleMap.size() )
+                m_downloadingLtHandleIsConnected = false;
                 m_downloadingLtHandle = session->download( DownloadContext(
 
                                                                    DownloadContext::missing_files,
@@ -287,7 +296,7 @@ public:
                                                                    "" ),
                                                            m_drive.m_driveFolder,
                                                            m_drive.m_torrentFolder / toString(*fileToDownload),
-                                                           getUploaders(),
+                                                          {},//getUploaders(),
                                                            &m_drive.m_driveKey.array(),
                                                            nullptr,
                                                            &m_request->m_transactionHash.array()

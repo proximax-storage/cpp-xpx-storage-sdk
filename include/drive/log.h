@@ -21,11 +21,6 @@
 
 #include "boost/date_time/posix_time/posix_time.hpp"
 
-#ifdef USE_ELPP
-    #include "easylogging/easylogging++.h"
-    #define LOG_FOLDER "/tmp/replicator_service_logs"
-#endif
-
 BOOST_SYMBOL_EXPORT inline std::mutex gLogMutex;
 
 BOOST_SYMBOL_EXPORT inline bool gSkipDhtPktLogs = false;
@@ -75,6 +70,18 @@ inline std::string current_time()
     const long milliseconds = td.total_milliseconds() -
             ((hours * 3600 + minutes * 60 + seconds) * 1000);
 
+
+     std::ostringstream oss;
+     oss << std::setfill('0') << std::setw(4) << year << '.'
+         << std::setw(2) << month << '.'
+         << std::setw(2) << day << ' '
+         << std::setw(2) << hours << ':'
+         << std::setw(2) << minutes << ':'
+         << std::setw(2) << seconds << '.'
+         << std::setw(3) << milliseconds;
+
+     return oss.str();
+    
     //
     // Format like this:
     //
@@ -89,27 +96,15 @@ inline std::string current_time()
     //
     //
 
-//TODO:
-//     std::ostringstream oss;
-//     oss << std::setfill('0') << std::setw(4) << year << '.'
-//         << std::setw(2) << month << '.'
-//         << std::setw(2) << day << ' '
-//         << std::setw(2) << hours << ':'
-//         << std::setw(2) << minutes << ':'
-//         << std::setw(2) << seconds << '.'
-//         << std::setw(3) << milliseconds;
+//    char buf[40];
+//    std::snprintf(buf, sizeof(buf), "%04ld.%02ld.%02ld %02ld:%02ld:%02ld.%03ld",
+//                  year, month, day, hours, minutes, seconds, milliseconds);
 //
-//     return oss.str();
-
-    char buf[40];
-    std::snprintf(buf, sizeof(buf), "%04ld.%02ld.%02ld %02ld:%02ld:%02ld.%03ld",
-                  year, month, day, hours, minutes, seconds, milliseconds);
-
-    return buf;
+//    return buf;
 }
 
 BOOST_SYMBOL_EXPORT inline bool gBreakOnWarning = false;
-BOOST_SYMBOL_EXPORT inline bool gBreakOnError   = true;
+BOOST_SYMBOL_EXPORT inline bool gBreakOnError   = false;
 
 
 BOOST_SYMBOL_EXPORT inline bool gIsRemoteRpcClient = false;
@@ -126,123 +121,75 @@ inline void checkLogFileSize()
     auto pos = lseek( 1, 0, SEEK_END );
 #endif
 
-    if ( ( pos > 100 * 1024 * 1024 ) && gCreateLogBackup )
+    if ( ( pos > 10000 * 1024 * 1024 ) && gCreateLogBackup )
     {
         (*gCreateLogBackup)();
     }
 }
 
-#ifdef USE_ELPP
-#include "plugins.h"
+// LOG
+#define LOG(expr) {}
+/*
+#define LOG(expr) { \
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        checkLogFileSize(); \
+        std::cout << current_time() << " " << expr << std::endl << std::flush; \
+    }
+*/
 
-PLUGIN_API void setLogConf(std::string port);
-PLUGIN_API void rolloutHandler(const char* absolutePath, std::size_t size);
-
-
-#endif
-
-#if USE_ELPP
-#   define LOG(expr) {}
-#else
-#   define LOG(expr) {}
-#endif
 
 // _LOG - with m_dbgOurPeerName
 //#define _LOG(expr) {}
 
-#if USE_ELPP
 #define _LOG(expr) { \
-    std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    LOGPP(DEBUG) << current_time() << " " << m_dbgOurPeerName << ": " << expr; \
-}
-#else
-#define _LOG(expr) { \
-std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    checkLogFileSize(); \
-    std::cout << current_time() << " " << m_dbgOurPeerName << ": " << expr << std::endl << std::flush; \
-}
-#endif
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        checkLogFileSize(); \
+        std::cout << current_time() << " " << m_dbgOurPeerName << ": " << expr << std::endl << std::flush; \
+    }
 
 
 // __LOG
 //#define __LOG(expr) {}
-#if USE_ELPP
+
 #define __LOG(expr) { \
-    std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    LOGPP(DEBUG) << current_time() << " " << expr; \
-}
-#else
-#define __LOG(expr) { \
-std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    checkLogFileSize(); \
-    std::cout << current_time() << " " << expr << std::endl << std::flush; \
-}
-#endif
+        std::lock_guard<std::mutex> autolock( gLogMutex ); \
+        checkLogFileSize(); \
+        std::cout << current_time() << " " << expr << std::endl << std::flush; \
+    }
+
 
 // ___LOG
 //#define ___LOG(expr) {}
 
-#if USE_ELPP
-#define ___LOG(expr) { \
-    if ( !gKademliaLogs ) { \
-        std::lock_guard<std::mutex> autolock( gLogMutex ); \
-        LOGPP(DEBUG) << current_time() << " " << expr; \
-    }   \
-}
-#else
-#define ___LOG(expr) { \
-if ( !gKademliaLogs ) {\
+ #define ___LOG(expr) { \
+    if ( !gKademliaLogs ) {\
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << current_time() << " " << expr << std::endl << std::flush; \
-}}
-#endif
+    }}
+
 
 // _LOG_WARN - with m_dbgOurPeerName
-#if USE_ELPP
-#define _LOG_WARN(expr) { \
-    std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    LOGPP(WARNING) << current_time() << " " << m_dbgOurPeerName << ": WARNING!!! in " << __FUNCTION__ << "() " << expr; \
-    if ( gBreakOnWarning ) { assert(0); } \
-}
-#else
 #define _LOG_WARN(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << current_time() << " " << m_dbgOurPeerName << ": WARNING!!! in " << __FUNCTION__ << "() " << expr << std::endl << std::flush; \
         if ( gBreakOnWarning ) { assert(0); } \
-}
-#endif
+    }
 
-#if USE_ELPP
-#define __LOG_WARN(expr) { \
-    std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    LOGPP(WARNING) << ": WARNING!!! in " << __FUNCTION__ << "() " << current_time() << " " << expr; \
-    if ( gBreakOnWarning ) { assert(0); } \
-}
-#else
 #define __LOG_WARN(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << ": WARNING!!! in " << __FUNCTION__ << "() " << current_time() << " " << expr << std::endl << std::flush; \
         if ( gBreakOnWarning ) { assert(0); } \
     }
-#endif
 
-#if USE_ELPP
-#define _LOG_ERR(expr) { \
-    std::lock_guard<std::mutex> autolock( gLogMutex ); \
-    LOGPP(ERROR) << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< current_time() << " " << expr; \
-    if ( gBreakOnError ) { assert(0); } \
- }
-#else
 #define _LOG_ERR(expr) { \
         std::lock_guard<std::mutex> autolock( gLogMutex ); \
         checkLogFileSize(); \
         std::cout << __FILE__ << ":" << __LINE__ << ": " << __FUNCTION__ << ": "<< current_time() << " " << expr << "\n" << std::flush; \
         if ( gBreakOnError ) { assert(0); } \
     }
-#endif
 
 #if 0
 #define _FUNC_ENTRY
@@ -276,15 +223,7 @@ struct FuncEntry
 */
 
 //#define _FUNC_ENTRY ;
-#if defined(_WIN32) || defined(_WIN64)
-    #ifdef __MINGW32__ || __MINGW64__
-        #define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
-    #else
-        #define _FUNC_ENTRY  FuncEntry funcEntry(__FUNCSIG__,m_dbgOurPeerName);
-    #endif
-#else
-    #define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
-#endif
+#define _FUNC_ENTRY  FuncEntry funcEntry(__PRETTY_FUNCTION__,m_dbgOurPeerName);
 
 #endif
 

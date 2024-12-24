@@ -93,6 +93,7 @@ public:
         //
         if ( auto session = m_drive.m_session.lock(); session )
         {
+            m_downloadingLtHandleIsConnected = false;
             m_downloadingLtHandle = session->download(
                     DownloadContext(
                             DownloadContext::missing_files,
@@ -348,6 +349,7 @@ public:
 
             if ( auto session = m_drive.m_session.lock(); session )
             {
+                m_downloadingLtHandleIsConnected = false;
                 m_downloadingLtHandle = session->download(
                         DownloadContext(
                                 DownloadContext::missing_files,

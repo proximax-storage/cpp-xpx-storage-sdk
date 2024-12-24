@@ -38,91 +38,6 @@
 
 #include <drive/Utils.h>
 
-#ifdef USE_ELPP
-#include "easylogging/easylogging++.h"
-
-void rolloutHandler(const char* absolutePath, std::size_t size)
-{
-	// SHOULD NOT LOG ANYTHING HERE BECAUSE LOG FILE IS CLOSED!
-//	std::cout << "************** Rolling out [" << absolutePath << "] because it reached [" << size << " bytes]" << std::endl;
-	std::vector<std::filesystem::path> logFiles;
-
-	std::string pattern = std::filesystem::path(absolutePath).filename().string();
-
-	pattern = pattern.substr(0,pattern.size()-4) + "_";
-//	std::cout << "************** pattern : " << pattern << '\n';
-	int index = 0;
-	for (const auto& entry : std::filesystem::directory_iterator(LOG_FOLDER)) {
-		//std::cout << "************** entry.path(): " << entry.path().absolutePath().string().c_str() <<"'\n";
-		//std::cout << "************** entry.path(): " << pattern.c_str() <<"'\n";
-		if ( std::strncmp( entry.path().filename().string().c_str(), pattern.c_str(), pattern.size()) == 0 ) {
-			logFiles.push_back(entry.path());
-//			std::cout << "************** logFiles.push_back: " << entry.path() << '\n';
-
-			try {
-				auto numberStr = entry.path().filename().string().substr(pattern.length(), 6);
-//				std::cout << "*************** numberStr: " << numberStr << '\n';
-				int number = std::stoi(numberStr, 0, 10);
-//				std::cout << "************** number   : " << number << '\n';
-				if (number > index) {
-					index = number;
-				}
-			} catch (...) {}
-		}
-	}
-	index++;
-	auto indexStr = std::to_string(index);
-	indexStr.insert(0,6-indexStr.length(),'0');
-//	std::cout << "************** indexStr: " << indexStr << '\n';
-	std::error_code ec;
-	auto path = std::filesystem::path( absolutePath).parent_path();
-	std::filesystem::rename(absolutePath, path / std::filesystem::path(pattern + indexStr + ".log"), ec );
-//	std::cout << "************** path: " << path / std::filesystem::path(pattern + indexStr + ".log") << '\n';
-
-	// Sort the log files by creation time (oldest last)
-	std::sort(logFiles.begin(), logFiles.end(), [](const std::filesystem::path& p1, const std::filesystem::path& p2) {
-		return std::filesystem::last_write_time(p1) > std::filesystem::last_write_time(p2);
-	});
-
-	// Delete the oldest log files if there are more than 10
-	if (logFiles.size() > 10) {
-		for (std::size_t i = 9; i < logFiles.size(); ++i) {
-			//std::cout << "*************** Deleting oldest log file: " << logFiles[i] << std::endl;
-			std::filesystem::remove(logFiles[i]);
-		}
-	}
-
-
-}
-
-void setLogConf(std::string port)
-{
-		if (!std::filesystem::exists(LOG_FOLDER))
-		{
-			try {
-				std::filesystem::create_directory(LOG_FOLDER);
-				std::cout << "Directory 'LOG_FOLDER' created successfully." << std::endl;
-			} catch (const std::exception& e) {
-				std::cerr << "Error creating directory 'LOG_FOLDER': " << e.what() << std::endl;
-			}
-		} else {
-			std::cout << "Directory " << LOG_FOLDER << " already exists." << std::endl;
-		}
-
-		std::string filename = std::string(LOG_FOLDER) + "/replicator_log_" + port + ".log";
-		el::Loggers::addFlag(el::LoggingFlag::StrictLogFileSizeCheck);
-		el::Configurations conf;
-		conf.set(el::Level::Global, el::ConfigurationType::Filename, filename);
-		conf.set(el::Level::Global, el::ConfigurationType::Format, "%msg");
-		conf.set(el::Level::Global, el::ConfigurationType::SubsecondPrecision, "4");
-		conf.set(el::Level::Global, el::ConfigurationType::ToFile, "true");
-		conf.set(el::Level::Global, el::ConfigurationType::LogFlushThreshold, "1");
-		// rollout size == 100 MB, el::ConfigurationType::MaxLogFileSize value is in bytes == 100000000
-		conf.set(el::Level::Global, el::ConfigurationType::MaxLogFileSize, "100000000");
-		el::Helpers::installPreRollOutCallback(rolloutHandler);
-		el::Loggers::reconfigureAllLoggers(conf);
-	}
-#endif
 #undef DBG_MAIN_THREAD
 #define DBG_MAIN_THREAD _FUNC_ENTRY; assert( m_dbgThreadId == std::this_thread::get_id() );
 
@@ -1047,7 +962,9 @@ public:
 
         if ( auto driveIt = m_driveMap.find(driveKey.array()); driveIt != m_driveMap.end() )
         {
+            _LOG( "before tryConnectPeer" )
             driveIt->second->tryConnectPeer( modificationHash, endpoint );
+            _LOG( "after tryConnectPeer" )
 
             auto* info = driveIt->second->findModifyInfo( modificationHash, outIsModificationFinished );
             if ( info != nullptr )
@@ -1057,8 +974,11 @@ public:
             }
         }
 
+        _LOG( "before crypto::Sign(1)" )
         auto str = outOs.str();
+        _LOG( "before crypto::Sign(2)" )
         crypto::Sign( m_keyPair, { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature);
+        _LOG( "after crypto::Sign(1)" )
         return isFound;
     }
 
@@ -2356,7 +2276,7 @@ public:
             m_session->startSearchPeerEndpoints( driveRequest.m_fullReplicatorList );
             m_session->addClientToLocalEndpointMap( driveRequest.m_client );
 
-            std::cout << "added virtualDrive " << driveKey;
+            _LOG( "added virtualDrive " << driveKey );
         } );//post
     }
 

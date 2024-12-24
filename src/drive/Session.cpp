@@ -193,7 +193,7 @@ public:
                    const crypto::KeyPair&                  keyPair,
                    LibTorrentErrorHandler                  alertHandler,
                    std::weak_ptr<lt::session_delegate>     downloadLimiter,
-                   bool                                    useTcpSocket,
+                   bool                                    ,//useTcpSocket,
                    const std::vector<ReplicatorInfo>&      bootstraps,
                    std::weak_ptr<DhtMessageHandler>        dhtMessageHandler
                    )
@@ -202,7 +202,7 @@ public:
     , m_ownerIsReplicator(false)
     , m_addressAndPort(addressAndPort)
     , m_listeningPort(port)
-    , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
+    , m_session( lt::session_params{ generateSessionSettings( true, bootstraps ) } )
     , m_alertHandler(alertHandler)
     , m_downloadLimiter(downloadLimiter)
     {
@@ -356,11 +356,16 @@ public:
         onTorrentFinished(handle);
     }
     
-    lt::settings_pack generateSessionSettings(bool useTcpSocket, const std::vector<ReplicatorInfo>& bootstraps)
+    lt::settings_pack generateSessionSettings(bool isClient, const std::vector<ReplicatorInfo>& bootstraps)
     {
         lt::settings_pack settingsPack;
         
         settingsPack.set_int( lt::settings_pack::alert_mask, ~0 );//lt::alert_category::all );
+        
+        if ( isClient )
+        {
+            settingsPack.set_int( lt::settings_pack::peer_connect_timeout, 60 );
+        }
         
         // todo public_key?
         char todoPubKey[32];
@@ -409,11 +414,38 @@ public:
         
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
         settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, true );
-        settingsPack.set_bool( lt::settings_pack::enable_ip_notifier, false );
         
         settingsPack.set_int( lt::settings_pack::max_retry_port_bind, 0 );
         settingsPack.set_bool( lt::settings_pack::listen_system_port_fallback, false );
+        settingsPack.set_int( lt::settings_pack::utp_connect_timeout, 3000 );
+        settingsPack.set_int( lt::settings_pack::dht_block_timeout, 1 );
+        settingsPack.set_int( lt::settings_pack::dht_block_ratelimit, 32000 );
+        if ( !isClient )
+        {
+            settingsPack.set_int( lt::settings_pack::dht_max_torrents, 1024*1024 );
+        }
+
+        // TODO? BEP42
+        //settingsPack.set_bool( lt::settings_pack::dht_prefer_verified_node_ids, false );
         
+        // In libtorrent, an "IP notifier" refers to a mechanism or functionality
+        // that tracks changes to the network interface's IP address.
+        // This is crucial in BitTorrent and other peer-to-peer systems because
+        // the external or local IP address of a machine can change due to:
+        //
+        // Dynamic IP Addresses:
+        //    When a client is on a network where the IP address is assigned dynamically (e.g., via DHCP),
+        //    the IP can change periodically.
+        //
+        // Network Changes: 
+        //    If a device switches between networks (e.g., from Wi-Fi to Ethernet or to a mobile hotspot),
+        //    its IP address may change.
+        //
+        // NAT Traversal or ISP Reassignments:
+        //    In some cases, the external (public) IP address might change due to changes in the ISP's NAT configurations or public IP lease expiration.
+        //
+        //settingsPack.set_bool( lt::settings_pack::enable_ip_notifier, false );
+
         //settingsPack.set_int( lt::settings_pack::max_out_request_queue, 10 );
         
         return settingsPack;
@@ -552,7 +584,15 @@ public:
                 {
                     _LOG( "+++ ex :remove_torrent(3): " << torrentHandle.info_hashes().v2 );
                     lt::remove_flags_t removeFlag = removeFiles ? lt::session::delete_files : lt::session::delete_partfile;
-                    m_session.remove_torrent( torrentHandle, removeFlag );
+                    try {
+                        m_session.remove_torrent( torrentHandle, removeFlag );
+                    } 
+                    catch (std::runtime_error& ex) {
+                        _LOG_WARN("Exception while remove_torrent(): " << ex.what() )
+                    }
+                    catch (...) {
+                        _LOG_WARN("Exception while remove_torrent(): ")
+                    }
                 }
                 //                }
             }
@@ -564,7 +604,7 @@ public:
             {
                 //                if ( torrentHandle.status().state > 2 )
                 //                {
-                m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
+                //m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
                 //                }
             }
             
@@ -656,18 +696,18 @@ public:
     
     void modificationHasBeenRegistered( Session::lt_handle tHandle, const ReplicatorList& keys ) override
     {
-        _LOG( "@@@ modificationHasBeenRegistered:" );
-        if ( auto limiter = m_downloadLimiter.lock(); limiter )
-        {
-            for( const auto& key : keys ) {
-                auto endpoint = limiter->getEndpoint( key.array() );
-                if ( endpoint )
-                {
-                    _LOG( "@@@ modificationHasBeenRegistered: connect_peer: " << *endpoint << " " << key );
-                    tHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint->address(), endpoint->port() } );
-                }
-            }
-        }
+//        _LOG( "@@@ modificationHasBeenRegistered:" );
+//        if ( auto limiter = m_downloadLimiter.lock(); limiter )
+//        {
+//            for( const auto& key : keys ) {
+//                auto endpoint = limiter->getEndpoint( key.array() );
+//                if ( endpoint )
+//                {
+//                    _LOG( "@@@ modificationHasBeenRegistered: connect_peer: " << *endpoint << " " << key );
+//                    tHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint->address(), endpoint->port() } );
+//                }
+//            }
+//        }
     }
     
     // downloadFile
@@ -1164,10 +1204,10 @@ private:
                         //                    break;
                         //                }
                         
-                        //                    case lt::log_alert::alert_type: {
-                        //                        ___LOG(  m_listeningPort << " : log_alert: " << alert->message())
-                        //                        break;
-                        //                    }
+                    case lt::log_alert::alert_type: {
+                        _LOG(  ": log_alert: " << alert->message() )
+                        break;
+                    }
                                                 
                     case lt::peer_log_alert::alert_type: {
                         if ( m_logMode == LogMode::PEER )
@@ -1652,35 +1692,40 @@ private:
     virtual void onRequestReceived( uint8_t* data, size_t dataSize, std::weak_ptr<TcpClientSession> session ) override
     {
         SIRIUS_ASSERT( !isClient() )
+        
 
         if ( auto sessionPtr = session.lock(); sessionPtr )
         {
-            StreamBuffer strBuffer( (char*)data, dataSize );
-            std::istream is(&strBuffer);
-            
-            cereal::BinaryInputArchive iarchive( is );
-            
-            uint16_t requestId;
-            iarchive( requestId );
-            _LOG( "requestId: " << requestId );
-            
-            if ( requestId == get_peer_ip )
+            try
             {
-                kademlia::PeerIpRequest request;
-                iarchive( request );
+                StreamBuffer strBuffer( (char*)data, dataSize );
+                std::istream is(&strBuffer);
                 
-                try
+                cereal::BinaryInputArchive iarchive( is );
+                
+                uint16_t requestId;
+                iarchive( requestId );
+                _LOG( "requestId: " << requestId );
+                
+                if ( requestId == get_peer_ip )
                 {
+                    kademlia::PeerIpRequest request;
+                    iarchive( request );
+                    
+                    //                try
+                    //                {
                     kademlia::PeerIpResponse response = m_kademlia->onGetPeerIpTcpRequest( request );
                     sessionPtr->sendReply( peer_ip_response, response );
-                }
-                catch(...)
-                {
-                    // for standalone debugging
-                    kademlia::PeerIpResponse response;
-                    sessionPtr->sendReply( peer_ip_response, response );
+                    //                }
+                    //                catch(...)
+                    //                {
+                    //                    // for standalone debugging
+                    //                    kademlia::PeerIpResponse response;
+                    //                    sessionPtr->sendReply( peer_ip_response, response );
+                    //                }
                 }
             }
+            catch(...){}
         }
     }
 
