@@ -125,8 +125,8 @@ class DefaultSession:   public Session,
     
     std::thread::id                     m_dbgThreadId;
     
-//    LogMode                             m_logMode = LogMode::BRIEF;
-    LogMode                             m_logMode = LogMode::PEER;
+    LogMode                             m_logMode = LogMode::BRIEF;
+//    LogMode                             m_logMode = LogMode::PEER;
 
     std::unique_ptr<TcpClientConnectionManager> m_tcpClientConnectionManager; // only for user app
 
@@ -362,23 +362,12 @@ public:
         
         settingsPack.set_int( lt::settings_pack::alert_mask, ~0 );//lt::alert_category::all );
         
-        if ( isClient )
-        {
-            settingsPack.set_int( lt::settings_pack::peer_connect_timeout, 60 );
-        }
-        
-        // todo public_key?
-        char todoPubKey[32];
-        std::memset(todoPubKey,'x', sizeof(todoPubKey));
-        todoPubKey[5] = 0;
-        settingsPack.set_str(  lt::settings_pack::user_agent, std::string(todoPubKey,32) );
+        settingsPack.set_str(  lt::settings_pack::user_agent, std::string("ProximaX") );
         settingsPack.set_bool( lt::settings_pack::enable_outgoing_utp, true );
         settingsPack.set_bool( lt::settings_pack::enable_incoming_utp, true );
         settingsPack.set_bool( lt::settings_pack::enable_outgoing_tcp, false );
         settingsPack.set_bool( lt::settings_pack::enable_incoming_tcp, false );
         
-        //todo 1. is it enough? 2. is it for single peer?
-        settingsPack.set_int( lt::settings_pack::dht_upload_rate_limit, 8000000 );
         
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
@@ -424,27 +413,14 @@ public:
         {
             settingsPack.set_int( lt::settings_pack::dht_max_torrents, 1024*1024 );
         }
-
-        // TODO? BEP42
-        //settingsPack.set_bool( lt::settings_pack::dht_prefer_verified_node_ids, false );
         
-        // In libtorrent, an "IP notifier" refers to a mechanism or functionality
-        // that tracks changes to the network interface's IP address.
-        // This is crucial in BitTorrent and other peer-to-peer systems because
-        // the external or local IP address of a machine can change due to:
-        //
-        // Dynamic IP Addresses:
-        //    When a client is on a network where the IP address is assigned dynamically (e.g., via DHCP),
-        //    the IP can change periodically.
-        //
-        // Network Changes: 
-        //    If a device switches between networks (e.g., from Wi-Fi to Ethernet or to a mobile hotspot),
-        //    its IP address may change.
-        //
-        // NAT Traversal or ISP Reassignments:
-        //    In some cases, the external (public) IP address might change due to changes in the ISP's NAT configurations or public IP lease expiration.
-        //
-        //settingsPack.set_bool( lt::settings_pack::enable_ip_notifier, false );
+        settingsPack.set_int(lt::settings_pack::upload_rate_limit, 0);
+        settingsPack.set_int(lt::settings_pack::download_rate_limit, 0);
+        settingsPack.set_int(lt::settings_pack::unchoke_slots_limit, -1);
+        settingsPack.set_int(lt::settings_pack::choking_algorithm, lt::settings_pack::fixed_slots_choker);
+        settingsPack.set_bool(lt::settings_pack::strict_super_seeding, false);
+        settingsPack.set_int(lt::settings_pack::connections_limit, 2000);
+        settingsPack.set_int(lt::settings_pack::peer_connect_timeout, 5);
 
         //settingsPack.set_int( lt::settings_pack::max_out_request_queue, 10 );
         

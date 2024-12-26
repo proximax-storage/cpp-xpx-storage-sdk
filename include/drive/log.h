@@ -121,7 +121,7 @@ inline void checkLogFileSize()
     auto pos = lseek( 1, 0, SEEK_END );
 #endif
 
-    if ( ( pos > 10000 * 1024 * 1024 ) && gCreateLogBackup )
+    if ( ( pos > 1024 * 1024 * 1024 ) && gCreateLogBackup )
     {
         (*gCreateLogBackup)();
     }
