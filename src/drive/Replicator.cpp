@@ -474,7 +474,7 @@ public:
                 channelInfoIt->second.m_dnReplicatorShard = *replicatorKeys;
             } else
             {
-                _LOG_ERR( "Unknown channel hash: " << *channelId );
+                _LOG_WARN( "Unknown channel hash: " << *channelId );
                 return;
             }
         } );
@@ -871,6 +871,10 @@ public:
             }
         }
 
+		std::sort(myOpinion.m_downloadLayout.begin(), myOpinion.m_downloadLayout.end(),
+				  [](const auto& lhs, const auto& rhs)
+				  { return lhs.m_key < rhs.m_key; });
+
         return myOpinion;
     }
 
@@ -1119,7 +1123,7 @@ public:
             shareDownloadOpinion( channelId, blockHash );
         } else
         {
-            _LOG_ERR( "channelId not found" );
+			_LOG_WARN( "channelId not found" );
         }
     }
 
@@ -1226,7 +1230,7 @@ public:
                 }
             } else
             {
-                _LOG_ERR( "channelId not found" );
+				_LOG_WARN( "channelId not found" );
             }
         } );//post
     }
@@ -1263,7 +1267,7 @@ public:
                 }
             } else
             {
-                _LOG_ERR( "channelId not found" );
+                _LOG_WARN( "channelId not found" );
             }
         } );//post
     }
