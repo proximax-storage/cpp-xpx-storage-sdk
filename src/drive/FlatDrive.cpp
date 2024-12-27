@@ -239,6 +239,8 @@ public:
 
     virtual const ModifyTrafficInfo* findModifyInfo( const Hash256& tx, bool& outIsFinished ) override
     {
+        DBG_MAIN_THREAD
+        
         outIsFinished = false;
 
         const auto it = std::find_if( m_oldModifications.begin(), m_oldModifications.end(), [&tx] ( const auto& m ){
@@ -261,6 +263,12 @@ public:
     
     virtual void tryConnectPeer( const Hash256& tx, const boost::asio::ip::udp::endpoint& endpoint ) override
     {
+        if ( ! m_task )
+        {
+            _LOG ( "tryConnectPeer: no task" )
+            return;
+        }
+        
         m_task->tryConnectPeer( tx, endpoint );
         
         if ( auto currentTx = currentModifyTx(); currentTx && *currentTx == tx )

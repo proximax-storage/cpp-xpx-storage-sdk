@@ -193,7 +193,7 @@ public:
                    const crypto::KeyPair&                  keyPair,
                    LibTorrentErrorHandler                  alertHandler,
                    std::weak_ptr<lt::session_delegate>     downloadLimiter,
-                   bool                                    useTcpSocket,
+                   bool                                    ,//useTcpSocket,
                    const std::vector<ReplicatorInfo>&      bootstraps,
                    std::weak_ptr<DhtMessageHandler>        dhtMessageHandler
                    )
@@ -202,7 +202,7 @@ public:
     , m_ownerIsReplicator(false)
     , m_addressAndPort(addressAndPort)
     , m_listeningPort(port)
-    , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
+    , m_session( lt::session_params{ generateSessionSettings( true, bootstraps ) } )
     , m_alertHandler(alertHandler)
     , m_downloadLimiter(downloadLimiter)
     {
@@ -356,24 +356,18 @@ public:
         onTorrentFinished(handle);
     }
     
-    lt::settings_pack generateSessionSettings(bool useTcpSocket, const std::vector<ReplicatorInfo>& bootstraps)
+    lt::settings_pack generateSessionSettings(bool isClient, const std::vector<ReplicatorInfo>& bootstraps)
     {
         lt::settings_pack settingsPack;
         
         settingsPack.set_int( lt::settings_pack::alert_mask, ~0 );//lt::alert_category::all );
         
-        // todo public_key?
-        char todoPubKey[32];
-        std::memset(todoPubKey,'x', sizeof(todoPubKey));
-        todoPubKey[5] = 0;
-        settingsPack.set_str(  lt::settings_pack::user_agent, std::string(todoPubKey,32) );
+        settingsPack.set_str(  lt::settings_pack::user_agent, std::string("ProximaX") );
         settingsPack.set_bool( lt::settings_pack::enable_outgoing_utp, true );
         settingsPack.set_bool( lt::settings_pack::enable_incoming_utp, true );
         settingsPack.set_bool( lt::settings_pack::enable_outgoing_tcp, false );
         settingsPack.set_bool( lt::settings_pack::enable_incoming_tcp, false );
         
-        //todo 1. is it enough? 2. is it for single peer?
-        settingsPack.set_int( lt::settings_pack::dht_upload_rate_limit, 8000000 );
         
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
@@ -409,11 +403,25 @@ public:
         
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
         settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, true );
-        settingsPack.set_bool( lt::settings_pack::enable_ip_notifier, false );
         
         settingsPack.set_int( lt::settings_pack::max_retry_port_bind, 0 );
         settingsPack.set_bool( lt::settings_pack::listen_system_port_fallback, false );
+        settingsPack.set_int( lt::settings_pack::utp_connect_timeout, 3000 );
+        settingsPack.set_int( lt::settings_pack::dht_block_timeout, 1 );
+        settingsPack.set_int( lt::settings_pack::dht_block_ratelimit, 32000 );
+        if ( !isClient )
+        {
+            settingsPack.set_int( lt::settings_pack::dht_max_torrents, 1024*1024 );
+        }
         
+        settingsPack.set_int(lt::settings_pack::upload_rate_limit, 0);
+        settingsPack.set_int(lt::settings_pack::download_rate_limit, 0);
+        settingsPack.set_int(lt::settings_pack::unchoke_slots_limit, -1);
+        settingsPack.set_int(lt::settings_pack::choking_algorithm, lt::settings_pack::fixed_slots_choker);
+        settingsPack.set_bool(lt::settings_pack::strict_super_seeding, false);
+        settingsPack.set_int(lt::settings_pack::connections_limit, 2000);
+        settingsPack.set_int(lt::settings_pack::peer_connect_timeout, 5);
+
         //settingsPack.set_int( lt::settings_pack::max_out_request_queue, 10 );
         
         return settingsPack;
@@ -552,7 +560,15 @@ public:
                 {
                     _LOG( "+++ ex :remove_torrent(3): " << torrentHandle.info_hashes().v2 );
                     lt::remove_flags_t removeFlag = removeFiles ? lt::session::delete_files : lt::session::delete_partfile;
-                    m_session.remove_torrent( torrentHandle, removeFlag );
+                    try {
+                        m_session.remove_torrent( torrentHandle, removeFlag );
+                    } 
+                    catch (std::runtime_error& ex) {
+                        _LOG_WARN("Exception while remove_torrent(): " << ex.what() )
+                    }
+                    catch (...) {
+                        _LOG_WARN("Exception while remove_torrent(): ")
+                    }
                 }
                 //                }
             }
@@ -564,7 +580,7 @@ public:
             {
                 //                if ( torrentHandle.status().state > 2 )
                 //                {
-                m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
+                //m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
                 //                }
             }
             
@@ -656,18 +672,18 @@ public:
     
     void modificationHasBeenRegistered( Session::lt_handle tHandle, const ReplicatorList& keys ) override
     {
-        _LOG( "@@@ modificationHasBeenRegistered:" );
-        if ( auto limiter = m_downloadLimiter.lock(); limiter )
-        {
-            for( const auto& key : keys ) {
-                auto endpoint = limiter->getEndpoint( key.array() );
-                if ( endpoint )
-                {
-                    _LOG( "@@@ modificationHasBeenRegistered: connect_peer: " << *endpoint << " " << key );
-                    tHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint->address(), endpoint->port() } );
-                }
-            }
-        }
+//        _LOG( "@@@ modificationHasBeenRegistered:" );
+//        if ( auto limiter = m_downloadLimiter.lock(); limiter )
+//        {
+//            for( const auto& key : keys ) {
+//                auto endpoint = limiter->getEndpoint( key.array() );
+//                if ( endpoint )
+//                {
+//                    _LOG( "@@@ modificationHasBeenRegistered: connect_peer: " << *endpoint << " " << key );
+//                    tHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint->address(), endpoint->port() } );
+//                }
+//            }
+//        }
     }
     
     // downloadFile
@@ -1164,10 +1180,10 @@ private:
                         //                    break;
                         //                }
                         
-                        //                    case lt::log_alert::alert_type: {
-                        //                        ___LOG(  m_listeningPort << " : log_alert: " << alert->message())
-                        //                        break;
-                        //                    }
+                    case lt::log_alert::alert_type: {
+                        _LOG(  ": log_alert: " << alert->message() )
+                        break;
+                    }
                                                 
                     case lt::peer_log_alert::alert_type: {
                         if ( m_logMode == LogMode::PEER )
@@ -1652,35 +1668,40 @@ private:
     virtual void onRequestReceived( uint8_t* data, size_t dataSize, std::weak_ptr<TcpClientSession> session ) override
     {
         SIRIUS_ASSERT( !isClient() )
+        
 
         if ( auto sessionPtr = session.lock(); sessionPtr )
         {
-            StreamBuffer strBuffer( (char*)data, dataSize );
-            std::istream is(&strBuffer);
-            
-            cereal::BinaryInputArchive iarchive( is );
-            
-            uint16_t requestId;
-            iarchive( requestId );
-            _LOG( "requestId: " << requestId );
-            
-            if ( requestId == get_peer_ip )
+            try
             {
-                kademlia::PeerIpRequest request;
-                iarchive( request );
+                StreamBuffer strBuffer( (char*)data, dataSize );
+                std::istream is(&strBuffer);
                 
-                try
+                cereal::BinaryInputArchive iarchive( is );
+                
+                uint16_t requestId;
+                iarchive( requestId );
+                _LOG( "requestId: " << requestId );
+                
+                if ( requestId == get_peer_ip )
                 {
+                    kademlia::PeerIpRequest request;
+                    iarchive( request );
+                    
+                    //                try
+                    //                {
                     kademlia::PeerIpResponse response = m_kademlia->onGetPeerIpTcpRequest( request );
                     sessionPtr->sendReply( peer_ip_response, response );
-                }
-                catch(...)
-                {
-                    // for standalone debugging
-                    kademlia::PeerIpResponse response;
-                    sessionPtr->sendReply( peer_ip_response, response );
+                    //                }
+                    //                catch(...)
+                    //                {
+                    //                    // for standalone debugging
+                    //                    kademlia::PeerIpResponse response;
+                    //                    sessionPtr->sendReply( peer_ip_response, response );
+                    //                }
                 }
             }
+            catch(...){}
         }
     }
 

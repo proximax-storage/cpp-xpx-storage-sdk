@@ -32,6 +32,7 @@ protected:
     std::optional<lt_handle> m_sandboxFsTreeLtHandle;
 
     std::optional<lt_handle> m_downloadingLtHandle;
+    bool                     m_downloadingLtHandleIsConnected = false;
     std::optional<lt_handle> m_fsTreeOrActionListHandle;
 
     bool m_sandboxCalculated = false;
@@ -369,7 +370,7 @@ protected:
         _LOG( "Task:tryConnectPeer: file: " << endpoint << " : "
                                             << status.progress << "% : "
                                             << status.total_payload_download << " : "
-                                            <<  status.save_path );
+                                            << status.save_path << " " << status.name );
        ltHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint.address(), endpoint.port() } );
     }
     
@@ -377,13 +378,10 @@ protected:
     {
         DBG_MAIN_THREAD
         
-        if ( m_downloadingLtHandle )
+        if ( m_downloadingLtHandle && !m_downloadingLtHandleIsConnected )
         {
             connectPeer( *m_downloadingLtHandle, endpoint );
-        }
-        else if ( m_fsTreeOrActionListHandle )
-        {
-            connectPeer( *m_fsTreeOrActionListHandle, endpoint );
+            m_downloadingLtHandleIsConnected = true;
         }
     }
 

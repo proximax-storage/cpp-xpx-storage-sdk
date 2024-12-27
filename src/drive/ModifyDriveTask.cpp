@@ -101,6 +101,7 @@ public:
         if ( auto session = m_drive.m_session.lock(); session )
         {
             _LOG("m_uploadedDataSize: m_request->m_maxDataSize: " << m_request->m_maxDataSize )
+            m_downloadingLtHandleIsConnected = false;
             m_downloadingLtHandle = session->download(
                                         DownloadContext(
                                                DownloadContext::client_data,
@@ -162,12 +163,11 @@ public:
                                                    "" ),
                                                m_drive.m_sandboxRootPath,
                                                m_drive.m_sandboxRootPath / toPath((toString(m_request->m_clientDataInfoHash)) + ".torrent"),
-                                               getUploaders(),
+                                               {}, //getUploaders(),
                                                &m_drive.m_driveKey.array(),
                                                nullptr,
                                                &m_request->m_transactionHash.array()
                                                 );
-            m_fsTreeOrActionListHandle = m_downloadingLtHandle;
         }
     }
 
@@ -254,6 +254,7 @@ public:
                 _LOG( "+++ ex downloading: START: " << toString( *fileToDownload ));
                 _LOG("m_uploadedDataSize: m_request->m_maxDataSize: " << m_request->m_maxDataSize
                                         << " torrentHandleMap.size: " << m_drive.m_torrentHandleMap.size() )
+                m_downloadingLtHandleIsConnected = false;
                 m_downloadingLtHandle = session->download( DownloadContext(
 
                                                                    DownloadContext::missing_files,
@@ -295,7 +296,7 @@ public:
                                                                    "" ),
                                                            m_drive.m_driveFolder,
                                                            m_drive.m_torrentFolder / toString(*fileToDownload),
-                                                           getUploaders(),
+                                                          {},//getUploaders(),
                                                            &m_drive.m_driveKey.array(),
                                                            nullptr,
                                                            &m_request->m_transactionHash.array()
