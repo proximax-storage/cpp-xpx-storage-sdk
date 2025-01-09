@@ -234,9 +234,9 @@ function(storage_sdk_executable TARGET_NAME)
         endif()
 endfunction()
 
-function(storage_sdk_proto SERVICE DEPENDENCIES)
+function(storage_sdk_proto SERVICE PROTO_PATH DEPENDENCIES)
         if (NOT NOT_BUILD_SIRIUS_${SERVICE})
-                get_filename_component(${SERVICE}_proto "../protobuf/${SERVICE}.proto" ABSOLUTE)
+                get_filename_component(${SERVICE}_proto "${PROTO_PATH}/../protobuf/${SERVICE}.proto" ABSOLUTE)
                 get_filename_component(${SERVICE}_proto_path "${${SERVICE}_proto}" PATH)
                 list(APPEND DEPENDENCIES ${${SERVICE}_proto})
 
@@ -253,7 +253,7 @@ function(storage_sdk_proto SERVICE DEPENDENCIES)
                         -I "${${SERVICE}_proto_path}"
                         --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
                         "${${SERVICE}_proto}"
-                        DEPENDS ${DEPENDENCIES})
+                        DEPENDS "${DEPENDENCIES}")
 
                 # vm_client_grpc_proto
                 add_library(${SERVICE}_sirius_grpc_proto SHARED
@@ -264,9 +264,9 @@ function(storage_sdk_proto SERVICE DEPENDENCIES)
                 # Include generated *.pb.h files
                 target_include_directories(${SERVICE}_sirius_grpc_proto PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
                 target_link_libraries(${SERVICE}_sirius_grpc_proto
-                        ${_REFLECTION}
-                        ${_GRPC_GRPCPP}
-                        ${_PROTOBUF_LIBPROTOBUF})
+                        grpc++_reflection
+                        protobuf
+                        grpc++)
         endif()
 endfunction()
 

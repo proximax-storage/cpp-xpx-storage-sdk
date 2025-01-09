@@ -11,16 +11,16 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 set(ABSL_PROPAGATE_CXX_STD ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-
 if (NOT DEFINED CPP_XPX_CHAIN)
     set(SKIP_GRPC ON)
     add_compile_definitions(SKIP_WSSERVER)
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DELPP_NO_DEFAULT_LOG_FILE")
+    add_definitions(-DUSE_ELPP)
 endif()
 
 if (DEFINED SKIP_SUPERCONTRACT)
@@ -46,6 +46,30 @@ endif()
 
 include_directories(include)
 
+if (APPLE)
+    if (CMAKE_APPLE_SILICON_PROCESSOR)
+        set(CMAKE_PREFIX_PATH "~/Qt/6.5.3/macos")
+        set(BOOST_INCLUDE_DIR "/usr/local/include")
+        set(BOOST_LIB_DIR "/usr/local/lib")
+        add_definitions(-DBOOST_ASIO_HAS_STD_INVOKE_RESULT)
+        set(OPENSSL_ROOT_DIR "/opt/homebrew/opt/openssl")
+        set(OPENSSL_LIBRARIES "/opt/homebrew/opt/openssl/lib")
+
+        # for -lcrypto (I do not know who uses it!)
+        link_directories(/opt/homebrew/opt/openssl/lib)
+    else()
+        set(CMAKE_PREFIX_PATH "~/Qt/6.4.0/macos")
+        set(BOOST_INCLUDE_DIR "/usr/local/include")
+        set(BOOST_LIB_DIR "/usr/local/lib")
+        add_definitions(-DBOOST_ASIO_HAS_STD_INVOKE_RESULT)
+        set(OPENSSL_ROOT_DIR "/usr/local/opt/openssl")
+        set(OPENSSL_LIBRARIES "/usr/local/opt/openssl/lib")
+
+        # for -lcrypto (I do not know who uses it!)
+        link_directories(/usr/local/opt/openssl/lib)
+    endif()
+endif()
+
 ### setup boost
 if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
     SET(Boost_NAMESPACE ${Boost_NAMESPACE} "libboost")
@@ -53,6 +77,11 @@ if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 endif()
 
 set(Boost_NO_WARN_NEW_VERSIONS 1)
+
+if((CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "16.0.0") OR
+    (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "11"))
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-enum-constexpr-conversion")
+endif()
 
 if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     find_package(Boost COMPONENTS atomic system date_time regex timer chrono log thread filesystem program_options random REQUIRED)
@@ -65,10 +94,6 @@ else()
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DSHOW_BACKTRACE")
 endif()
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
-
-if (NOT DEFINED SKIP_GRPC)
-    storage_sdk_third_party_lib(cmake/grpc.cmake)
-endif()
 
 include_directories(cereal/include)
 add_subdirectory(libtorrent)
@@ -117,3 +142,4 @@ if (XPX_STORAGE_SDK_NOT_BUILD_EXAMPLES)
 else()
     add_subdirectory(examples)
 endif()
+

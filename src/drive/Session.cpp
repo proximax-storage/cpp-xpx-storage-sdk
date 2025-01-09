@@ -5,6 +5,9 @@
 */
 
 #include "drive/Session.h"
+#include "drive/TcpServer.h"
+#include "drive/TcpServer.h"
+#include "drive/TcpClientConnectionManager.h"
 #include "ReplicatorInt.h"
 #include "DownloadLimiter.h"
 #include "drive/Utils.h"
@@ -18,12 +21,16 @@
 
 
 // boost
+#include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/ip/address.hpp>
 
 // cereal
 #include <cereal/types/vector.hpp>
+#include <cereal/types/array.hpp>
+#include <cereal/types/map.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
 // libtorrent
@@ -89,6 +96,8 @@ struct LtClientData
 // DefaultSession
 //
 class DefaultSession:   public Session,
+                        public TcpServer,
+                        public ITcpResponseHandler,
                         public std::enable_shared_from_this<DefaultSession>
 {
     std::shared_ptr<kademlia::EndpointCatalogue> m_kademlia;
@@ -117,20 +126,28 @@ class DefaultSession:   public Session,
     std::thread::id                     m_dbgThreadId;
     
     LogMode                             m_logMode = LogMode::BRIEF;
-    
+//    LogMode                             m_logMode = LogMode::PEER;
+
+    std::unique_ptr<TcpClientConnectionManager> m_tcpClientConnectionManager; // only for user app
+
 public:
     
     // Constructor for Replicator
     //
     DefaultSession( boost::asio::io_context&             context,
-                   std::string                          address,
+                   std::string                          addressAndPort,
+                   int                                  port,
                    const LibTorrentErrorHandler&        alertHandler,
                    std::weak_ptr<ReplicatorInt>         replicator,
                    std::weak_ptr<lt::session_delegate>  downloadLimiter,
-                   const std::vector<ReplicatorInfo>&   bootstraps)
-    : m_ownerIsReplicator(true)
-    , m_addressAndPort(address)
-    , m_listeningPort(extractListeningPort())
+                   const std::vector<ReplicatorInfo>&   bootstraps,
+                   std::promise<void>&&                 bootstrapBarrier
+                   )
+    : 
+    TcpServer( context, "0.0.0.0", std::to_string(port) )
+    , m_ownerIsReplicator(true)
+    , m_addressAndPort(addressAndPort)
+    , m_listeningPort(port)
     , m_replicator(replicator)
     , m_session( lt::session_params{ generateSessionSettings( false, bootstraps) }, context, {})
     , m_alertHandler(alertHandler)
@@ -151,7 +168,7 @@ public:
             m_session.setDelegate( m_downloadLimiter );
         });
                           
-        _LOG( "DefaultSession: " << address << " : " << toString(m_downloadLimiter.lock()->publicKey()) );
+        _LOG( "DefaultSession: " << addressAndPort << " : " << toString(m_downloadLimiter.lock()->publicKey()) );
         m_dbgOurPeerName = m_downloadLimiter.lock()->dbgOurPeerName();
         
         m_session.set_alert_notify( [this] { this->alertHandler(); } );
@@ -164,16 +181,6 @@ public:
         _LOG( "DefaultSession created: m_listeningPort " << m_listeningPort );
     }
     
-    int extractListeningPort()
-    {
-        if ( auto colonPos = m_addressAndPort.find(":"); colonPos != std::string::npos )
-        {
-            std::string portString = m_addressAndPort.substr(colonPos + 1);
-            return std::stoi(portString);
-        }
-        return 0;
-    }
-    
     virtual int listeningPort() override
     {
         return m_listeningPort;
@@ -181,18 +188,21 @@ public:
     
     // Constructor for Client
     //
-    DefaultSession( std::string                             address,
+    DefaultSession( std::string                             addressAndPort,
+                   int                                     port,
                    const crypto::KeyPair&                  keyPair,
                    LibTorrentErrorHandler                  alertHandler,
                    std::weak_ptr<lt::session_delegate>     downloadLimiter,
-                   bool                                    useTcpSocket,
+                   bool                                    ,//useTcpSocket,
                    const std::vector<ReplicatorInfo>&      bootstraps,
                    std::weak_ptr<DhtMessageHandler>        dhtMessageHandler
                    )
-    : m_ownerIsReplicator(false)
-    , m_addressAndPort(address)
-    , m_listeningPort(extractListeningPort())
-    , m_session( lt::session_params{ generateSessionSettings( useTcpSocket, bootstraps ) } )
+    // TcpServer not used (note: DefaultSession is common for 'client' and 'replicator')
+    : TcpServer()
+    , m_ownerIsReplicator(false)
+    , m_addressAndPort(addressAndPort)
+    , m_listeningPort(port)
+    , m_session( lt::session_params{ generateSessionSettings( true, bootstraps ) } )
     , m_alertHandler(alertHandler)
     , m_downloadLimiter(downloadLimiter)
     {
@@ -215,6 +225,8 @@ public:
         
         _LOG( "DefaultSession created: " << m_addressAndPort );
         _LOG( "Client DefaultSession created: m_listeningPort " << m_listeningPort );
+        
+        m_tcpClientConnectionManager = std::make_unique<TcpClientConnectionManager>( *this, m_session.get_context() );
     }
     
     virtual ~DefaultSession()
@@ -344,24 +356,18 @@ public:
         onTorrentFinished(handle);
     }
     
-    lt::settings_pack generateSessionSettings(bool useTcpSocket, const std::vector<ReplicatorInfo>& bootstraps)
+    lt::settings_pack generateSessionSettings(bool isClient, const std::vector<ReplicatorInfo>& bootstraps)
     {
         lt::settings_pack settingsPack;
         
         settingsPack.set_int( lt::settings_pack::alert_mask, ~0 );//lt::alert_category::all );
         
-        // todo public_key?
-        char todoPubKey[32];
-        std::memset(todoPubKey,'x', sizeof(todoPubKey));
-        todoPubKey[5] = 0;
-        settingsPack.set_str(  lt::settings_pack::user_agent, std::string(todoPubKey,32) );
+        settingsPack.set_str(  lt::settings_pack::user_agent, std::string("ProximaX") );
         settingsPack.set_bool( lt::settings_pack::enable_outgoing_utp, true );
         settingsPack.set_bool( lt::settings_pack::enable_incoming_utp, true );
-        settingsPack.set_bool( lt::settings_pack::enable_outgoing_tcp, true );
-        settingsPack.set_bool( lt::settings_pack::enable_incoming_tcp, true );
+        settingsPack.set_bool( lt::settings_pack::enable_outgoing_tcp, false );
+        settingsPack.set_bool( lt::settings_pack::enable_incoming_tcp, false );
         
-        //todo 1. is it enough? 2. is it for single peer?
-        settingsPack.set_int( lt::settings_pack::dht_upload_rate_limit, 8000000 );
         
         settingsPack.set_bool( lt::settings_pack::enable_dht, true );
         settingsPack.set_bool( lt::settings_pack::enable_lsd, false ); // is it needed?
@@ -397,11 +403,25 @@ public:
         
         settingsPack.set_str(  lt::settings_pack::listen_interfaces, m_addressAndPort );
         settingsPack.set_bool( lt::settings_pack::allow_multiple_connections_per_ip, true );
-        settingsPack.set_bool( lt::settings_pack::enable_ip_notifier, false );
         
         settingsPack.set_int( lt::settings_pack::max_retry_port_bind, 0 );
         settingsPack.set_bool( lt::settings_pack::listen_system_port_fallback, false );
+        settingsPack.set_int( lt::settings_pack::utp_connect_timeout, 3000 );
+        settingsPack.set_int( lt::settings_pack::dht_block_timeout, 1 );
+        settingsPack.set_int( lt::settings_pack::dht_block_ratelimit, 32000 );
+        if ( !isClient )
+        {
+            settingsPack.set_int( lt::settings_pack::dht_max_torrents, 1024*1024 );
+        }
         
+        settingsPack.set_int(lt::settings_pack::upload_rate_limit, 0);
+        settingsPack.set_int(lt::settings_pack::download_rate_limit, 0);
+        settingsPack.set_int(lt::settings_pack::unchoke_slots_limit, -1);
+        settingsPack.set_int(lt::settings_pack::choking_algorithm, lt::settings_pack::fixed_slots_choker);
+        settingsPack.set_bool(lt::settings_pack::strict_super_seeding, false);
+        settingsPack.set_int(lt::settings_pack::connections_limit, 2000);
+        settingsPack.set_int(lt::settings_pack::peer_connect_timeout, 5);
+
         //settingsPack.set_int( lt::settings_pack::max_out_request_queue, 10 );
         
         return settingsPack;
@@ -540,22 +560,32 @@ public:
                 {
                     _LOG( "+++ ex :remove_torrent(3): " << torrentHandle.info_hashes().v2 );
                     lt::remove_flags_t removeFlag = removeFiles ? lt::session::delete_files : lt::session::delete_partfile;
-                    m_session.remove_torrent( torrentHandle, removeFlag );
+                    try {
+                        m_session.remove_torrent( torrentHandle, removeFlag );
+                    } 
+                    catch (std::runtime_error& ex) {
+                        _LOG_WARN("Exception while remove_torrent(): " << ex.what() )
+                    }
+                    catch (...) {
+                        _LOG_WARN("Exception while remove_torrent(): ")
+                    }
                 }
                 //                }
             }
         }
         else
         {
+            //_LOG( "+++ ex :remove_torrent(33) torrents: " << torrents.size() );
             for( const auto& torrentHandle : torrents )
             {
                 //                if ( torrentHandle.status().state > 2 )
                 //                {
-                m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
+                //m_session.remove_torrent( torrentHandle, lt::session::delete_partfile );
                 //                }
             }
             
             boost::asio::post(lt_session().get_context(), [=] {
+                //_LOG( "+++ ex :remove_torrent(34) torrents: " << torrents.size() );
                 endNotification();
             });
         }
@@ -638,6 +668,22 @@ public:
         }
         
         return tHandle;
+    }
+    
+    void modificationHasBeenRegistered( Session::lt_handle tHandle, const ReplicatorList& keys ) override
+    {
+//        _LOG( "@@@ modificationHasBeenRegistered:" );
+//        if ( auto limiter = m_downloadLimiter.lock(); limiter )
+//        {
+//            for( const auto& key : keys ) {
+//                auto endpoint = limiter->getEndpoint( key.array() );
+//                if ( endpoint )
+//                {
+//                    _LOG( "@@@ modificationHasBeenRegistered: connect_peer: " << *endpoint << " " << key );
+//                    tHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint->address(), endpoint->port() } );
+//                }
+//            }
+//        }
     }
     
     // downloadFile
@@ -796,6 +842,7 @@ public:
         {
             try
             {
+				__LOG( "on_dht_request: query: " << query )
                 if ( query == "get_peers" || query == "announce_peer" )
                 {
                     return false;
@@ -1133,10 +1180,10 @@ private:
                         //                    break;
                         //                }
                         
-                        //                    case lt::log_alert::alert_type: {
-                        //                        ___LOG(  m_listeningPort << " : log_alert: " << alert->message())
-                        //                        break;
-                        //                    }
+                    case lt::log_alert::alert_type: {
+                        _LOG(  ": log_alert: " << alert->message() )
+                        break;
+                    }
                                                 
                     case lt::peer_log_alert::alert_type: {
                         if ( m_logMode == LogMode::PEER )
@@ -1147,13 +1194,12 @@ private:
                     }
                         
                     case lt::listen_failed_alert::alert_type: {
-                        this->m_alertHandler( alert );
-                        
                         auto *theAlert = dynamic_cast<lt::listen_failed_alert *>(alert);
                         
                         if ( theAlert ) {
-                            LOG(  "listen error: " << theAlert->message())
+                            _LOG(  "listen error: " << theAlert->message())
                         }
+                        this->m_alertHandler( alert );
                         break;
                     }
                         
@@ -1598,6 +1644,77 @@ private:
 #pragma mark --KademliaTransport--
 #endif
 
+    virtual void onResponseReceived( bool success, uint8_t* data, size_t dataSize ) override
+    {
+        if ( success )
+        {
+            Buffer streambuf{ (char*)data, dataSize };
+            std::istream is(&streambuf);
+            cereal::BinaryInputArchive iarchive( is );
+            
+            TcpResponseId responseId;
+            iarchive( responseId );
+            __LOG( "responseId: " << responseId )
+            
+            kademlia::PeerIpResponse response;
+            iarchive( response );
+            __LOG( "response: " << response.m_response.size() )
+  
+            m_kademlia->onGetPeerIpResponse( response );
+        }
+    }
+    
+    // only for replicator
+    virtual void onRequestReceived( uint8_t* data, size_t dataSize, std::weak_ptr<TcpClientSession> session ) override
+    {
+        SIRIUS_ASSERT( !isClient() )
+        
+
+        if ( auto sessionPtr = session.lock(); sessionPtr )
+        {
+            try
+            {
+                StreamBuffer strBuffer( (char*)data, dataSize );
+                std::istream is(&strBuffer);
+                
+                cereal::BinaryInputArchive iarchive( is );
+                
+                uint16_t requestId;
+                iarchive( requestId );
+                _LOG( "requestId: " << requestId );
+                
+                if ( requestId == get_peer_ip )
+                {
+                    kademlia::PeerIpRequest request;
+                    iarchive( request );
+                    
+                    //                try
+                    //                {
+                    kademlia::PeerIpResponse response = m_kademlia->onGetPeerIpTcpRequest( request );
+                    sessionPtr->sendReply( peer_ip_response, response );
+                    //                }
+                    //                catch(...)
+                    //                {
+                    //                    // for standalone debugging
+                    //                    kademlia::PeerIpResponse response;
+                    //                    sessionPtr->sendReply( peer_ip_response, response );
+                    //                }
+                }
+            }
+            catch(...){}
+        }
+    }
+
+    virtual void sendGetPeerIpTcpRequest( const kademlia::PeerIpRequest& request,
+                                          boost::asio::ip::udp::endpoint  endpoint )
+    {
+        SIRIUS_ASSERT( isClient() )
+        
+        _LOG( "sendGetPeerIpTcpRequest to: " << endpoint )
+        boost::asio::ip::tcp::endpoint tcpEndpoint( endpoint.address().to_v4(), endpoint.port() );
+        m_tcpClientConnectionManager->sendRequestTo( tcpEndpoint, TcpRequestId::get_peer_ip, request );
+    }
+
     virtual void sendGetMyIpRequest( const kademlia::MyIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override
     {
         std::ostringstream os( std::ios::binary );
@@ -1609,11 +1726,18 @@ private:
 
     virtual void sendGetPeerIpRequest( const kademlia::PeerIpRequest& request, boost::asio::ip::udp::endpoint endpoint ) override
     {
-        std::ostringstream os( std::ios::binary );
-        cereal::PortableBinaryOutputArchive archive( os );
-        archive( request );
-
-        sendMessage( GET_PEER_IP_MSG, endpoint, os.str() );
+        if ( isClient() )
+        {
+            sendGetPeerIpTcpRequest( request, endpoint );
+        }
+        else
+        {
+            std::ostringstream os( std::ios::binary );
+            cereal::PortableBinaryOutputArchive archive( os );
+            archive( request );
+            
+            sendMessage( GET_PEER_IP_MSG, endpoint, os.str() );
+        }
     }
     
     virtual void sendDirectPeerInfo( const kademlia::PeerIpResponse& response, boost::asio::ip::udp::endpoint endpoint ) override
@@ -1856,36 +1980,62 @@ InfoHash calculateInfoHash( const std::filesystem::path& pathToFile, const Key& 
     return infoHash;
 }
 
+static int extractPort( const std::string& addressAndPort )
+{
+    __LOG( "extractListeningPort: addressAndPort: " << addressAndPort )
+    if ( auto colonPos = addressAndPort.find(":"); colonPos != std::string::npos )
+    {
+        std::string port = addressAndPort.substr(colonPos + 1);
+        __LOG( "port: " << port )
+        return std::stoi(port);
+    }
+    return 0;
+}
+
 //
 // For Replicator
 //
 
 std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&             context,
-                                               std::string                          address,
+                                               std::string                          addressAndPort,
                                                const LibTorrentErrorHandler&        alertHandler,
                                                std::weak_ptr<ReplicatorInt>         replicator,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
-                                              const std::vector<ReplicatorInfo>&    bootstraps )
+                                               const std::vector<ReplicatorInfo>&   bootstraps,
+                                               std::promise<void>&&                 bootstrapBarrier )
 {
+    int port = extractPort( addressAndPort );
+
     return std::make_shared<DefaultSession>( context,
-                                            address,
+                                            addressAndPort,
+                                            port,
                                             alertHandler,
                                             replicator,
                                             downloadLimiter,
-                                            bootstraps );
+                                            bootstraps,
+                                            std::move(bootstrapBarrier) );
 }
 
 //
 // For Client
 //
-std::shared_ptr<Session> createDefaultSession( std::string                          address,
+std::shared_ptr<Session> createDefaultSession( std::string                          addressAndPort,
                                                const crypto::KeyPair&               keyPair,
                                                const LibTorrentErrorHandler&        alertHandler,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
                                                const std::vector<ReplicatorInfo>&   bootstraps,
                                                std::weak_ptr<DhtMessageHandler>     dhtMessageHandler )
 {
-    return std::make_shared<DefaultSession>( address, keyPair, alertHandler, downloadLimiter, false, bootstraps, dhtMessageHandler );
+    int port = extractPort( addressAndPort );
+
+    return std::make_shared<DefaultSession>( addressAndPort,
+                                             port,
+                                             keyPair,
+                                             alertHandler,
+                                             downloadLimiter,
+                                             false,
+                                             bootstraps,
+                                             dhtMessageHandler );
 }
 
 }

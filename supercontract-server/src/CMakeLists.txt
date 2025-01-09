@@ -2,9 +2,15 @@ cmake_minimum_required(VERSION 3.9)
 
 find_package(OpenSSL REQUIRED)
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GRPC REQUIRED grpc++)
+find_package(Protobuf REQUIRED)
+find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin PATHS /usr/bin /usr/local/bin)
+find_program(_PROTOBUF_PROTOC protoc)
+
 storage_sdk_library_target(supercontract-server)
 
-storage_sdk_proto(storageServer "")
+storage_sdk_proto(storageServer ${CMAKE_CURRENT_SOURCE_DIR} "")
 target_link_libraries(supercontract-server storageServer_sirius_grpc_proto)
 
 target_include_directories(supercontract-server PUBLIC ../include ../../include)

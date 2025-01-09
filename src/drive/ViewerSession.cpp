@@ -817,20 +817,20 @@ download_next_chunk:
     }
 };
 
-std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&        keyPair,
-                                                           const std::string&            address,
-                                                           const LibTorrentErrorHandler& errorHandler,
-                                                           const endpoint_list&          bootstraps,
-                                                           bool                          useTcpSocket, // instead of uTP
-                                                           const char*                   dbgClientName )
+std::shared_ptr<ViewerSession> createViewerSession( const crypto::KeyPair&                      keyPair,
+                                                           const std::string&                   address,
+                                                           const LibTorrentErrorHandler&        errorHandler,
+                                                           const std::vector<ReplicatorInfo>&   bootstraps,
+                                                           bool                                 useTcpSocket, // instead of uTP
+                                                           const char*                          dbgClientName )
 {
     std::shared_ptr<DefaultViewerSession> session = std::make_shared<DefaultViewerSession>( keyPair, dbgClientName );
-    session->m_session = createDefaultSession( address, keyPair, errorHandler, session, { ReplicatorInfo{bootstraps[0],{}}}, session );
-    session->m_session->lt_session().add_extension( std::dynamic_pointer_cast<lt::plugin>( session ) );
+    session->session() = createDefaultSession( address, keyPair, errorHandler, session, bootstraps, session );
+    session->session()->lt_session().add_extension( std::dynamic_pointer_cast<lt::plugin>( session ) );
     session->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     
     //TODO?
-    session->addDownloadChannel(Hash256{});
+    //session->addDownloadChannel(Hash256{});
 
     return session;
 }

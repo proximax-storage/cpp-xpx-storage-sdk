@@ -4,7 +4,7 @@ find_package(OpenSSL REQUIRED)
 
 storage_sdk_library_target(messenger-server)
 
-storage_sdk_proto(messengerServer "")
+storage_sdk_proto(messengerServer ${CMAKE_CURRENT_SOURCE_DIR} "")
 target_link_libraries(messenger-server messengerServer_sirius_grpc_proto)
 
 target_include_directories(messenger-server PUBLIC ../include ../../include)

@@ -773,6 +773,7 @@ public:
     virtual void                              resetCurrentModifyInfo() = 0;
 
     virtual const ModifyTrafficInfo*          findModifyInfo( const Hash256& tx, bool& outIsFinished ) = 0;
+    virtual void                              tryConnectPeer( const Hash256& tx, const boost::asio::ip::udp::endpoint& ) = 0;
 
     virtual void initiateManualModifications( mobj<InitiateModificationsRequest>&& request ) = 0;
 

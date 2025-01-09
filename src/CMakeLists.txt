@@ -13,6 +13,7 @@ add_subdirectory(model)
 add_subdirectory(net)
 add_subdirectory(utils)
 add_subdirectory(nodediscovery)
+add_subdirectory(easyloggingpp)
 
 if (DEFINED CPP_XPX_CHAIN)
    if(NOT WIN32)

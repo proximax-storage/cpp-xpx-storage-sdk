@@ -182,6 +182,10 @@ public:
         {
             replicatorsUploads.push_back( {key, bytes} );
         }
+
+		std::sort(replicatorsUploads.begin(), replicatorsUploads.end(),
+				  [](const auto& lhs, const auto& rhs)
+				  { return lhs.m_key < rhs.m_key; });
     }
 
     void approveCumulativeUploads( const Hash256& modificationId, const std::function<void()>& callback )

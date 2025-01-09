@@ -571,7 +571,7 @@ public:
                 channelInfoIt->second.m_dnReplicatorShard = *replicatorKeys;
             } else
             {
-                _LOG_ERR( "Unknown channel hash: " << *channelId );
+                _LOG_WARN( "Unknown channel hash: " << *channelId );
                 return;
             }
         } );
@@ -968,6 +968,10 @@ public:
             }
         }
 
+		std::sort(myOpinion.m_downloadLayout.begin(), myOpinion.m_downloadLayout.end(),
+				  [](const auto& lhs, const auto& rhs)
+				  { return lhs.m_key < rhs.m_key; });
+
         return myOpinion;
     }
 
@@ -1042,6 +1046,7 @@ public:
 
     bool createModificationStatus( const DriveKey&       driveKey,
                                    const Hash256&        modificationHash,
+                                   const boost::asio::ip::udp::endpoint& endpoint,
                                    std::ostringstream&   outOs,
                                    Signature&            outSignature,
                                    bool&                 outIsModificationFinished )
@@ -1058,6 +1063,10 @@ public:
 
         if ( auto driveIt = m_driveMap.find(driveKey.array()); driveIt != m_driveMap.end() )
         {
+            _LOG( "before tryConnectPeer" )
+            driveIt->second->tryConnectPeer( modificationHash, endpoint );
+            _LOG( "after tryConnectPeer" )
+
             auto* info = driveIt->second->findModifyInfo( modificationHash, outIsModificationFinished );
             if ( info != nullptr )
             {
@@ -1066,8 +1075,11 @@ public:
             }
         }
 
+        _LOG( "before crypto::Sign(1)" )
         auto str = outOs.str();
+        _LOG( "before crypto::Sign(2)" )
         crypto::Sign( m_keyPair, { utils::RawBuffer{ (const uint8_t*)str.c_str(), str.size() } }, outSignature);
+        _LOG( "after crypto::Sign(1)" )
         return isFound;
     }
 
@@ -1213,7 +1225,7 @@ public:
             shareDownloadOpinion( channelId, blockHash );
         } else
         {
-            _LOG_ERR( "channelId not found" );
+			_LOG_WARN( "channelId not found" );
         }
     }
 
@@ -1320,7 +1332,7 @@ public:
                 }
             } else
             {
-                _LOG_ERR( "channelId not found" );
+				_LOG_WARN( "channelId not found" );
             }
         } );//post
     }
@@ -1357,7 +1369,7 @@ public:
                 }
             } else
             {
-                _LOG_ERR( "channelId not found" );
+                _LOG_WARN( "channelId not found" );
             }
         } );//post
     }
@@ -2236,7 +2248,7 @@ public:
             std::ostringstream os( std::ios::binary );
             Signature responseSignature;
             bool isModificationFinished = false;
-            if ( ! createModificationStatus( driveKey, modifyTx, os, responseSignature, isModificationFinished ) )
+            if ( ! createModificationStatus( driveKey, modifyTx, source, os, responseSignature, isModificationFinished ) )
             {
                 response["r"]["not_found"] = "yes";
             }
@@ -2365,7 +2377,7 @@ public:
             m_session->startSearchPeerEndpoints( driveRequest.m_fullReplicatorList );
             m_session->addClientToLocalEndpointMap( driveRequest.m_client );
 
-            std::cout << "added virtualDrive " << driveKey;
+            _LOG( "added virtualDrive " << driveKey );
         } );//post
     }
 

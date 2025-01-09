@@ -32,6 +32,7 @@ protected:
     std::optional<lt_handle> m_sandboxFsTreeLtHandle;
 
     std::optional<lt_handle> m_downloadingLtHandle;
+    bool                     m_downloadingLtHandleIsConnected = false;
     std::optional<lt_handle> m_fsTreeOrActionListHandle;
 
     bool m_sandboxCalculated = false;
@@ -253,9 +254,12 @@ protected:
         m_sandboxFsTree->getUniqueFiles( files );
         for ( const auto& file: files )
         {
-            metaFilesSize += fs::file_size( m_drive.m_torrentFolder / toString(file) );
-            driveSize += fs::file_size( m_drive.m_driveFolder / toString(file) );
-        }
+			if ( fs::exists( m_drive.m_torrentFolder / toString(file) ) )
+			{
+				metaFilesSize += fs::file_size(m_drive.m_torrentFolder / toString(file));
+			}
+			driveSize += fs::file_size(m_drive.m_driveFolder / toString(file));
+		}
 
         driveSize += metaFilesSize;
 
@@ -276,7 +280,7 @@ protected:
     ReplicatorList getUploaders()
     {
         auto replicators = m_drive.getAllReplicators();
-        replicators.push_back( m_drive.m_driveOwner );
+        //replicators.push_back( m_drive.m_driveOwner );
         return replicators;
     }
 
@@ -359,6 +363,28 @@ protected:
             finishTaskAndRunNext();
         }
     }
+    
+    void connectPeer( lt_handle& ltHandle, const boost::asio::ip::udp::endpoint& endpoint )
+    {
+        auto status = ltHandle.status();
+        _LOG( "Task:tryConnectPeer: file: " << endpoint << " : "
+                                            << status.progress << "% : "
+                                            << status.total_payload_download << " : "
+                                            << status.save_path << " " << status.name );
+       ltHandle.connect_peer( boost::asio::ip::tcp::endpoint{ endpoint.address(), endpoint.port() } );
+    }
+    
+    virtual void tryConnectPeer( const Hash256&, const boost::asio::ip::udp::endpoint& endpoint ) override
+    {
+        DBG_MAIN_THREAD
+        
+        if ( m_downloadingLtHandle && !m_downloadingLtHandleIsConnected )
+        {
+            connectPeer( *m_downloadingLtHandle, endpoint );
+            m_downloadingLtHandleIsConnected = true;
+        }
+    }
+
 
 private:
 	virtual void updateOpinionUploads() {

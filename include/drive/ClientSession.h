@@ -218,20 +218,20 @@ public:
                                      std::error_code&       ec
                                    )
     {
-        for( const auto& key: replicatorKeys )
-        {
-            auto endpoint = m_session->getEndpoint( key );
-            if ( endpoint )
-            {
-                auto it = std::find_if( endpointList.begin(), endpointList.end(), [&endpoint] (const auto& item) {
-                    return item == endpoint;
-                });
-                if ( it == endpointList.end() )
-                {
-                    endpointList.push_back( *endpoint );
-                }
-            }
-        }
+//        for( const auto& key: replicatorKeys )
+//        {
+//            auto endpoint = m_session->getEndpoint( key );
+//            if ( endpoint )
+//            {
+//                auto it = std::find_if( endpointList.begin(), endpointList.end(), [&endpoint] (const auto& item) {
+//                    return item == endpoint;
+//                });
+//                if ( it == endpointList.end() )
+//                {
+//                    endpointList.push_back( *endpoint );
+//                }
+//            }
+//        }
 
         fs::path workFolder = sandboxFolder;
         fs::create_directories(workFolder.make_preferred(), ec );
@@ -463,6 +463,24 @@ public:
         }
     }
 
+    void modificationHasBeenRegistered( const sirius::drive::ReplicatorList& keys )
+    {
+        boost::asio::post(m_session->lt_session().get_context(), [keys=keys,this]() //mutable
+        {
+            if ( m_modifyTorrentMap.empty() )
+            {
+                __LOG( "m_modifyTorrentMap.empty()" )
+            }
+            else
+            {
+                for( auto& item : m_modifyTorrentMap )
+                {
+                    m_session->modificationHasBeenRegistered( item.second.m_ltHandle, keys );
+                }
+            }
+        });
+    }
+
     void addReplicatorList( const sirius::drive::ReplicatorList& keys )
     {
         m_session->startSearchPeerEndpoints( keys );
@@ -575,6 +593,7 @@ public:
         std::set<lt::torrent_handle>  torrents;
         for (const auto& hash : hashes) {
             if (m_modifyTorrentMap.contains(hash)) {
+                //__LOG("???? hash: " << toString(hash) )
                 torrents.insert( m_modifyTorrentMap[hash].m_ltHandle );
                 m_modifyTorrentMap.erase(hash);
             }
@@ -583,6 +602,7 @@ public:
         std::promise<void> barrier;
         boost::asio::post(m_session->lt_session().get_context(), [&torrents,&barrier,this]() //mutable
         {
+            //__LOG("???? torrents: " << torrents.size() )
             m_session->removeTorrentsFromSession( torrents, [&barrier] {
                 __LOG("???? barrier.set_value();")
                 barrier.set_value();
@@ -1151,7 +1171,7 @@ private:
     friend std::shared_ptr<ClientSession>     createClientSession( const crypto::KeyPair&,
                                                                    const std::string&,
                                                                    const LibTorrentErrorHandler&,
-                                                                   const endpoint_list&,
+                                                                   const std::vector<ReplicatorInfo>&,
                                                                    bool,
                                                                    const char* );
 
@@ -1165,29 +1185,29 @@ private:
     friend PLUGIN_API std::shared_ptr<ViewerSession> createViewerSession(  const crypto::KeyPair&,
                                                                            const std::string&,
                                                                            const LibTorrentErrorHandler&,
-                                                                           const endpoint_list&,
+                                                                           const std::vector<ReplicatorInfo>&,
                                                                            bool,
                                                                            const char* );
 
 public:
-    auto session() { return m_session; }
+    auto& session() { return m_session; }
 };
 
 // ClientSession creator
-inline std::shared_ptr<ClientSession> createClientSession(  const crypto::KeyPair&        keyPair,
-                                                            const std::string&            address,
-                                                            const LibTorrentErrorHandler& errorHandler,
-                                                            const endpoint_list&          bootstraps,
-                                                            bool                          useTcpSocket, // instead of uTP
-                                                            const char*                   dbgClientName = "" )
+inline std::shared_ptr<ClientSession> createClientSession(  const crypto::KeyPair&                  keyPair,
+                                                            const std::string&                      address,
+                                                            const LibTorrentErrorHandler&           errorHandler,
+                                                            const std::vector<ReplicatorInfo>&      bootstraps,
+                                                            bool                                    useTcpSocket, // instead of uTP
+                                                            const char*                             dbgClientName = "" )
 {
     //LOG( "creating: " << dbgClientName << " with key: " <<  int(keyPair.publicKey().array()[0]) )
 
     std::shared_ptr<ClientSession> clientSession = std::make_shared<ClientSession>( keyPair, dbgClientName );
-    clientSession->m_session = createDefaultSession( address, keyPair, errorHandler, clientSession, { ReplicatorInfo{bootstraps[0],{}}}, {} );
+    clientSession->session() = createDefaultSession( address, keyPair, errorHandler, clientSession, bootstraps, {} );
     clientSession->session()->lt_session().m_dbgOurPeerName = dbgClientName;
     //TODO?
-    clientSession->addDownloadChannel(Hash256{});
+    //clientSession->addDownloadChannel(Hash256{});
     return clientSession;
 }
 

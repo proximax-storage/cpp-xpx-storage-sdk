@@ -100,7 +100,7 @@ struct DownloadContext {
 
             if ( (m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty() )
             {
-                _LOG_ERR("(m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty()")
+                std::cerr << "(m_downloadType == fs_tree || m_downloadType == client_data) && !m_saveAs.empty()\n";
             }
   
 // it is not true for catching-up
@@ -220,6 +220,9 @@ public:
     virtual Timer     startTimer( int milliseconds, std::function<void()> func ) = 0;
 
     virtual void      connectTorentsToEndpoint( const boost::asio::ip::udp::endpoint& endpoint ) = 0;
+    
+    virtual void      modificationHasBeenRegistered( Session::lt_handle, const ReplicatorList& keys ) = 0;
+
 
     // for testing and debugging
     virtual void      dbgPrintActiveTorrents() = 0;

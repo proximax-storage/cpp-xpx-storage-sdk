@@ -291,6 +291,11 @@ public:
 
         return false;
     }
+    
+    virtual void tryConnectPeer( const Hash256& tx, const boost::asio::ip::udp::endpoint& endpoint )
+    {
+        DBG_MAIN_THREAD
+    }
 
 protected:
 

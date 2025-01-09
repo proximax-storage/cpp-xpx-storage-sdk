@@ -20,6 +20,7 @@
 
 #pragma once
 #include "PathUtils.h"
+#ifndef WA_APP
 #include <boost/log/attributes/constant.hpp>
 #include <boost/log/core.hpp>
 #include <boost/log/detail/light_rw_mutex.hpp>
@@ -39,30 +40,30 @@ namespace sirius { namespace utils {
 
 	/// Catapult log levels.
 	enum class LogLevel {
-		/// Level for logging trace events.
-		Trace = boost::log::trivial::trace,
+        /// Level for logging trace events.
+        Trace = boost::log::trivial::trace,
 
-		/// Level for logging debug events.
-		Debug = boost::log::trivial::debug,
+        /// Level for logging debug events.
+        Debug = boost::log::trivial::debug,
 
-		/// Level for logging informational events.
-		Info = boost::log::trivial::info,
+        /// Level for logging informational events.
+        Info = boost::log::trivial::info,
 
-		/// Level for logging warning events.
-		Warning = boost::log::trivial::warning,
+        /// Level for logging warning events.
+        Warning = boost::log::trivial::warning,
 
-		/// Level for logging error events.
-		Error = boost::log::trivial::error,
+        /// Level for logging error events.
+        Error = boost::log::trivial::error,
 
-		/// Level for logging fatal events.
-		Fatal = boost::log::trivial::fatal,
+        /// Level for logging fatal events.
+        Fatal = boost::log::trivial::fatal,
 
-		/// Minimum log level.
-		Min = Trace,
+        /// Minimum log level.
+        Min = Trace,
 
-		/// Maximum log level.
-		Max = Fatal,
-	};
+        /// Maximum log level.
+        Max = Fatal,
+    };
 
 	// endregion
 
@@ -332,6 +333,8 @@ namespace sirius { namespace utils {
 
 	// endregion
 }}
+#else
+#endif // WA_APP
 
 #define CATAPULT_LOG_WITH_LOGGER_LEVEL_TAG(LOGGER, LEVEL, TAG) \
 	BOOST_LOG_STREAM_WITH_PARAMS(\
@@ -350,7 +353,13 @@ namespace sirius { namespace utils {
 	CATAPULT_LOG_WITH_LOGGER_LEVEL(::sirius::utils::log::global_logger::get(), LEVEL)
 
 /// Writes a log entry to the default logger with \a SEV severity.
+#ifdef WA_APP
+#include <QDebug>
+//#define CATAPULT_LOG(SEV) std::cout
+#define CATAPULT_LOG(SEV) qDebug()
+#else
 #define CATAPULT_LOG(SEV) \
 	CATAPULT_LOG_WITH_LOGGER_LEVEL(\
 			::sirius::utils::log::global_logger::get(), \
 			(static_cast<::sirius::utils::LogLevel>(boost::log::trivial::SEV)))
+#endif
