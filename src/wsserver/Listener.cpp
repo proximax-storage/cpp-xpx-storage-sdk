@@ -66,7 +66,7 @@ void Listener::onAccept(boost::beast::error_code ec, boost::asio::ip::tcp::socke
 		{
 			auto sessionId = pThis->m_uuidGenerator();
             auto callback = [pThis](const boost::uuids::uuid& id){ pThis->removeSession(id); };
-			auto newSession = std::make_shared<Session>(sessionId,
+			auto newSession = std::make_shared<WsSession>(sessionId,
                                                         pThis->m_keyPair,
                                                         pThis->m_ioCtx,
                                                         std::move(pSocket),

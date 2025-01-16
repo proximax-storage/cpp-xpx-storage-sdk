@@ -13,15 +13,19 @@ int main(int argc, char* argv[])
             "    websocket-server-async 0.0.0.0 8080 1\n";
         return EXIT_FAILURE;
     }
-    auto const address = net::ip::make_address(argv[1]);
+    auto const address = boost::asio::ip::make_address(argv[1]);
     auto const port = static_cast<unsigned short>(std::atoi(argv[2]));
     auto const threads = std::max<int>(1, std::atoi(argv[3]));
 
     // The io_context is required for all I/O
-    net::io_context ioc{threads};
+	boost::asio::io_context ioc{threads};
+
+	const auto keyPair = sirius::crypto::KeyPair::FromString("7BF479B4D79F5752E6BCCE859D2D4731D898A9B16E90E6D479DF13CE15B8CD42");
 
     // Create and launch a listening port
-    std::make_shared<sirius::wsserver::Listener>(ioc, tcp::endpoint{address, port})->run();
+    auto listener = std::make_shared<sirius::wsserver::Listener>(ioc, keyPair, "./storage_data");
+	listener->init(boost::asio::ip::tcp::endpoint{address, port});
+	listener->run();
 
     // Run the I/O service on the requested number of threads
     std::vector<std::thread> v;

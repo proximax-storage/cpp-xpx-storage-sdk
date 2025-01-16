@@ -140,8 +140,7 @@ public:
                    const LibTorrentErrorHandler&        alertHandler,
                    std::weak_ptr<ReplicatorInt>         replicator,
                    std::weak_ptr<lt::session_delegate>  downloadLimiter,
-                   const std::vector<ReplicatorInfo>&   bootstraps,
-                   std::promise<void>&&                 bootstrapBarrier
+                   const std::vector<ReplicatorInfo>&   bootstraps
                    )
     : 
     TcpServer( context, "0.0.0.0", std::to_string(port) )
@@ -2001,8 +2000,7 @@ std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&         
                                                const LibTorrentErrorHandler&        alertHandler,
                                                std::weak_ptr<ReplicatorInt>         replicator,
                                                std::weak_ptr<lt::session_delegate>  downloadLimiter,
-                                               const std::vector<ReplicatorInfo>&   bootstraps,
-                                               std::promise<void>&&                 bootstrapBarrier )
+                                               const std::vector<ReplicatorInfo>&   bootstraps )
 {
     int port = extractPort( addressAndPort );
 
@@ -2012,8 +2010,7 @@ std::shared_ptr<Session> createDefaultSession( boost::asio::io_context&         
                                             alertHandler,
                                             replicator,
                                             downloadLimiter,
-                                            bootstraps,
-                                            std::move(bootstrapBarrier) );
+                                            bootstraps );
 }
 
 //

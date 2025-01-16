@@ -256,7 +256,7 @@ public:
 #endif
                                           } );
         m_dbgThreadId = m_libtorrentThread.get_id();
-        _LOG( "m_dbgThreadId 1234 = " << m_dbgThreadId )
+        _LOG( "m_libtorrentThread ID = " << m_dbgThreadId )
 
         boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
         {

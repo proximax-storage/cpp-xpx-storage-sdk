@@ -3,7 +3,7 @@
 
 #include "plugins.h"
 #include "drive/log.h"
-#include "wsserver/Session.h"
+#include "wsserver/WsSession.h"
 #include "crypto/KeyPair.h"
 
 #include <boost/uuid/uuid.hpp>
@@ -60,7 +60,7 @@ class PLUGIN_API Listener : public std::enable_shared_from_this<Listener>
 		boost::asio::io_context::strand m_strand;
 		boost::uuids::random_generator m_uuidGenerator;
         std::filesystem::path m_storageDirectory;
-		std::map<boost::uuids::uuid, std::shared_ptr<Session>> m_sessions;
+		std::map<boost::uuids::uuid, std::shared_ptr<WsSession>> m_sessions;
         std::function<void(boost::property_tree::ptree data, std::function<void(boost::property_tree::ptree fsTreeJson)> callback)> m_fsTreeHandler;
 };
 };

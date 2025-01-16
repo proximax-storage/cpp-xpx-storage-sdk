@@ -45,8 +45,8 @@ public:
                 iarchive( address );
                 std::string  port;
                 iarchive( port );
-				std::string  wsPort;
-				iarchive( wsPort );
+                std::string  wsPort;
+                iarchive( wsPort );
                 std::string  storageDirectory;
                 iarchive( storageDirectory );
                 std::string  logOptions;
@@ -73,7 +73,7 @@ public:
                                      *m_keyPair,
                                      address,
                                      port,
-									 wsPort,
+                                     wsPort,
                                      storageDirectory,
                                      bootstraps,
                                      false, // use TCP socket (instead of uTP)

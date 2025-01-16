@@ -1,4 +1,4 @@
-#include "wsserver/Session.h"
+#include "wsserver/WsSession.h"
 #include "wsserver/Message.h"
 #include "crypto/Signer.h"
 #include "crypto/Hashes.h"
@@ -10,7 +10,6 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 
-#include <openssl/rand.h>
 #include <openssl/evp.h>
 #include <openssl/ossl_typ.h>
 #include <openssl/ec.h>
@@ -30,7 +29,7 @@
 namespace sirius::wsserver
 {
 
-Session::Session(const boost::uuids::uuid& uuid,
+	WsSession::WsSession(const boost::uuids::uuid& uuid,
                  const sirius::crypto::KeyPair& keyPair,
 				 boost::asio::io_context& ioCtx,
                  boost::asio::ip::tcp::socket&& socket,
@@ -48,7 +47,7 @@ Session::Session(const boost::uuids::uuid& uuid,
     , m_keyPair(keyPair)
 {}
 
-void Session::run()
+void WsSession::run()
 {
     std::error_code ec;
     std::filesystem::create_directories(m_storageDirectory, ec);
@@ -74,7 +73,7 @@ void Session::run()
     });
 }
 
-void Session::onAccept(boost::beast::error_code ec)
+void WsSession::onAccept(boost::beast::error_code ec)
 {
     boost::asio::post(m_networkStrand, [pThis = shared_from_this(), ec]()
     {
@@ -134,7 +133,7 @@ void Session::onAccept(boost::beast::error_code ec)
     });
 }
 
-void Session::doRead()
+void WsSession::doRead()
 {
     boost::asio::post(m_networkStrand, [pThis = shared_from_this()]()
     {
@@ -145,7 +144,7 @@ void Session::doRead()
     });
 }
 
-void Session::onRead(boost::beast::error_code ec, std::size_t)
+void WsSession::onRead(boost::beast::error_code ec, std::size_t)
 {
 	if (ec == boost::beast::websocket::error::closed || ec == boost::asio::stream_errc::eof || ec == boost::asio::error::not_connected)
 	{
@@ -236,7 +235,7 @@ void Session::onRead(boost::beast::error_code ec, std::size_t)
 	}
 }
 
-void Session::onWrite(boost::beast::error_code ec, std::size_t bytes_transferred)
+void WsSession::onWrite(boost::beast::error_code ec, std::size_t bytes_transferred)
 {
 	boost::ignore_unused(bytes_transferred);
 	if (ec)
@@ -245,7 +244,7 @@ void Session::onWrite(boost::beast::error_code ec, std::size_t bytes_transferred
 	}
 }
 
-void Session::doClose()
+void WsSession::doClose()
 {
     boost::asio::post(m_networkStrand, [pThis = shared_from_this()]()
     {
@@ -256,7 +255,7 @@ void Session::doClose()
     });
 }
 
-void Session::doClose(ServerErrorCode code, const std::string& message)
+void WsSession::doClose(ServerErrorCode code, const std::string& message)
 {
     auto closeMessage = generateBasicPayload(generateMessageId(), Type::FAILURE);
     closeMessage->put("message", message);
@@ -285,7 +284,7 @@ void Session::doClose(ServerErrorCode code, const std::string& message)
     doClose();
 }
 
-void Session::onClose(boost::beast::error_code ec)
+void WsSession::onClose(boost::beast::error_code ec)
 {
 	if (ec)
 	{
@@ -297,7 +296,7 @@ void Session::onClose(boost::beast::error_code ec)
 	}
 }
 
-void Session::keyExchange(std::shared_ptr<boost::property_tree::ptree> json)
+void WsSession::keyExchange(std::shared_ptr<boost::property_tree::ptree> json)
 {
     const auto inboundPayload = json->get_optional<std::string>("payload");
     if (!inboundPayload.has_value() || inboundPayload.value().empty())
@@ -428,7 +427,7 @@ void Session::keyExchange(std::shared_ptr<boost::property_tree::ptree> json)
     doRead();
 }
 
-void Session::sendMessage(std::shared_ptr<boost::property_tree::ptree> json)
+void WsSession::sendMessage(std::shared_ptr<boost::property_tree::ptree> json)
 {
     boost::asio::post(m_networkStrand, [pThis = shared_from_this(), json]()
     {
@@ -447,7 +446,7 @@ void Session::sendMessage(std::shared_ptr<boost::property_tree::ptree> json)
     });
 }
 
-void Session::recvData(std::shared_ptr<boost::property_tree::ptree> json)
+void WsSession::recvData(std::shared_ptr<boost::property_tree::ptree> json)
 {
 	auto uid = json->get<std::string>("uid");
 	m_recvDirectory[uid] = "saved-data/" + json->get<std::string>("drive") + json->get<std::string>("directory");
@@ -484,7 +483,7 @@ void Session::recvData(std::shared_ptr<boost::property_tree::ptree> json)
 	//doRead();
 }
 
-void Session::recvDataChunk(std::shared_ptr<boost::property_tree::ptree> json)
+void WsSession::recvDataChunk(std::shared_ptr<boost::property_tree::ptree> json)
 {
 	auto uid = json->get<std::string>("uid");
 
@@ -542,7 +541,7 @@ void Session::recvDataChunk(std::shared_ptr<boost::property_tree::ptree> json)
 	//doRead();
 }
 
-void Session::sendData(std::shared_ptr<boost::property_tree::ptree> json)
+void WsSession::sendData(std::shared_ptr<boost::property_tree::ptree> json)
 {
 	auto fileName = json->get<std::string>("fileName");
 	std::string filePath = "get-data/" + json->get<std::string>("drive") + json->get<std::string>("directory") + fileName;
@@ -643,7 +642,7 @@ void Session::sendData(std::shared_ptr<boost::property_tree::ptree> json)
     });
 }
 
-void Session::sendDataAck(std::shared_ptr<boost::property_tree::ptree> json)
+void WsSession::sendDataAck(std::shared_ptr<boost::property_tree::ptree> json)
 {
 	const auto uid = json->get<std::string>("uid");
 	auto it = m_sendNumOfDataPieces.find(uid);
@@ -661,7 +660,7 @@ void Session::sendDataAck(std::shared_ptr<boost::property_tree::ptree> json)
 	}
 }
 
-void Session::deleteData(std::shared_ptr<boost::property_tree::ptree> json)
+void WsSession::deleteData(std::shared_ptr<boost::property_tree::ptree> json)
 {
 	std::string deleteFilePath = "saved-data/" + json->get<std::string>("drive") +
 								 json->get<std::string>("directory") + json->get<std::string>("fileName");
@@ -692,7 +691,7 @@ void Session::deleteData(std::shared_ptr<boost::property_tree::ptree> json)
     //doRead();
 };
 
-void Session::broadcastToAll(std::shared_ptr<boost::property_tree::ptree> json)
+void WsSession::broadcastToAll(std::shared_ptr<boost::property_tree::ptree> json)
 {
 //	for (const auto& session : incoming_sessions)
 //	{
@@ -700,7 +699,7 @@ void Session::broadcastToAll(std::shared_ptr<boost::property_tree::ptree> json)
 //	}
 }
 
-void Session::requestToAll(std::shared_ptr<boost::property_tree::ptree> json)
+void WsSession::requestToAll(std::shared_ptr<boost::property_tree::ptree> json)
 {
 //	for (const auto& session : incoming_sessions)
 //	{
@@ -709,7 +708,7 @@ void Session::requestToAll(std::shared_ptr<boost::property_tree::ptree> json)
 //	}
 }
 
-void Session::sendChunk(const uint64_t chunkIndex,
+void WsSession::sendChunk(const uint64_t chunkIndex,
 						const std::string& driveKey,
 						const std::string& fileHash,
 						const std::string& chunkHash,
@@ -741,7 +740,7 @@ void Session::sendChunk(const uint64_t chunkIndex,
 	sendMessage(finalMessage);
 }
 
-void Session::sendFileDescription(const std::string& responseId,
+void WsSession::sendFileDescription(const std::string& responseId,
 								  const std::string& driveKey,
 								  const std::string& fileHash,
 								  int chunkSize,
@@ -772,7 +771,7 @@ void Session::sendFileDescription(const std::string& responseId,
 	sendMessage(finalMessage);
 }
 
-void Session::handleUploadDataStartRequest(std::shared_ptr<boost::property_tree::ptree> json)
+void WsSession::handleUploadDataStartRequest(std::shared_ptr<boost::property_tree::ptree> json)
 {
     __LOG( "Session::handleUploadDataStartRequest:::Session ID: " << to_string(m_id) )
     if (!validateUploadDataStartRequest(json))
@@ -858,7 +857,7 @@ void Session::handleUploadDataStartRequest(std::shared_ptr<boost::property_tree:
     sendMessage(finalMessage);
 }
 
-void Session::handleUploadDataRequest(std::shared_ptr<boost::property_tree::ptree> json)
+void WsSession::handleUploadDataRequest(std::shared_ptr<boost::property_tree::ptree> json)
 {
     __LOG( "Session::handleUploadDataRequest:::Session ID: " << to_string(m_id) )
     if (!validateUploadDataRequest(json))
@@ -920,19 +919,19 @@ void Session::handleUploadDataRequest(std::shared_ptr<boost::property_tree::ptre
     sendMessage(finalMessage);
 }
 
-long Session::getCurrentTimestamp()
+long WsSession::getCurrentTimestamp()
 {
     auto now = std::chrono::system_clock::now();
     return std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
 }
 
-std::string Session::generateMessageId()
+std::string WsSession::generateMessageId()
 {
     const auto messageId = m_uuidGenerator();
     return to_string(messageId);
 }
 
-bool Session::isValidUUIDv4(const std::string& uuid)
+bool WsSession::isValidUUIDv4(const std::string& uuid)
 {
     bool result = false;
     try
@@ -956,7 +955,7 @@ bool Session::isValidUUIDv4(const std::string& uuid)
     return result;
 }
 
-bool Session::validateUploadDataStartRequest(std::shared_ptr<boost::property_tree::ptree> json)
+bool WsSession::validateUploadDataStartRequest(std::shared_ptr<boost::property_tree::ptree> json)
 {
     // TODO: add all fields and check value
     return  json->get_optional<uint64_t>("size") &&
@@ -965,7 +964,7 @@ bool Session::validateUploadDataStartRequest(std::shared_ptr<boost::property_tre
             json->get_optional<std::string>("name");
 }
 
-bool Session::validateUploadDataRequest(std::shared_ptr<boost::property_tree::ptree> json)
+bool WsSession::validateUploadDataRequest(std::shared_ptr<boost::property_tree::ptree> json)
 {
     // TODO: add all fields and check value
     return  json->get_optional<uint64_t>("chunkIndex") &&
@@ -974,7 +973,7 @@ bool Session::validateUploadDataRequest(std::shared_ptr<boost::property_tree::pt
             json->get_optional<std::string>("data");
 }
 
-void Session::handlePayload(std::shared_ptr<boost::property_tree::ptree> json)
+void WsSession::handlePayload(std::shared_ptr<boost::property_tree::ptree> json)
 {
 	__LOG( "Session::handleJson:::Session ID: " << to_string(m_id) )
 
@@ -1273,7 +1272,7 @@ void Session::handlePayload(std::shared_ptr<boost::property_tree::ptree> json)
 	}
 }
 
-void Session::generateSessionKeyPair(const std::string& inSessionPublicKey, std::string& outSessionPublicKey)
+void WsSession::generateSessionKeyPair(const std::string& inSessionPublicKey, std::string& outSessionPublicKey)
 {
     EC_KEY* serverSessionKeys = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
     if (EC_KEY_generate_key(serverSessionKeys) != 1)
@@ -1328,7 +1327,7 @@ void Session::generateSessionKeyPair(const std::string& inSessionPublicKey, std:
     EC_KEY_free(ecKeyClientSession);
 }
 
-std::shared_ptr<boost::property_tree::ptree> Session::generateBasicPayload(const std::string& id, Type type)
+std::shared_ptr<boost::property_tree::ptree> WsSession::generateBasicPayload(const std::string& id, Type type)
 {
     auto payload = std::make_shared<boost::property_tree::ptree>(); // !!!!! check filed names
     payload->put("id", id);
@@ -1338,7 +1337,7 @@ std::shared_ptr<boost::property_tree::ptree> Session::generateBasicPayload(const
     return payload;
 }
 
-std::shared_ptr<boost::property_tree::ptree> Session::generateFinalMessage(const EncryptionResult& encryptedData)
+std::shared_ptr<boost::property_tree::ptree> WsSession::generateFinalMessage(const EncryptionResult& encryptedData)
 {
     auto finalMessage = std::make_shared<boost::property_tree::ptree>();
     finalMessage->put("payload", base64_encode(encryptedData.cipherData));

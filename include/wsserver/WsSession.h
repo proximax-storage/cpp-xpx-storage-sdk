@@ -34,17 +34,17 @@ namespace sirius::wsserver
 
 #define FILE_CHUNK_SIZE 1024 * 1024;
 
-class Session : public std::enable_shared_from_this<Session>
+class WsSession : public std::enable_shared_from_this<WsSession>
 {
 	public:
-		explicit Session(const boost::uuids::uuid& uuid,
+		explicit WsSession(const boost::uuids::uuid& uuid,
                          const sirius::crypto::KeyPair& keyPair,
 						 boost::asio::io_context& ioCtx,
                          boost::asio::ip::tcp::socket&& socket,
                          std::filesystem::path& storageDirectory,
                          std::function<void(boost::property_tree::ptree data, std::function<void(boost::property_tree::ptree fsTreeJson)> callback)> fsTreeHandler,
                          std::function<void(const boost::uuids::uuid& id)> remover);
-		~Session() = default;
+		~WsSession() = default;
 
 	public:
 		void run();

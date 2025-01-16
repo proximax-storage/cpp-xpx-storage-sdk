@@ -823,7 +823,7 @@ public:
 
     virtual void getFilesystem( const FilesystemRequest& request ) = 0;
 
-	virtual void getFsTreeAsJson( boost::property_tree::ptree& jsonTree ) = 0;
+    virtual void getFsTreeAsJson( boost::property_tree::ptree& jsonTree ) = 0;
 
     virtual void startDriveClosing( mobj<DriveClosureRequest>&& request ) = 0;
 
