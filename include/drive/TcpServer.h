@@ -70,10 +70,10 @@ public:
         archive( uint16_t(replayId) );
         archive( replay );
         
-        assert( os->rdbuf()->view().size() > 2 );
-        assert( os->rdbuf()->view().size() < 0xFFFF );
+        assert( os->rdbuf()->str().size() > 2 );
+        assert( os->rdbuf()->str().size() < 0xFFFF );
         
-        uint16_t size = (uint16_t) os->rdbuf()->view().size();
+        uint16_t size = (uint16_t) os->rdbuf()->str().size();
         _LOG( "#TcpClientSession: sendReply: " << size );
         
         if ( size == 0 )
@@ -82,7 +82,7 @@ public:
             return;
         }
         
-        auto buffer = (uint8_t*)os->rdbuf()->view().data();
+        auto buffer = (uint8_t*)os->rdbuf()->str().data();
         buffer[0] = size&0x00FF;
         buffer[1] = (size&0xFF00) >> 8;
         
