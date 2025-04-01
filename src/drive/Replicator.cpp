@@ -291,7 +291,7 @@ public:
 		const auto rawPort = boost::lexical_cast<unsigned short>(m_wsPort);
 		const auto wsEndpoint = boost::asio::ip::tcp::endpoint{ address, rawPort };
 #endif
-		auto fsTreeHandler = [this](boost::property_tree::ptree data, std::function<void(boost::property_tree::ptree fsTreeJson)> callback)
+		[[maybe_unused]] auto fsTreeHandler = [this](boost::property_tree::ptree data, std::function<void(boost::property_tree::ptree fsTreeJson)> callback)
 		{
 			for (const auto& fsTreeInfo : data)
 			{
@@ -338,7 +338,7 @@ public:
 						boost::property_tree::ptree pTree;
 						driveIt->second->getFsTreeAsJson(pTree);
 
-						boost::asio::post( m_wsServerContext, [this, callback, pTree]()
+						boost::asio::post( m_wsServerContext, [callback, pTree]()
 						{
 							callback(pTree);
 						});
@@ -395,7 +395,7 @@ public:
 
 		const unsigned int threadsAmount = std::thread::hardware_concurrency();
 		m_wsThreads.reserve(threadsAmount);
-		for (int i = 0; i < threadsAmount; ++i)
+		for (int i = 0; i < int(threadsAmount); ++i)
 		{
 			m_wsThreads.emplace_back([pThis = shared_from_this()]{ pThis->m_wsServerContext.run(); });
 		}

@@ -575,7 +575,7 @@ public:
         else
         {
             //_LOG( "+++ ex :remove_torrent(33) torrents: " << torrents.size() );
-            for( const auto& torrentHandle : torrents )
+            for( [[maybe_unused]] const auto& torrentHandle : torrents )
             {
                 //                if ( torrentHandle.status().state > 2 )
                 //                {

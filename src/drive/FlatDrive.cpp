@@ -1281,7 +1281,7 @@ public:
         request.m_callback( FilesystemResponse{std::move( fsTree )} );
     }
 
-	void getFsTreeAsJson( boost::property_tree::ptree& jsonTree )
+    void getFsTreeAsJson( boost::property_tree::ptree& jsonTree ) override
 	{
 		// TODO: Add json validator
 		std::function<void(const sirius::drive::Folder& folder, boost::property_tree::ptree& pTree)> readFolder = [&readFolder]
