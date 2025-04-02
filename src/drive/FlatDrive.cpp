@@ -1368,6 +1368,21 @@ public:
 
         return {};
     }
+
+    virtual void        wscAddModification( std::array<uint8_t,32>  modificationId,
+                                            std::function<void()>   onModificationStarted ) override
+    {
+
+    }
+
+    virtual void        wscModificationFiles( std::array<uint8_t,32>    modificationId,
+                                              std::filesystem::path     actionListPath,
+                                              std::filesystem::path     folderWithFiles,
+                                              std::function<void()>     onModificationFilesCouldBeRemoved ) override
+    {
+
+    }
+
     //-----------------------------------------------------------------------------
     
     virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList ) override

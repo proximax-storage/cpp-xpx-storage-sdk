@@ -887,7 +887,16 @@ public:
     virtual std::optional<DriveTaskType> getDriveStatus( const std::array<uint8_t,32>& interectedTaskTx, bool& outIsTaskQueued ) = 0;
 
     virtual std::string getStreamStatus() = 0;
-    
+
+    virtual void        wscAddModification( std::array<uint8_t,32>  modificationId,
+                                            std::function<void()>   onModificationStarted ) = 0;
+
+    virtual void        wscModificationFiles( std::array<uint8_t,32>    modificationId,
+                                              std::filesystem::path     actionListPath,
+                                              std::filesystem::path     folderWithFiles,
+                                              std::function<void()>     onModificationFilesCouldBeRemoved ) = 0;
+
+
     virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList ) {}
 
 };

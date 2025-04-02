@@ -3068,6 +3068,65 @@ public:
         } );
     }
 
+    virtual void        wscAddModification( const DriveKey&         driveKey,
+                                            std::array<uint8_t,32>  modificationId,
+                                            std::function<void()>   onModificationStarted ) override
+    {
+        _FUNC_ENTRY
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( m_isDestructing )
+            {
+                return;
+            }
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                return;
+            }
+
+            driveIt->second->wscAddModification( modificationId, onModificationStarted );
+
+        } );
+    }
+
+    virtual void        wscModificationFiles( const DriveKey&           driveKey,
+                                              std::array<uint8_t,32>    modificationId,
+                                              std::filesystem::path     actionListPath,
+                                              std::filesystem::path     folderWithFiles,
+                                              std::function<void()>     onModificationFilesCouldBeRemoved ) override
+    {
+        _FUNC_ENTRY
+
+        boost::asio::post( m_session->lt_session().get_context(), [=, this]() mutable
+        {
+            DBG_MAIN_THREAD
+
+            if ( m_isDestructing )
+            {
+                return;
+            }
+
+            auto driveIt = m_driveMap.find( driveKey );
+
+            if ( driveIt == m_driveMap.end())
+            {
+                return;
+            }
+
+            driveIt->second->wscModificationFiles( modificationId,
+                                           actionListPath,
+                                           folderWithFiles,
+                                           onModificationFilesCouldBeRemoved );
+
+        } );
+    }
+
 #ifndef SKIP_GRPC
     void setServiceAddress( const std::string& address ) override {
         m_serviceServerAddress = address;

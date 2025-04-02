@@ -363,6 +363,29 @@ public:
 
     virtual void        shutdownReplicator() = 0;
 
+    //
+    // Support of ws client/server modification
+    //
+
+    /* When the replicator has received modification tx (from block-chain)
+     it starts modification task that downloads the files that needed to accomplish the modification.
+     But the files could not be uploaded because ws-client does not have libtorrent.
+     So, ws-server must call 'wscAddModification()' with 'onModificationStarted' callback.
+     After call of 'onModificationStarted()',
+     ws-server must calls 'wscModificationFiles( actionListPath, folderWithFiles )'.
+     (Note, in general wscAddModification() may be called before ws-server has received all needed files.)
+    */
+    virtual void        wscAddModification( const DriveKey&         driveKey,
+                                            std::array<uint8_t,32>  modificationId,
+                                            std::function<void()>   onModificationStarted ) = 0;
+
+    virtual void        wscModificationFiles( const DriveKey&           driveKey,
+                                              std::array<uint8_t,32>    modificationId,
+                                              std::filesystem::path     actionListPath,
+                                              std::filesystem::path     folderWithFiles,
+                                              std::function<void()>     onModificationFilesCouldBeRemoved ) = 0;
+
+
     // For RPC support
     virtual bool        isConnectionLost() const { return false; };
     
