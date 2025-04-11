@@ -377,13 +377,13 @@ public:
     */
     virtual void        wscAddModification( const DriveKey&         driveKey,
                                             std::array<uint8_t,32>  modificationId,
-                                            std::function<void()>   onModificationStarted ) = 0;
+                                            std::function<void()>   onModificationStarted ) {};
 
     virtual void        wscModificationFiles( const DriveKey&           driveKey,
                                               std::array<uint8_t,32>    modificationId,
                                               std::filesystem::path     actionListPath,
                                               std::filesystem::path     folderWithFiles,
-                                              std::function<void()>     onModificationFilesCouldBeRemoved ) = 0;
+                                              std::function<void(bool)> onModificationFilesCouldBeRemoved ) {};
 
 
     // For RPC support

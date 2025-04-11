@@ -3099,7 +3099,7 @@ public:
                                               std::array<uint8_t,32>    modificationId,
                                               std::filesystem::path     actionListPath,
                                               std::filesystem::path     folderWithFiles,
-                                              std::function<void()>     onModificationFilesCouldBeRemoved ) override
+                                              std::function<void(bool)> onModificationFilesCouldBeRemoved ) override
     {
         _FUNC_ENTRY
 

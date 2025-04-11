@@ -894,7 +894,7 @@ public:
     virtual void        wscModificationFiles( std::array<uint8_t,32>    modificationId,
                                               std::filesystem::path     actionListPath,
                                               std::filesystem::path     folderWithFiles,
-                                              std::function<void()>     onModificationFilesCouldBeRemoved ) = 0;
+                                              std::function<void(bool)> onModificationFilesCouldBeRemoved ) = 0;
 
 
     virtual void dbgTestKademlia2( ReplicatorList& outReplicatorList ) {}

@@ -8,8 +8,8 @@ file(GLOB SOURCES ../../src/drive/*.cpp)
 find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 REQUIRED)
 
-#add_executable(wsTest streamExample.cpp ${SOURCES})
-add_executable(wsTest offchainTest.cpp ${SOURCES})
+add_executable(wsTest modifyDriveFlat3.cpp ${SOURCES})
+#add_executable(wsTest offchainTest.cpp ${SOURCES})
 
 #configure_file( ${CMAKE_CURRENT_SOURCE_DIR}../../../js-xpx-streaming-app/client/player.html
 #        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/js/player.html COPYONLY)

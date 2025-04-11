@@ -249,6 +249,8 @@ public:
     using OldModifications = std::deque< std::pair< std::array<uint8_t,32>, ModifyTrafficInfo >>;
     OldModifications    m_oldModifications;
     
+    std::map<std::array<uint8_t,32>,std::function<void()>> m_wscModifications;
+
     // key - streamTx, value - playlist-InfoHash
     using StreamMap = std::map<Hash256,InfoHash>;
     StreamMap m_streamMap;

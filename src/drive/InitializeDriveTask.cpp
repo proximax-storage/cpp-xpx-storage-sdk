@@ -296,6 +296,7 @@ private:
 						createTorrentFile( m_drive.m_driveFolder / fileName,
 										  m_drive.m_driveKey.array(),
 										  m_drive.m_driveFolder,
+                                          //TODO:  m_drive.m_torrentFolder / fileName+ ".torrent" ???????????????
 										  m_drive.m_torrentFolder / fileName );
 
 						if(!fs::exists(m_drive.m_torrentFolder / fileName))

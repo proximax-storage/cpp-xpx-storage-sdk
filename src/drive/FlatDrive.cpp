@@ -1372,15 +1372,50 @@ public:
     virtual void        wscAddModification( std::array<uint8_t,32>  modificationId,
                                             std::function<void()>   onModificationStarted ) override
     {
+        DBG_MAIN_THREAD
 
+        if ( m_task->getTaskType() == DriveTaskType::MODIFICATION_REQUEST )
+        {
+            if ( auto* modifyTask = dynamic_cast<UpdateDriveTaskBase*>(&(*m_task)); modifyTask != nullptr )
+            {
+                if ( modifyTask->getModificationTransactionHash().array() == modificationId )
+                {
+                    onModificationStarted();
+                    return;
+                }
+            }
+        }
+        auto result = m_wscModifications.emplace( modificationId, onModificationStarted );
+        if ( not result.second )
+        {
+            _LOG_WARN( "wscAddModification: duplicate modificationId: " << toString(modificationId) )
+        }
     }
 
     virtual void        wscModificationFiles( std::array<uint8_t,32>    modificationId,
                                               std::filesystem::path     actionListPath,
                                               std::filesystem::path     folderWithFiles,
-                                              std::function<void()>     onModificationFilesCouldBeRemoved ) override
+                                              std::function<void(bool)> onModificationFilesCouldBeRemoved ) override
     {
+        DBG_MAIN_THREAD
 
+        if ( m_task->getTaskType() == DriveTaskType::MODIFICATION_REQUEST )
+        {
+            if ( auto* modifyTask = dynamic_cast<UpdateDriveTaskBase*>(&(*m_task)); modifyTask != nullptr )
+            {
+                if ( modifyTask->getModificationTransactionHash().array() == modificationId )
+                {
+                    modifyTask->wscModificationFiles( modificationId,
+                                                      actionListPath,
+                                                      folderWithFiles,
+                                                      onModificationFilesCouldBeRemoved );
+                    return;
+                }
+            }
+        }
+
+        // maybe canceled
+        _LOG_WARN( "wscModificationFiles: no modification (may be canceled): " << toString(modificationId) )
     }
 
     //-----------------------------------------------------------------------------

@@ -86,6 +86,14 @@ public:
     {
         DBG_MAIN_THREAD
 
+
+        if ( auto it = m_drive.m_wscModifications.find( m_request->m_transactionHash.array() ); it != m_drive.m_wscModifications.end() )
+        {
+            auto backCall = it->second;
+            m_drive.m_wscModifications.erase(it);
+            m_drive.executeOnBackgroundThread( [backCall] { backCall(); });
+        }
+
         //_LOG( "?????????: " << m_request->m_clientDataInfoHash  << "   " << m_drive.m_torrentHandleMap.size() )
         if ( auto it = m_drive.m_torrentHandleMap.find( m_request->m_clientDataInfoHash ); it != m_drive.m_torrentHandleMap.end() )
         {
@@ -704,6 +712,109 @@ protected:
     const Hash256& getModificationTransactionHash() override
     {
         return m_request->m_transactionHash;
+    }
+
+    virtual void        wscModificationFiles( std::array<uint8_t,32>    modificationId,
+                                              std::filesystem::path     actionListPath,
+                                              std::filesystem::path     folderWithFiles,
+                                              std::function<void(bool)> onModificationFilesCouldBeRemoved ) override
+    {
+        DBG_MAIN_THREAD
+        
+        if ( (not m_request) || modificationId != m_request->m_transactionHash.array() )
+        {
+            _LOG_ERR("wscModificationFiles: modificationId != m_request->m_transactionHash.array()");
+            onModificationFilesCouldBeRemoved(false);
+            return;
+        }
+
+        m_drive.executeOnBackgroundThread( [=,this]
+        {
+            DBG_BG_THREAD
+
+            std::set<InfoHash> addedFiles;
+
+            // move files on bg thread
+            for( const auto& entry : std::filesystem::directory_iterator(folderWithFiles) )
+            {
+                if ( entry.is_regular_file() && entry != actionListPath )
+                {
+                    // calc hash
+                    auto hash = calculateInfoHash( entry, m_drive.m_driveKey);
+
+                    auto fileName = m_drive.m_driveFolder / toString(hash);
+                    std::error_code ec;
+
+                    if ( addedFiles.find(hash) == addedFiles.end() && !fs::exists(fileName,ec) )
+                    {
+                        // move renamed file to drive folder
+                        fs::rename( entry, fileName );
+
+                        // create torrent
+                        createTorrentFile( m_drive.m_driveFolder / fileName,
+                                          m_drive.m_driveKey.array(),
+                                          m_drive.m_driveFolder,
+                                          m_drive.m_torrentFolder / fileName );
+
+                        addedFiles.emplace( hash );
+                    }
+                }
+            }
+
+            // move action list
+            auto hash = calculateInfoHash( actionListPath, m_drive.m_driveKey);
+            fs::path actionListFileName = m_drive.m_sandboxRootPath / toString(hash);
+            fs::path actionListTorrentFileName = m_drive.m_sandboxRootPath / (toString(hash) + ".torrent");
+
+            std::error_code ec;
+            if ( !fs::exists(actionListFileName,ec) )
+            {
+                fs::rename( actionListPath, actionListFileName );
+                createTorrentFile( m_drive.m_sandboxRootPath / actionListFileName,
+                                  m_drive.m_driveKey.array(),
+                                  m_drive.m_sandboxRootPath,
+                                  actionListTorrentFileName );
+            }
+
+            // add torrents into session on main thread
+            m_drive.executeOnSessionThread( [=,this]
+            {
+                if ( auto session = m_drive.m_session.lock(); session )
+                {
+                    for( auto& hash: addedFiles )
+                    {
+                        auto fileName = m_drive.m_driveFolder / toString(hash);
+                        auto ltHandle = session->addTorrentFileToSession( m_drive.m_torrentFolder / fileName,
+                                                                         m_drive.m_driveFolder,
+                                                                         lt::SiriusFlags::peer_is_replicator,
+                                                                         &m_drive.m_driveKey.array(),
+                                                                         nullptr,
+                                                                         nullptr );
+
+                        m_drive.m_torrentHandleMap.try_emplace( hash, UseTorrentInfo{ltHandle, true} );
+                    }
+
+                    if ( m_fsTreeOrActionListHandle )
+                    {
+                        _LOG_ERR( "m_fsTreeOrActionListHandle must be reset")
+                        onModificationFilesCouldBeRemoved(false);
+                    }
+                    m_fsTreeOrActionListHandle = session->addTorrentFileToSession( m_drive.m_sandboxRootPath,
+                                                                                   actionListTorrentFileName,
+                                                                                   lt::SiriusFlags::peer_is_replicator,
+                                                                                   &m_drive.m_driveKey.array(),
+                                                                                   nullptr,
+                                                                                   nullptr );
+                }
+
+                // notify ws server
+                m_drive.executeOnBackgroundThread( [=,this]
+                {
+                    DBG_BG_THREAD
+                    onModificationFilesCouldBeRemoved(true);
+                });
+            });
+        } );
     }
 
 private:
