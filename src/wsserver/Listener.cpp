@@ -46,6 +46,22 @@ void Listener::setFsTreeHandler(std::function<void(boost::property_tree::ptree d
     m_fsTreeHandler = handler;
 }
 
+void Listener::setAddModificationHandler(std::function<void(Key driveKey,
+										 std::array<uint8_t,32> modificationId,
+										 std::function<void()> onModificationStarted)> handler)
+{
+	m_addModificationHandler = handler;
+}
+
+void Listener::setModificationFilesHandler(std::function<void(Key driveKey,
+										   std::array<uint8_t,32> modificationId,
+										   std::filesystem::path actionListPath,
+										   std::filesystem::path folderWithFiles,
+										   std::function<void(bool)> onModificationFilesCouldBeRemoved)> handler)
+{
+	m_modificationFilesHandler = handler;
+}
+
 void Listener::doAccept()
 {
 	m_acceptor.async_accept(m_ioCtx,[pThis = shared_from_this()](auto ec, auto socket)

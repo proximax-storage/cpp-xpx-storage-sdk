@@ -3,6 +3,8 @@
 #include "crypto/Signer.h"
 #include "crypto/Hashes.h"
 #include "drive/log.h"
+#include "drive/ActionList.h"
+#include "drive/Session.h"
 #include "libtorrent/create_torrent.hpp"
 
 #include <iostream>
@@ -18,6 +20,7 @@
 #include <boost/archive/iterators/remove_whitespace.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/uuid/string_generator.hpp>
+#include <boost/algorithm/string.hpp>
 #include <utility>
 
 
@@ -1185,6 +1188,143 @@ void WsSession::handlePayload(std::shared_ptr<boost::property_tree::ptree> json)
             // TODO: encrypt data before sending
 			sendMessage(json);
 			//doRead();
+			break;
+		}
+		case ACTION_LIST_CONVERSION_REQUEST:
+		{
+			// TODO: Add json validation
+			auto data = json->get_optional<std::string>("data");
+			if (!data.has_value())
+			{
+				__LOG_WARN( "ACTION_LIST_CONVERSION_REQUEST: " << to_string(m_id) << " data is empty!" )
+				// TODO: send error to client
+				return;
+			}
+
+			__LOG( "ACTION_LIST_CONVERSION_REQUEST: " << to_string(m_id) << " data: " << data )
+
+			drive::ActionList actionList;
+			auto jsonData = stringToJson(data.value());
+			for (const auto& item : jsonData->get_child("actionList"))
+			{
+				const auto& rawAction = item.second;
+				const auto actionId = rawAction.get<unsigned int>("id");
+				const auto param1 = rawAction.get<std::string>("param1");
+				const auto param2 = rawAction.get<std::string>("param2");
+				const auto fileName = rawAction.get<std::string>("fileName");
+
+				if (actionId == drive::action_list_id::upload)
+				{
+					auto action = drive::Action::upload( param1, param2 );
+					action.m_filename = fileName;
+					actionList.push_back( action );
+				} else if (actionId == drive::action_list_id::new_folder)
+				{
+					auto action = drive::Action::newFolder( param1 );
+					action.m_filename = fileName;
+					actionList.push_back( action );
+				} else if (actionId == drive::action_list_id::move)
+				{
+					auto action = drive::Action::move( param1, param2 );
+					action.m_filename = fileName;
+					actionList.push_back( action );
+				} else if (actionId == drive::action_list_id::remove)
+				{
+					auto action = drive::Action::remove( param2 );
+					action.m_filename = fileName;
+					actionList.push_back( action );
+				} else
+				{
+					__LOG_WARN( "ACTION_LIST_CONVERSION_REQUEST: " << to_string(m_id) << " Unknown action id " << actionId )
+				}
+			}
+
+			if (actionList.empty())
+			{
+				__LOG_WARN( "ACTION_LIST_CONVERSION_REQUEST: " << to_string(m_id) << " Action list is empty " )
+				// TODO: send log to client
+			}
+			else
+			{
+				try
+				{
+					auto driveKeyStr = jsonData->get<std::string>("driveKey");
+					boost::algorithm::to_lower(driveKeyStr);
+
+					Key driveKey;
+					utils::ParseHexStringIntoContainer(driveKeyStr.c_str(), driveKeyStr.size(), driveKey);
+
+					if (!std::filesystem::exists(m_storageDirectory))
+					{
+						__LOG_WARN( "ACTION_LIST_CONVERSION_REQUEST: " << to_string(m_id) << " Storage folder not found " )
+						return;
+					}
+
+					if (!std::filesystem::exists(m_storageDirectory / driveKeyStr))
+					{
+						__LOG_WARN( "ACTION_LIST_CONVERSION_REQUEST: " << to_string(m_id) << " Drive folder not found " << m_storageDirectory / driveKeyStr)
+						return;
+					}
+
+					const std::filesystem::path pathToDriveWebData = m_storageDirectory / driveKeyStr / "web_data";
+					if (!std::filesystem::exists(pathToDriveWebData))
+					{
+						std::filesystem::create_directory(pathToDriveWebData);
+					}
+
+					const std::filesystem::path pathToMetadata = pathToDriveWebData / "metadata";
+					if (!std::filesystem::exists(pathToMetadata))
+					{
+						std::filesystem::create_directory(pathToMetadata);
+					}
+
+					// TODO: Handle serialize exceptions
+					const std::filesystem::path pathToActionList = pathToMetadata / "actionList.bin";
+					actionList.serialize(pathToActionList);
+
+					// TODO: Remove if exception or other errors
+					if (!m_drives.contains(driveKeyStr)) {
+						DriveInfo driveInfo;
+						driveInfo.m_driveKey = driveKeyStr;
+						driveInfo.m_pathToActionList = pathToActionList;
+						driveInfo.m_pathToDrive = pathToDriveWebData / "data";
+						m_drives[driveKeyStr] = driveInfo;
+					}
+
+					const auto infoHash = drive::createTorrentFile( pathToActionList, driveKey, pathToMetadata, {} );
+
+					std::ostringstream infoHashStream;
+					infoHashStream << utils::HexFormat(infoHash.array());
+
+					const auto responseId = json->get<std::string>("id");
+					auto payloadOutboundTree = generateBasicPayload(responseId, Type::ACTION_LIST_CONVERSION_RESPONSE);
+					payloadOutboundTree->put("cdi", infoHashStream.str());
+					const auto payloadStr = jsonToString(payloadOutboundTree);
+
+					const EncryptionResult encryptedResponse = encrypt(m_sharedKey, payloadStr);
+					if (encryptedResponse.cipherData.empty())
+					{
+						__LOG_WARN("Session::handlePayload: encryption of the ACTION_LIST_CONVERSION_RESPONSE error " << responseId)
+						return;
+					}
+
+					auto finalMessage = generateFinalMessage(encryptedResponse);
+					sendMessage(finalMessage);
+				} catch (const std::filesystem::filesystem_error& e)
+				{
+					__LOG_WARN( "ACTION_LIST_CONVERSION_REQUEST: " << to_string(m_id) << " Filesystem error: " << e.what() )
+					return;
+				}
+			}
+
+			break;
+		}
+		case ADD_MODIFICATION_REQUEST:
+		{
+			break;
+		}
+		case ADD_MODIFICATION_FILES_REQUEST:
+		{
 			break;
 		}
 		case CLOSE:

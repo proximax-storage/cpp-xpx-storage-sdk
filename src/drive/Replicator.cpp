@@ -347,8 +347,28 @@ public:
 			}
 		};
 
+		auto addModificationHandler = [pThis = shared_from_this()] (
+										 Key driveKey,
+										 std::array<uint8_t,32> modificationId,
+										 std::function<void()> onModificationStarted)
+		{
+			pThis->wscAddModification(driveKey, modificationId, onModificationStarted);
+		};
+
+		auto modificationFilesHandler = [pThis = shared_from_this()] (
+										   Key driveKey,
+										   std::array<uint8_t,32> modificationId,
+										   std::filesystem::path actionListPath,
+										   std::filesystem::path folderWithFiles,
+										   std::function<void(bool)> onModificationFilesCouldBeRemoved)
+		{
+			pThis->wscModificationFiles(driveKey, modificationId, actionListPath, folderWithFiles, onModificationFilesCouldBeRemoved);
+		};
+
 #ifndef SKIP_WSSERVER
 		wsServer->setFsTreeHandler(fsTreeHandler);
+		wsServer->setAddModificationHandler(addModificationHandler);
+		wsServer->setModificationFilesHandler(modificationFilesHandler);
 		wsServer->init(wsEndpoint);
 		wsServer->run();
 #endif
