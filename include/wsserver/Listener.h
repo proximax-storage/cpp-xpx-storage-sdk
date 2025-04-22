@@ -3,6 +3,7 @@
 
 #include "plugins.h"
 #include "drive/log.h"
+#include "types.h"
 #include "wsserver/WsSession.h"
 #include "crypto/KeyPair.h"
 
@@ -45,7 +46,18 @@ class PLUGIN_API Listener : public std::enable_shared_from_this<Listener>
 	public:
 		void init(const boost::asio::ip::tcp::endpoint& endpoint);
 		void run();
-        void setFsTreeHandler(std::function<void(boost::property_tree::ptree data, std::function<void(boost::property_tree::ptree fsTreeJson)> callback)> handler);
+        void setFsTreeHandler(std::function<void(boost::property_tree::ptree data,
+							  std::function<void(boost::property_tree::ptree fsTreeJson)> callback)> handler);
+
+        void setAddModificationHandler(std::function<void(Key driveKey,
+														  std::array<uint8_t,32> modificationId,
+														  std::function<void()> onModificationStarted)> handler);
+
+        void setModificationFilesHandler(std::function<void(Key driveKey,
+															std::array<uint8_t,32> modificationId,
+															std::filesystem::path actionListPath,
+															std::filesystem::path folderWithFiles,
+															std::function<void(bool)> onModificationFilesCouldBeRemoved)> handler);
 
 	private:
 		void doAccept();
@@ -61,7 +73,10 @@ class PLUGIN_API Listener : public std::enable_shared_from_this<Listener>
 		boost::uuids::random_generator m_uuidGenerator;
         std::filesystem::path m_storageDirectory;
 		std::map<boost::uuids::uuid, std::shared_ptr<WsSession>> m_sessions;
-        std::function<void(boost::property_tree::ptree data, std::function<void(boost::property_tree::ptree fsTreeJson)> callback)> m_fsTreeHandler;
+
+        std::function<void(boost::property_tree::ptree, std::function<void(boost::property_tree::ptree)>)> m_fsTreeHandler;
+		std::function<void(Key, std::array<uint8_t,32>, std::function<void()>)> m_addModificationHandler;
+		std::function<void(Key, std::array<uint8_t,32>, std::filesystem::path, std::filesystem::path, std::function<void(bool)>)> m_modificationFilesHandler;
 };
 };
 
