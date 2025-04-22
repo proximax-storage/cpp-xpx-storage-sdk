@@ -115,6 +115,61 @@ class WsSession : public std::enable_shared_from_this<WsSession>
 
         const sirius::crypto::KeyPair& m_keyPair;
 
+	private:
+		struct DriveInfo
+		{
+			DriveInfo() = default;
+			~DriveInfo() = default;
+
+			DriveInfo(const std::string& driveKey,
+					  const std::filesystem::path& pathToActionList,
+					  const std::filesystem::path& pathToDrive)
+				: m_driveKey(driveKey)
+				, m_pathToActionList(pathToActionList)
+				, m_pathToDrive(pathToDrive)
+			{}
+
+			DriveInfo(const DriveInfo& other)
+				: m_driveKey(other.m_driveKey)
+				, m_pathToActionList(other.m_pathToActionList)
+				, m_pathToDrive(other.m_pathToDrive)
+			{}
+
+			DriveInfo(DriveInfo&& other) noexcept
+				: m_driveKey(std::move(other.m_driveKey))
+				, m_pathToActionList(std::move(other.m_pathToActionList))
+				, m_pathToDrive(std::move(other.m_pathToDrive))
+			{}
+
+			DriveInfo& operator=(const DriveInfo& other)
+			{
+				if (this != &other)
+				{
+					m_driveKey = other.m_driveKey;
+					m_pathToActionList = other.m_pathToActionList;
+					m_pathToDrive = other.m_pathToDrive;
+				}
+
+				return *this;
+			}
+
+			DriveInfo& operator=(DriveInfo&& other) noexcept
+			{
+				if (this != &other)
+				{
+					m_driveKey = std::move(other.m_driveKey);
+					m_pathToActionList = std::move(other.m_pathToActionList);
+					m_pathToDrive = std::move(other.m_pathToDrive);
+				}
+
+				return *this;
+			}
+
+			std::string m_driveKey;
+			std::filesystem::path m_pathToActionList;
+			std::filesystem::path m_pathToDrive;
+		};
+
     private:
         struct FileDescriptor
         {
@@ -207,6 +262,7 @@ class WsSession : public std::enable_shared_from_this<WsSession>
         };
 
         std::unordered_map<std::string, FileDescriptor> m_downloads;
+		std::unordered_map<std::string, DriveInfo> m_drives;
 };
 }
 
