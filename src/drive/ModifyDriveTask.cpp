@@ -86,14 +86,37 @@ public:
     {
         DBG_MAIN_THREAD
 
+        _LOG("*** torrent_finished_alert: ?-0- " << m_request->m_clientDataInfoHash )
 
         if ( auto it = m_drive.m_wscModifications.find( m_request->m_transactionHash.array() ); it != m_drive.m_wscModifications.end() )
         {
+            // These variables are used for cancelation of web-client moditication
+            m_drive.m_wscModificationIsStarted      = true;
+            m_drive.m_wscModificationIsMovingFiles  = false;
+            m_drive.m_wscModificationCanceled       = false;
+
+            // 1) When WEB-client requests modification,
+            // it uploads 'actionList' to ws-server/replicator that contains this drive
+            // 2) ws-server calls replicator function 'wscAddModification()' with modification 'tx'
+            // 3) !Only Then! ws-server registers modification in blockchain
+            // 4) When it comes time for modification, blockchain calls replicator(flat-drive)
+            //    and then flat-drive creates modification task
+            //    and this function 'wscModificationFiles()' must be called
+            // 5) Then will be called 'backCall()' (onModificationStarted)
+            // 6) if ws-server has all files it calls 'wscModificationFiles()'
+            // 7) 'wscModificationFiles()' adds files (and ActionList) to drive and torrents
+            // 8) 'Then wscModificationFiles()' call again 'wscModificationFiles()'
+            //
             auto backCall = it->second;
             m_drive.m_wscModifications.erase(it);
-            m_drive.executeOnBackgroundThread( [backCall] { backCall(); });
+            m_drive.executeOnBackgroundThread( [backCall]
+            {
+                backCall();
+            });
+            return;
         }
 
+        _LOG("*** torrent_finished_alert: ? " << m_request->m_clientDataInfoHash )
         //_LOG( "?????????: " << m_request->m_clientDataInfoHash  << "   " << m_drive.m_torrentHandleMap.size() )
         if ( auto it = m_drive.m_torrentHandleMap.find( m_request->m_clientDataInfoHash ); it != m_drive.m_torrentHandleMap.end() )
         {
@@ -109,6 +132,9 @@ public:
         if ( auto session = m_drive.m_session.lock(); session )
         {
             _LOG("m_uploadedDataSize: m_request->m_maxDataSize: " << m_request->m_maxDataSize )
+            _LOG("startModification(wsc-dbg 0): m_request->m_clientDataInfoHash: " << m_request->m_clientDataInfoHash )
+            _LOG("startModification(wsc-dbg 00): m_drive.m_sandboxRootPath: " << m_drive.m_sandboxRootPath )
+            _LOG("*** torrent_finished_alert: ??? " << m_request->m_clientDataInfoHash )
             m_downloadingLtHandleIsConnected = false;
             m_downloadingLtHandle = session->download(
                                         DownloadContext(
@@ -714,6 +740,9 @@ protected:
         return m_request->m_transactionHash;
     }
 
+    // This fuction is called by ws-server (after the modification has been started),
+    // to move user files on drive
+    //
     virtual void        wscModificationFiles( std::array<uint8_t,32>    modificationId,
                                               std::filesystem::path     actionListPath,
                                               std::filesystem::path     folderWithFiles,
@@ -728,6 +757,17 @@ protected:
             return;
         }
 
+        if ( m_drive.m_wscModificationCanceled )
+        {
+            m_drive.m_wscModificationIsStarted = false;
+            m_drive.m_wscModificationIsMovingFiles = false;
+            tryFinishTask();
+            onModificationFilesCouldBeRemoved(true);
+        }
+
+        SIRIUS_ASSERT( m_drive.m_wscModificationIsStarted );
+        m_drive.m_wscModificationIsMovingFiles = true;
+
         m_drive.executeOnBackgroundThread( [=,this]
         {
             DBG_BG_THREAD
@@ -737,6 +777,18 @@ protected:
             // move files on bg thread
             for( const auto& entry : std::filesystem::directory_iterator(folderWithFiles) )
             {
+                if ( m_drive.m_wscModificationCanceled )
+                {
+                    m_drive.executeOnSessionThread( [=,this]
+                    {
+                        m_drive.m_wscModificationIsStarted = false;
+                        m_drive.m_wscModificationIsMovingFiles = false;
+                        removeTorrentsAndFinishTask();
+                        onModificationFilesCouldBeRemoved(true);
+                    });
+                    return;
+                }
+
                 if ( entry.is_regular_file() && entry != actionListPath )
                 {
                     // calc hash
@@ -763,14 +815,21 @@ protected:
 
             // move action list
             auto hash = calculateInfoHash( actionListPath, m_drive.m_driveKey);
+            _LOG("*** torrent_finished_alert: ? hash " << hash )
             fs::path actionListFileName = m_drive.m_sandboxRootPath / toString(hash);
+            _LOG("*** torrent_finished_alert: ? actionListFileName " << actionListFileName )
             fs::path actionListTorrentFileName = m_drive.m_sandboxRootPath / (toString(hash) + ".torrent");
+            _LOG("*** torrent_finished_alert: ? actionListFileName " << actionListFileName )
+            _LOG("*** torrent_finished_alert: ? actionListTorrentFileName " << actionListTorrentFileName )
+            _LOG("startModification(wsc-dbg 1): hash: " << hash )
 
             std::error_code ec;
             if ( !fs::exists(actionListFileName,ec) )
             {
-                fs::rename( actionListPath, actionListFileName );
-                createTorrentFile( m_drive.m_sandboxRootPath / actionListFileName,
+                fs::rename( actionListPath, actionListFileName, ec );
+                _LOG("*** torrent_finished_alert: ? --- " << m_request->m_clientDataInfoHash )
+                _LOG("startModification(wsc-dbg 2): actionListFileName: " << actionListFileName )
+                createTorrentFile( actionListFileName,
                                   m_drive.m_driveKey.array(),
                                   m_drive.m_sandboxRootPath,
                                   actionListTorrentFileName );
@@ -799,12 +858,15 @@ protected:
                         _LOG_ERR( "m_fsTreeOrActionListHandle must be reset")
                         onModificationFilesCouldBeRemoved(false);
                     }
-                    m_fsTreeOrActionListHandle = session->addTorrentFileToSession( m_drive.m_sandboxRootPath,
-                                                                                   actionListTorrentFileName,
-                                                                                   lt::SiriusFlags::peer_is_replicator,
-                                                                                   &m_drive.m_driveKey.array(),
-                                                                                   nullptr,
-                                                                                   nullptr );
+
+                    m_downloadingLtHandle = session->addTorrentFileToSession( actionListTorrentFileName,
+                                                                             m_drive.m_sandboxRootPath,
+                                                                             lt::SiriusFlags::peer_is_replicator,
+                                                                             &m_drive.m_driveKey.array(),
+                                                                             nullptr,
+                                                                             nullptr );
+
+                    startModification();
                 }
 
                 // notify ws server

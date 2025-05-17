@@ -303,11 +303,19 @@ public:
                                     __LOG( "ClientSession.h fs::remove error: " << ec.message() << " code: " << std::to_string(ec.value()) << " path: " << filenameInSandbox )
                                     return {};
                                 }
-                                
+
+//TODO:
+        //todo++
+#define TEST_WEB_CLIENT
+#ifdef TEST_WEB_CLIENT
+                                fs::copy( fs::path(action.m_param1).make_preferred(), filenameInSandbox, ec );
+#else
+
 #if defined(_WIN32) || defined(_WIN64)
                                 fs::copy( fs::path(action.m_param1).make_preferred(), filenameInSandbox, ec );
 #else
                                 fs::create_symlink( pathToFile, filenameInSandbox, ec );
+#endif
 #endif
                                 if (ec)
                                 {
@@ -367,6 +375,8 @@ public:
 
         InfoHash infoHash0 = createTorrentFile( actionListPath, drivePublicKey, workFolder.make_preferred(), {} );
 
+
+#ifndef TEST_WEB_CLIENT
         if ( m_modifyTorrentMap.find(infoHash0) == m_modifyTorrentMap.end() )
         {
             fs::path filenameInSandbox = workFolder.string() + "/" + hashToFileName(infoHash0);
@@ -451,6 +461,8 @@ public:
         }
         
         newActionList.dbgPrint();
+
+#endif // #ifndef TEST_WEB_CLIENT
 
         return infoHash0;
     }

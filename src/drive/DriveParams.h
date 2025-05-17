@@ -251,6 +251,11 @@ public:
     
     std::map<std::array<uint8_t,32>,std::function<void()>> m_wscModifications;
 
+    // These variables are used for cancelation of web-client moditication
+    bool m_wscModificationIsStarted = false;
+    bool m_wscModificationIsMovingFiles = false;
+    bool m_wscModificationCanceled = false;
+
     // key - streamTx, value - playlist-InfoHash
     using StreamMap = std::map<Hash256,InfoHash>;
     StreamMap m_streamMap;

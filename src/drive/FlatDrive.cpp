@@ -1374,7 +1374,7 @@ public:
     {
         DBG_MAIN_THREAD
 
-        if ( m_task->getTaskType() == DriveTaskType::MODIFICATION_REQUEST )
+        if ( m_task && m_task->getTaskType() == DriveTaskType::MODIFICATION_REQUEST )
         {
             if ( auto* modifyTask = dynamic_cast<UpdateDriveTaskBase*>(&(*m_task)); modifyTask != nullptr )
             {

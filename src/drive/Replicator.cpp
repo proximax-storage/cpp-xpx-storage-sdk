@@ -228,6 +228,7 @@ public:
     {
         loadDownloadChannelMap();
 
+        _LOG( "createDefaultSession: " << m_address << ":" << m_port )
         m_session = createDefaultSession( m_replicatorContext, m_address + ":" + m_port,
                                           [port = m_port, this]( const lt::alert* pAlert )
                                           {
@@ -347,6 +348,7 @@ public:
 			}
 		};
 
+#ifndef SKIP_WSSERVER
 		auto addModificationHandler = [pThis = shared_from_this()] (
 										 Key driveKey,
 										 std::array<uint8_t,32> modificationId,
@@ -365,7 +367,6 @@ public:
 			pThis->wscModificationFiles(driveKey, modificationId, actionListPath, folderWithFiles, onModificationFilesCouldBeRemoved);
 		};
 
-#ifndef SKIP_WSSERVER
 		wsServer->setFsTreeHandler(fsTreeHandler);
 		wsServer->setAddModificationHandler(addModificationHandler);
 		wsServer->setModificationFilesHandler(modificationFilesHandler);

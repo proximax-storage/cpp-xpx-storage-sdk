@@ -24,11 +24,11 @@
 //(???+) !!!
 const bool testLateReplicator = false;
 const bool gRestartReplicators = false;
-const bool testSmallModifyDataSize = true;
+const bool testSmallModifyDataSize = false;
 bool gBreak_On_Warning = false;
 
-#define RPC_PORT 5357
-const char* RPC_REPLICATOR_NAME = "replicator1";
+//#define RPC_PORT 5357
+//const char* RPC_REPLICATOR_NAME = "replicator1";
 
 //
 // This example shows interaction between 'client' and 'replicator'.
@@ -42,17 +42,21 @@ const char* RPC_REPLICATOR_NAME = "replicator1";
 // !!!
 // CLIENT_IP_ADDR should be changed to proper address according to your network settings (see ifconfig)
 
-#define CLIENT_IP_ADDR          "192.168.2.200"
+#define CLIENT_IP_ADDR          "192.168.20.30"
 #define CLIENT_PORT             ":2000"
-#define CLIENT_IP_ADDR1         "192.168.2.201"
+#define CLIENT_IP_ADDR1         "192.168.20.31"
 #define CLIENT_PORT1            ":2001"
 
-#define REPLICATOR_IP_ADDR      "192.168.2.101"
+#define REPLICATOR_IP_ADDR      "192.168.20.20"
 #define REPLICATOR_PORT         5001
-#define REPLICATOR_IP_ADDR_2    "192.168.2.102"
+#define REPLICATOR_IP_ADDR_2    "192.168.20.21"
 #define REPLICATOR_PORT_2       5002
-#define REPLICATOR_IP_ADDR_3    "192.168.2.103"
+#define REPLICATOR_IP_ADDR_3    "192.168.20.22"
 #define REPLICATOR_PORT_3       5003
+#define REPLICATOR_IP_ADDR_4    "192.168.20.23"
+#define REPLICATOR_PORT_4       5004
+#define REPLICATOR_IP_ADDR_5    "192.168.20.24"
+#define REPLICATOR_PORT_5       5005
 
 #define ROOT_TEST_FOLDER                fs::path(getenv("HOME")) / "111"
 #define REPLICATOR_ROOT_FOLDER          fs::path(getenv("HOME")) / "111" / "replicator_root"
@@ -63,6 +67,12 @@ const char* RPC_REPLICATOR_NAME = "replicator1";
 
 #define REPLICATOR_ROOT_FOLDER_3          fs::path(getenv("HOME")) / "111" / "replicator_root_3"
 #define REPLICATOR_SANDBOX_ROOT_FOLDER_3  fs::path(getenv("HOME")) / "111" / "sandbox_root_3"
+
+#define REPLICATOR_ROOT_FOLDER_4          fs::path(getenv("HOME")) / "111" / "replicator_root_4"
+#define REPLICATOR_SANDBOX_ROOT_FOLDER_4  fs::path(getenv("HOME")) / "111" / "sandbox_root_4"
+
+#define REPLICATOR_ROOT_FOLDER_5          fs::path(getenv("HOME")) / "111" / "replicator_root_5"
+#define REPLICATOR_SANDBOX_ROOT_FOLDER_5  fs::path(getenv("HOME")) / "111" / "sandbox_root_5"
 
 #define CLIENT_WORK_FOLDER              fs::path(getenv("HOME")) / "111" / "client_work_folder"
 
@@ -395,6 +405,10 @@ auto replicatorKeyPair_2 = sirius::crypto::KeyPair::FromPrivate(
         sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_2 ));
 auto replicatorKeyPair_3 = sirius::crypto::KeyPair::FromPrivate(
         sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_3 ));
+auto replicatorKeyPair_4 = sirius::crypto::KeyPair::FromPrivate(
+        sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_4 ));
+auto replicatorKeyPair_5 = sirius::crypto::KeyPair::FromPrivate(
+        sirius::crypto::PrivateKey::FromString( REPLICATOR_PRIVATE_KEY_5 ));
 
 ///
 /// Create replicators
@@ -437,13 +451,41 @@ void createReplicators(const std::vector<ReplicatorInfo>&  bootstraps)
                                         "replicator3" );
     });
 
+    std::thread t4( [=] {
+        gReplicator4 = createReplicator( replicatorKeyPair_4,
+                                        REPLICATOR_IP_ADDR_4,
+                                        REPLICATOR_PORT_4,
+                                        std::string( REPLICATOR_ROOT_FOLDER_4 ),
+                                        std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_4 ),
+                                        TRANSPORT_PROTOCOL,
+                                        bootstraps,
+                                        gMyReplicatorEventHandler4,
+                                        "replicator4" );
+    });
+
+    std::thread t5( [=] {
+        gReplicator5 = createReplicator( replicatorKeyPair_5,
+                                        REPLICATOR_IP_ADDR_5,
+                                        REPLICATOR_PORT_5,
+                                        std::string( REPLICATOR_ROOT_FOLDER_5 ),
+                                        std::string( REPLICATOR_SANDBOX_ROOT_FOLDER_5 ),
+                                        TRANSPORT_PROTOCOL,
+                                        bootstraps,
+                                        gMyReplicatorEventHandler5,
+                                        "replicator5" );
+    });
+
     t1.join();
     t2.join();
     t3.join();
+    t4.join();
+    t5.join();
 
     gReplicatorMap[gReplicator->dbgReplicatorKey()] = gReplicator;
     gReplicatorMap[gReplicator2->dbgReplicatorKey()] = gReplicator2;
     gReplicatorMap[gReplicator3->dbgReplicatorKey()] = gReplicator3;
+    gReplicatorMap[gReplicator4->dbgReplicatorKey()] = gReplicator4;
+    gReplicatorMap[gReplicator4->dbgReplicatorKey()] = gReplicator4;
 
 }
 endpoint_list bootstrapEndpoints;
@@ -561,11 +603,24 @@ int main(int,char**)
         clientModifyDrive( actionList, replicatorList, modifyTransactionHash1 );
     }
 
-    if ( testSmallModifyDataSize )
+//    if ( testSmallModifyDataSize )
     {
 
         modifyCompleteCounter = 0;
         MyReplicatorEventHandler::m_approvalTransactionInfo.reset();
+
+        gReplicator->wscAddModification( DRIVE_PUB_KEY, modifyTransactionHash1.array(), [=]{
+            auto tmpFolder = ROOT_TEST_FOLDER / "modify_drive_data";
+            gReplicator->wscModificationFiles( DRIVE_PUB_KEY,
+                                              modifyTransactionHash1.array(),
+                                              tmpFolder / "actionList.bin",
+                                              tmpFolder,
+                                              [] (bool successed )
+            {
+                EXLOG( "@ ?-----------------------------: " << successed );
+                EXLOG( "@ ?-----------------------------: " << successed );
+            });
+        });
 
         gReplicatorThread  = std::thread( modifyDrive, gReplicator,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
         gReplicatorThread2 = std::thread( modifyDrive, gReplicator2, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
@@ -574,6 +629,9 @@ int main(int,char**)
         {
             gReplicatorThread3 = std::thread( modifyDrive, gReplicator3, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
         }
+
+        gReplicatorThread4  = std::thread( modifyDrive, gReplicator4,  DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
+        gReplicatorThread5 = std::thread( modifyDrive, gReplicator5, DRIVE_PUB_KEY, clientKeyPair.publicKey(), clientModifyHash, modifyTransactionHash1, replicatorList, MODIFY_DATA_SIZE+MODIFY_DATA_SIZE );
 
         {
             std::unique_lock<std::mutex> lock(modifyCompleteMutex);
@@ -584,7 +642,11 @@ int main(int,char**)
         gReplicatorThread2.join();
         if ( !testLateReplicator )
             gReplicatorThread3.join();
+        gReplicatorThread4.join();
+        gReplicatorThread5.join();
     }
+
+    exit(0);
 
 //    {
 //        gReplicatorMap.erase( gReplicator->dbgReplicatorKey() );
@@ -789,25 +851,25 @@ static std::shared_ptr<Replicator> createReplicator(
 
     std::shared_ptr<Replicator> replicator;
 
-    if ( dbgReplicatorName == std::string(RPC_REPLICATOR_NAME) )
-    {
-        gDbgRpcChildCrash = true;
-
-        replicator = createRpcReplicator(
-                "127.0.0.1",
-                RPC_PORT,
-                keyPair,
-                std::move( ipAddr ),
-                std::to_string(port),
-                std::move( rootFolder ),
-                std::move( sandboxRootFolder ),
-                bootstraps,
-                useTcpSocket,
-                handler,
-                &handler,
-                dbgReplicatorName, "" );
-    }
-    else
+//    if ( dbgReplicatorName == std::string(RPC_REPLICATOR_NAME) )
+//    {
+//        gDbgRpcChildCrash = true;
+//
+//        replicator = createRpcReplicator(
+//                "127.0.0.1",
+//                RPC_PORT,
+//                keyPair,
+//                std::move( ipAddr ),
+//                std::to_string(port),
+//                std::move( rootFolder ),
+//                std::move( sandboxRootFolder ),
+//                bootstraps,
+//                useTcpSocket,
+//                handler,
+//                &handler,
+//                dbgReplicatorName, "" );
+//    }
+//    else
     {
         replicator = createDefaultReplicator(
                 std::move( keyPair ),
@@ -927,7 +989,8 @@ static void clientModifyDrive( const ActionList& actionList,
 
     // Create empty tmp folder for 'client modify data'
     //
-    auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
+//    auto tmpFolder = fs::temp_directory_path() / "modify_drive_data";
+    auto tmpFolder = ROOT_TEST_FOLDER / "modify_drive_data";
     fs::remove_all( tmpFolder );
     fs::create_directories( tmpFolder );
     EXLOG( "# Client tmpFolder: " << tmpFolder );

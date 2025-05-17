@@ -121,7 +121,7 @@ public:
             }
         }
         
-        _SIRIUS_ASSERT( m_bootstraps.size() > 0 );
+        _SIRIUS_ASSERT( m_bootstraps.size() > 0 || m_isBootstrap );
 
         for( const auto& nodeInfo : m_bootstraps )
         {
